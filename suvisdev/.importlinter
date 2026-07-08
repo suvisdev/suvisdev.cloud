@@ -1,0 +1,92 @@
+[importlinter]
+root_packages =
+    ontology
+    titanic
+    mova
+    viewer
+    silicon_valley
+    dispatch
+    gildle
+    sample
+    spam_filter
+    core
+
+# Rule 1: Hub (ontology) must not depend on any spoke.
+[importlinter:contract:hub-independence]
+name = Hub (ontology) must not depend on any spoke
+type = forbidden
+source_modules =
+    ontology
+forbidden_modules =
+    titanic
+    mova
+    viewer
+    silicon_valley
+    dispatch
+    gildle
+    sample
+    spam_filter
+
+# Rule 2: Spokes must not import each other directly (star topology).
+[importlinter:contract:spoke-independence]
+name = Spokes must not import each other directly (star topology)
+type = independence
+modules =
+    titanic
+    mova
+    viewer
+    silicon_valley
+    dispatch
+    gildle
+    sample
+    spam_filter
+# Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
+#
+# (a) DB metadata registration: core/matrix/grid_oracle_database_manager imports
+#     every spoke's ORM so SQLAlchemy registers all tables for create_tables().
+#     Since all spokes depend on core, this bridges spokes INDIRECTLY
+#     (spoke -> core -> spoke); there is NO direct spoke-to-spoke import here.
+#     Revisit by letting each spoke register its own models.
+#
+# (b) Cross-metadata FK (see apps/mova/_docs/CLAUDE.md B.3): mova chat/picks/
+#     reviews/watchlist/mypage tables FK-reference viewer users.id, so they
+#     import viewer's User ORM directly. A deliberate shared-User dependency.
+#     Revisit via a shared user-reference package.
+#
+# Remove the matching entries when either coupling is refactored away.
+ignore_imports =
+    core.matrix.grid_oracle_database_manager -> dispatch.adapter.outbound.orm
+    core.matrix.grid_oracle_database_manager -> dispatch.adapter.outbound.orm.adress_orm
+    core.matrix.grid_oracle_database_manager -> mova.adapter.outbound.orm
+    core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.admin_orm
+    core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.group_orm
+    core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.user_orm
+    core.matrix.grid_oracle_database_manager -> titanic.adapter.outbound.orm.passenger_jack_trainer_orm
+    core.matrix.grid_oracle_database_manager -> titanic.adapter.outbound.orm.passenger_rose_model_orm
+    mova.adapter.outbound.orm.market_chat_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_picks_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_reviews_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_watchlist_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.pg.market_reviews_pg_repository -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.pg.mypage_pg_repository -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.pg.user_preference_pg_repository -> viewer.adapter.outbound.orm.user_orm
+
+# Rule 3: Mova domain must stay pure (no app/adapter dependency).
+[importlinter:contract:mova-domain-independence]
+name = Mova domain must not import app or adapter
+type = forbidden
+source_modules =
+    mova.domain
+forbidden_modules =
+    mova.app
+    mova.adapter
+
+# Rule 4: Titanic domain must stay pure (hexagonal baseline, same rule).
+[importlinter:contract:titanic-domain-independence]
+name = Titanic domain must not import app or adapter
+type = forbidden
+source_modules =
+    titanic.domain
+forbidden_modules =
+    titanic.app
+    titanic.adapter

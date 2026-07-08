@@ -1,0 +1,221 @@
+{
+  "main": {
+    "id": "ce8bf193db1c96d8",
+    "type": "split",
+    "children": [
+      {
+        "id": "0f28403fada21d1b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "a5afa9e51a53ba29",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "그래프 뷰"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "109f913b6d17330c",
+    "type": "split",
+    "children": [
+      {
+        "id": "3892d9841110c289",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "82169b0e152eefb8",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "파일 탐색기"
+            }
+          },
+          {
+            "id": "e6a3023f907242a4",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "검색"
+            }
+          },
+          {
+            "id": "3a35b416b03b17b8",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "북마크"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "a29bd8a912ace42f",
+    "type": "split",
+    "children": [
+      {
+        "id": "f752a524a4140ec8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5776216e437afa72",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "백링크"
+            }
+          },
+          {
+            "id": "c42b4fcce09c3105",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "나가는 링크"
+            }
+          },
+          {
+            "id": "c2d9123fbe2ffcd9",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "태그"
+            }
+          },
+          {
+            "id": "be29aa1642b6fa33",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "모든 속성"
+            }
+          },
+          {
+            "id": "bb97c2f263086c03",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "개요"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:빠른 전환기 열기": false,
+      "graph:그래프 뷰 열기": false,
+      "canvas:새 캔버스 만들기": false,
+      "daily-notes:오늘의 일일 노트 열기": false,
+      "templates:템플릿 삽입": false,
+      "command-palette:명령어 팔레트 열기": false,
+      "bases:새 베이스 생성하기": false
+    }
+  },
+  "active": "a5afa9e51a53ba29",
+  "lastOpenFiles": [
+    "suvis/lib/mova-movies.ts.tmp.23976.9e17e8d97d42",
+    "suvis/lib/mova-api.ts.tmp.23976.98194bb2f8ee",
+    "suvis/app/mova/title/[id]/page.tsx.tmp.23976.c3940a9b63c5",
+    "suvis/app/mova/title/[id]/page.tsx.tmp.23976.61fe5e8b9264",
+    "suvis/app/mova/title/[id]/page.tsx.tmp.23976.6cfa2061c588",
+    "suvis/app/api/mova/titles/[id]/route.ts.tmp.23976.5f50eb12ab46",
+    "suvis/lib/mova-api.ts.tmp.23976.ac7f831ecfe0",
+    "suvisdev/apps/titanic/adapter/inbound/api/v1/passenger_cal_tester_router.py.tmp.23976.27194f29d652",
+    "suvisdev/apps/titanic/adapter/inbound/api/v1/passenger_cal_tester_router.py.tmp.23976.96d422e76b3f",
+    "suvisdev/apps/titanic/app/use_cases/passenger_jack_trainer_interactor.py.tmp.23976.8ea0b1caccf1",
+    "suvisdev/apps/titanic/app/ports/input/passenger_jack_trainer_use_case.py.tmp.23976.990ebc8a6857",
+    "vault/suvis/react-rules.md",
+    "suvisdev/apps/mova/_docs/mova-casting.md",
+    "suvisdev/apps/viewer/_docs/CLAUDE.md",
+    "suvisdev/apps/titanic/_docs/titanic-features.md",
+    "suvisdev/apps/titanic/_docs/titanic-machine-learning.md",
+    "suvisdev/apps/titanic/_docs/titanic-nf.md",
+    "suvisdev/apps/titanic/_docs/CLAUDE.md",
+    "suvisdev/apps/titanic/_docs/titanic-algorithm.md",
+    "suvisdev/apps/titanic/_docs/titanic-algorithms.md",
+    "vault/suvisdev/CLAUDE.MD",
+    "vault/suvisdev/entity-rules.md",
+    "suvisdev/apps/mova/_docs/260506_cine_app_naming.md",
+    "suvisdev/apps/mova/_docs/mova_screen_design.md",
+    "suvisdev/apps/mova/_docs/CLOUD.SUVISDEV 프로젝트 구조.md",
+    "vault/suvis/CLAUDE.MD",
+    "suvis/node_modules/@hookform/resolvers/README.md",
+    "CLAUDE.md",
+    "suvisdev/apps/mova/_docs/MOVA_ERD.md",
+    "suvisdev/apps/mova/_docs/CLAUDE.md",
+    "suvis/_claude/react-rules.md",
+    "suvisdev/apps/mova/_docs/mova_blueprint.md",
+    "suvis/node_modules/react-hook-form/README.md",
+    "suvis/node_modules/@date-fns/tz/CHANGELOG.md",
+    "suvis/node_modules/cmdk/LICENSE.md",
+    "suvis/node_modules/eventemitter3/README.md",
+    ".venv/Lib/site-packages/sklearn/datasets/images/flower.jpg",
+    ".venv/Lib/site-packages/sklearn/datasets/images/china.jpg",
+    ".venv/Lib/site-packages/scipy/ndimage/tests/dots.png"
+  ]
+}

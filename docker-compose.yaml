@@ -1,0 +1,29 @@
+services:
+  # 1. 백엔드(FastAPI) 서비스 정의
+  backend:
+    build:
+      context: ./suvisdev      # suvisdev 폴더 안에 있는 Dockerfile을 읽어라
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"            # 내 진짜 컴퓨터의 8000번 포트와 도커의 8000번 포트를 연결해라
+    environment:
+      - ENV=production
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # 2. 프론트엔드(Next.js) 서비스 정의
+  frontend:
+    build:
+      context: ./suvis         # suvis 폴더 안에 있는 Dockerfile을 읽어라
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"            # 내 진짜 컴퓨터의 3000번 포트와 도커의 3000번 포트를 연결해라
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend                # 백엔드가 먼저 켜진 다음에 프론트엔드를 켜라

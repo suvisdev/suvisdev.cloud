@@ -1,0 +1,9 @@
+{
+    "python.analysis.extraPaths": [
+        "./suvisdev/apps"
+    ],
+    "dart.showTodos": false,
+    "dart.analysisExcludedFolders": [
+        "taper/flutter"
+    ]
+}

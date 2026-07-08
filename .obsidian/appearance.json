@@ -1,0 +1,7 @@
+{
+  "theme": "moonstone",
+  "cssTheme": "Minimal",
+  "enabledCssSnippets": [
+    "hide-cache"
+  ]
+}

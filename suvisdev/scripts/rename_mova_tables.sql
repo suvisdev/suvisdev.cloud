@@ -1,0 +1,11 @@
+﻿-- Neon SQL Editor에서 실행하거나:
+--   cd suvisdev && python scripts/apply_table_rename.py
+--
+-- Secom 미사용 시 user_groups / users 제거 후 mova_* → 짧은 이름으로 RENAME.
+-- 이미 rename 된 환경에서는 apply_table_rename.py 가 건너뜁니다.
+
+-- 수동 실행 시 (apply_table_rename.py 권장):
+-- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS user_groups CASCADE;
+-- ALTER TABLE mova_movies RENAME TO movies;
+-- ... (나머지는 apply_table_rename.py 참고)

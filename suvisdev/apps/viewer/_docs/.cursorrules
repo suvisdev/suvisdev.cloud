@@ -1,0 +1,109 @@
+# Viewer App Harness — `suvisdev/apps/viewer/` (Cursor)
+
+> **역할:** `groups` · `admins` · `users` 기반 **프로덕션** login/signup API.  
+> **상세 SSOT:** [`CLAUDE.md`](CLAUDE.md)  
+> **레이어 기준선:** [`titanic/_docs/CLAUDE.md`](../titanic/_docs/CLAUDE.md)  
+> **상위:** [`suvisdev/_docs/CLAUDE.MD`](../../../_docs/CLAUDE.MD)
+
+`friday13th/`는 **수업용** — 프로덕션 인증은 **viewer만** 사용한다.
+
+---
+
+## Mandatory workflow (`apps/viewer/` 수정 전)
+
+1. 본 폴더 [`CLAUDE.md`](CLAUDE.md)
+2. [`suvisdev/_docs/CLAUDE.MD`](../../../_docs/CLAUDE.MD)
+3. Mova FK 연동 시 [`mova/_docs/CLAUDE.md`](../mova/_docs/CLAUDE.md)
+
+---
+
+## API
+
+| 메서드 | 경로 | 역할 |
+|--------|------|------|
+| `POST` | `/viewer/login/login` | 로그인 |
+| `POST` | `/viewer/signup/signup` | 회원가입 |
+
+프론트: `suvis/app/viewer/login`, `suvis/app/viewer/signup`
+
+---
+
+## 참조 파일
+
+| 역할 | 파일 |
+|------|------|
+| Login Router | `adapter/inbound/api/v1/login_router.py` |
+| Signup Router | `adapter/inbound/api/v1/signup_router.py` |
+| DI | `dependencies/login.py` (`get_secom_db`) |
+| Dto | `app/dtos/auth_command_dto.py` |
+| ORM | `user_model.py`, `admin_model.py`, `group_model.py` |
+
+---
+
+## Viewer 특이점
+
+### DB 세션
+
+```python
+from core.matrix.grid_oracle_database_manager import get_secom_db
+```
+
+Titanic → `get_db()`, Mova → `get_mova_db()` 와 혼동 금지.
+
+### 예외 처리
+
+Repository `XxxRepositoryError` → Router에서 `HTTPException` 변환.
+
+```python
+try:
+    return (await login.login(schema)).to_schema()
+except LoginRepositoryError as e:
+    raise HTTPException(status_code=401, detail=str(e))
+```
+
+### 테이블 생성 순서
+
+**Viewer(SecomBase)가 Mova보다 먼저** — Mova `chat`/`picks`/`reviews`가 `users.id` FK 참조.
+
+### 시드
+
+`seed_secom_if_empty()` — lifespan에서 자동 (`groups` 2, `admins` 1).
+
+### 비밀번호
+
+`bcrypt` — **Repository**에서 해싱·검증. Router·Interactor에서 평문 직접 처리 금지.
+
+### ORM 관계
+
+```text
+groups (1) ──< admins (N)
+groups (1) ──< users (N)
+```
+
+`User.__table__` — Mova cross-metadata FK 참조 대상.
+
+---
+
+## 금지 (Viewer 추가)
+
+| ❌ | ✅ |
+|----|-----|
+| `friday13th` 경로 | `viewer/` |
+| Router에서 bcrypt | Repository |
+| `get_db()` / `get_mova_db()` | `get_secom_db()` |
+| Viewer를 Mova보다 늦게 생성 | `create_tables()` 순서 유지 |
+
+---
+
+## 충돌 시 우선순위
+
+1. 사용자 지시
+2. 본 폴더 [`CLAUDE.md`](CLAUDE.md)
+3. [`suvisdev/_docs/CLAUDE.MD`](../../../_docs/CLAUDE.MD)
+
+### Cursor 참조 예
+
+```
+@suvisdev/apps/viewer/_docs/CLAUDE.md
+@suvisdev/_docs/CLAUDE.MD
+```

@@ -1,0 +1,71 @@
+{
+  "collapse-filter": false,
+  "search": "",
+  "showTags": false,
+  "showAttachments": false,
+  "hideUnresolved": true,
+  "showOrphans": false,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    {
+      "query": "path:suvisdev",
+      "color": { "a": 1, "rgb": 65531 }
+    },
+    {
+      "query": "path:suvis",
+      "color": { "a": 1, "rgb": 16664648 }
+    },
+    {
+      "query": "path:vault",
+      "color": { "a": 1, "rgb": 10265519 }
+    },
+    {
+      "query": "file:CLAUDE",
+      "color": { "a": 1, "rgb": 16498468 }
+    },
+    {
+      "query": "file:agent",
+      "color": { "a": 1, "rgb": 16498468 }
+    },
+    {
+      "query": "path:DevOps/Backend",
+      "color": { "a": 1, "rgb": 5210615 }
+    },
+    {
+      "query": "path:DevOps/Frontend",
+      "color": { "a": 1, "rgb": 1096065 }
+    },
+    {
+      "query": "path:DevOps/Operator",
+      "color": { "a": 1, "rgb": 16347926 }
+    },
+    {
+      "query": "path:AIOPS",
+      "color": { "a": 1, "rgb": 11032055 }
+    },
+    {
+      "query": "path:타이타닉",
+      "color": { "a": 1, "rgb": 16281969 }
+    },
+    {
+      "query": "path:아고라",
+      "color": { "a": 1, "rgb": 2282478 }
+    },
+    {
+      "query": "path:raw",
+      "color": { "a": 1, "rgb": 10265519 }
+    }
+  ],
+  "collapse-display": true,
+  "showArrow": false,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": true,
+  "centerStrength": 0.518713248970312,
+  "repelStrength": 10,
+  "linkStrength": 1,
+  "linkDistance": 250,
+  "scale": 0.7132754626224256,
+  "close": true
+}

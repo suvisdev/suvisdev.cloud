@@ -1,0 +1,28 @@
+repos:
+  # 1. ruff — lint + format
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # 2. mypy — 정적 타입 검사
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic
+          - sqlalchemy[mypy]
+        args: [--config-file=pyproject.toml]
+
+  # 3. import-linter — 스타-토폴로지 의존 규칙 강제
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: "Architecture: Star-topology dependency check"
+        entry: lint-imports
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -1,0 +1,104 @@
+# Titanic App Harness — `suvisdev/apps/titanic/` (Cursor)
+
+> **역할:** CSV 업로드(James)·조회(Walter)·선장 채팅(Smith) — 백엔드 앱 **헥사고날 기준선**.  
+> **상세 SSOT:** [`CLAUDE.md`](CLAUDE.md)  
+> **상위:** [`suvisdev/_docs/CLAUDE.MD`](../../../_docs/CLAUDE.MD) · [루트 Karpathy](../../../../CLAUDE.md)
+
+`mova`·`viewer` 신규/수정 시 **이 앱과 동일 레이어**를 따른다. 본 파일은 Titanic **특이점** 요약이다.
+
+---
+
+## Mandatory workflow (`apps/titanic/` 수정 전)
+
+1. 본 폴더 [`CLAUDE.md`](CLAUDE.md)
+2. [`suvisdev/_docs/CLAUDE.MD`](../../../_docs/CLAUDE.MD)
+3. [`_docs/entity-rules.md`](../../../_docs/entity-rules.md) (스키마·PK 변경 시)
+4. 도메인 위키: `titanic-features.md`, `titanic-walter.md` 등 `_docs/` 내 문서
+
+---
+
+## 기준선 참조 파일
+
+| 역할 | 파일 |
+|------|------|
+| Router | `adapter/inbound/api/v1/crew_james_director_router.py` |
+| Input Port | `app/ports/input/crew_james_director_use_case.py` |
+| Interactor | `app/use_cases/crew_james_director_interactor.py` |
+| Output Port | `app/ports/output/crew_james_director_repository.py` |
+| PgRepository | `adapter/outbound/pg/crew_james_director_pg_repository.py` |
+| DI | `dependencies/crew_james_director_provider.py` |
+| DTO | `app/dtos/crew_james_director_dto.py` (`PersonCommand`, `JamesResponse`) |
+| ORM | `adapter/outbound/orm/titanic_model.py` |
+| Router 집약 | `adapter/inbound/api/__init__.py` → `titanic_router` |
+
+---
+
+## Titanic 특이점 (Mova와 다름)
+
+### DTO = HTTP 계약
+
+`JamesResponse` / `WalterResponse`가 곧 OpenAPI 응답이다. Router에서 **`to_schema()` 없이** 반환한다.
+
+```python
+return await walter.introduce_myself(schema)  # WalterResponse 직접 반환
+```
+
+### DB 세션
+
+```python
+from core.matrix.grid_oracle_database_manager import get_db  # Titanic 전용
+```
+
+Mova → `get_mova_db()`, Viewer → `get_secom_db()`.
+
+### 테이블 생성 순서
+
+`create_tables()`에서 **Titanic이 첫 번째** (`TitanicBase`). 순서를 임의로 바꾸지 않는다.
+
+### 라우터
+
+| 라우터 파일 | prefix (`main.py`에 `/api` 포함 시) | 담당 |
+|------------|--------------------------------------|------|
+| `crew_james_director_router.py` | `/api/titanic/james` | CSV 업로드 |
+| `crew_walter_roaster_router.py` | `/api/titanic/walter` | 승객 조회 |
+| `crew_smith_captain_router.py` | `/api/titanic/smith` | 선장 채팅·소개 |
+
+`titanic_router` prefix `/titanic` + `main.py` `prefix="/api"`.
+
+### Smith Captain
+
+- `chat()` — Ollama EEVE (`adapter/outbound/llm/` outbound adapter 경유)
+- `introduce_myself()` — 승객 정보 기반 소개
+- `SmithCaptainInteractor`는 `JackTrainerUseCase`, `RoseModelUseCase`를 **DI**로 받음 (내부 `new` 금지)
+
+---
+
+## 도메인 문서
+
+- [`titanic-features.md`](titanic-features.md) — 피처 정리
+- [`titanic-walter.md`](titanic-walter.md) — Walter 맥락
+- ERD·ML·알고리즘: `CLAUDE.md` 하단 위키 링크 참조
+
+---
+
+## 새 엔드포인트
+
+[`suvisdev/CLAUDE.md` §L 체크리스트](../../../CLAUDE.md) 따름.  
+`response_model`에 Schema 대신 **`JamesResponse` / `WalterResponse`** DTO 직접 사용 가능.
+
+---
+
+## 충돌 시 우선순위
+
+1. 사용자 지시
+2. 본 폴더 [`CLAUDE.md`](CLAUDE.md)
+3. [`suvisdev/CLAUDE.md`](../../../CLAUDE.md)
+4. [루트 `CLAUDE.md`](../../../../CLAUDE.md)
+
+### Cursor 참조 예
+
+```
+@suvisdev/apps/titanic/_docs/CLAUDE.md
+@suvisdev/CLAUDE.md
+@suvisdev/apps/titanic/_docs/titanic-features.md
+```

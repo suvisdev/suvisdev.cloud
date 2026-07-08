@@ -1,0 +1,258 @@
+"use client"
+
+import { useRef, useState } from "react"
+import { Bot, CheckCircle2, CornerDownLeft, Loader2, Mail, Send } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { patchState } from "@/lib/form-status"
+import { cn } from "@/lib/utils"
+
+type SendState = {
+  loading: boolean
+  error: string | null
+  result: { to: string; subject: string } | null
+}
+
+const initial: SendState = { loading: false, error: null, result: null }
+
+type DispatchEmailResponse = {
+  success?: boolean
+  to?: string
+  subject?: string
+  detail?: string
+}
+
+export default function DispatchPage() {
+  const [state, setState] = useState<SendState>(initial)
+  const patch = (p: Partial<SendState>) => patchState(setState, p)
+
+  const toRef = useRef<HTMLInputElement>(null)
+  const subjectRef = useRef<HTMLInputElement>(null)
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (state.loading) return
+
+    const to = toRef.current?.value.trim() ?? ""
+    const subject = subjectRef.current?.value.trim() || undefined
+    const prompt = promptRef.current?.value.trim() ?? ""
+
+    if (!to) { patch({ error: "수신자 이메일을 입력해 주세요." }); return }
+    if (!prompt) { patch({ error: "메일 내용 지시를 입력해 주세요." }); return }
+
+    patch({ loading: true, error: null, result: null })
+
+    try {
+      const res = await fetch("/api/dispatch/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, prompt }),
+      })
+      const data = await res.json() as DispatchEmailResponse
+      if (!res.ok) {
+        throw new Error(data.detail || `발송 실패 (${res.status})`)
+      }
+      patch({ result: { to: data.to ?? to, subject: data.subject ?? "메일 발송" }, loading: false })
+      if (promptRef.current) promptRef.current.value = ""
+      if (subjectRef.current) subjectRef.current.value = ""
+    } catch (err) {
+      patch({ error: err instanceof Error ? err.message : "오류가 발생했습니다.", loading: false })
+    }
+  }
+
+  return (
+    <div className="min-h-[calc(100vh-4rem)] bg-[#f3f3f3] px-4 py-4 dark:bg-[#0d0f14] md:px-6 md:py-6">
+      <main className="mx-auto grid max-w-[1500px] gap-4 md:grid-cols-[220px_1fr]">
+        {/* 사이드바 */}
+        <aside className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-[#252b3b] dark:bg-[#161a24]">
+          <p className="text-xs font-semibold tracking-wide text-neutral-500">DISPATCH</p>
+          <div className="mt-4 space-y-2">
+            <div className="block rounded-md bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-900 dark:bg-[#252b3b] dark:text-neutral-100">
+              메일 발송
+            </div>
+          </div>
+        </aside>
+
+        {/* 메인 */}
+        <section className="rounded-xl border border-neutral-200 bg-white p-6 dark:border-[#252b3b] dark:bg-[#161a24] md:p-8">
+          <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500">DISPATCH</p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            AI 메일 발송
+          </h1>
+          <p className="mt-5 max-w-3xl text-sm leading-7 text-neutral-600 dark:text-neutral-400 md:text-base">
+            수신자와 내용 지시를 입력하면 엑사원이 메일 본문을 작성해 발송합니다.
+          </p>
+
+          <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_240px]">
+            {/* 폼 카드 */}
+            <div className="overflow-hidden rounded-xl border border-neutral-200 dark:border-[#252b3b]">
+              {/* 헤더 */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-800 to-indigo-900 px-6 py-5">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(135deg, transparent, transparent 18px, rgba(255,255,255,0.6) 18px, rgba(255,255,255,0.6) 19px)",
+                  }}
+                />
+                <div aria-hidden className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 opacity-[0.06]">
+                  <Mail className="size-24 text-white" />
+                </div>
+                <div className="relative flex items-center gap-4">
+                  <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-white/10 ring-2 ring-white/20 backdrop-blur-sm">
+                    <Send className="size-7 text-indigo-200" aria-hidden />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-indigo-300/80">
+                      Powered by Exaone 3.5
+                    </p>
+                    <h2 className="mt-0.5 text-lg font-bold text-white">Dispatch</h2>
+                    <p className="text-sm text-indigo-200">AI가 메일 본문을 작성하여 발송</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 성공 결과 */}
+              {state.result && (
+                <div className="flex items-start gap-3 border-b border-emerald-200 bg-emerald-50 px-5 py-4 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" aria-hidden />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">발송 완료</p>
+                    <p className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400">
+                      <span className="font-medium">{state.result.to}</span>에게 &ldquo;{state.result.subject}&rdquo; 발송됨
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 오류 */}
+              {state.error && (
+                <p className="border-b border-rose-200 bg-rose-50 px-5 py-2.5 text-xs text-rose-700 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-400">
+                  {state.error}
+                </p>
+              )}
+
+              {/* 폼 */}
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-4 bg-neutral-50 p-5 dark:bg-[#0d0f14]"
+              >
+                {/* 수신자 */}
+                <div>
+                  <label htmlFor="dispatch-to" className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    수신자 이메일 <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    ref={toRef}
+                    id="dispatch-to"
+                    type="email"
+                    placeholder="example@email.com"
+                    disabled={state.loading}
+                    className={cn(
+                      "mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                      "placeholder:text-neutral-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200",
+                      "disabled:opacity-50 dark:border-[#252b3b] dark:bg-[#161a24] dark:text-neutral-100 dark:placeholder:text-neutral-600",
+                      "dark:focus:border-indigo-600 dark:focus:ring-indigo-900/40",
+                    )}
+                  />
+                </div>
+
+                {/* 제목 */}
+                <div>
+                  <label htmlFor="dispatch-subject" className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    제목 <span className="text-neutral-400 font-normal">(선택)</span>
+                  </label>
+                  <input
+                    ref={subjectRef}
+                    id="dispatch-subject"
+                    type="text"
+                    placeholder="제목을 입력하지 않으면 AI가 자동 설정합니다"
+                    disabled={state.loading}
+                    className={cn(
+                      "mt-1.5 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                      "placeholder:text-neutral-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200",
+                      "disabled:opacity-50 dark:border-[#252b3b] dark:bg-[#161a24] dark:text-neutral-100 dark:placeholder:text-neutral-600",
+                      "dark:focus:border-indigo-600 dark:focus:ring-indigo-900/40",
+                    )}
+                  />
+                </div>
+
+                {/* 내용 지시 */}
+                <div>
+                  <label htmlFor="dispatch-prompt" className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    내용 지시 <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    ref={promptRef}
+                    id="dispatch-prompt"
+                    rows={5}
+                    placeholder="예: 내일 오전 미팅 일정을 확인하는 짧은 메일을 친근하게 써줘"
+                    disabled={state.loading}
+                    className={cn(
+                      "mt-1.5 w-full resize-none rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                      "placeholder:text-neutral-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200",
+                      "disabled:opacity-50 dark:border-[#252b3b] dark:bg-[#161a24] dark:text-neutral-100 dark:placeholder:text-neutral-600",
+                      "dark:focus:border-indigo-600 dark:focus:ring-indigo-900/40",
+                    )}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    disabled={state.loading}
+                    className="gap-2 bg-indigo-700 text-white hover:bg-indigo-600 disabled:opacity-50 dark:bg-indigo-800 dark:hover:bg-indigo-700"
+                  >
+                    {state.loading ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        발송 중…
+                      </>
+                    ) : (
+                      <>
+                        <CornerDownLeft className="size-4" aria-hidden />
+                        발송
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            {/* 우측 사이드바 */}
+            <aside className="space-y-4">
+              <div className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 dark:border-[#252b3b] dark:bg-[#1a1f2d]">
+                <div className="border-b border-neutral-200 px-4 py-3 dark:border-[#252b3b]">
+                  <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">파이프라인</p>
+                </div>
+                <div className="space-y-3 p-4 text-center text-neutral-700 dark:text-neutral-300">
+                  <div>
+                    <Bot className="mx-auto size-7 text-indigo-500" />
+                    <p className="mt-1 text-sm font-semibold">Exaone 3.5</p>
+                    <p className="text-xs text-neutral-500">본문 작성</p>
+                  </div>
+                  <div className="mx-auto h-4 w-px bg-neutral-200 dark:bg-[#252b3b]" aria-hidden />
+                  <div>
+                    <Send className="mx-auto size-7 text-emerald-500" />
+                    <p className="mt-1 text-sm font-semibold">n8n → Gmail</p>
+                    <p className="text-xs text-neutral-500">실제 발송</p>
+                  </div>
+                </div>
+              </div>
+
+              <article className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm leading-6 text-neutral-600 dark:border-[#252b3b] dark:bg-[#1a1f2d] dark:text-neutral-400">
+                <p className="font-semibold text-neutral-900 dark:text-neutral-100">사용 안내</p>
+                <ul className="mt-2 space-y-1.5 text-xs leading-5">
+                  <li>· 내용 지시만 입력하면 AI가 자연스러운 본문을 작성합니다</li>
+                  <li>· 제목 미입력 시 기본값이 적용됩니다</li>
+                  <li>· 발송에 수십 초가 걸릴 수 있습니다</li>
+                </ul>
+              </article>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+  )
+}

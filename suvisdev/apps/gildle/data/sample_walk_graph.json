@@ -1,0 +1,6 @@
+[
+  {"from": "N1", "to": "N2", "from_lat": 37.5260, "from_lng": 126.9245, "to_lat": 37.5265, "to_lng": 126.9270, "base_distance_m": 200, "road_name": "여의대로"},
+  {"from": "N2", "to": "N5", "from_lat": 37.5265, "from_lng": 126.9270, "to_lat": 37.5270, "to_lng": 126.9290, "base_distance_m": 200, "road_name": "여의대로"},
+  {"from": "N1", "to": "N3", "from_lat": 37.5260, "from_lng": 126.9245, "to_lat": 37.5250, "to_lng": 126.9255, "base_distance_m": 150, "road_name": "샛길"},
+  {"from": "N3", "to": "N5", "from_lat": 37.5250, "from_lng": 126.9255, "to_lat": 37.5270, "to_lng": 126.9290, "base_distance_m": 150, "road_name": "샛길"}
+]

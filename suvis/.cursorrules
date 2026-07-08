@@ -1,0 +1,107 @@
+﻿# Frontend Harness — `suvis/` (Cursor)
+
+> **PKS** = Prompt (본 `.cursorrules`, 사용자 작업) + Knowledge ([`CLAUDE.md`](CLAUDE.md), [`_docs/react-rules.md`](_docs/react-rules.md)) + System (Next.js · TypeScript · Tailwind 코드).
+
+**상세 SSOT:** [`CLAUDE.md`](CLAUDE.md) — 본 파일은 Cursor용 **요약 하네스**이다. 충돌 시 `CLAUDE.md`가 우선한다.
+
+**스택:** Next.js (App Router) · TypeScript · Tailwind CSS  
+**상위 원칙:** [루트 `CLAUDE.md`](../CLAUDE.md) — Karpathy 네 원칙 (항상 유효)
+
+---
+
+## Mandatory workflow (`suvis/` 수정 전)
+
+1. **본 파일** [`CLAUDE.md`](CLAUDE.md) — 디렉터리 · 서버/클라이언트 · API · 라우트
+2. [`_docs/react-rules.md`](_docs/react-rules.md) — React·폼·상태 세부 규칙
+3. [`suvisdev/_docs/CLAUDE.MD`](../suvisdev/_docs/CLAUDE.MD) — 백엔드 API 계약 확인 시
+
+관례를 **추측하지 않는다.**
+
+---
+
+## 디렉터리 (요약)
+
+```text
+suvis/app/              # App Router (page.tsx = 서버 컴포넌트 기본)
+suvis/app/api/          # Next.js API Routes
+suvis/app/{route}/_components/  # "use client" 분리
+suvis/components/       # 공용 컴포넌트
+suvis/lib/              # 유틸·API 클라이언트 (mova-api.ts, form-status.ts 등)
+suvis/types/            # 전역 TypeScript 타입
+```
+
+주요 `lib/`: `form-status.ts`, `user-facing-error.ts`, `mova-api.ts`, `suvis-session.ts`, `utils.ts`
+
+---
+
+## 핵심 규칙
+
+### 서버 vs 클라이언트
+
+- `page.tsx`는 기본 **서버 컴포넌트** — `fetch`, `async/await` 직접 사용.
+- `useState`·이벤트·훅이 필요한 **최소 단위**만 `"use client"` + `_components/`.
+
+### API
+
+- 백엔드 베이스 URL: **`NEXT_PUBLIC_API_URL`** (하드코딩 금지).
+- **서버 컴포넌트:** `fetch` 직접.
+- **클라이언트 컴포넌트:** `lib/` API 클라이언트 경유 — **직접 `fetch` 금지**.
+- `cache: 'no-store'` (실시간) 또는 `next: { revalidate: N }` (ISR).
+
+### 스타일·타입
+
+- **Tailwind**만 — 인라인 `style` 지양. 전역 `app/globals.css`, Mova 전용 `app/mova/mova.css`.
+- `any` 금지 — `unknown` + type guard. API 타입은 `types/` 또는 `_components/types.ts`.
+
+---
+
+## 라우트 · 백엔드 API
+
+| 라우트 | 역할 | 백엔드 API |
+|--------|------|-----------|
+| `/` | 메인 | — |
+| `/login` | 로그인 | `POST /viewer/login/login` |
+| `/signup` | 회원가입 | `POST /viewer/signup/signup` |
+| `/contact` | 연락처 | — |
+| `/lesson` | 레슨 | — |
+| `/titanic` | Titanic 메인 | — |
+| `/titanic/data-collection` | CSV 업로드 | `POST /titanic/james/...` |
+| `/titanic/passengers` | 승객 조회 | `GET /titanic/walter/...` |
+| `/titanic/smith-captain` | 선장 채팅 | `POST /titanic/smith/chat` |
+| `/mova` | Mova 메인 | — |
+| `/mova/login` | Mova 로그인 | — |
+| `/mova/main` | Mova 대시보드 | `GET /mova/...` |
+| `/mova/movies` | 영화 목록 | `GET /mova/movies` |
+| `/mova/title` | 영화 타이틀 | `GET /mova/movies/{id}` |
+
+---
+
+## 금지 (요약)
+
+| ❌ | ✅ |
+|----|-----|
+| 서버 컴포넌트에 무분별 `"use client"` | 최소 클라이언트 단위 분리 |
+| 클라이언트에서 `fetch` 직접 호출 | `lib/` API 클라이언트 경유 |
+| API URL 하드코딩 | `NEXT_PUBLIC_API_URL` |
+| `any` | 명시적 타입 |
+| 인라인 `style` | Tailwind 클래스 |
+
+---
+
+## 충돌 시 우선순위
+
+1. 사용자의 **더 구체적·최근** 지시
+2. [`_docs/react-rules.md`](_docs/react-rules.md)
+3. 본 폴더 [`CLAUDE.md`](CLAUDE.md)
+4. [루트 `CLAUDE.md`](../CLAUDE.md)
+
+Karpathy 네 원칙(가정 명시 · 최소 diff · 검증 가능한 성공 기준)은 **항상** 유지한다.
+
+### Cursor 참조 예
+
+```
+@suvis/_docs/CLAUDE.MD
+@suvis/_docs/react-rules.md
+@CLAUDE.md
+@suvisdev/_docs/CLAUDE.MD
+```

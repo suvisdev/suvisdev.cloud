@@ -1,0 +1,49 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["apps", "core"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (ruff format handles it)
+    "B008",  # FastAPI Depends() in default args — intentional pattern
+]
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["E402"]  # sys.path 조작 후 import — 구조상 불가피
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "ontology",
+    "titanic", "mova", "viewer", "silicon_valley",
+    "dispatch", "spam_filter",
+    "friday13th", "imitation_game", "inception", "social_network",
+    "gildle",
+    "core",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ──────────────────────────────────────────────
+# mypy — strict 정적 타입 검사
+# ──────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+mypy_path = ["apps"]
+exclude = [
+    "tests/",
+    "scripts/",
+    "alembic/",
+]

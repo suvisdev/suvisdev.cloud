@@ -1,0 +1,140 @@
+# Top-Level Harness — Wiki + LLM PKS (English)
+
+> **PKS** = Prompt (`.cursorrules`, user task) + Knowledge (`suvisdev/_claude/`, `apps/*/_docs/`, `CLAUDE.md`, `AGENTS.md`) + System (architecture-compliant code).
+
+## Mandatory workflow (before any `suvisdev/` change)
+
+1. Read **Knowledge**: `.cursorrules` → `CLAUDE.md` → relevant `suvisdev/_claude/` · `apps/*/_docs/` pages → `AGENTS.md` when touching app paths.
+2. Do **not** guess conventions; Wiki overrides model priors.
+3. Apply **Karpathy harness**: state assumptions, minimal diff, verifiable success criteria.
+4. **PKS loop**: Prompt → Knowledge → System implementation.
+
+## Architecture (non-negotiable)
+
+All backend domain code **MUST** follow:
+
+| Principle | Requirement |
+|-----------|-------------|
+| **SOLID** | SRP, OCP, LSP, ISP, DIP — no layer-skipping, no god classes |
+| **Hexagonal** | Inbound adapters, input ports, interactors, output ports, outbound adapters |
+| **Clean Architecture** | Dependencies point **inward**; domain/application must not import FastAPI, ORM, or HTTP |
+| **DDD** | Entities, value objects, aggregates where applicable; ubiquitous language from wiki/domain docs |
+
+Standard request flow:
+
+```text
+Router (Schema) → Input Port (Schema in, Dto out) → Interactor (Schema→Command)
+  → Output Port → PgRepository → Dto → Router (to_schema)
+```
+
+## Module path notation (suvisdev)
+
+Use this **canonical agent notation** in rules, docs, and examples (filesystem may differ):
+
+| Layer | Convention | Example |
+|-------|------------|---------|
+| App modules | `suvisdev.<app>.<layer>...` — **omit `apps`** | `suvisdev.mova.app.use_cases.movies_interactor` |
+| Core / infra | `suvisdev.core.<module>...` | `suvisdev.core.matrix.grid_oracle_database_manager` |
+
+Rules:
+
+- Never write `suvisdev.apps.<app>` — the `apps` segment is implicit and omitted.
+- All `core/` modules are prefixed `suvisdev.core.` in documentation and agent-facing import examples.
+- Physical paths: `suvisdev/apps/<app>/` and `suvisdev/core/`; logical namespace is `suvisdev.<app>` and `suvisdev.core`.
+
+## Conflict priority
+
+1. User's most specific **recent** instruction  
+2. `suvisdev/_claude/` · `apps/*/_docs/` wiki rules for the affected area  
+3. `CLAUDE.md` backend handoff section  
+4. This English top-level block  
+5. Korean harness summary below  
+
+Karpathy principles (no implicit assumptions, minimal diff) **always** apply.
+
+## Constraints
+
+- Do not weaken SOLID or layer boundaries for speed.
+- Do not add features, abstractions, or configs outside request scope.
+- When rules conflict with legacy code, change only what the task requires; note the reason in one line.
+
+---
+
+# 하네스 엔지니어링 (Karpathy 정렬) — Backend
+
+이 저장소 `suvisdev/` 에서 에이전트는 **행동을 제약하는 하네스**로 동작한다.  
+상세·예시는 루트 [`CLAUDE.md`](CLAUDE.md)를 따른다. 인덱스 제외 패턴은 [`.cursorignore`](.cursorignore)와 동기화한다.
+
+---
+
+## 필수: 코딩 규칙 (코드 작성 전)
+
+**`suvisdev/` 아래 Python·FastAPI 코드를 작성·수정하기 전에**, 반드시 아래 순서로 문서를 읽고 규칙을 인지한다.  
+문서 없이 관례를 추측하여 구현하지 않는다.
+
+### 1단계 — 인덱스
+
+- [`suvisdev/_claude/.cursorrules`](suvisdev/_claude/.cursorrules) → [`CLAUDE.md`](suvisdev/_claude/CLAUDE.md)  
+  - 백엔드 아키텍처·레이어·SOLID
+- [`suvis/_claude/.cursorrules`](suvis/_claude/.cursorrules) → [`CLAUDE.md`](suvis/_claude/CLAUDE.md) · [`REACT_RULES.md`](suvis/_claude/REACT_RULES.md)  
+  - 프론트엔드 규칙 (`suvis/` 작업 시)
+
+### 2단계 — 백엔드 규칙 (전문 읽기)
+
+- [`suvisdev/_claude/CLAUDE.md`](suvisdev/_claude/CLAUDE.md) §B–I  
+  - Hexagonal · Clean · 레이어 · SOLID · 요청 흐름
+- [`suvisdev/_claude/ENTITY_RULE.md`](suvisdev/_claude/ENTITY_RULE.md)  
+  - 모든 테이블 PK: `int` 자동 증감, 컬럼명 `id`
+
+### 3단계 — 도메인 문서 (해당 작업 시)
+
+| 작업 영역 | 추가로 읽을 문서 |
+|-----------|------------------|
+| `suvisdev/apps/titanic/` | [`_docs/.cursorrules`](suvisdev/apps/titanic/_docs/.cursorrules) → [`CLAUDE.md`](suvisdev/apps/titanic/_docs/CLAUDE.md) · [`james_fastapi_context.md`](suvisdev/apps/titanic/_docs/james_fastapi_context.md) |
+| `suvisdev/apps/mova/` | [`_docs/.cursorrules`](suvisdev/apps/mova/_docs/.cursorrules) → [`CLAUDE.md`](suvisdev/apps/mova/_docs/CLAUDE.md) · [`MOVA_ERD.md`](suvisdev/apps/mova/_docs/MOVA_ERD.md) |
+| `suvisdev/apps/viewer/` | [`_docs/.cursorrules`](suvisdev/apps/viewer/_docs/.cursorrules) → [`CLAUDE.md`](suvisdev/apps/viewer/_docs/CLAUDE.md) |
+
+### 4단계 — 구현
+
+- 위 규칙을 만족하는 **최소 diff**로만 코드 작성
+- SOLID + Hexagonal + Clean + DDD (영문 최상위 규칙) 준수
+- 규칙과 충돌하는 기존 코드를 건드릴 때는 이유를 한 줄로 남긴다
+
+### Cursor 참조 예
+
+```
+@.cursorrules
+@suvisdev/_claude/.cursorrules
+@suvisdev/_claude/CLAUDE.md
+@suvis/_claude/.cursorrules
+@CLAUDE.md
+@suvisdev/_claude/ENTITY_RULE.md
+@AGENTS.md
+```
+
+---
+
+## 트레이드오프
+
+비자명·한 줄 수정 수준은 판단으로 완화한다. 그 외 작업은 **속도보다 신중함**을 우선한다.
+
+---
+
+## 네 가지 원칙 (요약)
+
+1. **구현 전 사고** — 가정을 말로 밝힌다. 모호하면 멈추고 질문한다.
+2. **단순성 우선** — 요청 범위 밖 기능·추상·설정을 넣지 않는다.
+3. **정밀한 수정** — 요청과 직접 연결된 줄만 바꾼다.
+4. **목표 중심 실행** — 검증 가능한 성공 기준으로 일한다.
+
+---
+
+## 충돌 시 우선순위
+
+1. 사용자의 **더 구체적·최근** 지시  
+2. **영문 최상위 블록** (PKS · SOLID · 아키텍처 · suvisdev 경로)  
+3. **`suvisdev/_claude/`** · **`apps/*/_docs/`** 내 해당 영역 규칙 MD  
+4. **`CLAUDE.md`** 백엔드 인수인계  
+5. 본 한국어 요약  
+
+네 원칙(묵시적 가정 금지·최소 diff)은 항상 유지한다.

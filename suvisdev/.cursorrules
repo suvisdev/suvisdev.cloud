@@ -1,0 +1,102 @@
+# Backend Harness — `suvisdev/` (Cursor)
+
+> **PKS** = Prompt (본 `.cursorrules`, 사용자 작업) + Knowledge ([루트 `CLAUDE.md`](../CLAUDE.md), [`CLAUDE.md`](CLAUDE.md), `apps/*/_docs/`) + System (Clean · Hexagonal · SOLID 코드).
+
+**상위 원칙:** [루트 `CLAUDE.md`](../CLAUDE.md) — Karpathy 네 원칙 (항상 유효)  
+**백엔드 SSOT:** [`CLAUDE.md`](CLAUDE.md) — 본 파일은 Cursor용 **요약 하네스**이다. 충돌 시 `suvisdev/CLAUDE.md`가 우선한다.
+
+---
+
+## Karpathy 네 원칙 (루트 `CLAUDE.md` 요약)
+
+| 원칙 | 한 줄 |
+|------|--------|
+| **구현 전 사고** | 가정을 명시하고, 모호하면 멈추고 질문한다. |
+| **단순성 우선** | 요청 밖 기능·추상·불필요한 예외 처리를 넣지 않는다. |
+| **정밀한 수정** | 요청과 직결된 줄만 바꾸고, 기존 스타일을 따른다. |
+| **목표 중심 실행** | 검증 가능한 성공 기준으로 일한다. |
+
+속도보다 **신중함**을 우선한다. (명백한 한 줄 수정은 상황 판단)
+
+---
+
+## Mandatory workflow (`suvisdev/` Python·FastAPI 수정 전)
+
+1. [루트 `CLAUDE.md`](../CLAUDE.md) — Karpathy 원칙
+2. **본 파일** [`CLAUDE.md`](CLAUDE.md) — 아키텍처·레이어·SOLID·체크리스트
+3. [`_docs/entity-rules.md`](_docs/entity-rules.md) — PK `id` int 자동증감
+4. 해당 앱: `apps/<app>/_docs/.cursorrules` + `CLAUDE.md`
+5. `AGENTS.md` — 삭제된 옛 경로 금지
+
+관례를 **추측하지 않는다.**
+
+---
+
+## 저장소 구조
+
+```text
+suvisdev/
+├── _docs/                 ← CLAUDE.MD · entity-rules (SSOT)
+├── CLAUDE.md              ← _docs/CLAUDE.MD 심볼릭 링크
+├── apps/<app>/_docs/      ← 앱별 ERD·도메인
+└── core/                  ← DB·인프라
+```
+
+| 앱 | Cursor 하네스 |
+|----|----------------|
+| Titanic (기준선) | [`apps/titanic/_docs/.cursorrules`](apps/titanic/_docs/.cursorrules) |
+| Mova | [`apps/mova/_docs/.cursorrules`](apps/mova/_docs/.cursorrules) |
+| Viewer | [`apps/viewer/_docs/.cursorrules`](apps/viewer/_docs/.cursorrules) |
+
+---
+
+## Architecture (non-negotiable)
+
+```text
+Router (Schema) → Input Port (Schema in, Dto out) → Interactor (Schema→Command)
+  → Output Port → PgRepository → Dto → Router (to_schema)
+```
+
+| 레이어 | 할 수 있는 것 | 하면 안 되는 것 |
+|--------|---------------|-----------------|
+| **Router** | Schema, `Depends`, `await use_case`, Dto→Schema | 비즈니스 로직, DB·Repository 직접 접근 |
+| **Interactor** | Schema→Command, port 호출, Dto 반환 | `to_schema()`, `HTTPException`, ORM import |
+| **PgRepository** | Command, ORM, `RepositoryError` | `HTTPException`, Use Case import |
+| **DI** (`dependencies/`) | `get_*_use_case` 조립 | 비즈니스 로직 |
+
+**Import:** `from mova.*` / `from titanic.*` — `suvisdev.apps.` 접두사 금지. Core는 `from core.*`.
+
+**SOLID:** SRP · ISP · DIP. OCP/LSP로 과한 추상·팩토리 남발 금지.
+
+**CPU-bound** (형태소 분석 등): `async def` 금지 → `def` + 필요 시 `asyncio.to_thread()`.
+
+---
+
+## 금지 (요약)
+
+| ❌ | ✅ |
+|----|-----|
+| Router → Repository 직접 | Use Case port 경유 |
+| Interactor `to_schema()` | Router에서 `Dto.to_schema()` |
+| `model_dump()` → dict Command | `Command.from_schema(schema)` |
+| Interactor 내부 `XxxPgRepository()` | 생성자 DI (Output Port ABC) |
+| `from suvisdev.apps.*` | `from mova.*` / `from titanic.*` |
+
+---
+
+## 충돌 시 우선순위
+
+1. 사용자의 **더 구체적·최근** 지시
+2. `apps/*/_docs/` 해당 앱 규칙
+3. [`suvisdev/CLAUDE.md`](CLAUDE.md)
+4. [루트 `CLAUDE.md`](../CLAUDE.md)
+5. 본 요약
+
+### Cursor 참조 예
+
+```
+@CLAUDE.md
+@suvisdev/_docs/CLAUDE.MD
+@suvisdev/apps/titanic/_docs/.cursorrules
+@AGENTS.md
+```

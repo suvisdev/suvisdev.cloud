@@ -1,0 +1,20 @@
+# Mova App Harness — `suvisdev/apps/mova/` (Cursor)
+
+> **SSOT:** [`CLAUDE.md`](CLAUDE.md) — 규칙·진행·API는 여기만 갱신한다.
+
+## 수정 전 읽기 순서
+
+1. [`CLAUDE.md`](CLAUDE.md) (Mova SSOT)
+2. [`suvisdev/_docs/CLAUDE.MD`](../../../_docs/CLAUDE.MD) — 백엔드 전체 규칙
+3. [`MOVA_ERD.md`](MOVA_ERD.md) (스키마 변경 시)
+4. 프론트 작업 시 [`MOVA_CHAT_UX.md`](MOVA_CHAT_UX.md) · [`suvis/_docs/CLAUDE.MD`](../../../../suvis/_docs/CLAUDE.MD)
+
+## 한 줄 요약
+
+- Hexagonal · `Dto.to_schema()` · LLM은 Output Port · TMDB는 `import_interactor`
+- `/myself` 라우트는 페르소나 스텁 — 유지
+
+```
+@suvisdev/apps/mova/_docs/CLAUDE.md
+@suvisdev/apps/mova/_docs/MOVA_ERD.md
+```

@@ -1,0 +1,117 @@
+# --- 비밀·자격증명 (GitHub에 절대 올리면 안 되는 것) ---
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.pem.enc
+secrets.json
+credentials.json
+service-account*.json
+*-credentials.json
+firebase-adminsdk*.json
+.aws/credentials
+.netrc
+# 토큰이 들어간 경우만 수동으로 추가: .npmrc
+.yarnrc.yml
+!.yarnrc.yml.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- YOLO/Ultralytics 자동 다운로드 가중치·학습 산출물 ---
+*.pt
+*.cache
+runs/
+
+# --- Node / Next.js ---
+node_modules/
+.pnpm-store/
+.next/
+out/
+.turbo/
+.vercel/
+*.tsbuildinfo
+
+# --- 로그·로컬 DB·덤프 ---
+*.log
+logs/
+*.sqlite
+*.sqlite3
+*.db
+dump.rdb
+*.dump
+
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# --- IDE / 에디터 (개인 설정·캐시) ---
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Obsidian (기기별 워크스페이스 등) ---
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+**/.obsidian/graph.json
+**/.obsidian/cache
+
+# --- 중첩 저장소 메타 (실수로 상위에 포함 방지) ---
+**/.git/
+
+# --- 기타 로컬 전용 ---
+*.local
+.cache/
