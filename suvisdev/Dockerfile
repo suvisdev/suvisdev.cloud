@@ -4,8 +4,15 @@ FROM python:3.13-slim
 # 2. 도커 내부에서 작업할 폴더 위치를 지정합니다.
 WORKDIR /suvisdev
 
-# 2-1. LightGBM이 런타임에 요구하는 OpenMP 공유 라이브러리를 설치합니다.
-RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+# 2-1. LightGBM(OpenMP)과 OpenCV(GUI 관련 공유 라이브러리)가 런타임에 요구하는 패키지를 설치합니다.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libgl1 \
+    libglib2.0-0 \
+    libxcb1 \
+    libxext6 \
+    libsm6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. 라이브러리 설치를 위해 패키지 파일을 먼저 복사합니다.
