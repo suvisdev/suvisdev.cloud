@@ -27,6 +27,7 @@ known-first-party = [
     "dispatch", "spam_filter",
     "friday13th", "imitation_game", "inception", "social_network",
     "gildle",
+    "contents",
     "core",
 ]
 

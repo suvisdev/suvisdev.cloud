@@ -306,7 +306,7 @@ async def ensure_titanic_tables() -> None:
         import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401
     except ModuleNotFoundError:
         pass
-    import vision.adapter.outbound.orm.vision_upload_orm  # noqa: F401
+    import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401
     from core.matrix.grid_neo_theone_base import Base
 
     ok, err = ensure_mova_database()

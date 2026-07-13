@@ -18,6 +18,12 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(_BACKEND_ROOT / ".env")
 
+# contents ORM 등록 — 모듈 import 시 테이블이 ContentsBase.metadata에 붙는다.
+import contents.adapter.outbound.orm.player_orm  # noqa: F401,E402
+import contents.adapter.outbound.orm.schedule_orm  # noqa: F401,E402
+import contents.adapter.outbound.orm.stadium_orm  # noqa: F401,E402
+import contents.adapter.outbound.orm.team_orm  # noqa: F401,E402
+
 # gildle ORM 등록 — 모듈 import 시 테이블이 GildleBase.metadata에 붙는다.
 import gildle.adapter.outbound.orm.hazard_zone_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_edge_orm  # noqa: F401,E402
@@ -27,6 +33,7 @@ import gildle.adapter.outbound.orm.route_result_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
+from contents.adapter.outbound.orm.base import ContentsBase  # noqa: E402
 from core.matrix.grid_oracle_database_manager import (  # noqa: E402
     TitanicBase,
     _normalize_database_url,
@@ -38,7 +45,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 앱별 Base가 분리돼 있어 autogenerate가 모든 테이블을 보도록 metadata 리스트로 넘긴다.
-target_metadata = [TitanicBase.metadata, GildleBase.metadata]
+target_metadata = [TitanicBase.metadata, GildleBase.metadata, ContentsBase.metadata]
 
 
 def _database_url() -> str:
