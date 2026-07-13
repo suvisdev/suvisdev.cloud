@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from vision.app.dtos.vision_dto import (
+from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,

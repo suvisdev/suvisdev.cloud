@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vision.app.ports.output.face_dataset_port import FaceDatasetPort
+from ontology.app.ports.output.face_dataset_port import FaceDatasetPort
 
 _REQUIRED_SPLITS = ("train", "val")
 

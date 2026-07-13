@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from vision.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
-from vision.app.dtos.vision_dto import VisionIntroduceResponse, VisionUploadResponse
+from ontology.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
+from ontology.app.dtos.vision_dto import VisionIntroduceResponse, VisionUploadResponse
 
 
 class VisionUseCase(ABC):

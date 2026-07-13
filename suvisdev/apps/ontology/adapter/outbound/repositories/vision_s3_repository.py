@@ -9,13 +9,13 @@ from datetime import datetime
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
-from vision.app.dtos.vision_dto import (
+from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
     VisionUploadResponse,
 )
-from vision.app.ports.output.vision_port import VisionPort
+from ontology.app.ports.output.vision_port import VisionPort
 
 logger = logging.getLogger(__name__)
 

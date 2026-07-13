@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from vision.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
-from vision.app.dtos.vision_dto import (
+from ontology.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
+from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
     VisionUploadResponse,
 )
-from vision.app.ports.input.vision_use_case import VisionUseCase
-from vision.app.ports.output.vision_port import VisionPort
+from ontology.app.ports.input.vision_use_case import VisionUseCase
+from ontology.app.ports.output.vision_port import VisionPort
 
 _ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
 

@@ -5,14 +5,14 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import ensure_titanic_tables, get_mova_session_factory
-from vision.adapter.outbound.orm.vision_upload_orm import VisionUploadOrm
-from vision.app.dtos.vision_dto import (
+from ontology.adapter.outbound.orm.vision_upload_orm import VisionUploadOrm
+from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
     VisionUploadResponse,
 )
-from vision.app.ports.output.vision_port import VisionPort
+from ontology.app.ports.output.vision_port import VisionPort
 
 logger = logging.getLogger(__name__)
 

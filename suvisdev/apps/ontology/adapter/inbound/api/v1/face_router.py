@@ -3,9 +3,9 @@ import asyncio
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from PIL import UnidentifiedImageError
 
-from vision.app.dtos.face_dto import FacePredictResult, FaceTrainResult
-from vision.app.ports.input.face_use_case import FaceUseCase
-from vision.dependencies.face_provider import get_face_use_case
+from ontology.app.dtos.face_dto import FacePredictResult, FaceTrainResult
+from ontology.app.ports.input.face_use_case import FaceUseCase
+from ontology.dependencies.face_provider import get_face_use_case
 
 face_router = APIRouter(tags=["vision-face"])
 

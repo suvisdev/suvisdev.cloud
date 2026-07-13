@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from vision.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
-from vision.app.dtos.vision_dto import VisionIntroduceResponse, VisionUploadResponse
-from vision.app.ports.input.vision_use_case import VisionUseCase
-from vision.dependencies.vision_provider import get_vision_use_case
+from ontology.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
+from ontology.app.dtos.vision_dto import VisionIntroduceResponse, VisionUploadResponse
+from ontology.app.ports.input.vision_use_case import VisionUseCase
+from ontology.dependencies.vision_provider import get_vision_use_case
 
 vision_introduce_router = APIRouter(tags=["vision"])
 

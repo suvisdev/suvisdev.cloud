@@ -43,12 +43,12 @@ from gildle.adapter.inbound.api import gildle_router
 from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
+from ontology.adapter.inbound.api import vision_router
 from silicon_valley.adapter.inbound.api import silicon_valley_router
 from spam_filter.adapter.inbound.api import spam_filter_router
 from titanic.adapter.inbound.api import titanic_router
 from viewer.adapter.inbound.api import viewer_router
 from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
-from vision.adapter.inbound.api import vision_router
 
 keymaker = get_keymaker()
 

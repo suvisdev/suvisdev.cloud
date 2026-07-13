@@ -6,8 +6,8 @@ from pathlib import Path
 from PIL import Image
 from ultralytics import YOLO
 
-from vision.app.dtos.face_dto import FacePredictResult, FaceTrainResult
-from vision.app.ports.output.yolo_port import YoloPort
+from ontology.app.dtos.face_dto import FacePredictResult, FaceTrainResult
+from ontology.app.ports.output.yolo_port import YoloPort
 
 _RUNS_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "runs"
 _WEIGHTS_PATH = _RUNS_DIR / "face_classify" / "weights" / "best.pt"

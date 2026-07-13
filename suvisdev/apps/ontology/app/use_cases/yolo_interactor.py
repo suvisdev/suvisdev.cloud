@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from vision.app.dtos.face_dto import FacePredictResult, FaceTrainResult
-from vision.app.ports.input.face_use_case import FaceUseCase
-from vision.app.ports.output.face_dataset_port import FaceDatasetPort
-from vision.app.ports.output.yolo_port import YoloPort
+from ontology.app.dtos.face_dto import FacePredictResult, FaceTrainResult
+from ontology.app.ports.input.face_use_case import FaceUseCase
+from ontology.app.ports.output.face_dataset_port import FaceDatasetPort
+from ontology.app.ports.output.yolo_port import YoloPort
 
 _AUTO_TRAIN_EPOCHS = 30
 _AUTO_TRAIN_BATCH = 8
