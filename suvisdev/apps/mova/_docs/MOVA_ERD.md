@@ -4,9 +4,26 @@
 
 `suvisdev/apps/mova` ORM 기준 **Mova DB** 테이블 구조입니다.  
 회원·인증·프로필은 **`viewer`** 모듈 — **`groups` · `admins` · `users` 3테이블**. env는 `SECOM_DATABASE_URL` (**미설정 시 Mova와 동일 DB**).  
-`chat` / `reviews` / `picks`의 `user_id`는 **`users.id` FK** (관리자는 `admins` — Mova FK 없음).
+`chat` / `reviews` / `user_actions` / `picks`의 `user_id`는 **`users.id` FK** (관리자는 `admins` — Mova FK 없음).
 
 > **2026-06 변경:** `members`·`user_groups` 제거. 권한은 **`groups`** + **`admins`** / **`users`** 분리 (총 3테이블).
+
+> **2026-07 변경 (Schema Revision v2):**
+> - `characters.character_name` 추가, `(movie_id, actor_id, character_name)` 3중 UNIQUE (1인 다역 허용)
+> - 장르 저장을 `tags`(`tag_kind='genre'`)로 일원화 — `movies.genres` 제거 (`platforms`는 유지)
+> - `movies.embedding vector(1536)` 추가 (pgvector, 인덱스는 별도 리비전) — **v3에서 `vector(768)`로 확정**, §2026-07 v3 참고
+> - `movies.release_year` VARCHAR → INTEGER
+> - `users.age_group` 제거 (저장 대신 `birth_year`에서 파생 계산)
+> - `tags`에 XOR CHECK (`ck_tags_exactly_one_target`) — `movie_id`/`character_id` 중 정확히 하나만
+> - `movies`·`collections`·`assistants`·`actors`·`characters`·`tags`에 `created_at`/`updated_at` 보강
+> - `reviews`를 행동 로그 **`user_actions`**(찜·클릭·시청 등)와 리뷰 본문 **`reviews`**(별점·감상평, `(user_id, movie_id)` UNIQUE)로 분리
+
+> **2026-07 변경 (Schema Revision v3 — 제약 계층 보강):**
+> - `characters` `(movie_id, actor_id, character_name)` UNIQUE — 1인 다역 허용 여부 확인 완료(v2에서 이미 결정), 제약명 `uq_characters_movie_actor_name`으로 확정
+> - `tags` XOR CHECK `ck_tags_exactly_one_target` — v2에서 이미 반영, 변경 없음
+> - `reviews` `(user_id, movie_id)` UNIQUE `uq_reviews_user_movie` — v2에서 이미 반영, 변경 없음
+> - `movies.embedding` 차원 **`vector(768)`로 확정** — Gemini `text-embedding-004` 기준 (mova가 이미 Gemini 어댑터 사용 중)
+> - `tags` `(tag_kind, slug)` UNIQUE `uq_tags_kind_slug` 추가 — `slug`를 태그 조회 키로 사용
 
 ## DB 이름·역할 (정리)
 
@@ -26,7 +43,7 @@ Mermaid `erDiagram`은 속성·관계 라벨의 **따옴표·괄호·슬래시**
 
 ## 전체 ERD (영화 카탈로그 + 채팅 + 회원)
 
-기존 9테이블 레이아웃에 **`groups` · `admins` · `users`** · `assistants`를 같은 스타일로 합친 다이어그램입니다.
+영화 카탈로그(9) + 계정(`groups`·`admins`·`users`) + `assistants` + v2 신설 `user_actions`, 총 14테이블 다이어그램입니다.
 
 ![Mova ERD](./mova-erd.png)
 
@@ -53,6 +70,7 @@ erDiagram
     CHARACTERS ||--o| TAGS : cast_keyword
     MOVIES ||--o{ RANKINGS : ranked
     MOVIES ||--o{ REVIEWS : receives
+    MOVIES ||--o{ USER_ACTIONS : logged
 
     CHAT ||--o{ PICKS : recommends
     CHAT ||--o{ RANKINGS : drives
@@ -60,7 +78,8 @@ erDiagram
     ASSISTANTS ||--o{ CHAT : answers
     GROUPS ||--o{ ADMINS : has
     GROUPS ||--o{ USERS : has
-    USERS ||--o{ REVIEWS : user_actions
+    USERS ||--o{ REVIEWS : writes
+    USERS ||--o{ USER_ACTIONS : acts
     USERS ||--o{ CHAT : searches
     USERS ||--o{ PICKS : user_actions
 
@@ -69,19 +88,23 @@ erDiagram
         varchar slug UK
         varchar name
         text description
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     MOVIES {
         int id PK
         varchar slug UK
         varchar title
-        varchar release_year
+        int release_year
         float rating
         text poster_url
         jsonb platforms
         varchar age_rating
-        jsonb genres
+        vector embedding
         int collection_id FK
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     ACTORS {
@@ -89,12 +112,17 @@ erDiagram
         varchar name
         varchar role_type
         text profile_photo_url
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     CHARACTERS {
         int id PK
         int movie_id FK
         int actor_id FK
+        varchar character_name
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     TAGS {
@@ -105,6 +133,8 @@ erDiagram
         varchar slug
         varchar label
         text description
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     RANKINGS {
@@ -126,6 +156,8 @@ erDiagram
         text system_prompt
         varchar default_model
         bool is_active
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     CHAT {
@@ -146,10 +178,18 @@ erDiagram
         int id PK
         int user_id FK
         int movie_id FK
-        varchar action_type
-        timestamptz action_at
         float rating
         text body
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USER_ACTIONS {
+        int id PK
+        int user_id FK
+        int movie_id FK
+        varchar action_type
+        timestamptz action_at
     }
 
     PICKS {
@@ -190,7 +230,6 @@ erDiagram
         varchar nickname
         varchar email
         varchar gender
-        varchar age_group
         int birth_year
         jsonb preferred_genres
         varchar bio
@@ -227,7 +266,7 @@ erDiagram
 | `group_id` | `groups.code=admin` |
 
 - `admins`에 행이 있으면 **스킵**
-- Mova `chat`·`reviews`·`picks` FK는 **`users.id`만** (관리자는 별도)
+- Mova `chat`·`reviews`·`user_actions`·`picks` FK는 **`users.id`만** (관리자는 별도)
 
 **제거된 테이블:** `members` · `member_groups` · **`user_groups`** · `chat.member_id` · `users.role`
 
@@ -240,17 +279,13 @@ erDiagram
 | `other` | 기타 |
 | `undisclosed` | 미입력 |
 
-| age_group | 설명 |
-|-----------|------|
-| `10s` ~ `50s` | 10대 ~ 50대 |
-| `60s_plus` | 60대 이상 |
-| `undisclosed` | 미입력 |
+**연령대 (v2):** `age_group` 컬럼은 **저장하지 않습니다** (파생 데이터 저장 금지 원칙). 조회 시 `birth_year`에서 계산합니다 (`User` VO 또는 read model에서 처리 예정).
 
 ## DB 범위
 
 | DB | env 변수 | 테이블 |
 |----|----------|--------|
-| Mova | `MOVA_DATABASE_URL` 또는 `DATABASE_URL` | `movies`, `actors`, `characters`, `tags`, `rankings`, **`assistants`**, `chat`, `picks`, `reviews` |
+| Mova | `MOVA_DATABASE_URL` 또는 `DATABASE_URL` | `movies`, `actors`, `characters`, `tags`, `rankings`, **`assistants`**, `chat`, `picks`, `reviews`, **`user_actions`** |
 | Friday13th (Secom) | `SECOM_DATABASE_URL` (미설정 시 Mova와 **동일 URL**) | **`groups`**, **`admins`**, **`users`** — Mova FK는 `users`만 |
 
 ## 관계
@@ -259,7 +294,7 @@ erDiagram
 |------|------------|------|
 | MOVIES → CHARACTERS | 1:N | 영화–배우·감독 연결 (`movie_id` → `movies.id`, CASCADE) |
 | ACTORS → CHARACTERS | 1:N | 동일 중간 테이블 (`actor_id` → `actors.id`, CASCADE) |
-| MOVIES ↔ ACTORS | N:M | `characters` 경유, `(movie_id, actor_id)` UNIQUE |
+| MOVIES ↔ ACTORS | N:M | `characters` 경유, `(movie_id, actor_id, character_name)` UNIQUE (v2, 1인 다역 허용) |
 | MOVIES → TAGS | 1:N | 영화 키워드 (`tag_kind`: mood / genre / cast) |
 | CHARACTERS → TAGS | 1:0..1 | `tag_kind=cast` 일 때 `character_id` FK — 영화–인물 연결을 검색 키워드로 노출 |
 | TAGS (slug) | (논리 그룹) | mood: 같은 `slug`로 여러 영화에 동일 감성 태그 · genre: `genre-{장르}` · cast: `cast-{이름}` |
@@ -267,12 +302,14 @@ erDiagram
 | CHAT → RANKINGS | 1:N | `rankings.chat_id` — 해당 순위를 만든 **대표 검색 의도** (nullable, `source=chat_trend`일 때) |
 | CHAT → PICKS | 1:N | AI가 한 번에 추천한 작품 (보통 3행, `batch_at`으로 묶음) — **랭킹 집계의 입력** |
 | MOVIES → PICKS | 1:N | 추천된 `movie_id` FK |
-| MOVIES → REVIEWS | 1:N | 찜·시청·클릭·별점 리뷰 (`action_type`, `movie_id` FK) |
+| MOVIES → REVIEWS | 1:N | 별점·감상평 (`movie_id` FK) — 유저당 영화 1건 |
+| MOVIES → USER_ACTIONS | 1:N | 찜·시청·클릭 등 행동 로그 (`action_type`, `movie_id` FK) — 중복 허용 |
 | USERS → REVIEWS | 1:N | `reviews.user_id` → `users.id` FK (`ON DELETE CASCADE`) |
+| USERS → USER_ACTIONS | 1:N | `user_actions.user_id` → `users.id` FK (`ON DELETE CASCADE`) |
 | USERS → CHAT | 1:N | `chat.user_id` → `users.id` FK (`ON DELETE SET NULL`, 비로그인 NULL) |
 | USERS → PICKS | 1:N | `picks.user_id` → `users.id` FK (`ON DELETE SET NULL`) |
 | ASSISTANTS → CHAT | 1:N | `chat.assistant_id` → `assistants.id` — 응답 AI 페르소나 |
-| REVIEWS (action_type=review) | 1:1 per user+movie | 별점·감상평 — `(user_id, movie_id)` partial UNIQUE |
+| REVIEWS | 1:1 per user+movie | 별점·감상평 — `(user_id, movie_id)` UNIQUE (수정 시 갱신) |
 
 **다이어그램에 선 없음 (DB FK·교차 테이블 아님, 앱 검색만):**
 
@@ -360,17 +397,18 @@ chat (refined_query, hit_count, keywords)
 
 | 테이블 | 제약 |
 |--------|------|
-| `movies` | `slug` UNIQUE |
+| `movies` | `slug` UNIQUE · `release_year` INTEGER · `embedding` `vector(768)` (Gemini `text-embedding-004`, nullable, 인덱스 없음 — 별도 리비전) |
 | `actors` | `(name, role_type)` UNIQUE — `uq_actors_name_role` |
-| `characters` | `(movie_id, actor_id)` UNIQUE |
-| `tags` | `(movie_id, slug)` UNIQUE · `character_id` UNIQUE — cast · `character_id` → `characters.id` FK |
+| `characters` | `(movie_id, actor_id, character_name)` UNIQUE — `uq_characters_movie_actor_name` (1인 다역 허용) |
+| `tags` | `(movie_id, slug)` UNIQUE · `character_id` UNIQUE — cast · `character_id` → `characters.id` FK · CHECK `ck_tags_exactly_one_target`: `(character_id IS NULL) != (movie_id IS NULL)` · `(tag_kind, slug)` UNIQUE — `uq_tags_kind_slug` (v3, 조회 키) |
 | `rankings` | `(rank, ranked_at, source)` UNIQUE · `movie_id` → `movies.id` · `chat_id` → `chat.id` (nullable) · `source` 인덱스 |
-| `reviews` | `user_id` → `users.id` FK · `action_type=review` 시 `(user_id, movie_id)` partial UNIQUE |
+| `reviews` | `user_id` → `users.id` FK · `movie_id` → `movies.id` FK · `(user_id, movie_id)` UNIQUE |
+| `user_actions` | `user_id` → `users.id` FK · `movie_id` → `movies.id` FK · UNIQUE 없음(로그, 중복 허용) |
 | `chat` | `user_id` → `users.id` · `assistant_id` → `assistants.id` (nullable) · `intent_type` 인덱스 |
 | `picks` | `user_id` → `users.id` FK (nullable) |
 | `groups` | `code` UNIQUE — `admin`, `user` |
 | `admins` | `username` UNIQUE · `group_id` → `groups.id` |
-| `users` | `username` UNIQUE · `group_id` → `groups.id` · 프로필 `gender`, `age_group`, `preferred_genres`, `bio` |
+| `users` | `username` UNIQUE · `group_id` → `groups.id` · 프로필 `gender`, `preferred_genres`, `bio` (age_group은 저장 안 함, §성별·연령대 코드) |
 | `assistants` | `slug` UNIQUE |
 
 ## 필드 설명
@@ -381,13 +419,15 @@ chat (refined_query, hit_count, keywords)
 |------|------|
 | slug | URL·검색용 식별자 (예: `interstellar`, `tmdb-550`, `kofic-20139882`) |
 | title | 작품 제목 |
-| release_year | 개봉 연도 문자열 |
+| release_year | 개봉 연도 (INTEGER, v2) |
 | rating | 평균 별점 (리뷰 upsert 시 갱신) |
 | poster_url | 포스터 URL (TMDB enrich 가능) |
 | platforms | OTT 플랫폼 JSONB 배열 `[{"provider": "netflix", "url": null, "type": "subscription"}]` |
 | age_rating | 관람 등급 `전체\|12세\|15세\|청불` (nullable) |
-| genres | 장르 배열 JSONB |
+| embedding | `vector(768)` — 추천용 임베딩 (nullable). Gemini `text-embedding-004` 기준 차원 (v3에서 확정) |
 | collection_id | `collections.id` FK (nullable) — Phase 3에서 연결 |
+
+**v2 변경:** `genres` (JSONB) 컬럼 제거 — 장르는 `tags`(`tag_kind='genre'`)로 일원화 (single source of truth). `platforms`는 외부 플랫폼 메타데이터로 태그 체계와 성격이 달라 유지.
 
 ### collections
 
@@ -413,6 +453,7 @@ chat (refined_query, hit_count, keywords)
 |------|------|
 | movie_id | `movies.id` |
 | actor_id | `actors.id` |
+| character_name | 배역명 (v2, NOT NULL) — `(movie_id, actor_id, character_name)` UNIQUE로 1인 다역 허용 |
 
 
 ### tags (영화 키워드: 감성·장르·등장인물)
@@ -425,6 +466,12 @@ chat (refined_query, hit_count, keywords)
 | slug | `mood`: 공유 slug · `genre`: `genre-{장르}` · `cast`: `cast-{이름}` |
 | label | 검색·표시 라벨 (감성 문구, 장르명, 배우 이름) |
 | description | 태그 설명 |
+
+**v2 CHECK (`ck_tags_exactly_one_target`):** `movie_id`·`character_id` 중 **정확히 하나만** NOT NULL (XOR). 캐릭터 태그(`character_id` 있음)는 `movie_id`를 NULL로 유지 — movie는 character 경유로 유도.
+
+**v3 UNIQUE (`uq_tags_kind_slug`):** `(tag_kind, slug)` — `slug`를 태그 조회 키로 사용.
+
+`tag_kind` 허용값: `genre`(장르, v2부터 movies 장르의 유일한 저장처) · `mood`(감성) · `cast_keyword`/`cast`(등장인물) — enum 강제는 하지 않고 문서로만 관리.
 
 기존 DB: `add_tags_actor_kind.py` → `add_tags_character_id.py` 순 실행 후 `seed_mova_recommendation_catalog.py`로 cast 태그를 `character_id` 기준으로 채우기.
 
@@ -457,7 +504,7 @@ KOFIC import는 `source=box_office`로 유지. UI 기본 HOT는 **`chat` → `pi
 | batch_at | 같은 응답에서 나온 3편 묶음 시각 |
 | feedback | `like\|dislike\|null` — 추천 자체에 대한 사용자 반응 (Phase 2 개인화 신호) |
 
-사용자가 **클릭·찜**한 선택은 `reviews` (`action_type`)로 별도 기록 가능.
+사용자가 **클릭·찜**한 선택은 `user_actions` (`action_type`, v2)로 별도 기록 가능.
 
 
 ### chat (AI 검색·채팅 의도 로그)
@@ -495,16 +542,28 @@ KOFIC import는 `source=box_office`로 유지. UI 기본 HOT는 **`chat` → `pi
 | created_at | 최초 저장 시각 |
 
 
-### reviews (반응·별점 리뷰 단일 테이블)
+### reviews (별점·감상평, v2)
 
 | 필드 | 설명 |
 |------|------|
 | user_id | `users.id` FK |
-| movie_id | `movies.id` |
-| action_type | `favorite`, `watched`, `click`, `not_interested`, **`review`** |
-| action_at | 반응·리뷰 시각 (API 리뷰 응답의 `created_at`과 동일) |
-| rating | 별점 1~5 (`action_type=review`일 때) |
-| body | 감상평 (`review`일 때) |
+| movie_id | `movies.id` FK |
+| rating | 별점 1~5 |
+| body | 감상평 |
+| created_at / updated_at | 작성·수정 시각 |
+
+`(user_id, movie_id)` UNIQUE — 한 유저는 한 영화에 리뷰 하나(재작성 시 갱신). 행동 로그는 `user_actions`로 분리(v2 이전엔 `action_type`으로 이 테이블에 합쳐져 있었음).
+
+### user_actions (행동 로그, v2 신설)
+
+| 필드 | 설명 |
+|------|------|
+| user_id | `users.id` FK |
+| movie_id | `movies.id` FK |
+| action_type | `favorite` \| `watched` \| `click` \| `not_interested` 등 |
+| action_at | 행동 발생 시각 |
+
+UNIQUE 없음 — 로그 특성상 중복(동일 유저·영화·행동 반복)을 허용한다.
 
 ## ORM 매핑
 
@@ -519,6 +578,7 @@ KOFIC import는 `source=box_office`로 유지. UI 기본 HOT는 **`chat` → `pi
 | `chat` | `MovaChat` | `mova/adapter/outbound/orm/market_chat_orm.py` |
 | `picks` | `MovaPick` | `mova/adapter/outbound/orm/market_picks_orm.py` |
 | `reviews` | `MovaReview` | `mova/adapter/outbound/orm/market_reviews_orm.py` |
+| `user_actions` | `MovaUserAction` | `mova/adapter/outbound/orm/market_user_actions_orm.py` (v2 신규) |
 | `assistants` | `MovaAssistant` | `mova/adapter/outbound/orm/platform_assistants_orm.py` |
 | `users` | `User` | `viewer/app/dtos/user_model.py` |
 | `groups` | `Group` | `viewer/app/dtos/group_model.py` |
@@ -577,8 +637,7 @@ KOFIC import는 `source=box_office`로 유지. UI 기본 HOT는 **`chat` → `pi
 | nickname | 표시 이름 |
 | email | 이메일 |
 | gender | `male` \| `female` \| `other` \| `undisclosed` |
-| age_group | `10s` ~ `60s_plus` \| `undisclosed` |
-| birth_year | 출생 연도 (nullable) |
+| birth_year | 출생 연도 (nullable) — 연령대는 저장하지 않고 조회 시 파생 계산 (v2) |
 | preferred_genres | 선호 장르 JSONB 배열 |
 | bio | 한 줄 소개 (선택) |
 | created_at / updated_at | 생성·수정 시각 |
