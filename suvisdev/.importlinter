@@ -7,6 +7,7 @@ root_packages =
     silicon_valley
     dispatch
     gildle
+    contents
     sample
     spam_filter
     core
@@ -24,6 +25,7 @@ forbidden_modules =
     silicon_valley
     dispatch
     gildle
+    contents
     sample
     spam_filter
 
@@ -38,6 +40,7 @@ modules =
     silicon_valley
     dispatch
     gildle
+    contents
     sample
     spam_filter
 # Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
