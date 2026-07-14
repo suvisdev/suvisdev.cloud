@@ -18,6 +18,11 @@ services:
       # 서비스명 "db"로 접근하므로 여기서 덮어쓴다.
       - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - MOVA_DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Ollama(EXAONE)는 호스트에서 systemd로 돌아서 컨테이너 밖에 있다.
+      # host.docker.internal + OLLAMA_HOST=0.0.0.0(호스트 쪽 ollama.service 설정)로 접근.
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
