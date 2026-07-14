@@ -26,6 +26,9 @@ class TmdbMovieSnapshotDto:
     rating: float
     poster_url: str
     genres: list[str]
+    # movies 테이블에는 저장하지 않고 Hub(ontology) RAG 색인용으로만 쓴다 (hub_rag.ingest_movie).
+    overview: str = ""
+    cast: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

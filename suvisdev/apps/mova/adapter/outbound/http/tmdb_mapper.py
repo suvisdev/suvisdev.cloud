@@ -49,6 +49,21 @@ def map_genre_objects(genres: list[object]) -> list[str]:
     return names
 
 
+def map_cast_names(credits: object, *, limit: int = 5) -> list[str]:
+    """TMDB append_to_response=credits의 cast 상위 N명 이름만 추출. RAG 색인용."""
+    if not isinstance(credits, dict):
+        return []
+    names: list[str] = []
+    for member in credits.get("cast") or []:
+        if isinstance(member, dict):
+            name = str(member.get("name") or "").strip()
+            if name and name not in names:
+                names.append(name)
+        if len(names) >= limit:
+            break
+    return names
+
+
 def map_tmdb_row(
     row: dict,
     *,
@@ -71,4 +86,6 @@ def map_tmdb_row(
         rating=tmdb_rating(row.get("vote_average")),
         poster_url=poster_url,
         genres=genres,
+        overview=str(row.get("overview") or "").strip(),
+        cast=map_cast_names(row.get("credits")),
     )

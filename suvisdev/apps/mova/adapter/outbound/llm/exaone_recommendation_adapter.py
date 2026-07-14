@@ -1,8 +1,9 @@
-"""EXAONE(Router, Ollama) 추천 어댑터 — RecommendationPort 구현체.
+"""EXAONE-3.5-7.8B-Instruct-AWQ(직접 서빙) 추천 어댑터 — RecommendationPort 구현체.
 
 GeminiRecommendationAdapter와 동일한 프롬프트·파싱 로직(ChatPromptBuilder·
-ChatReplyService)을 재사용하고, 실제 생성 호출만 core/lol의 공용
-오케스트레이터(exaone3.5:7.8b)로 교체한다.
+ChatReplyService)을 재사용하고, 실제 생성 호출만 core/lol의 AWQ 오케스트레이터로 교체한다.
+tag_catalog는 더 이상 키워드 검색이 아니라 ontology Hub의 RAG 시맨틱 검색 결과를 받는다
+(market_chat_interactor.py에서 조립).
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
-from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from core.lol.awq_exaone_orchestrator import AwqExaoneOrchestrator, AwqOrchestratorError
 from mova.adapter.inbound.api.schemas.market_chat_schema import (
     MovaChatRecommendationSchema,
 )
@@ -21,17 +22,13 @@ from mova.adapter.outbound.llm.intent_extraction import IntentExtractionService
 from mova.app.ports.output.llm_errors import LLMError
 from mova.app.ports.output.llm_output_port import RecommendationPort
 
-# mova 채팅은 picks 3편을 JSON으로 뽑아야 해서 Worker(2.4b)보다 판단력이
-# 나은 Router(7.8b)를 쓴다 (dispatch/spam_filter 등 단순 자유 텍스트 spoke와는 다름).
-_MOVA_CHAT_MODEL = "exaone3.5:7.8b"
-
 
 class ExaoneRecommendationAdapter(RecommendationPort):
     def __init__(self) -> None:
         self._intent_svc = IntentExtractionService()
         self._prompt_builder = ChatPromptBuilder()
         self._reply_svc = ChatReplyService()
-        self._orchestrator = T1MidFakerOrchestrator(model=_MOVA_CHAT_MODEL)
+        self._orchestrator = AwqExaoneOrchestrator()
 
     def extract_intent(self, message: str) -> dict[str, Any]:
         return self._intent_svc.extract(message)
@@ -62,7 +59,7 @@ class ExaoneRecommendationAdapter(RecommendationPort):
         )
         try:
             raw = await asyncio.to_thread(self._orchestrator.generate, prompt)
-        except FakerOrchestratorError as e:
+        except AwqOrchestratorError as e:
             raise LLMError(e.detail, status_code=e.status_code) from e
         reply, recs = self._reply_svc.parse_gemini_reply(raw)
         recs = await self._reply_svc.enrich_from_db(recs)

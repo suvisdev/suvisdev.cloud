@@ -16,6 +16,8 @@ from mova.app.ports.output.llm_output_port import RecommendationPort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
 from mova.app.use_cases.market_chat_interactor import ChatInteractor
+from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
+from ontology.dependencies.hub_rag_provider import get_hub_rag_use_case
 
 
 def get_chat_repository(
@@ -38,11 +40,13 @@ def get_chat_use_case(
     repository: ChatRepositoryPort = Depends(get_chat_repository),
     recommender: RecommendationPort = Depends(get_recommendation_port),
     preferences: UserPreferenceQueryPort = Depends(get_user_preference_port),
+    hub_rag: HubRagUseCase = Depends(get_hub_rag_use_case),
 ) -> ChatUseCase:
     return ChatInteractor(
         repository=repository,
         recommender=recommender,
         preferences=preferences,
+        hub_rag=hub_rag,
     )
 
 
