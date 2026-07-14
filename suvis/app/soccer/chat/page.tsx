@@ -2,13 +2,10 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Anchor, Bot, CornerDownLeft, Loader2, MessageCircle, Ship } from "lucide-react"
+import { Bot, CornerDownLeft, Loader2, MessageCircle, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { patchState } from "@/lib/form-status"
 import { cn } from "@/lib/utils"
-
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 type ChatMessage = {
   role: "user" | "assistant"
@@ -21,16 +18,14 @@ type ChatState = {
   error: string | null
 }
 
-const SYSTEM_PROMPT = `당신은 타이타닉호의 선장 에드워드 존 스미스(Edward John Smith)입니다.
-1912년 4월, 타이타닉호가 뉴욕을 향해 처녀항해 중인 시점입니다.
-승객과 선원들의 질문에 선장으로서 위엄 있고 친절하게 답해주세요.
-한국어로 대화하되, 자연스러운 경우 영어 표현을 섞어 사용할 수 있습니다.
-타이타닉의 역사적 사실에 기반하여 답변하세요.`
+const SYSTEM_PROMPT = `당신은 K리그(한국 프로축구)를 오랫동안 취재해온 베테랑 해설위원입니다.
+경기장·팀·선수·일정 등 K리그 전반에 대한 질문에 친근하고 열정적인 해설 톤으로 답해주세요.
+확실하지 않은 최신 정보는 추측하지 말고 모른다고 솔직히 답하세요.
+한국어로 대화합니다.`
 
 const INITIAL_MESSAGE: ChatMessage = {
   role: "assistant",
-  content:
-    "안녕하시오. 본인은 RMS 타이타닉의 선장 에드워드 존 스미스요. 이 처녀항해에 대해, 혹은 타이타닉에 대해 무엇이든 자유롭게 물어보시오.",
+  content: "안녕하세요! K리그 해설위원입니다. 경기장, 팀, 선수 등 축구에 대해 무엇이든 물어보세요.",
 }
 
 const initialChat: ChatState = {
@@ -39,7 +34,7 @@ const initialChat: ChatState = {
   error: null,
 }
 
-export default function SmithCaptainChatPage() {
+export default function SoccerChatPage() {
   const [chat, setChat] = useState<ChatState>(initialChat)
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
   const [draft, setDraft] = useState("")
@@ -70,7 +65,7 @@ export default function SmithCaptainChatPage() {
     setDraft("")
 
     try {
-      const res = await fetch(`/api/titanic/smith/chat`, {
+      const res = await fetch(`/api/gemini/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -91,7 +86,7 @@ export default function SmithCaptainChatPage() {
           ...nextMessages,
           {
             role: "assistant",
-            content: data.reply?.trim() || "죄송하오, 다시 질문해주시오.",
+            content: data.reply?.trim() || "죄송해요, 다시 질문해주세요.",
           },
         ],
         loading: false,
@@ -155,7 +150,7 @@ export default function SmithCaptainChatPage() {
             </Link>
             <Link
               href="/titanic/smith-captain"
-              className="block rounded-md bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-200 dark:bg-[#252b3b] dark:text-neutral-100 dark:hover:bg-[#2d3447]"
+              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
             >
               3. 스미스 선장과 대화
             </Link>
@@ -179,7 +174,7 @@ export default function SmithCaptainChatPage() {
           <div className="mt-2 space-y-2">
             <Link
               href="/soccer/chat"
-              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
+              className="block rounded-md bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-900 transition-colors hover:bg-neutral-200 dark:bg-[#252b3b] dark:text-neutral-100 dark:hover:bg-[#2d3447]"
             >
               채팅
             </Link>
@@ -188,49 +183,46 @@ export default function SmithCaptainChatPage() {
 
         {/* 메인 콘텐츠 */}
         <section className="rounded-xl border border-neutral-200 bg-white p-6 md:p-8 dark:border-[#252b3b] dark:bg-[#161a24]">
-          <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500">LESSON</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500">SOCCER</p>
           <h1 className="mt-2 text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            스미스 선장과 대화
+            K리그 해설위원과 대화
           </h1>
           <p className="mt-5 max-w-4xl text-sm leading-7 text-neutral-600 md:text-base dark:text-neutral-400">
-            타이타닉호 선장 에드워드 존 스미스에게 자유롭게 질문하세요. Gemini AI가 선장 역할로
+            경기장·팀·선수·일정 등 K리그에 대해 자유롭게 질문하세요. Gemini AI가 해설위원 역할로
             답변합니다.
           </p>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-[1fr_240px]">
             {/* 채팅 카드 */}
             <div className="overflow-hidden rounded-xl border border-neutral-200 dark:border-[#252b3b]">
-              {/* 캡틴 헤더 */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 px-6 py-5 dark:from-[#0c1628] dark:via-[#0f1e35] dark:to-[#0a1220]">
-                {/* 수평선 패턴 */}
+              {/* 헤더 */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-800 to-emerald-900 px-6 py-5 dark:from-[#062616] dark:via-[#0a3320] dark:to-[#061f13]">
+                {/* 잔디 라인 패턴 */}
                 <div
                   aria-hidden
                   className="pointer-events-none absolute inset-0 opacity-[0.07]"
                   style={{
                     backgroundImage:
-                      "repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(255,255,255,0.6) 18px, rgba(255,255,255,0.6) 19px)",
+                      "repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(255,255,255,0.6) 18px, rgba(255,255,255,0.6) 19px)",
                   }}
                 />
-                {/* 우측 앵커 장식 */}
                 <div
                   aria-hidden
                   className="pointer-events-none absolute top-1/2 right-6 -translate-y-1/2 opacity-[0.06]"
                 >
-                  <Anchor className="size-24 text-white" />
+                  <Trophy className="size-24 text-white" />
                 </div>
 
                 <div className="relative flex items-center gap-4">
                   <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-white/10 ring-2 ring-white/20 backdrop-blur-sm">
-                    <Anchor className="size-7 text-amber-300" aria-hidden />
+                    <Trophy className="size-7 text-amber-300" aria-hidden />
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] font-semibold tracking-[0.2em] text-amber-300/80 uppercase">
-                      RMS Titanic · 1912
+                      K League · 해설위원
                     </p>
-                    <h2 className="mt-0.5 text-lg font-bold text-white">
-                      Captain Edward John Smith
-                    </h2>
-                    <p className="text-sm text-slate-300">처녀항해 뉴욕행 · White Star Line</p>
+                    <h2 className="mt-0.5 text-lg font-bold text-white">축구 해설위원</h2>
+                    <p className="text-sm text-emerald-100">경기장·팀·선수·일정 Q&amp;A</p>
                   </div>
                 </div>
               </div>
@@ -256,11 +248,11 @@ export default function SmithCaptainChatPage() {
                         "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1",
                         msg.role === "user"
                           ? "bg-neutral-100 text-neutral-600 ring-neutral-200 dark:bg-[#252b3b] dark:text-neutral-400 dark:ring-[#2d3447]"
-                          : "bg-slate-700 text-amber-300 ring-slate-600 dark:bg-[#0f1e35] dark:text-amber-300 dark:ring-slate-700"
+                          : "bg-emerald-800 text-amber-300 ring-emerald-700 dark:bg-[#0a3320] dark:text-amber-300 dark:ring-emerald-800"
                       )}
                       aria-hidden
                     >
-                      {msg.role === "user" ? "나" : <Anchor className="size-3.5" />}
+                      {msg.role === "user" ? "나" : <Trophy className="size-3.5" />}
                     </div>
 
                     {/* 말풍선 */}
@@ -269,7 +261,7 @@ export default function SmithCaptainChatPage() {
                         "max-w-[82%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed shadow-sm md:text-sm",
                         msg.role === "user"
                           ? "rounded-tr-sm border border-amber-200/60 bg-amber-50 text-neutral-900 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-neutral-100"
-                          : "rounded-tl-sm border border-slate-200 bg-white text-slate-700 dark:border-slate-700/50 dark:bg-[#141c2b] dark:text-slate-200"
+                          : "rounded-tl-sm border border-emerald-200 bg-white text-emerald-900 dark:border-emerald-800/50 dark:bg-[#0f1c14] dark:text-emerald-100"
                       )}
                     >
                       {msg.content}
@@ -279,16 +271,16 @@ export default function SmithCaptainChatPage() {
 
                 {chat.loading && (
                   <div className="flex gap-2.5">
-                    <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-amber-300 ring-1 ring-slate-600 dark:bg-[#0f1e35] dark:ring-slate-700">
+                    <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-amber-300 ring-1 ring-emerald-700 dark:bg-[#0a3320] dark:ring-emerald-800">
                       <Loader2 className="size-3.5 animate-spin" aria-hidden />
                     </div>
-                    <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-2.5 text-sm text-neutral-500 shadow-sm dark:border-slate-700/50 dark:bg-[#141c2b] dark:text-slate-400">
+                    <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border border-emerald-200 bg-white px-4 py-2.5 text-sm text-neutral-500 shadow-sm dark:border-emerald-800/50 dark:bg-[#0f1c14] dark:text-emerald-300">
                       <span className="flex gap-1">
-                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:0ms]" />
-                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:150ms]" />
-                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:300ms]" />
+                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400 [animation-delay:0ms]" />
+                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400 [animation-delay:150ms]" />
+                        <span className="inline-block h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-400 [animation-delay:300ms]" />
                       </span>
-                      선장이 답변 중…
+                      해설위원이 답변 중…
                     </div>
                   </div>
                 )}
@@ -306,13 +298,13 @@ export default function SmithCaptainChatPage() {
                 onSubmit={handleSubmit}
                 className="border-t border-neutral-200 bg-white p-3 dark:border-[#252b3b] dark:bg-[#161a24]"
               >
-                <label className="sr-only" htmlFor="smith-chat-input">
-                  선장님께 질문하기
+                <label className="sr-only" htmlFor="soccer-chat-input">
+                  해설위원께 질문하기
                 </label>
-                <div className="flex items-end gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 focus-within:border-slate-300 focus-within:ring-1 focus-within:ring-slate-200 dark:border-[#252b3b] dark:bg-[#1a1f2d] dark:focus-within:border-[#2d3447]">
+                <div className="flex items-end gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 focus-within:border-emerald-300 focus-within:ring-1 focus-within:ring-emerald-200 dark:border-[#252b3b] dark:bg-[#1a1f2d] dark:focus-within:border-[#2d3447]">
                   <textarea
                     ref={inputRef}
-                    id="smith-chat-input"
+                    id="soccer-chat-input"
                     name="message"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -324,7 +316,7 @@ export default function SmithCaptainChatPage() {
                     }}
                     onKeyDown={onKeyDown}
                     rows={2}
-                    placeholder="선장님께 질문하세요… (Enter 전송 / Shift+Enter 줄바꿈)"
+                    placeholder="K리그에 대해 질문하세요… (Enter 전송 / Shift+Enter 줄바꿈)"
                     disabled={chat.loading}
                     className="min-h-[2.75rem] flex-1 resize-none border-0 bg-transparent px-1 py-1 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none disabled:opacity-50 dark:text-neutral-100 dark:placeholder:text-neutral-600"
                   />
@@ -333,7 +325,7 @@ export default function SmithCaptainChatPage() {
                     size="icon"
                     disabled={chat.loading || !draft.trim()}
                     aria-label="전송"
-                    className="mb-0.5 size-9 shrink-0 rounded-lg bg-slate-700 text-amber-300 hover:bg-slate-600 disabled:opacity-40 dark:bg-[#0f1e35] dark:hover:bg-[#162035]"
+                    className="mb-0.5 size-9 shrink-0 rounded-lg bg-emerald-800 text-amber-300 hover:bg-emerald-700 disabled:opacity-40 dark:bg-[#0a3320] dark:hover:bg-[#0d3d26]"
                   >
                     {chat.loading ? (
                       <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -355,14 +347,14 @@ export default function SmithCaptainChatPage() {
                 </div>
                 <div className="space-y-4 p-4 text-center text-neutral-700 dark:text-neutral-300">
                   <div>
-                    <Ship className="mx-auto size-8 text-sky-500" />
-                    <p className="mt-2 text-sm font-semibold">RMS Titanic</p>
-                    <p className="text-xs text-neutral-500">White Star Line</p>
+                    <Trophy className="mx-auto size-8 text-emerald-500" />
+                    <p className="mt-2 text-sm font-semibold">K League</p>
+                    <p className="text-xs text-neutral-500">한국 프로축구</p>
                   </div>
                   <div>
                     <MessageCircle className="mx-auto size-7 text-violet-500" />
                     <p className="mt-1 text-sm">역할 기반 대화</p>
-                    <p className="text-xs text-neutral-500">선장 시점 Q&amp;A</p>
+                    <p className="text-xs text-neutral-500">해설위원 시점 Q&amp;A</p>
                   </div>
                   <div>
                     <Bot className="mx-auto size-7 text-rose-500" />
@@ -377,7 +369,7 @@ export default function SmithCaptainChatPage() {
                 <ul className="mt-2 space-y-1.5 text-xs leading-5">
                   <li>· LLM 프롬프트로 역할(페르소나) 지정</li>
                   <li>· 대화 이력을 컨텍스트로 전달</li>
-                  <li>· 백엔드 Gemini API 연동 실습</li>
+                  <li>· 프론트 → Gemini API 직접 연동 실습</li>
                 </ul>
               </article>
             </aside>
