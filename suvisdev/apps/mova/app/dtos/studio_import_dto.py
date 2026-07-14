@@ -22,7 +22,7 @@ class TmdbMovieSnapshotDto:
     tmdb_id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     genres: list[str]
@@ -32,7 +32,7 @@ class TmdbMovieSnapshotDto:
 class MovieUpsertCommand:
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     genres: list[str]

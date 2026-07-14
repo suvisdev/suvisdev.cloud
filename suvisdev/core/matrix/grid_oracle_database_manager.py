@@ -287,14 +287,11 @@ async def create_tables() -> None:
         if viewer_engine:
             async with viewer_engine.begin() as conn:
                 await _drop_legacy_mova_users_table(conn)
-                await conn.run_sync(ViewerBase.metadata.create_all)
     except ModuleNotFoundError:
         logger.warning("Viewer models not found.")
 
-    mova_engine = get_mova_engine()
-    if mova_engine:
-        async with mova_engine.begin() as conn:
-            await conn.run_sync(MovaBase.metadata.create_all)
+    # mova/viewer 테이블 생성은 Alembic이 전담한다 (MOVA_V2_MIGRATION_HANDOFF.md §D).
+    # create_all()로 우회 생성하지 않는다 — `alembic upgrade head`로만 적용.
 
 
 async def ensure_titanic_tables() -> None:
@@ -306,7 +303,7 @@ async def ensure_titanic_tables() -> None:
         import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401
     except ModuleNotFoundError:
         pass
-    import vision.adapter.outbound.orm.vision_upload_orm  # noqa: F401
+    import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401
     from core.matrix.grid_neo_theone_base import Base
 
     ok, err = ensure_mova_database()

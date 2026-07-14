@@ -15,10 +15,28 @@
 | 항목 | 값 |
 |---|---|
 | OS | Ubuntu 24.04 (WSL2) |
-| DB | PostgreSQL + pgvector 확장 설치됨 |
+| DB | **Docker 컨테이너**로 실행하는 PostgreSQL + pgvector (`pgvector/pgvector:pg16` 이미지) |
+| 컨테이너 관리 | Docker Compose (기존 `docker-compose.yaml`에 서비스 추가) |
 | ORM | SQLAlchemy 2.0 (Mapped / mapped_column 스타일) |
-| Migration | Alembic |
+| Migration | Alembic (호스트 WSL에서 실행, 컨테이너 DB에 접속) |
 | 접속 정보 | `.env`의 `DATABASE_URL` 사용 (하드코딩 금지) |
+
+### 2.1 DB 컨테이너 명세
+
+기존 `docker-compose.yaml`에 아래 요구사항을 만족하는 `db` 서비스를 추가한다.
+(이미 pgvector 계열 DB 서비스가 존재하면 새로 만들지 말고 그것을 재사용할 것 — 중복 컨테이너 금지)
+
+| 항목 | 요구사항 |
+|---|---|
+| 이미지 | `pgvector/pgvector:pg16` (pgvector 확장 내장 공식 이미지) |
+| 인증 정보 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` 를 `.env`에서 주입 |
+| 포트 | 호스트 `5432` → 컨테이너 `5432` (호스트 5432 점유 시 `.env`의 `DB_PORT`로 변경 가능하게) |
+| 볼륨 | named volume 마운트 → 컨테이너 재생성해도 데이터 유지 |
+| healthcheck | `pg_isready` 기반. Alembic 실행 전 healthy 상태 확인 |
+| 확장 활성화 | 초기화 SQL(`docker-entrypoint-initdb.d/`)로 `CREATE EXTENSION IF NOT EXISTS vector;` 실행 |
+
+- `.env`의 `DATABASE_URL` 예시 형태: `postgresql+psycopg://<user>:<password>@localhost:5432/<db>` (실제 값은 `.env`에서만 관리)
+- `.env.example`을 함께 갱신하되, 실제 비밀번호는 커밋하지 않는다.
 
 ## 3. 아키텍처 규칙 (Constraints)
 
@@ -41,6 +59,7 @@
 | address | VARCHAR(60) | |
 | ddd | VARCHAR(10) | |
 | tel | VARCHAR(10) | |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.2 `team`
 
@@ -60,6 +79,7 @@
 | homepage | VARCHAR(50) | |
 | owner | VARCHAR(10) | |
 | stadium_id | VARCHAR(10) | **FK → stadium.stadium_id** |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.3 `player`
 
@@ -78,6 +98,7 @@
 | height | INTEGER | |
 | weight | INTEGER | |
 | team_id | VARCHAR(10) | **FK → team.team_id** |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.4 `schedule`
 
@@ -90,6 +111,7 @@
 | awayteam_id | VARCHAR(10) | |
 | home_score | INTEGER | |
 | away_score | INTEGER | |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.5 공통 규칙
 
@@ -97,12 +119,19 @@
 - FK에는 `ondelete` 정책을 명시하되, 참조 무결성 보존을 위해 `RESTRICT` 사용
 - 테이블 생성 순서 의존성 주의: `stadium → team → player`, `stadium → schedule`
 - `stadium.hometeam_id`, `schedule.hometeam_id/awayteam_id`는 ERD상 FK로 표시되지 않았으므로 **일반 컬럼으로 유지** (순환 참조 방지)
+- `embedding`은 4개 테이블 모두 `pgvector.sqlalchemy.Vector(768)`, `nullable=True` (`dispatch_inbox`/`mova.movies`와 동일 차원 규칙)
 
 ## 5. 작업 절차 (Steps)
 
+0. **DB 컨테이너 기동**
+   - `docker-compose.yaml`에 2.1 명세대로 `db` 서비스 작성 (기존 서비스 있으면 재사용)
+   - `docker compose up -d db` 로 백그라운드 기동
+   - `docker compose ps` 로 상태가 `healthy` 될 때까지 대기 후 다음 단계 진행
 1. **환경 점검**
    - `alembic.ini` / `env.py` 존재 여부 확인. 없으면 `alembic init` 후 `env.py`가 `.env`의 `DATABASE_URL`과 ORM `Base.metadata`를 읽도록 구성
-   - DB 접속 및 pgvector 확장 상태 확인: `SELECT extversion FROM pg_extension WHERE extname = 'vector';`
+   - 컨테이너 DB 접속 및 pgvector 확장 상태 확인:
+     `docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT extversion FROM pg_extension WHERE extname = 'vector';"`
+   - 확장이 없으면 초기화 SQL이 적용되지 않은 것 → 볼륨 삭제 후 재기동으로 초기화 재실행 (`docker compose down -v` 는 데이터 전체 삭제이므로 **사용자에게 먼저 확인받을 것**)
 2. **ORM 모델 작성**
    - 테이블당 1파일, SQLAlchemy 2.0 `Mapped`/`mapped_column` 스타일
 3. **마이그레이션 생성**
@@ -116,9 +145,12 @@
 
 ## 6. 완료 기준 (Definition of Done)
 
+- [ ] `docker compose ps` 에서 `db` 서비스가 `healthy` 상태
+- [ ] 컨테이너 내부에서 `SELECT extversion FROM pg_extension WHERE extname = 'vector';` 결과가 버전을 반환
 - [ ] `alembic upgrade head` 성공, 에러 없음
-- [ ] `\dt` 결과에 4개 테이블 존재
-- [ ] `schedule`의 복합 PK가 `(sche_date, stadium_id)`로 잡혀 있음 (`\d schedule`로 확인)
+- [ ] `docker compose exec db psql ... -c "\dt"` 결과에 4개 테이블 존재
+- [ ] 컨테이너 재시작(`docker compose restart db`) 후에도 테이블/데이터 유지 (볼륨 검증)
+- [ ] `schedule`의 복합 PK가 `(sche_date, stadium_id)`로 잡혀 있음 (`docker compose exec db psql ... -c "\d schedule"`로 확인)
 - [ ] FK 3개 정상 생성: `team→stadium`, `player→team`, `schedule→stadium`
 - [ ] `alembic downgrade -1` 시 4개 테이블 모두 정상 제거 (downgrade 함수 구현 필수)
 - [ ] `ruff check` / `mypy` 통과
@@ -127,5 +159,8 @@
 
 - ❌ `Base.metadata.create_all()` 로 테이블 직접 생성 금지 — 반드시 Alembic 경유
 - ❌ DB 접속 정보 하드코딩 금지
-- ❌ ERD에 없는 컬럼/인덱스 임의 추가 금지 (vector 컬럼 포함 — 이번 범위 아님)
+- ❌ ERD·4.1~4.4 명세에 없는 컬럼/인덱스 임의 추가 금지 (`embedding` 컬럼은 4.1~4.4에 명시된 대로 4개 테이블 모두 포함)
 - ❌ 기존 마이그레이션 리비전 수정 금지 — 새 리비전으로만 작업
+- ❌ 호스트 WSL에 PostgreSQL 직접 설치(`apt install postgresql`) 금지 — DB는 반드시 컨테이너로만
+- ❌ 볼륨 없는 컨테이너 금지 — 데이터 유실 방지
+- ❌ `docker compose down -v` 임의 실행 금지 — 데이터 삭제 명령은 사용자 확인 필수

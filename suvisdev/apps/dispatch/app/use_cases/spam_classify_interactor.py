@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from dispatch.app.dtos.spam_dto import SpamClassifyDto
+from dispatch.app.ports.output.spam_errors import SpamFilterError
 from ontology.domain.spam.spam_category import SpamCategory
 from ontology.domain.spam.spam_rules import quick_filter
 from ontology.domain.spam.spam_taxonomy import build_classifier_system_prompt
-from spam_filter.app.dtos.spam_dto import SpamClassifyDto
-from spam_filter.app.ports.output.spam_errors import SpamFilterError
 
 _SYSTEM_PROMPT = build_classifier_system_prompt()
 

@@ -39,7 +39,7 @@ class MovieDetailSchema(BaseModel):
     id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     platforms: list[PlatformSchema]
@@ -57,7 +57,7 @@ class MovieListItemSchema(BaseModel):
     id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     platforms: list[PlatformSchema]
@@ -78,7 +78,7 @@ class MovieListSchema(BaseModel):
 class MovieCreateSchema(BaseModel):
     title: str
     slug: str | None = None
-    release_year: str = ""
+    release_year: int = 0
     rating: float = 0.0
     poster_url: str = ""
     platforms: list[PlatformSchema] = Field(default_factory=list)

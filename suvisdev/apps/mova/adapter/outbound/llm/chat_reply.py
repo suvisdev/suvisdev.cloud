@@ -107,7 +107,7 @@ class ChatReplyService:
                     if not poster:
                         poster = (movie.poster_url or "").strip()
                     if not year:
-                        year = movie.release_year or ""
+                        year = str(movie.release_year or "")
                     if not platform:
                         platform = _platform_from_dto(movie)
 
@@ -121,10 +121,11 @@ class ChatReplyService:
                                 MovieUpsertCommand(
                                     slug=movie.slug,
                                     title=movie.title,
-                                    release_year=movie.release_year or "",
+                                    release_year=movie.release_year or 0,
                                     rating=movie.rating,
                                     poster_url=poster,
-                                    genres=list(movie.genres or []),
+                                    # 빈 리스트 → upsert_movie가 genre 태그를 건드리지 않음(기존 유지).
+                                    genres=[],
                                 )
                             )
                     else:
@@ -132,7 +133,7 @@ class ChatReplyService:
                             MovieUpsertCommand(
                                 slug=slug,
                                 title=rec.title,
-                                release_year=year or "",
+                                release_year=int(year) if str(year).isdigit() else 0,
                                 rating=0.0,
                                 poster_url=poster or "",
                                 genres=[],

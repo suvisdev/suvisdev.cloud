@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
-from mova.adapter.outbound.orm.studio_tags_orm import MovaTag
+from mova.adapter.outbound.orm.studio_tags_orm import TAG_KIND_GENRE, MovaTag, slugify_tag
 from mova.app.dtos.studio_import_dto import MovieUpsertCommand
 from mova.app.dtos.studio_movies_dto import (
     MovieDetailDto,
@@ -21,6 +21,22 @@ from mova.app.dtos.studio_movies_dto import (
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 
 logger = logging.getLogger(__name__)
+
+
+async def _replace_genre_tags(session: AsyncSession, movie_id: int, genres: list[str]) -> None:
+    """movie_id의 tag_kind='genre' 태그를 genres로 통째로 교체한다."""
+    await session.execute(
+        delete(MovaTag).where(MovaTag.movie_id == movie_id, MovaTag.tag_kind == TAG_KIND_GENRE)
+    )
+    for g in genres:
+        session.add(
+            MovaTag(
+                movie_id=movie_id,
+                tag_kind=TAG_KIND_GENRE,
+                slug=slugify_tag(g),
+                label=g,
+            )
+        )
 
 
 class MoviesPgRepository(MoviesRepositoryPort):
@@ -54,7 +70,8 @@ class MoviesPgRepository(MoviesRepositoryPort):
             len(char_actors),
             len(tags),
         )
-        return MovieDetailDto.from_orm(movie, char_actors, tags)
+        genres = [t.label for t in tags if t.tag_kind == TAG_KIND_GENRE]
+        return MovieDetailDto.from_orm(movie, char_actors, tags, genres)
 
     async def find_by_title(self, title: str) -> MovieDetailDto | None:
         movie_q = await self._session.execute(
@@ -70,7 +87,15 @@ class MoviesPgRepository(MoviesRepositoryPort):
         count_stmt = select(func.count(MovaMovie.id))
 
         if query.genre:
-            cond = MovaMovie.genres.contains([query.genre])
+            cond = (
+                select(MovaTag.id)
+                .where(
+                    MovaTag.movie_id == MovaMovie.id,
+                    MovaTag.tag_kind == TAG_KIND_GENRE,
+                    MovaTag.label == query.genre,
+                )
+                .exists()
+            )
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
@@ -108,9 +133,22 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movies_r = await self._session.execute(stmt)
         movies = list(movies_r.scalars().all())
 
+        genres_by_movie: dict[int, list[str]] = {}
+        if movies:
+            movie_ids = [m.id for m in movies]
+            genre_tags_r = await self._session.execute(
+                select(MovaTag.movie_id, MovaTag.label).where(
+                    MovaTag.movie_id.in_(movie_ids), MovaTag.tag_kind == TAG_KIND_GENRE
+                )
+            )
+            for movie_id, label in genre_tags_r.all():
+                genres_by_movie.setdefault(movie_id, []).append(label)
+
         logger.debug("[MoviesPgRepository] list_movies total=%d returned=%d", total, len(movies))
         return MovieListDto(
-            items=[MovieListItemDto.from_orm(m) for m in movies],
+            items=[
+                MovieListItemDto.from_orm(m, genres_by_movie.get(m.id, [])) for m in movies
+            ],
             total=total,
             limit=query.limit,
             offset=query.offset,
@@ -133,11 +171,12 @@ class MoviesPgRepository(MoviesRepositoryPort):
                 rating=command.rating,
                 poster_url=command.poster_url,
                 platforms=list(command.platforms or []),
-                genres=list(command.genres or []),
                 age_rating=command.age_rating,
             )
             self._session.add(movie)
             await self._session.flush()
+            if command.genres:
+                await _replace_genre_tags(self._session, movie.id, list(command.genres))
             await self._session.commit()
             await self._session.refresh(movie)
             logger.debug("[MoviesPgRepository] insert slug=%s id=%d", command.slug, movie.id)
@@ -149,7 +188,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
         if command.poster_url:
             existing.poster_url = command.poster_url
         if command.genres:
-            existing.genres = list(command.genres)
+            await _replace_genre_tags(self._session, existing.id, list(command.genres))
         if command.age_rating is not None:
             existing.age_rating = command.age_rating
         await self._session.commit()

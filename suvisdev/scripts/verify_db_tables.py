@@ -35,7 +35,7 @@ MOVA_TABLES = (
     "reviews",
     "assistants",
 )
-TITANIC_TABLES = ("titanic_persons", "titanic_bookings")
+TITANIC_TABLES = ("titanic_passengers", "titanic_bookings")
 
 
 async def _list_public_tables(engine) -> list[str]:

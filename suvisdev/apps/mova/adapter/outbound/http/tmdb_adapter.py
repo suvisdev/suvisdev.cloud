@@ -65,6 +65,10 @@ class TmdbAdapter:
         data = await self._get("/movie/popular", params={"page": max(1, page)})
         return list(data.get("results") or [])
 
+    async def fetch_top_rated(self, *, page: int = 1) -> list[dict]:
+        data = await self._get("/movie/top_rated", params={"page": max(1, page)})
+        return list(data.get("results") or [])
+
     async def search_movies(self, query: str, *, page: int = 1) -> list[dict]:
         q = query.strip()
         if not q:

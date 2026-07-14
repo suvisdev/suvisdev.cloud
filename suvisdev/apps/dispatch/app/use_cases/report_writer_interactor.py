@@ -1,7 +1,7 @@
 """리포터(Reporter) — 격상된 VIP/보고서 요청(Case B)을 dispatch 내부에서 직접 종결한다.
 
-공용 오케스트레이터(core/lol)는 exaone3.5:7.8b로 email·spam_filter 등 범용 생성에 쓰이지만,
-이 리포터는 빠른 내부 트리아지 응답을 위해 더 가벼운 REPORT_WRITER_MODEL 전용 인스턴스를 쓴다.
+dispatch의 다른 기능(email·spam 분류 등)과 마찬가지로, 빠른 내부 트리아지 응답을 위해
+REPORT_WRITER_MODEL(exaone3.5:2.4b) 전용 인스턴스를 쓴다.
 """
 
 from __future__ import annotations

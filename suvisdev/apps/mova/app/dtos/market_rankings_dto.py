@@ -39,7 +39,7 @@ class RankingItemDto:
     refined_query: str | None
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster: str
     genres: list[str]

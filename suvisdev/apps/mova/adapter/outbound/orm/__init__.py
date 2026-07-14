@@ -4,17 +4,17 @@ from mova.adapter.outbound.orm.base_orm import MovaModel
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
 from mova.adapter.outbound.orm.market_collections_orm import MovaCollection
 from mova.adapter.outbound.orm.market_picks_orm import MovaPick
-from mova.adapter.outbound.orm.market_watchlist_orm import MovaWatchlist
 from mova.adapter.outbound.orm.market_rankings_orm import MovaRanking
-from mova.adapter.outbound.orm.market_reviews_orm import (
+from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
+from mova.adapter.outbound.orm.market_user_actions_orm import (
     ACTION_CLICK,
     ACTION_FAVORITE,
     ACTION_NOT_INTERESTED,
-    ACTION_REVIEW,
     ACTION_WATCHED,
     EVENT_ACTION_TYPES,
-    MovaReview,
+    MovaUserAction,
 )
+from mova.adapter.outbound.orm.market_watchlist_orm import MovaWatchlist
 from mova.adapter.outbound.orm.platform_assistants_orm import MovaAssistant
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
@@ -47,10 +47,10 @@ __all__ = [
     "MovaChat",
     "MovaPick",
     "MovaReview",
+    "MovaUserAction",
     "ACTION_FAVORITE",
     "ACTION_WATCHED",
     "ACTION_CLICK",
     "ACTION_NOT_INTERESTED",
-    "ACTION_REVIEW",
     "EVENT_ACTION_TYPES",
 ]

@@ -6,8 +6,21 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"            # 내 진짜 컴퓨터의 8000번 포트와 도커의 8000번 포트를 연결해라
+    # .dockerignore가 .env를 이미지에서 제외하므로(비밀번호 커밋 방지),
+    # 컨테이너 실행 시점에 호스트의 .env를 env_file로 주입한다.
+    # 실행: docker compose --env-file suvisdev/.env up -d --build backend
+    env_file:
+      - ./suvisdev/.env
     environment:
       - ENV=production
+      # .env의 DATABASE_URL/MOVA_DATABASE_URL은 localhost:5432(호스트에서 알렘빅 실행용)라
+      # 컨테이너 안에서는 자기 자신을 가리켜 못 붙는다. db 컨테이너는 같은 네트워크에서
+      # 서비스명 "db"로 접근하므로 여기서 덮어쓴다.
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - MOVA_DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
     deploy:
       resources:
         reservations:
@@ -16,14 +29,25 @@ services:
               count: all
               capabilities: [gpu]
 
-  # 2. 프론트엔드(Next.js) 서비스 정의
-  frontend:
-    build:
-      context: ./suvis         # suvis 폴더 안에 있는 Dockerfile을 읽어라
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"            # 내 진짜 컴퓨터의 3000번 포트와 도커의 3000번 포트를 연결해라
+  # 2. PostgreSQL + pgvector 서비스 정의
+  # 접속·인증 정보는 suvisdev/.env 에서 주입한다 (하드코딩 금지).
+  # 실행: docker compose --env-file suvisdev/.env up -d db
+  db:
+    image: pgvector/pgvector:pg16
     environment:
-      - BACKEND_URL=http://backend:8000
-    depends_on:
-      - backend                # 백엔드가 먼저 켜진 다음에 프론트엔드를 켜라
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data          # named volume — 컨테이너 재생성해도 데이터 유지
+      - ./db/init:/docker-entrypoint-initdb.d      # 최초 기동 시 CREATE EXTENSION vector 실행
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:

@@ -25,7 +25,6 @@ class SignupUserCommand:
     nickname: str
     email: str
     gender: str
-    age_group: str
     birth_year: int | None
     preferred_genres: list[str] | None
     bio: str | None
@@ -45,7 +44,6 @@ class SignupCommand:
                 nickname=user.nickname,
                 email=user.email,
                 gender=user.gender,
-                age_group=user.age_group,
                 birth_year=user.birth_year,
                 preferred_genres=user.preferred_genres,
                 bio=user.bio,

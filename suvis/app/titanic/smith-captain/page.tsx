@@ -175,6 +175,15 @@ export default function SmithCaptainChatPage() {
               객체 탐지
             </Link>
           </div>
+          <p className="mt-6 text-xs font-semibold tracking-wide text-neutral-500">SOCCER</p>
+          <div className="mt-2 space-y-2">
+            <Link
+              href="/soccer/chat"
+              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
+            >
+              채팅
+            </Link>
+          </div>
         </aside>
 
         {/* 메인 콘텐츠 */}

@@ -50,7 +50,7 @@ class ChatPgRepository(ChatRepositoryPort):
             MovaSearchItemSchema(
                 id=str(m.id),
                 title=m.title,
-                year=m.release_year or "",
+                year=str(m.release_year or ""),
                 rating=float(m.rating or 0),
                 poster=m.poster_url or "",
                 match_type="keyword",

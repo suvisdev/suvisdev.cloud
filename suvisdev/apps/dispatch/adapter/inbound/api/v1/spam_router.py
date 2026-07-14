@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from spam_filter.adapter.inbound.api.schemas.spam_schema import SpamClassifyRequest, SpamClassifyResponse
-from spam_filter.app.ports.input.spam_use_case import SpamClassifyUseCase
-from spam_filter.app.ports.output.spam_errors import SpamFilterError
-from spam_filter.dependencies.spam_provider import get_spam_classify_use_case
+from dispatch.adapter.inbound.api.schemas.spam_schema import (
+    SpamClassifyRequest,
+    SpamClassifyResponse,
+)
+from dispatch.app.ports.input.spam_use_case import SpamClassifyUseCase
+from dispatch.app.ports.output.spam_errors import SpamFilterError
+from dispatch.dependencies.spam_provider import get_spam_classify_use_case
 
-spam_router = APIRouter(prefix="/spam", tags=["spam-filter"])
+spam_router = APIRouter(prefix="/spam", tags=["dispatch-spam"])
 
 
 @spam_router.post("/classify", response_model=SpamClassifyResponse)

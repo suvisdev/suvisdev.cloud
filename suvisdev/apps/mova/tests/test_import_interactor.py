@@ -39,7 +39,7 @@ class TmdbMapperTests(unittest.TestCase):
         )
         assert mapped is not None
         self.assertEqual(mapped.slug, "tmdb-27205")
-        self.assertEqual(mapped.release_year, "2010")
+        self.assertEqual(mapped.release_year, 2010)
         self.assertEqual(mapped.genres, ["액션", "SF"])
 
 
@@ -61,7 +61,7 @@ class ImportInteractorTests(unittest.IsolatedAsyncioTestCase):
             tmdb_id=1,
             slug="tmdb-1",
             title="Test",
-            release_year="2020",
+            release_year=2020,
             rating=4.0,
             poster_url="",
             genres=["SF"],

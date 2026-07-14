@@ -41,7 +41,7 @@ async def get_movie_detail(
 @studio_movies_router.get("", response_model=MovieListSchema)
 async def list_movies(
     genre: str | None = Query(None, description="장르 필터 (예: SF, 코미디)"),
-    release_year: str | None = Query(None, description="개봉 연도 (예: 2024)"),
+    release_year: int | None = Query(None, description="개봉 연도 (예: 2024)"),
     min_rating: float | None = Query(None, ge=0.0, le=5.0, description="최소 평점"),
     age_rating: str | None = Query(None, description="관람 등급 (전체|12세|15세|청불)"),
     platform: str | None = Query(None, description="플랫폼 (netflix|disney|watcha 등)"),

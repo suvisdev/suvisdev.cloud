@@ -10,7 +10,7 @@ from mova.domain.value_objects.market_rankings_vo import RANKING_SOURCE_BOX_OFFI
 
 
 class MovaRanking(MovaModel):
-    """HOT ��ŷ ������. `source`�� �Ϻ� TOP N ? chat_trend�� picks��chat ����."""
+    """HOT 랭킹 정보. `source`별 일자 TOP N — chat_trend는 picks·chat 참고."""
 
     __tablename__ = "rankings"
     __table_args__ = (
@@ -29,7 +29,7 @@ class MovaRanking(MovaModel):
         ForeignKey("chat.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
-        comment="source=chat_trend ? ��ǥ �˻� �ǵ� chat.id",
+        comment="source=chat_trend일 때 근거가 된 chat.id",
     )
     source: Mapped[str] = mapped_column(
         String(16),
