@@ -59,6 +59,7 @@
 | address | VARCHAR(60) | |
 | ddd | VARCHAR(10) | |
 | tel | VARCHAR(10) | |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.2 `team`
 
@@ -78,6 +79,7 @@
 | homepage | VARCHAR(50) | |
 | owner | VARCHAR(10) | |
 | stadium_id | VARCHAR(10) | **FK → stadium.stadium_id** |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.3 `player`
 
@@ -96,6 +98,7 @@
 | height | INTEGER | |
 | weight | INTEGER | |
 | team_id | VARCHAR(10) | **FK → team.team_id** |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.4 `schedule`
 
@@ -108,6 +111,7 @@
 | awayteam_id | VARCHAR(10) | |
 | home_score | INTEGER | |
 | away_score | INTEGER | |
+| embedding | VECTOR(768) | RAG용 임베딩 (nullable) |
 
 ### 4.5 공통 규칙
 
@@ -115,6 +119,7 @@
 - FK에는 `ondelete` 정책을 명시하되, 참조 무결성 보존을 위해 `RESTRICT` 사용
 - 테이블 생성 순서 의존성 주의: `stadium → team → player`, `stadium → schedule`
 - `stadium.hometeam_id`, `schedule.hometeam_id/awayteam_id`는 ERD상 FK로 표시되지 않았으므로 **일반 컬럼으로 유지** (순환 참조 방지)
+- `embedding`은 4개 테이블 모두 `pgvector.sqlalchemy.Vector(768)`, `nullable=True` (`dispatch_inbox`/`mova.movies`와 동일 차원 규칙)
 
 ## 5. 작업 절차 (Steps)
 
@@ -154,7 +159,7 @@
 
 - ❌ `Base.metadata.create_all()` 로 테이블 직접 생성 금지 — 반드시 Alembic 경유
 - ❌ DB 접속 정보 하드코딩 금지
-- ❌ ERD에 없는 컬럼/인덱스 임의 추가 금지 (vector 컬럼 포함 — 이번 범위 아님)
+- ❌ ERD·4.1~4.4 명세에 없는 컬럼/인덱스 임의 추가 금지 (`embedding` 컬럼은 4.1~4.4에 명시된 대로 4개 테이블 모두 포함)
 - ❌ 기존 마이그레이션 리비전 수정 금지 — 새 리비전으로만 작업
 - ❌ 호스트 WSL에 PostgreSQL 직접 설치(`apt install postgresql`) 금지 — DB는 반드시 컨테이너로만
 - ❌ 볼륨 없는 컨테이너 금지 — 데이터 유실 방지
