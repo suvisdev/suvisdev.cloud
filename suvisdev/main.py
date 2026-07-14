@@ -27,6 +27,7 @@ for _p in (_BACKEND_ROOT, _APPS_ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+from contents.adapter.inbound.api import contents_router
 from core.matrix.grid_oracle_database_manager import (
     create_tables,
     dispose_engine,
@@ -292,6 +293,7 @@ app.include_router(gildle_router, prefix="/api")
 app.include_router(viewer_router)
 app.include_router(silicon_valley_router, prefix="/api/v1")
 app.include_router(dispatch_router, prefix="/api/v1")
+app.include_router(contents_router, prefix="/api/v1")
 app.include_router(vision_router, prefix="/api")
 
 

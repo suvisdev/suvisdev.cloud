@@ -65,7 +65,7 @@ export default function SoccerChatPage() {
     setDraft("")
 
     try {
-      const res = await fetch(`/api/gemini/chat`, {
+      const res = await fetch(`/api/v1/contents/soccer/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
