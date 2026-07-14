@@ -24,7 +24,7 @@ ignore = [
 known-first-party = [
     "ontology",
     "titanic", "mova", "viewer", "silicon_valley",
-    "dispatch", "spam_filter",
+    "dispatch",
     "friday13th", "imitation_game", "inception", "social_network",
     "gildle",
     "contents",

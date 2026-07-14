@@ -9,7 +9,6 @@ root_packages =
     gildle
     contents
     sample
-    spam_filter
     core
 
 # Rule 1: Hub (ontology) must not depend on any spoke.
@@ -27,7 +26,6 @@ forbidden_modules =
     gildle
     contents
     sample
-    spam_filter
 
 # Rule 2: Spokes must not import each other directly (star topology).
 [importlinter:contract:spoke-independence]
@@ -42,7 +40,6 @@ modules =
     gildle
     contents
     sample
-    spam_filter
 # Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
 #
 # (a) DB metadata registration: core/matrix/grid_oracle_database_manager imports
@@ -69,6 +66,7 @@ ignore_imports =
     mova.adapter.outbound.orm.market_chat_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_picks_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_reviews_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_user_actions_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_watchlist_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.market_reviews_pg_repository -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.mypage_pg_repository -> viewer.adapter.outbound.orm.user_orm
