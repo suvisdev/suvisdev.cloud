@@ -39,6 +39,13 @@ import mova.adapter.outbound.orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
 
+# grid_neo_theone_base.Base 등록 — titanic_passengers/bookings, dispatch_adress/inbox,
+# vision_uploads가 실제로 붙는 Base (TitanicBase와는 별개, 지금까지 target_metadata 밖이었음).
+import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401,E402
+import dispatch.adapter.outbound.orm.receive_orm  # noqa: F401,E402
+import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
+from core.matrix.grid_neo_theone_base import Base as NeoTheOneBase  # noqa: E402
+
 # viewer ORM 등록 — 모듈 import 시 테이블이 ViewerBase.metadata에 붙는다.
 import viewer.adapter.outbound.orm.admin_orm  # noqa: F401,E402
 import viewer.adapter.outbound.orm.group_orm  # noqa: F401,E402
@@ -59,6 +66,7 @@ if config.config_file_name is not None:
 # 앱별 Base가 분리돼 있어 autogenerate가 모든 테이블을 보도록 metadata 리스트로 넘긴다.
 target_metadata = [
     TitanicBase.metadata,
+    NeoTheOneBase.metadata,
     GildleBase.metadata,
     ContentsBase.metadata,
     MovaBase.metadata,
