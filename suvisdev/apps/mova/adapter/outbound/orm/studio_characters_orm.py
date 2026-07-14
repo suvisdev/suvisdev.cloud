@@ -1,16 +1,22 @@
-"""@see suvisdev/_claude/ENTITY_RULE.md — 영화↔인물(배우) 연결."""
+"""@see suvisdev/_claude/ENTITY_RULE.md — 영화-인물 관계."""
 
-from sqlalchemy import ForeignKey, Integer, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mova.adapter.outbound.orm.base_orm import MovaModel
 
 
 class MovaCharacter(MovaModel):
-    """��ȭ?�ι� ���� (`characters` ���̺�). PK `id` ? `(movie_id, actor_id)` UNIQUE."""
+    """영화-인물 관계 (`characters` 테이블). PK `id` — `(movie_id, actor_id, character_name)` UNIQUE (1인 다역 허용)."""
 
     __tablename__ = "characters"
-    __table_args__ = (UniqueConstraint("movie_id", "actor_id", name="uq_characters_movie_actor"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "movie_id", "actor_id", "character_name", name="uq_characters_movie_actor_name"
+        ),
+    )
 
     movie_id: Mapped[int] = mapped_column(
         Integer,
@@ -23,4 +29,16 @@ class MovaCharacter(MovaModel):
         ForeignKey("actors.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+    character_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
     )

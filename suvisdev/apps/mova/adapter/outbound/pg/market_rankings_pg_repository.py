@@ -56,10 +56,12 @@ class RankingsPgRepository(RankingsRepositoryPort):
                 refined_query=c.refined_query if c else None,
                 slug=m.slug,
                 title=m.title,
-                release_year=m.release_year or "",
+                release_year=m.release_year or 0,
                 rating=float(m.rating or 0),
                 poster=m.poster_url or "",
-                genres=list(m.genres or []),
+                # movies.genres 제거(v2) — 랭킹 응답의 genres는 프론트가 소비하지 않아
+                # (mova-api.ts 확인) tags 조인 없이 당장은 빈 리스트로 둔다.
+                genres=[],
             )
             for r, m, c in rows
         ]

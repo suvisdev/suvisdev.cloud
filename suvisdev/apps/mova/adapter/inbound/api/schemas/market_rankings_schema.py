@@ -33,7 +33,7 @@ class HotRankingDisplaySchema(BaseModel):
     refined_query: str | None
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster: str
     platform: str | None

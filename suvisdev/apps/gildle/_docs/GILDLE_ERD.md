@@ -13,6 +13,11 @@
 > - `route_edges`는 **무향 그래프**로 취급 (저장 1행, 조회 시 양방향 탐색) — 방향성 정책 문서화, 스키마 변경 없음
 > - `route_requests.mode`, `route_nodes.node_type` 허용값 문서화 (DB enum 강제 없음, 유스케이스 계층에서 검증)
 
+> **2026-07 변경 (Schema Revision v3 — 제약 계층 보강):**
+> - `route_edges` `(from_node_id, to_node_id, road_name)` UNIQUE(`uq_edges_from_to_road`) **유지 확정** — 실 데이터로 `road_name` NULL 비율을 확인하지 못한 상태(로컬 DB 없음)라 v2의 기본안(낮은 NULL 비율 가정)을 그대로 유지. NULL 비율이 높은 것으로 확인되면 2중 `(from_node_id, to_node_id)` UNIQUE 또는 PostgreSQL 15+ `NULLS NOT DISTINCT` 옵션으로 재검토
+> - `route_edges` 점수 컬럼 3종(`tree_score`/`hazard_score`/`dog_friendly_score`) **`NOT NULL` + `server_default=0`** 확정 — NULL이면 라우팅 비용 계산에서 `NULL * 가중치 = NULL`로 경로 비용 전체가 오염되므로 "점수 미산정 = 0"을 도메인 규칙으로 강제. 값 범위 CHECK(`0 <= score <= 1`) 3종 추가
+> - `route_requests` ↔ `route_results` **1:1 정책 확정**(`uq_route_results_route_request_id`, v1부터 동일) — 재계산은 기존 행 UPDATE로 처리, 이력을 쌓는 1:N으로 바꾸지 않음
+
 ## 전체 ERD
 
 ```mermaid
@@ -111,8 +116,8 @@ mermaid ER 파서는 동일 엔티티 쌍 사이에 관계선을 두 개 이상 
 
 | 테이블 | 제약 |
 |--------|------|
-| `route_edges` | `(from_node_id, to_node_id, road_name)` UNIQUE — `uq_edges_from_to_road` (v2). `road_name` NULL 비율 높으면 재검토 |
-| `route_results` | `route_request_id` UNIQUE — `uq_route_results_route_request_id` |
+| `route_edges` | `(from_node_id, to_node_id, road_name)` UNIQUE — `uq_edges_from_to_road` (v2, v3 유지 확정). `road_name` NULL 비율 높으면 재검토 · `tree_score`/`hazard_score`/`dog_friendly_score` `NOT NULL` + `default 0` + CHECK `0~1` 범위(v3, `ck_edges_{컬럼}_range`) |
+| `route_results` | `route_request_id` UNIQUE — `uq_route_results_route_request_id` (1:1 정책, v3 확정) |
 | `route_requests` | `user_id` FK 없음(논리 참조, v2) |
 
 ## 필드 설명
@@ -131,9 +136,9 @@ mermaid ER 파서는 동일 엔티티 쌍 사이에 관계선을 두 개 이상 
 | from_node_id / to_node_id | `route_nodes.id` self-ref FK — 간선의 시작·끝 노드. `(from_node_id, to_node_id, road_name)` 복합 UNIQUE(v2, `uq_edges_from_to_road`) |
 | base_distance_m | 기본 거리(m), 가중치 계산의 base |
 | road_name | 도로명 (nullable) — 가로수 구간 매칭 키. NULL 비율 높으면 위 UNIQUE 방지 효과 약해짐(재검토 대상) |
-| tree_score | 가로수 밀도 점수 0~1 정규화 (v2, `server_default=0`) — 전처리 배치가 채움 |
-| hazard_score | 결빙 위험 점수 0~1 정규화 (v2, `server_default=0`) — 전처리 배치가 채움 |
-| dog_friendly_score | 반려견 적합도 점수 0~1 정규화 (v2, `server_default=0`) — 전처리 배치가 채움 |
+| tree_score | 가로수 밀도 점수 0~1 정규화 — 전처리 배치가 채움. `NOT NULL`, `default 0`, CHECK `0~1`(v3) — NULL이면 비용 계산 전체가 오염되므로 "미산정=0"을 강제 |
+| hazard_score | 결빙 위험 점수 0~1 정규화 — 전처리 배치가 채움. `NOT NULL`, `default 0`, CHECK `0~1`(v3) |
+| dog_friendly_score | 반려견 적합도 점수 0~1 정규화 — 전처리 배치가 채움. `NOT NULL`, `default 0`, CHECK `0~1`(v3) |
 
 ### route_requests (경로 요청)
 
@@ -149,7 +154,7 @@ mermaid ER 파서는 동일 엔티티 쌍 사이에 관계선을 두 개 이상 
 
 | 필드 | 설명 |
 |------|------|
-| route_request_id | `route_requests.id` UNIQUE FK — 요청 1건당 결과 1건 |
+| route_request_id | `route_requests.id` UNIQUE FK — 요청 1건당 결과 1건. **1:1 정책 v3 확정** — 재계산은 새 행이 아닌 기존 행 UPDATE로 처리 (이력 미보관) |
 | path_node_ids | 계산된 경로의 노드 id 배열 (v2: `jsonb`) |
 | total_weight | 경로 전체 가중치 합 |
 | calculated_at | 계산 시각 (v2: `timestamptz`) |

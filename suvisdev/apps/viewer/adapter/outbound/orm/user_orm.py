@@ -13,7 +13,7 @@ from viewer.adapter.outbound.orm.admin_orm import seed_admin_if_empty
 from viewer.adapter.outbound.orm.base_orm import ViewerModel
 from viewer.adapter.outbound.orm.group_orm import Group, get_group_id_by_code, seed_groups_if_empty
 from viewer.app.dtos.role import UserRole
-from viewer.app.dtos.user_profile import UserAgeGroup, UserGender
+from viewer.app.dtos.user_profile import UserGender
 
 
 class User(ViewerModel):
@@ -34,12 +34,6 @@ class User(ViewerModel):
         String(16),
         nullable=False,
         default=UserGender.UNDISCLOSED,
-        index=True,
-    )
-    age_group: Mapped[str] = mapped_column(
-        String(16),
-        nullable=False,
-        default=UserAgeGroup.UNDISCLOSED,
         index=True,
     )
     birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -99,7 +93,6 @@ async def get_viewer_user_profile(user_id: int) -> dict:
             "group": group_code,
             "preferred_genres": list(user.preferred_genres or []),
             "gender": user.gender,
-            "age_group": user.age_group,
         }
 
 

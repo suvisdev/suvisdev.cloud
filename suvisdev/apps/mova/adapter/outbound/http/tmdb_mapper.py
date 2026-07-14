@@ -17,10 +17,13 @@ def tmdb_rating(vote_average: object) -> float:
     return round(min(5.0, value / 2.0), 1)
 
 
-def tmdb_release_year(release_date: str | None) -> str:
+def tmdb_release_year(release_date: str | None) -> int:
     if not release_date or len(release_date) < 4:
-        return ""
-    return release_date[:4]
+        return 0
+    try:
+        return int(release_date[:4])
+    except ValueError:
+        return 0
 
 
 def map_genre_ids(genre_ids: list[object], genre_map: dict[int, str]) -> list[str]:

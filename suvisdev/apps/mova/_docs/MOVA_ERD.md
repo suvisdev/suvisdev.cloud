@@ -71,6 +71,7 @@ erDiagram
     MOVIES ||--o{ RANKINGS : ranked
     MOVIES ||--o{ REVIEWS : receives
     MOVIES ||--o{ USER_ACTIONS : logged
+    MOVIES ||--o{ WATCHLIST : saved
 
     CHAT ||--o{ PICKS : recommends
     CHAT ||--o{ RANKINGS : drives
@@ -80,6 +81,7 @@ erDiagram
     GROUPS ||--o{ USERS : has
     USERS ||--o{ REVIEWS : writes
     USERS ||--o{ USER_ACTIONS : acts
+    USERS ||--o{ WATCHLIST : saves
     USERS ||--o{ CHAT : searches
     USERS ||--o{ PICKS : user_actions
 
@@ -202,6 +204,13 @@ erDiagram
         varchar title_snapshot
         timestamptz batch_at
         varchar feedback
+    }
+
+    WATCHLIST {
+        int id PK
+        int user_id FK
+        int movie_id FK
+        timestamptz added_at
     }
 
     GROUPS {
@@ -565,6 +574,16 @@ KOFIC import는 `source=box_office`로 유지. UI 기본 HOT는 **`chat` → `pi
 
 UNIQUE 없음 — 로그 특성상 중복(동일 유저·영화·행동 반복)을 허용한다.
 
+### watchlist (찜 목록)
+
+| 필드 | 설명 |
+|------|------|
+| user_id | `users.id` FK |
+| movie_id | `movies.id` FK |
+| added_at | 찜한 시각 |
+
+`(user_id, movie_id)` UNIQUE — 한 유저는 한 영화를 한 번만 찜한다. ERD v1/v2 초기 설계에는 없던 테이블로, 실제 코드에 먼저 추가돼 있던 것을 문서에 뒤늦게 반영함.
+
 ## ORM 매핑
 
 | 테이블 | 모델 | 경로 |
@@ -579,6 +598,7 @@ UNIQUE 없음 — 로그 특성상 중복(동일 유저·영화·행동 반복)�
 | `picks` | `MovaPick` | `mova/adapter/outbound/orm/market_picks_orm.py` |
 | `reviews` | `MovaReview` | `mova/adapter/outbound/orm/market_reviews_orm.py` |
 | `user_actions` | `MovaUserAction` | `mova/adapter/outbound/orm/market_user_actions_orm.py` (v2 신규) |
+| `watchlist` | `MovaWatchlist` | `mova/adapter/outbound/orm/market_watchlist_orm.py` |
 | `assistants` | `MovaAssistant` | `mova/adapter/outbound/orm/platform_assistants_orm.py` |
 | `users` | `User` | `viewer/app/dtos/user_model.py` |
 | `groups` | `Group` | `viewer/app/dtos/group_model.py` |

@@ -7,11 +7,8 @@ import logging
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mova.adapter.outbound.orm.market_reviews_orm import (
-    ACTION_REVIEW,
-    EVENT_ACTION_TYPES,
-    MovaReview,
-)
+from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
+from mova.adapter.outbound.orm.market_user_actions_orm import EVENT_ACTION_TYPES, MovaUserAction
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
@@ -34,12 +31,10 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
     ) -> ReviewActivityDto:
         if action_type not in EVENT_ACTION_TYPES:
             action_type = "click"
-        row = MovaReview(
+        row = MovaUserAction(
             user_id=user_id,
             movie_id=movie_id,
             action_type=action_type,
-            rating=None,
-            body=None,
         )
         self._session.add(row)
         await self._session.flush()
@@ -56,7 +51,6 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         row = MovaReview(
             user_id=user_id,
             movie_id=movie_id,
-            action_type=ACTION_REVIEW,
             rating=max(1.0, min(5.0, float(rating))),
             body=body,
         )
@@ -70,7 +64,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             movie_id=row.movie_id,
             rating=float(row.rating or 0),
             body=row.body or "",
-            action_at=row.action_at,
+            action_at=row.created_at,
         )
 
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
@@ -78,11 +72,8 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             await self._session.execute(
                 select(MovaReview, User.nickname)
                 .join(User, MovaReview.user_id == User.id)
-                .where(
-                    MovaReview.movie_id == movie_id,
-                    MovaReview.action_type == ACTION_REVIEW,
-                )
-                .order_by(MovaReview.action_at.desc())
+                .where(MovaReview.movie_id == movie_id)
+                .order_by(MovaReview.created_at.desc())
                 .limit(limit)
                 .offset(offset)
             )
@@ -95,7 +86,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 movie_id=r.movie_id,
                 rating=float(r.rating or 0),
                 body=r.body or "",
-                created_at=r.action_at,
+                created_at=r.created_at,
             )
             for r, nickname in rows
         ]
@@ -104,12 +95,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         self, review_id: int, rating: float | None, body: str | None
     ) -> ReviewDto | None:
         row = (
-            await self._session.execute(
-                select(MovaReview).where(
-                    MovaReview.id == review_id,
-                    MovaReview.action_type == ACTION_REVIEW,
-                )
-            )
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
         ).scalar_one_or_none()
         if row is None:
             return None
@@ -125,7 +111,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             movie_id=row.movie_id,
             rating=float(row.rating or 0),
             body=row.body or "",
-            action_at=row.action_at,
+            action_at=row.created_at,
         )
 
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:
@@ -136,7 +122,6 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                     func.count(MovaReview.id).label("cnt"),
                 ).where(
                     MovaReview.movie_id == movie_id,
-                    MovaReview.action_type == ACTION_REVIEW,
                     MovaReview.rating.isnot(None),
                 )
             )
@@ -153,7 +138,6 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             await self._session.execute(
                 select(func.avg(MovaReview.rating)).where(
                     MovaReview.movie_id == movie_id,
-                    MovaReview.action_type == ACTION_REVIEW,
                     MovaReview.rating.isnot(None),
                 )
             )

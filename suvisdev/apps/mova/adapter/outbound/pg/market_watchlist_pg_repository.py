@@ -29,7 +29,7 @@ class WatchlistPgRepository(WatchlistRepository):
                     movie_id=row.MovaWatchlist.movie_id,
                     slug=row.slug,
                     title=row.title,
-                    release_year=row.release_year or "",
+                    release_year=row.release_year or 0,
                     rating=float(row.rating),
                     poster_url=row.poster_url,
                     added_at=row.MovaWatchlist.added_at,

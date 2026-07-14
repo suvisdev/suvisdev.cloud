@@ -13,7 +13,6 @@ class SignupUserSchema(BaseModel):
     nickname: str = Field(..., min_length=1, max_length=50)
     email: str = Field(..., min_length=1, max_length=255)
     gender: str = Field(default="undisclosed", max_length=32)
-    age_group: str = Field(default="undisclosed", max_length=32)
     birth_year: int | None = None
     preferred_genres: list[str] | None = None
     bio: str | None = None
@@ -23,7 +22,6 @@ class SignupMemberSchema(BaseModel):
     """하위 호환 — 요청의 member 블록을 user 프로필로 병합."""
 
     gender: str = Field(default="undisclosed", max_length=32)
-    age_group: str = Field(default="undisclosed", max_length=32)
     birth_year: int | None = None
     preferred_genres: list[str] | None = None
     bio: str | None = None
@@ -49,7 +47,6 @@ class SignupSchema(BaseModel):
                 "nickname": values.get("nickname"),
                 "email": values.get("email"),
                 "gender": values.get("gender", "undisclosed"),
-                "age_group": values.get("age_group", "undisclosed"),
                 "birth_year": values.get("birth_year"),
                 "preferred_genres": values.get("preferred_genres"),
                 "bio": values.get("bio"),
@@ -61,7 +58,6 @@ class SignupSchema(BaseModel):
         merged = self.user.model_copy(
             update={
                 "gender": self.member.gender or self.user.gender,
-                "age_group": self.member.age_group or self.user.age_group,
                 "birth_year": self.member.birth_year or self.user.birth_year,
                 "preferred_genres": self.member.preferred_genres or self.user.preferred_genres,
                 "bio": self.member.bio or self.user.bio,

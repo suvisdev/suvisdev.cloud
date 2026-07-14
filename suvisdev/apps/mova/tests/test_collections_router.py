@@ -85,7 +85,7 @@ class _FakeCollectionsUseCase:
                     id=10,
                     slug="dark-knight",
                     title="다크 나이트",
-                    release_year="2008",
+                    release_year=2008,
                     rating=4.8,
                     poster_url="",
                     platforms=[],

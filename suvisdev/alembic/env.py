@@ -19,6 +19,8 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(_BACKEND_ROOT / ".env")
 
 # contents ORM 등록 — 모듈 import 시 테이블이 ContentsBase.metadata에 붙는다.
+from pgvector.sqlalchemy import Vector  # noqa: F401,E402
+
 import contents.adapter.outbound.orm.player_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.schedule_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.stadium_orm  # noqa: F401,E402
@@ -31,11 +33,21 @@ import gildle.adapter.outbound.orm.route_node_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_request_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_result_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401,E402
+
+# mova ORM 등록 — 패키지 __init__이 전체 서브모듈을 import해 MovaBase.metadata에 붙인다.
+import mova.adapter.outbound.orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
+
+# viewer ORM 등록 — 모듈 import 시 테이블이 ViewerBase.metadata에 붙는다.
+import viewer.adapter.outbound.orm.admin_orm  # noqa: F401,E402
+import viewer.adapter.outbound.orm.group_orm  # noqa: F401,E402
+import viewer.adapter.outbound.orm.user_orm  # noqa: F401,E402
 from contents.adapter.outbound.orm.base import ContentsBase  # noqa: E402
 from core.matrix.grid_oracle_database_manager import (  # noqa: E402
+    MovaBase,
     TitanicBase,
+    ViewerBase,
     _normalize_database_url,
 )
 from gildle.adapter.outbound.orm.base import GildleBase  # noqa: E402
@@ -45,7 +57,13 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 앱별 Base가 분리돼 있어 autogenerate가 모든 테이블을 보도록 metadata 리스트로 넘긴다.
-target_metadata = [TitanicBase.metadata, GildleBase.metadata, ContentsBase.metadata]
+target_metadata = [
+    TitanicBase.metadata,
+    GildleBase.metadata,
+    ContentsBase.metadata,
+    MovaBase.metadata,
+    ViewerBase.metadata,
+]
 
 
 def _database_url() -> str:

@@ -13,7 +13,7 @@ class MovieInActorDto:
     movie_id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     genres: list[str]
@@ -37,10 +37,12 @@ class ActorDetailDto:
                 movie_id=movie.id,
                 slug=movie.slug,
                 title=movie.title,
-                release_year=movie.release_year or "",
+                release_year=movie.release_year or 0,
                 rating=movie.rating or 0.0,
                 poster_url=movie.poster_url or "",
-                genres=list(movie.genres or []),
+                # movies.genres 제거(v2) — tags 조인 없이는 유도 불가. 필모그래피 UI는
+                # genres를 소비하지 않아(프론트 확인) 당장은 빈 리스트로 둔다.
+                genres=[],
             )
             for char, movie in movie_rows
         ]
@@ -88,10 +90,9 @@ if __name__ == "__main__":
         id=5,
         slug="assassination",
         title="암살",
-        release_year="2015",
+        release_year=2015,
         rating=4.2,
         poster_url="",
-        genres=["액션"],
     )
     dto = ActorDetailDto.from_orm(mock_actor, [(mock_char, mock_movie)])
     assert dto.name == "전지현"

@@ -49,7 +49,7 @@ class MovieDetailDto:
     id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     platforms: list[PlatformDto]
@@ -65,6 +65,7 @@ class MovieDetailDto:
         movie: object,
         char_actor_rows: list,
         tag_rows: list,
+        genres: list[str],
     ) -> MovieDetailDto:
         platforms = [
             PlatformDto.from_dict(p)
@@ -97,12 +98,12 @@ class MovieDetailDto:
             id=movie.id,
             slug=movie.slug,
             title=movie.title,
-            release_year=movie.release_year or "",
+            release_year=movie.release_year or 0,
             rating=movie.rating or 0.0,
             poster_url=movie.poster_url or "",
             platforms=platforms,
             age_rating=movie.age_rating,
-            genres=list(movie.genres or []),
+            genres=list(genres or []),
             collection_id=movie.collection_id,
             actors=actors,
             tags=tags,
@@ -161,7 +162,7 @@ class MovieListItemDto:
     id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     platforms: list[PlatformDto]
@@ -169,7 +170,7 @@ class MovieListItemDto:
     genres: list[str]
 
     @classmethod
-    def from_orm(cls, movie: object) -> MovieListItemDto:
+    def from_orm(cls, movie: object, genres: list[str] | None = None) -> MovieListItemDto:
         platforms = [
             PlatformDto.from_dict(p)
             if isinstance(p, dict)
@@ -180,12 +181,12 @@ class MovieListItemDto:
             id=movie.id,
             slug=movie.slug,
             title=movie.title,
-            release_year=movie.release_year or "",
+            release_year=movie.release_year or 0,
             rating=movie.rating or 0.0,
             poster_url=movie.poster_url or "",
             platforms=platforms,
             age_rating=movie.age_rating,
-            genres=list(movie.genres or []),
+            genres=list(genres or []),
         )
 
     def to_schema(self) -> object:
@@ -233,7 +234,7 @@ class MovieListDto:
 @dataclass(frozen=True)
 class MovieFilterQuery:
     genre: str | None = None
-    release_year: str | None = None
+    release_year: int | None = None
     min_rating: float | None = None
     age_rating: str | None = None
     platform: str | None = None
@@ -249,15 +250,15 @@ if __name__ == "__main__":
         id=1,
         slug="interstellar",
         title="인터스텔라",
-        release_year="2014",
+        release_year=2014,
         rating=4.8,
         poster_url="",
         platforms=[{"provider": "netflix", "url": None, "type": None}],
         age_rating="12세",
-        genres=["SF"],
         collection_id=None,
     )
-    dto = MovieListItemDto.from_orm(mock)
+    dto = MovieListItemDto.from_orm(mock, genres=["SF"])
     assert dto.slug == "interstellar"
     assert dto.platforms[0].provider == "netflix"
+    assert dto.genres == ["SF"]
     print("studio_movies_dto OK")

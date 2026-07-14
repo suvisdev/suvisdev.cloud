@@ -1,6 +1,8 @@
 """Mova AI 채팅 상대(페르소나) — `assistants`."""
 
-from sqlalchemy import Boolean, String, Text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mova.adapter.outbound.orm.base_orm import MovaModel
@@ -21,3 +23,14 @@ class MovaAssistant(MovaModel):
         default="flash15",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

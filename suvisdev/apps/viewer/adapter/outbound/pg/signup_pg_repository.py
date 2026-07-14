@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.matrix.grid_oracle_database_manager import get_viewer_session_factory
 from viewer.adapter.outbound.orm.user_orm import User, resolve_user_group_id
 from viewer.app.dtos.auth_command_dto import SignupCommand
-from viewer.app.dtos.user_profile import UserAgeGroup, UserGender
+from viewer.app.dtos.user_profile import UserGender
 from viewer.app.ports.output.signup_repository import SignupRepository
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,6 @@ class SignupPgRepository(SignupRepository):
             nickname=user_payload.nickname,
             email=user_payload.email,
             gender=user_payload.gender or UserGender.UNDISCLOSED,
-            age_group=user_payload.age_group or UserAgeGroup.UNDISCLOSED,
             birth_year=user_payload.birth_year,
             preferred_genres=list(user_payload.preferred_genres or []),
             bio=(user_payload.bio or "").strip(),

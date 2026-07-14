@@ -18,12 +18,11 @@ class MovieEntity:
     id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     platforms: list[PlatformEntry]
     age_rating: AgeRating | None
-    genres: list[str]
     collection_id: int | None
 
     @classmethod
@@ -37,12 +36,11 @@ class MovieEntity:
             id=orm.id,
             slug=orm.slug,
             title=orm.title,
-            release_year=orm.release_year or "",
+            release_year=orm.release_year or 0,
             rating=orm.rating or 0.0,
             poster_url=orm.poster_url or "",
             platforms=platforms,
             age_rating=AgeRating.from_str(orm.age_rating),
-            genres=list(orm.genres or []),
             collection_id=orm.collection_id,
         )
 
@@ -63,12 +61,11 @@ if __name__ == "__main__":
         id=1,
         slug="interstellar",
         title="인터스텔라",
-        release_year="2014",
+        release_year=2014,
         rating=4.8,
         poster_url="https://example.com/poster.jpg",
         platforms=[{"provider": "netflix", "url": None, "type": "subscription"}],
         age_rating="12세",
-        genres=["SF", "드라마"],
         collection_id=None,
     )
     movie = MovieEntity.from_orm(mock_orm)

@@ -14,7 +14,7 @@ class MovieInActorSchema(BaseModel):
     movie_id: int
     slug: str
     title: str
-    release_year: str
+    release_year: int
     rating: float
     poster_url: str
     genres: list[str]

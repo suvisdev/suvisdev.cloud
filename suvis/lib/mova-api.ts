@@ -27,7 +27,7 @@ export type ApiMovieRow = {
   id: number
   slug: string
   title: string
-  release_year: string
+  release_year: number
   rating: number
   poster_url: string
   platforms: { provider: string; url: string | null; type: string | null }[]
@@ -46,7 +46,7 @@ export type CollectionMovieRow = {
   id: number
   slug: string
   title: string
-  release_year: string
+  release_year: number
   rating: number
   poster_url: string
   platforms: { provider: string; url: string | null; type: string | null }[]
@@ -176,7 +176,7 @@ type MovieDetailApiRow = {
   id: number
   slug: string
   title: string
-  release_year: string
+  release_year: number
   rating: number
   poster_url: string
   platforms: { provider: string }[]
@@ -205,7 +205,7 @@ export async function fetchMovaTitle(slug: string): Promise<MovaMovie | null> {
     movieDbId: row.id,
     id: resolveMovaCatalogSlug(row.slug, row.title),
     title: row.title,
-    year: row.release_year || "",
+    year: String(row.release_year || ""),
     genres: row.genres ?? [],
     country: "",
     ageRating: row.age_rating ?? "",
@@ -234,7 +234,7 @@ type HotRankingApiRow = {
   rank: number
   slug: string
   title: string
-  release_year: string
+  release_year: number
   rating: number
   poster: string
   platform: string | null
@@ -263,7 +263,7 @@ export async function fetchHotRankings(limit = 10): Promise<MovaHotRankingItem[]
       id: resolveMovaCatalogSlug(row.slug, row.title),
       rank: row.rank,
       title: row.title,
-      year: row.release_year || "",
+      year: String(row.release_year || ""),
       poster: coercePosterUrl(row.poster) ?? POSTER_PLACEHOLDER,
       rating: row.rating,
       platform:
@@ -295,7 +295,7 @@ export async function fetchMovaRankings(
       id: resolveMovaCatalogSlug(row.slug, row.title),
       rank: row.rank,
       title: row.title,
-      year: row.release_year || "",
+      year: String(row.release_year || ""),
       poster: coercePosterUrl(row.poster) ?? POSTER_PLACEHOLDER,
       rating: row.rating,
       platform:
@@ -342,7 +342,7 @@ export async function fetchMovaMovies(
   offset = 0,
   filters?: {
     genre?: string
-    release_year?: string
+    release_year?: number
     min_rating?: number
     age_rating?: string
     platform?: string
@@ -354,7 +354,7 @@ export async function fetchMovaMovies(
     offset: String(offset),
   })
   if (filters?.genre) params.set("genre", filters.genre)
-  if (filters?.release_year) params.set("release_year", filters.release_year)
+  if (filters?.release_year) params.set("release_year", String(filters.release_year))
   if (filters?.min_rating !== undefined) params.set("min_rating", String(filters.min_rating))
   if (filters?.age_rating) params.set("age_rating", filters.age_rating)
   if (filters?.platform) params.set("platform", filters.platform)
@@ -525,7 +525,7 @@ export type WatchlistItem = {
   movie_id: number
   slug: string
   title: string
-  release_year: string
+  release_year: number
   rating: number
   poster_url: string | null
   added_at: string
@@ -605,7 +605,7 @@ export function apiMovieToMovaMovie(row: ApiMovieRow): MovaMovie {
     movieDbId: row.id,
     id: resolveMovaCatalogSlug(row.slug, row.title),
     title: row.title,
-    year: row.release_year || "",
+    year: String(row.release_year || ""),
     genres: row.genres ?? [],
     country: "",
     ageRating: row.age_rating ?? "",
