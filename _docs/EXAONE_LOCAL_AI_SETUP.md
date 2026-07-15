@@ -271,3 +271,112 @@ LoRA 초기화는 표준대로 `B=0`이라 **1스텝째는 `lora_A` 그래디언
 
 target_modules: `q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj` (EXAONE도
 Llama류 명명 규칙을 따름).
+
+## 8. mova 채팅 자동 QLoRA 재학습 파이프라인 (2026-07-15~)
+
+사용자가 채팅으로 영화를 고를수록(picks) 그 취향이 추천에 점점 반영되도록, DB에 쌓인
+대화 기록으로 공용 LoRA 어댑터를 주기 재학습하는 파이프라인. **실측으로 개인화 확인됨**
+— user_id 있는 사용자(과거 픽 이력=공포/스릴러)에게 "영화 하나 추천해줘"(장르 언급 없음)라고
+물으면 실제로 공포 계열로 추천이 쏠리고, 익명 사용자는 전혀 다른 결과를 받음.
+
+### 8-1. 왜 EXAONE-AWQ가 아니라 Qwen2.5-1.5B로 학습·서빙하는가
+
+7-2에서 EXAONE-AWQ 학습 성공(loss 10.06→7.52)까지 확인했었지만, 같은 세션 후반부에
+**똑같은 레시피로 재현 가능한 OOM**이 남(모델+LoRA 로드만으로 이미 5.34GB를 써서, 학습 중
+레이어 하나 역양자화에 필요한 448MB조차 못 넣음). AWQ 자체가 학습이 안 되는 게 아니라
+**8GB GPU에서 7.8B를 학습하기엔 여유가 너무 빠듯한 것** — WSL GPU 메모리가 이 세션 내내
+프로세스를 계속 띄우고 내리며 파편화된 것으로 추정.
+
+Qwen2.5-1.5B-Instruct(원본 fp16, AWQ 아님)는 모델+LoRA 로드에 3.09GB만 써서 여유가
+훨씬 크고, gptqmodel/AWQ 커널 복잡도 자체가 필요 없어 학습·서빙 둘 다 훨씬 단순하다.
+**나중에 VRAM 여유가 생기면 설정만 바꿔서 EXAONE으로 되돌릴 수 있도록**, 아래 스크립트들은
+전부 `MOVA_TRAIN_BACKEND`(`plain`|`awq_gptqmodel`) + `MOVA_TRAIN_BASE_MODEL` 환경변수로
+백엔드·모델 경로를 분리해뒀다.
+
+### 8-2. 파이프라인 3단계
+
+```text
+[1] scripts/export_chat_training_dataset.py   DB(chat+picks+users) → JSONL (prompt, completion)
+              │
+              ▼
+[2] scripts/train_mova_lora.py                LoRA 재학습 → ~/lora_adapters/mova_<timestamp>/
+              │                                             + ~/lora_adapters/LATEST 갱신
+              ▼
+[3] lora_server/serve.py (systemd, :8200)      LATEST 어댑터 서빙, POST /reload로 무중단 교체
+```
+
+**[1] 데이터 추출** — `chat` 테이블엔 실제 답변 텍스트(intro)가 저장 안 되고 `picks`만
+영속화되므로, intro는 합성한다(`취향에 맞는 작품 N편을 골라봤어요: ...`). picks가 있는
+대화만 학습 예시로 씀. user_id가 있으면 `ChatPgRepository.get_recent_intents_by_user`로
+**그 chat보다 이전 것만** past_intents로 포함해 미래 데이터 유출을 막는다. 프롬프트는
+프로덕션과 동일한 `ChatPromptBuilder`로 재구성(HubRagInteractor로 RAG 컨텍스트도 실제로
+다시 검색함) — 학습·서빙 프롬프트가 어긋나지 않게.
+
+```bash
+# 컨테이너 안에서 실행 (DB·Ollama 임베딩에 접근 가능해야 함)
+docker exec -w /suvisdev suvisdev-backend-1 python scripts/export_chat_training_dataset.py
+```
+
+**[2] 재학습** — 위 JSONL을 읽어 `q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj`에
+LoRA(r=16, alpha=32) 부착, prompt 토큰은 `label=-100`으로 마스킹해 completion에만 loss
+계산. 버전 태깅된 디렉터리에 저장하고 `LATEST` 파일(어댑터 경로/백엔드/베이스모델 3줄)을 갱신.
+
+```bash
+source ~/.venv-exaone/bin/activate
+cd suvisdev
+python scripts/train_mova_lora.py --epochs 3
+# VRAM 여유 생기면:
+# MOVA_TRAIN_BACKEND=awq_gptqmodel MOVA_TRAIN_BASE_MODEL=../EXAONE-3.5-7.8B-Instruct-AWQ \
+#   python scripts/train_mova_lora.py --epochs 3
+```
+
+**[3] 서빙** — `lora_server/serve.py`가 기동 시 `LATEST`를 읽어 베이스 모델 + 어댑터를
+로드. systemd 유저 서비스로 등록(`lora-server.service`, Ollama/awq-server와 동일 패턴).
+재학습 후에는 프로세스 재시작 없이 `POST /reload`로 최신 어댑터만 다시 읽어 교체.
+
+```bash
+curl http://localhost:8200/health   # {"model_loaded":true,"adapter_dir":"...","backend":"plain"}
+curl -X POST http://localhost:8200/reload
+```
+
+`mova/adapter/outbound/llm/lora_recommendation_adapter.py`(`LoraRecommendationAdapter`)가
+`RecommendationPort` 구현체로 `market_chat_provider.py`에 연결돼 있다 —
+`ExaoneRecommendationAdapter`/`QwenRecommendationAdapter`/`OllamaExaoneRecommendationAdapter`와
+정확히 같은 자리(`get_recommendation_port()`)를 교체하는 구조라, 나중에 다른 백엔드로
+되돌리는 것도 그 함수 한 줄만 바꾸면 된다.
+
+### 8-3. 겪은 이슈
+
+- **peft AWQ 디스패처 셔임은 `plain` 백엔드에서도 필요하다**: peft의 LoRA 디스패처가
+  실제 모델 종류와 무관하게 AWQ 체커부터 항상 먼저 시도하기 때문에, `gptqmodel`의 옛
+  클래스명(`AwqGEMMQuantLinear`) import가 비양자화 모델 로드 시에도 걸린다
+  (7-2의 패치 3과 동일한 셔임을 무조건 모듈 최상단에 둬야 함).
+- **`apply_chat_template(return_tensors="pt")`는 여기서도 BatchEncoding을 반환**한다
+  (7번에서 겪은 것과 동일) — `["input_ids"]`로 실제 텐서를 꺼내야 `.shape` 접근이 된다.
+- **경로 계산 실수**: `suvisdev/scripts/*.py`는 리포 루트 기준 2단계 깊이라
+  `Path(__file__).resolve().parents[1]`은 `suvisdev/`까지만 간다. 리포 루트의 모델
+  체크포인트(`Qwen2.5-1.5B-Instruct/` 등)를 가리키려면 `.parent`를 한 번 더 타야 한다.
+
+### 8-4. 시맨틱 인텐트 분류를 실제 채팅에 연결 (Qwen 기반, QLoRA 불필요)
+
+이 파이프라인과 별개로, mova/chat 자체도 질문을 `crud`/`rag`/`general` 세 갈래로 분류해
+영화와 무관한 질문은 Gemini로 보내도록 연결함. 분류·RAG 답변 모두 QLoRA 파인튜닝 없이
+Qwen2.5-1.5B 하나에 **역할별 시스템 프롬프트만 갈아 끼우는 동적 프롬프팅**으로 충분했다.
+
+- `ontology/app/ports/output/intent_classifier_port.py` + `qwen_intent_classifier.py`
+  (`QwenIntentClassifier`) — 독립 게이트웨이(`POST /api/ontology/semantic/ask`)와
+  `mova/app/use_cases/market_chat_interactor.py`가 이 분류기를 공유.
+- **분류 프롬프트 실측 이슈**: "rag" 기준을 "저장된 지식에서 사실을 찾아야 하는 질문"처럼
+  추상적으로 적으니 "슬픈 영화 추천해줘" 같은 실제 요청을 매번 "general"로 오분류했다 —
+  "영화 추천/검색 요청은 전부 rag"라고 few-shot으로 못박아서 해결.
+- **`crud` 오분류 대응**: mova/chat엔 실제 CRUD 기능이 없는데, "안드레 카파시가 주장한
+  코딩 원칙은?"처럼 영화와 무관한 질문이 `crud`로 오분류되면 예전 코드는 그냥 `rag`와
+  동일하게 영화 추천 파이프라인을 태워서 엉뚱한 영화 제목을 추천해버렸다(독립
+  게이트웨이엔 crud 분기가 있었는데 `ChatInteractor`엔 빠뜨렸었음). `crud`도 `general`과
+  동일하게 Gemini 위임으로 처리하도록 수정 — 분류기가 완벽하지 않아도 안전망이 됨.
+- **DB 세션 동시성 버그(부수 발견)**: `ChatInteractor.chat()`이 `asyncio.gather`로
+  `get_recent_intents_by_user`와 `get_preferences`를 동시 실행했는데, 이 둘은 FastAPI가
+  요청당 캐싱하는 같은 `get_mova_db()` 세션을 공유해서 SQLAlchemy가
+  `"concurrent operations are not permitted"`로 막았다. `user_id`를 채운 실제 요청을
+  이번에 처음 테스트하며 발견(그 전까진 전부 익명 호출이라 이 분기 자체가 안 탔음).
+  이 둘은 순차 실행으로, RAG 검색(다른 세션)만 병렬로 남기도록 수정.
