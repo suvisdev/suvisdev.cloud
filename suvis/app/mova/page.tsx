@@ -8,7 +8,6 @@ import { MovaLoginButton } from "@/components/mova/mova-login-button"
 import { MovaSuvisHomeLink } from "@/components/mova/mova-suvis-home-link"
 import { MovaLogo } from "@/components/mova/mova-logo"
 import { MovaSearchBar } from "@/components/mova/mova-search-bar"
-import { MovaLandingRankings } from "@/components/mova/mova-landing-rankings"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 function MovaLandingSearch() {
@@ -81,10 +80,6 @@ export default function MovaPage() {
           </div>
         </section>
       </div>
-
-      <section className="w-full max-w-2xl mx-auto px-4 pb-10 min-w-0">
-        <MovaLandingRankings />
-      </section>
     </main>
   )
 }
