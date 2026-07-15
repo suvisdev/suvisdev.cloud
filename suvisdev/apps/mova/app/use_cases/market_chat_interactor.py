@@ -60,11 +60,15 @@ class ChatInteractor(ChatUseCase):
         rag_query = intent["refined_query"] or request.message
         catalog_task = self._hub_rag.search_movies(rag_query, k=8, trace_id=trace_id)
         if request.user_id:
-            intents_task = self._repo.get_recent_intents_by_user(request.user_id, limit=3)
-            prefs_task = self._preferences.get_preferences(request.user_id)
-            hits, past_intents, prefs = await asyncio.gather(
-                catalog_task, intents_task, prefs_task
-            )
+            # self._repo·self._preferences는 둘 다 get_mova_db() 세션을 공유하므로
+            # (FastAPI가 요청당 Depends 결과를 캐싱) 서로 동시에 돌리면 SQLAlchemy가
+            # "concurrent operations are not permitted"로 막는다 — 순차 실행으로 묶는다.
+            async def _user_context() -> tuple[list, object]:
+                intents = await self._repo.get_recent_intents_by_user(request.user_id, limit=3)
+                prefs = await self._preferences.get_preferences(request.user_id)
+                return intents, prefs
+
+            hits, (past_intents, prefs) = await asyncio.gather(catalog_task, _user_context())
             nickname, preferred_genres = prefs.nickname, prefs.preferred_genres
         else:
             hits = await catalog_task
