@@ -14,7 +14,10 @@ from mova.app.ports.input.market_chat_use_case import ChatUseCase
 from mova.app.ports.output.llm_output_port import RecommendationPort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
+from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
+from ontology.app.ports.output.intent_classifier_port import IntentClassifierPort
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +29,28 @@ class ChatInteractor(ChatUseCase):
         recommender: RecommendationPort,
         preferences: UserPreferenceQueryPort,
         hub_rag: HubRagUseCase,
+        classifier: IntentClassifierPort,
+        general: MycroftUseCase,
     ) -> None:
         self._repo = repository
         self._llm = recommender
         self._preferences = preferences
         self._hub_rag = hub_rag
+        self._classifier = classifier
+        self._general = general
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
         logger.info(
             "[ChatInteractor] trace=%s question 수신 len=%d", trace_id, len(request.message)
         )
+
+        # 0. 시맨틱 인텐트 분류 — 영화와 무관한 잡담/일반 질문(general)은 RAG·추천
+        #    파이프라인을 타지 않고 Gemini(Mycroft)로 바로 위임한다.
+        destination, _entities = await self._classifier.classify(request.message)
+        logger.info("[ChatInteractor] trace=%s destination=%s", trace_id, destination)
+        if destination == "general":
+            return await self._reply_general(request, trace_id)
 
         # 1. 의도 추출 (CPU-bound → 스레드 위임). LLM 출력 포트 경유.
         intent = await asyncio.to_thread(self._llm.extract_intent, request.message)
@@ -130,4 +144,32 @@ class ChatInteractor(ChatUseCase):
                 )
                 for r in recs
             ],
+        )
+
+    async def _reply_general(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
+        """영화 지식 조회가 필요 없는 잡담 — RAG·추천 없이 Gemini(Mycroft) 답변만 저장·반환."""
+        answer = await self._general.ask(MycroftAskCommand(question=request.message))
+        chat_id = await self._repo.save_chat(
+            user_id=request.user_id,
+            assistant_id=None,
+            raw_message=request.message,
+            refined_query=request.message,
+            keywords=[],
+            intent_type="general",
+            search_filters={},
+        )
+        logger.info(
+            "[ChatInteractor] trace=%s chat_id=%d intent=general reply_chars=%d recs=0",
+            trace_id,
+            chat_id,
+            len(answer.text),
+        )
+        return ChatResponseDto(
+            chat_id=chat_id,
+            reply=answer.text,
+            refined_query=request.message,
+            keywords=[],
+            intent_type="general",
+            search_filters={},
+            recommendations=[],
         )
