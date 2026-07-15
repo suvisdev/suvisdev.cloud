@@ -46,10 +46,12 @@ class ChatInteractor(ChatUseCase):
         )
 
         # 0. 시맨틱 인텐트 분류 — 영화와 무관한 잡담/일반 질문(general)은 RAG·추천
-        #    파이프라인을 타지 않고 Gemini(Mycroft)로 바로 위임한다.
+        #    파이프라인을 타지 않고 Gemini(Mycroft)로 바로 위임한다. mova/chat엔 실제
+        #    CRUD 기능이 없으므로(crud는 분류기가 가끔 오분류하는 잡음에 가깝다),
+        #    영화 추천 파이프라인으로 잘못 흘려보내는 대신 general과 동일하게 처리한다.
         destination, _entities = await self._classifier.classify(request.message)
         logger.info("[ChatInteractor] trace=%s destination=%s", trace_id, destination)
-        if destination == "general":
+        if destination in ("general", "crud"):
             return await self._reply_general(request, trace_id)
 
         # 1. 의도 추출 (CPU-bound → 스레드 위임). LLM 출력 포트 경유.
