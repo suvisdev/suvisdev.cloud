@@ -225,3 +225,49 @@ uvicorn awq_server.serve:app --host 0.0.0.0 --port 8100
 - **주의**: Ollama Router/Worker(exaone3.5:7.8b/2.4b)와 이 AWQ 서버가 동시에 GPU에 상주하면
   RTX 3050 8GB에서 VRAM이 부족할 수 있다 — 다른 앱(soccer_chat 등)이 Ollama를 쓰는 동안 mova RAG
   채팅도 함께 호출되는 시나리오는 실측 필요.
+
+### 7-2. PEFT/QLoRA (AWQ 체크포인트 위에서 LoRA 학습, 2026-07-15~)
+
+`~/.venv-exaone`에 `peft`, `optimum`을 추가해 이 AWQ 체크포인트 위에서 LoRA 학습이 되는 것까지
+실측 확인함(1 옵티마이저 스텝 후 loss 10.06 → 8.28 하락 확인). 아래 3가지를 갖춰야 재현된다 —
+하나라도 빠지면 각기 다른 지점에서 막힌다.
+
+**설치:**
+```bash
+source ~/.venv-exaone/bin/activate
+uv pip install peft optimum   # optimum>=1.24.0 — peft가 gptqmodel 백엔드를 인식하는 데 필요
+```
+
+**패치 1 — `EXAONE-3.5-7.8B-Instruct-AWQ/modeling_exaone.py`(리포에 커밋됨, 자동으로 따라옴):**
+`ExaoneModel`에 `_input_embed_layer = "wte"` 클래스 속성 추가. transformers 5.13.1의
+`EmbeddingAccessMixin`이 기본으로 `embed_tokens`라는 이름만 찾는데 EXAONE은 `wte`를 쓴다
+(`get_peft_model()`이 `get_input_embeddings()`를 호출하면서 걸림 — `NotImplementedError`).
+
+**패치 2 — `gptqmodel` site-packages 직접 수정 (venv 재생성 시 사라짐, 매번 재적용 필요):**
+`nn_modules/qlinear/torch_awq.py`의 `AwqTorchLinear.forward()`에서
+`weight = dequantize_gemm(...)` 호출을 `with torch.no_grad():`로 감싼다. 이게 없으면 이 자체는
+문제 없어 보여도(그래도 위생상 필요), 아래 gradient checkpointing과 같이 안 하면 결국 OOM.
+
+**패치 3 — 학습 스크립트 상단에 매번 넣어야 하는 런타임 셔임:**
+```python
+import gptqmodel.nn_modules.qlinear.gemm_awq as gemm_awq
+gemm_awq.AwqGEMMQuantLinear = gemm_awq.AwqGEMMLinear
+```
+`peft==0.19.1`(released, main 브랜치도 동일)이 `gptqmodel`의 옛 클래스명(`AwqGEMMQuantLinear`)을
+참조하는데 `gptqmodel==7.1.0`은 `AwqGEMMLinear`로 이름이 바뀌어 있음 — peft 쪽 미수정 버그.
+
+**학습 스크립트에 반드시 필요한 것 (없으면 8GB VRAM에서 100% OOM):**
+```python
+base.enable_input_require_grads()
+peft_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+# forward 호출 시 use_cache=False 필수
+```
+gradient checkpointing 없이는 32개 레이어의 역양자화된 fp16 가중치를 forward~backward 내내
+전부 동시에 들고 있어야 해서(사실상 전체 모델 크기만큼) 8GB에서 무조건 터진다. 켜면 baseline
+278MiB 수준까지 내려가며 정상 동작.
+
+LoRA 초기화는 표준대로 `B=0`이라 **1스텝째는 `lora_A` 그래디언트가 0인 게 정상** (`lora_B`부터
+그래디언트가 잡히고, 2스텝째부터 `lora_A`도 non-zero가 됨) — 버그 아님.
+
+target_modules: `q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj` (EXAONE도
+Llama류 명명 규칙을 따름).
