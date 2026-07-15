@@ -17,6 +17,8 @@ from mova.app.ports.output.box_office_port import BoxOfficePort
 from mova.app.ports.output.market_rankings_repository import RankingsRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 from mova.app.ports.output.tmdb_catalog_port import TmdbCatalogPort
+from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand
+from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +35,13 @@ class ImportInteractor(ImportUseCase):
         catalog: TmdbCatalogPort,
         rankings: RankingsRepositoryPort,
         box_office: BoxOfficePort,
+        hub_rag: HubRagUseCase,
     ) -> None:
         self._movies = movies
         self._catalog = catalog
         self._rankings = rankings
         self._box_office = box_office
+        self._hub_rag = hub_rag
 
     async def introduce_myself(self, query: StudioImportQuery) -> StudioImportResponse:
         return StudioImportResponse(id=query.id, name=query.name)
@@ -94,7 +98,10 @@ class ImportInteractor(ImportUseCase):
         snapshots = await self._catalog.search(entry.title, page=1)
         if not snapshots:
             return None
-        return await self._movies.upsert_movie(self._to_upsert(snapshots[0]))
+        snap = snapshots[0]
+        movie_id = await self._movies.upsert_movie(self._to_upsert(snap))
+        await self._ingest_to_hub(snap)
+        return movie_id
 
     async def _persist_snapshots(
         self,
@@ -109,6 +116,7 @@ class ImportInteractor(ImportUseCase):
         for snap in snapshots:
             movie_id = await self._movies.upsert_movie(self._to_upsert(snap))
             pairs.append((movie_id, snap))
+            await self._ingest_to_hub(snap)
 
         rankings_updated = False
         if update_rankings and pairs:
@@ -150,6 +158,33 @@ class ImportInteractor(ImportUseCase):
             return snapshots
 
         return []
+
+    async def _ingest_to_hub(self, snap: TmdbMovieSnapshotDto) -> None:
+        """TMDB/KOFIC로 확보한 영화 정보를 ontology Hub의 RAG 지식 저장소에 반영한다.
+
+        임베딩·색인 실패가 임포트 자체를 막지 않도록 격리한다(원본 카탈로그 upsert는 이미 완료됨).
+        """
+        content_lines = [snap.overview]
+        if snap.genres:
+            content_lines.append(f"장르: {', '.join(snap.genres)}")
+        if snap.cast:
+            content_lines.append(f"출연: {', '.join(snap.cast)}")
+        content = "\n".join(line for line in content_lines if line)
+        try:
+            await self._hub_rag.ingest_movie(
+                HubKnowledgeUpsertCommand(
+                    source="mova_movie",
+                    source_ref=snap.slug,
+                    title=snap.title,
+                    content=content,
+                )
+            )
+        except Exception:
+            logger.warning(
+                "[ImportInteractor] hub_rag ingest 실패, 카탈로그 임포트는 유지 | slug=%s",
+                snap.slug,
+                exc_info=True,
+            )
 
     @staticmethod
     def _to_upsert(snap: TmdbMovieSnapshotDto) -> MovieUpsertCommand:

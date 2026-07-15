@@ -18,6 +18,11 @@ from mova.app.ports.output.market_rankings_repository import RankingsRepositoryP
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 from mova.app.ports.output.tmdb_catalog_port import TmdbCatalogPort
 from mova.app.use_cases.import_interactor import ImportInteractor
+from ontology.adapter.outbound.llm.ollama_embedding_adapter import OllamaEmbeddingAdapter
+from ontology.adapter.outbound.repositories.hub_knowledge_repository import (
+    HubKnowledgeRepository,
+)
+from ontology.app.use_cases.hub_rag_interactor import HubRagInteractor
 
 
 def _build_import_interactor(session: AsyncSession) -> ImportInteractor:
@@ -26,8 +31,13 @@ def _build_import_interactor(session: AsyncSession) -> ImportInteractor:
     rankings: RankingsRepositoryPort = RankingsPgRepository(session=session)
     catalog: TmdbCatalogPort = TmdbCatalogAdapter(keymaker.tmdb_api_key)
     box_office: BoxOfficePort = KoficBoxOfficeAdapter(keymaker.kofic_api_key)
+    # hub_knowledge도 mova와 동일 엔진(Neon)에 있어 세션을 그대로 재사용한다.
+    hub_rag = HubRagInteractor(
+        repository=HubKnowledgeRepository(session=session),
+        embedding=OllamaEmbeddingAdapter(),
+    )
     return ImportInteractor(
-        movies=movies, catalog=catalog, rankings=rankings, box_office=box_office
+        movies=movies, catalog=catalog, rankings=rankings, box_office=box_office, hub_rag=hub_rag
     )
 
 

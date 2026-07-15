@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest
+from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.app.dtos.market_chat_dto import ChatRecommendationDto, ChatResponseDto
 from mova.app.ports.input.market_chat_use_case import ChatUseCase
 from mova.app.ports.output.llm_output_port import RecommendationPort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -22,27 +25,52 @@ class ChatInteractor(ChatUseCase):
         repository: ChatRepositoryPort,
         recommender: RecommendationPort,
         preferences: UserPreferenceQueryPort,
+        hub_rag: HubRagUseCase,
     ) -> None:
         self._repo = repository
         self._llm = recommender
         self._preferences = preferences
+        self._hub_rag = hub_rag
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
+        trace_id = uuid4().hex[:8]
+        logger.info(
+            "[ChatInteractor] trace=%s question 수신 len=%d", trace_id, len(request.message)
+        )
+
         # 1. 의도 추출 (CPU-bound → 스레드 위임). LLM 출력 포트 경유.
         intent = await asyncio.to_thread(self._llm.extract_intent, request.message)
 
-        # 2. 태그 카탈로그 검색 + 사용자 컨텍스트 (병렬)
-        catalog_task = self._repo.search_tag_catalog(intent["keywords"][:6], limit=12)
+        # 2. RAG 시맨틱 검색(ontology Hub) + 사용자 컨텍스트 (병렬). 0건이면 기존 태그
+        #    키워드 검색으로 폴백 — Hub/Ollama 임베딩 장애 시에도 채팅 자체는 계속 동작해야 한다.
+        rag_query = intent["refined_query"] or request.message
+        catalog_task = self._hub_rag.search_movies(rag_query, k=8, trace_id=trace_id)
         if request.user_id:
             intents_task = self._repo.get_recent_intents_by_user(request.user_id, limit=3)
             prefs_task = self._preferences.get_preferences(request.user_id)
-            catalog, past_intents, prefs = await asyncio.gather(
+            hits, past_intents, prefs = await asyncio.gather(
                 catalog_task, intents_task, prefs_task
             )
             nickname, preferred_genres = prefs.nickname, prefs.preferred_genres
         else:
-            catalog = await catalog_task
+            hits = await catalog_task
             past_intents, nickname, preferred_genres = [], None, []
+
+        if hits:
+            catalog = [
+                MovaSearchItemSchema(
+                    id=h.source_ref,
+                    title=h.title,
+                    year="",
+                    rating=0.0,
+                    poster="",
+                    match_type="semantic",
+                )
+                for h in hits
+            ]
+        else:
+            logger.info("[ChatInteractor] trace=%s fallback search_tag_catalog 사용", trace_id)
+            catalog = await self._repo.search_tag_catalog(intent["keywords"][:6], limit=12)
 
         # 3. 추천 생성 (프롬프트·Gemini·파싱·DB 보강은 포트 구현체 내부)
         reply, recs = await self._llm.generate_recommendation(
@@ -75,9 +103,11 @@ class ChatInteractor(ChatUseCase):
         )
 
         logger.info(
-            "[ChatInteractor] chat_id=%d intent=%s recs=%d",
+            "[ChatInteractor] trace=%s chat_id=%d intent=%s reply_chars=%d recs=%d",
+            trace_id,
             chat_id,
             intent["intent_type"],
+            len(reply),
             len(recs),
         )
         return ChatResponseDto(

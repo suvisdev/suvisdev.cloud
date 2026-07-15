@@ -1,0 +1,10 @@
+# LLM 모델 가중치 (용량 큼, 저장소에 포함 금지)
+EXAONE-3.5-7.8B-Instruct-AWQ/
+EXAONE-3.5-2.4B-Instruct-AWQ/
+Qwen2.5-1.5B-Instruct/
+*.safetensors
+*.gguf
+*.bin
+
+__pycache__/
+*.pyc

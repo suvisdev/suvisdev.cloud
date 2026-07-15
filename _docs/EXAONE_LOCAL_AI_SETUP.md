@@ -8,7 +8,9 @@
 - **Router model**: `exaone3.5:7.8b` — 라우팅/판단
 - **Worker model**: `exaone3.5:2.4b` — 실행
 - 8GB급 GPU(RTX 3050 등) 기준, **Router와 Worker를 동시에 GPU에 상주시키지 않는다** — 순차 호출
-- Ollama(GGUF) 기반. AWQ/vLLM은 시도했으나 이 스택(최신 Python, 사전빌드 wheel 부재)에서 막혀서 폐기함 — GGUF/Ollama가 정답
+- Router/Worker 운영 경로는 Ollama(GGUF) 기반이 정답. vLLM은 이 스택에서 막혀서 폐기함(7번 참고)
+- AWQ(`transformers`+`gptqmodel`)는 Router/Worker와는 별개로, RAG 서빙용 체크포인트 직접 로드
+  경로로 `~/.venv-exaone`에서 성공시킴 — 7번 참고
 - 코드: `suvisdev/core/lol/model_switch_guard.py`(순차 언로드 폴링) + `router_worker_pipeline.py`(조립) — 이 리포를 clone하면 같이 따라옴
 
 ## 1. 사전 확인
@@ -162,9 +164,110 @@ print('Worker:', w.strip())
 ```
 (`httpx`가 필요하다 — `uv venv ~/.venv && source ~/.venv/bin/activate && uv pip install httpx`)
 
-## 7. 참고 — 시도했다가 폐기한 경로
+## 7. AWQ 직접 서빙 경로 (RAG용 별도 환경)
 
-- **AWQ (`transformers` + `autoawq`/`gptqmodel`)**: `autoawq`는 deprecated, 최신 `transformers`는
-  `gptqmodel`을 요구하는데 PyPI에 사전빌드 wheel이 없어 소스 빌드(gcc/nvcc/Rust) 필요. 하지 말 것.
+> 2026-07-14 재시도에서 성공함 — 이전에 "폐기"로 적어뒀던 결론은 sudo 접근이 없다는 잘못된 전제
+> 때문이었다. 이 머신은 실제로 sudo가 되므로, 빌드 도구만 깔면 `gptqmodel`이 정상 빌드/동작한다.
+> **주의**: 이 경로는 위 0~6번(Ollama, no-sudo)과 별개의 목적(RAG 서빙용 원본 체크포인트 직접 로드)이다.
+> Router/Worker 운영 경로를 이걸로 바꾸는 게 아니다 — `~/.venv-exaone` 전용 가상환경에만 격리한다.
+
+**환경:**
+
+- 전용 venv: `~/.venv-exaone` (`uv venv --python 3.12`로 생성, 메인 `suvisdev` venv와 완전히 분리)
+- 패키지: `transformers==5.13.1`, `torch==2.13.0+cu126`, `gptqmodel==7.1.0` (uv로 PyPI에서 설치, 소스 빌드됨)
+- 빌드 사전 준비 (sudo 필요 — 이 머신엔 sudo 권한이 있어서 가능했음):
+  ```bash
+  sudo apt update && sudo apt install -y build-essential cmake
+  sudo apt install -y nvidia-cuda-toolkit
+  ```
+- 모델 체크포인트: `hf download LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct-AWQ --local-dir EXAONE-3.5-7.8B-Instruct-AWQ`
+  (`/home/a/projects/suvis/EXAONE-3.5-7.8B-Instruct-AWQ`, 약 5.3GB, config상 4bit AWQ/group_size=128)
+- `autoawq`는 여전히 설치 안 함(deprecated) — `transformers` 5.x가 AWQ 체크포인트를 로드할 때
+  자동으로 `gptqmodel`을 백엔드로 선택한다 (`AwqMarlinLinear` 커널).
+
+**로드 테스트:**
+
+```bash
+source ~/.venv-exaone/bin/activate
+python -u -c "
+from transformers import AutoTokenizer, AutoModelForCausalLM
+path = '/home/a/projects/suvis/EXAONE-3.5-7.8B-Instruct-AWQ'
+tok = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(path, trust_remote_code=True, device_map='cuda:0')
+inputs = tok('안녕하세요, 오늘 날씨 어때요?', return_tensors='pt').to(model.device)
+print(tok.decode(model.generate(**inputs, max_new_tokens=20)[0], skip_special_tokens=True))
+"
+```
+
+가중치 로드까지는 8GB VRAM에서 정상 확인됨(약 6.2GB 사용). **첫 실행 시 Marlin fp16 커널을
+JIT 컴파일**하는데(`~/.cache/gptqmodel/torch_extensions/`에 캐시됨) 예상보다 훨씬 오래 걸릴 수 있다
+(견적 ~117초라고 뜨지만 실제로는 그 이상 소요된 사례 있음) — 멈춘 게 아니라 최초 1회만 그렇다.
+
 - **vLLM**: `torch==2.11.0` 등 정확한 버전 재설치 필요, 수 GB 다운로드. 단일 GPU 순차 호출
-  구조엔 이득이 없어서 중단함.
+  구조엔 이득이 없어서 중단함 (이 결론은 유지).
+
+### 7-1. RAG 서빙 서버 기동 (mova 챗봇 연동, 2026-07-14~)
+
+`awq_server/serve.py`(저장소 루트) — Ollama와 동일하게 호스트에서 별도 프로세스로 상주시키고,
+suvisdev 백엔드는 `core/lol/awq_exaone_orchestrator.py`(HTTP client)로 호출한다.
+
+```bash
+source ~/.venv-exaone/bin/activate
+uv pip install fastapi "uvicorn[standard]"   # 최초 1회 (transformers/torch/gptqmodel은 이미 설치돼 있음)
+cd /home/a/projects/suvis
+uvicorn awq_server.serve:app --host 0.0.0.0 --port 8100
+```
+
+- `GET /health`, `POST /generate {"prompt": "...", "system": "..."}` 로 검증.
+- 기동 시 모델을 1회 로드해 상주시킨다 — 첫 `/generate` 요청은 위 Marlin JIT 컴파일 때문에 오래 걸릴 수 있음.
+- suvisdev backend(docker-compose)는 `AWQ_SERVER_URL=http://host.docker.internal:8100`로 접근한다
+  (`docker-compose.yaml`의 `OLLAMA_BASE_URL`과 동일 패턴).
+- **주의**: Ollama Router/Worker(exaone3.5:7.8b/2.4b)와 이 AWQ 서버가 동시에 GPU에 상주하면
+  RTX 3050 8GB에서 VRAM이 부족할 수 있다 — 다른 앱(soccer_chat 등)이 Ollama를 쓰는 동안 mova RAG
+  채팅도 함께 호출되는 시나리오는 실측 필요.
+
+### 7-2. PEFT/QLoRA (AWQ 체크포인트 위에서 LoRA 학습, 2026-07-15~)
+
+`~/.venv-exaone`에 `peft`, `optimum`을 추가해 이 AWQ 체크포인트 위에서 LoRA 학습이 되는 것까지
+실측 확인함(1 옵티마이저 스텝 후 loss 10.06 → 8.28 하락 확인). 아래 3가지를 갖춰야 재현된다 —
+하나라도 빠지면 각기 다른 지점에서 막힌다.
+
+**설치:**
+```bash
+source ~/.venv-exaone/bin/activate
+uv pip install peft optimum   # optimum>=1.24.0 — peft가 gptqmodel 백엔드를 인식하는 데 필요
+```
+
+**패치 1 — `EXAONE-3.5-7.8B-Instruct-AWQ/modeling_exaone.py`(리포에 커밋됨, 자동으로 따라옴):**
+`ExaoneModel`에 `_input_embed_layer = "wte"` 클래스 속성 추가. transformers 5.13.1의
+`EmbeddingAccessMixin`이 기본으로 `embed_tokens`라는 이름만 찾는데 EXAONE은 `wte`를 쓴다
+(`get_peft_model()`이 `get_input_embeddings()`를 호출하면서 걸림 — `NotImplementedError`).
+
+**패치 2 — `gptqmodel` site-packages 직접 수정 (venv 재생성 시 사라짐, 매번 재적용 필요):**
+`nn_modules/qlinear/torch_awq.py`의 `AwqTorchLinear.forward()`에서
+`weight = dequantize_gemm(...)` 호출을 `with torch.no_grad():`로 감싼다. 이게 없으면 이 자체는
+문제 없어 보여도(그래도 위생상 필요), 아래 gradient checkpointing과 같이 안 하면 결국 OOM.
+
+**패치 3 — 학습 스크립트 상단에 매번 넣어야 하는 런타임 셔임:**
+```python
+import gptqmodel.nn_modules.qlinear.gemm_awq as gemm_awq
+gemm_awq.AwqGEMMQuantLinear = gemm_awq.AwqGEMMLinear
+```
+`peft==0.19.1`(released, main 브랜치도 동일)이 `gptqmodel`의 옛 클래스명(`AwqGEMMQuantLinear`)을
+참조하는데 `gptqmodel==7.1.0`은 `AwqGEMMLinear`로 이름이 바뀌어 있음 — peft 쪽 미수정 버그.
+
+**학습 스크립트에 반드시 필요한 것 (없으면 8GB VRAM에서 100% OOM):**
+```python
+base.enable_input_require_grads()
+peft_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+# forward 호출 시 use_cache=False 필수
+```
+gradient checkpointing 없이는 32개 레이어의 역양자화된 fp16 가중치를 forward~backward 내내
+전부 동시에 들고 있어야 해서(사실상 전체 모델 크기만큼) 8GB에서 무조건 터진다. 켜면 baseline
+278MiB 수준까지 내려가며 정상 동작.
+
+LoRA 초기화는 표준대로 `B=0`이라 **1스텝째는 `lora_A` 그래디언트가 0인 게 정상** (`lora_B`부터
+그래디언트가 잡히고, 2스텝째부터 `lora_A`도 non-zero가 됨) — 버그 아님.
+
+target_modules: `q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj` (EXAONE도
+Llama류 명명 규칙을 따름).
