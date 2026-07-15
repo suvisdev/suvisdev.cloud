@@ -4,8 +4,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_mova_db
-from mova.adapter.outbound.llm.exaone_recommendation_adapter import (
-    ExaoneRecommendationAdapter,
+from mova.adapter.outbound.llm.ollama_exaone_recommendation_adapter import (
+    OllamaExaoneRecommendationAdapter,
 )
 from mova.adapter.outbound.pg.market_chat_pg_repository import ChatPgRepository
 from mova.adapter.outbound.pg.user_preference_pg_repository import (
@@ -27,7 +27,7 @@ def get_chat_repository(
 
 
 def get_recommendation_port() -> RecommendationPort:
-    return ExaoneRecommendationAdapter()
+    return OllamaExaoneRecommendationAdapter()
 
 
 def get_user_preference_port(
