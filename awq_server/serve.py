@@ -39,6 +39,7 @@ app = FastAPI(lifespan=lifespan)
 
 class GenerateRequest(BaseModel):
     prompt: str
+    system: str | None = None
     max_new_tokens: int = 256
 
 
@@ -56,7 +57,10 @@ def generate(req: GenerateRequest) -> GenerateResponse:
     tokenizer = _state["tokenizer"]
     model = _state["model"]
 
-    messages = [{"role": "user", "content": req.prompt}]
+    messages = []
+    if req.system:
+        messages.append({"role": "system", "content": req.system})
+    messages.append({"role": "user", "content": req.prompt})
     inputs = tokenizer.apply_chat_template(
         messages, add_generation_prompt=True, return_tensors="pt"
     ).to("cuda:0")
