@@ -187,11 +187,18 @@ class ChatReplyService:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            match = re.search(r"\{[\s\S]*\}", text)
-            if match:
-                try:
-                    return json.loads(match.group(0))
-                except json.JSONDecodeError:
-                    pass
+            pass
+
+        # 소형 로컬 모델은 "JSON만 출력" 지시를 어기고 예시·부연설명을 뒤에 덧붙이는 경우가
+        # 있다(EXAONE AWQ에서 실측). 첫 `{`부터 그리디하게 마지막 `}`까지 긁으면 여러 JSON
+        # 블록이 한 덩어리로 잡혀 깨지므로, 첫 번째로 완결되는 JSON 객체 하나만 추출한다.
+        start = text.find("{")
+        if start != -1:
+            try:
+                data, _ = json.JSONDecoder().raw_decode(text, start)
+                return data
+            except json.JSONDecodeError:
+                pass
+
         logger.warning("[ChatReplyService] JSON 파싱 실패")
         return None
