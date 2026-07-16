@@ -208,14 +208,14 @@ JIT 컴파일**하는데(`~/.cache/gptqmodel/torch_extensions/`에 캐시됨) �
 
 ### 7-1. RAG 서빙 서버 기동 (mova 챗봇 연동, 2026-07-14~)
 
-`awq_server/serve.py`(저장소 루트) — Ollama와 동일하게 호스트에서 별도 프로세스로 상주시키고,
+`model_servers/awq_server/serve.py`(저장소 루트) — Ollama와 동일하게 호스트에서 별도 프로세스로 상주시키고,
 suvisdev 백엔드는 `core/lol/awq_exaone_orchestrator.py`(HTTP client)로 호출한다.
 
 ```bash
 source ~/.venv-exaone/bin/activate
 uv pip install fastapi "uvicorn[standard]"   # 최초 1회 (transformers/torch/gptqmodel은 이미 설치돼 있음)
 cd /home/a/projects/suvis
-uvicorn awq_server.serve:app --host 0.0.0.0 --port 8100
+uvicorn model_servers.awq_server.serve:app --host 0.0.0.0 --port 8100
 ```
 
 - `GET /health`, `POST /generate {"prompt": "...", "system": "..."}` 로 검증.
@@ -302,7 +302,7 @@ Qwen2.5-1.5B-Instruct(원본 fp16, AWQ 아님)는 모델+LoRA 로드에 3.09GB�
 [2] scripts/train_mova_lora.py                LoRA 재학습 → ~/lora_adapters/mova_<timestamp>/
               │                                             + ~/lora_adapters/LATEST 갱신
               ▼
-[3] lora_server/serve.py (systemd, :8200)      LATEST 어댑터 서빙, POST /reload로 무중단 교체
+[3] model_servers/lora_server/serve.py (systemd, :8200)      LATEST 어댑터 서빙, POST /reload로 무중단 교체
 ```
 
 **[1] 데이터 추출** — `chat` 테이블엔 실제 답변 텍스트(intro)가 저장 안 되고 `picks`만
@@ -330,7 +330,7 @@ python scripts/train_mova_lora.py --epochs 3
 #   python scripts/train_mova_lora.py --epochs 3
 ```
 
-**[3] 서빙** — `lora_server/serve.py`가 기동 시 `LATEST`를 읽어 베이스 모델 + 어댑터를
+**[3] 서빙** — `model_servers/lora_server/serve.py`가 기동 시 `LATEST`를 읽어 베이스 모델 + 어댑터를
 로드. systemd 유저 서비스로 등록(`lora-server.service`, Ollama/awq-server와 동일 패턴).
 재학습 후에는 프로세스 재시작 없이 `POST /reload`로 최신 어댑터만 다시 읽어 교체.
 
