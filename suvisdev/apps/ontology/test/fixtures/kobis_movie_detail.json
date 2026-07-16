@@ -1,0 +1,16 @@
+{
+  "movieInfoResult": {
+    "movieInfo": {
+      "movieCd": "20183782",
+      "movieNm": "호프",
+      "movieNmEn": "Hope",
+      "showTm": "118",
+      "prdtYear": "2026",
+      "openDt": "20260710",
+      "genres": [{"genreNm": "드라마"}, {"genreNm": "가족"}],
+      "directors": [{"peopleNm": "홍길동"}],
+      "actors": [{"peopleNm": "김배우", "cast": "주연"}],
+      "audits": [{"audiCd": "1", "audiNm": "영상물등급위원회", "watchGradeNm": "12세이상관람가"}]
+    }
+  }
+}

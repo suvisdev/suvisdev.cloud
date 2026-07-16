@@ -25,11 +25,12 @@ class YamlCrawlPolicyAdapter(CrawlPolicyPort):
         return [
             CrawlPolicy(
                 site_id=entry["site"],
-                keywords=tuple(entry["keywords"]),
+                keywords=tuple(entry.get("keywords") or ()),
                 interval_minutes=int(entry["interval_minutes"]),
                 limit_per_keyword=(
                     int(entry["limit_per_keyword"]) if "limit_per_keyword" in entry else None
                 ),
+                keyword_source=entry.get("keyword_source"),
             )
             for entry in entries
         ]

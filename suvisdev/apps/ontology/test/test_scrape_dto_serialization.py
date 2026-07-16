@@ -27,7 +27,16 @@ class ScrapedRecordSerializationTest(unittest.TestCase):
         )
         data = record.to_json_dict()
 
-        for optional_field in ("rating", "published_at", "publisher", "summary", "sections", "infobox"):
+        for optional_field in (
+            "rating",
+            "published_at",
+            "publisher",
+            "summary",
+            "sections",
+            "infobox",
+            "external_ids",
+            "metrics",
+        ):
             self.assertNotIn(optional_field, data)
 
         line = json.dumps(data, ensure_ascii=False)
@@ -74,6 +83,28 @@ class ScrapedRecordSerializationTest(unittest.TestCase):
         assert isinstance(infobox, dict)
         self.assertEqual(infobox["감독"], "짐 자무시")
         json.dumps(data, ensure_ascii=False)  # 직렬화 가능해야 함
+
+    def test_kobis_fields_present_when_set(self) -> None:
+        record = ScrapedRecord(
+            source="kobis",
+            keyword="daily",
+            url="https://www.kobis.or.kr/movie/20183782",
+            title="영화 제목",
+            content="감독: 홍길동\n장르: 드라마",
+            author_hash="abcd1234",
+            scraped_at=datetime.now(UTC),
+            external_ids={"kobis_movie_cd": "20183782"},
+            metrics={"rank": 1.0, "audi_cnt": 152030.0, "audi_acc": 8203941.0},
+        )
+        data = record.to_json_dict()
+
+        self.assertEqual(data["external_ids"], {"kobis_movie_cd": "20183782"})
+        metrics = data["metrics"]
+        assert isinstance(metrics, dict)
+        self.assertEqual(metrics["rank"], 1.0)
+        for absent_field in ("sections", "infobox"):
+            self.assertNotIn(absent_field, data)
+        json.dumps(data, ensure_ascii=False)
 
 
 if __name__ == "__main__":

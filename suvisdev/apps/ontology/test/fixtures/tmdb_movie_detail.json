@@ -1,0 +1,22 @@
+{
+  "id": 496243,
+  "title": "기생충",
+  "overview": "전원백수인 기택네 장남 기우가 명문대생 친구의 소개로 고액 과외 자리를 얻게 되면서 벌어지는 이야기.",
+  "release_date": "2019-05-30",
+  "genres": [{"id": 80, "name": "스릴러"}, {"id": 18, "name": "드라마"}],
+  "credits": {
+    "cast": [
+      {"name": "송강호", "character": "기택"},
+      {"name": "이선균", "character": "박동익"},
+      {"name": "조여정", "character": "연교"},
+      {"name": "최우식", "character": "기우"},
+      {"name": "박소담", "character": "기정"},
+      {"name": "이정은", "character": "문광"}
+    ],
+    "crew": [
+      {"name": "봉준호", "job": "Director"},
+      {"name": "봉준호", "job": "Writer"},
+      {"name": "한진원", "job": "Writer"}
+    ]
+  }
+}

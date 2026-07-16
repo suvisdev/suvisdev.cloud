@@ -12,7 +12,11 @@ from ontology.app.ports.output.site_scraper_port import SiteScraperPort
 SITE_REGISTRY: dict[str, type[SiteScraperPort]] = {}
 
 from ontology.adapter.outbound.scraper.google_news_scraper import GoogleNewsScraper  # noqa: E402
+from ontology.adapter.outbound.scraper.kobis_scraper import KobisScraper  # noqa: E402
 from ontology.adapter.outbound.scraper.kowiki_scraper import KowikiScraper  # noqa: E402
+from ontology.adapter.outbound.scraper.tmdb_scraper import TmdbScraper  # noqa: E402
 
 SITE_REGISTRY[GoogleNewsScraper.site_id] = GoogleNewsScraper
 SITE_REGISTRY[KowikiScraper.site_id] = KowikiScraper
+SITE_REGISTRY[KobisScraper.site_id] = KobisScraper
+SITE_REGISTRY[TmdbScraper.site_id] = TmdbScraper
