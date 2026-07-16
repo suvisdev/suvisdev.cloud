@@ -1,0 +1,36 @@
+{
+  "boxOfficeResult": {
+    "boxofficeType": "일별 박스오피스",
+    "showRange": "20260715~20260715",
+    "dailyBoxOfficeList": [
+      {
+        "rnum": "1",
+        "rank": "1",
+        "rankInten": "0",
+        "rankOldAndNew": "OLD",
+        "movieCd": "20183782",
+        "movieNm": "호프",
+        "openDt": "2026-07-10",
+        "salesAmt": "1234567890",
+        "audiCnt": "152030",
+        "audiAcc": "8203941",
+        "scrnCnt": "1200",
+        "showCnt": "5000"
+      },
+      {
+        "rnum": "2",
+        "rank": "2",
+        "rankInten": "1",
+        "rankOldAndNew": "OLD",
+        "movieCd": "20241234",
+        "movieNm": "설국열차 리마스터",
+        "openDt": "2026-06-20",
+        "salesAmt": "987654321",
+        "audiCnt": "88210",
+        "audiAcc": "1203941",
+        "scrnCnt": "600",
+        "showCnt": "2100"
+      }
+    ]
+  }
+}

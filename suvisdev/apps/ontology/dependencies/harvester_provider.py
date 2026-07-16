@@ -40,7 +40,9 @@ def custom_url_scrape_out_path(url: str) -> Path:
 
     date = time.strftime("%Y%m%d")
     domain = urlparse(url).netloc.replace(":", "_") or "custom"
-    return Path("datasets") / f"custom_{domain}_{date}.jsonl"
+    # 크롤러 탭의 custom_{날짜}.jsonl(도메인 구분 없음, append)과는 파일명이 겹치지
+    # 않는다 — 같은 폴더에 둬도 서로 안 건드림.
+    return _CRAWLED_OUTPUT_DIR / f"custom_{domain}_{date}.jsonl"
 
 
 def custom_url_crawl_out_path() -> Path:

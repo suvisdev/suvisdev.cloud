@@ -10,6 +10,7 @@ from ontology.app.dtos.scrape_dto import ScrapedRecord
 from ontology.app.ports.output.crawl_event_publisher_port import CrawlEventPublisherPort
 from ontology.app.ports.output.crawl_policy_port import CrawlPolicyPort
 from ontology.app.ports.output.crawl_schedule_state_port import CrawlScheduleStatePort
+from ontology.app.ports.output.keyword_source_port import KeywordSourcePort
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
 from ontology.app.ports.output.visited_store_port import VisitedStorePort
 from ontology.domain.events.spoke_events import CrawlCompletedEvent
@@ -51,6 +52,40 @@ class FakeVisitedStore(VisitedStorePort):
 
     def mark(self, keyword: str, url: str) -> None:
         self._seen.add((keyword, url))
+
+
+class FakeKeywordSource(KeywordSourcePort):
+    source_id = "fake_keyword_source"
+
+    def __init__(self, *, titles: list[str] | None = None, raises: bool = False) -> None:
+        self._titles = titles or []
+        self._raises = raises
+
+    def resolve(self) -> list[str]:
+        if self._raises:
+            raise RuntimeError("keyword source 연결 실패(테스트용)")
+        return list(self._titles)
+
+
+class FakeKeywordRecordingScraper(SiteScraperPort):
+    """search()에 실제로 어떤 키워드가 넘어왔는지만 기록한다 — 병합 로직 검증용."""
+
+    site_id = "fake-recording"
+
+    def __init__(self) -> None:
+        self.searched_keywords: list[str] = []
+
+    def search(self, keyword: str, limit: int) -> Iterator[ScrapedRecord]:
+        self.searched_keywords.append(keyword)
+        yield ScrapedRecord(
+            source=self.site_id,
+            keyword=keyword,
+            url=f"https://fake-recording.test/{keyword}",
+            title=keyword,
+            content="content",
+            author_hash="abcd1234",
+            scraped_at=datetime.now(),
+        )
 
 
 class FakeDedupingSiteScraper(SiteScraperPort):

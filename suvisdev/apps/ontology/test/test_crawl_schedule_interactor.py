@@ -22,6 +22,8 @@ from ontology.test.fakes.fake_crawl_schedule_collabs import (  # noqa: E402
     FakeCrawlPolicyPort,
     FakeCrawlScheduleStatePort,
     FakeDedupingSiteScraper,
+    FakeKeywordRecordingScraper,
+    FakeKeywordSource,
     FakeVisitedStore,
 )
 
@@ -105,6 +107,64 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
             self.assertEqual(meta.record_count, 3)
             self.assertEqual(len(publisher.published), 1)
             self.assertEqual(publisher.published[0].site_id, "fake-dedup")
+
+    def _build_with_keyword_source(
+        self, out_dir: Path, *, static_keywords: tuple[str, ...], source: FakeKeywordSource, max_dynamic: int = 20
+    ) -> tuple[CrawlScheduleInteractor, FakeKeywordRecordingScraper]:
+        scraper = FakeKeywordRecordingScraper()
+        policy = CrawlPolicy(
+            site_id="fake-recording",
+            keywords=static_keywords,
+            interval_minutes=60,
+            keyword_source="fake_keyword_source",
+        )
+        interactor = CrawlScheduleInteractor(
+            policies=FakeCrawlPolicyPort([policy]),
+            schedule_state=FakeCrawlScheduleStatePort(),
+            build_scraper=lambda site_id: scraper,
+            writer=LocalJsonlDatasetRepository(),
+            event_publisher=FakeCrawlEventPublisher(),
+            output_dir=out_dir,
+            build_keyword_source=lambda source_id: source,
+            max_dynamic_keywords=max_dynamic,
+        )
+        return interactor, scraper
+
+    def test_merges_static_and_dynamic_keywords_deduped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = FakeKeywordSource(titles=["신작A", "신작B", "정적1"])  # "정적1"은 중복
+            interactor, scraper = self._build_with_keyword_source(
+                Path(tmp), static_keywords=("정적1", "정적2"), source=source
+            )
+
+            interactor.run_due_batches(now=datetime(2026, 7, 16, tzinfo=UTC))
+
+            # 정적 2개 + 동적 2개(중복 "정적1" 제외) = 4개, 순서는 정적 먼저
+            self.assertEqual(scraper.searched_keywords, ["정적1", "정적2", "신작A", "신작B"])
+
+    def test_dynamic_keywords_capped_at_max(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = FakeKeywordSource(titles=[f"영화{i}" for i in range(30)])
+            interactor, scraper = self._build_with_keyword_source(
+                Path(tmp), static_keywords=(), source=source, max_dynamic=5
+            )
+
+            interactor.run_due_batches(now=datetime(2026, 7, 16, tzinfo=UTC))
+
+            self.assertEqual(len(scraper.searched_keywords), 5)
+            self.assertEqual(scraper.searched_keywords, [f"영화{i}" for i in range(5)])
+
+    def test_resolve_failure_keeps_static_keywords_and_continues_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source = FakeKeywordSource(raises=True)
+            interactor, scraper = self._build_with_keyword_source(
+                Path(tmp), static_keywords=("정적1",), source=source
+            )
+
+            results = interactor.run_due_batches(now=datetime(2026, 7, 16, tzinfo=UTC))
+
+            self.assertEqual(len(results), 1)  # 배치가 중단되지 않고 끝까지 감
+            self.assertEqual(scraper.searched_keywords, ["정적1"])  # 동적 없이 정적만
 
 
 if __name__ == "__main__":
