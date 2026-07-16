@@ -13,6 +13,7 @@ from pathlib import Path
 
 from ontology.adapter.outbound.scraper.registry import SITE_REGISTRY
 from ontology.app.ports.input.crawl_schedule_use_case import CrawlScheduleUseCase
+from ontology.app.ports.input.custom_url_scrape_use_case import CustomUrlScrapeUseCase
 from ontology.app.ports.input.scrape_dataset_use_case import ScrapeDatasetUseCase
 from ontology.app.ports.output.harvester_command_parser_port import HarvesterCommandParserPort
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
@@ -25,10 +26,26 @@ class UnknownSiteError(Exception):
         super().__init__(f"등록되지 않은 사이트: {site_id} (등록됨: {', '.join(self.available) or '없음'})")
 
 
+_CRAWLED_OUTPUT_DIR = Path("apps") / "ontology" / "resources" / "crawled"
+
+
 def default_scrape_out_path(site_id: str, keyword: str) -> Path:
     date = time.strftime("%Y%m%d")
     safe_keyword = keyword.replace("/", "_").replace(" ", "_")
     return Path("datasets") / f"{site_id}_{safe_keyword}_{date}.jsonl"
+
+
+def custom_url_scrape_out_path(url: str) -> Path:
+    from urllib.parse import urlparse
+
+    date = time.strftime("%Y%m%d")
+    domain = urlparse(url).netloc.replace(":", "_") or "custom"
+    return Path("datasets") / f"custom_{domain}_{date}.jsonl"
+
+
+def custom_url_crawl_out_path() -> Path:
+    date = time.strftime("%Y%m%d")
+    return _CRAWLED_OUTPUT_DIR / f"custom_{date}.jsonl"
 
 
 def build_site_scraper(site_id: str, *, rate: float, dedup: bool) -> SiteScraperPort:
@@ -95,7 +112,7 @@ def build_crawl_schedule_use_case(
         build_scraper=_build_scraper,
         writer=LocalJsonlDatasetRepository(),
         event_publisher=LogCrawlEventPublisherAdapter(),
-        output_dir=Path("apps") / "ontology" / "resources" / "crawled",
+        output_dir=_CRAWLED_OUTPUT_DIR,
         limit_per_keyword=limit_per_keyword,
     )
 
@@ -107,3 +124,23 @@ def build_harvester_command_parser() -> HarvesterCommandParserPort:
     from ontology.adapter.outbound.llm.qwen_llm_adapter import QwenLlmAdapter
 
     return QwenHarvesterCommandParser(llm=QwenLlmAdapter())
+
+
+def build_custom_url_scrape_use_case() -> CustomUrlScrapeUseCase:
+    """등록된 사이트 밖의 임의 URL + 자연어 지시 수집 컴포지션."""
+    from ontology.adapter.outbound.http.httpx_page_fetcher_adapter import HttpxPageFetcherAdapter
+    from ontology.adapter.outbound.http.robots_checker_adapter import HttpxRobotsCheckerAdapter
+    from ontology.adapter.outbound.llm.gemini_llm_adapter import GeminiLlmAdapter
+    from ontology.adapter.outbound.llm.gemini_page_extractor import GeminiPageExtractorAdapter
+    from ontology.adapter.outbound.resource_adapters.dataset.local_jsonl_dataset_repository import (  # noqa: E501
+        LocalJsonlDatasetRepository,
+    )
+    from ontology.app.use_cases.custom_url_scrape_interactor import CustomUrlScrapeInteractor
+
+    fetcher = HttpxPageFetcherAdapter()
+    return CustomUrlScrapeInteractor(
+        fetcher=fetcher,
+        robots_checker=HttpxRobotsCheckerAdapter(fetcher=fetcher),
+        extractor=GeminiPageExtractorAdapter(llm=GeminiLlmAdapter()),
+        writer=LocalJsonlDatasetRepository(),
+    )
