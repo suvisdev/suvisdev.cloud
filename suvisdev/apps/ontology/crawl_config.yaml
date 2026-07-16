@@ -1,0 +1,22 @@
+# crawl-batch(CrawlScheduleInteractor)가 읽는 재수집 정책 목록.
+# site는 SITE_REGISTRY(adapter/outbound/scraper/registry.py)에 등록된 site_id와 일치해야 한다.
+# 실행: python scripts/harvester_cli.py crawl-batch (cron/systemd timer로 주기 호출)
+#
+# 참고: `targets:`/`output.mode` 대신 기존에 구현·테스트된 site/keywords/interval_minutes
+# 스키마를 그대로 쓴다 — due-check 스케줄링(레디스에 저장된 site별 마지막 실행 시각)이
+# interval_minutes에 의존하고 있어서 스키마를 바꾸면 그 기능을 다시 설계해야 한다.
+# limit_per_keyword만 선택 필드로 추가했다(생략 시 크롤러 기본값 100 사용). 저장 방식은
+# 현재 날짜별 JSONL append(jsonl_daily) 한 가지뿐이라 별도 output 설정 키는 두지 않았다.
+#
+# kowiki는 배치 대상에 넣지 않는다 — 온디맨드 전용:
+#   python scripts/harvester_cli.py scrape -s kowiki -k "패터슨" -l 5
+
+policies:
+  - site: google_news
+    keywords: ["영화 개봉", "박스오피스"]
+    interval_minutes: 60
+    limit_per_keyword: 30
+  - site: google_news
+    keywords: ["넷플릭스 신작 영화"]
+    interval_minutes: 60
+    limit_per_keyword: 20

@@ -69,6 +69,10 @@ coverage.xml
 *.cache
 runs/
 
+# --- harvester CLI(ontology) 수집 산출물 — scripts/harvester_cli.py 기본 출력 위치 ---
+# scrape는 datasets/*.jsonl, crawl-batch는 datasets/crawl/*.jsonl(날짜별 append)에 쓴다.
+datasets/**/*.jsonl
+
 # --- Node / Next.js ---
 node_modules/
 .pnpm-store/

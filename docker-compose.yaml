@@ -29,10 +29,19 @@ services:
       # 읽어 베이스 모델(현재 Qwen2.5-1.5B, VRAM 여유 생기면 EXAONE-AWQ로 교체 가능)+
       # 최신 어댑터를 서빙한다.
       - LORA_SERVER_URL=http://host.docker.internal:8200
+      # ontology(Hub) 크롤러가 대상(website+keyword)을 읽어오는 곳 — redis 컨테이너는
+      # 같은 compose 네트워크라 서비스명으로 바로 붙는다 (host.docker.internal 불필요).
+      - REDIS_URL=redis://redis:6379/0
+    # harvester CLI(scripts/harvester_cli.py, docker exec로 실행)가 쓰는 출력 폴더.
+    # 바인드 마운트가 없으면 컨테이너 쓰기 레이어에만 남아 재생성 시 사라진다.
+    volumes:
+      - ./suvisdev/datasets:/suvisdev/datasets
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     deploy:
       resources:
@@ -62,7 +71,21 @@ services:
       timeout: 5s
       retries: 10
 
-  # 3. pgAdmin — 위 db(docker pgvector) 컨테이너 조회용 웹 UI
+  # 3. Redis
+  # 실행: docker compose --env-file suvisdev/.env up -d redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 4. pgAdmin — 위 db(docker pgvector) 컨테이너 조회용 웹 UI
   # 실행: docker compose --env-file suvisdev/.env up -d pgadmin
   # 접속: http://localhost:5050 (로그인 후 서버 추가 시 Host=db, Port=5432,
   #       Username/Password/Maintenance DB는 suvisdev/.env의 POSTGRES_* 값)
@@ -81,4 +104,5 @@ services:
 
 volumes:
   db_data:
+  redis_data:
   pgadmin_data:
