@@ -6,9 +6,9 @@ semantic_router_interactor(독립 게이트웨이 엔드포인트)와 mova ChatI
 
 from __future__ import annotations
 
-import json
 import logging
 
+from ontology.adapter.outbound.llm.json_extract import extract_first_json
 from ontology.app.ports.output.hub_llm_port import HubLlmPort
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.app.ports.output.intent_classifier_port import IntentClassifierPort
@@ -43,22 +43,6 @@ _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 
 답변: {"destination": "rag", "entities": ["공포", "영화"]}"""
 
 
-def _extract_first_json(raw: str) -> dict | None:
-    """소형 모델은 JSON 뒤에 부연설명을 덧붙이는 경우가 있어(EXAONE AWQ에서 실측),
-    첫 `{`부터 그리디하게 긁지 않고 첫 번째로 완결되는 JSON 객체 하나만 추출한다."""
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-    start = text.find("{")
-    if start == -1:
-        return None
-    try:
-        data, _ = json.JSONDecoder().raw_decode(text, start)
-        return data
-    except json.JSONDecodeError:
-        return None
-
-
 class QwenIntentClassifier(IntentClassifierPort):
     def __init__(self, *, llm: HubLlmPort) -> None:
         self._llm = llm
@@ -74,7 +58,7 @@ class QwenIntentClassifier(IntentClassifierPort):
             )
             return _DEFAULT_DESTINATION, []
 
-        data = _extract_first_json(raw)
+        data = extract_first_json(raw)
         if data is None:
             logger.warning(
                 "[QwenIntentClassifier] 라우팅 JSON 파싱 실패, %s로 폴백 | raw=%s",
