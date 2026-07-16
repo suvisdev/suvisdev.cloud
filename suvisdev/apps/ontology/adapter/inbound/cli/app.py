@@ -20,16 +20,11 @@ from ontology.dependencies.harvester_provider import (
     build_crawl_schedule_use_case,
     build_scrape_dataset_use_case,
     build_site_scraper,
+    default_scrape_out_path,
 )
 
 app = typer.Typer(help="사이트+키워드로 데이터셋을 수집하는 스크래퍼 CLI")
 console = Console()
-
-
-def _default_out_path(site_id: str, keyword: str) -> Path:
-    date = time.strftime("%Y%m%d")
-    safe_keyword = keyword.replace("/", "_").replace(" ", "_")
-    return Path("datasets") / f"{site_id}_{safe_keyword}_{date}.jsonl"
 
 
 def _run_scrape(site_id: str, keyword: str, limit: int, out: Path | None, rate: float) -> None:
@@ -39,7 +34,7 @@ def _run_scrape(site_id: str, keyword: str, limit: int, out: Path | None, rate: 
         raise typer.Exit(code=2)
 
     target = ScrapeTarget(site_id=site_id, keyword=keyword)
-    out_path = out or _default_out_path(site_id, keyword)
+    out_path = out or default_scrape_out_path(site_id, keyword)
 
     scraper = build_site_scraper(site_id, rate=rate, dedup=True)
     service = build_scrape_dataset_use_case(scraper)

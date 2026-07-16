@@ -14,9 +14,9 @@
 policies:
   - site: google_news
     keywords: ["영화 개봉", "박스오피스"]
-    interval_minutes: 60
+    interval_minutes: 1440  # 24시간
     limit_per_keyword: 30
   - site: google_news
     keywords: ["넷플릭스 신작 영화"]
-    interval_minutes: 60
+    interval_minutes: 1440  # 24시간
     limit_per_keyword: 20

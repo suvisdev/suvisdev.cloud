@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Home,
   Layers,
+  Radar,
   Send,
   Settings,
   Users,
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/admin/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/admin/stats", label: "통계", icon: BarChart3 },
   { href: "/admin/dispatch", label: "Dispatch", icon: Send },
+  { href: "/admin/harvester", label: "수집기", icon: Radar },
   { href: "/admin/settings", label: "설정", icon: Settings },
 ]
 

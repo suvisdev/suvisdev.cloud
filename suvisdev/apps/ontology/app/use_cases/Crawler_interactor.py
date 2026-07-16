@@ -61,6 +61,15 @@ class CrawlScheduleInteractor(CrawlScheduleUseCase):
             self._schedule_state.set_last_run(policy.site_id, now)
         return results
 
+    def run_once(self, *, site_id: str, keywords: tuple[str, ...], limit: int) -> DatasetMeta:
+        """어드민 화면 등에서 즉시 1회 실행 — crawl_config.yaml/due-check를 거치지 않는다.
+
+        같은 append+이벤트 발행 경로(_run_policy)를 그대로 재사용한다 — interval_minutes는
+        due-check에 안 쓰이므로 아무 값이나 넣어도 무방하다.
+        """
+        policy = CrawlPolicy(site_id=site_id, keywords=keywords, interval_minutes=1, limit_per_keyword=limit)
+        return self._run_policy(policy, datetime.now(UTC))
+
     def _is_due(self, policy: CrawlPolicy, now: datetime) -> bool:
         last_run = self._schedule_state.get_last_run(policy.site_id)
         if last_run is None:

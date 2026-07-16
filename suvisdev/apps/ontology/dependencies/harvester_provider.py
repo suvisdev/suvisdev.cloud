@@ -8,11 +8,13 @@ CLI의 `sites`/`interactive` 커맨드가 사이트 미등록 상태에서도 �
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from ontology.adapter.outbound.scraper.registry import SITE_REGISTRY
 from ontology.app.ports.input.crawl_schedule_use_case import CrawlScheduleUseCase
 from ontology.app.ports.input.scrape_dataset_use_case import ScrapeDatasetUseCase
+from ontology.app.ports.output.harvester_command_parser_port import HarvesterCommandParserPort
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
 
 
@@ -21,6 +23,12 @@ class UnknownSiteError(Exception):
         self.site_id = site_id
         self.available = sorted(SITE_REGISTRY)
         super().__init__(f"등록되지 않은 사이트: {site_id} (등록됨: {', '.join(self.available) or '없음'})")
+
+
+def default_scrape_out_path(site_id: str, keyword: str) -> Path:
+    date = time.strftime("%Y%m%d")
+    safe_keyword = keyword.replace("/", "_").replace(" ", "_")
+    return Path("datasets") / f"{site_id}_{safe_keyword}_{date}.jsonl"
 
 
 def build_site_scraper(site_id: str, *, rate: float, dedup: bool) -> SiteScraperPort:
@@ -87,6 +95,15 @@ def build_crawl_schedule_use_case(
         build_scraper=_build_scraper,
         writer=LocalJsonlDatasetRepository(),
         event_publisher=LogCrawlEventPublisherAdapter(),
-        output_dir=Path("datasets") / "crawl",
+        output_dir=Path("apps") / "ontology" / "resources" / "crawled",
         limit_per_keyword=limit_per_keyword,
     )
+
+
+def build_harvester_command_parser() -> HarvesterCommandParserPort:
+    from ontology.adapter.outbound.llm.qwen_harvester_command_parser import (
+        QwenHarvesterCommandParser,
+    )
+    from ontology.adapter.outbound.llm.qwen_llm_adapter import QwenLlmAdapter
+
+    return QwenHarvesterCommandParser(llm=QwenLlmAdapter())

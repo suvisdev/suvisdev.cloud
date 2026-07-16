@@ -27,7 +27,9 @@ from ontology.test.fakes.fake_crawl_schedule_collabs import (  # noqa: E402
 
 
 class CrawlScheduleInteractorTest(unittest.TestCase):
-    def _build(self, out_dir: Path, *, interval_minutes: int = 60):
+    def _build(
+        self, out_dir: Path, *, interval_minutes: int = 60
+    ) -> tuple[CrawlScheduleInteractor, FakeCrawlScheduleStatePort, FakeCrawlEventPublisher]:
         visited_store = FakeVisitedStore()
         scraper = FakeDedupingSiteScraper(
             fetcher=None, rate_limiter=None, visited_store=visited_store  # type: ignore[arg-type]
@@ -80,6 +82,29 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
 
             interactor.run_due_batches(now=t0 + timedelta(minutes=61))
             self.assertEqual(len(publisher.published), 2)  # 지남 — 다시 실행
+
+    def test_run_once_ignores_policy_list_and_due_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            visited_store = FakeVisitedStore()
+            scraper = FakeDedupingSiteScraper(
+                fetcher=None, rate_limiter=None, visited_store=visited_store  # type: ignore[arg-type]
+            )
+            publisher = FakeCrawlEventPublisher()
+            interactor = CrawlScheduleInteractor(
+                policies=FakeCrawlPolicyPort([]),  # 정책 목록이 비어있어도 run_once는 무관
+                schedule_state=FakeCrawlScheduleStatePort(),
+                build_scraper=lambda site_id: scraper,
+                writer=LocalJsonlDatasetRepository(),
+                event_publisher=publisher,
+                output_dir=out_dir,
+            )
+
+            meta = interactor.run_once(site_id="fake-dedup", keywords=("k",), limit=3)
+
+            self.assertEqual(meta.record_count, 3)
+            self.assertEqual(len(publisher.published), 1)
+            self.assertEqual(publisher.published[0].site_id, "fake-dedup")
 
 
 if __name__ == "__main__":
