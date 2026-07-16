@@ -25,7 +25,9 @@ def get_tmdb_api_key() -> str:
 
 
 def get_kobis_api_key() -> str:
-    key = os.getenv("KOBIS_API_KEY")
+    # mova(apps/mova/adapter/outbound/http/kofic_adapter.py)가 이미 동일 키를
+    # KOFIC_API_KEY로 쓰고 있어 이름을 맞춘다 — 같은 값을 두 변수에 중복 저장하지 않는다.
+    key = os.getenv("KOFIC_API_KEY")
     if not key:
-        raise MissingApiKeyError("KOBIS_API_KEY", "kobis")
+        raise MissingApiKeyError("KOFIC_API_KEY", "kobis")
     return key

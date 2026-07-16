@@ -13,6 +13,7 @@ import hashlib
 import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import quote
 
 from ontology.adapter.outbound.config.api_keys import get_tmdb_api_key
@@ -29,7 +30,7 @@ _DETAIL_URL = (
 _CAST_LIMIT = 5
 
 
-def _map_cast_names(credits: dict, *, limit: int = _CAST_LIMIT) -> list[str]:
+def _map_cast_names(credits: dict[str, Any], *, limit: int = _CAST_LIMIT) -> list[str]:
     names = []
     for member in credits.get("cast") or []:
         name = str(member.get("name") or "").strip()
@@ -40,7 +41,7 @@ def _map_cast_names(credits: dict, *, limit: int = _CAST_LIMIT) -> list[str]:
     return names
 
 
-def _map_directors(credits: dict) -> list[str]:
+def _map_directors(credits: dict[str, Any]) -> list[str]:
     names = []
     for member in credits.get("crew") or []:
         if member.get("job") != "Director":

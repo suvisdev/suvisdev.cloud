@@ -33,7 +33,7 @@ def _build_scraper() -> KobisScraper:
 
 class KobisScraperTest(unittest.TestCase):
     def setUp(self) -> None:
-        self._env_patch = mock.patch.dict(os.environ, {"KOBIS_API_KEY": "fake-kobis-key"})
+        self._env_patch = mock.patch.dict(os.environ, {"KOFIC_API_KEY": "fake-kobis-key"})
         self._env_patch.start()
 
     def tearDown(self) -> None:
@@ -69,7 +69,7 @@ class KobisScraperTest(unittest.TestCase):
             scraper = _build_scraper()
             with self.assertRaises(MissingApiKeyError) as ctx:
                 list(scraper.search("daily:20260715", limit=10))
-            self.assertIn("KOBIS_API_KEY", str(ctx.exception))
+            self.assertIn("KOFIC_API_KEY", str(ctx.exception))
         self._env_patch.start()
 
 

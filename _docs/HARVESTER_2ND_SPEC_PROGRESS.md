@@ -2,29 +2,70 @@
 
 컨텍스트가 끊길 경우를 대비한 재개용 메모. 최신 진행 상황은 이 파일 상단을 갱신한다.
 
-## 지금 당장 재개할 지점 (사용자가 "멈추고 커밋해줘"라고 해서 여기서 중단함)
+## 현재 상태 — Track A/B 전부 구현·검증 완료, 도커 재빌드만 남음 (2026-07-16)
 
-Task #32(harvester_provider 배선) 진행 중이었고, 방금 한 작업:
-- `registry.py`에 kobis/tmdb 등록 완료 (SITE_REGISTRY[KobisScraper.site_id]=... 등)
-- import 확인하다가 로컬 검증용 파이썬(시스템 python3, venv 아님)에 `feedparser`가
-  없어서 에러 났음 — **코드 버그 아님**, 테스트용 venv
-  (`/tmp/claude-1000/.../scratchpad/testvenv`)에는 이미 설치돼 있었음. 재개 시
-  `$VENV/bin/python`으로 다시 확인할 것, 시스템 `python3`로 확인하지 말 것.
+Track A(harvester 2차 스펙)와 Track B(mova ingest-harvest) 모두 완료했다. 아래
+"남은 작업" 섹션들은 전부 체크됐고, 실제로 남은 건 **도커 재빌드 + 실 DB 수동 검증**뿐이다.
 
-다음 할 일 순서 (Task #32 나머지):
-1. `harvester_provider.py`의 `build_crawl_schedule_use_case()`에 `build_keyword_source`
-   콜러블 주입 — `KEYWORD_SOURCE_REGISTRY`에서 source_id로 찾아 fetcher/rate_limiter
-   조립해서 `KobisBoxofficeTitleSource` 생성하는 함수를 만들어 넘겨야 함
-   (`build_site_scraper`와 비슷한 패턴, 다만 KeywordSourcePort는 visited_store가 없음)
-2. `harvester_router.py`에서 `MissingApiKeyError` → `HTTPException(503, detail=str(e))`
-   캐치 추가 (scrape/crawl 두 엔드포인트 다)
-3. `.env.example`에 `TMDB_API_KEY=`, `KOBIS_API_KEY=` 키 이름만 추가
-4. Track A 전체 재검증: `$VENV/bin/python -m pytest apps/ontology/test/ --ignore=.../yolo_test.py -q`,
-   ruff, mypy --strict, `sites` 커맨드에 kobis/tmdb 노출 확인, DIP grep
-5. Task #32 완료 후 Task #33~36 (Track B, mova ingest-harvest) — 이 파일 하단
-   "남은 작업 (Track B)" 섹션 그대로 유효, 아직 착수 전
-6. 도커 재빌드 아직 안 함 — Track A 전체(kobis/tmdb 포함) + 아까 요청받은
-   `custom_url_scrape_out_path` 변경사항까지 한 번에 재빌드해서 검증할 것
+### 이번 라운드에서 새로 한 작업 (Task #32 마무리 + Track B 전체)
+
+- `harvester_provider.py`: `build_keyword_source(source_id, *, rate)` 추가, `UnknownKeywordSourceError`
+  추가, `build_crawl_schedule_use_case()`에 `build_keyword_source=_build_keyword_source` 주입
+- `harvester_router.py`: `MissingApiKeyError` → `HTTPException(503, ...)` 캐치를 scrape/crawl
+  둘 다에 추가
+- **API 키 이름 정정**: 애초에 kobis용으로 `KOBIS_API_KEY`라는 새 환경변수를 만들었는데,
+  `apps/mova/adapter/outbound/http/kofic_adapter.py`가 이미 동일 키를 `KOFIC_API_KEY`로
+  쓰고 있는 걸 발견해서 `api_keys.py`의 `get_kobis_api_key()`가 `KOFIC_API_KEY`를 읽도록
+  통일함(같은 값을 두 변수에 중복 저장하지 않기 위함). 관련 테스트 3곳도 같이 수정.
+  `.env.example`에는 이미 `TMDB_API_KEY`/`KOFIC_API_KEY`가 있었으므로 주석만 보강(새 키
+  추가 안 함).
+- mypy --strict 재검증 중 발견한 사전 존재 위반 수정(Track A 커밋에는 있었지만 strict
+  통과 못 했던 부분): `kobis_client.py`/`kobis_scraper.py`/`tmdb_scraper.py`의 bare `dict`
+  → `dict[str, Any]`, `KeywordSourcePort`에 `SiteScraperPort`와 동일한 고정 생성자
+  (`fetcher`/`rate_limiter`) 추가하고 `KobisBoxofficeTitleSource`의 중복 `__init__` 제거
+- Track A 전체 재검증 완료: pytest 46/46, ruff 클린, mypy --strict 클린(touched 파일
+  기준 — 나머지 mypy 에러는 전부 core/matrix, viewer 등 이번 세션과 무관한 기존 파일),
+  `python scripts/harvester_cli.py sites` → kobis/tmdb 노출 확인, DIP grep(ontology
+  app/domain에 httpx/redis/spoke import 없음) 확인
+- **Track B(mova ingest-harvest) 전체 신규 구현**:
+  - `apps/mova/app/dtos/harvest_ingest_dto.py` — `HarvestRow`, `HarvestIngestResultDto`
+  - `apps/mova/app/ports/output/harvest_reader_port.py` — `HarvestReaderPort`
+  - `apps/mova/adapter/outbound/harvest/harvest_jsonl_reader.py` — `HarvestJsonlReaderAdapter`
+    (json.loads만 사용, harvester/ontology 모듈 import 없음 — grep+테스트로 확인)
+  - `apps/mova/app/ports/input/harvest_ingest_use_case.py` — `HarvestIngestUseCase`
+  - `apps/mova/app/use_cases/harvest_ingest_interactor.py` — `HarvestIngestInteractor`.
+    source별 content 매핑(kowiki=content+sections, tmdb=content+infobox,
+    kobis=content+metrics, 그외=content 그대로), `movies.find_by_title()`로 매칭
+    시도(정확 제목 일치, DB에 링크 저장 안 함) + matched/unmatched 카운트,
+    `HubRagUseCase.ingest_movie()`로 임베딩+upsert(dedup은 기존 source_ref 기준
+    upsert가 그대로 처리)
+  - `scripts/mova_ingest_harvest.py` — CLI 진입점. `python scripts/mova_ingest_harvest.py
+    {jsonl경로}`. `export_chat_training_dataset.py`/`backfill_hub_movies_rag.py`와
+    동일한 DI 패턴(reload_env → get_mova_session_factory → 세션 내 조립)
+  - 테스트 9개(`test_harvest_jsonl_reader.py` 3개, `test_harvest_ingest_interactor.py`
+    6개) 전부 통과, ruff/mypy --strict 클린, harvester 모듈 import 없음 grep 확인
+  - **중요 설계 판단**: `HubRagInteractor.search_movies()`는 `source="mova_movie"`로
+    고정 필터링돼 있어서, harvest 데이터(source=kowiki/google_news/kobis/tmdb로 적재)는
+    지금 당장은 mova 채팅 RAG 검색에 안 걸린다. 이건 의도된 설계다 — 사용자가 "mova
+    채팅/추천 응답 로직 자체는 이번에 변경 안 한다, RAG 저장소에 적재하는 것까지만"이라고
+    명시했으므로 검색 로직(search_movies)은 건드리지 않았다. 나중에 harvest 데이터를
+    실제로 채팅에서 검색하려면 별도 작업으로 source 필터를 확장해야 함.
+  - 사전 존재하는 무관한 실패 확인함(내가 안 건드림): `apps/mova/tests/test_import_interactor.py`
+    2건이 `ImportInteractor.__init__()`이 07-14에 인자 2개(box_office, hub_rag) 늘어난 뒤
+    테스트가 갱신 안 돼서 깨져 있음(이번 세션과 무관, 07-14 커밋 vs 07-14 테스트 파일 시점
+    확인함). `apps/mova/tests/test_llm_error_handling.py`는 `google.generativeai` 미설치로
+    스크래치 venv에서 collection 자체가 안 됨(이것도 무관).
+
+### 다음에 할 일 (남은 건 이것뿐)
+
+1. **도커 재빌드** — Track A 전체(kobis/tmdb 포함) + Track B(mova ingest-harvest) +
+   `custom_url_scrape_out_path` 경로 수정까지 전부 한 번에 반영해서 재빌드
+   (`docker compose --env-file suvisdev/.env up -d --build backend`)
+2. **실 DB 수동 통합 검증**: 실제로 `scrape`/`crawl-batch`로 kobis/tmdb JSONL 생성 →
+   `python scripts/mova_ingest_harvest.py {경로}` 실행 → hub_knowledge 테이블에 실제로
+   들어갔는지 확인 (matched/unmatched 카운트 출력 확인)
+3. `.env`(실제 파일, `.env.example` 아님)에 `KOFIC_API_KEY`가 이미 있는지 확인 —
+   mova가 이미 쓰고 있었으므로 아마 있을 것, 없으면 사용자에게 요청
 
 ## 확정된 설계 (사용자와 합의 완료, 재질문 불필요)
 
@@ -77,50 +118,47 @@ Task #32(harvester_provider 배선) 진행 중이었고, 방금 한 작업:
       3개 통과 — 매핑, infobox key 체계, 키 누락 에러)
 - [x] `CrawlPolicy.keyword_source` 필드 추가 완료
 - [x] `CrawlScheduleInteractor._resolve_keywords()` 병합 로직 구현 완료(정적+동적 merge,
-      dedup, max_dynamic_keywords 상한, resolve() 실패 시 정적만으로 계속) — 기존
-      3개 테스트 재통과 확인함. **동적 키워드 merge 자체의 신규 테스트 3개(병합+dedup,
-      상한, resolve 실패 복원력)는 아직 작성 중 — 다음 재개 지점**
+      dedup, max_dynamic_keywords 상한, resolve() 실패 시 정적만으로 계속) — 신규
+      테스트 3개(병합+dedup, 상한, resolve 실패 복원력) 포함 전부 통과
   - `run_once()`는 그대로 둠(keyword_source 없이 명시적 keywords만) — 관리자 화면
     1회성이라 맞다고 확정함
-- [ ] `YamlCrawlPolicyAdapter`가 `keyword_source` 필드 파싱하도록 확장 (아직)
-- [x] **[추가 요청, 완료]** 스크래퍼 탭 custom URL 출력 경로를 `datasets/`에서
+- [x] `YamlCrawlPolicyAdapter`가 `keyword_source` 필드 파싱하도록 확장 완료
+- [x] 스크래퍼 탭 custom URL 출력 경로를 `datasets/`에서
       `apps/ontology/resources/crawled/custom_{도메인}_{날짜}.jsonl`로 변경
-      (`harvester_provider.custom_url_scrape_out_path`) — 사용자가 namu.wiki 테스트
-      중 위치 헷갈려서 요청함. 크롤러 탭의 `custom_{날짜}.jsonl`과 파일명 겹치지 않음.
-      **아직 도커 재빌드 안 함 — Track A-6 재빌드 때 같이 반영 예정**
-- [ ] `crawl_config.yaml`에 kobis(daily) 정책 + google_news/kowiki dynamic
-      (`keyword_source: kobis_boxoffice_titles`) 항목 추가 (스펙 §6.4 예시 참고,
-      `targets:`/`options:` 대신 기존 policies 스키마 유지 — 1차 때와 동일한 이유)
-  - `max_dynamic_keywords`는 YAML `options:`로 안 빼고 `build_crawl_schedule_use_case`
-    파이썬 기본값(20)으로 유지 예정(1차 때의 diff 최소화 원칙과 동일)
-- [ ] `registry.py`에 kobis/tmdb 등록 (import + `SITE_REGISTRY[...]=...` 패턴)
-- [ ] `harvester_provider.py`: `build_crawl_schedule_use_case`에 keyword source 빌더
-      주입 로직 추가
-- [ ] `harvester_router.py`: `MissingApiKeyError` → `HTTPException(503, ...)` 캐치 추가
-- [ ] `.env.example`에 `TMDB_API_KEY=`, `KOBIS_API_KEY=` 키 이름만 추가(값 없이)
-- [ ] Track A 전체 ruff/mypy --strict/pytest 재확인, DIP grep(Service/Domain에
-      httpx/redis 등 import 없는지), `sites` 커맨드에 kobis/tmdb 노출 확인
+      (`harvester_provider.custom_url_scrape_out_path`) — 코드 완료, **도커 재빌드는
+      아직 안 함**
+- [x] `crawl_config.yaml`에 kobis(daily) 정책 + google_news/kowiki dynamic
+      (`keyword_source: kobis_boxoffice_titles`) 항목 추가 완료
+- [x] `registry.py`에 kobis/tmdb 등록 완료
+- [x] `harvester_provider.py`: `build_crawl_schedule_use_case`에 keyword source 빌더
+      주입 완료 (`build_keyword_source()`)
+- [x] `harvester_router.py`: `MissingApiKeyError` → `HTTPException(503, ...)` 캐치 완료
+      (scrape/crawl 둘 다)
+- [x] API 키는 `.env.example`에 이미 있던 `TMDB_API_KEY`/`KOFIC_API_KEY`를 그대로
+      재사용(신규 키 안 만듦 — mova의 kofic_adapter.py와 이름 통일)
+- [x] Track A 전체 ruff/mypy --strict/pytest 재확인 완료 (46/46 통과, touched 파일
+      mypy 클린), DIP grep 클린, `sites` 커맨드에 kobis/tmdb 노출 확인 완료
 
-## 남은 작업 (Track B — mova ingest-harvest, 아직 착수 전)
+## 완료 (Track B — mova ingest-harvest)
 
-- [ ] `mova/adapter/outbound/harvest/harvest_jsonl_reader.py` — json.loads만 사용,
-      ontology 모듈 import 금지, mova 자체 dataclass(예: `HarvestRow`)로 파싱
-- [ ] source별 content 매핑 함수 — kowiki(content+sections 결합), google_news(content
-      그대로, 이미 title+summary 결합돼있음), kobis(content+metrics를 한국어 문장으로),
-      tmdb(content+infobox), 그 외 fallback(content 그대로)
-- [ ] ingest interactor — 각 row → `HubKnowledgeUpsertCommand(source, source_ref=url,
-      title, content)` → 기존 `HubRagInteractor.ingest_movie()` 재사용(임베딩+upsert
-      전부 재사용, 새 DB/임베딩 코드 없음)
-- [ ] `movies_pg_repository.find_by_title()`로 매칭 시도(정확 일치), matched/unmatched
-      카운트 리포트
-- [ ] `scripts/mova_ingest_harvest.py` 진입점 — `get_mova_session_factory()` 세션으로
-      `HubKnowledgeRepository`+`OllamaEmbeddingAdapter` 구성(export_chat_training_dataset.py
-      패턴 그대로)
-- [ ] 테스트: source 4종 매핑 fixture, upsert dedup(같은 url 2번 → 1건), matched/unmatched
-      리포트, **`mova/adapter/outbound/harvest/`에 harvester 모듈 import 없는지 grep 확인**
-- [ ] ruff/mypy --strict
-- [ ] 수동 통합 검증: 실제 scrape/crawl-batch로 JSONL 만든 뒤 ingest-harvest 실행 →
-      hub_knowledge에 실제로 들어갔는지 확인 (mova 채팅 RAG 검색으로 간접 확인 가능)
+- [x] `apps/mova/adapter/outbound/harvest/harvest_jsonl_reader.py` — json.loads만 사용,
+      ontology 모듈 import 없음(grep+테스트 확인), `HarvestRow`(app/dtos)로 파싱
+- [x] source별 content 매핑 함수 — kowiki(content+sections 결합), google_news(content
+      그대로), kobis(content+metrics를 한국어 문장으로), tmdb(content+infobox)
+      (`harvest_ingest_interactor.py`의 `_map_content()`)
+- [x] ingest interactor — 각 row → `HubKnowledgeUpsertCommand(source, source_ref=url,
+      title, content)` → 기존 `HubRagUseCase.ingest_movie()` 재사용
+- [x] `movies_pg_repository.find_by_title()`로 매칭 시도(정확 일치), matched/unmatched
+      카운트 리포트 (`HarvestIngestResultDto`)
+- [x] `scripts/mova_ingest_harvest.py` 진입점 — export_chat_training_dataset.py와
+      동일한 DI 패턴
+- [x] 테스트 9개(reader 3개 + interactor 6개) 전부 통과, ruff/mypy --strict 클린,
+      harvester 모듈 import 없음 grep+테스트 확인
+- [ ] **수동 통합 검증(도커 재빌드 후)**: 실제 scrape/crawl-batch로 JSONL 만든 뒤
+      ingest-harvest 실행 → hub_knowledge에 실제로 들어갔는지 확인
+- **알아둘 점**: `search_movies()`가 `source="mova_movie"`로 고정 필터링돼 있어서
+  harvest 데이터는 지금 mova 채팅 검색에 안 걸림(의도된 범위 제한 — 위 "현재 상태"
+  섹션 참고)
 
 ## 참고 — 이번 세션에서 이미 완료된 이전 작업 (harvester 1차, 커밋 완료·main 반영됨)
 

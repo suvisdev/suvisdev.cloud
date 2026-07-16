@@ -12,6 +12,7 @@ import hashlib
 import logging
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from typing import Any
 
 from ontology.adapter.outbound.config.api_keys import get_kobis_api_key
 from ontology.adapter.outbound.scraper.kobis_client import (
@@ -41,7 +42,7 @@ def _to_float(value: object) -> float:
         return 0.0
 
 
-def _build_content(detail: dict) -> str:
+def _build_content(detail: dict[str, Any]) -> str:
     directors = ", ".join(d.get("peopleNm", "") for d in detail.get("directors") or [])
     genres = ", ".join(g.get("genreNm", "") for g in detail.get("genres") or [])
     audits = detail.get("audits") or []

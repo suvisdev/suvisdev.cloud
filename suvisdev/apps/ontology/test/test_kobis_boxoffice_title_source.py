@@ -27,7 +27,7 @@ class KobisBoxofficeTitleSourceTest(unittest.TestCase):
         )
         source = KobisBoxofficeTitleSource(fetcher=fetcher, rate_limiter=FakeRateLimiter())
 
-        with mock.patch.dict(os.environ, {"KOBIS_API_KEY": "fake-key"}):
+        with mock.patch.dict(os.environ, {"KOFIC_API_KEY": "fake-key"}):
             titles = source.resolve()
 
         self.assertEqual(titles, ["호프", "설국열차 리마스터"])

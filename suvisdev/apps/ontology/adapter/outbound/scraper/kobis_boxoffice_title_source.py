@@ -10,8 +10,6 @@ from __future__ import annotations
 from ontology.adapter.outbound.config.api_keys import get_kobis_api_key
 from ontology.adapter.outbound.scraper.kobis_client import fetch_daily_boxoffice, yesterday_kst
 from ontology.app.ports.output.keyword_source_port import KeywordSourcePort
-from ontology.app.ports.output.page_fetcher_port import PageFetcherPort
-from ontology.app.ports.output.rate_limiter_port import RateLimiterPort
 
 _RATE_DOMAIN = "kobis.or.kr"
 _TOP_N = 10
@@ -19,10 +17,6 @@ _TOP_N = 10
 
 class KobisBoxofficeTitleSource(KeywordSourcePort):
     source_id = "kobis_boxoffice_titles"
-
-    def __init__(self, *, fetcher: PageFetcherPort, rate_limiter: RateLimiterPort) -> None:
-        self._fetcher = fetcher
-        self._rate_limiter = rate_limiter
 
     def resolve(self) -> list[str]:
         api_key = get_kobis_api_key()
