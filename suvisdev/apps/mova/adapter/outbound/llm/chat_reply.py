@@ -15,6 +15,17 @@ from mova.domain.value_objects.studio_movies_vo import resolve_canonical_slug
 logger = logging.getLogger(__name__)
 
 
+_HANJA_PATTERN = re.compile(r"[一-鿿㐀-䶿]+")
+
+
+def _strip_hanja(text: str) -> str:
+    """소형 다국어 모델(Qwen 등)이 한국어 생성 중 한자를 섞는 경우가 실측됨
+    ("취향에 맞는作品", "서른四个季节" 등) — "한국어로만" 프롬프트 지시만으로는
+    신뢰할 수 없어(반복 재현됨), 한자 유니코드 블록을 코드 레벨로 강제 제거한다."""
+    cleaned = _HANJA_PATTERN.sub("", text)
+    return re.sub(r"\s{2,}", " ", cleaned).strip()
+
+
 def _coerce_poster(value: object) -> str:
     if value is None:
         return ""
@@ -39,7 +50,7 @@ def _platform_from_dto(movie: MovieDetailDto) -> str | None:
 class ChatReplyService:
     def parse_gemini_reply(self, raw: str) -> tuple[str, list[MovaChatRecommendationSchema]]:
         data = self._extract_json(raw)
-        intro = str(data.get("intro", "")).strip() if data else raw.strip()[:300]
+        intro = _strip_hanja(str(data.get("intro", "")).strip() if data else raw.strip()[:300])
         picks = data.get("picks") if data else None
 
         recommendations: list[MovaChatRecommendationSchema] = []
@@ -48,12 +59,12 @@ class ChatReplyService:
             for item in picks[:3]:
                 if not isinstance(item, dict):
                     continue
-                title = str(item.get("title", "")).strip()
+                title = _strip_hanja(str(item.get("title", "")).strip())
                 if not title:
-                    title = str(item.get("slug", "")).strip()
+                    title = _strip_hanja(str(item.get("slug", "")).strip())
                 if not title:
                     continue
-                hook = str(item.get("hook", "")).strip()[:120]
+                hook = _strip_hanja(str(item.get("hook", "")).strip())[:120]
                 platform_raw = item.get("platform")
                 platform = (
                     str(platform_raw).strip()

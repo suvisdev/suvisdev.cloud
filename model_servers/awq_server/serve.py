@@ -18,9 +18,10 @@ from gptqmodel import BACKEND, GPTQModel
 from pydantic import BaseModel
 from transformers import AutoTokenizer
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _MODEL_PATH = os.getenv(
     "AWQ_MODEL_PATH",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "EXAONE-3.5-7.8B-Instruct-AWQ"),
+    os.path.join(_REPO_ROOT, "EXAONE-3.5-7.8B-Instruct-AWQ"),
 )
 
 _state: dict[str, Any] = {}
