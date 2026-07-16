@@ -16,6 +16,7 @@ from ontology.app.ports.input.crawl_schedule_use_case import CrawlScheduleUseCas
 from ontology.app.ports.input.custom_url_scrape_use_case import CustomUrlScrapeUseCase
 from ontology.app.ports.input.scrape_dataset_use_case import ScrapeDatasetUseCase
 from ontology.app.ports.output.harvester_command_parser_port import HarvesterCommandParserPort
+from ontology.app.ports.output.keyword_source_port import KeywordSourcePort
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
 
 
@@ -24,6 +25,19 @@ class UnknownSiteError(Exception):
         self.site_id = site_id
         self.available = sorted(SITE_REGISTRY)
         super().__init__(f"등록되지 않은 사이트: {site_id} (등록됨: {', '.join(self.available) or '없음'})")
+
+
+class UnknownKeywordSourceError(Exception):
+    def __init__(self, source_id: str) -> None:
+        from ontology.adapter.outbound.scraper.keyword_source_registry import (
+            KEYWORD_SOURCE_REGISTRY,
+        )
+
+        self.source_id = source_id
+        self.available = sorted(KEYWORD_SOURCE_REGISTRY)
+        super().__init__(
+            f"등록되지 않은 동적 키워드 소스: {source_id} (등록됨: {', '.join(self.available) or '없음'})"
+        )
 
 
 _CRAWLED_OUTPUT_DIR = Path("apps") / "ontology" / "resources" / "crawled"
@@ -78,6 +92,26 @@ def build_site_scraper(site_id: str, *, rate: float, dedup: bool) -> SiteScraper
     return scraper_cls(fetcher=fetcher, rate_limiter=rate_limiter, visited_store=visited_store)
 
 
+def build_keyword_source(source_id: str, *, rate: float) -> KeywordSourcePort:
+    from ontology.adapter.outbound.cache.redis_rate_limiter_adapter import (
+        RedisRateLimiterAdapter,
+    )
+    from ontology.adapter.outbound.http.httpx_page_fetcher_adapter import (
+        HttpxPageFetcherAdapter,
+    )
+    from ontology.adapter.outbound.scraper.keyword_source_registry import (
+        KEYWORD_SOURCE_REGISTRY,
+    )
+
+    source_cls = KEYWORD_SOURCE_REGISTRY.get(source_id)
+    if source_cls is None:
+        raise UnknownKeywordSourceError(source_id)
+
+    return source_cls(
+        fetcher=HttpxPageFetcherAdapter(), rate_limiter=RedisRateLimiterAdapter(interval_seconds=rate)
+    )
+
+
 def build_scrape_dataset_use_case(scraper: SiteScraperPort) -> ScrapeDatasetUseCase:
     from ontology.adapter.outbound.resource_adapters.dataset.local_jsonl_dataset_repository import (  # noqa: E501
         LocalJsonlDatasetRepository,
@@ -108,6 +142,9 @@ def build_crawl_schedule_use_case(
     def _build_scraper(site_id: str) -> SiteScraperPort:
         return build_site_scraper(site_id, rate=rate, dedup=True)
 
+    def _build_keyword_source(source_id: str) -> KeywordSourcePort:
+        return build_keyword_source(source_id, rate=rate)
+
     return CrawlScheduleInteractor(
         policies=YamlCrawlPolicyAdapter(),
         schedule_state=RedisCrawlScheduleStateAdapter(),
@@ -116,6 +153,7 @@ def build_crawl_schedule_use_case(
         event_publisher=LogCrawlEventPublisherAdapter(),
         output_dir=_CRAWLED_OUTPUT_DIR,
         limit_per_keyword=limit_per_keyword,
+        build_keyword_source=_build_keyword_source,
     )
 
 

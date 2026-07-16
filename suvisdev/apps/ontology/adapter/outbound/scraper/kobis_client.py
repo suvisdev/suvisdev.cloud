@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from ontology.app.ports.output.page_fetcher_port import PageFetcherPort
 
@@ -27,13 +28,15 @@ def yesterday_kst(*, now: datetime | None = None) -> str:
     return (current - timedelta(days=1)).strftime("%Y%m%d")
 
 
-def fetch_daily_boxoffice(fetcher: PageFetcherPort, *, api_key: str, target_dt: str) -> list[dict]:
+def fetch_daily_boxoffice(
+    fetcher: PageFetcherPort, *, api_key: str, target_dt: str
+) -> list[dict[str, Any]]:
     url = _BOXOFFICE_URL.format(key=api_key, target_dt=target_dt)
     payload = json.loads(fetcher.fetch(url))
     return list(payload.get("boxOfficeResult", {}).get("dailyBoxOfficeList") or [])
 
 
-def fetch_movie_detail(fetcher: PageFetcherPort, *, api_key: str, movie_cd: str) -> dict:
+def fetch_movie_detail(fetcher: PageFetcherPort, *, api_key: str, movie_cd: str) -> dict[str, Any]:
     url = _MOVIE_DETAIL_URL.format(key=api_key, movie_cd=movie_cd)
     payload = json.loads(fetcher.fetch(url))
     return dict(payload.get("movieInfoResult", {}).get("movieInfo") or {})

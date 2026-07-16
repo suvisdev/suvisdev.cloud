@@ -22,6 +22,7 @@ from ontology.adapter.inbound.api.schemas.harvester_schema import (
     HarvesterRunResponseSchema,
     HarvesterSiteSchema,
 )
+from ontology.adapter.outbound.config.api_keys import MissingApiKeyError
 from ontology.adapter.outbound.scraper.registry import SITE_REGISTRY
 from ontology.app.dtos.scrape_dto import ScrapeTarget
 from ontology.app.ports.output.crawl_errors import CrawlFetchError
@@ -84,7 +85,10 @@ async def scrape(req: HarvesterCommandRequestSchema) -> HarvesterRunResponseSche
     service = build_scrape_dataset_use_case(scraper)
     out_path = default_scrape_out_path(req.site_id, command.keyword)
     target = ScrapeTarget(site_id=req.site_id, keyword=command.keyword)
-    meta = await asyncio.to_thread(service.run, target, limit=command.limit, out_path=out_path)
+    try:
+        meta = await asyncio.to_thread(service.run, target, limit=command.limit, out_path=out_path)
+    except MissingApiKeyError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
 
     return HarvesterRunResponseSchema(
         record_count=meta.record_count,
@@ -115,6 +119,8 @@ async def crawl(req: HarvesterCommandRequestSchema) -> HarvesterRunResponseSchem
         )
     except UnknownSiteError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    except MissingApiKeyError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
 
     return HarvesterRunResponseSchema(
         record_count=meta.record_count,
