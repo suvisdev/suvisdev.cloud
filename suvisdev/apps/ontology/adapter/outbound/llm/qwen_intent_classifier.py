@@ -16,7 +16,9 @@ from ontology.app.ports.output.intent_classifier_port import IntentClassifierPor
 logger = logging.getLogger(__name__)
 
 _DESTINATIONS = ("crud", "rag", "general")
-_DEFAULT_DESTINATION = "rag"
+# 분류 실패(호출 에러·JSON 파싱 실패) 시 rag로 보내면 영화와 무관한 질문에 엉뚱한
+# 영화 추천이 나간다 — general(Gemini)은 임의 질문에 무난히 답할 수 있어 더 안전하다.
+_DEFAULT_DESTINATION = "general"
 
 _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
 아래 JSON 스키마로만 응답하고, 다른 설명·인사말·예시는 절대 붙이지 마.
