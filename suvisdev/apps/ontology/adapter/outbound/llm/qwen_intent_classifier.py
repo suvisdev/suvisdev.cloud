@@ -34,6 +34,11 @@ _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 
 - crud: 데이터 생성·수정·삭제를 명확히 요구하는 질문 (예: "이 영화 리뷰 삭제해줘")
 - general: 영화와 무관한 인사·잡담·일반 상식 (예: "안녕", "오늘 날씨 어때", "너는 누구야")
 
+주의(사람 이름 질문): 사람 이름이 등장한다고 무조건 배우·감독으로 보고 rag로
+보내지 마. "그 사람이 누구야/뭐 하는 사람이야"처럼 인물 자체에 대한 정보를 묻는
+질문은 영화와 무관하면 general이야. 그 인물이 나온/만든 "영화"를 명시적으로
+찾는 질문일 때만 rag야.
+
 예시:
 질문: "슬픈 영화 추천해줘"
 답변: {"destination": "rag", "entities": ["슬픈", "영화"]}
@@ -42,7 +47,16 @@ _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 
 답변: {"destination": "general", "entities": []}
 
 질문: "공포 영화 하나 알려줘"
-답변: {"destination": "rag", "entities": ["공포", "영화"]}"""
+답변: {"destination": "rag", "entities": ["공포", "영화"]}
+
+질문: "안드레 카파시가 누구야?"
+답변: {"destination": "general", "entities": []}
+
+질문: "봉준호가 누구야?"
+답변: {"destination": "general", "entities": []}
+
+질문: "봉준호 감독 영화 추천해줘"
+답변: {"destination": "rag", "entities": ["봉준호"]}"""
 
 
 class QwenIntentClassifier(IntentClassifierPort):

@@ -183,6 +183,18 @@ body{min-height:100vh;background:#0d0f14;display:flex;align-items:center;justify
 .badge{font-size:.65rem;font-family:'SF Mono','Fira Code',monospace;font-weight:600;background:#f0dc3a1a;color:#f0dc3a;border:1px solid #f0dc3a44;border-radius:6px;padding:2px 7px;letter-spacing:.05em;text-transform:uppercase}
 .brand-desc{margin-top:.375rem;font-size:.8125rem;color:#6b7280}
 .error{margin-bottom:1rem;padding:.625rem 1rem;background:#7f1d1d22;border:1px solid #7f1d1d55;border-radius:10px;font-size:.8125rem;color:#f87171}
+.oauth{display:flex;flex-direction:column;gap:.625rem;margin-bottom:1.25rem}
+.oauth-btn{display:flex;align-items:center;justify-content:center;gap:.625rem;width:100%;padding:.75rem;border-radius:14px;font-size:.875rem;font-weight:600;cursor:pointer;border:1px solid transparent;transition:filter .15s;letter-spacing:-.01em}
+.oauth-btn:hover{filter:brightness(1.06)}
+.oauth-btn svg{flex-shrink:0}
+.oauth-google{background:#1a1f2e;border-color:#252b3b;color:#e8e8e8}
+.oauth-naver{background:#03C75A;color:#fff}
+.oauth-kakao{background:#FEE500;color:#191919}
+.oauth-instagram{background:#1a1f2e;border-color:#252b3b;color:#e8e8e8}
+.oauth-note{margin:-.25rem 0 1.25rem;text-align:center;font-size:.75rem;color:#6b7280;min-height:1em}
+.divider{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
+.divider .line{flex:1;height:1px;background:#252b3b}
+.divider span{font-size:.75rem;color:#4b5563}
 .group{margin-bottom:1rem}
 label{display:block;font-size:.7rem;font-weight:600;color:#9ca3af;margin-bottom:.375rem;letter-spacing:.06em;text-transform:uppercase}
 input[type=text],input[type=password]{width:100%;background:#1a1f2e;border:1px solid #252b3b;border-radius:12px;padding:.75rem 1rem;color:#e8e8e8;font-size:.9375rem;outline:none;transition:border-color .15s}
@@ -205,6 +217,26 @@ input::placeholder{color:#374151}
     <p class="brand-desc">개발자 전용 대시보드입니다.</p>
   </div>
   __ERROR__
+  <div class="oauth">
+    <button type="button" class="oauth-btn oauth-google" data-provider="Google">
+      <svg width="16" height="16" viewBox="0 0 20 20"><path fill="#4285F4" d="M19.6 10.23c0-.68-.06-1.33-.17-1.96H10v3.71h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.23c1.89-1.74 2.99-4.3 2.99-7.27Z"/><path fill="#34A853" d="M10 20c2.7 0 4.96-.89 6.61-2.42l-3.23-2.5c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H1.07v2.59A10 10 0 0 0 10 20Z"/><path fill="#FBBC05" d="M4.41 11.92a5.99 5.99 0 0 1 0-3.84V5.49H1.07a10 10 0 0 0 0 9.02l3.34-2.59Z"/><path fill="#EA4335" d="M10 3.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.55 9.55 0 0 0 10 0 10 10 0 0 0 1.07 5.49l3.34 2.59C5.2 5.72 7.4 3.96 10 3.96Z"/></svg>
+      Google로 계속하기
+    </button>
+    <button type="button" class="oauth-btn oauth-naver" data-provider="네이버">
+      <svg width="14" height="14" viewBox="0 0 20 20"><path fill="#fff" d="M11.6 10.6 8.1 5.3H5.3v9.4h3.1v-5.3l3.5 5.3h2.8V5.3h-3.1z"/></svg>
+      네이버로 계속하기
+    </button>
+    <button type="button" class="oauth-btn oauth-kakao" data-provider="카카오">
+      <svg width="16" height="16" viewBox="0 0 20 20"><path fill="#191919" d="M10 2.5c-4.42 0-8 2.79-8 6.24 0 2.2 1.46 4.14 3.66 5.25-.16.58-.58 2.1-.66 2.43-.1.4.15.4.31.29.13-.09 2.06-1.39 2.9-1.96.58.08 1.17.13 1.79.13 4.42 0 8-2.8 8-6.24s-3.58-6.14-8-6.14Z"/></svg>
+      카카오로 계속하기
+    </button>
+    <button type="button" class="oauth-btn oauth-instagram" data-provider="Instagram">
+      <svg width="16" height="16" viewBox="0 0 20 20"><defs><linearGradient id="ig-grad" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#FEDA75"/><stop offset="30%" stop-color="#FA7E1E"/><stop offset="60%" stop-color="#D62976"/><stop offset="85%" stop-color="#962FBF"/><stop offset="100%" stop-color="#4F5BD5"/></linearGradient></defs><rect x="2" y="2" width="16" height="16" rx="5" fill="none" stroke="url(#ig-grad)" stroke-width="1.6"/><circle cx="10" cy="10" r="3.6" fill="none" stroke="url(#ig-grad)" stroke-width="1.6"/><circle cx="14.3" cy="5.7" r="1.1" fill="url(#ig-grad)"/></svg>
+      Instagram으로 계속하기
+    </button>
+  </div>
+  <p class="oauth-note" id="oauth-note"></p>
+  <div class="divider"><span class="line"></span><span>또는</span><span class="line"></span></div>
   <form method="post" action="/api-login">
     <input type="hidden" name="next" value="__NEXT__">
     <div class="group">
@@ -222,6 +254,13 @@ input::placeholder{color:#374151}
     <span>api.suvisdev.cloud</span>
   </div>
 </div>
+<script>
+document.querySelectorAll(".oauth-btn").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    document.getElementById("oauth-note").textContent = btn.dataset.provider + " 로그인은 준비 중입니다.";
+  });
+});
+</script>
 </body>
 </html>"""
 
