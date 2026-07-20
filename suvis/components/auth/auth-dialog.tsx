@@ -27,7 +27,7 @@ export function AuthDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="auth-dialog-shell max-h-[min(90vh,720px)] max-w-md gap-0 overflow-hidden rounded-3xl bg-white p-0 sm:max-w-md"
+        className="auth-dialog-shell max-h-[min(90vh,720px)] max-w-md gap-0 overflow-y-auto rounded-3xl bg-white p-0 sm:max-w-md"
         showCloseButton
       >
         <DialogTitle className="sr-only">로그인</DialogTitle>
