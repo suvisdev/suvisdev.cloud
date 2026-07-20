@@ -84,4 +84,7 @@ class KakaoOAuthAdapter(OAuthProviderPort):
             provider_user_id=claims["sub"],
             email=claims.get("email"),
             name=claims.get("nickname") or claims.get("name"),
+            # Kakao id_token은 email_verified 클레임을 보장하지 않는다 — 없으면
+            # 검증 안 된 것으로 간주(안전한 기본값)해 기존 계정에 자동 연결하지 않는다.
+            email_verified=bool(claims.get("email_verified", False)),
         )

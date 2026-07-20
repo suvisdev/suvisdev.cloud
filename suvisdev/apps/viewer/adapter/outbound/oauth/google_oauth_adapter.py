@@ -82,4 +82,5 @@ class GoogleOAuthAdapter(OAuthProviderPort):
             provider_user_id=claims["sub"],
             email=claims.get("email"),
             name=claims.get("name"),
+            email_verified=bool(claims.get("email_verified", False)),
         )
