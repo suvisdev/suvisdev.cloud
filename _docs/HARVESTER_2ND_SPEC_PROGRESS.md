@@ -2,10 +2,28 @@
 
 컨텍스트가 끊길 경우를 대비한 재개용 메모. 최신 진행 상황은 이 파일 상단을 갱신한다.
 
-## 현재 상태 — Track A/B 전부 구현·검증 완료, 도커 재빌드만 남음 (2026-07-16)
+## 현재 상태 — Track A/B 전부 완료 (2026-07-20)
 
-Track A(harvester 2차 스펙)와 Track B(mova ingest-harvest) 모두 완료했다. 아래
-"남은 작업" 섹션들은 전부 체크됐고, 실제로 남은 건 **도커 재빌드 + 실 DB 수동 검증**뿐이다.
+Track A(harvester 2차 스펙)와 Track B(mova ingest-harvest) 모두 완료했다. 도커
+재빌드 + 실 DB 수동 검증까지 전부 끝났다.
+
+### 2026-07-20 — 도커 재빌드 + 실 DB 수동 검증 완료
+
+- `docker compose --env-file suvisdev/.env up -d --build backend` 재빌드, 정상 기동
+  확인(`Mova DB 엔진 초기화 성공`, `Application startup complete`)
+- `.env`에 `KOFIC_API_KEY`/`TMDB_API_KEY` 둘 다 이미 설정돼 있음을 확인
+- 실 스크랩 → ingest → DB 확인까지 end-to-end 검증:
+  - `python scripts/harvester_cli.py scrape -s kobis -k daily -l 10` → 10건 →
+    `datasets/kobis_daily_20260720.jsonl`
+  - `python scripts/harvester_cli.py scrape -s tmdb -k 인터스텔라 -l 5` → 4건 →
+    `datasets/tmdb_인터스텔라_20260720.jsonl`
+  - `python scripts/mova_ingest_harvest.py {각 경로}` 실행 →
+    kobis: `total=10 ingested=10 matched=3 unmatched=7`,
+    tmdb: `total=4 ingested=4 matched=0 unmatched=4`
+  - `psql`로 `hub_knowledge` 테이블 직접 조회: `source='kobis'` 10건, `source='tmdb'`
+    4건 실제 적재 확인 (`SELECT source, count(*) FROM hub_knowledge WHERE source IN
+    ('kobis','tmdb') GROUP BY source;`)
+- 남은 작업 없음. harvester 2차 스펙 + mova ingest-harvest 트랙 종료.
 
 ### 이번 라운드에서 새로 한 작업 (Task #32 마무리 + Track B 전체)
 
@@ -56,15 +74,15 @@ Track A(harvester 2차 스펙)와 Track B(mova ingest-harvest) 모두 완료했�
     확인함). `apps/mova/tests/test_llm_error_handling.py`는 `google.generativeai` 미설치로
     스크래치 venv에서 collection 자체가 안 됨(이것도 무관).
 
-### 다음에 할 일 (남은 건 이것뿐)
+### 다음에 할 일 — 전부 완료 (2026-07-20)
 
-1. **도커 재빌드** — Track A 전체(kobis/tmdb 포함) + Track B(mova ingest-harvest) +
+1. [x] **도커 재빌드** — Track A 전체(kobis/tmdb 포함) + Track B(mova ingest-harvest) +
    `custom_url_scrape_out_path` 경로 수정까지 전부 한 번에 반영해서 재빌드
    (`docker compose --env-file suvisdev/.env up -d --build backend`)
-2. **실 DB 수동 통합 검증**: 실제로 `scrape`/`crawl-batch`로 kobis/tmdb JSONL 생성 →
+2. [x] **실 DB 수동 통합 검증**: 실제로 `scrape`/`crawl-batch`로 kobis/tmdb JSONL 생성 →
    `python scripts/mova_ingest_harvest.py {경로}` 실행 → hub_knowledge 테이블에 실제로
    들어갔는지 확인 (matched/unmatched 카운트 출력 확인)
-3. `.env`(실제 파일, `.env.example` 아님)에 `KOFIC_API_KEY`가 이미 있는지 확인 —
+3. [x] `.env`(실제 파일, `.env.example` 아님)에 `KOFIC_API_KEY`가 이미 있는지 확인 —
    mova가 이미 쓰고 있었으므로 아마 있을 것, 없으면 사용자에게 요청
 
 ## 확정된 설계 (사용자와 합의 완료, 재질문 불필요)
@@ -154,8 +172,9 @@ Track A(harvester 2차 스펙)와 Track B(mova ingest-harvest) 모두 완료했�
       동일한 DI 패턴
 - [x] 테스트 9개(reader 3개 + interactor 6개) 전부 통과, ruff/mypy --strict 클린,
       harvester 모듈 import 없음 grep+테스트 확인
-- [ ] **수동 통합 검증(도커 재빌드 후)**: 실제 scrape/crawl-batch로 JSONL 만든 뒤
-      ingest-harvest 실행 → hub_knowledge에 실제로 들어갔는지 확인
+- [x] **수동 통합 검증(도커 재빌드 후)**: 실제 scrape/crawl-batch로 JSONL 만든 뒤
+      ingest-harvest 실행 → hub_knowledge에 실제로 들어갔는지 확인 (2026-07-20, kobis
+      10건/tmdb 4건 적재 확인)
 - **알아둘 점**: `search_movies()`가 `source="mova_movie"`로 고정 필터링돼 있어서
   harvest 데이터는 지금 mova 채팅 검색에 안 걸림(의도된 범위 제한 — 위 "현재 상태"
   섹션 참고)
