@@ -94,10 +94,16 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
     async def _find_or_create_local_user(
         self, session: AsyncSession, identity: OAuthIdentity
     ) -> User:
-        if identity.email:
+        # 이메일 검증이 확인된 경우에만 기존 계정에 자동 연결한다 — 검증 안 된
+        # 이메일로 연결을 허용하면 타인의 계정에 무단으로 연결될 위험이 있다.
+        if identity.email and identity.email_verified:
+            # users.email에는 unique 제약이 없어(기존 스키마) 여러 건이 있을 수
+            # 있다 — 가장 먼저 만들어진 계정 하나로 결정적으로 연결한다.
             existing = (
-                await session.execute(select(User).where(User.email == identity.email))
-            ).scalar_one_or_none()
+                await session.execute(
+                    select(User).where(User.email == identity.email).order_by(User.id).limit(1)
+                )
+            ).scalars().first()
             if existing is not None:
                 return existing
 

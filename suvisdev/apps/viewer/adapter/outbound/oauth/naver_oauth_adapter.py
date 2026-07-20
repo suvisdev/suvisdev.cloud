@@ -79,4 +79,7 @@ class NaverOAuthAdapter(OAuthProviderPort):
             provider_user_id=provider_user_id,
             email=response.get("email"),
             name=response.get("name") or response.get("nickname"),
+            # 네이버는 id_token(JWT)이 없어 이메일 검증 여부를 암호학적으로 확인할
+            # 방법이 없다 — 항상 미검증으로 간주해 기존 계정에 자동 연결하지 않는다.
+            email_verified=False,
         )
