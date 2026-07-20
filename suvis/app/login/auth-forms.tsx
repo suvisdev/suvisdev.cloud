@@ -19,6 +19,14 @@ import { FormStatus, initialFormStatus, isSuccessMessage } from "@/lib/form-stat
 import { cn } from "@/lib/utils"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 import { saveSuvisSession } from "@/lib/suvis-session"
+import { OAuthButtons, type OAuthProvider } from "@/components/auth/oauth-buttons"
+
+const OAUTH_PROVIDER_LABEL: Record<OAuthProvider, string> = {
+  google: "Google",
+  naver: "네이버",
+  kakao: "카카오",
+  instagram: "Instagram",
+}
 
 export type AuthFormsMode = "login" | "signup"
 
@@ -76,6 +84,11 @@ export function AuthForms({
   const [ui, setUi] = useState<UiState>({ tab: mode, showPassword: false })
   const [login, setLogin] = useState<FormStatus>(initialFormStatus)
   const [signup, setSignup] = useState<FormStatus>(initialFormStatus)
+  const [oauthNotice, setOauthNotice] = useState<string | null>(null)
+
+  const handleOAuthSelect = (provider: OAuthProvider) => {
+    setOauthNotice(`${OAUTH_PROVIDER_LABEL[provider]} 로그인은 준비 중입니다.`)
+  }
 
   const patchLogin = (patch: Partial<FormStatus>) =>
     setLogin((prev) => ({ ...prev, ...patch }))
@@ -252,6 +265,15 @@ export function AuthForms({
         </CardDescription>
       </CardHeader>
       <CardContent>
+          <OAuthButtons onSelect={handleOAuthSelect} />
+          {oauthNotice && (
+            <p className="mt-2.5 text-center text-xs text-neutral-500">{oauthNotice}</p>
+          )}
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-neutral-200" />
+            <span className="text-xs text-neutral-400">또는</span>
+            <div className="h-px flex-1 bg-neutral-200" />
+          </div>
           <Tabs
             value={ui.tab}
             onValueChange={(v) => setUi((prev) => ({ ...prev, tab: v as AuthFormsMode }))}
