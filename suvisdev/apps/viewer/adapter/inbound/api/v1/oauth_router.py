@@ -50,13 +50,16 @@ async def oauth_callback(
         raise HTTPException(status_code=400, detail="state 값이 일치하지 않습니다 (CSRF 의심).")
 
     try:
-        handoff_code = await use_case.handle_callback(provider=provider, code=code)
+        result = await use_case.handle_callback(provider=provider, code=code)
     except OAuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
-    logger.info("🤖 [OAuthRouter] %s 콜백 완료", provider)
+    logger.info("🤖 [OAuthRouter] %s 콜백 완료 — kind=%s", provider, result.kind)
+    # kind="session": 기존에 연결된 계정 → 바로 로그인.
+    # kind="consent_required": 신규 신원 → 프론트가 약관 동의 화면을 먼저 보여줘야 한다.
     response = RedirectResponse(
-        url=f"{_FRONTEND_URL}/oauth/callback?code={handoff_code}", status_code=302
+        url=f"{_FRONTEND_URL}/oauth/callback?type={result.kind}&code={result.code}",
+        status_code=302,
     )
     response.delete_cookie(_STATE_COOKIE, path="/")
     return response
@@ -64,6 +67,11 @@ async def oauth_callback(
 
 class OAuthExchangeRequest(BaseModel):
     code: str
+
+
+class OAuthConsentRequest(BaseModel):
+    code: str
+    agreed: bool
 
 
 class OAuthExchangeResponse(BaseModel):
@@ -80,4 +88,18 @@ async def oauth_exchange(
     session = use_case.redeem(code=payload.code)
     if session is None:
         raise HTTPException(status_code=400, detail="만료되었거나 이미 사용된 코드입니다.")
+    return OAuthExchangeResponse(id=session.user_id, username=session.username, token=session.token)
+
+
+@oauth_router.post("/consent", response_model=OAuthExchangeResponse)
+async def oauth_consent(
+    payload: OAuthConsentRequest,
+    use_case: OAuthLoginUseCase = Depends(get_oauth_login_use_case),
+) -> OAuthExchangeResponse:
+    """약관 동의 완료(또는 거부) 처리 — agreed=True일 때만 계정을 생성하고 세션을 발급한다."""
+    session = await use_case.complete_consent(code=payload.code, agreed=payload.agreed)
+    if session is None:
+        raise HTTPException(
+            status_code=400, detail="만료되었거나 이미 처리된 요청이거나, 동의가 거부됐습니다."
+        )
     return OAuthExchangeResponse(id=session.user_id, username=session.username, token=session.token)

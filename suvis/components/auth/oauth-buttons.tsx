@@ -3,8 +3,16 @@
 type OAuthProvider = "google" | "naver" | "kakao" | "instagram"
 
 type OAuthButtonsProps = {
+  /** 백엔드에 실제 로그인 라우트가 연결된 프로바이더 (window.location 이동) */
   onSelect?: (provider: OAuthProvider) => void
 }
+
+const API_BASE =
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
+  "http://127.0.0.1:8000"
+
+/** 백엔드 /viewer/oauth/{provider}/login이 실제로 연결된 프로바이더. */
+const LIVE_PROVIDERS: ReadonlySet<OAuthProvider> = new Set(["google", "kakao", "naver"])
 
 function GoogleIcon() {
   return (
@@ -102,13 +110,21 @@ const PROVIDERS: {
 ]
 
 export function OAuthButtons({ onSelect }: OAuthButtonsProps) {
+  const handleClick = (id: OAuthProvider) => {
+    if (LIVE_PROVIDERS.has(id)) {
+      window.location.href = `${API_BASE}/viewer/oauth/${id}/login`
+      return
+    }
+    onSelect?.(id)
+  }
+
   return (
     <div className="space-y-2.5">
       {PROVIDERS.map(({ id, label, className, icon: Icon }) => (
         <button
           key={id}
           type="button"
-          onClick={() => onSelect?.(id)}
+          onClick={() => handleClick(id)}
           className={`flex w-full items-center justify-center gap-2.5 rounded-2xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors ${className}`}
         >
           <Icon />

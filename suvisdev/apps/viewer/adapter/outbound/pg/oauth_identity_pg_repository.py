@@ -29,19 +29,27 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
 
-    async def find_or_create_user(self, identity: OAuthIdentity) -> LoginResponseDto:
+    async def find_linked_user(self, identity: OAuthIdentity) -> LoginResponseDto | None:
         if self._session is not None:
-            return await self._find_or_create_user(self._session, identity)
+            return await self._find_linked_user(self._session, identity)
 
         factory = get_viewer_session_factory()
         async with factory() as session:
-            result = await self._find_or_create_user(session, identity)
+            return await self._find_linked_user(session, identity)
+
+    async def create_linked_user(self, identity: OAuthIdentity) -> LoginResponseDto:
+        if self._session is not None:
+            return await self._create_linked_user(self._session, identity)
+
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            result = await self._create_linked_user(session, identity)
             await session.commit()
             return result
 
-    async def _find_or_create_user(
+    async def _find_linked_user(
         self, session: AsyncSession, identity: OAuthIdentity
-    ) -> LoginResponseDto:
+    ) -> LoginResponseDto | None:
         linked = (
             await session.execute(
                 select(UserIdentity).where(
@@ -50,18 +58,23 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
                 )
             )
         ).scalar_one_or_none()
-        if linked is not None:
-            user = await session.get(User, linked.user_id)
-            if user is None:
-                raise ValueError(
-                    f"user_identities가 존재하지 않는 user_id={linked.user_id}를 참조합니다."
-                )
-            logger.info(
-                "[OAuthIdentityPgRepository] %s 기존 연결 — user_id=%s",
-                identity.provider, user.id,
-            )
-            return LoginResponseDto(user_id=user.id, username=user.username)
+        if linked is None:
+            return None
 
+        user = await session.get(User, linked.user_id)
+        if user is None:
+            raise ValueError(
+                f"user_identities가 존재하지 않는 user_id={linked.user_id}를 참조합니다."
+            )
+        logger.info(
+            "[OAuthIdentityPgRepository] %s 기존 연결 — user_id=%s",
+            identity.provider, user.id,
+        )
+        return LoginResponseDto(user_id=user.id, username=user.username)
+
+    async def _create_linked_user(
+        self, session: AsyncSession, identity: OAuthIdentity
+    ) -> LoginResponseDto:
         user = await self._find_or_create_local_user(session, identity)
         session.add(
             UserIdentity(
@@ -73,7 +86,8 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
         )
         await session.flush()
         logger.info(
-            "[OAuthIdentityPgRepository] %s 신규 연결 — user_id=%s", identity.provider, user.id
+            "[OAuthIdentityPgRepository] %s 신규 연결(약관 동의 완료) — user_id=%s",
+            identity.provider, user.id,
         )
         return LoginResponseDto(user_id=user.id, username=user.username)
 
