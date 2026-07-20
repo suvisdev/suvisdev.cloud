@@ -3,6 +3,7 @@
 export type SuvisSession = {
   id: number
   username: string
+  token?: string
 }
 
 const STORAGE_KEY = "suvis_session"

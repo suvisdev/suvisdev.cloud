@@ -49,6 +49,7 @@ from core.matrix.grid_neo_theone_base import Base as NeoTheOneBase  # noqa: E402
 # viewer ORM 등록 — 모듈 import 시 테이블이 ViewerBase.metadata에 붙는다.
 import viewer.adapter.outbound.orm.admin_orm  # noqa: F401,E402
 import viewer.adapter.outbound.orm.group_orm  # noqa: F401,E402
+import viewer.adapter.outbound.orm.user_identity_orm  # noqa: F401,E402
 import viewer.adapter.outbound.orm.user_orm  # noqa: F401,E402
 from contents.adapter.outbound.orm.base import ContentsBase  # noqa: E402
 from core.matrix.grid_oracle_database_manager import (  # noqa: E402

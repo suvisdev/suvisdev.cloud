@@ -272,6 +272,14 @@ def _render_login(next_path: str, error: bool = False) -> str:
 
 
 class _ApiAuthMiddleware(BaseHTTPMiddleware):
+    """개발자 대시보드(/docs, /redoc, /openapi.json)만 막는다.
+
+    프론트엔드(suvis)가 실제로 호출하는 mova/viewer/titanic 등 나머지 API 경로는
+    이 게이트와 무관하게 항상 공개 상태여야 한다 — 여기 걸리면 로그인·채팅 등
+    실서비스 전체가 막힌다.
+    """
+
+    _GATED = {"/docs", "/redoc", "/openapi.json"}
     _BYPASS = {"/api-login", "/api-logout", "/favicon.ico"}
     _COOKIE = "api_auth"
 
@@ -280,7 +288,7 @@ class _ApiAuthMiddleware(BaseHTTPMiddleware):
     ) -> StarletteResponse:
         username = os.getenv("API_USERNAME", "")
         password = os.getenv("API_PASSWORD", "")
-        if not username:
+        if not username or request.url.path not in self._GATED:
             return await call_next(request)
         if request.url.path in self._BYPASS:
             return await call_next(request)
