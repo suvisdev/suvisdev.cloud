@@ -1,15 +1,23 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { LayoutDashboard } from "lucide-react"
 import { AuthLoginButton } from "@/components/auth/auth-login-button"
 import { HeaderWeather } from "@/components/header-weather"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { getSuvisSession } from "@/lib/suvis-session"
 
 const navLinkClass =
   "text-xs font-medium text-neutral-600 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 md:text-sm"
 
 export function Header() {
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    setIsAdmin(getSuvisSession()?.role === "admin")
+  }, [])
+
   return (
     <header className="sticky top-0 z-50 w-full bg-[#e8e8e8] px-3 pt-2 dark:bg-[#0d0f14] md:px-5 md:pt-2.5">
       <div className="mx-auto flex h-11 max-w-[1600px] items-center justify-between gap-6 rounded-xl border border-neutral-300/80 bg-white px-4 shadow-sm dark:border-[#252b3b] dark:bg-[#161a24] md:h-12 md:gap-8 md:rounded-2xl md:px-7 lg:px-9">
@@ -69,13 +77,15 @@ export function Header() {
 
           <ThemeToggle />
 
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-700 dark:hover:bg-neutral-600 md:px-3 md:text-xs"
-          >
-            <LayoutDashboard className="h-3 w-3 md:h-3.5 md:w-3.5" aria-hidden />
-            Admin
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-neutral-700 dark:bg-neutral-700 dark:hover:bg-neutral-600 md:px-3 md:text-xs"
+            >
+              <LayoutDashboard className="h-3 w-3 md:h-3.5 md:w-3.5" aria-hidden />
+              Admin
+            </Link>
+          )}
 
           {/* 좁은 화면: 로그인 우선 — 날씨는 sm 이상에서만 (공간·가독성) */}
           <div className="hidden shrink-0 rounded-full bg-neutral-200/90 px-0.5 py-0.5 dark:bg-neutral-700/90 sm:block">
