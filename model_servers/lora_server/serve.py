@@ -46,7 +46,7 @@ def _load(adapter_dir: str, backend: str, base_model_path: str) -> None:
         from gptqmodel import BACKEND, GPTQModel
 
         base = GPTQModel.load(
-            base_model_path, device="cuda:0", trust_remote_code=True, backend=BACKEND.TORCH
+            base_model_path, device="cuda:0", trust_remote_code=True, backend=BACKEND.EXLLAMA_V2
         ).model
     else:
         base = AutoModelForCausalLM.from_pretrained(
