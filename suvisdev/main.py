@@ -135,6 +135,15 @@ async def lifespan(app: FastAPI):
                     logger.info("[main] chat_trend 랭킹 스케줄러 시작 (6시간 주기)")
                 except Exception as sched_err:
                     logger.warning("[main] 랭킹 스케줄러 시작 실패: %s", sched_err)
+                try:
+                    from mova.adapter.inbound.scheduler.kofic_import_scheduler import (
+                        run_kofic_import_scheduler,
+                    )
+
+                    app.state.kofic_scheduler = asyncio.create_task(run_kofic_import_scheduler())
+                    logger.info("[main] KOFIC 박스오피스 자동 수입 스케줄러 시작 (24시간 주기)")
+                except Exception as kofic_sched_err:
+                    logger.warning("[main] KOFIC 수입 스케줄러 시작 실패: %s", kofic_sched_err)
             except Exception as e:
                 logger.error(
                     "DB ???/?? ??? ?? ? DB ?? API? 503 ??: %s",
@@ -162,6 +171,13 @@ async def lifespan(app: FastAPI):
             scheduler_task.cancel()
             try:
                 await scheduler_task
+            except asyncio.CancelledError:
+                pass
+        kofic_scheduler_task = getattr(app.state, "kofic_scheduler", None)
+        if kofic_scheduler_task is not None:
+            kofic_scheduler_task.cancel()
+            try:
+                await kofic_scheduler_task
             except asyncio.CancelledError:
                 pass
         await dispose_engine()

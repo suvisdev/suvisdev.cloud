@@ -45,11 +45,12 @@ class MovieUpsertCommand:
 
 @dataclass(frozen=True)
 class TmdbImportCommand:
-    """수동 TMDB 수입 — tmdb_id · query · popular_pages 중 하나만 사용."""
+    """수동 TMDB 수입 — tmdb_id · query · popular_pages · top_rated_pages 중 하나만 사용."""
 
     tmdb_id: int | None = None
     query: str | None = None
     popular_pages: int = 0
+    top_rated_pages: int = 0
 
 
 @dataclass(frozen=True)

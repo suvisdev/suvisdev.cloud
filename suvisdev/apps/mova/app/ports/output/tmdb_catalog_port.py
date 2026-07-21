@@ -13,6 +13,10 @@ class TmdbCatalogPort(ABC):
         """TMDB /movie/popular 한 페이지."""
 
     @abstractmethod
+    async def fetch_top_rated(self, *, page: int = 1) -> list[TmdbMovieSnapshotDto]:
+        """TMDB /movie/top_rated 한 페이지."""
+
+    @abstractmethod
     async def search(self, query: str, *, page: int = 1) -> list[TmdbMovieSnapshotDto]:
         """TMDB /search/movie."""
 

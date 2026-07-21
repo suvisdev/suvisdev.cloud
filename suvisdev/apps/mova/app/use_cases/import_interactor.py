@@ -150,11 +150,18 @@ class ImportInteractor(ImportUseCase):
             found = await self._catalog.search(command.query.strip(), page=1)
             return found[:SEARCH_IMPORT_LIMIT]
 
-        pages = max(0, command.popular_pages)
-        if pages > 0:
+        popular_pages = max(0, command.popular_pages)
+        if popular_pages > 0:
             snapshots: list[TmdbMovieSnapshotDto] = []
-            for page in range(1, pages + 1):
+            for page in range(1, popular_pages + 1):
                 snapshots.extend(await self._catalog.fetch_popular(page=page))
+            return snapshots
+
+        top_rated_pages = max(0, command.top_rated_pages)
+        if top_rated_pages > 0:
+            snapshots = []
+            for page in range(1, top_rated_pages + 1):
+                snapshots.extend(await self._catalog.fetch_top_rated(page=page))
             return snapshots
 
         return []
