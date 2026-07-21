@@ -6,7 +6,7 @@ import { LayoutDashboard } from "lucide-react"
 import { AuthLoginButton } from "@/components/auth/auth-login-button"
 import { HeaderWeather } from "@/components/header-weather"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { getSuvisSession } from "@/lib/suvis-session"
+import { getSuvisSession, SUVIS_SESSION_CHANGED_EVENT } from "@/lib/suvis-session"
 
 const navLinkClass =
   "text-xs font-medium text-neutral-600 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 md:text-sm"
@@ -15,7 +15,14 @@ export function Header() {
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    setIsAdmin(getSuvisSession()?.role === "admin")
+    const syncFromSession = () => setIsAdmin(getSuvisSession()?.role === "admin")
+    syncFromSession()
+    window.addEventListener(SUVIS_SESSION_CHANGED_EVENT, syncFromSession)
+    window.addEventListener("storage", syncFromSession)
+    return () => {
+      window.removeEventListener(SUVIS_SESSION_CHANGED_EVENT, syncFromSession)
+      window.removeEventListener("storage", syncFromSession)
+    }
   }, [])
 
   return (
