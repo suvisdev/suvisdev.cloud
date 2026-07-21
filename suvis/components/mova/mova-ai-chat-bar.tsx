@@ -280,7 +280,9 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
     if (!initial) return
     if (inputRef.current) inputRef.current.value = initial
     autoSentRef.current = true
-    void sendMessage(initial)
+    void sendMessage(initial).then((ok) => {
+      if (ok && inputRef.current) inputRef.current.value = ""
+    })
   }, [sendMessage])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
