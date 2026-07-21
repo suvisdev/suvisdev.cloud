@@ -285,10 +285,11 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const formData = new FormData(form)
     const formProps = Object.fromEntries(formData.entries()) as MessageFormProps
     const ok = await sendMessage(formProps.message)
-    if (ok) e.currentTarget.reset()
+    if (ok) form.reset()
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
