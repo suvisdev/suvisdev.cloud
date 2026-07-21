@@ -25,20 +25,28 @@ _SESSION_TTL = timedelta(days=7)
 _HANDOFF_TTL = timedelta(seconds=60)
 
 
+def _resolve_role(email: str | None) -> str:
+    """RBAC — ADMIN_EMAILS(콤마 구분, env)에 있는 이메일만 admin, 나머지는 user."""
+    admin_emails = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+    return "admin" if email and email.lower() in admin_emails else "user"
+
+
 class RedisSessionStoreAdapter(SessionStorePort):
     def __init__(self, *, redis_url: str = _REDIS_URL) -> None:
         self._client = redis.from_url(redis_url, decode_responses=True)
 
-    def issue_session(self, *, user_id: int, username: str) -> str:
+    def issue_session(self, *, user_id: int, username: str, email: str | None) -> str:
         if not _JWT_SECRET:
             raise RuntimeError("JWT_SECRET이 설정되지 않았습니다.")
 
+        role = _resolve_role(email)
         jti = secrets.token_urlsafe(16)
         now = datetime.now(UTC)
         token = jwt.encode(
             {
                 "sub": str(user_id),
                 "username": username,
+                "role": role,
                 "jti": jti,
                 "iat": now,
                 "exp": now + _SESSION_TTL,
@@ -51,7 +59,7 @@ class RedisSessionStoreAdapter(SessionStorePort):
         handoff_code = secrets.token_urlsafe(24)
         self._client.set(
             f"viewer:oauth_handoff:{handoff_code}",
-            f"{user_id}\t{username}\t{token}",
+            f"{user_id}\t{username}\t{role}\t{token}",
             ex=int(_HANDOFF_TTL.total_seconds()),
         )
         return handoff_code
@@ -62,5 +70,5 @@ class RedisSessionStoreAdapter(SessionStorePort):
         if raw is None:
             return None
         self._client.delete(key)
-        user_id_str, username, token = raw.split("\t", 2)
-        return SessionPayloadDto(user_id=int(user_id_str), username=username, token=token)
+        user_id_str, username, role, token = raw.split("\t", 3)
+        return SessionPayloadDto(user_id=int(user_id_str), username=username, token=token, role=role)

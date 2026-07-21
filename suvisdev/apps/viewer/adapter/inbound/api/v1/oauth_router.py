@@ -98,6 +98,7 @@ class OAuthExchangeResponse(BaseModel):
     id: int
     username: str
     token: str
+    role: str
 
 
 @oauth_router.post("/exchange", response_model=OAuthExchangeResponse)
@@ -108,7 +109,9 @@ async def oauth_exchange(
     session = use_case.redeem(code=payload.code)
     if session is None:
         raise HTTPException(status_code=400, detail="만료되었거나 이미 사용된 코드입니다.")
-    return OAuthExchangeResponse(id=session.user_id, username=session.username, token=session.token)
+    return OAuthExchangeResponse(
+        id=session.user_id, username=session.username, token=session.token, role=session.role
+    )
 
 
 @oauth_router.post("/consent", response_model=OAuthExchangeResponse)
@@ -122,4 +125,6 @@ async def oauth_consent(
         raise HTTPException(
             status_code=400, detail="만료되었거나 이미 처리된 요청이거나, 동의가 거부됐습니다."
         )
-    return OAuthExchangeResponse(id=session.user_id, username=session.username, token=session.token)
+    return OAuthExchangeResponse(
+        id=session.user_id, username=session.username, token=session.token, role=session.role
+    )

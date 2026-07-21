@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   BarChart3,
+  Bot,
   CalendarDays,
   Home,
   Layers,
@@ -18,6 +19,7 @@ import { useAdminSidebar } from "./admin-sidebar-context"
 const navItems = [
   { href: "/admin", label: "홈", icon: Home },
   { href: "/admin/apps", label: "앱 관리", icon: Layers },
+  { href: "/admin/agents", label: "에이전트", icon: Bot },
   { href: "/admin/users", label: "사용자", icon: Users },
   { href: "/admin/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/admin/stats", label: "통계", icon: BarChart3 },
