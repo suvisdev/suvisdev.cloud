@@ -132,7 +132,7 @@ export function AuthForms({
 
     patchLogin({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${API_BASE}/friday13th/login/login`, {
+      const res = await fetch(`${API_BASE}/viewer/login/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -189,7 +189,7 @@ export function AuthForms({
 
     patchSignup({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${API_BASE}/friday13th/signup/signup`, {
+      const res = await fetch(`${API_BASE}/viewer/signup/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
