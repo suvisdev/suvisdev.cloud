@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { LogOut } from "lucide-react"
+import Link from "next/link"
+import { LogOut, User } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 import {
   clearSuvisSession,
@@ -38,6 +39,17 @@ export function AuthLoginButton({ className }: AuthLoginButtonProps) {
         >
           {session.username}
         </span>
+        <Link
+          href="/mypage"
+          className={cn(
+            navLinkClass,
+            "inline-flex items-center gap-1 font-semibold text-neutral-800 dark:text-neutral-200",
+          )}
+          aria-label="마이페이지"
+        >
+          <User className="h-3.5 w-3.5" aria-hidden />
+          <span className="hidden sm:inline">마이페이지</span>
+        </Link>
         <button
           type="button"
           onClick={() => {

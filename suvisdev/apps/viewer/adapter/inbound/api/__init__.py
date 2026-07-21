@@ -14,11 +14,13 @@ def __getattr__(name: str) -> APIRouter:
 
         from viewer.adapter.inbound.api.v1.login_router import login_router
         from viewer.adapter.inbound.api.v1.oauth_router import oauth_router
+        from viewer.adapter.inbound.api.v1.profile_router import profile_router
         from viewer.adapter.inbound.api.v1.signup_router import signup_router
 
         router = APIRouter(prefix="/viewer", tags=["viewer"])
         router.include_router(login_router)
         router.include_router(signup_router)
         router.include_router(oauth_router)
+        router.include_router(profile_router)
         return router
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
