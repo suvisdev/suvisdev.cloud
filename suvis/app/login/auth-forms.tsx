@@ -25,7 +25,6 @@ const OAUTH_PROVIDER_LABEL: Record<OAuthProvider, string> = {
   google: "Google",
   naver: "네이버",
   kakao: "카카오",
-  instagram: "Instagram",
 }
 
 export type AuthFormsMode = "login" | "signup"

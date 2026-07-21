@@ -190,7 +190,6 @@ body{min-height:100vh;background:#0d0f14;display:flex;align-items:center;justify
 .oauth-google{background:#1a1f2e;border-color:#252b3b;color:#e8e8e8}
 .oauth-naver{background:#03C75A;color:#fff}
 .oauth-kakao{background:#FEE500;color:#191919}
-.oauth-instagram{background:#1a1f2e;border-color:#252b3b;color:#e8e8e8}
 .oauth-note{margin:-.25rem 0 1.25rem;text-align:center;font-size:.75rem;color:#6b7280;min-height:1em}
 .divider{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
 .divider .line{flex:1;height:1px;background:#252b3b}
@@ -229,10 +228,6 @@ input::placeholder{color:#374151}
     <button type="button" class="oauth-btn oauth-kakao" data-provider="카카오">
       <svg width="16" height="16" viewBox="0 0 20 20"><path fill="#191919" d="M10 2.5c-4.42 0-8 2.79-8 6.24 0 2.2 1.46 4.14 3.66 5.25-.16.58-.58 2.1-.66 2.43-.1.4.15.4.31.29.13-.09 2.06-1.39 2.9-1.96.58.08 1.17.13 1.79.13 4.42 0 8-2.8 8-6.24s-3.58-6.14-8-6.14Z"/></svg>
       카카오로 계속하기
-    </button>
-    <button type="button" class="oauth-btn oauth-instagram" data-provider="Instagram">
-      <svg width="16" height="16" viewBox="0 0 20 20"><defs><linearGradient id="ig-grad" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#FEDA75"/><stop offset="30%" stop-color="#FA7E1E"/><stop offset="60%" stop-color="#D62976"/><stop offset="85%" stop-color="#962FBF"/><stop offset="100%" stop-color="#4F5BD5"/></linearGradient></defs><rect x="2" y="2" width="16" height="16" rx="5" fill="none" stroke="url(#ig-grad)" stroke-width="1.6"/><circle cx="10" cy="10" r="3.6" fill="none" stroke="url(#ig-grad)" stroke-width="1.6"/><circle cx="14.3" cy="5.7" r="1.1" fill="url(#ig-grad)"/></svg>
-      Instagram으로 계속하기
     </button>
   </div>
   <p class="oauth-note" id="oauth-note"></p>

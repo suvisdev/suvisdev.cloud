@@ -1,6 +1,6 @@
 "use client"
 
-type OAuthProvider = "google" | "naver" | "kakao" | "instagram"
+type OAuthProvider = "google" | "naver" | "kakao"
 
 type OAuthButtonsProps = {
   /** 백엔드에 실제 로그인 라우트가 연결된 프로바이더 (window.location 이동) */
@@ -56,25 +56,6 @@ function KakaoIcon() {
   )
 }
 
-function InstagramIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-4.5 w-4.5" aria-hidden>
-      <defs>
-        <linearGradient id="ig-grad" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="#FEDA75" />
-          <stop offset="30%" stopColor="#FA7E1E" />
-          <stop offset="60%" stopColor="#D62976" />
-          <stop offset="85%" stopColor="#962FBF" />
-          <stop offset="100%" stopColor="#4F5BD5" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="16" height="16" rx="5" fill="none" stroke="url(#ig-grad)" strokeWidth="1.6" />
-      <circle cx="10" cy="10" r="3.6" fill="none" stroke="url(#ig-grad)" strokeWidth="1.6" />
-      <circle cx="14.3" cy="5.7" r="1.1" fill="url(#ig-grad)" />
-    </svg>
-  )
-}
-
 const PROVIDERS: {
   id: OAuthProvider
   label: string
@@ -99,13 +80,6 @@ const PROVIDERS: {
     label: "카카오로 계속하기",
     className: "border border-transparent bg-[#FEE500] text-[#191919] hover:bg-[#f5dc00]",
     icon: KakaoIcon,
-  },
-  {
-    id: "instagram",
-    label: "Instagram으로 계속하기",
-    className:
-      "border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50",
-    icon: InstagramIcon,
   },
 ]
 
