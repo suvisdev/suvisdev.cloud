@@ -8,10 +8,12 @@ export type SuvisSession = {
 }
 
 const STORAGE_KEY = "suvis_session"
+export const SUVIS_SESSION_CHANGED_EVENT = "suvis-session-changed"
 
 export function saveSuvisSession(session: SuvisSession): void {
   if (typeof window === "undefined") return
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+  window.dispatchEvent(new Event(SUVIS_SESSION_CHANGED_EVENT))
 }
 
 export function getSuvisSession(): SuvisSession | null {
@@ -30,4 +32,5 @@ export function getSuvisSession(): SuvisSession | null {
 export function clearSuvisSession(): void {
   if (typeof window === "undefined") return
   window.localStorage.removeItem(STORAGE_KEY)
+  window.dispatchEvent(new Event(SUVIS_SESSION_CHANGED_EVENT))
 }
