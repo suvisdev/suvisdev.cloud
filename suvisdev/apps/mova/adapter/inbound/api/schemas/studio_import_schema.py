@@ -21,6 +21,12 @@ class TmdbImportRequestSchema(BaseModel):
         le=5,
         description="popular 목록 페이지 수 (tmdb_id·query 없을 때)",
     )
+    top_rated_pages: int = Field(
+        0,
+        ge=0,
+        le=5,
+        description="top_rated 목록 페이지 수 (tmdb_id·query 없을 때)",
+    )
 
 
 class KoficImportRequestSchema(BaseModel):

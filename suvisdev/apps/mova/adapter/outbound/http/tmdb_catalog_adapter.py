@@ -34,6 +34,18 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
         logger.debug("[TmdbCatalogAdapter] fetch_popular page=%d count=%d", page, len(snapshots))
         return snapshots
 
+    async def fetch_top_rated(self, *, page: int = 1) -> list[TmdbMovieSnapshotDto]:
+        genre_map = await self._genres()
+        rows = await self._client.fetch_top_rated(page=page)
+        snapshots: list[TmdbMovieSnapshotDto] = []
+        for row in rows:
+            poster = self._client.poster_url(str(row.get("poster_path") or ""))
+            mapped = map_tmdb_row(row, genre_map=genre_map, poster_url=poster)
+            if mapped:
+                snapshots.append(mapped)
+        logger.debug("[TmdbCatalogAdapter] fetch_top_rated page=%d count=%d", page, len(snapshots))
+        return snapshots
+
     async def search(self, query: str, *, page: int = 1) -> list[TmdbMovieSnapshotDto]:
         genre_map = await self._genres()
         rows = await self._client.search_movies(query, page=page)

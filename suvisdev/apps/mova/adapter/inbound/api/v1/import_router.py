@@ -31,15 +31,21 @@ async def import_from_tmdb(
     use_case: ImportUseCase = Depends(get_import_use_case),
 ) -> MovieImportResultSchema:
     """TMDB에서 영화 메타를 가져와 카탈로그에 반영."""
-    if req.tmdb_id is None and not (req.query and req.query.strip()) and req.popular_pages <= 0:
+    if (
+        req.tmdb_id is None
+        and not (req.query and req.query.strip())
+        and req.popular_pages <= 0
+        and req.top_rated_pages <= 0
+    ):
         raise HTTPException(
             status_code=400,
-            detail="tmdb_id, query, popular_pages 중 하나는 필요합니다.",
+            detail="tmdb_id, query, popular_pages, top_rated_pages 중 하나는 필요합니다.",
         )
     command = TmdbImportCommand(
         tmdb_id=req.tmdb_id,
         query=req.query.strip() if req.query else None,
         popular_pages=req.popular_pages,
+        top_rated_pages=req.top_rated_pages,
     )
     try:
         dto = await use_case.import_tmdb(command)
