@@ -32,6 +32,7 @@ kiwipiepy==0.23.1
 ollama==0.6.2
 transformers==4.47.1
 ultralytics
+timm
 opencv-python
 pytest==9.0.3
 pytest-asyncio==1.4.0
