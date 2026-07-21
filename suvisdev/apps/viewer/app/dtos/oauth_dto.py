@@ -20,6 +20,7 @@ class SessionPayloadDto:
     user_id: int
     username: str
     token: str
+    role: str
 
 
 @dataclass

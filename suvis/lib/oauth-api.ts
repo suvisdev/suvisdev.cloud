@@ -4,6 +4,7 @@ export type OAuthSessionResult = {
   id: number
   username: string
   token: string
+  role: "admin" | "user"
 }
 
 type OAuthApiErrorBody = { detail?: string | unknown }

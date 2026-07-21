@@ -42,7 +42,7 @@ class OAuthLoginInteractor(OAuthLoginUseCase):
         existing = await self._identity_repository.find_linked_user(identity)
         if existing is not None:
             handoff_code = self._session_store.issue_session(
-                user_id=existing.user_id, username=existing.username
+                user_id=existing.user_id, username=existing.username, email=identity.email
             )
             logger.info(
                 "[OAuthLoginInteractor] %s 기존 계정 로그인 — user_id=%s",
@@ -67,7 +67,7 @@ class OAuthLoginInteractor(OAuthLoginUseCase):
 
         login = await self._identity_repository.create_linked_user(identity)
         handoff_code = self._session_store.issue_session(
-            user_id=login.user_id, username=login.username
+            user_id=login.user_id, username=login.username, email=identity.email
         )
         session = self._session_store.redeem_handoff_code(code=handoff_code)
         if session is None:
