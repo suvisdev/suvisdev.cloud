@@ -1,7 +1,7 @@
 # 03. 시맨틱 분할 에이전트 — "Loom"
 
 > **에이전트 이름 추천**: **Loom** (베틀 — 픽셀 단위로 이미지를 짜서 영역을 나눈다)
-> 파일명: `loom_interactor.py`
+> 파일명: `semantic_segmentation_interactor.py`
 > **원논문**: PSPNet (CNN) → **최신 대체**: SegFormer-B0 (트랜스포머) — LoRA 적용 가능
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 

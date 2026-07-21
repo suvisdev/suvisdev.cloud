@@ -1,7 +1,7 @@
 # 07. 감정 분석 에이전트 — "Echo"
 
 > **에이전트 이름 추천**: **Echo** (반향 — 텍스트에 담긴 감정을 되울려준다)
-> 파일명: `echo_interactor.py`
+> 파일명: `sentiment_analysis_interactor.py`
 > **원논문**: Transformer → **최신 대체**: RoBERTa/KLUE-RoBERTa(분류) 또는 Qwen/EXAONE(생성형) + **QLoRA**
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 > ⭐ **이 태스크가 QLoRA의 정석 대상이다.**

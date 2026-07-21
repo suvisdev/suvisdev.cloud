@@ -1,7 +1,7 @@
 # 06. 이상 화상 탐지 에이전트 — "Sentinel"
 
 > **에이전트 이름 추천**: **Sentinel** (파수꾼 — 정상에서 벗어난 이상을 감시)
-> 파일명: `sentinel_interactor.py`
+> 파일명: `anomaly_detection_interactor.py`
 > **원논문**: AnoGAN / Efficient GAN (구식, 학습 불안정) → **최신 대체**: PatchCore 또는 EfficientAD
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 

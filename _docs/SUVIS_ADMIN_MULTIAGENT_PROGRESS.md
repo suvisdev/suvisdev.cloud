@@ -35,13 +35,89 @@
 
 ---
 
+---
+
+## 2026-07-21 (집) 추가 완료
+
+### 4. 사용자 화면 (`/admin/users`)
+
+**백엔드** — `GET /viewer/admin/users` (require_admin 가드, 실 DB 연동)
+- `viewer/adapter/inbound/api/schemas/admin_users_schema.py` — Pydantic response
+- `viewer/app/dtos/admin_users_dto.py` — `UserAdminDto` + `to_schema()`
+- `viewer/app/ports/input/admin_users_use_case.py` / `output/admin_users_repository.py` — Port ABCs
+- `viewer/app/use_cases/admin_users_interactor.py`
+- `viewer/adapter/outbound/pg/admin_users_pg_repository.py` — `users` 전체 조회 + `user_identities` LEFT JOIN(2-query), `ADMIN_EMAILS` env로 role 산출
+- `viewer/dependencies/admin_users_provider.py`
+- `viewer/adapter/inbound/api/v1/admin_users_router.py`
+- `viewer/adapter/inbound/api/__init__.py` — `admin_users_router` include 추가
+
+**프론트엔드**
+- `suvis/lib/admin-users-api.ts` — `listAdminUsers()` API 클라이언트
+- `suvis/app/admin/users/page.tsx` — 이메일/닉네임 검색 + 역할 필터(전체/관리자/사용자) + 테이블
+
+**학원에서 확인할 것**
+1. 백엔드 서버 재시작 후 `GET /viewer/admin/users` — admin 토큰으로 200, 비admin으로 403 확인
+2. `/admin/users` 페이지 접속 — 사용자 테이블 렌더링 확인 (현재 DB에 4명)
+3. 검색창에 이메일 일부 입력 → 필터 동작 확인
+4. 역할 필터 버튼(관리자/사용자) 클릭 → `ssuvisdev@gmail.com`이 관리자 뱃지로 표시되는지 확인
+5. OAuth provider 칸 — Google/Kakao/Naver 뱃지 노출 확인
+
+---
+
+---
+
+## 2026-07-21 (집, 노트북) 추가 진행 — 02~08 에이전트 H0 + Echo H1 착수
+
+### 5. 02~08 비전/ML 에이전트 H0 스캐폴딩 (전체 완료)
+
+`00_COMMON_conventions.md` 규약대로 `app/dtos/`, `app/ports/{input,output}/`, `app/use_cases/` 4파일씩 × 7개 태스크 생성. **파일명은 doc 파일명 스템과 일치**시킴(`02_object_detection_agent.md` → `object_detection_*.py` 등, `argus`/`loom` 같은 별칭은 안 씀). docs의 `파일명:` 표기도 동일하게 수정 완료. `PYTHONPATH=apps` 기준 전체 import 검증 통과.
+
+| doc | 파일 prefix |
+|---|---|
+| 02_object_detection | `object_detection_` |
+| 03_semantic_segmentation | `semantic_segmentation_` |
+| 04_pose_estimation | `pose_estimation_` |
+| 05_image_generation | `image_generation_` |
+| 06_anomaly_detection | `anomaly_detection_` |
+| 07_sentiment_analysis | `sentiment_analysis_` |
+| 08_video_classification | `video_classification_` |
+
+**아직 안 한 것(전부)**: H1(VRAM 실측)~H6(에이전트 통합) — 지금은 포트/인터페이스 껍데기만 있고 실제 추론 어댑터(구현체)는 하나도 없음.
+
+### 6. 환경 확인 — 노트북(RTX 4060 8GB)에서 로컬 개발 가능 확정
+
+- 이 노트북 GPU: **RTX 4060 Laptop 8GB VRAM** — 서버(ssu, RTX 3050 8GB)와 VRAM 용량 동일, 세대는 더 신형. 노트북에서 H1~H4 먼저 개발 후 서버(3050)에서 재검증하는 흐름으로 진행 (`memory/project_dev_environments.md` 참고).
+- conda `pytorch_env` 환경에 이미 `torch 2.12.0+cu126`(CUDA 사용 가능) 설치돼 있었음.
+- Echo(07, 감정 분석) 진행을 위해 `transformers`, `peft`, `bitsandbytes`, `trl`, `accelerate`를 `pytorch_env`에 추가 설치. `bitsandbytes` 4bit 연산 Windows에서 정상 동작 확인(4bit Linear forward 성공).
+- **학원 작업환경 = 별도 PC가 아니라 우분투 SSH 서버(ssu)에 직접 접속해서 그 서버 안에서 개발+git 전부 처리하는 구조.** 2026-10 이후 학원에서 이 서버 접근이 끊길 예정 → 그 이후엔 노트북+데스크탑 기준으로 전환.
+
+### 7. Echo(07_sentiment_analysis) H1 착수 — EXAONE-3.5-2.4B-Instruct, 부분 진행·블로커 있음
+
+**사용자 결정**: Qwen 대신 **EXAONE-3.5-2.4B-Instruct**로 진행(온프레미스에 이미 EXAONE 생태계가 있어 시너지). 기존 코드베이스의 EXAONE 활용(`core/lol/awq_exaone_orchestrator.py`)은 7.8B를 AWQ로 **서빙만** 하는 별도 프로세스(`~/.venv-exaone`, `awq_server`)라 QLoRA 학습에는 못 씀 — 2.4B를 HuggingFace(`LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct`)에서 새로 받아 학습용으로 세팅해야 함.
+
+**진행한 것** (임시 스크립트: `suvisdev/apps/ontology/_docs/_tmp_h1_exaone_vram_check.py`):
+1. 가중치 다운로드(~9.6GB, `~/.cache/huggingface`에 캐시됨) 완료
+2. **4bit(nf4) 양자화 로드 성공 — VRAM 델타 2158MB.** 8GB 예산에서 여유 매우 큼(H1 판정에 긍정적)
+3. LoRA(r=8, q_proj/v_proj) 부착 — `peft==0.19.1`가 요구하는 `get_input_embeddings()`가 EXAONE 커스텀 코드(`modeling_exaone.py`)에 없어서 최초 실패 → 몽키패치(`model.transformer.wte` 위임)로 우회 성공
+4. forward pass 스모크 테스트에서 **재차 실패**: `create_causal_mask() got an unexpected keyword argument 'input_embeds'`
+
+**근본 원인**: `config.json`의 `transformers_version: "4.43.0"` — 지금 설치된 `transformers==5.14.1`과 메이저 버전 3개 차이. EXAONE의 `custom_code`(`modeling_exaone.py`)가 4.43 시절 내부 API(`create_causal_mask` 시그니처 등)에 맞춰져 있어서, 5.x로 오면서 바뀐 내부 함수 시그니처와 계속 어긋남. 몽키패치로 하나씩 우회 가능하지만 밑 빠진 독 — **transformers를 4.43대로 다운그레이드(전용 venv 권장, 현재 `pytorch_env`를 오염시키지 않게)한 뒤 재시도하는 게 정석**.
+
+**다음에 이어서 할 일**:
+- [ ] `transformers~=4.43`(peft/bitsandbytes도 그 시절 호환 버전으로) 전용 conda env 또는 venv 구성 후 forward pass부터 재시도
+- [ ] 안 되면 폴백: Qwen2.5-1.5B/3B(공식 transformers 지원, custom_code 불필요)로 전환 — 사용자에게 재확인 필요
+- [ ] H1 최종 판정(VRAM 여유 있음은 이미 확인됨) 후 H2(데이터셋) 진행
+- [ ] 완료 후 `_tmp_h1_exaone_vram_check.py` 정리(Gate 통과 스크립트로 승격하거나 삭제)
+
+---
+
 ## 다음에 할 일
 
 ### A. 어드민 대시보드 나머지 화면 (사용자 지시 순서: 사용자 → 앱 관리 → 통계 → 캘린더 → 설정)
 
 기존 `/admin` 레이아웃·사이드바·디자인 토큰(다크 사이드바 + 라이트 콘텐츠, `rounded-2xl border border-slate-200 bg-white p-5` 카드, slate 본문 + emerald 포인트) 그대로 재사용. 각 화면 완성 시 실 배포 후 스크린샷으로 확인할 것.
 
-1. **사용자** (`/admin/users`) — 로그인 사용자 테이블(이메일/role 뱃지/OAuth provider/최근 접속/가입일), role 필터, 검색. `viewer.users` 테이블 실측: 컬럼 `group_id/username/password_hash/nickname/email/gender/birth_year/preferred_genres/bio/created_at/updated_at/id`, 현재 4명. 목록 API가 아직 없어서 **백엔드에 사용자 목록 조회 API 신규 필요**(require_admin 가드 필수). OAuth provider는 `user_identities` 테이블 조인 필요.
+1. ~~**사용자** (`/admin/users`)~~ ✅ 완료 (2026-07-21)
 2. **앱 관리** (`/admin/apps`) — mova/gildle/titanic/doro/star_craft 카드, mock 상태값으로 시작.
 3. **통계** (`/admin/stats`) — 에이전트 호출 수 추이(라인)/크롤링 실적(바)/에이전트별 사용 비율(도넛)/사용자 활동(영역), 기간 필터. 차트 라이브러리 미설치 확인됨 — recharts 설치 필요(`package.json`에 없음, 먼저 확인).
 4. **캘린더** (`/admin/calendar`) — 월간 뷰, mock 이벤트(크롤링 스케줄/에이전트 실행 예약), 날짜 클릭 시 해당일 이벤트 목록.

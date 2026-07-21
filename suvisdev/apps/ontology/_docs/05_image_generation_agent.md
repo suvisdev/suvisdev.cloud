@@ -1,7 +1,7 @@
 # 05. 이미지 생성 에이전트 — "Prisma"
 
 > **에이전트 이름 추천**: **Prisma** (프리즘 — 무에서 색과 형상을 만들어냄)
-> 파일명: `prisma_interactor.py`
+> 파일명: `image_generation_interactor.py`
 > **원논문**: DCGAN / Self-Attention GAN (구식) → **최신 대체**: Stable Diffusion + LoRA(DreamBooth/LoRA 파인튜닝)
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 

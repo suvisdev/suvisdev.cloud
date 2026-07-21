@@ -1,7 +1,7 @@
 # 08. 동영상 분류 에이전트 — "Chronos"
 
 > **에이전트 이름 추천**: **Chronos** (시간의 신 — 시간축을 가진 영상을 이해)
-> 파일명: `chronos_interactor.py`
+> 파일명: `video_classification_interactor.py`
 > **원논문**: 3DCNN / ECO (구식) → **최신 대체**: VideoMAE-small (트랜스포머, LoRA 가능) 또는 X3D(경량 CNN)
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 > ⚠️ **영상은 이 목록에서 VRAM 부담 최대. 프레임/해상도 관리가 핵심.**

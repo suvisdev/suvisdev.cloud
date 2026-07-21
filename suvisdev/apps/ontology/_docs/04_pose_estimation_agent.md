@@ -1,7 +1,7 @@
 # 04. 자세 추정 에이전트 — "Atlas"
 
 > **에이전트 이름 추천**: **Atlas** (몸으로 하늘을 떠받친 거인 — 신체·자세의 상징)
-> 파일명: `atlas_interactor.py`
+> 파일명: `pose_estimation_interactor.py`
 > **원논문**: OpenPose (CNN) → **최신 대체**: ViTPose (트랜스포머, LoRA 가능) 또는 RTMPose(초경량)
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 

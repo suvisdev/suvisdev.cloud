@@ -1,7 +1,7 @@
 # 02. 물체 감지 에이전트 — "Argus"
 
 > **에이전트 이름 추천**: **Argus** (그리스 신화의 백 개 눈을 가진 거인 — 모든 걸 감지)
-> 파일명: `argus_interactor.py`
+> 파일명: `object_detection_interactor.py`
 > **원논문**: SSD (구식 CNN) → **최신 대체**: RT-DETR (트랜스포머) 또는 YOLOv8/v11
 > **공통 규약(00_COMMON_conventions.md)을 먼저 읽어라.**
 
