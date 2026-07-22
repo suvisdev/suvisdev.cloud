@@ -10,6 +10,8 @@ root_packages =
     contents
     sample
     core
+    auth
+    shared
 
 # Rule 1: Hub (ontology) must not depend on any spoke.
 [importlinter:contract:hub-independence]
@@ -40,6 +42,7 @@ modules =
     gildle
     contents
     sample
+    auth
 # Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
 #
 # (a) DB metadata registration: core/matrix/grid_oracle_database_manager imports
@@ -91,3 +94,41 @@ source_modules =
 forbidden_modules =
     titanic.app
     titanic.adapter
+
+# Rule 5: auth is a parallel-build gateway (see suvisdev/apps/auth/_docs/) not yet
+# wired to real traffic. No existing app may depend on it this round — the reverse
+# direction (auth -> spoke) is already covered by spoke-independence above.
+[importlinter:contract:auth-isolation]
+name = auth is not imported by any existing app (parallel-build, not yet wired)
+type = forbidden
+source_modules =
+    contents
+    dispatch
+    gildle
+    mova
+    ontology
+    sample
+    silicon_valley
+    titanic
+    viewer
+forbidden_modules =
+    auth
+
+# Rule 6: shared (cross-app token verification only) must stay a leaf dependency —
+# every app may import it, it may not import anything back.
+[importlinter:contract:shared-independence]
+name = shared must not depend on any spoke or auth
+type = forbidden
+source_modules =
+    shared
+forbidden_modules =
+    contents
+    dispatch
+    gildle
+    mova
+    ontology
+    sample
+    silicon_valley
+    titanic
+    viewer
+    auth

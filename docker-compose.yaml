@@ -53,6 +53,33 @@ services:
               count: all
               capabilities: [gpu]
 
+  # 1-1. auth 게이트웨이 — RS256 JWT 발급 전용, 병렬 구축(이번 라운드는 실트래픽 미연결).
+  # backend와 같은 이미지/컨텍스트를 재사용하고 command만 다르게 띄운다.
+  # 실행: docker compose --env-file suvisdev/.env up -d --build auth
+  auth:
+    build:
+      context: ./suvisdev
+      dockerfile: Dockerfile
+    command: uvicorn auth_main:app --host 0.0.0.0 --port 9000
+    restart: unless-stopped
+    env_file:
+      - ./suvisdev/.env
+      - ./suvisdev/.env.auth
+    environment:
+      # get_viewer_session_factory()는 MOVA_DATABASE_URL을 DATABASE_URL보다 우선 참조한다
+      # (core/matrix/grid_oracle_database_manager.ensure_viewer_database) — backend와
+      # 동일하게 둘 다 덮어써야 한다. 하나만 덮어쓰면 .env의 localhost:5432 값(호스트용)로
+      # 붙으려다 컨테이너 안에서 접속 실패한다.
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - MOVA_DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # ports: 없음 — 아직 외부에서 직접 붙을 곳 없음(향후 cloudflared 라우팅 전까지)
+
   # 2. PostgreSQL + pgvector 서비스 정의
   # 접속·인증 정보는 suvisdev/.env 에서 주입한다 (하드코딩 금지).
   # 실행: docker compose --env-file suvisdev/.env up -d db
