@@ -376,7 +376,9 @@ async def login_submit(
     ):
         token = base64.b64encode(f"{username}:{password}".encode()).decode()
         resp = RedirectResponse(url=safe_next, status_code=303)
-        resp.set_cookie("api_auth", token, httponly=True, samesite="strict", path="/")
+        resp.set_cookie(
+            "api_auth", token, max_age=2 * 3600, httponly=True, samesite="strict", path="/"
+        )
         return resp
     return RedirectResponse(url=f"/api-login?next={safe_next}&error=1", status_code=303)
 
