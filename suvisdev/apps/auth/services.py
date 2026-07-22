@@ -4,6 +4,7 @@ from auth.oauth_adapters import OAuthError
 from auth.oauth_adapters.google import GoogleOAuthAdapter
 from auth.oauth_adapters.kakao import KakaoOAuthAdapter
 from auth.oauth_adapters.naver import NaverOAuthAdapter
+from auth.oauth_state_store import OAuthStateStore
 from auth.refresh_store import RefreshTokenStore, ReuseDetected
 from auth.repository import UserRepository
 from auth.schemas import TokenResponse
@@ -23,6 +24,10 @@ class InvalidCredentials(Exception):
     pass
 
 
+class OAuthStateInvalid(Exception):
+    """콜백으로 돌아온 state가 없거나, 발급된 적 없거나, 이미 소비됨(CSRF 의심)."""
+
+
 class AuthService:
     def __init__(
         self,
@@ -31,6 +36,7 @@ class AuthService:
         token_issuer: JwtAdapter | None = None,
         refresh_store: RefreshTokenStore | None = None,
         oauth_adapters: dict[str, object] | None = None,
+        oauth_state_store: OAuthStateStore | None = None,
     ) -> None:
         self._users = user_repository or UserRepository()
         self._tokens = token_issuer or JwtAdapter()
@@ -40,9 +46,18 @@ class AuthService:
             "kakao": KakaoOAuthAdapter(),
             "naver": NaverOAuthAdapter(),
         }
+        self._oauth_state = oauth_state_store or OAuthStateStore()
 
     def build_authorize_url(self, provider: str, state: str) -> str:
         adapter = self._get_oauth_adapter(provider)
+        return adapter.build_authorize_url(state)
+
+    def start_oauth_login(self, provider: str, aud: str) -> str:
+        """provider 검증(미지원 시 OAuthError 404) + CSRF state 발급(aud 포함 저장) 후
+        인증 URL 반환. aud는 프로바이더가 콜백에 실어 보내주지 않으므로 여기서
+        state에 묶어 저장해뒀다가 콜백에서 state로 다시 꺼내 쓴다."""
+        adapter = self._get_oauth_adapter(provider)
+        state = self._oauth_state.issue(aud=aud)
         return adapter.build_authorize_url(state)
 
     async def login_with_password(self, username: str, password: str, aud: str) -> TokenResponse:
@@ -51,7 +66,11 @@ class AuthService:
             raise InvalidCredentials("아이디 또는 비밀번호가 올바르지 않습니다.")
         return self._issue_token_pair(sub=str(user.user_id), roles=user.role_values(), aud=aud)
 
-    async def handle_oauth_callback(self, provider: str, code: str, aud: str) -> TokenResponse:
+    async def handle_oauth_callback(self, provider: str, code: str, state: str | None) -> TokenResponse:
+        aud = self._oauth_state.consume(state) if state else None
+        if aud is None:
+            raise OAuthStateInvalid("state 값이 없거나 유효하지 않습니다(CSRF 의심).")
+
         adapter = self._get_oauth_adapter(provider)
         identity = await adapter.exchange_code(code)
         user = await self._users.find_by_oauth_identity(identity.provider, identity.provider_user_id)

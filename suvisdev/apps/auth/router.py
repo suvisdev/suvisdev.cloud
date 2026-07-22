@@ -4,12 +4,18 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import RedirectResponse
 
 from auth.oauth_adapters import OAuthError
 from auth.refresh_store import ReuseDetected
 from auth.schemas import LoginRequest, RefreshRequest, TokenResponse
 from auth.security import JwtAdapter
-from auth.services import AuthService, InvalidCredentials, OAuthIdentityNotLinked
+from auth.services import (
+    AuthService,
+    InvalidCredentials,
+    OAuthIdentityNotLinked,
+    OAuthStateInvalid,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,10 +45,21 @@ async def refresh(body: RefreshRequest) -> TokenResponse:
         raise HTTPException(status_code=401, detail=str(e)) from e
 
 
-@router.get("/auth/callback/{provider}", response_model=TokenResponse)
-async def oauth_callback(provider: str, code: str, aud: str) -> TokenResponse:
+@router.get("/auth/login/{provider}")
+async def start_oauth_login(provider: str, aud: str) -> RedirectResponse:
     try:
-        return await _service.handle_oauth_callback(provider, code, aud)
+        url = _service.start_oauth_login(provider, aud)
+    except OAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return RedirectResponse(url=url, status_code=302)
+
+
+@router.get("/auth/callback/{provider}", response_model=TokenResponse)
+async def oauth_callback(provider: str, code: str, state: str | None = None) -> TokenResponse:
+    try:
+        return await _service.handle_oauth_callback(provider, code, state)
+    except OAuthStateInvalid as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except OAuthIdentityNotLinked as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except OAuthError as e:

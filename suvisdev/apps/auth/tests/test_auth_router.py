@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,8 +11,10 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[3]
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
+from auth import oauth_state_store as oauth_state_module
 from auth import refresh_store as refresh_module
 from auth.oauth_adapters import OAuthError, OAuthIdentity
+from auth.oauth_state_store import OAuthStateStore
 from auth.rbac import Role
 from auth.refresh_store import RefreshTokenStore
 from auth.repository import User
@@ -59,13 +62,16 @@ class _FakeGoogleAdapter:
 
 @pytest.fixture()
 def client(rsa_keypair, monkeypatch):
-    monkeypatch.setattr(refresh_module.redis, "from_url", lambda *a, **k: _FakeRedis())
+    fake_redis = _FakeRedis()
+    monkeypatch.setattr(refresh_module.redis, "from_url", lambda *a, **k: fake_redis)
+    monkeypatch.setattr(oauth_state_module.redis, "from_url", lambda *a, **k: fake_redis)
 
     service = AuthService(
         user_repository=_FakeUserRepository(),
         token_issuer=JwtAdapter(),
         refresh_store=RefreshTokenStore(),
         oauth_adapters={"google": _FakeGoogleAdapter()},
+        oauth_state_store=OAuthStateStore(),
     )
 
     import auth_main
@@ -111,12 +117,78 @@ def test_refresh_rotates_and_reuse_is_rejected(client):
     assert also_revoked.status_code == 401
 
 
+def _start_login_and_extract_state(client, provider: str = "google", aud: str = "suvis-mova") -> str:
+    resp = client.get(f"/auth/login/{provider}", params={"aud": aud}, follow_redirects=False)
+    assert resp.status_code == 302
+    location = resp.headers["location"]
+    state = parse_qs(urlparse(location).query)["state"][0]
+    return state
+
+
+def test_start_oauth_login_redirects_to_provider_authorize_url(client):
+    resp = client.get("/auth/login/google", params={"aud": "suvis-mova"}, follow_redirects=False)
+    assert resp.status_code == 302
+    location = resp.headers["location"]
+    assert location.startswith("https://example.com/authorize?state=")
+
+
+def test_start_oauth_login_unknown_provider_returns_404(client):
+    resp = client.get("/auth/login/facebook", params={"aud": "suvis-mova"}, follow_redirects=False)
+    assert resp.status_code == 404
+
+
+def test_start_oauth_login_without_aud_returns_422(client):
+    """aud는 로그인 시작 시점에 프론트가 반드시 알려줘야 함 — 기본값 없이 강제."""
+    resp = client.get("/auth/login/google", follow_redirects=False)
+    assert resp.status_code == 422
+
+
 def test_oauth_callback_linked_identity_succeeds(client):
-    resp = client.get("/auth/callback/google", params={"code": "valid-code", "aud": "suvis-mova"})
+    state = _start_login_and_extract_state(client, aud="suvis-mova")
+    resp = client.get("/auth/callback/google", params={"code": "valid-code", "state": state})
     assert resp.status_code == 200
-    assert resp.json()["access_token"]
+    body = resp.json()
+    assert body["access_token"]
 
 
 def test_oauth_callback_unlinked_identity_returns_409(client):
-    resp = client.get("/auth/callback/google", params={"code": "unlinked-code", "aud": "suvis-mova"})
+    state = _start_login_and_extract_state(client)
+    resp = client.get("/auth/callback/google", params={"code": "unlinked-code", "state": state})
     assert resp.status_code == 409
+
+
+def test_oauth_callback_missing_state_returns_400(client):
+    resp = client.get("/auth/callback/google", params={"code": "valid-code"})
+    assert resp.status_code == 400
+
+
+def test_oauth_callback_wrong_state_returns_400(client):
+    _start_login_and_extract_state(client)  # 정상 state 하나 발급해두되 사용하지 않음
+    resp = client.get(
+        "/auth/callback/google",
+        params={"code": "valid-code", "state": "not-the-real-state"},
+    )
+    assert resp.status_code == 400
+
+
+def test_oauth_callback_reused_state_returns_400(client):
+    """state는 1회 소비 — 콜백 성공 후 같은 state로 다시 호출하면 거부."""
+    state = _start_login_and_extract_state(client)
+    first = client.get("/auth/callback/google", params={"code": "valid-code", "state": state})
+    assert first.status_code == 200
+
+    second = client.get("/auth/callback/google", params={"code": "valid-code", "state": state})
+    assert second.status_code == 400
+
+
+def test_oauth_callback_uses_aud_saved_at_login_start(client):
+    """콜백이 쿼리로 aud를 받는 게 아니라, 로그인 시작 시점에 state에 저장해둔
+    aud를 그대로 써서 토큰을 발급하는지 확인(실서비스 버그 회귀 방지)."""
+    state = _start_login_and_extract_state(client, aud="suvis-gildle")
+    resp = client.get("/auth/callback/google", params={"code": "valid-code", "state": state})
+    assert resp.status_code == 200
+
+    import jwt as pyjwt
+
+    claims = pyjwt.decode(resp.json()["access_token"], options={"verify_signature": False})
+    assert claims["aud"] == "suvis-gildle"
