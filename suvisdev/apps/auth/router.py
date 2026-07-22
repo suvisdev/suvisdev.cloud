@@ -25,6 +25,20 @@ _service = AuthService()
 _issuer = JwtAdapter()
 _FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+_DEFAULT_RETURN_TO = "/test-auth-login/result"
+# return_to는 로그인 시작 시점에 쿼리로 들어오는 사용자 입력이라 오픈 리다이렉트로
+# 악용될 수 있다 — 알려진 프리픽스만 화이트리스트로 허용하고, 그 외는 실패를
+# 알리지 않고(공격 시도 티 내지 않기 위해) 조용히 기본값으로 폴백한다.
+_ALLOWED_RETURN_TO_PREFIXES = ("/mova", "/titanic", "/gildle", "/test-auth-login/result")
+
+
+def _sanitize_return_to(value: str | None) -> str:
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return _DEFAULT_RETURN_TO
+    if not any(value == p or value.startswith(f"{p}/") for p in _ALLOWED_RETURN_TO_PREFIXES):
+        return _DEFAULT_RETURN_TO
+    return value
+
 
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(body: LoginRequest) -> TokenResponse:
@@ -48,9 +62,9 @@ async def refresh(body: RefreshRequest) -> TokenResponse:
 
 
 @router.get("/auth/login/{provider}")
-async def start_oauth_login(provider: str, aud: str) -> RedirectResponse:
+async def start_oauth_login(provider: str, aud: str, return_to: str | None = None) -> RedirectResponse:
     try:
-        url = _service.start_oauth_login(provider, aud)
+        url = _service.start_oauth_login(provider, aud, _sanitize_return_to(return_to))
     except OAuthError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return RedirectResponse(url=url, status_code=302)
@@ -62,10 +76,10 @@ async def oauth_callback(provider: str, code: str, state: str | None = None) -> 
     (viewer의 oauth_router.py와 동일한 패턴). 프론트는 POST /auth/exchange로 code를
     실제 토큰과 맞바꾼다.
 
-    리다이렉트 목적지(/test-auth-login/result)는 이번 라운드 한정 테스트용 — 실제
-    통합 시점에 일반화한다."""
+    리다이렉트 목적지는 로그인 시작 시점에 저장해둔 return_to(이미 화이트리스트
+    검증됨) — 없으면 기본값(/test-auth-login/result)."""
     try:
-        token_response = await _service.handle_oauth_callback(provider, code, state)
+        token_response, return_to = await _service.handle_oauth_callback(provider, code, state)
     except OAuthStateInvalid as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except OAuthIdentityNotLinked as e:
@@ -74,8 +88,9 @@ async def oauth_callback(provider: str, code: str, state: str | None = None) -> 
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
     handoff_code = _service.create_oauth_handoff(token_response)
+    destination = return_to or _DEFAULT_RETURN_TO
     return RedirectResponse(
-        url=f"{_FRONTEND_URL}/test-auth-login/result?code={handoff_code}",
+        url=f"{_FRONTEND_URL}{destination}?code={handoff_code}",
         status_code=302,
     )
 

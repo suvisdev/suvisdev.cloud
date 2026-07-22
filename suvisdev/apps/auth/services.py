@@ -55,12 +55,13 @@ class AuthService:
         adapter = self._get_oauth_adapter(provider)
         return adapter.build_authorize_url(state)
 
-    def start_oauth_login(self, provider: str, aud: str) -> str:
-        """provider 검증(미지원 시 OAuthError 404) + CSRF state 발급(aud 포함 저장) 후
-        인증 URL 반환. aud는 프로바이더가 콜백에 실어 보내주지 않으므로 여기서
-        state에 묶어 저장해뒀다가 콜백에서 state로 다시 꺼내 쓴다."""
+    def start_oauth_login(self, provider: str, aud: str, return_to: str | None = None) -> str:
+        """provider 검증(미지원 시 OAuthError 404) + CSRF state 발급(aud/return_to 포함
+        저장) 후 인증 URL 반환. aud/return_to는 프로바이더가 콜백에 실어 보내주지
+        않으므로 여기서 state에 묶어 저장해뒀다가 콜백에서 state로 다시 꺼내 쓴다.
+        return_to는 호출자(router)가 이미 화이트리스트 검증을 마친 값이어야 한다."""
         adapter = self._get_oauth_adapter(provider)
-        state = self._oauth_state.issue(aud=aud)
+        state = self._oauth_state.issue(aud=aud, return_to=return_to)
         return adapter.build_authorize_url(state)
 
     async def login_with_password(self, username: str, password: str, aud: str) -> TokenResponse:
@@ -69,9 +70,14 @@ class AuthService:
             raise InvalidCredentials("아이디 또는 비밀번호가 올바르지 않습니다.")
         return self._issue_token_pair(sub=str(user.user_id), roles=user.role_values(), aud=aud)
 
-    async def handle_oauth_callback(self, provider: str, code: str, state: str | None) -> TokenResponse:
-        aud = self._oauth_state.consume(state) if state else None
-        if aud is None:
+    async def handle_oauth_callback(
+        self, provider: str, code: str, state: str | None
+    ) -> tuple[TokenResponse, str | None]:
+        """반환값의 두 번째 요소(return_to)는 로그인 시작 시점에 state에 저장해둔
+        값 그대로다 — 이미 router에서 화이트리스트 검증을 거친 값이므로 여기서는
+        그대로 통과시킨다."""
+        state_data = self._oauth_state.consume(state) if state else None
+        if state_data is None:
             raise OAuthStateInvalid("state 값이 없거나 유효하지 않습니다(CSRF 의심).")
 
         adapter = self._get_oauth_adapter(provider)
@@ -81,7 +87,10 @@ class AuthService:
             raise OAuthIdentityNotLinked(
                 f"{provider} 계정이 아직 연동되지 않았습니다. viewer에서 먼저 연동하세요."
             )
-        return self._issue_token_pair(sub=str(user.user_id), roles=user.role_values(), aud=aud)
+        token_response = self._issue_token_pair(
+            sub=str(user.user_id), roles=user.role_values(), aud=state_data.aud
+        )
+        return token_response, state_data.return_to
 
     def create_oauth_handoff(self, token_response: TokenResponse) -> str:
         """콜백에서 발급한 토큰을 URL에 직접 싣지 않기 위한 1회용 code 발급(60초 TTL)."""

@@ -31,8 +31,17 @@ def store(monkeypatch) -> OAuthStateStore:
 
 def test_issued_state_returns_stored_aud_once(store):
     state = store.issue(aud="suvis-mova")
-    assert store.consume(state) == "suvis-mova"
+    data = store.consume(state)
+    assert data.aud == "suvis-mova"
+    assert data.return_to is None
     assert store.consume(state) is None  # 1회 소비 후 재사용 불가
+
+
+def test_issued_state_carries_return_to(store):
+    state = store.issue(aud="suvis-mova", return_to="/mova")
+    data = store.consume(state)
+    assert data.aud == "suvis-mova"
+    assert data.return_to == "/mova"
 
 
 def test_unknown_state_is_not_consumed(store):
