@@ -110,9 +110,15 @@
 - 이 서버(ssu, RTX 3050 8GB)는 `lora-server`(systemd `--user` 서비스, mova 채팅 RAG 상시 서빙)가 VRAM을 거의 다 씀 → H1 실행 전 `systemctl --user stop lora-server`로 내렸다가 완료 후 `systemctl --user start lora-server`로 반드시 복구. **H2(학습) 이후에도 같은 절차 필요.**
 - 상세 재현 기록은 `suvisdev/apps/ontology/_docs/07_sentiment_analysis_agent.md` "5. H1 완료 기록" 참고.
 
+**H2(데이터셋 준비) 완료 ✅ (2026-07-22, 이어서 같은 세션에서 진행)**: NSMC(네이버 영화 리뷰) 기반, output은 라벨만("긍정"/"부정", 사용자 결정 — 이유 설명은 스킵). `scripts/prepare_echo_sentiment_dataset.py`로 라벨당 균형 샘플링(train 2000/val 400), `apps/ontology/resources/echo_sentiment_train/`에 저장. 토크나이저 검증 결과 max_seq_length=256로 전체 수용(p95=93, max=135). 상세: `07_sentiment_analysis_agent.md` "6. H2 완료 기록".
+
+**H3(파인튜닝) 완료 ✅**: `scripts/train_echo_sentiment.py`, val accuracy 87.75%(F1 0.8778), 어댑터 `apps/ontology/runs/echo_sentiment/adapter`.
+
+**H4(추론 어댑터) 완료 ✅**: 여기서 중요한 걸 하나 발견함 — 프로덕션 `requirements.txt`는 `transformers==4.47.1`로 고정돼 있고 `apps/dispatch`의 다른 기능이 이미 그 버전에 의존 중이라 못 올림. H1/H3에서 쓴 "최신 transformers + 몽키패치" 방식 대신, **EXAONE HF 리포를 v5 마이그레이션 이전 커밋(`e949c91...`)으로 `revision=` 고정**하는 방식으로 전환 — `transformers==4.47.1` 그대로 몽키패치 없이 동작 확인. `EchoSentimentAdapter`(`TimmConvnextAdapter`와 동일하게 호출당 로드→추론→언로드), DI 프로바이더, `@pytest.mark.gpu` 통합 테스트(신규 마커) 추가, `requirements.txt`에 `peft`/`bitsandbytes` 추가. 상세: `07_sentiment_analysis_agent.md` "7~8. H3/H4 완료 기록".
+
 **다음에 이어서 할 일**:
-- [ ] H2(데이터셋 준비) 진행 — 감정+근거 instruction-tuning JSONL, 500~5000쌍
-- [ ] `_tmp_h1_exaone_vram_check.py`는 H1 재현 스크립트로 유지 중(아직 삭제 안 함) — H3 학습 스크립트 완성되면 그때 정리 판단
+- [ ] H5(MCP tool 노출) → H6(에이전트 통합) — 사용자 확인 받고 진행
+- [ ] `_tmp_h1_exaone_vram_check.py`, `_tmp_h2_echo_dataset_check.py`는 재현/검증 스크립트로 유지 중(아직 삭제 안 함)
 
 ---
 

@@ -59,12 +59,12 @@ dataset/
 - **H1**: VRAM 실측. ✅ **완료(2026-07-22)** — EXAONE-3.5-2.4B-Instruct 4bit(nf4) 로드 2158MB + LoRA(r=8, q/v_proj) 8MB, forward pass 후 총 2180MB 할당, free 4.25GB. 상세: 아래 "H1 완료 기록" 참고.
   - RoBERTa-base LoRA: 여유로움(batch 16~32)
   - EXAONE-2.4B QLoRA(4bit): 8GB에 여유 있게 들어감 (H1 실측), batch 1~4 + grad accum 예상
-- **H2**: CSV/JSONL 검증, 라벨 분포 확인, 토크나이저 길이 설정.
-- **H3**: 파인튜닝
+- **H2**: CSV/JSONL 검증, 라벨 분포 확인, 토크나이저 길이 설정. ✅ **완료(2026-07-22)** — 아래 "6. H2 완료 기록" 참고.
+- **H3**: 파인튜닝. ✅ **완료(2026-07-22)** — 아래 "7. H3 완료 기록" 참고.
   - RoBERTa: LoRA, metric F1/accuracy
-  - EXAONE-2.4B: **QLoRA(4bit nf4 + LoRA)**, SFTTrainer
-  - **어댑터 저장**
-- **H4**: 추론 어댑터 — `SentimentPort.analyze(text) -> SentimentResult` (label, score, (생성형)reason)
+  - EXAONE-2.4B: **QLoRA(4bit nf4 + LoRA)**, 수동 학습 루프(SFTTrainer 미사용, 이유는 아래)
+  - **어댑터 저장** → `apps/ontology/runs/echo_sentiment/adapter`
+- **H4**: 추론 어댑터 — `SentimentPort.analyze(text) -> SentimentResult` (label, score, (생성형)reason). ✅ **완료(2026-07-22)** — 아래 "8. H4 완료 기록" 참고.
 - **H5**: MCP tool
   ```python
   @mcp.tool()
@@ -100,3 +100,54 @@ dataset/
 **실측 결과**: 4bit(nf4) 로드 델타 2158MB, LoRA(r=8, q/v_proj) 델타 8MB, forward pass 후 총 할당 2180.1MB, free 4.25GB(8GB 중). **8GB 예산에 여유 충분 — H1 통과.**
 
 **주의**: 이 서버(RTX 3050 8GB)는 `lora_server`(mova 채팅, 상시)가 VRAM을 거의 다 쓰고 있어서 H1 실행 전 `systemctl --user stop lora-server`로 잠시 내렸다가 완료 후 `systemctl --user start lora-server`로 복구함. **H2 이후(학습) 작업도 VRAM이 필요하니 매번 lora_server를 잠시 내렸다 올리는 절차가 필요.**
+
+## 6. H2 완료 기록 (2026-07-22)
+
+**데이터셋**: NSMC(Naver Sentiment Movie Corpus, `github.com/e9t/nsmc`) — mova가 영화 앱이라 도메인이 정확히 맞음. `raw.githubusercontent.com`에서 원본 TSV 직접 다운로드(HF `datasets` 라이브러리의 `nsmc` 스크립트는 최신 `datasets`(legacy script 지원 중단)에서 로드 불가라 우회).
+
+**사용자 결정**: output은 "감정+이유" 대신 **라벨만**("긍정"/"부정"). NSMC 원본에 근거 문장이 없어서 "이유"를 넣으려면 LLM으로 별도 생성해야 하는데(추가 시간+VRAM), 지금은 스킵하고 필요해지면 나중에 별도 라운드로.
+
+**준비 스크립트**: `suvisdev/scripts/prepare_echo_sentiment_dataset.py` — 라벨(긍/부정)당 균형 샘플링, seed=42 고정.
+**산출물**: `apps/ontology/resources/echo_sentiment_train/{train,val}.jsonl`
+- train: 2000건 (긍정 1000 / 부정 1000)
+- val: 400건 (긍정 200 / 부정 200)
+
+**검증 스크립트**: `_tmp_h2_echo_dataset_check.py` (CPU만 사용, GPU 불필요 — lora_server 안 내려도 됨)
+- 라벨 분포 재검증 통과
+- EXAONE 토크나이저로 실제 chat-template 프롬프트 토큰 길이: min=35 mean=54.9 p50=50 p95=93 max=135 → **max_seq_length=256이면 전체 샘플 여유 있게 수용**(초과 0건)
+- batch_size=4 패딩 배치 정상 반환(`input_ids`/`attention_mask` shape 일치) — **H2 Gate 통과**
+
+**H3(파인튜닝) 전 확정해야 할 것**: max_seq_length=256, batch size(H1 VRAM 여유 4.25GB 기준 batch 4~8 + grad accum 검토 필요), 학습 epoch 수. 사용자 확인 후 진행.
+
+## 7. H3 완료 기록 (2026-07-22)
+
+**학습 스크립트**: `suvisdev/scripts/train_echo_sentiment.py` — max_seq_length=256, batch=4, grad_accum=4(effective=16), epochs=2, lr=2e-4. LoRA(r=8, alpha=16, q/v_proj, dropout=0.05) — H1과 동일 구성.
+
+**TRL SFTTrainer 대신 수동 학습 루프를 쓴 이유**: trl까지 pinning하면 transformers/peft/trl 세 라이브러리 버전 호환을 동시에 맞춰야 해서 리스크가 컸고(H1에서 이미 transformers 버전 하나 맞추는 데도 여러 라운드 걸림), 이 태스크는 출력이 "긍정"/"부정" 단 2가지뿐이라 수동 루프로 충분히 단순함.
+
+**결과**:
+| 지표 | 값 |
+|---|---|
+| epoch 1 → 2 평균 loss | 0.7598 → 0.0712 |
+| val accuracy | 87.75% (351/400) |
+| val precision / recall / F1 | 0.8756 / 0.8800 / 0.8778 |
+| 학습 중 최대 VRAM 할당 | 3264.3 MB |
+| 어댑터 저장 위치 | `apps/ontology/runs/echo_sentiment/adapter` (`*.safetensors`는 `.gitignore` 대상이라 git에 안 올라감) |
+
+**H3 Gate 통과** — val F1/accuracy 로그 + 어댑터 저장 완료. 학습 전후 `lora-server` 내렸다 올림(정상 확인).
+
+## 8. H4 완료 기록 (2026-07-22)
+
+**중요 발견 — 프로덕션 `transformers==4.47.1`과 HF 리포 최신 커밋 비호환**: H1/H3에서 쓴 임시 venv는 transformers를 최신(5.14.1)까지 올려서 compat 몽키패치로 우회했지만, 실제 백엔드(`suvisdev/requirements.txt`)는 `transformers==4.47.1`로 고정돼 있고 다른 기능(`apps/dispatch/adapter/outbound/llm/kor_unsmile_moderation_adapter.py`)이 이미 이 버전에 의존 중이라 **버전을 올릴 수 없음**(블라스트 반경 큼).
+
+**해결 — 몽키패치 대신 모델 리비전 고정**: HF `LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct` 커밋 이력을 확인해보니 `ccce25bd...`(현재 main, "Update README.md and config.json for Transformers v5")가 v5 전용으로 바뀐 지점이고, 그 이전 커밋 `e949c91dec92095908d34e6b560af77dd0c993f8`(2024-12-11)는 transformers v5 마이그레이션 이전 코드다. 이 리비전으로 `revision=` 고정하면 `transformers==4.47.1` 그대로, **몽키패치 전혀 없이** 로드·forward pass·generate 전부 정상 동작 확인(H3에서 학습한 어댑터도 그대로 얹혀서 3개 샘플 전부 정답 예측 확인).
+
+**변경 사항**:
+- `apps/ontology/adapter/outbound/resource_adapters/echo_sentiment/echo_sentiment_adapter.py` — `EchoSentimentAdapter(SentimentAnalysisPort)`. `TimmConvnextAdapter`와 동일하게 호출마다 로드→추론→언로드.
+- `apps/ontology/dependencies/echo_sentiment_provider.py` — DI 프로바이더(`image_classifier_provider.py`와 동일 패턴).
+- `apps/ontology/test/test_echo_sentiment_adapter.py` — `@pytest.mark.gpu`(신규 마커, `pytest.ini`에 `ollama` 마커와 동일한 방식으로 추가) 통합 테스트. **PASSED** (`transformers==4.47.1` 환경에서 실행 확인).
+- `requirements.txt` — `peft==0.19.1`, `bitsandbytes==0.49.2` 추가(기존 `transformers==4.47.1` pin은 안 건드림).
+
+**score 계산 방식**: `model.generate()`로 텍스트를 뽑는 대신, 프롬프트 다음 토큰 위치의 logit에서 "긍정"/"부정" 첫 토큰 둘만 softmax해서 신뢰도로 사용(추가 forward pass 없이 한 번의 forward로 라벨+점수 동시 계산).
+
+**H4 Gate 통과** — 포트(`SentimentAnalysisUseCase.analyze`)를 통해 `SentimentResult` VO가 정상 반환됨.
