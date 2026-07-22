@@ -78,7 +78,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # ports: 없음 — 아직 외부에서 직접 붙을 곳 없음(향후 cloudflared 라우팅 전까지)
+    ports:
+      - "127.0.0.1:9000:9000"
 
   # 2. PostgreSQL + pgvector 서비스 정의
   # 접속·인증 정보는 suvisdev/.env 에서 주입한다 (하드코딩 금지).
