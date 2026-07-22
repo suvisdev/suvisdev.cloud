@@ -19,7 +19,7 @@ from auth.oauth_handoff_store import OAuthHandoffStore
 from auth.oauth_state_store import OAuthStateStore
 from auth.rbac import Role
 from auth.refresh_store import RefreshTokenStore
-from auth.repository import User
+from auth.repository import EmailAlreadyExists, User
 from auth.security import JwtAdapter
 from auth.services import AuthService
 
@@ -39,15 +39,30 @@ class _FakeRedis:
 
 
 class _FakeUserRepository:
+    def __init__(self) -> None:
+        self._emails: set[str] = {"existing@example.com"}
+        self._next_id = 100
+        self.create_user_calls: list[dict] = []
+
     async def find_by_credentials(self, username, password):
         if username == "admin" and password == "correct-password":
             return User(user_id=1, username="admin", roles=[Role.ADMIN])
+        if username == "new-signup-user" and password == "correct-password123":
+            return User(user_id=101, username="new-signup-user", roles=[Role.USER])
         return None
 
     async def find_by_oauth_identity(self, provider, provider_user_id):
         if provider == "google" and provider_user_id == "linked-sub":
             return User(user_id=2, username="linked-user", roles=[Role.USER])
         return None
+
+    async def create_user(self, *, email, password, username):
+        self.create_user_calls.append({"email": email, "password": password, "username": username})
+        if email in self._emails:
+            raise EmailAlreadyExists(f"이미 가입된 이메일입니다: {email}")
+        self._emails.add(email)
+        self._next_id += 1
+        return User(user_id=self._next_id, username=username, roles=[Role.USER])
 
 
 class _FakeGoogleAdapter:
@@ -63,14 +78,19 @@ class _FakeGoogleAdapter:
 
 
 @pytest.fixture()
-def client(rsa_keypair, monkeypatch):
+def user_repo():
+    return _FakeUserRepository()
+
+
+@pytest.fixture()
+def client(rsa_keypair, monkeypatch, user_repo):
     fake_redis = _FakeRedis()
     monkeypatch.setattr(refresh_module.redis, "from_url", lambda *a, **k: fake_redis)
     monkeypatch.setattr(oauth_state_module.redis, "from_url", lambda *a, **k: fake_redis)
     monkeypatch.setattr(oauth_handoff_module.redis, "from_url", lambda *a, **k: fake_redis)
 
     service = AuthService(
-        user_repository=_FakeUserRepository(),
+        user_repository=user_repo,
         token_issuer=JwtAdapter(),
         refresh_store=RefreshTokenStore(),
         oauth_adapters={"google": _FakeGoogleAdapter()},
@@ -288,3 +308,75 @@ class TestSanitizeReturnTo:
 
     def test_non_whitelisted_absolute_path_rejected(self):
         assert self._sanitize("/some-other-page") == "/test-auth-login/result"
+
+
+def test_signup_success_issues_tokens_immediately(client):
+    """가입과 동시에 로그인된 상태(토큰 발급)여야 한다 — 별도 로그인 재요구 없음."""
+    resp = client.post(
+        "/auth/signup",
+        json={
+            "email": "new-user@example.com",
+            "password": "correct-password123",
+            "username": "new-signup-user",
+            "aud": "suvis-mova",
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["access_token"]
+    assert body["refresh_token"]
+
+
+def test_signup_duplicate_email_returns_409(client):
+    resp = client.post(
+        "/auth/signup",
+        json={"email": "existing@example.com", "password": "correct-password123", "aud": "suvis-mova"},
+    )
+    assert resp.status_code == 409
+
+
+def test_signup_weak_password_returns_422(client):
+    resp = client.post(
+        "/auth/signup",
+        json={"email": "weak-pw@example.com", "password": "short", "aud": "suvis-mova"},
+    )
+    assert resp.status_code == 422
+
+
+def test_signup_invalid_email_returns_422(client):
+    resp = client.post(
+        "/auth/signup",
+        json={"email": "not-an-email", "password": "correct-password123", "aud": "suvis-mova"},
+    )
+    assert resp.status_code == 422
+
+
+def test_signup_without_username_defaults_to_email_prefix(client, user_repo):
+    resp = client.post(
+        "/auth/signup",
+        json={"email": "prefix-user@example.com", "password": "correct-password123", "aud": "suvis-mova"},
+    )
+    assert resp.status_code == 201
+    assert user_repo.create_user_calls[-1]["username"] == "prefix-user"
+
+
+def test_login_works_for_account_created_via_signup(client):
+    """새 signup으로 만든 계정이 기존 /auth/login(같은 users 테이블, 같은 해싱
+    검증 경로)으로 정상 로그인되는지 확인 — 회귀 방지."""
+    signup_resp = client.post(
+        "/auth/signup",
+        json={
+            "email": "roundtrip@example.com",
+            "password": "correct-password123",
+            "username": "new-signup-user",
+            "aud": "suvis-mova",
+        },
+    )
+    assert signup_resp.status_code == 201
+
+    login_resp = client.post(
+        "/auth/login",
+        json={"username": "new-signup-user", "password": "correct-password123", "aud": "suvis-mova"},
+    )
+    assert login_resp.status_code == 200
+    assert login_resp.json()["access_token"]

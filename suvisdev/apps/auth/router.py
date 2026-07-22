@@ -9,7 +9,14 @@ from fastapi.responses import RedirectResponse
 
 from auth.oauth_adapters import OAuthError
 from auth.refresh_store import ReuseDetected
-from auth.schemas import LoginRequest, OAuthExchangeRequest, RefreshRequest, TokenResponse
+from auth.repository import EmailAlreadyExists
+from auth.schemas import (
+    LoginRequest,
+    OAuthExchangeRequest,
+    RefreshRequest,
+    SignupRequest,
+    TokenResponse,
+)
 from auth.security import JwtAdapter
 from auth.services import (
     AuthService,
@@ -46,6 +53,14 @@ async def login(body: LoginRequest) -> TokenResponse:
         return await _service.login_with_password(body.username, body.password, body.aud)
     except InvalidCredentials as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.post("/auth/signup", response_model=TokenResponse, status_code=201)
+async def signup(body: SignupRequest) -> TokenResponse:
+    try:
+        return await _service.signup(body.email, body.password, body.username, body.aud)
+    except EmailAlreadyExists as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.post("/auth/logout", status_code=204)

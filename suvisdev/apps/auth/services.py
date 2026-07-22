@@ -70,6 +70,17 @@ class AuthService:
             raise InvalidCredentials("아이디 또는 비밀번호가 올바르지 않습니다.")
         return self._issue_token_pair(sub=str(user.user_id), roles=user.role_values(), aud=aud)
 
+    async def signup(
+        self, email: str, password: str, username: str | None, aud: str
+    ) -> TokenResponse:
+        """email 중복이면 EmailAlreadyExists(호출자가 409로 변환). 성공 시 곧바로
+        토큰까지 발급해 가입과 동시에 로그인된 상태로 만든다."""
+        resolved_username = username or email.split("@", 1)[0]
+        user = await self._users.create_user(
+            email=email, password=password, username=resolved_username
+        )
+        return self._issue_token_pair(sub=str(user.user_id), roles=user.role_values(), aud=aud)
+
     async def handle_oauth_callback(
         self, provider: str, code: str, state: str | None
     ) -> tuple[TokenResponse, str | None]:

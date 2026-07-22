@@ -1,9 +1,12 @@
-"""users/admins/user_identities/groups 테이블에 대한 read-only 조회.
+"""users/admins/user_identities/groups 테이블 접근.
 
 테이블 소유권(DDL/Alembic 마이그레이션)은 100% apps/viewer에 남는다 — 여기 정의한
 DeclarativeBase(AuthMirrorBase)는 절대 create_all/drop_all을 호출하지 않는다. 물리적으로는
 viewer와 같은 DB에 붙는 core.matrix.grid_oracle_database_manager.get_viewer_session_factory()를
-그대로 재사용해 조회만 한다.
+그대로 재사용한다.
+
+signup(신규)은 users 테이블에 INSERT하므로 조회 전용이 아니게 됐다 — 다만 DDL은
+여전히 건드리지 않는다(테이블 자체는 이미 viewer가 만들어둔 것을 그대로 씀).
 """
 
 from __future__ import annotations
@@ -11,15 +14,19 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+import bcrypt
 from sqlalchemy import ForeignKey, String, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from auth.rbac import Role
 from core.matrix.grid_oracle_database_manager import get_viewer_session_factory
 
+_DEFAULT_GENDER = "undisclosed"  # viewer.app.dtos.user_profile.UserGender.UNDISCLOSED와 동일한 값
+
 
 class AuthMirrorBase(DeclarativeBase):
-    """auth 전용 조회 모델 베이스 — create_all/drop_all 호출 금지."""
+    """auth 전용 모델 베이스 — create_all/drop_all 호출 금지(DDL은 viewer 소유)."""
 
 
 class UserMirror(AuthMirrorBase):
@@ -30,6 +37,11 @@ class UserMirror(AuthMirrorBase):
     username: Mapped[str] = mapped_column(String(50))
     password_hash: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255))
+    # signup(INSERT)에 필요 — users 테이블에 NOT NULL 제약이 있어 반드시 채워야 함.
+    nickname: Mapped[str] = mapped_column(String(50))
+    gender: Mapped[str] = mapped_column(String(16), default=_DEFAULT_GENDER)
+    preferred_genres: Mapped[list] = mapped_column(JSONB, default=list)
+    bio: Mapped[str] = mapped_column(String(255), default="")
 
 
 class AdminMirror(AuthMirrorBase):
@@ -79,10 +91,24 @@ class User:
         return [role.value for role in self.roles]
 
 
-def _verify_legacy_sha256_password(raw_password: str, stored_password_hash: str) -> bool:
-    """apps/viewer의 login_pg_repository._verify_password와 동일한 규칙을 재현한다
-    (sha256 다이제스트, 레거시 평문 폴백 포함). bcrypt로 "고치면" 기존 계정 로그인이
-    깨지므로 절대 바꾸지 않는다 — 향후 auth 자체 신규 계정에는 별도 bcrypt 경로를 쓸 것."""
+class EmailAlreadyExists(Exception):
+    """signup 시 동일 email의 users row가 이미 존재함(409)."""
+
+
+def _hash_password(raw_password: str) -> str:
+    """auth 자체 신규 계정(signup) 전용 — bcrypt."""
+    return bcrypt.hashpw(raw_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(raw_password: str, stored_password_hash: str) -> bool:
+    """bcrypt(신규 signup 계정)와 레거시 sha256/평문(기존 viewer 계정) 둘 다 검증.
+
+    apps/auth의 signup으로 만든 계정은 bcrypt 해시라 앞부분이 "$2b$"(bcrypt 식별자)로
+    시작한다 — 그 경우만 bcrypt로 검증하고, 나머지는 기존 viewer
+    login_pg_repository._verify_password와 동일한 규칙(sha256 다이제스트, 레거시
+    평문 폴백)을 그대로 재현한다. 레거시 계정은 마이그레이션하지 않는다."""
+    if stored_password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        return bcrypt.checkpw(raw_password.encode("utf-8"), stored_password_hash.encode("utf-8"))
     digest = hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
     return stored_password_hash == raw_password or stored_password_hash == digest
 
@@ -100,7 +126,7 @@ class UserRepository:
             ).one_or_none()
             if row is not None:
                 user, group_code = row
-                if _verify_legacy_sha256_password(password, user.password_hash):
+                if _verify_password(password, user.password_hash):
                     return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
                 return None
 
@@ -113,7 +139,7 @@ class UserRepository:
             ).one_or_none()
             if row is not None:
                 admin, group_code = row
-                if _verify_legacy_sha256_password(password, admin.password_hash):
+                if _verify_password(password, admin.password_hash):
                     return User(user_id=admin.id, username=admin.username, roles=[Role(group_code)])
             return None
 
@@ -129,7 +155,7 @@ class UserRepository:
                 )
             ).scalar_one_or_none()
             if identity is None:
-                return None  # 미연동 identity — 이번 라운드는 회원가입/자동연동 없음
+                return None  # 미연동 identity — OAuth는 여전히 회원가입/자동연동 없음
 
             row = (
                 await session.execute(
@@ -142,3 +168,35 @@ class UserRepository:
                 return None
             user, group_code = row
             return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
+
+    async def create_user(self, *, email: str, password: str, username: str) -> User:
+        """비밀번호 회원가입 — users 테이블에 INSERT(bcrypt 해시). email 중복이면
+        EmailAlreadyExists. 새로 만든 계정은 항상 Role.USER."""
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            existing = (
+                await session.execute(select(UserMirror.id).where(UserMirror.email == email))
+            ).scalar_one_or_none()
+            if existing is not None:
+                raise EmailAlreadyExists(f"이미 가입된 이메일입니다: {email}")
+
+            group_id = (
+                await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
+            ).scalar_one_or_none()
+            if group_id is None:
+                raise RuntimeError("groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요.")
+
+            new_user = UserMirror(
+                group_id=group_id,
+                username=username,
+                password_hash=_hash_password(password),
+                email=email,
+                nickname=username,
+                gender=_DEFAULT_GENDER,
+                preferred_genres=[],
+                bio="",
+            )
+            session.add(new_user)
+            await session.commit()
+            await session.refresh(new_user)
+            return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
