@@ -34,11 +34,6 @@ from core.matrix.grid_oracle_database_manager import (
     verify_connection,
 )
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
-from core.matrix.weather_reader import (
-    WeatherReaderError,
-    fetch_current_weather,
-    fetch_weekly_forecast,
-)
 from dispatch.adapter.inbound.api import dispatch_router
 from gildle.adapter.inbound.api import gildle_router
 from mova.adapter.inbound.api import mova_router
@@ -65,34 +60,6 @@ class ChatResponse(BaseModel):
     reply: str
     refined_query: str | None = None
     keywords: list[str] = Field(default_factory=list)
-
-
-class WeatherResponse(BaseModel):
-    city: str
-    temp_c: float
-    description: str
-    icon: str
-
-
-class DailyForecast(BaseModel):
-    date: str
-    weekday: str
-    temp_min: float
-    temp_max: float
-    description: str
-    icon: str
-
-
-class ForecastResponse(BaseModel):
-    city: str
-    days: list[DailyForecast]
-
-
-def _resolve_weather_city(city: str | None) -> str:
-    target = (city or keymaker.openweather_city or "Seoul").strip()
-    if not target:
-        raise HTTPException(status_code=400, detail="?? ??? ?? ????.")
-    return target
 
 
 @asynccontextmanager
@@ -403,42 +370,6 @@ def chat(req: ChatRequest) -> ChatResponse:
     except LLMError as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     return ChatResponse(reply=text)
-
-
-@app.get("/weather", response_model=WeatherResponse)
-async def read_weather(city: str | None = None) -> WeatherResponse:
-    keymaker.reload_openweather_env()
-    if not keymaker.is_openweather_ready():
-        raise HTTPException(
-            status_code=503,
-            detail="OPENWEATHERMAP_API_KEY? ???? ?????. suvisdev/.env ? ?????.",
-        )
-    try:
-        data = await fetch_current_weather(
-            city=_resolve_weather_city(city),
-            api_key=keymaker.openweather_api_key,
-        )
-    except WeatherReaderError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
-    return WeatherResponse(**data)  # type: ignore[arg-type]
-
-
-@app.get("/weather/forecast", response_model=ForecastResponse)
-async def read_weather_forecast(city: str | None = None) -> ForecastResponse:
-    keymaker.reload_openweather_env()
-    if not keymaker.is_openweather_ready():
-        raise HTTPException(
-            status_code=503,
-            detail="OPENWEATHERMAP_API_KEY? ???? ?????. suvisdev/.env ? ?????.",
-        )
-    try:
-        data = await fetch_weekly_forecast(
-            city=_resolve_weather_city(city),
-            api_key=keymaker.openweather_api_key,
-        )
-    except WeatherReaderError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
-    return ForecastResponse(**data)  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":

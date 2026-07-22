@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { LayoutDashboard } from "lucide-react"
 import { AuthLoginButton } from "@/components/auth/auth-login-button"
-import { HeaderWeather } from "@/components/header-weather"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getSuvisSession, SUVIS_SESSION_CHANGED_EVENT } from "@/lib/suvis-session"
 
@@ -93,11 +92,6 @@ export function Header() {
               Admin
             </Link>
           )}
-
-          {/* 좁은 화면: 로그인 우선 — 날씨는 sm 이상에서만 (공간·가독성) */}
-          <div className="hidden shrink-0 rounded-full bg-neutral-200/90 px-0.5 py-0.5 dark:bg-neutral-700/90 sm:block">
-            <HeaderWeather />
-          </div>
         </div>
       </div>
     </header>

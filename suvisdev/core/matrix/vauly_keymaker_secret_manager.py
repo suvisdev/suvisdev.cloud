@@ -52,10 +52,6 @@ class Keymaker:
         load_dotenv(self.env_path, override=True)
 
         self.gemini_api_key: str = (os.getenv("GEMINI_API_KEY") or "").strip()
-        self.openweather_api_key: str = (
-            os.getenv("OPENWEATHERMAP_API_KEY") or os.getenv("OPENWEATHER_API_KEY") or ""
-        ).strip()
-        self.openweather_city: str = (os.getenv("OPENWEATHER_CITY") or "Seoul").strip()
         self.tmdb_api_key: str = (os.getenv("TMDB_API_KEY") or "").strip()
         self.kofic_api_key: str = (os.getenv("KOFIC_API_KEY") or "").strip()
         self._gemini_models: dict[str, object] = {}
@@ -96,19 +92,6 @@ class Keymaker:
 
     def is_gemini_ready(self) -> bool:
         return bool(self.gemini_api_key)
-
-    def is_openweather_ready(self) -> bool:
-        return bool(self.openweather_api_key)
-
-    def reload_openweather_env(self) -> None:
-        """`.env` 변경 후에도 날씨 키를 다시 읽는다."""
-        load_dotenv(self.env_path, override=True)
-        self.openweather_api_key = (
-            os.getenv("OPENWEATHERMAP_API_KEY") or os.getenv("OPENWEATHER_API_KEY") or ""
-        ).strip()
-        self.openweather_city = (os.getenv("OPENWEATHER_CITY") or "Seoul").strip()
-        self.tmdb_api_key = (os.getenv("TMDB_API_KEY") or "").strip()
-        self.kofic_api_key = (os.getenv("KOFIC_API_KEY") or "").strip()
 
     @property
     def database_url(self) -> str:
