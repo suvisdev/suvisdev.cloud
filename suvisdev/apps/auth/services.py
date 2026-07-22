@@ -4,6 +4,7 @@ from auth.oauth_adapters import OAuthError
 from auth.oauth_adapters.google import GoogleOAuthAdapter
 from auth.oauth_adapters.kakao import KakaoOAuthAdapter
 from auth.oauth_adapters.naver import NaverOAuthAdapter
+from auth.oauth_handoff_store import OAuthHandoffStore
 from auth.oauth_state_store import OAuthStateStore
 from auth.refresh_store import RefreshTokenStore, ReuseDetected
 from auth.repository import UserRepository
@@ -37,6 +38,7 @@ class AuthService:
         refresh_store: RefreshTokenStore | None = None,
         oauth_adapters: dict[str, object] | None = None,
         oauth_state_store: OAuthStateStore | None = None,
+        oauth_handoff_store: OAuthHandoffStore | None = None,
     ) -> None:
         self._users = user_repository or UserRepository()
         self._tokens = token_issuer or JwtAdapter()
@@ -47,6 +49,7 @@ class AuthService:
             "naver": NaverOAuthAdapter(),
         }
         self._oauth_state = oauth_state_store or OAuthStateStore()
+        self._oauth_handoff = oauth_handoff_store or OAuthHandoffStore()
 
     def build_authorize_url(self, provider: str, state: str) -> str:
         adapter = self._get_oauth_adapter(provider)
@@ -79,6 +82,13 @@ class AuthService:
                 f"{provider} 계정이 아직 연동되지 않았습니다. viewer에서 먼저 연동하세요."
             )
         return self._issue_token_pair(sub=str(user.user_id), roles=user.role_values(), aud=aud)
+
+    def create_oauth_handoff(self, token_response: TokenResponse) -> str:
+        """콜백에서 발급한 토큰을 URL에 직접 싣지 않기 위한 1회용 code 발급(60초 TTL)."""
+        return self._oauth_handoff.save(token_response)
+
+    async def exchange_handoff(self, code: str) -> TokenResponse | None:
+        return self._oauth_handoff.pop(code)
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
         rotated = self._refresh.rotate(jti=refresh_token)  # 재사용 시 ReuseDetected
