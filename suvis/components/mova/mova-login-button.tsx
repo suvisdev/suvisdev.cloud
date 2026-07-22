@@ -1,7 +1,7 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { LogIn, LogOut } from "lucide-react"
 import {
   getSuvisSession,
@@ -14,7 +14,11 @@ import { cn } from "@/lib/utils"
 /** mova 전용 로그인 버튼 — auth 게이트웨이(auth.suvisdev.cloud)로 직접 리다이렉트.
  * 기존에 viewer 로그인 API(공용 AuthDialog)를 열던 로직을 대체한다.
  * components/auth/auth-login-button.tsx, oauth-buttons.tsx 등 공용 파일은
- * 무관 — 이 파일 하나만 바뀐다. */
+ * 무관 — 이 파일 하나만 바뀐다.
+ *
+ * code 파라미터는 useSearchParams()가 아니라 window.location.search로 직접
+ * 읽는다 — useSearchParams()는 Suspense 경계를 강제해서, 정적 셸에서는
+ * fallback만 보이고 실제 버튼은 하이드레이션 후에야 나타나는 회귀가 있었다. */
 
 type MovaLoginButtonProps = {
   className?: string
@@ -57,10 +61,9 @@ function startOAuthLogin(provider: OAuthProvider) {
 // code를 두 인스턴스가 동시에 소비 시도하지 않도록 모듈 스코프에서 한 번만 처리.
 let _processedHandoffCode: string | null = null
 
-function MovaLoginButtonInner({ className, size = "sm" }: MovaLoginButtonProps) {
+export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState<SuvisSession | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -74,7 +77,7 @@ function MovaLoginButtonInner({ className, size = "sm" }: MovaLoginButtonProps) 
   }, [pathname, refreshSession])
 
   useEffect(() => {
-    const code = searchParams.get("code")
+    const code = new URLSearchParams(window.location.search).get("code")
     if (!code || code === _processedHandoffCode) return
     _processedHandoffCode = code
 
@@ -117,7 +120,7 @@ function MovaLoginButtonInner({ className, size = "sm" }: MovaLoginButtonProps) 
     return () => {
       cancelled = true
     }
-  }, [searchParams, pathname, router, refreshSession])
+  }, [pathname, router, refreshSession])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -193,13 +196,5 @@ function MovaLoginButtonInner({ className, size = "sm" }: MovaLoginButtonProps) 
         </div>
       )}
     </div>
-  )
-}
-
-export function MovaLoginButton(props: MovaLoginButtonProps) {
-  return (
-    <Suspense fallback={null}>
-      <MovaLoginButtonInner {...props} />
-    </Suspense>
   )
 }
