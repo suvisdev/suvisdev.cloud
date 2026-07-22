@@ -91,23 +91,28 @@
 - Echo(07, 감정 분석) 진행을 위해 `transformers`, `peft`, `bitsandbytes`, `trl`, `accelerate`를 `pytorch_env`에 추가 설치. `bitsandbytes` 4bit 연산 Windows에서 정상 동작 확인(4bit Linear forward 성공).
 - **학원 작업환경 = 별도 PC가 아니라 우분투 SSH 서버(ssu)에 직접 접속해서 그 서버 안에서 개발+git 전부 처리하는 구조.** 2026-10 이후 학원에서 이 서버 접근이 끊길 예정 → 그 이후엔 노트북+데스크탑 기준으로 전환.
 
-### 7. Echo(07_sentiment_analysis) H1 착수 — EXAONE-3.5-2.4B-Instruct, 부분 진행·블로커 있음
+### 7. Echo(07_sentiment_analysis) H1 완료 ✅ (2026-07-22, ssu 서버) — EXAONE-3.5-2.4B-Instruct
 
 **사용자 결정**: Qwen 대신 **EXAONE-3.5-2.4B-Instruct**로 진행(온프레미스에 이미 EXAONE 생태계가 있어 시너지). 기존 코드베이스의 EXAONE 활용(`core/lol/awq_exaone_orchestrator.py`)은 7.8B를 AWQ로 **서빙만** 하는 별도 프로세스(`~/.venv-exaone`, `awq_server`)라 QLoRA 학습에는 못 씀 — 2.4B를 HuggingFace(`LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct`)에서 새로 받아 학습용으로 세팅해야 함.
+**추가 결정(2026-07-22)**: 앞으로 이 프로젝트의 생성형 QLoRA 작업은 **Qwen을 기본 후보에서 제외하고 EXAONE-2.4B로 고정**. `01`·`00_COMMON_conventions.md`의 "Qwen 에이전트가 GPU 점유 중" 문구는 다른 프로세스 존재를 설명하는 환경 서술이라 그대로 둠, `07_sentiment_analysis_agent.md`는 모델 선택 섹션 전체를 EXAONE-2.4B 기준으로 수정 완료.
 
-**진행한 것** (임시 스크립트: `suvisdev/apps/ontology/_docs/_tmp_h1_exaone_vram_check.py`):
-1. 가중치 다운로드(~9.6GB, `~/.cache/huggingface`에 캐시됨) 완료
-2. **4bit(nf4) 양자화 로드 성공 — VRAM 델타 2158MB.** 8GB 예산에서 여유 매우 큼(H1 판정에 긍정적)
-3. LoRA(r=8, q_proj/v_proj) 부착 — `peft==0.19.1`가 요구하는 `get_input_embeddings()`가 EXAONE 커스텀 코드(`modeling_exaone.py`)에 없어서 최초 실패 → 몽키패치(`model.transformer.wte` 위임)로 우회 성공
-4. forward pass 스모크 테스트에서 **재차 실패**: `create_causal_mask() got an unexpected keyword argument 'input_embeds'`
+**어제(2026-07-21) 막혔던 지점**: 4bit 로드·LoRA 부착까지는 성공, forward pass에서 `create_causal_mask() got an unexpected keyword argument 'input_embeds'`로 실패.
 
-**근본 원인**: `config.json`의 `transformers_version: "4.43.0"` — 지금 설치된 `transformers==5.14.1`과 메이저 버전 3개 차이. EXAONE의 `custom_code`(`modeling_exaone.py`)가 4.43 시절 내부 API(`create_causal_mask` 시그니처 등)에 맞춰져 있어서, 5.x로 오면서 바뀐 내부 함수 시그니처와 계속 어긋남. 몽키패치로 하나씩 우회 가능하지만 밑 빠진 독 — **transformers를 4.43대로 다운그레이드(전용 venv 권장, 현재 `pytorch_env`를 오염시키지 않게)한 뒤 재시도하는 게 정석**.
+**오늘 이어서 진행, 해결**:
+1. 처음엔 어제 기록대로 "`transformers~=4.43` 다운그레이드가 정석"이라 보고 전용 venv(`uv venv`)에 `transformers==4.43.3`+구버전 peft/bitsandbytes/accelerate로 시도 → **다른 에러로 실패**: `ImportError: cannot import name 'RopeParameters' from transformers.modeling_rope_utils`. 원인: EXAONE HF repo의 remote code(`configuration_exaone.py`, `modeling_exaone.py`)가 어제 이후 **repo 쪽에서 업데이트됨**(다운로드 로그에 "새 버전 발견" 표시) — 이제 최신 transformers API를 요구하도록 바뀌어 있어서, 오히려 구버전 transformers로 내리면 더 일찍 깨짐.
+2. `transformers`/`peft`/`bitsandbytes`/`accelerate`를 전부 최신으로 올려서 재시도(`transformers==5.14.1` — 어제와 동일 버전) → config 로드는 통과했지만 **어제와 같은 `create_causal_mask` 에러 재현**. 즉 이건 버전 문제가 아니라 **EXAONE repo의 remote code 자체가 실제 transformers 5.14.1의 `create_causal_mask()` 시그니처(`inputs_embeds`, `cache_position` 파라미터 없음)와 안 맞는 버그**.
+3. `_tmp_h1_exaone_vram_check.py` 최상단에 `transformers.masking_utils.create_causal_mask`를 감싸는 **얇은 compat 몽키패치**(`input_embeds`→`inputs_embeds` 이름 교정 + `cache_position` 등 신호 안 받는 인자 드롭) 추가 → **forward pass 성공**.
+
+**실측(최종)**: 4bit(nf4) 로드 델타 2158MB, LoRA(r=8, q/v_proj) 델타 8MB, forward pass 후 총 할당 2180.1MB, free 4.25GB(8GB 중). **H1 판정: 여유 충분, 통과.**
+
+**재현 환경 주의사항**:
+- torch는 `--index-url https://download.pytorch.org/whl/cu126`로 `torch==2.13.0+cu126` **명시 고정** 필요 — 안 그러면 기본이 cu130 빌드로 잡혀서 이 서버 드라이버(12.6)와 안 맞아 `torch.cuda.is_available()`이 `False`가 됨.
+- 이 서버(ssu, RTX 3050 8GB)는 `lora-server`(systemd `--user` 서비스, mova 채팅 RAG 상시 서빙)가 VRAM을 거의 다 씀 → H1 실행 전 `systemctl --user stop lora-server`로 내렸다가 완료 후 `systemctl --user start lora-server`로 반드시 복구. **H2(학습) 이후에도 같은 절차 필요.**
+- 상세 재현 기록은 `suvisdev/apps/ontology/_docs/07_sentiment_analysis_agent.md` "5. H1 완료 기록" 참고.
 
 **다음에 이어서 할 일**:
-- [ ] `transformers~=4.43`(peft/bitsandbytes도 그 시절 호환 버전으로) 전용 conda env 또는 venv 구성 후 forward pass부터 재시도
-- [ ] 안 되면 폴백: Qwen2.5-1.5B/3B(공식 transformers 지원, custom_code 불필요)로 전환 — 사용자에게 재확인 필요
-- [ ] H1 최종 판정(VRAM 여유 있음은 이미 확인됨) 후 H2(데이터셋) 진행
-- [ ] 완료 후 `_tmp_h1_exaone_vram_check.py` 정리(Gate 통과 스크립트로 승격하거나 삭제)
+- [ ] H2(데이터셋 준비) 진행 — 감정+근거 instruction-tuning JSONL, 500~5000쌍
+- [ ] `_tmp_h1_exaone_vram_check.py`는 H1 재현 스크립트로 유지 중(아직 삭제 안 함) — H3 학습 스크립트 완성되면 그때 정리 판단
 
 ---
 
@@ -131,7 +136,7 @@
 
 | # | 이름 | 태스크 | 모델 | 파인튜닝 |
 |---|------|--------|------|---------|
-| 7 | **Echo** | 감성 분석 | Qwen/KLUE-RoBERTa | QLoRA ⭐ (최우선) |
+| 7 | **Echo** | 감성 분석 | EXAONE-2.4B/KLUE-RoBERTa | QLoRA ⭐ (최우선, H1 완료) |
 | 6 | **Sentinel** | 이상 탐지 | PatchCore/EfficientAD | 학습 최소, 가벼움 |
 | 2 | **Argus** | 물체 감지 | RT-DETR/YOLOv8 | LoRA/full |
 | 3 | **Loom** | 시맨틱 분할 | SegFormer-B0 | LoRA |
