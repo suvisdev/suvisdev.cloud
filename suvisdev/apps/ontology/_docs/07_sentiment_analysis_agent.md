@@ -65,7 +65,7 @@ dataset/
   - EXAONE-2.4B: **QLoRA(4bit nf4 + LoRA)**, 수동 학습 루프(SFTTrainer 미사용, 이유는 아래)
   - **어댑터 저장** → `apps/ontology/runs/echo_sentiment/adapter`
 - **H4**: 추론 어댑터 — `SentimentPort.analyze(text) -> SentimentResult` (label, score, (생성형)reason). ✅ **완료(2026-07-22)** — 아래 "8. H4 완료 기록" 참고.
-- **H5**: MCP tool
+- **H5**: MCP tool. 🟡 **코드 작성 완료(2026-07-22), GPU 검증(tool 호출 성공) 대기** — 아래 "9. H5 진행 기록" 참고.
   ```python
   @mcp.tool()
   async def analyze_sentiment(text: str) -> dict:
@@ -151,3 +151,21 @@ dataset/
 **score 계산 방식**: `model.generate()`로 텍스트를 뽑는 대신, 프롬프트 다음 토큰 위치의 logit에서 "긍정"/"부정" 첫 토큰 둘만 softmax해서 신뢰도로 사용(추가 forward pass 없이 한 번의 forward로 라벨+점수 동시 계산).
 
 **H4 Gate 통과** — 포트(`SentimentAnalysisUseCase.analyze`)를 통해 `SentimentResult` VO가 정상 반환됨.
+
+## 9. H5 진행 기록 (2026-07-22) — 코드 작성 완료, GPU 검증 대기
+
+시간 제약으로 코드만 작성하고 실제 tool 호출(GPU 필요, lora-server 내렸다 올려야 함)은 다음 세션으로 미룸. `image_classifier_mcp_server.py`와 완전히 동일한 패턴 — MCP 서버는 ontology 내부 모듈에 직접 의존하지 않고 HTTP로만 호출한다(AWS 전환 대비, 00_COMMON_conventions.md 6절).
+
+**추가한 것**:
+- `apps/ontology/adapter/inbound/api/v1/sentiment_analysis_router.py` — `POST /sentiment/analyze` (`asyncio.to_thread`로 이벤트 루프 블로킹 방지, 호출당 EXAONE 로드가 수십 초 걸림)
+- `apps/ontology/adapter/inbound/api/__init__.py` — `nlp_router`(prefix `/nlp`) 신설, vision/ontology와 별도로 export(Echo가 vision이 아닌 첫 NLP 태스크라 새 그룹 필요)
+- `main.py` — `nlp_router`를 `/api` prefix로 include → 최종 경로 `/api/nlp/sentiment/analyze`
+- `apps/ontology/adapter/inbound/mcp/sentiment_analysis_mcp_server.py` — `analyze_sentiment(text) -> dict` tool, `INFERENCE_URL` 환경변수로 base URL 설정
+
+**검증한 것(GPU 불필요)**: 새/변경 파일 전부 `py_compile` 통과. `pydantic.BaseModel` 요청 바디 패턴은 mova 라우터들과 동일 컨벤션.
+
+**다음에 할 것 — H5 Gate 마무리**:
+- [ ] 백엔드 기동 후 `curl -X POST localhost:8000/api/nlp/sentiment/analyze -d '{"text":"..."}'`로 HTTP 경로 실측
+- [ ] `python -m ontology.adapter.inbound.mcp.sentiment_analysis_mcp_server` 띄우고 tool 호출 성공 확인(**H5 Gate**)
+- [ ] GPU 필요 — 실행 전 `systemctl --user stop lora-server`, 끝나면 반드시 `start lora-server`로 복구
+- [ ] H5 확인 후 H6(에이전트 통합 + 시스템 프롬프트)

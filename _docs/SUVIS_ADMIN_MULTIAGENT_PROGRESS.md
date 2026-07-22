@@ -116,8 +116,11 @@
 
 **H4(추론 어댑터) 완료 ✅**: 여기서 중요한 걸 하나 발견함 — 프로덕션 `requirements.txt`는 `transformers==4.47.1`로 고정돼 있고 `apps/dispatch`의 다른 기능이 이미 그 버전에 의존 중이라 못 올림. H1/H3에서 쓴 "최신 transformers + 몽키패치" 방식 대신, **EXAONE HF 리포를 v5 마이그레이션 이전 커밋(`e949c91...`)으로 `revision=` 고정**하는 방식으로 전환 — `transformers==4.47.1` 그대로 몽키패치 없이 동작 확인. `EchoSentimentAdapter`(`TimmConvnextAdapter`와 동일하게 호출당 로드→추론→언로드), DI 프로바이더, `@pytest.mark.gpu` 통합 테스트(신규 마커) 추가, `requirements.txt`에 `peft`/`bitsandbytes` 추가. 상세: `07_sentiment_analysis_agent.md` "7~8. H3/H4 완료 기록".
 
+**H5(MCP tool) 코드 작성 완료 🟡, GPU 검증 대기**: `sentiment_analysis_router.py`(`/api/nlp/sentiment/analyze`, 새 `nlp_router` 그룹) + `sentiment_analysis_mcp_server.py`(`image_classifier_mcp_server.py`와 동일 패턴, HTTP만 호출). 시간 제약으로 실제 tool 호출 검증(GPU+lora-server 내림 필요)은 다음으로 미룸 — `py_compile`만 통과 확인.
+
 **다음에 이어서 할 일**:
-- [ ] H5(MCP tool 노출) → H6(에이전트 통합) — 사용자 확인 받고 진행
+- [ ] H5 Gate 마무리 — 백엔드 기동 후 `/api/nlp/sentiment/analyze` 실호출 + MCP tool 호출 성공 확인 (GPU 필요, lora-server 내렸다 올려야 함)
+- [ ] H6(에이전트 통합 + 시스템 프롬프트)
 - [ ] `_tmp_h1_exaone_vram_check.py`, `_tmp_h2_echo_dataset_check.py`는 재현/검증 스크립트로 유지 중(아직 삭제 안 함)
 
 ---
