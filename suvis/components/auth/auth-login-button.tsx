@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { LogOut, User } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
+import type { AuthFormsMode } from "@/app/login/auth-forms"
 import {
   clearSuvisSession,
   getSuvisSession,
@@ -20,6 +21,7 @@ type AuthLoginButtonProps = {
 
 export function AuthLoginButton({ className }: AuthLoginButtonProps) {
   const [open, setOpen] = useState(false)
+  const [dialogTab, setDialogTab] = useState<AuthFormsMode>("login")
   const [session, setSession] = useState<SuvisSession | null>(null)
 
   const refreshSession = useCallback(() => {
@@ -69,20 +71,30 @@ export function AuthLoginButton({ className }: AuthLoginButtonProps) {
     )
   }
 
+  const openDialog = (tab: AuthFormsMode) => {
+    setDialogTab(tab)
+    setOpen(true)
+  }
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={cn(
-          navLinkClass,
-          "shrink-0 font-semibold text-neutral-800 dark:text-neutral-200",
-          className,
-        )}
-      >
-        로그인
-      </button>
-      <AuthDialog open={open} onOpenChange={setOpen} />
+      <div className={cn("flex shrink-0 items-center gap-2 sm:gap-2.5", className)}>
+        <button
+          type="button"
+          onClick={() => openDialog("login")}
+          className={cn(navLinkClass, "font-semibold text-neutral-800 dark:text-neutral-200")}
+        >
+          로그인
+        </button>
+        <button
+          type="button"
+          onClick={() => openDialog("signup")}
+          className={cn(navLinkClass, "font-semibold text-neutral-800 dark:text-neutral-200")}
+        >
+          회원가입
+        </button>
+      </div>
+      <AuthDialog open={open} onOpenChange={setOpen} defaultTab={dialogTab} />
     </>
   )
 }

@@ -2,7 +2,6 @@
 
 아웃바운드 LLM 어댑터는 FastAPI(HTTPException)에 의존하지 않는다.
 인바운드 라우터가 ``HTTPException``으로 변환한다 (``apps/mova/_docs/CLAUDE.md`` §B.4).
-``core.matrix.weather_reader.WeatherReaderError`` 와 동일하게 ``status_code`` 를 실어 보낸다.
 """
 
 from __future__ import annotations
