@@ -121,8 +121,13 @@ def test_refresh_rotates_and_reuse_is_rejected(client):
     assert also_revoked.status_code == 401
 
 
-def _start_login_and_extract_state(client, provider: str = "google", aud: str = "suvis-mova") -> str:
-    resp = client.get(f"/auth/login/{provider}", params={"aud": aud}, follow_redirects=False)
+def _start_login_and_extract_state(
+    client, provider: str = "google", aud: str = "suvis-mova", return_to: str | None = None
+) -> str:
+    params = {"aud": aud}
+    if return_to is not None:
+        params["return_to"] = return_to
+    resp = client.get(f"/auth/login/{provider}", params=params, follow_redirects=False)
     assert resp.status_code == 302
     location = resp.headers["location"]
     state = parse_qs(urlparse(location).query)["state"][0]
@@ -147,13 +152,15 @@ def test_start_oauth_login_without_aud_returns_422(client):
     assert resp.status_code == 422
 
 
-def _callback_and_extract_handoff_code(client, *, code: str, state: str) -> str:
+def _callback_and_extract_handoff_code(
+    client, *, code: str, state: str, expected_path: str = "/test-auth-login/result"
+) -> str:
     resp = client.get(
         "/auth/callback/google", params={"code": code, "state": state}, follow_redirects=False
     )
     assert resp.status_code == 302
     location = resp.headers["location"]
-    assert "/test-auth-login/result" in location
+    assert expected_path in location
     return parse_qs(urlparse(location).query)["code"][0]
 
 
@@ -232,3 +239,52 @@ def test_exchange_valid_handoff_code_returns_tokens_once(client):
 def test_exchange_unknown_code_returns_404(client):
     resp = client.post("/auth/exchange", json={"code": "never-issued"})
     assert resp.status_code == 404
+
+
+def test_oauth_callback_redirects_to_whitelisted_return_to(client):
+    state = _start_login_and_extract_state(client, return_to="/mova")
+    _callback_and_extract_handoff_code(client, code="valid-code", state=state, expected_path="/mova?code=")
+
+
+def test_oauth_callback_falls_back_silently_for_non_whitelisted_return_to(client):
+    """화이트리스트에 없는 경로는 에러 없이 조용히 기본값으로 폴백한다."""
+    state = _start_login_and_extract_state(client, return_to="/not-an-allowed-path")
+    _callback_and_extract_handoff_code(client, code="valid-code", state=state)
+
+
+def test_oauth_callback_falls_back_silently_for_protocol_relative_return_to(client):
+    """//evil.com 같은 프로토콜 상대경로(오픈 리다이렉트 시도)는 조용히 기본값으로 폴백한다."""
+    state = _start_login_and_extract_state(client, return_to="//evil.com")
+    _callback_and_extract_handoff_code(client, code="valid-code", state=state)
+
+
+class TestSanitizeReturnTo:
+    """auth.router._sanitize_return_to 화이트리스트 검증 단위 테스트."""
+
+    @staticmethod
+    def _sanitize(value):
+        from auth.router import _sanitize_return_to
+
+        return _sanitize_return_to(value)
+
+    def test_none_falls_back_to_default(self):
+        assert self._sanitize(None) == "/test-auth-login/result"
+
+    def test_exact_prefix_match_allowed(self):
+        assert self._sanitize("/mova") == "/mova"
+
+    def test_subpath_of_allowed_prefix_allowed(self):
+        assert self._sanitize("/mova/main") == "/mova/main"
+
+    def test_prefix_collision_rejected(self):
+        """/movaXYZ는 /mova로 시작하지만 다른 경로다 — 화이트리스트 우회 방지."""
+        assert self._sanitize("/movaXYZ") == "/test-auth-login/result"
+
+    def test_protocol_relative_rejected(self):
+        assert self._sanitize("//evil.com") == "/test-auth-login/result"
+
+    def test_absolute_url_rejected(self):
+        assert self._sanitize("https://evil.com") == "/test-auth-login/result"
+
+    def test_non_whitelisted_absolute_path_rejected(self):
+        assert self._sanitize("/some-other-page") == "/test-auth-login/result"

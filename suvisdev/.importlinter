@@ -74,6 +74,7 @@ ignore_imports =
     mova.adapter.outbound.pg.market_reviews_pg_repository -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.mypage_pg_repository -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.user_preference_pg_repository -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.inbound.api.v1.whoami_router -> viewer.adapter.outbound.orm.user_orm
 
 # Rule 3: Mova domain must stay pure (no app/adapter dependency).
 [importlinter:contract:mova-domain-independence]

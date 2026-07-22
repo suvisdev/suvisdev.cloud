@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from mova.dependencies.require_auth import RoleChecker
 from shared.security.token_verifier import TokenPayload
+from viewer.adapter.outbound.orm.user_orm import get_viewer_user_nicknames
 
 whoami_router = APIRouter()
 
@@ -18,8 +19,15 @@ class WhoamiResponse(BaseModel):
     sub: str
     roles: list[str]
     aud: str
+    username: str  # 표시용 이름(닉네임) — viewer users 테이블에 없으면 빈 문자열
 
 
 @whoami_router.get("/whoami", response_model=WhoamiResponse)
 async def whoami(user: TokenPayload = Depends(RoleChecker("admin", "user"))) -> WhoamiResponse:
-    return WhoamiResponse(sub=user.sub, roles=user.roles, aud=user.aud)
+    nicknames = await get_viewer_user_nicknames({int(user.sub)})
+    return WhoamiResponse(
+        sub=user.sub,
+        roles=user.roles,
+        aud=user.aud,
+        username=nicknames.get(int(user.sub), ""),
+    )

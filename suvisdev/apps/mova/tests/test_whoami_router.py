@@ -19,6 +19,7 @@ if str(APPS) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from mova.adapter.inbound.api.v1 import whoami_router as whoami_router_module  # noqa: E402
 from mova.adapter.inbound.api.v1.whoami_router import whoami_router  # noqa: E402
 
 
@@ -55,7 +56,13 @@ def _issue(private_pem: str, *, aud: str = "suvis-mova", roles: list[str] | None
 
 
 @pytest.fixture()
-def client():
+def client(monkeypatch):
+    async def _fake_get_viewer_user_nicknames(user_ids):
+        return {1: "테스트유저"} if 1 in user_ids else {}
+
+    monkeypatch.setattr(
+        whoami_router_module, "get_viewer_user_nicknames", _fake_get_viewer_user_nicknames
+    )
     app = FastAPI()
     app.include_router(whoami_router)
     return TestClient(app)
@@ -66,7 +73,24 @@ def test_whoami_returns_claims_with_valid_token(client, rsa_keypair):
     token = _issue(private_pem)
     resp = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
-    assert resp.json() == {"sub": "1", "roles": ["user"], "aud": "suvis-mova"}
+    assert resp.json() == {
+        "sub": "1",
+        "roles": ["user"],
+        "aud": "suvis-mova",
+        "username": "테스트유저",
+    }
+
+
+def test_whoami_username_falls_back_to_empty_when_not_found(client, rsa_keypair, monkeypatch):
+    async def _fake_empty(user_ids):
+        return {}
+
+    monkeypatch.setattr(whoami_router_module, "get_viewer_user_nicknames", _fake_empty)
+    private_pem, _ = rsa_keypair
+    token = _issue(private_pem)
+    resp = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200
+    assert resp.json()["username"] == ""
 
 
 def test_whoami_without_token_returns_401(client):
