@@ -118,12 +118,12 @@
 기존 `/admin` 레이아웃·사이드바·디자인 토큰(다크 사이드바 + 라이트 콘텐츠, `rounded-2xl border border-slate-200 bg-white p-5` 카드, slate 본문 + emerald 포인트) 그대로 재사용. 각 화면 완성 시 실 배포 후 스크린샷으로 확인할 것.
 
 1. ~~**사용자** (`/admin/users`)~~ ✅ 완료 (2026-07-21)
-2. **앱 관리** (`/admin/apps`) — mova/gildle/titanic/doro/star_craft 카드, mock 상태값으로 시작.
-3. **통계** (`/admin/stats`) — 에이전트 호출 수 추이(라인)/크롤링 실적(바)/에이전트별 사용 비율(도넛)/사용자 활동(영역), 기간 필터. 차트 라이브러리 미설치 확인됨 — recharts 설치 필요(`package.json`에 없음, 먼저 확인).
-4. **캘린더** (`/admin/calendar`) — 월간 뷰, mock 이벤트(크롤링 스케줄/에이전트 실행 예약), 날짜 클릭 시 해당일 이벤트 목록.
-5. **설정** (`/admin/settings`) — 일반/에이전트 기본값/API 연동/보안(`ADMIN_EMAILS`는 읽기전용, 값 노출 주의) 섹션. 폼 저장은 mock/TODO.
+2. ~~**앱 관리** (`/admin/apps`)~~ ✅ 완료 (2026-07-22) — `lib/apps-catalog.ts`의 실제 카탈로그(mova/gildle) + doro/star_craft mock 카드.
+3. ~~**통계** (`/admin/stats`)~~ ✅ 완료 (2026-07-22) — recharts는 이미 `package.json`에 설치돼 있었음(2.15.0, 확인 완료). 라인/바/도넛/영역 + 기간 필터(일/주/월). 도넛 카테고리 컬러는 dataviz 스킬 `validate_palette.js`로 검증(8슬롯, light/#ffffff surface, 전체 PASS).
+4. ~~**캘린더** (`/admin/calendar`)~~ ✅ 완료 (2026-07-22) — 커스텀 월간 그리드(react-day-picker 미사용, 관리자 화면 톤에 맞춰 직접 구현), mock 이벤트, 날짜 클릭 시 우측 패널에 목록.
+5. ~~**설정** (`/admin/settings`)~~ ✅ 완료 (2026-07-22) — 일반/에이전트 기본값/API 연동/보안 4섹션. `ADMIN_EMAILS` 실값은 클라이언트로 절대 내려보내지 않고 마스킹된 문자열만 하드코딩. 저장 버튼은 mock(실제 반영 없음).
 
-각 화면 데이터 페칭은 `suvis/lib/admin-*-api.ts`로 분리해 mock→실연동 전환이 쉽게.
+각 화면 데이터 페칭은 `suvis/lib/admin-*-api.ts`(apps/stats/calendar/settings)로 분리해 mock→실연동 전환이 쉽게. `tsc --noEmit` 통과 확인, 브라우저 스크린샷은 이 세션에 도구가 없어 미실시 — 사용자 직접 확인 필요.
 
 ### B. 나머지 비전/ML 에이전트 (마스터 문서 우선순위: Echo → Sentinel → Argus/Loom/Atlas → Prisma/Chronos)
 
