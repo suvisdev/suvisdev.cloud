@@ -4,8 +4,6 @@ services:
     build:
       context: ./suvisdev      # suvisdev 폴더 안에 있는 Dockerfile을 읽어라
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"            # 내 진짜 컴퓨터의 8000번 포트와 도커의 8000번 포트를 연결해라
     restart: unless-stopped
     # .dockerignore가 .env를 이미지에서 제외하므로(비밀번호 커밋 방지),
     # 컨테이너 실행 시점에 호스트의 .env를 env_file로 주입한다.
@@ -78,8 +76,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:9000:9000"
 
   # 2. PostgreSQL + pgvector 서비스 정의
   # 접속·인증 정보는 suvisdev/.env 에서 주입한다 (하드코딩 금지).
@@ -134,6 +130,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # 5. Cloudflare Tunnel — 호스트에서 systemctl로 직접 띄우던 걸 컨테이너로 이전.
+  # LAN에서 backend/auth 포트(8000/9000)로 직접 접근 가능한 구멍을 없애는 게 목적 —
+  # 전환 확인 전까지는 backend/auth의 ports: 를 그대로 둔다(마지막 단계에서 제거 예정).
+  # 실행: docker compose --env-file suvisdev/.env up -d cloudflared
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run --token ${TUNNEL_TOKEN}
+    networks: [default]  # 이 compose 파일엔 top-level networks: 블록이 없어 전부 암묵적
+    # 기본 네트워크(실제 이름 suvisdev_default)를 공유한다 — backend/auth를 그 이름으로
+    # 직접 명시하면 top-level 선언이 없어 별도 네트워크가 생겨 서비스명 DNS가 끊긴다.
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   db_data:
