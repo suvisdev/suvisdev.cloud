@@ -1,5 +1,9 @@
 # 04. 자세 추정 에이전트 — "Atlas"
 
+> ⛔ **제외됨 (2026-07-23)** — mova/gildle 어디에도 "사람 자세/동작"을 다루는
+> 파이프라인 지점이 없음(용도 위험). 감사 근거: `00_COMMON_conventions.md` §8.
+> 실제 제품 수요가 생기면 재검토.
+
 > **에이전트 이름 추천**: **Atlas** (몸으로 하늘을 떠받친 거인 — 신체·자세의 상징)
 > 파일명: `pose_estimation_interactor.py`
 > **원논문**: OpenPose (CNN) → **최신 대체**: ViTPose (트랜스포머, LoRA 가능) 또는 RTMPose(초경량)
