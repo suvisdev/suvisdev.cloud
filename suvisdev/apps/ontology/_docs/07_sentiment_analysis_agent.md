@@ -65,7 +65,7 @@ dataset/
   - EXAONE-2.4B: **QLoRA(4bit nf4 + LoRA)**, 수동 학습 루프(SFTTrainer 미사용, 이유는 아래)
   - **어댑터 저장** → `apps/ontology/runs/echo_sentiment/adapter`
 - **H4**: 추론 어댑터 — `SentimentPort.analyze(text) -> SentimentResult` (label, score, (생성형)reason). ✅ **완료(2026-07-22)** — 아래 "8. H4 완료 기록" 참고.
-- **H5**: MCP tool. 🟡 **코드 작성 완료(2026-07-22), GPU 검증(tool 호출 성공) 대기** — 아래 "9. H5 진행 기록" 참고.
+- **H5**: MCP tool. ✅ **완료(2026-07-23)** — 아래 "9. H5 완료 기록" 참고.
   ```python
   @mcp.tool()
   async def analyze_sentiment(text: str) -> dict:
@@ -152,9 +152,9 @@ dataset/
 
 **H4 Gate 통과** — 포트(`SentimentAnalysisUseCase.analyze`)를 통해 `SentimentResult` VO가 정상 반환됨.
 
-## 9. H5 진행 기록 (2026-07-22) — 코드 작성 완료, GPU 검증 대기
+## 9. H5 완료 기록 (2026-07-23)
 
-시간 제약으로 코드만 작성하고 실제 tool 호출(GPU 필요, lora-server 내렸다 올려야 함)은 다음 세션으로 미룸. `image_classifier_mcp_server.py`와 완전히 동일한 패턴 — MCP 서버는 ontology 내부 모듈에 직접 의존하지 않고 HTTP로만 호출한다(AWS 전환 대비, 00_COMMON_conventions.md 6절).
+`image_classifier_mcp_server.py`와 완전히 동일한 패턴 — MCP 서버는 ontology 내부 모듈에 직접 의존하지 않고 HTTP로만 호출한다(AWS 전환 대비, 00_COMMON_conventions.md 6절).
 
 **추가한 것**:
 - `apps/ontology/adapter/inbound/api/v1/sentiment_analysis_router.py` — `POST /sentiment/analyze` (`asyncio.to_thread`로 이벤트 루프 블로킹 방지, 호출당 EXAONE 로드가 수십 초 걸림)
@@ -162,10 +162,24 @@ dataset/
 - `main.py` — `nlp_router`를 `/api` prefix로 include → 최종 경로 `/api/nlp/sentiment/analyze`
 - `apps/ontology/adapter/inbound/mcp/sentiment_analysis_mcp_server.py` — `analyze_sentiment(text) -> dict` tool, `INFERENCE_URL` 환경변수로 base URL 설정
 
-**검증한 것(GPU 불필요)**: 새/변경 파일 전부 `py_compile` 통과. `pydantic.BaseModel` 요청 바디 패턴은 mova 라우터들과 동일 컨벤션.
+**GPU 검증(2026-07-23)**:
+- 프로덕션 백엔드 컨테이너를 리빌드(H5 코드 반영, 어제 16:23 빌드본이라 코드 누락돼있었음)+재기동
+- `systemctl --user stop lora-server`로 VRAM 확보 후 HTTP 경로 실측: `POST /api/nlp/sentiment/analyze` → `{"label":"긍정","score":0.9986}` 정상(첫 호출은 컨테이너에 HF 캐시 마운트가 없어 모델을 매번 재다운로드함 — 다운로드 117초 포함 총 42초대 응답 이후는 더 빠름, 캐시 볼륨 마운트는 별도 개선 과제로 남김)
+- MCP 서버(`mcp` 클라이언트 SDK로 stdio 연결) tool 호출: `{"label":"부정","score":0.9997}` 정상 — **H5 Gate 통과**
+- 검증 후 `systemctl --user start lora-server`로 프로덕션 복구 확인(`/docs` 200)
 
-**다음에 할 것 — H5 Gate 마무리**:
-- [ ] 백엔드 기동 후 `curl -X POST localhost:8000/api/nlp/sentiment/analyze -d '{"text":"..."}'`로 HTTP 경로 실측
-- [ ] `python -m ontology.adapter.inbound.mcp.sentiment_analysis_mcp_server` 띄우고 tool 호출 성공 확인(**H5 Gate**)
-- [ ] GPU 필요 — 실행 전 `systemctl --user stop lora-server`, 끝나면 반드시 `start lora-server`로 복구
-- [ ] H5 확인 후 H6(에이전트 통합 + 시스템 프롬프트)
+**H6로 넘어가기 전 확인**: H2 결정(라벨만, "이유" 없음)과 H4 구현(logit 기반 score, `reason`은 항상 빈 문자열)에 따라 H6 시스템 프롬프트 초안(중립/혼합 표시, 문장별 분해)은 실제 tool 반환값과 맞지 않음 — 아래 10절에서 조정.
+
+## 10. H6 완료 기록 (2026-07-23)
+
+**시스템 프롬프트 조정 이유**: 위 9절에서 확인했듯 Echo는 긍정/부정 2-클래스만 학습됐고(H2, NSMC에 중립 라벨 없음) `reason`은 생성하지 않는다(H4, 추가 forward pass 없이 logit만 비교). 원안의 "중립/혼합 표시", "문장별 감정 분해" 규칙을 그대로 시스템 프롬프트에 넣으면 tool이 뒷받침 못하는 응답을 LLM이 지어내게 되므로, 실제 반환값(극성+신뢰도)만 자연어로 요약하는 규칙으로 조정했다. tool 호출 오케스트레이션은 `vision_genre_agent.py`와 동일 패턴(소형 모델은 tool_calls가 불안정해 결정적 규칙으로 tool 호출, LLM은 요약만 담당)이되, 요약 LLM은 문서 상단 사용자 결정(생성형 모델은 EXAONE-3.5-2.4B로 고정)에 맞춰 `exaone3.5:2.4b`를 사용(vision_genre_agent.py는 그 결정 이전에 작성되어 qwen2.5:1.5b를 쓰고 있으나 이번 범위 밖이라 손대지 않음).
+
+**추가한 것**: `apps/ontology/adapter/inbound/mcp/sentiment_echo_agent.py` — `answer_sentiment_question(text) -> str`. `analyze_sentiment` API 호출 → Ollama(`exaone3.5:2.4b`)가 시스템 프롬프트 규칙에 따라 결과를 한국어로 요약.
+
+**막혔던 것 — Ollama 전역 설정과 EXAONE-2.4B 비호환**: 호스트 Ollama가 `OLLAMA_KV_CACHE_TYPE=q8_0`(systemd Environment)로 고정돼 있었는데, 이 양자화 블록 크기(32)가 EXAONE-2.4B의 head dimension(80)과 나눠떨어지지 않아 `exaone3.5:2.4b` 로드 자체가 실패(`exaone3.5:7.8b`는 같은 설정에서 정상 — head dim이 달라 우연히 호환). **해결**: `/etc/systemd/system/ollama.service`에서 `OLLAMA_KV_CACHE_TYPE=q8_0` 라인 제거(사용자가 직접 sudo로 실행) 후 `daemon-reload`+재기동 — 캐시 양자화 없이 기본값으로 동작, `exaone3.5:2.4b` 정상 로드 확인. 이 설정은 Ollama를 쓰는 다른 기능(embedding adapter, hub_rag, semantic_router 등)에도 적용되는 전역 값이라 VRAM 사용량이 다소 늘 수 있음(정확도/호환성 우선 트레이드오프로 사용자 승인 하에 변경).
+
+**막혔던 것 2 — 컨테이너에서 호스트 Ollama 접근 불가**: 백엔드 컨테이너는 `host.docker.internal`로 호스트에 붙지만, Ollama가 `127.0.0.1:11434`에만 바인딩돼 있어 컨테이너 등 외부에서는 애초에 접근 불가(호스트 전용 서비스인 걸로 보임 — 별도 손대지 않음). 그래서 이번 H6 검증은 컨테이너가 아니라 **호스트**(`.venv-exaone`)에서, `INFERENCE_URL`은 백엔드 컨테이너의 내부 IP(`172.20.0.7:8000`)로 직접 지정해 실행함(백엔드는 host 포트가 노출돼 있지 않음, 9절 참고).
+
+**검증**: `lora-server` 잠시 내리고 호스트에서 실행 — 입력 "연기도 별로고 스토리도 지루했다. 시간 아까움." → `analyze_sentiment` 결과(부정, 0.9997) 기반으로 EXAONE-2.4B가 자연어 응답 생성 성공("매우 부정적인 의견", "신뢰도 100%" 등 반영). 검증 후 `lora-server` 복구 확인(`/docs` 200). **H6 Gate 통과**(텍스트 입력 → 감정+근거 응답, 1회 성공).
+
+**Echo(감성분석) 에이전트 H0~H6 전체 완료.**
