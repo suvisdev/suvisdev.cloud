@@ -287,3 +287,23 @@ curl -X POST https://api.suvisdev.cloud/<app>/classify \
 1. 새 앱 이름
 2. 서버(ssu) CUDA 버전 및 기존 EXAONE 환경에 얹을지 새 venv를 쓸지
 3. 데이터셋: 클래스 수, 클래스당 대략 이미지 장수, 디렉토리 구조
+
+---
+
+## 7. 완료 기록 (2026-07-21, 커밋 `2ed8fd2`)
+
+이 지시서는 **ConvNeXt-Nano 포스터→장르 분류** 에이전트로 구체화되어 H0~H6 전 단계 완료됐다. 새 앱을 따로 만들지 않고 기존 `ontology` 앱 안에 리소스 어댑터로 붙였다.
+
+| 단계 | 결과 |
+|------|------|
+| **H0** | `ontology` 앱 내 `adapter/outbound/resource_adapters/convnext/` 스캐폴딩, `timm` 의존성 추가(`requirements.txt`) |
+| **H1** | VRAM 실측 — EXAONE/Ollama와 공유 시 여유 최저 429MB. **"요청 시 로드→추론→언로드"** 전략 채택(평소엔 VRAM 점유 없음) |
+| **H2** | TMDB API로 포스터 232장 확보(`scripts/prepare_genre_classifier_dataset.py`), TMDB 세부 장르 19종 → 6개 대분류로 재매핑, backbone freeze + head만 학습(`scripts/train_genre_classifier.py`). best val_acc **53.3%**(랜덤 베이스라인 16.7% 대비 개선) |
+| **H3** | `ImageClassifierPort` / `ImageClassifierUseCase` / `image_classifier_interactor.py` — YOLO(face) 선례와 동일한 헥사고날 패턴, DIP 준수 |
+| **H4** | `POST/GET /api/vision/genre/{classify,classes}` — Cloudflare Tunnel 경유 실제 응답 확인 |
+| **H5** | `image_classifier_mcp_server.py`(FastMCP, `classify_image`/`list_supported_classes`) — stdio 클라이언트로 tool 목록·왕복 호출 검증(`scripts/test_mcp_classifier_client.py`) |
+| **H6** | `vision_genre_agent.py` — qwen2.5:1.5b가 tool_calls를 신뢰성 있게 생성하지 않음을 실측 확인하고, tool 트리거는 결정적 규칙(이미지 첨부 시 항상 호출)으로 처리, LLM은 confidence 기반 자연어 요약만 담당. 고/저신뢰도 케이스 모두 실제 왕복 검증 |
+
+**가중치**(`apps/ontology/runs/`)는 기존 YOLO 관례대로 `.gitignore` 대상, **학습 데이터셋**(`resources/genre_classifier_train/`)은 yolo_train 선례처럼 커밋됨.
+
+**이 에이전트가 07(Echo)의 H5/H6 구현 시 참고한 원형 패턴**이다 — `sentiment_analysis_mcp_server.py`/`sentiment_echo_agent.py`가 각각 이 파일들의 구조를 그대로 따른다.
