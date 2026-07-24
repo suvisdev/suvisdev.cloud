@@ -120,6 +120,24 @@
 - semantic_router_dto도 어댑터 스키마 참조하나 `TYPE_CHECKING`/지역 임포트라 런타임
   순환 없음 → 이번 범위 밖(DIP 냄새만, 위험 아님).
 
+**6) [2순위 백로그 (c)+(d)] S3 경로 Tank로 단일화 + 기본 자격증명 체인 전환**
+- 배경: `VisionS3Repository`가 자체 `boto3.client`(기본 체인), Tank는 명시적 키
+  전달 — S3 경로가 둘로 갈리고 자격증명 전략도 반대. 사용자 결정: (c)+(d) 함께,
+  기본 체인으로 통일.
+- Tank(d): `_access_key`/`_secret_key`/`ready`/키 전달 제거 →
+  `boto3.client("s3", region_name=...)`만 사용(기본 체인). region/bucket은 계속
+  Keymaker에서. boto3 기본 체인이 로컬은 `.env`가 os.environ에 실은 AWS_* env를,
+  EC2는 인스턴스 IAM Role을 집는다 → 단일 경로.
+- VisionS3Repository(c): 자체 boto3/os 제거, `get_tank()` 위임. 키 네이밍·
+  content_type만 도메인 로직으로 남기고 put은 `tank.upload_bytes`(to_thread).
+- Keymaker: `aws_access_key_id`/`secret` 속성은 vestigial(아무도 안 읽음, 기본
+  체인이 env 직접 집음)로 남김 + 주석 정정. `.env.example`에 EC2 IAM Role이면
+  키 비워도 된다는 노트 추가.
+- 검증: `tank.client`가 명시적 키 없이 S3 클라이언트 빌드(전엔 ready=False로
+  raise), `VisionS3Repository`가 Tank 싱글턴에 위임(save_image→Tank 버킷 체크
+  RuntimeError 도달로 위임 경로 증명), `from main import app` 부팅 OK. 실 업로드는
+  AWS 연결(버킷+키) 후 확인.
+
 ### 오류·막힌 점
 - **로컬 `.venv`/`.venv-exaone`에 pytest/opencv 없음** — 이 프로젝트의 실제
   런타임 의존성(`transformers==4.47.1`, `opencv-python`, `pytest`)은
@@ -144,7 +162,8 @@
 - 백엔드 이미지 리빌드(H5 코드 반영) — `suvisdev-backend-1` 재기동됨.
 - 커밋/푸시/머지(모두 main 반영): Sentinel H4·H5 `df5a56b`, S3 매니저(Tank)
   `53bd4de`, Sentinel H6 `2da0762`, 블러 상수 주석+백로그 `e91d9c7`, Keymaker
-  계약+시크릿 감사 `9994ed7`, vision DIP 순환 수정(이 커밋).
+  계약+시크릿 감사 `9994ed7`, vision DIP 순환 수정 `6098955`, S3 Tank 단일화+
+  기본 체인(이 커밋).
 
 ### 백로그 (우선순위 조정 — 2026-07-24)
 
@@ -176,11 +195,10 @@ JWT 키 같은 앱별 시크릿을 알게 되면 core → apps 역방향 의존�
   플래그가 불일치. **단일화 안 함** — Keymaker의 임포트 시 self-load는 scripts/를
   떠받치는 **기능(계약)**이라 제거 대상 아님(Keymaker docstring에 계약 명시함).
   override 불일치는 인지만 하고 현행 유지.
-- (c) **[추가]** `VisionS3Repository`가 Tank가 아닌 자체 `boto3.client`를 씀 → S3
-  접근 경로가 둘(Tank / VisionS3Repository)로 갈려서 **AWS 실연결 시 두 군데를
-  따로 고쳐야 한다.** Tank로 단일화 — 시크릿 관리 정리와 함께.
-- (d) Tank(S3)가 boto3에 AWS 키를 명시 전달 → EC2 배포 시 IAM Role이 자동 주입
-  하므로 `boto3.client("s3", region_name=...)`만 남기고 **키 전달 제거**.
+- (c)+(d) **✅ 해결(2026-07-24, 위 수정/구현 6)**: S3 경로를 Tank로 단일화 +
+  Tank를 boto3 기본 자격증명 체인으로 전환. `VisionS3Repository`가 자체
+  `boto3.client`를 버리고 Tank에 위임, Tank는 명시적 키 전달을 제거하고
+  `region_name`만 지정 → 로컬(.env 키)·EC2(IAM Role)가 단일 경로로 처리됨.
 
 **[유지] 하위 우선순위**
 - 블러 임계값(345.77)은 포스터 분포 보정값이라 저디테일 비포스터(backdrop 등)가

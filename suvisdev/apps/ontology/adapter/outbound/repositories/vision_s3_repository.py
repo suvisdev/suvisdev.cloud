@@ -3,12 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import mimetypes
-import os
 from datetime import datetime
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
-
+from core.matrix.aws_tank_s3_manager import get_tank
 from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
@@ -22,9 +19,8 @@ logger = logging.getLogger(__name__)
 
 class VisionS3Repository(VisionPort):
     def __init__(self) -> None:
-        self._bucket = os.getenv("VISION_S3_BUCKET", "")
-        self._region = os.getenv("AWS_REGION", "ap-northeast-2")
-        self._client = boto3.client("s3", region_name=self._region)
+        # S3 접근은 Tank(core)로 단일화 — 버킷/리전/자격증명(기본 체인)은 Tank가 관리.
+        self._tank = get_tank()
 
     async def introduce_myself(self, query: VisionIntroduceQuery) -> VisionIntroduceResponse:
         logger.info("[VisionS3Repository] introduce_myself 진입 | request_data=%s", query)
@@ -34,27 +30,18 @@ class VisionS3Repository(VisionPort):
         )
 
     async def save_image(self, command: VisionImageCommand) -> VisionUploadResponse:
-        if not self._bucket:
-            raise RuntimeError("VISION_S3_BUCKET 환경변수가 설정되지 않았습니다.")
-
+        # 키 네이밍·콘텐츠 타입은 도메인 로직이라 여기서, 실제 S3 put은 Tank에 위임한다.
         key = f"vision/{datetime.now():%Y%m%d_%H%M%S}_{command.filename}"
         content_type = mimetypes.guess_type(command.filename)[0] or "application/octet-stream"
 
-        try:
-            await asyncio.to_thread(
-                self._client.put_object,
-                Bucket=self._bucket,
-                Key=key,
-                Body=command.content,
-                ContentType=content_type,
-            )
-        except (BotoCoreError, ClientError) as e:
-            logger.exception("[VisionS3Repository] S3 업로드 실패 | key=%s", key)
-            raise RuntimeError(f"S3 업로드 실패: {e}") from e
-
-        logger.info("[VisionS3Repository] save_image 완료 | bucket=%s key=%s", self._bucket, key)
+        # Tank.upload_bytes는 동기 — 이벤트 루프 블로킹 방지. 버킷 미설정·boto 오류는
+        # Tank가 RuntimeError로 감싸므로 여기서 별도 처리하지 않는다.
+        url = await asyncio.to_thread(
+            self._tank.upload_bytes, key, command.content, content_type=content_type
+        )
+        logger.info("[VisionS3Repository] save_image 완료 | key=%s", key)
         return VisionUploadResponse(
             filename=command.filename,
             size_bytes=len(command.content),
-            saved_path=f"https://{self._bucket}.s3.{self._region}.amazonaws.com/{key}",
+            saved_path=url,
         )

@@ -63,7 +63,10 @@ class Keymaker:
         self.tmdb_api_key: str = (os.getenv("TMDB_API_KEY") or "").strip()
         self.kofic_api_key: str = (os.getenv("KOFIC_API_KEY") or "").strip()
 
-        # AWS S3 (IAM 사용자 액세스 키) — Tank(aws_tank_s3_manager)가 사용
+        # AWS S3 — Tank(aws_tank_s3_manager)가 region/bucket을 읽어 쓴다.
+        # aws_access_key_id/secret은 vestigial(현재 아무도 안 읽음): Tank가 boto3
+        # 기본 자격증명 체인을 쓰고, 그 체인은 .env가 os.environ에 실은 AWS_* env를
+        # 직접 집는다. 속성은 향후 참조/디버깅용으로 남겨둔다.
         self.aws_access_key_id: str = (os.getenv("AWS_ACCESS_KEY_ID") or "").strip()
         self.aws_secret_access_key: str = (os.getenv("AWS_SECRET_ACCESS_KEY") or "").strip()
         self.aws_region: str = (os.getenv("AWS_REGION") or "ap-northeast-2").strip()  # 서울

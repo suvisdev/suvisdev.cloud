@@ -1,8 +1,13 @@
-"""AWS S3 클라이언트를 한 객체에서 관리한다.
+"""AWS S3 클라이언트를 한 객체에서 관리한다(온프레미스 유일 S3 경로).
 
-자격 증명(IAM 액세스 키)·리전·버킷은 Keymaker(vauly_keymaker_secret_manager)가
-`.env`에서 읽어 보관한 값을 그대로 쓴다 — 시크릿은 Keymaker가 단일 관리한다.
-키가 없으면 `ready=False`로 두고 클라이언트 접근 시점에 명확한 에러를 낸다.
+자격 증명은 **boto3 기본 자격증명 체인**을 따른다 — 명시적 키를 boto3에 넘기지
+않고 `region_name`만 지정한다. 이렇게 하면 로컬·EC2가 단일 경로로 처리된다:
+- 로컬/컨테이너: `.env`의 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`가
+  `os.environ`에 있으면(Keymaker가 임포트 시 load_dotenv로 로드, compose는
+  env_file로 주입) 기본 체인이 그걸 집는다.
+- EC2: 인스턴스 IAM Role이 자격증명을 자동 주입 → 기본 체인이 그걸 집는다.
+리전·버킷 이름은 Keymaker가 `.env`에서 읽어 보관한 값을 쓴다. 자격증명이 없으면
+호출 시점에 boto3가 `NoCredentialsError`를 던진다.
 """
 
 from __future__ import annotations
@@ -18,35 +23,21 @@ logger = logging.getLogger(__name__)
 
 
 class Tank:
-    """Keymaker가 보관한 IAM 액세스 키로 S3 클라이언트를 제공한다."""
+    """boto3 기본 자격증명 체인으로 S3 클라이언트를 제공한다(로컬 .env / EC2 IAM Role 공통)."""
 
     def __init__(self) -> None:
+        # get_keymaker() 임포트가 .env를 os.environ에 로드해 기본 체인이 키를 집게 한다.
         km = get_keymaker()
-        self._access_key: str = km.aws_access_key_id
-        self._secret_key: str = km.aws_secret_access_key
         self.region: str = km.aws_region
         self.bucket: str = km.vision_s3_bucket
         self._client = None
 
     @property
-    def ready(self) -> bool:
-        """IAM 액세스 키가 둘 다 채워졌는지."""
-        return bool(self._access_key and self._secret_key)
-
-    @property
     def client(self):
-        """boto3 S3 클라이언트(캐시). 키가 없으면 RuntimeError."""
-        if not self.ready:
-            raise RuntimeError(
-                "AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY 환경변수가 설정되지 않았습니다."
-            )
+        """boto3 S3 클라이언트(캐시). 자격증명은 기본 체인이 해결하며, 없으면
+        호출 시점에 boto3가 NoCredentialsError를 던진다."""
         if self._client is None:
-            self._client = boto3.client(
-                "s3",
-                aws_access_key_id=self._access_key,
-                aws_secret_access_key=self._secret_key,
-                region_name=self.region,
-            )
+            self._client = boto3.client("s3", region_name=self.region)
         return self._client
 
     def list_buckets(self) -> list[str]:
