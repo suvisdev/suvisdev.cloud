@@ -22,42 +22,22 @@
 
 ## 진행 중 / 다음에 할 일
 
-### 1. 06(Sentinel, 이상 탐지) — H4(포트 통합)부터 재개
+### 1. 06(Sentinel, 이상 탐지) — H4·H5 완료, H6(에이전트 통합)부터 재개
 
-방향 조사·전환은 완료, **구현은 전혀 안 됨**(H0 스캐폴딩 4파일만 존재,
-router·DI provider·실제 어댑터 없음 — 2026-07-23에 직접 확인). 근거 전체는
-`06_anomaly_detection_agent.md` §5~§6.6.
+방향 조사·전환·**H4(추론 어댑터)·H5(HTTP API + MCP tool) 완료**(2026-07-24).
+포트 설계는 1개 통합으로 확정. DTO(`AnomalyResult`)·어댑터
+(`sentinel_anomaly_adapter.py`, CLIP 제로샷+Laplacian variance 합침)·provider·
+라우터(`/api/vision/sentinel/detect`)·MCP 서버(`detect_anomaly` tool)까지 만들고,
+`suvisdev-backend-1` 리빌드 후 stdio MCP 클라이언트(`scripts/test_mcp_sentinel_client.py`)로
+전체 체인 게이트 통과 확인(good→포스터, blur→블러). 상세는
+`06_anomaly_detection_agent.md` §6.7(H4)·§6.8(H5).
 
-**결정된 방향**:
-- PatchCore(anomalib)로 "이상=포스터가 아닌 이미지"를 시도했으나 AUROC 0.44
-  (신호 없음)로 실패 → **CLIP 제로샷**(즉석 검증 AUROC 0.8844, `openai/clip-vit-base-patch32`)으로 전환.
-- 화질 저하(blur)는 PatchCore 대신 **Laplacian variance**(정상 232장을
-  256x256 정규화 후 계산한 하위 5퍼센타일 임계값 **345.77**, 합성 블러
-  100% 분리)로 분리.
-- PatchCore는 Phase A(MVTec AUROC 1.0) 결과만 구현 검증 근거로 남기고
-  포스터 도메인에서는 기각(재사용 안 함).
+**H6에서 할 일**: 에이전트 통합 + 시스템 프롬프트(스킬). 07의
+`sentiment_echo_agent.py`와 같은 층. **단, Sentinel을 어느 흐름에 붙일지
+(harvester 수집 이미지 검수 등) 용도부터 확정하고 착수** — 06은 원래
+"기법 먼저, 용도 나중"으로 무너졌던 태스크라 H6에서 용도를 다시 못박아야 함.
 
-**H4에서 실제로 만들어야 할 것** (현재 존재/미존재 확인 완료):
-
-| 파일 | 상태 | 할 일 |
-|------|------|------|
-| `app/dtos/anomaly_detection_dto.py` | 있음(구식) | `AnomalyResult`가 지금 PatchCore 가정(단일 `anomaly_score: float`, `is_anomaly: bool`, `heatmap_b64: str`)으로 돼 있음 — CLIP·Laplacian은 히트맵을 안 만들고 신호가 2개(포스터 여부 / 블러 여부)라 **DTO 재설계 필요**. 예: `is_poster: bool`, `poster_confidence: float`, `is_blurry: bool`, `sharpness_score: float` |
-| `app/ports/output/anomaly_detection_port.py` | 있음(구식) | 위 DTO 변경에 맞춰 시그니처 수정 |
-| `app/ports/input/anomaly_detection_use_case.py` | 있음(구식) | 동일 |
-| `app/use_cases/anomaly_detection_interactor.py` | 있음(구식) | **미결정 사항(사용자 확인 필요)**: 포트 1개(`AnomalyDetectionPort.detect()`가 내부에서 CLIP+Laplacian 둘 다 호출) vs 포트 2개(`PosterClassifierPort` + `ImageQualityPort`를 interactor가 조합) — 헥사고날 원칙(단일 책임)상 후자가 더 맞을 수 있음. **H4 착수 전에 결정하고 시작할 것.** |
-| `adapter/outbound/resource_adapters/clip_poster_classifier/` | 없음, 신규 | CLIP 어댑터. `adapter/outbound/resource_adapters/echo_sentiment/echo_sentiment_adapter.py`와 동일하게 **호출당 로드→추론→언로드** 패턴 따를 것(00_COMMON 관례) |
-| Laplacian variance 어댑터 | 없음, 신규 | opencv만 쓰는 경량 체크라 로드/언로드 불필요 — 위치는 CLIP과 같은 폴더 or `image_quality/`로 분리할지 결정 필요 |
-| `dependencies/anomaly_detection_provider.py` | 없음, 신규 | `echo_sentiment_provider.py`와 동일 패턴 |
-| `adapter/inbound/api/v1/anomaly_detection_router.py` | 없음, 신규(H5) | `sentiment_analysis_router.py`와 동일 패턴, `POST /api/vision/anomaly/detect` 급 |
-| `adapter/inbound/mcp/anomaly_detection_mcp_server.py` | 없음, 신규(H5) | `image_classifier_mcp_server.py`/`sentiment_analysis_mcp_server.py`와 동일 패턴, HTTP만 호출 |
-
-**임계값 하드코딩 위치**: Laplacian 345.77은 지금 스크립트 실행 결과로만
-존재(`scripts/compute_sentinel_blur_threshold.py` 출력) — 어댑터 코드에
-상수로 박아넣을지, 설정 파일로 뺄지도 H4에서 정할 것.
-
-**VRAM 관점**: CLIP-ViT-B/32는 가벼워서(H4 시점 실측 필요하지만) 이 두
-체크는 기존 PatchCore/EXAONE만큼 무겁지 않을 가능성이 높음 — 그래도 H1
-관례(VRAM 실측 없이 코드 작성 금지, `00_COMMON` §4)는 그대로 지킬 것.
+방향 조사·전환 근거 전체는 `06_anomaly_detection_agent.md` §5~§6.6.
 
 ### 2. VRAM 정책 (확정 — 앞으로 모든 파인튜닝에 적용)
 
@@ -85,7 +65,7 @@ router·DI provider·실제 어댑터 없음 — 2026-07-23에 직접 확인). �
 | 07 | Echo(감정분석) | 완료 |
 | 08 | Chronos(영상 분류) | **제외** — mova/gildle에 용도 자체가 없음(문서 상단 배너 처리) |
 
-**우선순위**: Echo(완료) → Sentinel(H4~ 재개) → 나머지(02·03·05)는 각자
+**우선순위**: Echo(완료) → Sentinel(H6~ 재개) → 나머지(02·03·05)는 각자
 표에 적힌 전제조건(제품 결정/이미지 수집 경로/VRAM 여유)이 풀리기 전까지
 착수 안 함.
 

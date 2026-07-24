@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from ontology.adapter.inbound.api.v1.anomaly_detection_router import anomaly_detection_router
 from ontology.adapter.inbound.api.v1.face_router import face_router
 from ontology.adapter.inbound.api.v1.harvester_router import harvester_router
 from ontology.adapter.inbound.api.v1.image_classifier_router import image_classifier_router
@@ -12,6 +13,7 @@ vision_router = APIRouter(prefix="/vision", tags=["vision"])
 vision_router.include_router(vision_introduce_router)
 vision_router.include_router(face_router)
 vision_router.include_router(image_classifier_router)
+vision_router.include_router(anomaly_detection_router)
 
 # 시맨틱 게이트웨이 라우터 — vision과 성격이 달라 별도로 export한다.
 ontology_router = APIRouter(prefix="/ontology", tags=["ontology"])

@@ -277,3 +277,73 @@ profile은 바로 그 "포스터 안에 이미 들어있는 사진 자체"라서
   전부(25/25, 100%) 임계값 아래로 떨어진다 — PatchCore의 blur AUROC
   0.573과 비교하면 사실상 완전 분리. **blur를 PatchCore가 아니라
   Laplacian variance로 넘긴 판단도 근거로 확인됨.**
+
+### 6.7 H4(추론 어댑터) 완료 (2026-07-24)
+
+`SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`가 남겨둔 미결정 사항(포트 1개
+통합 vs 2개 분리)을 **1개 통합**으로 확정하고 진행했다 — 헥사고날
+단일 책임 원칙상으로는 2개 분리가 더 맞지만, 두 체크(CLIP/Laplacian)가
+항상 같은 호출에서 함께 쓰이고 별도로 교체될 계획이 없어 포트 1개로
+단순화하는 쪽을 선택.
+
+**DTO 재설계** (`app/dtos/anomaly_detection_dto.py`): 기존 PatchCore 가정
+(`anomaly_score`, `is_anomaly`, `heatmap_b64`)을 버리고 두 신호를 그대로
+반환하는 `AnomalyResult(is_poster, poster_confidence, is_blurry,
+sharpness_score)`로 교체. CLIP/Laplacian 둘 다 히트맵을 만들지 않아
+`heatmap_b64` 제거, 종합 판정(`is_anomaly`) 필드는 추가하지 않고 호출부가
+`not is_poster or is_blurry`로 조합하도록 남김(요청되지 않은 필드 추가
+안 함).
+
+**어댑터** (`adapter/outbound/resource_adapters/sentinel_anomaly/
+sentinel_anomaly_adapter.py`, 신규): `AnomalyDetectionPort.detect()` 안에서
+`_check_poster`(CLIP 제로샷, §6.6 프롬프트·임계값 0.5 그대로)와
+`_check_blur`(Laplacian, §6.5 임계값 345.77 그대로)를 순서대로 호출해
+합친다. CLIP은 `echo_sentiment_adapter.py`와 동일하게 **호출당
+로드→추론→언로드**(00_COMMON §1.1, lora-server 상시 점유 고려).
+Laplacian은 opencv 경량 연산이라 로드/언로드 없음.
+
+**Provider** (`dependencies/anomaly_detection_provider.py`, 신규):
+`echo_sentiment_provider.py`와 동일 패턴.
+
+**H4 게이트 검증** (`test/test_sentinel_anomaly_adapter.py`,
+`@pytest.mark.gpu`, `suvisdev-backend-1` 컨테이너에서 실행):
+- `test/good/0000.jpg` → `is_poster=True, is_blurry=False` — PASSED
+- `test/blur/0000.jpg` → `is_blurry=True` — PASSED
+- VRAM: 호출 전후 `nvidia-smi` 2879MB→2879MB로 동일(로드-언로드가 실제로
+  해제됨 확인), lora-server(`:8200/health`) `model_loaded:true` 유지 —
+  학습이 아닌 추론이라 00_COMMON §1.1의 사전 정지 절차는 적용 대상 아님.
+
+### 6.8 H5(HTTP API + MCP tool) 완료 (2026-07-24)
+
+01/07과 동일 패턴 — HTTP 라우터를 얹고 MCP 서버는 ontology 내부 모듈에
+직접 의존하지 않고 HTTP로만 호출한다(AWS 전환 대비, 00_COMMON §6).
+
+**HTTP 라우터** (`adapter/inbound/api/v1/anomaly_detection_router.py`, 신규):
+`image_classifier_router.py` 패턴 그대로 — `UploadFile` 입력,
+`POST /sentinel/detect`(전체 경로 `/api/vision/sentinel/detect`),
+`asyncio.to_thread`로 호출당 CLIP 로드 블로킹 방지, 잘못된 이미지는
+`UnidentifiedImageError` → 400. `adapter/inbound/api/__init__.py`의
+`vision_router`에 등록.
+
+**MCP 서버** (`adapter/inbound/mcp/anomaly_detection_mcp_server.py`, 신규):
+`image_classifier_mcp_server.py` 패턴 — `detect_anomaly(image_b64) -> dict`
+tool, base64 이미지를 받아 `/api/vision/sentinel/detect`로 HTTP POST.
+`INFERENCE_URL` 환경변수로 base URL 교체 가능.
+
+**H5 게이트 검증** (`scripts/test_mcp_sentinel_client.py`, 신규 — 01의
+`test_mcp_classifier_client.py`와 동일한 stdio MCP 클라이언트,
+`suvisdev-backend-1` 리빌드+재기동 후 컨테이너 안에서 실행):
+- 라우트 등록 확인: `app.routes`에 `/api/vision/sentinel/detect` 존재.
+- tool 목록에 `detect_anomaly` 등장.
+- 전체 체인(MCP → HTTP → interactor → 어댑터 → CLIP+Laplacian) 호출 성공:
+  - `test/good/0000.jpg` → `is_poster:true(0.699), is_blurry:false(2588)` — 정상 포스터 정답.
+  - `test/blur/0000.jpg` → `is_blurry:true(1.82)` — 블러 정답.
+  - 둘 다 `GATE_H5_PASS`.
+- VRAM: 호출 2회에 걸쳐 2863→2984→3014MB(호출당 +30~120MB, CLIP 가중치
+  수백MB가 쌓이지 않음 → 로드-언로드 정상, 잔여는 CUDA 컨텍스트로 안정).
+  lora-server(`:8200/health`) `model_loaded:true` 유지.
+
+**다음(H6, 이번 세션 범위 밖)**: 에이전트 통합 + 시스템 프롬프트(스킬).
+07이 `sentiment_echo_agent.py`(Ollama가 결과를 한국어로 요약)를 추가한 것과
+같은 층 — Sentinel은 harvester 검수 흐름(수집 이미지가 포스터인지·흐리지
+않은지)에 붙일지 용도부터 확정하고 착수할 것.

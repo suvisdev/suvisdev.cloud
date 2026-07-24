@@ -6,7 +6,7 @@ from ontology.app.ports.output.anomaly_detection_port import AnomalyDetectionPor
 
 
 class AnomalyDetectionInteractor(AnomalyDetectionUseCase):
-    """anomaly_detection_router → 입력 포트 → 출력 포트(PatchCore/EfficientAD) → 이상 탐지."""
+    """anomaly_detection_router → 입력 포트 → 출력 포트(CLIP 제로샷 + Laplacian variance) → 이상 탐지."""
 
     def __init__(self, detector_port: AnomalyDetectionPort) -> None:
         self._detector_port = detector_port

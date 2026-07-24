@@ -10,4 +10,4 @@ class AnomalyDetectionPort(ABC):
 
     @abstractmethod
     def detect(self, image: bytes) -> AnomalyResult:
-        """이미지가 정상인지 이상인지 판정하고 점수와 히트맵을 반환한다."""
+        """이미지가 포스터인지, 블러인지 판정한다."""
