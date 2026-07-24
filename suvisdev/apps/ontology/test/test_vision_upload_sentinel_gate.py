@@ -8,11 +8,6 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
-# api 애그리게이터(__init__)를 먼저 완전 로드해 import 순서를 고정한다 — vision_use_case가
-# adapter 계층 vision_schema를 임포트하며 생기는 기존 잠재 순환(app→adapter)을 회피.
-# (근본 원인은 별도 백로그, WORK_LOG.md 2026-07-24 참고.)
-import ontology.adapter.inbound.api  # noqa: E402,F401
-
 from ontology.app.dtos.vision_dto import (  # noqa: E402
     VisionImageCommand,
     VisionIntroduceQuery,

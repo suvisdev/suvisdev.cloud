@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ontology.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
-from ontology.app.dtos.vision_dto import VisionIntroduceResponse, VisionUploadResponse
+from ontology.app.dtos.vision_dto import (
+    VisionIntroduceQuery,
+    VisionIntroduceResponse,
+    VisionUploadResponse,
+)
 
 
 class VisionUseCase(ABC):
@@ -12,7 +15,7 @@ class VisionUseCase(ABC):
     @abstractmethod
     async def introduce_myself(
         self,
-        schemas: VisionIntroduceSchema,
+        query: VisionIntroduceQuery,
     ) -> VisionIntroduceResponse:
         pass
 

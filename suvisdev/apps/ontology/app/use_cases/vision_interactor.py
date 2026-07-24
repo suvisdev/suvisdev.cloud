@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 
-from ontology.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
 from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
@@ -43,11 +42,9 @@ class VisionInteractor(VisionUseCase):
 
     async def introduce_myself(
         self,
-        schemas: VisionIntroduceSchema,
+        query: VisionIntroduceQuery,
     ) -> VisionIntroduceResponse:
-        return await self._repository.introduce_myself(
-            VisionIntroduceQuery(id=schemas.id, name=schemas.name),
-        )
+        return await self._repository.introduce_myself(query)
 
     async def upload_image(
         self,

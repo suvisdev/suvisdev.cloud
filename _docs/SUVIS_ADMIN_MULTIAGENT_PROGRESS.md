@@ -40,7 +40,8 @@ MCP(`detect_anomaly`)까지 만들고 stdio MCP 클라이언트로 전체 체인
 
 **남은 미결(백로그)**: ① 소프트 플래그 저장 지속화 + 어드민 오버라이드 엔드포인트
 (저장 계층 정리 후 — S3 배선인데 AWS 미연결, DB 폴백 `VisionRepository` 미배선).
-② `vision_use_case`의 app→adapter 순환 임포트(WORK_LOG 2026-07-24 백로그).
+② ~~`vision_use_case`의 app→adapter 순환 임포트~~ → **해결(2026-07-24)**: 포트를
+앱 DTO로 바꾸고 변환을 라우터로 올려 제거(`06 §6.9`, WORK_LOG 2026-07-24 §5).
 
 방향 조사·전환 근거 전체는 `06_anomaly_detection_agent.md` §5~§6.6.
 

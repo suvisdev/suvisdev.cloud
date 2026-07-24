@@ -34,6 +34,8 @@
 - 06(Sentinel, 이상 탐지) **H4(추론 어댑터) + H5(HTTP API + MCP tool) 구현**
   — H3까지의 방향 전환(CLIP 제로샷 + Laplacian variance)을 실제 코드로
   반영하고 MCP tool까지 노출.
+- **[1순위 백로그 해결] vision app→adapter DIP 위반 + 순환 import 근본 수정**
+  — H6에서 드러난 순환(테스트만 우회 중)을 제거.
 
 ### 수정/구현
 
@@ -103,6 +105,21 @@
 - 검증: 컨테이너에서 import + graceful degradation(키 없을 때 `ready=False`,
   클라이언트 접근 에러) 확인. 실 버킷 연동은 키 주입 후 별도.
 
+**5) [1순위 백로그] vision app→adapter DIP 위반 + 순환 import 근본 수정**
+- 위반: `app/ports/input/vision_use_case.py`·`app/use_cases/vision_interactor.py`가
+  어댑터 pydantic 스키마 `VisionIntroduceSchema`를 인자 타입으로 임포트 →
+  `vision_use_case→vision_schema→api/__init__→vision_router→vision_use_case` 순환.
+- 수정: 포트·interactor를 앱 DTO `VisionIntroduceQuery`(이미 존재, repository 포트도
+  이걸 받음)로 바꾸고, schema→query 변환을 어댑터 계층(`vision_router`)으로 올림.
+  interactor는 query를 repository로 직행(변환 제거). dead가 된 `vision_schema.py`
+  삭제(`schemas/__init__` 빔, 다른 참조 없음 확인).
+- H6 테스트에서 넣었던 우회(`import ontology.adapter.inbound.api` 선로드) 제거 —
+  이게 통과한다는 게 근본 해결의 증거(테스트 로드 경로 = 프로덕션 경로).
+- 검증: 이전에 순환으로 실패하던 `import ontology.dependencies.vision_provider`가
+  성공, `from main import app` 부팅(vision routes 7), H6 게이트 3/3 PASSED(우회 없이).
+- semantic_router_dto도 어댑터 스키마 참조하나 `TYPE_CHECKING`/지역 임포트라 런타임
+  순환 없음 → 이번 범위 밖(DIP 냄새만, 위험 아님).
+
 ### 오류·막힌 점
 - **로컬 `.venv`/`.venv-exaone`에 pytest/opencv 없음** — 이 프로젝트의 실제
   런타임 의존성(`transformers==4.47.1`, `opencv-python`, `pytest`)은
@@ -126,20 +143,15 @@
   완료로 갱신(완료 목록 이동, 감사표·우선순위 반영).
 - 백엔드 이미지 리빌드(H5 코드 반영) — `suvisdev-backend-1` 재기동됨.
 - 커밋/푸시/머지(모두 main 반영): Sentinel H4·H5 `df5a56b`, S3 매니저(Tank)
-  `53bd4de`, Sentinel H6 `2da0762`, 블러 상수 주석+백로그 우선순위(이 커밋).
+  `53bd4de`, Sentinel H6 `2da0762`, 블러 상수 주석+백로그 `e91d9c7`, Keymaker
+  계약+시크릿 감사 `9994ed7`, vision DIP 순환 수정(이 커밋).
 
 ### 백로그 (우선순위 조정 — 2026-07-24)
 
-**[1순위] app→adapter DIP 위반 + 순환 import(import 순서로 회피 중)**
-- `app/ports/input/vision_use_case.py`가 어댑터 계층 `api.schemas.vision_schema`를
-  임포트 → app→adapter DIP 위반. import 순서에 따라
-  `vision_use_case → vision_schema → api/__init__ → vision_router → vision_use_case`
-  순환이 터진다.
-- **1순위인 이유**: H6 테스트는 `api` 애그리게이터 선로드로 우회하고 프로덕션은
-  `main.py` 순서로 회피 중인데 — **테스트 로드 경로 ≠ 프로덕션 로드 경로**라서
-  GATE 통과가 기동 성공을 보장하지 못한다. 로드 순서만 바뀌어도 프로덕션이
-  import 에러로 안 뜰 수 있음.
-- 수정: 입력 포트가 어댑터 스키마에 의존하지 않게(포트 시그니처를 DTO/원시 타입으로).
+**[1순위] app→adapter DIP 위반 + 순환 import — ✅ 해결(2026-07-24, 위 수정/구현 5)**
+- `vision_use_case`/`vision_interactor`가 어댑터 스키마 `VisionIntroduceSchema`를
+  받던 것을 앱 DTO `VisionIntroduceQuery`로 교체, 변환을 `vision_router`로 올림,
+  dead `vision_schema.py` 삭제. 테스트 우회 제거 후에도 통과 = 근본 해결.
 
 **[2순위] 시크릿·S3 접근 경로 정리 (묶음)**
 

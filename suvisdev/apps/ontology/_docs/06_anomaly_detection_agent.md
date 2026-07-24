@@ -408,6 +408,7 @@ Sentinel 어댑터를 `VisionInteractor`에 주입해 3경로 검증(컨테이�
   로직 + 응답 메타데이터까지만 확정하고, 플래그를 스토어에 남기는 건 별도.
 - 기존 순환 임포트: `app/ports/input/vision_use_case.py`가 어댑터 계층
   `api.schemas.vision_schema`를 임포트(app→adapter DIP 위반)해서 import 순서에
-  따라 순환이 터진다. H6 테스트에서 드러났고 프로덕션은 `main.py` 순서 덕에
-  회피 중. 테스트는 `api` 애그리게이터 선(先)로드로 우회. 근본 수정은 백로그
-  (WORK_LOG 2026-07-24).
+  따라 순환이 터졌다. H6 테스트에서 드러남. **→ 근본 해결(2026-07-24)**:
+  포트·interactor를 앱 DTO `VisionIntroduceQuery`로 바꾸고 schema→query 변환을
+  `vision_router`로 올려 app→adapter 의존을 제거, dead `vision_schema.py` 삭제.
+  테스트 우회(`api` 선로드) 제거 후에도 통과 확인(WORK_LOG 2026-07-24 §5).

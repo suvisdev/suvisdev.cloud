@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
-from ontology.adapter.inbound.api.schemas.vision_schema import VisionIntroduceSchema
-from ontology.app.dtos.vision_dto import VisionIntroduceResponse, VisionUploadResponse
+from ontology.app.dtos.vision_dto import (
+    VisionIntroduceQuery,
+    VisionIntroduceResponse,
+    VisionUploadResponse,
+)
 from ontology.app.ports.input.vision_use_case import VisionUseCase
 from ontology.dependencies.vision_provider import get_vision_use_case
 
@@ -13,7 +16,7 @@ async def introduce_myself(
     vision: VisionUseCase = Depends(get_vision_use_case),
 ) -> VisionIntroduceResponse:
     return await vision.introduce_myself(
-        VisionIntroduceSchema(id=1, name="비전"),
+        VisionIntroduceQuery(id=1, name="비전"),
     )
 
 
