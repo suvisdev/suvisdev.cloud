@@ -1,4 +1,12 @@
-﻿"""API 키·외부 서비스 설정을 한 객체에서 관리한다."""
+﻿"""API 키·외부 서비스 설정을 한 객체에서 관리한다.
+
+계약(contract): 이 모듈을 임포트하면 모듈 로드 시점의 싱글턴(`keymaker = Keymaker()`)이
+`suvisdev/.env`를 `load_dotenv(override=True)`로 읽어 `os.environ`에 채운다.
+이 self-load는 **버그가 아니라 기능**이다 — `main.py`(FastAPI 진입점)를 거치지 않고
+Keymaker를 직접 임포트하는 `scripts/`(예: harvester_cli, 학습 스크립트)가 이 자동
+로드에 의존한다. 진입점 단일화를 이유로 **제거하지 말 것.** (컨테이너에서는 .env
+파일이 이미지에 없어 load_dotenv가 no-op이고 env는 compose env_file로 주입된다.)
+"""
 
 from __future__ import annotations
 

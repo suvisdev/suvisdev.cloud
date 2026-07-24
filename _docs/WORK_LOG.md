@@ -152,10 +152,18 @@ JWT 키 같은 앱별 시크릿을 알게 되면 core → apps 역방향 의존�
 원칙에 어긋난다. 나중에 정리한다면 core는 `SecretProvider` 인터페이스(메커니즘)
 만 갖고, 키 목록은 각 app의 Settings가 소유하는 방향으로 간다.
 
-- (a) `apps/ontology/adapter/outbound/config/api_keys.py`의 TMDB/KOFIC이 Keymaker와
-  중복 → ontology 앱 소유이므로 `api_keys.py`를 남기고 **Keymaker에서 제거**.
-- (b) `load_dotenv`가 `vauly_keymaker`·`grid_oracle_database_manager`·`alembic/env.py`
-  세 군데서 각자 호출됨 → 진입점에서만 호출하도록 **단일화**.
+- (a) TMDB/KOFIC 코드 중복(ontology `api_keys.py` / mova `keymaker.tmdb_api_key`):
+  둘 다 같은 env 이름을 읽어 **값 divergence 위험 없음(상태 중복 아니라 코드
+  중복)**, 앱별로 하나씩 가진 건 "app이 자기 키를 소유" 목표 방향과 오히려 일치.
+  지금 mova에 accessor를 신설하면 pydantic-settings 이관 때 또 뜯게 됨 →
+  **app별 Settings(pydantic-settings) 도입 시 mova·ontology 키 접근을 함께 이관.
+  현재는 무해. 단독 실행 금지.**
+- (b) `load_dotenv` 3곳 감사 완료(2026-07-24): **세 곳 모두 같은 파일**
+  (`suvisdev/.env`) 로드 — vauly_keymaker·grid_oracle는 `override=True`,
+  alembic/env.py는 `override=False`. 파일이 같아 값 분기는 없으나 override
+  플래그가 불일치. **단일화 안 함** — Keymaker의 임포트 시 self-load는 scripts/를
+  떠받치는 **기능(계약)**이라 제거 대상 아님(Keymaker docstring에 계약 명시함).
+  override 불일치는 인지만 하고 현행 유지.
 - (c) **[추가]** `VisionS3Repository`가 Tank가 아닌 자체 `boto3.client`를 씀 → S3
   접근 경로가 둘(Tank / VisionS3Repository)로 갈려서 **AWS 실연결 시 두 군데를
   따로 고쳐야 한다.** Tank로 단일화 — 시크릿 관리 정리와 함께.
