@@ -67,7 +67,25 @@
   VRAM 2863→3014MB(호출당 +30~120MB로 CLIP 가중치 누적 아님 → 로드-언로드
   정상), lora-server 정상. GATE_H5_PASS.
 
-**3) AWS S3 매니저(Tank) 신설** — 향후 AWS 이전(이미지/객체를 S3 URL로
+**3) 06 Sentinel H6 — `/vision/upload` 업로드 게이트 통합**
+- 용도 확정(소거법): harvester=텍스트만 수집, TMDB=poster_url 참조(항상 포스터),
+  lora-server=텍스트 생성기, Prisma(05)=미구현 → 이미지 입력이 불확실한 유일한
+  경로가 `POST /vision/upload`라 여기에 게이트로 붙임(근거 추적은 이 세션 대화).
+- `app/dtos/vision_dto.py`: `VisionUploadResponse`에 `poster_confidence`/
+  `sharpness_score`/`is_poster_warning` 추가(기본값 있어 repo 무변경).
+- `app/use_cases/vision_interactor.py`: `AnomalyDetectionPort` 주입,
+  `upload_image`가 `to_thread`로 detect → 블러 하드 게이트(임계값 345.77 미달
+  `ValueError`→400) + 포스터 소프트 플래그(`poster_confidence`<0.5 경고, 차단 안
+  함). 임계값을 interactor가 raw 값으로 소유(어댑터 부울은 /sentinel·MCP용).
+- `dependencies/vision_provider.py`: `get_anomaly_detection_port` 재사용 주입.
+- 검증: `test/test_vision_upload_sentinel_gate.py`(gpu, fake VisionPort+실제
+  Sentinel) 3경로 PASSED — good(통과+저장), blur(하드 반려+미저장),
+  cast_0001(소프트 플래그+저장). 앱 import 무결성(`main` 7 vision routes) 확인,
+  VRAM 3034→3034 안정.
+- 동기 지연(~20s CLIP 로드)·VRAM 경합은 감수(어드민 간헐 경로, to_thread, CLIP
+  경량) — 근거 `06 §6.9`.
+
+**4) AWS S3 매니저(Tank) 신설** — 향후 AWS 이전(이미지/객체를 S3 URL로
 전달, ontology 00_COMMON §6) 대비. mova/gildle 도메인과 무관한 인프라 작업.
 - `core/matrix/aws_tank_s3_manager.py`(신규): `Tank` 클래스. IAM 액세스 키를
   하드코딩하지 않고 Keymaker에서 받아 boto3 S3 클라이언트 생성. 키 없으면
@@ -94,14 +112,48 @@
   변경/신규 파일 6개를 컨테이너에 직접 복사해 그 안에서 pytest 실행,
   둘 다 PASSED. VRAM은 호출 전후 2879MB로 동일(로드-언로드 정상 확인),
   lora-server(`:8200/health`) 정상 유지.
+- **기존 순환 임포트 노출(H6 테스트)** — `app/ports/input/vision_use_case.py`가
+  어댑터 계층 `adapter/inbound/api/schemas/vision_schema.py`를 임포트(app→adapter
+  DIP 위반)해서, `vision_interactor`를 `api/__init__` 애그리게이터보다 먼저
+  임포트하면 `vision_use_case → vision_schema → api/__init__ → vision_router →
+  vision_use_case(partial)` 순환이 터진다. 프로덕션은 `main.py` 임포트 순서
+  덕에 회피 중(앱 import 무결성 확인함). H6 테스트는 `api` 애그리게이터를 선
+  로드해 우회. **근본 수정(포트가 어댑터 스키마를 안 보게)은 백로그 — 아래.**
+
+### 백로그 (추가 — 순환 임포트)
+- `app/ports/input/vision_use_case.py`의 `vision_schema`(adapter) 임포트 제거 →
+  app→adapter DIP 위반이자 import 순서 취약성의 근원. 포트가 스키마에 직접
+  의존하지 않도록 정리(입력 포트 시그니처를 DTO/원시 타입으로). 지금은 손대지
+  않음(H6 범위 밖, 기존 이슈).
 
 ### 산출물
 - 문서 갱신: `apps/ontology/_docs/06_anomaly_detection_agent.md` §6.7(H4)·
-  §6.8(H5) 신규, `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` H4·H5 완료로
-  갱신(스테일해진 H4 체크리스트·미결정 표 제거, 다음은 H6).
+  §6.8(H5)·§6.9(H6) 신규, `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 06을 H0~H6
+  완료로 갱신(완료 목록 이동, 감사표·우선순위 반영).
 - 백엔드 이미지 리빌드(H5 코드 반영) — `suvisdev-backend-1` 재기동됨.
 - Sentinel H4·H5는 커밋/푸시/머지 완료(`df5a56b`, main 반영). S3 매니저(Tank)
-  관련 3파일은 아직 커밋 안 함(사용자 확인 전).
+  관련 3파일은 커밋/푸시/머지 완료(`53bd4de`, main 반영).
+
+### 백로그 (시크릿 관리 — 지금은 손대지 않음, 나중에 처리)
+
+시크릿 관리 현황 감사 결과, Keymaker(`vauly_keymaker`)는 단일 관문이 아니라
+여러 시크릿 접근 경로 중 하나였다(GEMINI/TMDB/KOFIC/AWS/DATABASE_URL만 관리,
+나머지 JWT·OAuth·API_USERNAME 등은 각 app이 `os.getenv`로 직접 읽음).
+
+**방향 결정 — Keymaker 전면 통합은 채택 안 함.** core/matrix가 TMDB_API_KEY·
+JWT 키 같은 앱별 시크릿을 알게 되면 core → apps 역방향 의존이 생겨 헥사고날
+원칙에 어긋난다. 나중에 정리한다면 core는 `SecretProvider` 인터페이스(메커니즘)
+만 갖고, 키 목록은 각 app의 Settings가 소유하는 방향으로 간다.
+
+**처리 예정(잠재 버그, 다음에)**:
+1. `apps/ontology/adapter/outbound/config/api_keys.py`의 TMDB/KOFIC이 Keymaker와
+   중복 → ontology 앱 소유이므로 `api_keys.py`를 남기고 **Keymaker에서 제거**.
+2. `load_dotenv`가 `vauly_keymaker`·`grid_oracle_database_manager`·`alembic/env.py`
+   세 군데서 각자 호출됨 → 진입점(`main.py`·`auth_main.py`·`alembic/env.py`)에서만
+   호출하도록 **단일화**.
+3. Tank(S3) 어댑터가 boto3에 AWS 키를 명시적으로 전달하는 부분 → EC2 배포 시
+   IAM Role이 자격증명을 자동 주입하므로 `boto3.client("s3", region_name=...)`만
+   남기고 **키 전달 제거**.
 
 ---
 

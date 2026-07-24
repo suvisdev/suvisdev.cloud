@@ -26,3 +26,9 @@ class VisionUploadResponse:
     filename: str
     size_bytes: int
     saved_path: str
+    # Sentinel 업로드 게이트(H6) 메타데이터 — interactor가 raw 점수로 채운다.
+    # 블러는 하드 게이트(미달 시 업로드 자체가 반려되므로 저장까지 오면 통과한 값),
+    # is_poster_warning은 소프트 플래그(차단 안 함, 경고만).
+    poster_confidence: float = 0.0
+    sharpness_score: float = 0.0
+    is_poster_warning: bool = False

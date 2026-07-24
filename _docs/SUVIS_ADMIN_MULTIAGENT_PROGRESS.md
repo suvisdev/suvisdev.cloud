@@ -15,6 +15,9 @@
 - **01(이미지 분류, 포스터→장르)**: H0~H6 전체 완료. `01_image_classifier_agent.md` §7.
 - **07(Echo, 감정분석)**: H0~H6 전체 완료(NSMC 기반, val acc 87.75%).
   `07_sentiment_analysis_agent.md` §5~§10.
+- **06(Sentinel, 이상 탐지)**: H0~H6 전체 완료(CLIP 제로샷 포스터 판별 +
+  Laplacian 블러, `/vision/upload` 게이트). `06_anomaly_detection_agent.md`
+  §5~§6.9. 미결 백로그는 아래 "진행 중/다음" 1번.
 - **02~08 H0 스캐폴딩**: 포트/인터페이스 껍데기 7개 태스크 전부 생성 완료
   (실제 추론 어댑터는 없음 — 아래 "진행 중" 참고).
 
@@ -22,20 +25,22 @@
 
 ## 진행 중 / 다음에 할 일
 
-### 1. 06(Sentinel, 이상 탐지) — H4·H5 완료, H6(에이전트 통합)부터 재개
+### 1. 06(Sentinel, 이상 탐지) — H0~H6 전체 완료 (2026-07-24)
 
-방향 조사·전환·**H4(추론 어댑터)·H5(HTTP API + MCP tool) 완료**(2026-07-24).
-포트 설계는 1개 통합으로 확정. DTO(`AnomalyResult`)·어댑터
-(`sentinel_anomaly_adapter.py`, CLIP 제로샷+Laplacian variance 합침)·provider·
-라우터(`/api/vision/sentinel/detect`)·MCP 서버(`detect_anomaly` tool)까지 만들고,
-`suvisdev-backend-1` 리빌드 후 stdio MCP 클라이언트(`scripts/test_mcp_sentinel_client.py`)로
-전체 체인 게이트 통과 확인(good→포스터, blur→블러). 상세는
-`06_anomaly_detection_agent.md` §6.7(H4)·§6.8(H5).
+방향 조사·전환·**H4(추론 어댑터)·H5(HTTP API + MCP tool)·H6(업로드 게이트 통합)
+완료**. 포트 1개 통합, DTO(`AnomalyResult`)·어댑터(`sentinel_anomaly_adapter.py`,
+CLIP 제로샷+Laplacian variance)·provider·라우터(`/api/vision/sentinel/detect`)·
+MCP(`detect_anomaly`)까지 만들고 stdio MCP 클라이언트로 전체 체인 검증.
 
-**H6에서 할 일**: 에이전트 통합 + 시스템 프롬프트(스킬). 07의
-`sentiment_echo_agent.py`와 같은 층. **단, Sentinel을 어느 흐름에 붙일지
-(harvester 수집 이미지 검수 등) 용도부터 확정하고 착수** — 06은 원래
-"기법 먼저, 용도 나중"으로 무너졌던 태스크라 H6에서 용도를 다시 못박아야 함.
+**H6 용도 = `POST /vision/upload` 업로드 게이트**(소거법 — harvester는 텍스트만
+수집, TMDB는 URL 참조라 항상 포스터, lora-server는 텍스트 생성기, Prisma 미구현.
+업로드만 입력이 불확실). 블러=하드 게이트(400), is_poster=소프트 플래그(경고+어드민
+오버라이드 여지). 임계값은 `VisionInteractor`가 raw 값으로 소유. GATE_H6 3경로
+통과(good/blur/non-poster). 상세: `06_anomaly_detection_agent.md` §6.7~§6.9.
+
+**남은 미결(백로그)**: ① 소프트 플래그 저장 지속화 + 어드민 오버라이드 엔드포인트
+(저장 계층 정리 후 — S3 배선인데 AWS 미연결, DB 폴백 `VisionRepository` 미배선).
+② `vision_use_case`의 app→adapter 순환 임포트(WORK_LOG 2026-07-24 백로그).
 
 방향 조사·전환 근거 전체는 `06_anomaly_detection_agent.md` §5~§6.6.
 
@@ -61,11 +66,11 @@
 | 03 | Loom(분할) | 보류 — gildle 결빙 재정의 검토했으나 이미지 수집 경로 미확정(`03_semantic_segmentation_agent.md` §5) |
 | 04 | Atlas(자세 추정) | **제외** — mova/gildle에 용도 자체가 없음(문서 상단 배너 처리, 삭제는 안 함) |
 | 05 | Prisma(이미지 생성) | 보류 — 용도 불확실 + 하드웨어 위험(SD1.5 LoRA와 lora-server 상시 점유 겹침) |
-| 06 | Sentinel(이상 탐지) | 위 1번 참고 — 진행 중 |
+| 06 | Sentinel(이상 탐지) | **완료**(H0~H6, `/vision/upload` 게이트) — 미결 백로그는 1번 |
 | 07 | Echo(감정분석) | 완료 |
 | 08 | Chronos(영상 분류) | **제외** — mova/gildle에 용도 자체가 없음(문서 상단 배너 처리) |
 
-**우선순위**: Echo(완료) → Sentinel(H6~ 재개) → 나머지(02·03·05)는 각자
+**우선순위**: Echo(완료) → Sentinel(완료) → 나머지(02·03·05)는 각자
 표에 적힌 전제조건(제품 결정/이미지 수집 경로/VRAM 여유)이 풀리기 전까지
 착수 안 함.
 

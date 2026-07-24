@@ -343,7 +343,71 @@ tool, base64 이미지를 받아 `/api/vision/sentinel/detect`로 HTTP POST.
   수백MB가 쌓이지 않음 → 로드-언로드 정상, 잔여는 CUDA 컨텍스트로 안정).
   lora-server(`:8200/health`) `model_loaded:true` 유지.
 
-**다음(H6, 이번 세션 범위 밖)**: 에이전트 통합 + 시스템 프롬프트(스킬).
-07이 `sentiment_echo_agent.py`(Ollama가 결과를 한국어로 요약)를 추가한 것과
-같은 층 — Sentinel은 harvester 검수 흐름(수집 이미지가 포스터인지·흐리지
-않은지)에 붙일지 용도부터 확정하고 착수할 것.
+### 6.9 H6(용도 확정 + 업로드 게이트 통합) 완료 (2026-07-24)
+
+**용도 확정 = `POST /vision/upload` 업로드 게이트 (소거법).** 06이 처음 무너진
+"기법 먼저, 용도 나중"을 피하려고, Sentinel의 `is_poster`/블러 신호가 **실제로
+갈리는 입력**이 있는 경로만 정당하다는 기준으로 후보를 추적했다:
+- **harvester 수집 경로 → 기각**: 수집 VO `ScrapedRecord`에 이미지 필드가
+  없고 스크레이퍼(news/wiki/kobis/tmdb)는 전부 텍스트만 모은다. 포스터 이미지
+  0장 → 검수 대상 없음.
+- **TMDB poster → 기각**: mova는 `poster_url`(TMDB CDN URL 문자열)만 저장하고
+  바이트를 안 내려받는다. 보장된 포스터라 `is_poster` 항상 True → 신호 없음.
+- **lora-server 생성 → 기각**: lora-server는 텍스트 생성기(EXAONE/AWQ, mova
+  채팅 RAG)라 포스터를 만들지 않는다. 포스터 생성은 Prisma(05)인데 `diffusion/`
+  어댑터가 빈 껍데기(0줄)이고 05는 보류 → 생성 파이프라인 부재.
+- **`vision/upload` → 채택**: 확장자·빈 파일만 검증하고 내용물은 미검증. 사용자/
+  어드민이 뭘 올릴지 불확실 → 두 신호 모두 실제로 갈린다. 01 분류기에 쓰레기
+  입력이 들어가는 것도 막는 전처리가 됨.
+
+**설계 (사용자 지정 3조건)**:
+1. **두 신호를 다른 강도로**: 블러(`sharpness_score`)는 **하드 게이트**(임계값
+   345.77 미달 시 `ValueError`→라우터가 400), `is_poster`(CLIP 제로샷)는 **소프트**
+   — 차단하지 않고 `is_poster_warning` 플래그만 세운다(제로샷이라 티저·캐릭터
+   포스터 오탐 위험 → 어드민 오버라이드 여지).
+2. **임계값은 `VisionInteractor`가 소유**: 어댑터의 부울(`is_poster`/`is_blurry`)이
+   아니라 raw 값(`poster_confidence`/`sharpness_score`)을 받아 interactor가 판정.
+   어댑터 부울은 `/sentinel/detect`·MCP 직접 소비자용으로 남기고, 업로드 게이트는
+   자체 임계값 상수로 역할별 정책 분기 여지를 확보.
+3. (raw 값 사용은 2에 포함.)
+
+**구현**:
+- `app/dtos/vision_dto.py`: `VisionUploadResponse`에 `poster_confidence`/
+  `sharpness_score`/`is_poster_warning` 추가(기본값 있어 repository는 무변경).
+- `app/use_cases/vision_interactor.py`: `AnomalyDetectionPort` 주입, `upload_image`가
+  `asyncio.to_thread`로 detect 호출 → 블러 하드 게이트 + 포스터 소프트 플래그 →
+  `dataclasses.replace`로 메타데이터 부착. 임계값(`_BLUR_THRESHOLD`=345.77,
+  `_POSTER_CONFIDENCE_THRESHOLD`=0.5) interactor 소유.
+- `dependencies/vision_provider.py`: 기존 `get_anomaly_detection_port` 재사용해 주입.
+
+**H6 게이트 검증** (`test/test_vision_upload_sentinel_gate.py`, `@pytest.mark.gpu`):
+저장 백엔드(S3/DB)와 무관하게 게이트 로직만 보려고 **fake VisionPort** + 실제
+Sentinel 어댑터를 `VisionInteractor`에 주입해 3경로 검증(컨테이너에서 실행):
+- `good/0000.jpg` → 통과 + 저장, `is_poster_warning=False`, sharpness≥345.77 — PASSED
+- `blur/0000.jpg` → `ValueError`(하드 게이트), 저장 안 됨 — PASSED
+- `non_poster_easy/cast_0001.jpg`(conf 0.003, sharp 497) → 소프트 플래그 + 저장 — PASSED
+- VRAM 3034→3034MB 동일(로드-언로드 정상), lora-server 정상.
+
+**동기 요청 지연 · VRAM 경합 판단 (감수)**: 업로드가 동기 요청이라 호출당 CLIP
+로드로 ~20초 지연되고 EXAONE(lora-server)과 VRAM을 공유한다. 그래도 감수한다 —
+(a) 이 경로는 어드민/간헐 업로드 검수라 고빈도 사용자 트래픽이 아니고(Echo가
+호출당 수십 초 로드를 "보조 에이전트용"으로 감수한 것과 동일 판단), (b)
+`asyncio.to_thread`로 이벤트 루프는 안 막으며, (c) CLIP-ViT-B/32는 가벼워 H5·H6
+실측상 로드-언로드 후 baseline 복귀(경합 위험 낮음). 트래픽이 늘면 상주 서빙/
+배치로 전환한다.
+
+**알아둘 점**: 블러 임계값(345.77)은 포스터(텍스트·그래픽으로 고주파 많음)로
+보정돼서, 디테일 적은 비포스터 사진(backdrop 등)이 "블러"로 하드 반려되기도
+한다(예: backdrop 상당수가 sharp<345.77). 업로드 게이트 용도(선명한 포스터를
+원함)에선 허용 가능한 동작이라 그대로 둔다.
+
+**미결/백로그**:
+- 소프트 플래그의 **저장 지속화 + 어드민 오버라이드 엔드포인트**는 저장 계층이
+  정리된 뒤로 미룸(지금 배선은 S3인데 AWS 미연결, DB 폴백 `VisionRepository`는
+  존재하나 미배선 — `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 참고). 이번 H6은 게이트
+  로직 + 응답 메타데이터까지만 확정하고, 플래그를 스토어에 남기는 건 별도.
+- 기존 순환 임포트: `app/ports/input/vision_use_case.py`가 어댑터 계층
+  `api.schemas.vision_schema`를 임포트(app→adapter DIP 위반)해서 import 순서에
+  따라 순환이 터진다. H6 테스트에서 드러났고 프로덕션은 `main.py` 순서 덕에
+  회피 중. 테스트는 `api` 애그리게이터 선(先)로드로 우회. 근본 수정은 백로그
+  (WORK_LOG 2026-07-24).
