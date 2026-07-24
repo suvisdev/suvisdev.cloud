@@ -19,8 +19,18 @@ _ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
 # 업로드 게이트 정책 임계값은 interactor가 소유한다(어댑터의 기본 판정과 분리 —
 # 어댑터 부울 is_poster/is_blurry는 /sentinel/detect·MCP 직접 소비자용이고,
 # 업로드 게이트는 raw 점수로 자체 정책을 적용해 역할별 분기 여지를 남긴다).
-# 값 근거: 06_anomaly_detection_agent.md §6.5~§6.6.
-_BLUR_THRESHOLD = 345.77  # Laplacian variance 하위 5퍼센타일(정상 포스터 232장)
+
+# 블러 하드 게이트 임계값 — Laplacian variance(256x256 정규화) 기준.
+# 유래: 정상 포스터 232장(genre_classifier_train 전체)의 Laplacian variance
+#       하위 5퍼센타일(scripts/compute_sentinel_blur_threshold.py,
+#       06_anomaly_detection_agent.md §6.5~§6.6).
+# 트레이드오프: 포스터는 제목·크레딧 등 그래픽 텍스트로 고주파 성분이 많아 값이
+#       크게 잡히는데, 이 값은 그 포스터 분포로 보정된 컷이다. 그래서 backdrop
+#       같은 저디테일 비포스터 사진은 실제로 흐리지 않아도 이 값에 미달해 하드
+#       반려될 수 있다(§6.9). 업로드 게이트의 목적이 "선명한 포스터 수집"이라
+#       이 오검을 허용한다.
+_BLUR_THRESHOLD = 345.77
+
 _POSTER_CONFIDENCE_THRESHOLD = 0.5  # CLIP 제로샷 포스터 확률 결정 경계
 
 

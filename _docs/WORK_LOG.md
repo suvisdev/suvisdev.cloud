@@ -120,21 +120,28 @@
   덕에 회피 중(앱 import 무결성 확인함). H6 테스트는 `api` 애그리게이터를 선
   로드해 우회. **근본 수정(포트가 어댑터 스키마를 안 보게)은 백로그 — 아래.**
 
-### 백로그 (추가 — 순환 임포트)
-- `app/ports/input/vision_use_case.py`의 `vision_schema`(adapter) 임포트 제거 →
-  app→adapter DIP 위반이자 import 순서 취약성의 근원. 포트가 스키마에 직접
-  의존하지 않도록 정리(입력 포트 시그니처를 DTO/원시 타입으로). 지금은 손대지
-  않음(H6 범위 밖, 기존 이슈).
-
 ### 산출물
 - 문서 갱신: `apps/ontology/_docs/06_anomaly_detection_agent.md` §6.7(H4)·
   §6.8(H5)·§6.9(H6) 신규, `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 06을 H0~H6
   완료로 갱신(완료 목록 이동, 감사표·우선순위 반영).
 - 백엔드 이미지 리빌드(H5 코드 반영) — `suvisdev-backend-1` 재기동됨.
-- Sentinel H4·H5는 커밋/푸시/머지 완료(`df5a56b`, main 반영). S3 매니저(Tank)
-  관련 3파일은 커밋/푸시/머지 완료(`53bd4de`, main 반영).
+- 커밋/푸시/머지(모두 main 반영): Sentinel H4·H5 `df5a56b`, S3 매니저(Tank)
+  `53bd4de`, Sentinel H6 `2da0762`, 블러 상수 주석+백로그 우선순위(이 커밋).
 
-### 백로그 (시크릿 관리 — 지금은 손대지 않음, 나중에 처리)
+### 백로그 (우선순위 조정 — 2026-07-24)
+
+**[1순위] app→adapter DIP 위반 + 순환 import(import 순서로 회피 중)**
+- `app/ports/input/vision_use_case.py`가 어댑터 계층 `api.schemas.vision_schema`를
+  임포트 → app→adapter DIP 위반. import 순서에 따라
+  `vision_use_case → vision_schema → api/__init__ → vision_router → vision_use_case`
+  순환이 터진다.
+- **1순위인 이유**: H6 테스트는 `api` 애그리게이터 선로드로 우회하고 프로덕션은
+  `main.py` 순서로 회피 중인데 — **테스트 로드 경로 ≠ 프로덕션 로드 경로**라서
+  GATE 통과가 기동 성공을 보장하지 못한다. 로드 순서만 바뀌어도 프로덕션이
+  import 에러로 안 뜰 수 있음.
+- 수정: 입력 포트가 어댑터 스키마에 의존하지 않게(포트 시그니처를 DTO/원시 타입으로).
+
+**[2순위] 시크릿·S3 접근 경로 정리 (묶음)**
 
 시크릿 관리 현황 감사 결과, Keymaker(`vauly_keymaker`)는 단일 관문이 아니라
 여러 시크릿 접근 경로 중 하나였다(GEMINI/TMDB/KOFIC/AWS/DATABASE_URL만 관리,
@@ -145,15 +152,21 @@ JWT 키 같은 앱별 시크릿을 알게 되면 core → apps 역방향 의존�
 원칙에 어긋난다. 나중에 정리한다면 core는 `SecretProvider` 인터페이스(메커니즘)
 만 갖고, 키 목록은 각 app의 Settings가 소유하는 방향으로 간다.
 
-**처리 예정(잠재 버그, 다음에)**:
-1. `apps/ontology/adapter/outbound/config/api_keys.py`의 TMDB/KOFIC이 Keymaker와
-   중복 → ontology 앱 소유이므로 `api_keys.py`를 남기고 **Keymaker에서 제거**.
-2. `load_dotenv`가 `vauly_keymaker`·`grid_oracle_database_manager`·`alembic/env.py`
-   세 군데서 각자 호출됨 → 진입점(`main.py`·`auth_main.py`·`alembic/env.py`)에서만
-   호출하도록 **단일화**.
-3. Tank(S3) 어댑터가 boto3에 AWS 키를 명시적으로 전달하는 부분 → EC2 배포 시
-   IAM Role이 자격증명을 자동 주입하므로 `boto3.client("s3", region_name=...)`만
-   남기고 **키 전달 제거**.
+- (a) `apps/ontology/adapter/outbound/config/api_keys.py`의 TMDB/KOFIC이 Keymaker와
+  중복 → ontology 앱 소유이므로 `api_keys.py`를 남기고 **Keymaker에서 제거**.
+- (b) `load_dotenv`가 `vauly_keymaker`·`grid_oracle_database_manager`·`alembic/env.py`
+  세 군데서 각자 호출됨 → 진입점에서만 호출하도록 **단일화**.
+- (c) **[추가]** `VisionS3Repository`가 Tank가 아닌 자체 `boto3.client`를 씀 → S3
+  접근 경로가 둘(Tank / VisionS3Repository)로 갈려서 **AWS 실연결 시 두 군데를
+  따로 고쳐야 한다.** Tank로 단일화 — 시크릿 관리 정리와 함께.
+- (d) Tank(S3)가 boto3에 AWS 키를 명시 전달 → EC2 배포 시 IAM Role이 자동 주입
+  하므로 `boto3.client("s3", region_name=...)`만 남기고 **키 전달 제거**.
+
+**[유지] 하위 우선순위**
+- 블러 임계값(345.77)은 포스터 분포 보정값이라 저디테일 비포스터(backdrop 등)가
+  미달해 하드 반려될 수 있음 — 업로드 게이트 용도상 허용(현행 유지).
+- Sentinel 소프트 플래그의 **저장 지속화 + 어드민 오버라이드 엔드포인트** — 저장
+  계층(S3 배선인데 AWS 미연결, DB 폴백 미배선) 정리 후 처리(현행 유지).
 
 ---
 
