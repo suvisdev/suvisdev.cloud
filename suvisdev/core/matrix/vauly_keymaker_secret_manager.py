@@ -54,6 +54,13 @@ class Keymaker:
         self.gemini_api_key: str = (os.getenv("GEMINI_API_KEY") or "").strip()
         self.tmdb_api_key: str = (os.getenv("TMDB_API_KEY") or "").strip()
         self.kofic_api_key: str = (os.getenv("KOFIC_API_KEY") or "").strip()
+
+        # AWS S3 (IAM 사용자 액세스 키) — Tank(aws_tank_s3_manager)가 사용
+        self.aws_access_key_id: str = (os.getenv("AWS_ACCESS_KEY_ID") or "").strip()
+        self.aws_secret_access_key: str = (os.getenv("AWS_SECRET_ACCESS_KEY") or "").strip()
+        self.aws_region: str = (os.getenv("AWS_REGION") or "ap-northeast-2").strip()  # 서울
+        self.vision_s3_bucket: str = (os.getenv("VISION_S3_BUCKET") or "").strip()
+
         self._gemini_models: dict[str, object] = {}
 
         if self.gemini_api_key:

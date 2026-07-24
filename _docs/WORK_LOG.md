@@ -31,23 +31,13 @@
 ## 2026-07-24
 
 ### 작업 내용
-- 용량 정리: WSL 리눅스 디스크(docker build cache, uv 캐시, HF 캐시 중복)
-  1차 정리 + Windows C드라이브(96% 사용) 원인 조사.
 - 06(Sentinel, 이상 탐지) **H4(추론 어댑터) + H5(HTTP API + MCP tool) 구현**
   — H3까지의 방향 전환(CLIP 제로샷 + Laplacian variance)을 실제 코드로
   반영하고 MCP tool까지 노출.
 
 ### 수정/구현
 
-**1) 용량 정리**
-- Docker build cache prune(393.7M), uv 캐시 prune(32.5M), HF 캐시 중복
-  제거(`~/.cache/huggingface/hub`의 EXAONE-3.5-7.8B-Instruct-AWQ 5.0G —
-  `suvisdev/EXAONE-3.5-7.8B-Instruct-AWQ/` 로컬 사본과 완전 중복 확인 후
-  캐시 쪽만 삭제). 합계 약 5.4G 회수.
-- Qwen 로컬 사본(2.9G)·awq_server 관련 파일은 코드 참조가 아직 남아있어
-  이번엔 조사만 하고 삭제 보류.
-
-**2) 06 Sentinel H4**
+**1) 06 Sentinel H4**
 - 미결정 사항(포트 1개 vs 2개) 확인 후 **포트 1개 통합**으로 확정하고 진행.
 - `app/dtos/anomaly_detection_dto.py`: `AnomalyResult`를 PatchCore 가정
   (`anomaly_score`/`is_anomaly`/`heatmap_b64`)에서 `is_poster`/
@@ -61,7 +51,7 @@
 - `test/test_sentinel_anomaly_adapter.py`(신규, `@pytest.mark.gpu`) —
   `test/good`·`test/blur` 샘플로 포트→VO 반환 검증.
 
-**3) 06 Sentinel H5**
+**2) 06 Sentinel H5**
 - `adapter/inbound/api/v1/anomaly_detection_router.py`(신규):
   `image_classifier_router.py` 패턴, `POST /sentinel/detect`(전체 경로
   `/api/vision/sentinel/detect`), `UploadFile` 입력.
@@ -77,6 +67,24 @@
   VRAM 2863→3014MB(호출당 +30~120MB로 CLIP 가중치 누적 아님 → 로드-언로드
   정상), lora-server 정상. GATE_H5_PASS.
 
+**3) AWS S3 매니저(Tank) 신설** — 향후 AWS 이전(이미지/객체를 S3 URL로
+전달, ontology 00_COMMON §6) 대비. mova/gildle 도메인과 무관한 인프라 작업.
+- `core/matrix/aws_tank_s3_manager.py`(신규): `Tank` 클래스. IAM 액세스 키를
+  하드코딩하지 않고 Keymaker에서 받아 boto3 S3 클라이언트 생성. 키 없으면
+  `ready=False` + 클라이언트 접근 시 graceful `RuntimeError`. 메서드:
+  `list_buckets`/`upload_bytes`/`download_bytes`/`generate_presigned_url`.
+  모듈 싱글턴 `tank`/`get_tank()`(Keymaker 패턴).
+- `core/matrix/vauly_keymaker_secret_manager.py`: AWS 자격증명·리전·버킷을
+  Keymaker가 단일 관리하도록 `aws_access_key_id`/`aws_secret_access_key`/
+  `aws_region`/`vision_s3_bucket` 속성 추가. Tank는 `os.getenv`를 직접 읽지
+  않고 이 값을 받아 씀(사용자 요청으로 os.getenv 직접 접근 → Keymaker 경유로
+  리팩터).
+- `.env.example`: AWS IAM 액세스 키 블록 추가(`AWS_ACCESS_KEY_ID`/
+  `AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`VISION_S3_BUCKET`). 변수명은 기존
+  `vision_s3_repository.py`(boto3 기본 자격증명 체인)와 맞춰 재사용.
+- 검증: 컨테이너에서 import + graceful degradation(키 없을 때 `ready=False`,
+  클라이언트 접근 에러) 확인. 실 버킷 연동은 키 주입 후 별도.
+
 ### 오류·막힌 점
 - **로컬 `.venv`/`.venv-exaone`에 pytest/opencv 없음** — 이 프로젝트의 실제
   런타임 의존성(`transformers==4.47.1`, `opencv-python`, `pytest`)은
@@ -86,22 +94,14 @@
   변경/신규 파일 6개를 컨테이너에 직접 복사해 그 안에서 pytest 실행,
   둘 다 PASSED. VRAM은 호출 전후 2879MB로 동일(로드-언로드 정상 확인),
   lora-server(`:8200/health`) 정상 유지.
-- **Windows C드라이브 96% 사용** — 원인은 WSL2 vhdx 비대화(162G 파일,
-  실제 리눅스 사용량은 128G/1007G뿐)로 특정. 압축 스크립트
-  (`C:\Users\hi\wsl_vhdx_compact.ps1` — `wsl --shutdown` + `diskpart
-  compact vdisk`)까지 준비했지만 diskpart가 관리자 권한을 요구해서
-  실행 안 됨. `Start-Process -Verb RunAs`(UAC 프롬프트, 거부됨)와 `schtasks
-  /rl highest`(생성 자체가 access denied) 둘 다 시도했으나 비대화형
-  승격 경로가 없다는 걸 확인 — Windows 보안 모델상 물리적 UAC 클릭
-  없이는 우회 불가. 사용자가 자리 이동 못 해 보류, 다음에 재시도
-  (메모리 `project_c_drive_vhdx_compact_pending.md` 참고).
 
 ### 산출물
 - 문서 갱신: `apps/ontology/_docs/06_anomaly_detection_agent.md` §6.7(H4)·
   §6.8(H5) 신규, `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` H4·H5 완료로
   갱신(스테일해진 H4 체크리스트·미결정 표 제거, 다음은 H6).
 - 백엔드 이미지 리빌드(H5 코드 반영) — `suvisdev-backend-1` 재기동됨.
-- 커밋은 아직 안 함(사용자 확인 전).
+- Sentinel H4·H5는 커밋/푸시/머지 완료(`df5a56b`, main 반영). S3 매니저(Tank)
+  관련 3파일은 아직 커밋 안 함(사용자 확인 전).
 
 ---
 
