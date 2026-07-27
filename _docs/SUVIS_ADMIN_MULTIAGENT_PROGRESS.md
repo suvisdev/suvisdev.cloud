@@ -42,8 +42,13 @@
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
 - **S3**: AWS 실연결(버킷+키 세팅) 후 Tank 단일 경로 실 업로드 검증.
-- **어드민 백엔드 인증 공백**: `/admin/dispatch`·`/admin/harvester` 라우터에
-  `require_admin` 없음 → 프론트 `AdminAuthGate` 우회로 직접 호출 시 뚫림. 추가 필요.
+- **어드민 백엔드 인증 공백**: (2026-07-27 대응) 가드를 `shared/security/require_admin.py`로
+  이동 후 dispatch `email/telegram/discord` POST·`receive` GET/DELETE, harvester
+  `scrape/crawl/sites`에 `require_admin` 추가 + 프론트 프록시/클라가 세션 Bearer를
+  백엔드까지 전달(3계층). 상세 WORK_LOG 2026-07-27 [2]. **잔여**: dispatch
+  `watcher/judge/spam/adress`는 어드민 UI 미사용이라 범위 밖 — 각 엔드포인트가
+  외부 인입인지 개별 확인 후 보호 판단(검증 없이 가드 금지). `receive` POST는
+  외부 인입이라 의도적으로 무인증 유지.
 - **기존 실패 테스트**(이번 작업 무관): `apps/mova/tests/test_import_interactor.py`
   2건, `test_llm_error_handling.py`.
 

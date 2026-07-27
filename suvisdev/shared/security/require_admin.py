@@ -3,6 +3,9 @@
 role은 로그인 시 서버(RedisSessionStoreAdapter._resolve_role)가 ADMIN_EMAILS
 기준으로 산출해 JWT claim에 넣은 값이다. 클라이언트가 보내는 어떤 값도
 신뢰하지 않고, 오직 서명 검증된 JWT의 role claim만 본다.
+
+여러 앱(viewer 어드민 라우터, dispatch·ontology 어드민 엔드포인트)이 공유하므로
+앱 간 import를 피해 shared 리프 계층에 둔다(.importlinter shared-independence).
 """
 
 from __future__ import annotations

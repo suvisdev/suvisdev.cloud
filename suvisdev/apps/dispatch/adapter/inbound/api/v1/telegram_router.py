@@ -11,6 +11,7 @@ from dispatch.app.dtos.telegram_dto import TelegramIntroduceResponse
 from dispatch.app.ports.input.telegram_use_case import TelegramUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.telegram_provider import get_telegram_use_case
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 telegram_router = APIRouter(prefix="/telegram", tags=["dispatch-telegram"])
 
@@ -26,6 +27,7 @@ async def introduce_myself(
 def send_telegram(
     req: TelegramRequest,
     use_case: TelegramUseCase = Depends(get_telegram_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> TelegramResponseSchema:
     try:
         dto = use_case.send(message=req.message, chat_id=req.chat_id)

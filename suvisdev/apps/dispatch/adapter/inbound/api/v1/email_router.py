@@ -11,6 +11,7 @@ from dispatch.app.dtos.email_dto import EmailIntroduceResponse
 from dispatch.app.ports.input.email_use_case import EmailUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.email_provider import get_email_use_case
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 email_router = APIRouter(prefix="/email", tags=["dispatch-email"])
 
@@ -26,6 +27,7 @@ async def introduce_myself(
 def send_email(
     req: EmailRequest,
     use_case: EmailUseCase = Depends(get_email_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> EmailResponseSchema:
     try:
         dto = use_case.send(to=str(req.to), prompt=req.prompt, subject=req.subject)

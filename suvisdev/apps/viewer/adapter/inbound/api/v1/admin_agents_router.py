@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from viewer.dependencies.require_admin import AdminPrincipal, require_admin
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 admin_agents_router = APIRouter(prefix="/admin/agents", tags=["admin"])
 

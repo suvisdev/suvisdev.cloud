@@ -29,6 +29,12 @@ export function getSuvisSession(): SuvisSession | null {
   }
 }
 
+/** 세션 토큰을 Authorization 헤더로 반환한다(없으면 빈 객체). */
+export function authHeader(): Record<string, string> {
+  const token = getSuvisSession()?.token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 export function clearSuvisSession(): void {
   if (typeof window === "undefined") return
   window.localStorage.removeItem(STORAGE_KEY)

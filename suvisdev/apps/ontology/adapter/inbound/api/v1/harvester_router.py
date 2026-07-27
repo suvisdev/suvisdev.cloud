@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from ontology.adapter.inbound.api.schemas.harvester_schema import (
     HarvesterCommandRequestSchema,
@@ -38,12 +38,13 @@ from ontology.dependencies.harvester_provider import (
     custom_url_scrape_out_path,
     default_scrape_out_path,
 )
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 harvester_router = APIRouter(prefix="/harvester", tags=["ontology-harvester"])
 
 
 @harvester_router.get("/sites", response_model=list[HarvesterSiteSchema])
-async def sites() -> list[HarvesterSiteSchema]:
+async def sites(_: AdminPrincipal = Depends(require_admin)) -> list[HarvesterSiteSchema]:
     return [
         HarvesterSiteSchema(site_id=site_id, fetcher_kind=cls.fetcher_kind)
         for site_id, cls in sorted(SITE_REGISTRY.items())
@@ -67,7 +68,10 @@ async def _run_custom_url(url: str, instruction: str, *, append: bool) -> Harves
 
 
 @harvester_router.post("/scrape", response_model=HarvesterRunResponseSchema)
-async def scrape(req: HarvesterCommandRequestSchema) -> HarvesterRunResponseSchema:
+async def scrape(
+    req: HarvesterCommandRequestSchema,
+    _: AdminPrincipal = Depends(require_admin),
+) -> HarvesterRunResponseSchema:
     """스크래퍼 탭 — 온디맨드 1회 수집 (파일 덮어쓰기)."""
     if req.url:
         return await _run_custom_url(req.url, req.command_text, append=False)
@@ -99,7 +103,10 @@ async def scrape(req: HarvesterCommandRequestSchema) -> HarvesterRunResponseSche
 
 
 @harvester_router.post("/crawl", response_model=HarvesterRunResponseSchema)
-async def crawl(req: HarvesterCommandRequestSchema) -> HarvesterRunResponseSchema:
+async def crawl(
+    req: HarvesterCommandRequestSchema,
+    _: AdminPrincipal = Depends(require_admin),
+) -> HarvesterRunResponseSchema:
     """크롤러 탭 — 즉시 1회 수집 (날짜별 append)."""
     if req.url:
         return await _run_custom_url(req.url, req.command_text, append=True)

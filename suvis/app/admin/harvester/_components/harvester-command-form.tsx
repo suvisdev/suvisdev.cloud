@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Link2, Loader2, Radar } from "lucide-react"
 import { patchState } from "@/lib/form-status"
+import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 import { cn } from "@/lib/utils"
 
@@ -67,7 +68,7 @@ export function HarvesterCommandForm({ mode }: { mode: keyof typeof COPY }) {
 
   useEffect(() => {
     let cancelled = false
-    fetch("/api/harvester/sites")
+    fetch("/api/harvester/sites", { headers: authHeader() })
       .then((res) => res.json())
       .then((data: unknown) => {
         if (!cancelled && Array.isArray(data)) setSites(data as HarvesterSite[])
@@ -111,7 +112,7 @@ export function HarvesterCommandForm({ mode }: { mode: keyof typeof COPY }) {
     try {
       const res = await fetch(copy.endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({})) as Record<string, unknown>

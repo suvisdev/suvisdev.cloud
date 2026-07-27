@@ -70,6 +70,57 @@
   `apps/ontology/_docs/03_semantic_segmentation_agent.md`(⛔ 제외 배너 + §5.4
   최종 확정) 갱신.
 
+---
+
+### [2] 어드민 dispatch/harvester 백엔드 인증 공백 차단
+
+**배경**: PROGRESS 백로그 "어드민 백엔드 인증 공백" — `/api/v1/dispatch/*`·
+`/api/ontology/harvester/*` 라우터에 `require_admin`이 없어 프론트 `AdminAuthGate`
+우회 직접 호출 시 무인증 통과. `_ApiAuthMiddleware`는 `/docs`류만 막고 API
+경로는 미들웨어 레벨 상시 공개임을 확인(인증은 라우터별 Depends로만).
+
+**조사에서 드러난 것(구현 전 확인)**:
+- 인증 스킴 2종 — auth 게이트웨이(RS256/roles/aud, `shared/security/token_verifier.py`)
+  vs viewer 세션(HS256/role, `require_admin`). 어드민 UI가 실제로 보내는 건
+  후자라 dispatch/harvester도 `require_admin`을 써야 일관.
+- 어드민 UI의 dispatch/harvester 호출은 Next 프록시(`backendFetch`, Basic
+  서비스 자격증명)를 거쳐 **사용자 세션 Bearer가 백엔드까지 안 감** → 백엔드
+  가드만 추가하면 정상 호출도 401. 3계층 동시 수정 필요.
+- import-linter: `require_admin`을 `core`가 아니라 "cross-app 토큰 검증 전용"
+  리프 패키지 `shared`로 이동하는 게 계약(shared-independence)·구조에 맞음.
+  실측 검증 결과 shared/spoke/auth 계약 모두 KEPT, 내 변경으로 인한 신규 위반
+  0건(hub-independence BROKEN은 `core→viewer.orm` 기존 커플링, baseline 동일).
+
+**수정·구현 (3계층)**:
+1. 가드 이동: `viewer/dependencies/require_admin.py` → `shared/security/require_admin.py`
+   (viewer 두 어드민 라우터 import 재지정, 원본 삭제).
+2. 백엔드 가드 추가(어드민 UI 구동분만): dispatch `email/telegram/discord` POST(발송),
+   `receive` GET·DELETE(수신함), ontology harvester `scrape/crawl/sites`. **`receive`
+   POST(외부 인입)는 제외**.
+3. 프론트 프록시 7개(`suvis/app/api/{dispatch,harvester}/*`)가 들어온 `Authorization`을
+   `backendFetch`로 전달.
+4. 프론트 클라 4개(mail/telegram/receive 페이지 + harvester-command-form)가 세션
+   Bearer 첨부. `suvis/lib/suvis-session.ts`에 `authHeader()` 헬퍼 추가.
+
+**검증**:
+- import-linter(uv 일시 설치, PYTHONPATH=apps:.): 5 kept / 1 broken(기존) — baseline 동일.
+- 백엔드 변경 파일 `py_compile` OK, 잔여 `viewer.dependencies.require_admin` 참조 0.
+- 프론트 `npm run type-check` exit 0.
+- 가드 런타임 실측: no-auth→401, 무효서명→401, 비관리자 role→403, 관리자→AdminPrincipal.
+
+**남긴 것(후속 백로그)**: dispatch `watcher/judge/spam/adress` 라우터는 어드민 UI
+미사용이라 이번 범위 밖. 각 엔드포인트가 외부 인입인지 개별 확인 후 보호 판단할 것
+(검증 없이 가드 씌우지 말 것).
+
+### 산출물 (2)
+- BE: `shared/security/require_admin.py`(신규·이동), dispatch
+  `email/telegram/discord/receive_router.py`, ontology `harvester_router.py`,
+  viewer `admin_agents_router.py`·`admin_users_router.py`(import 재지정).
+- FE: `suvis/app/api/{dispatch/email,dispatch/telegram,dispatch/discord,dispatch/receive,harvester/scrape,harvester/crawl,harvester/sites}/route.ts`,
+  `suvis/app/admin/dispatch/{mail,telegram,receive}/page.tsx`,
+  `suvis/app/admin/harvester/_components/harvester-command-form.tsx`,
+  `suvis/lib/suvis-session.ts`.
+
 ## 2026-07-24
 
 ### 작업 내용

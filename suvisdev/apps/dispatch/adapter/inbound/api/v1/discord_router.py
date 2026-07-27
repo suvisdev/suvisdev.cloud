@@ -11,6 +11,7 @@ from dispatch.app.dtos.discord_dto import DiscordIntroduceResponse
 from dispatch.app.ports.input.discord_use_case import DiscordUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.discord_provider import get_discord_use_case
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 discord_router = APIRouter(prefix="/discord", tags=["dispatch-discord"])
 
@@ -26,6 +27,7 @@ async def introduce_myself(
 def send_discord(
     req: DiscordRequest,
     use_case: DiscordUseCase = Depends(get_discord_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> DiscordResponseSchema:
     try:
         dto = use_case.send(message=req.message, username=req.username)
