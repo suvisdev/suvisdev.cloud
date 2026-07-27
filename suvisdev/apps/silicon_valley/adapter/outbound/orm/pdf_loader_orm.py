@@ -8,8 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from core.matrix.grid_neo_theone_base import Base
 
 
-class PdfSummaryOrm(Base):
-    __tablename__ = "pdf_summaries"
+class PdfLoaderDocumentOrm(Base):
+    __tablename__ = "pdf_loader_documents"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     filename: Mapped[str] = mapped_column(Text, nullable=False)

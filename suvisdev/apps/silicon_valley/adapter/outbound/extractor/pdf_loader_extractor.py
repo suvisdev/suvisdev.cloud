@@ -11,8 +11,8 @@ from pathlib import Path
 
 from neo4j_graphrag.experimental.components.data_loader import PdfLoader
 
-from silicon_valley.app.dtos.pdf_summary_dto import PdfExtractedDocument
-from silicon_valley.app.ports.output.pdf_summary_extractor_port import PdfExtractorPort
+from silicon_valley.app.dtos.pdf_loader_dto import PdfExtractedDocument
+from silicon_valley.app.ports.output.pdf_loader_extractor_port import PdfExtractorPort
 
 
 class PdfLoaderExtractor(PdfExtractorPort):
