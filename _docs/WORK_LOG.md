@@ -179,6 +179,49 @@ venv(`~/.venv`)에 설치·import 확인. `apps/silicon_valley/_docs/neo4j-hanre
 
 ---
 
+---
+
+### [4] PDF 업로드→추출→요약 파이프라인 (silicon_valley, **완료**)
+
+**배경**: 사용자가 `neo4j-graphrag`의 `PdfLoader` 예시를 참조해 PDF 업로드→텍스트
+추출→요약 파이프라인을 inbound router~outbound repository까지 완성형으로
+요청. 헥사고날 컨벤션은 ontology `vision` 슬라이스(`vision_router.py` 등)를
+그대로 참고.
+
+**설계**: `pdf_summary_*` 네이밍. 포트 3개 — 추출(`PdfExtractorPort`, neo4j-graphrag
+`PdfLoader` 어댑터), 요약(`PdfSummarizerPort`, 기존 `T1MidFakerOrchestrator`/exaone
+Ollama 재사용), 저장(`PdfSummaryPort`, `NeoTheOneBase` + `get_mova_session_factory()`
+— vision_uploads와 동일 패턴). `ensure_titanic_tables()` 같은 create_all() 폴백은
+**의도적으로 안 씀**(오늘 [3]에서 고친 문제 재발 방지) — 대신 정식 alembic
+마이그레이션(`20260727_0001_create_pdf_summaries`, head `f3a7c9e21b6d` 뒤에 추가)로
+테이블 생성, `alembic/env.py`에 ORM import 등록 완료.
+
+**완료된 파일**:
+- `alembic/env.py`(pdf_summary_orm import 추가)
+- `alembic/versions/20260727_0001_create_pdf_summaries.py`(신규 — 아직 미검증)
+- `apps/silicon_valley/adapter/outbound/orm/pdf_summary_orm.py`
+- `apps/silicon_valley/app/dtos/pdf_summary_dto.py`
+- `apps/silicon_valley/app/ports/input/pdf_summary_use_case.py`
+- `apps/silicon_valley/app/ports/output/pdf_summary_extractor_port.py`
+
+**추가 완료된 파일**: `pdf_summary_summarizer_port.py`, `pdf_summary_repository_port.py`,
+`app/use_case/pdf_summary_interactor.py`(자리표시자 `pdf_loader_interactor.py`는
+삭제), `adapter/outbound/extractor/pdf_summary_pdfloader_extractor.py`(temp file로
+`PdfLoader.run(filepath=Path)`에 전달), `adapter/outbound/llm/pdf_summary_ollama_summarizer.py`
+(T1MidFakerOrchestrator 재사용, 입력 12000자 상한), `adapter/outbound/repositories/pdf_summary_repository.py`,
+`adapter/inbound/api/v1/pdf_summary_router.py`(`POST /pdf/summarize`), `dependencies/pdf_summary_provider.py`,
+`adapter/inbound/api/__init__.py`에 등록(최종 경로 `/api/v1/pdf/summarize`).
+
+**검증**: `~/.venv`(neo4j-graphrag 포함)에서 라우터 import + `/pdf/summarize`
+등록 확인, 마이그레이션 파일 `py_compile` OK, ORM 테이블 컬럼 확인. **미검증**:
+실제 빈 DB에 `alembic upgrade head`(간단한 단일 create_table이라 위험 낮음,
+필요시 EC2 임시 컨테이너로 재검증 가능), Ollama 서버 연동 실사용 테스트.
+
+### 산출물 (4)
+- 위 파일 전체. 커밋 전.
+
+---
+
 ## 2026-07-24
 
 ### 작업 내용
