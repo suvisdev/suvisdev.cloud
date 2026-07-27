@@ -28,6 +28,7 @@ pgvector==0.4.2
 sqlmodel==0.0.38
 python-multipart==0.0.32
 boto3
+neo4j-graphrag==1.18.0
 kiwipiepy==0.23.1
 ollama==0.6.2
 transformers==4.47.1
