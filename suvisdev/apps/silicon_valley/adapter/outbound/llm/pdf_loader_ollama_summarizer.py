@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
-from silicon_valley.app.ports.output.pdf_summary_summarizer_port import PdfSummarizerPort
+from silicon_valley.app.ports.output.pdf_loader_summarizer_port import PdfSummarizerPort
 
 _SYSTEM_PROMPT = (
     "너는 문서 요약 도우미다. 주어진 텍스트의 핵심 내용을 한국어로 5문장 "

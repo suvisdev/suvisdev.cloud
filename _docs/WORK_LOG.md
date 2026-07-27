@@ -30,6 +30,31 @@
 
 ## 2026-07-27
 
+### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건
+
+**배경**: 사용자가 [4]에서 만든 `pdf_summary_*` 네이밍을 원래 자신이 만들었던
+파일명 `pdf_loader_interactor.py` 기준으로 되돌려달라고 요청.
+
+**수정**: 13개 파일 `git mv`로 `pdf_summary_*` → `pdf_loader_*` 리네임,
+클래스명도 동반 변경(`PdfSummaryUseCase`→`PdfLoaderUseCase`,
+`PdfSummaryInteractor`→`PdfLoaderInteractor`, `PdfSummaryPort`→`PdfLoaderPort`,
+`PdfSummaryRepository`→`PdfLoaderRepository`, `PdfSummaryOrm`→`PdfLoaderDocumentOrm`).
+DB 테이블명 `pdf_summaries`→`pdf_loader_documents`(아직 실 DB 미적용 마이그레이션이라
+새 리비전 없이 기존 파일 내용만 수정). 사용되지 않던 `PdfSummaryCommand` 죽은
+코드 제거. `alembic/env.py` import, `adapter/inbound/api/__init__.py` 라우터
+등록도 함께 갱신. import + 라우터 등록(`/pdf/summarize`) 재검증 완료.
+
+**추가**: `apps/silicon_valley/_docs/rangchain-monigstar-strategy.md` —
+LangChain 활용 사례(Morningstar 금융 인사이트 엔진) 문서화. 사용자가 실제
+코드 구현은 원치 않아(이 저장소에 금융/시장 데이터 소스가 없음) 문서만 작성.
+
+### 산출물 (5)
+- 리네임된 13개 파일(경로는 위 커밋 diff 참고), `alembic/env.py`,
+  `apps/silicon_valley/adapter/inbound/api/__init__.py`,
+  `apps/silicon_valley/_docs/rangchain-monigstar-strategy.md`(신규).
+
+---
+
 ### 작업 내용
 - **03(Loom, 시맨틱 분할) 관문0 실측 조사** — "OSM 서울 walk가 보도를
   별도 way/태그로 갖는가(있으면 CV 불필요, 폐기)"를 Overpass API로 실측.

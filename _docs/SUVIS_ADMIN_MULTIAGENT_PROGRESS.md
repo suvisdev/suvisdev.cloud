@@ -29,11 +29,11 @@
   `vision_uploads` 등이 `create_all()`로만 존재하고 체인엔 CREATE가 없던 문제.
   베이스라인 마이그레이션 신설로 완전히 빈 DB에서 `alembic upgrade head`
   성공 검증 완료(EC2 임시 컨테이너). 상세: WORK_LOG 2026-07-27 [3].
-- **PDF 업로드→추출→요약 파이프라인(silicon_valley, 2026-07-27)**: `POST
-  /api/v1/pdf/summarize` — neo4j-graphrag PdfLoader 추출 + EXAONE(Ollama) 요약 +
-  `pdf_summaries` 테이블 저장, inbound router~outbound repository 전 계층 완성.
-  실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증. 상세: WORK_LOG
-  2026-07-27 [4].
+- **PDF 업로드→추출→요약 파이프라인(silicon_valley, 2026-07-27, `pdf_loader_*` 네이밍)**:
+  `POST /api/v1/pdf/summarize` — neo4j-graphrag PdfLoader 추출 + EXAONE(Ollama)
+  요약 + `pdf_loader_documents` 테이블 저장, inbound router~outbound repository
+  전 계층 완성. 실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증.
+  상세: WORK_LOG 2026-07-27 [4]·[5](네이밍 환원).
 
 ---
 
