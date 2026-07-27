@@ -121,6 +121,64 @@
   `suvis/app/admin/harvester/_components/harvester-command-form.tsx`,
   `suvis/lib/suvis-session.ts`.
 
+---
+
+### [3] alembic 마이그레이션 체인 누락 테이블 수정 + neo4j-graphrag 설치
+
+**배경**: 사용자 보고 — 완전히 빈 DB에서 `alembic upgrade head`를 실행하면
+`20260701_0001`에서 `relation "dispatch_adress" does not exist`로 실패.
+지금까지는 backend startup의 `create_all()`이 테이블을 만들어줘서 드러나지
+않았음. Google 로그인 500(새 DB에 `users`/`user_identities` 없음)도 같은
+원인 의심.
+
+**원인 조사**: `alembic/env.py`의 `target_metadata`(6개 Base) 대비 마이그레이션
+체인의 `create_table` 호출을 전수 비교. `dispatch_adress`뿐 아니라 `users`,
+`groups`, `admins`, mova 앱의 `movies`/`actors`/`characters`/`assistants`/
+`collections`/`tags`/`chat`/`rankings`/`reviews`/`picks`/`watchlist`,
+`titanic_passengers`, `vision_uploads`까지 전부 마이그레이션 체인에 CREATE가
+없이 `create_all()`로만 존재해온 테이블이었음(alembic을 프로젝트 중간에
+도입하면서 베이스라인 마이그레이션을 만든 적이 없었던 게 근본 원인).
+
+**수정·구현**: 체인 맨 앞(20260604_0001보다 앞)에 베이스라인 마이그레이션
+`20260604_0000_create_baseline_v1_tables.py` 신설, `20260604_0001`의
+`down_revision`을 여기로 변경. 각 테이블은 뒤따르는 `41f584bfcb4e`(mova v2
+스키마) 등이 적용되기 **직전 상태**로 생성하도록 설계(예: `movies.release_year`는
+VARCHAR(8), `genres` 컬럼 존재, `characters.character_name` 없음,
+`users.age_group` 있음) — 이후 리비전이 그 위에 그대로 ALTER 적용돼야 최종
+스키마가 현재 ORM과 일치하기 때문. FK 의존 순서(groups→users→collections→
+movies→actors→characters→assistants→tags→chat→rankings→reviews→picks→
+watchlist) 고려해 테이블 순서 배치.
+
+**검증**: 로컬엔 Docker/Postgres가 없어 EC2의 실제 `pgvector/pgvector:pg16`
+이미지로 별도 테스트용 컨테이너(`suvisdev_migration_test_db`, 포트 15432,
+기존 운영 DB 컨테이너와 별개)를 띄우고 SSH 터널로 연결. 백엔드 최소 venv
+(`.venv_migration_test`, gitignore됨, sqlalchemy/alembic/psycopg/pgvector/
+fastapi만 설치)로 완전히 빈 DB에 `alembic upgrade head` 실행 → 전체 10개
+리비전 끝까지 성공, `alembic current`가 단일 head(`f3a7c9e21b6d`)로 확인.
+`movies`/`users`/`characters`/`reviews` 최종 스키마를 `\d`로 대조해 현재
+ORM과 일치 확인. 시행착오: `movies.release_year` VARCHAR→INTEGER 타입 변경
+시 서버 디폴트(`''`)가 자동 캐스팅되지 않아 실패 → 베이스라인에서 해당
+컬럼 디폴트를 제거해 해결.
+
+**설계 의도(기존 배포 DB 영향 없음)**: 새 베이스라인은 체인의 새 루트로
+삽입되므로, 이미 `alembic_version`이 어떤 리비전에든 스탬프돼 있는 기존
+DB(운영 DB 포함)에는 적용되지 않음 — `None`에서 시작하는 완전히 빈 DB에만
+적용된다.
+
+**추가**: `requirements.txt`에 `neo4j-graphrag==1.18.0` 추가, 실제 백엔드
+venv(`~/.venv`)에 설치·import 확인. `apps/silicon_valley/_docs/neo4j-hanress.md`에
+그래프 데이터 모델 개념 + 연결 확인 절차(Python 드라이버/cypher-shell/브라우저)
+문서화 — 실제 Neo4j 인스턴스는 아직 미배포(`.env`에 `NEO4J_PASSWORD`만 있고
+`NEO4J_URI`/`NEO4J_USER` 없음, docker-compose에도 서비스 없음 확인).
+
+### 산출물 (3)
+- `suvisdev/alembic/versions/20260604_0000_create_baseline_v1_tables.py`(신규),
+  `suvisdev/alembic/versions/20260604_0001_create_titanic_person_booking.py`(down_revision 변경),
+  `suvisdev/requirements.txt`(neo4j-graphrag 추가),
+  `suvisdev/apps/silicon_valley/_docs/neo4j-hanress.md`(신규).
+
+---
+
 ## 2026-07-24
 
 ### 작업 내용

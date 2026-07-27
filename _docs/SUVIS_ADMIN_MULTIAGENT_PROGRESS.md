@@ -24,6 +24,11 @@
   까지 검토 후 관문0 실측 → 보도 신호 자체가 서울 OSM에 없음(`sidewalk=*`
   0.4~1.2%, 커버리지 보도/도로 = 0.04, `width` 전무). 04·08과 동급 정식 제외.
   상세: `03_semantic_segmentation_agent.md` §5.4, WORK_LOG 2026-07-27.
+- **alembic 마이그레이션 체인 베이스라인 누락 수정(2026-07-27)**: `users`/
+  `groups`/`admins`, mova 전체 테이블, `dispatch_adress`, `titanic_passengers`,
+  `vision_uploads` 등이 `create_all()`로만 존재하고 체인엔 CREATE가 없던 문제.
+  베이스라인 마이그레이션 신설로 완전히 빈 DB에서 `alembic upgrade head`
+  성공 검증 완료(EC2 임시 컨테이너). 상세: WORK_LOG 2026-07-27 [3].
 
 ---
 
