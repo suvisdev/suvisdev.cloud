@@ -29,6 +29,11 @@
   `vision_uploads` 등이 `create_all()`로만 존재하고 체인엔 CREATE가 없던 문제.
   베이스라인 마이그레이션 신설로 완전히 빈 DB에서 `alembic upgrade head`
   성공 검증 완료(EC2 임시 컨테이너). 상세: WORK_LOG 2026-07-27 [3].
+- **PDF 업로드→추출→요약 파이프라인(silicon_valley, 2026-07-27)**: `POST
+  /api/v1/pdf/summarize` — neo4j-graphrag PdfLoader 추출 + EXAONE(Ollama) 요약 +
+  `pdf_summaries` 테이블 저장, inbound router~outbound repository 전 계층 완성.
+  실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증. 상세: WORK_LOG
+  2026-07-27 [4].
 
 ---
 
@@ -40,6 +45,7 @@
 ---
 
 ## 다음 / 남은 작업 (백로그)
+
 
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
 - **06 미결**: Sentinel 소프트 플래그 **저장 지속화 + 어드민 오버라이드 엔드포인트**
