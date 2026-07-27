@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Inbox, Loader2, RefreshCw, Trash2 } from "lucide-react"
+import { authHeader } from "@/lib/suvis-session"
 
 type ReceiveItem = {
   id: number
@@ -22,7 +23,7 @@ export default function AdminReceivePage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/dispatch/receive")
+      const res = await fetch("/api/dispatch/receive", { headers: authHeader() })
       if (!res.ok) throw new Error(`오류 (${res.status})`)
       const data = (await res.json()) as ReceiveItem[]
       setItems(data)
@@ -38,7 +39,10 @@ export default function AdminReceivePage() {
       e.stopPropagation()
       setDeleting(item.id)
       try {
-        const res = await fetch(`/api/dispatch/receive?id=${item.id}`, { method: "DELETE" })
+        const res = await fetch(`/api/dispatch/receive?id=${item.id}`, {
+          method: "DELETE",
+          headers: authHeader(),
+        })
         if (!res.ok) throw new Error()
         setItems((prev) => prev.filter((i) => i.id !== item.id))
         if (selected?.id === item.id) setSelected(null)

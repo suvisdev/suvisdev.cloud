@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const res = await backendFetch("/api/ontology/harvester/sites")
+    const auth = request.headers.get("authorization")
+    const res = await backendFetch("/api/ontology/harvester/sites", {
+      headers: auth ? { Authorization: auth } : {},
+    })
     let data: unknown
     try {
       data = await res.json()

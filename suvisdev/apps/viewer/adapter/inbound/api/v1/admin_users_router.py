@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from viewer.adapter.inbound.api.schemas.admin_users_schema import UserAdminSchema
 from viewer.app.ports.input.admin_users_use_case import AdminUsersUseCase
 from viewer.dependencies.admin_users_provider import get_admin_users_use_case
-from viewer.dependencies.require_admin import AdminPrincipal, require_admin
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 admin_users_router = APIRouter(prefix="/admin/users", tags=["admin"])
 

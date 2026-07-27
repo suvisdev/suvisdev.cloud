@@ -10,6 +10,7 @@ from dispatch.app.dtos.receive_dto import ReceiveSaveCommand
 from dispatch.app.ports.input.receive_use_case import ReceiveUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.receive_provider import get_receive_use_case
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 receive_router = APIRouter(prefix="/receive", tags=["dispatch-receive"])
 
@@ -41,6 +42,7 @@ async def receive_item(
 async def list_receive(
     limit: int = Query(default=50, le=200),
     use_case: ReceiveUseCase = Depends(get_receive_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> list[ReceiveItemSchema]:
     items = await use_case.list_all(limit)
     return [
@@ -55,6 +57,7 @@ async def list_receive(
 async def delete_receive(
     item_id: int,
     use_case: ReceiveUseCase = Depends(get_receive_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> Response:
     await use_case.delete(item_id)
     return Response(status_code=204)
