@@ -40,12 +40,12 @@ import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E40
 import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
 
 # grid_neo_theone_base.Base 등록 — titanic_passengers/bookings, dispatch_adress/inbox,
-# vision_uploads, pdf_summaries가 실제로 붙는 Base (TitanicBase와는 별개, 지금까지
-# target_metadata 밖이었음).
+# vision_uploads, pdf_loader_documents가 실제로 붙는 Base (TitanicBase와는 별개,
+# 지금까지 target_metadata 밖이었음).
 import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401,E402
 import dispatch.adapter.outbound.orm.receive_orm  # noqa: F401,E402
 import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
-import silicon_valley.adapter.outbound.orm.pdf_summary_orm  # noqa: F401,E402
+import silicon_valley.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
 from core.matrix.grid_neo_theone_base import Base as NeoTheOneBase  # noqa: E402
 
 # viewer ORM 등록 — 모듈 import 시 테이블이 ViewerBase.metadata에 붙는다.

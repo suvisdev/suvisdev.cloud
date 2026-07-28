@@ -5,7 +5,8 @@ from silicon_valley.adapter.inbound.api.v1.piper_dinesh_dash_router import dines
 from silicon_valley.adapter.inbound.api.v1.piper_dunn_coo_router import dunn_coo_router
 from silicon_valley.adapter.inbound.api.v1.piper_gilfoyle_sys_router import gilfoyle_sys_router
 from silicon_valley.adapter.inbound.api.v1.piper_hendricks_ceo_router import hendricks_ceo_router
-from silicon_valley.adapter.inbound.api.v1.pdf_summary_router import pdf_summary_router
+from silicon_valley.adapter.inbound.api.v1.pdf_loader_router import pdf_loader_router
+from silicon_valley.adapter.inbound.api.v1.rangchain_chat_router import rangchain_chat_router
 
 silicon_valley_router = APIRouter()
 silicon_valley_router.include_router(hendricks_ceo_router)
@@ -13,4 +14,5 @@ silicon_valley_router.include_router(gilfoyle_sys_router)
 silicon_valley_router.include_router(dinesh_dash_router)
 silicon_valley_router.include_router(dunn_coo_router)
 silicon_valley_router.include_router(bighetti_hr_router)
-silicon_valley_router.include_router(pdf_summary_router)
+silicon_valley_router.include_router(pdf_loader_router)
+silicon_valley_router.include_router(rangchain_chat_router)

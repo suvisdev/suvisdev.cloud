@@ -1,4 +1,4 @@
-"""create pdf_summaries table (silicon_valley PDF 업로드→추출→요약 파이프라인)
+"""create pdf_loader_documents table (silicon_valley PDF 업로드→추출→요약 파이프라인)
 
 Revision ID: 20260727_0001
 Revises: f3a7c9e21b6d
@@ -19,7 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.create_table(
-        "pdf_summaries",
+        "pdf_loader_documents",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("filename", sa.Text(), nullable=False),
         sa.Column("extracted_text", sa.Text(), nullable=False),
@@ -32,4 +32,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("pdf_summaries")
+    op.drop_table("pdf_loader_documents")

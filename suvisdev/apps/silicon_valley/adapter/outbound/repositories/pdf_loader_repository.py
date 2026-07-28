@@ -3,16 +3,16 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory
-from silicon_valley.adapter.outbound.orm.pdf_summary_orm import PdfSummaryOrm
-from silicon_valley.app.dtos.pdf_summary_dto import PdfSummaryRecord, PdfSummaryResponse
-from silicon_valley.app.ports.output.pdf_summary_repository_port import PdfSummaryPort
+from silicon_valley.adapter.outbound.orm.pdf_loader_orm import PdfLoaderDocumentOrm
+from silicon_valley.app.dtos.pdf_loader_dto import PdfLoaderRecord, PdfLoaderResponse
+from silicon_valley.app.ports.output.pdf_loader_repository_port import PdfLoaderPort
 
 
-class PdfSummaryRepository(PdfSummaryPort):
+class PdfLoaderRepository(PdfLoaderPort):
     def __init__(self, session: AsyncSession | None = None) -> None:
         self._session = session
 
-    async def save(self, record: PdfSummaryRecord) -> PdfSummaryResponse:
+    async def save(self, record: PdfLoaderRecord) -> PdfLoaderResponse:
         if self._session is not None:
             return await self._persist(self._session, record)
 
@@ -25,9 +25,9 @@ class PdfSummaryRepository(PdfSummaryPort):
     async def _persist(
         self,
         session: AsyncSession,
-        record: PdfSummaryRecord,
-    ) -> PdfSummaryResponse:
-        row = PdfSummaryOrm(
+        record: PdfLoaderRecord,
+    ) -> PdfLoaderResponse:
+        row = PdfLoaderDocumentOrm(
             filename=record.filename,
             extracted_text=record.extracted_text,
             summary=record.summary,
@@ -38,7 +38,7 @@ class PdfSummaryRepository(PdfSummaryPort):
         if self._session is not None:
             await session.commit()
 
-        return PdfSummaryResponse(
+        return PdfLoaderResponse(
             id=row.id,
             filename=record.filename,
             text_excerpt=record.extracted_text[:500],

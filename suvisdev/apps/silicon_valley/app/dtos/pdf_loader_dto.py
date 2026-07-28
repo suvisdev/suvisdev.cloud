@@ -4,26 +4,20 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class PdfSummaryCommand:
-    filename: str
-    content: bytes
-
-
-@dataclass(frozen=True)
 class PdfExtractedDocument:
     text: str
     source_path: str
 
 
 @dataclass(frozen=True)
-class PdfSummaryRecord:
+class PdfLoaderRecord:
     filename: str
     extracted_text: str
     summary: str
 
 
 @dataclass(frozen=True)
-class PdfSummaryResponse:
+class PdfLoaderResponse:
     id: int
     filename: str
     text_excerpt: str

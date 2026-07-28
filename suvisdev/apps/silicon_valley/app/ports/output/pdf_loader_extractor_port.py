@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from silicon_valley.app.dtos.pdf_summary_dto import PdfExtractedDocument
+from silicon_valley.app.dtos.pdf_loader_dto import PdfExtractedDocument
 
 
 class PdfExtractorPort(ABC):
