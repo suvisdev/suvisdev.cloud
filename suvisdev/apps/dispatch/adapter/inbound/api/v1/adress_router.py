@@ -9,6 +9,7 @@ from dispatch.adapter.inbound.api.schemas.adress_schema import (
 from dispatch.app.dtos.adress_dto import AdressIntroduceResponse, AdressResponse
 from dispatch.app.ports.input.adress_use_case import AdressUseCase
 from dispatch.dependencies.adress_provider import get_adress_use_case
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 adress_router = APIRouter(prefix="/adress", tags=["dispatch-adress"])
 
@@ -24,6 +25,7 @@ async def introduce_myself(
 async def search_adress(
     q: str = Query(default="", min_length=1),
     use_case: AdressUseCase = Depends(get_adress_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> list[AdressSearchItemSchema]:
     results = await use_case.search(q)
     return [AdressSearchItemSchema(name=r.name, email=r.email) for r in results]
@@ -33,6 +35,7 @@ async def search_adress(
 async def receive_uploaded_records(
     file: UploadFile = File(...),
     use_case: AdressUseCase = Depends(get_adress_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> AdressResponse:
     text = (await file.read()).decode("utf-8-sig", errors="replace")
     try:

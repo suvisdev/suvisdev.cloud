@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
+import { backendFetch } from "@/lib/backend-client"
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q") ?? ""
   if (!q) return NextResponse.json([])
 
-  const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000"
+  const auth = req.headers.get("authorization")
   try {
-    const res = await fetch(
-      `${backendUrl}/api/v1/dispatch/adress/search?q=${encodeURIComponent(q)}`,
-      { cache: "no-store" },
+    const res = await backendFetch(
+      `/api/v1/dispatch/adress/search?q=${encodeURIComponent(q)}`,
+      { cache: "no-store", headers: auth ? { Authorization: auth } : {} },
     )
     if (!res.ok) return NextResponse.json([])
     const data = await res.json() as unknown

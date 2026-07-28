@@ -47,7 +47,7 @@ class ImportInteractorTests(unittest.IsolatedAsyncioTestCase):
     async def test_seed_skips_when_catalog_full(self) -> None:
         movies = AsyncMock()
         movies.count_movies.return_value = 10
-        interactor = ImportInteractor(movies, AsyncMock(), AsyncMock())
+        interactor = ImportInteractor(movies, AsyncMock(), AsyncMock(), AsyncMock(), AsyncMock())
 
         result = await interactor.seed_catalog_if_sparse()
 
@@ -71,7 +71,7 @@ class ImportInteractorTests(unittest.IsolatedAsyncioTestCase):
         movies = AsyncMock()
         movies.upsert_movie.return_value = 42
         rankings = AsyncMock()
-        interactor = ImportInteractor(movies, catalog, rankings)
+        interactor = ImportInteractor(movies, catalog, rankings, AsyncMock(), AsyncMock())
 
         result = await interactor.import_tmdb(TmdbImportCommand(tmdb_id=1))
 
