@@ -6,6 +6,9 @@ train_mova_lora.py가 남긴 ~/lora_adapters/LATEST(경로/백엔드/베이스�
 
 주기적 재학습(train_mova_lora.py) 후에는 POST /reload로 최신 어댑터를 다시 읽어
 프로세스 재시작 없이 교체한다.
+
+LATEST가 없으면(예: 새 머신에 어댑터 백업이 아직 없는 경우) LoRA 없이
+LORA_FALLBACK_BASE_MODEL/LORA_FALLBACK_BACKEND의 베이스 모델만으로 기동한다.
 """
 
 from __future__ import annotations
@@ -30,16 +33,25 @@ _LATEST_FILE = Path(
     os.getenv("LORA_ADAPTERS_ROOT", str(Path.home() / "lora_adapters"))
 ) / "LATEST"
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_FALLBACK_BASE_MODEL = os.getenv(
+    "LORA_FALLBACK_BASE_MODEL", str(_REPO_ROOT / "EXAONE-3.5-2.4B-Instruct-AWQ")
+)
+_FALLBACK_BACKEND = os.getenv("LORA_FALLBACK_BACKEND", "awq_gptqmodel")
+
 _state: dict[str, Any] = {}
 
 
-def _read_latest() -> tuple[str, str, str]:
+def _read_latest() -> tuple[str | None, str, str]:
+    """LATEST가 없으면 어댑터 없이(None) 폴백 베이스 모델로 뜨도록 한다."""
+    if not _LATEST_FILE.exists():
+        return None, _FALLBACK_BACKEND, _FALLBACK_BASE_MODEL
     lines = _LATEST_FILE.read_text(encoding="utf-8").strip().splitlines()
     adapter_dir, backend, base_model_path = lines[0], lines[1], lines[2]
     return adapter_dir, backend, base_model_path
 
 
-def _load(adapter_dir: str, backend: str, base_model_path: str) -> None:
+def _load(adapter_dir: str | None, backend: str, base_model_path: str) -> None:
     tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
 
     if backend == "awq_gptqmodel":
@@ -53,7 +65,7 @@ def _load(adapter_dir: str, backend: str, base_model_path: str) -> None:
             base_model_path, dtype=torch.float16, device_map="cuda:0"
         )
 
-    model = PeftModel.from_pretrained(base, adapter_dir)
+    model = PeftModel.from_pretrained(base, adapter_dir) if adapter_dir else base
     model.eval()
 
     _state["tokenizer"] = tokenizer
