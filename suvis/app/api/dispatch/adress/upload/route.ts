@@ -4,8 +4,10 @@ import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
+    const auth = request.headers.get("authorization")
     const res = await backendFetch("/api/v1/dispatch/adress/upload", {
       method: "POST",
+      headers: auth ? { Authorization: auth } : {},
       body: formData,
     })
     let data: unknown

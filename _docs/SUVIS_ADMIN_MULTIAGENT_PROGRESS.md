@@ -34,6 +34,25 @@
   요약 + `pdf_loader_documents` 테이블 저장, inbound router~outbound repository
   전 계층 완성. 실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증.
   상세: WORK_LOG 2026-07-27 [4]·[5](네이밍 환원).
+- **silicon_valley LangChain 채팅 파이프라인(2026-07-28)**: `POST /api/v1/langchain/chat`
+  — semantic_router_interactor(ontology)로 의도 판단 후 LangChain(ChatOllama,
+  exaone3.5:2.4b) LCEL 체인이 destination별 시스템 프롬프트로 답변 생성. 클린
+  아키텍처 전 계층 완성, semantic_router의 `HubRagError` 미처리로 500
+  plain-text 새던 버그도 수정. 상세: WORK_LOG 2026-07-28.
+- **기존 실패 테스트 수정(2026-07-28)**: `apps/mova/tests/test_import_interactor.py`
+  2건 — `ImportInteractor` 생성자에 `box_office`/`hub_rag`가 추가된 뒤 테스트가
+  안 따라가서 실패하던 것, `AsyncMock()` 인자 추가로 수정. `test_llm_error_handling.py`는
+  이미 통과 상태였음(기록이 stale). 8개 전부 통과 확인.
+- **어드민 백엔드 인증 공백 — dispatch watcher/judge/spam/adress 감사(2026-07-28)**:
+  watcher·judge는 `/myself` 스캐폴딩 스텁뿐(위험 없음), spam은 프론트/백엔드
+  어디서도 호출 안 하는 미사용 코드(위험 낮음). **adress는 실제 문제 발견** —
+  `search`/`upload`에 인증이 전혀 없었고, 어드민 UI(`admin/dispatch/contacts`)뿐
+  아니라 LESSON 공개 데모(`suvis/app/mail/contacts`, 로그인 개념 없음)도 같은
+  엔드포인트를 호출 — 익명 방문자가 실제 주소록 DB에 쓰기 가능했음. 2026-07-27과
+  동일 패턴으로 `require_admin` 추가 + 프론트 프록시 2개(`search`/`upload`
+  route.ts)·어드민 클라(`admin/dispatch/contacts/page.tsx`)가 세션 Bearer
+  전달하도록 수정. **`suvis/app/mail/contacts`(공개 레슨 데모)는 이제 401 —
+  이 페이지 자체를 지울지/막을지는 별도 결정 필요(아래 백로그).**
 
 ---
 
@@ -53,15 +72,27 @@
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
 - **S3**: AWS 실연결(버킷+키 세팅) 후 Tank 단일 경로 실 업로드 검증.
+- **`suvis/app/mail/contacts` 공개 레슨 데모 처리(2026-07-28 신규)**: adress
+  엔드포인트에 `require_admin`을 걸면서 이 페이지는 이제 업로드 시도 시 401만
+  받는다. 페이지 자체를 지울지, 로그인 요구 안내로 바꿀지, 별도 더미 데이터로
+  분리할지 제품 결정 필요.
+- **`apps/dispatch/test/test_send_email_interactor.py` 실패 2건(2026-07-28 발견,
+  이번 작업 무관)**: `SendEmailInteractorTest::test_hub_record_called_before_orchestrator`,
+  `test_orchestrator_generates_body` — orchestrator.generate 호출 인자가 테스트
+  기대값(단순 프롬프트)과 실제 구현(수신자·시스템 프롬프트 포함 포맷)이 어긋남.
+  원인 조사·수정 안 함(범위 밖 발견).
+- **PyJWT 미설치(2026-07-28 발견)**: `/home/a/.venv`에 `requirements.txt`엔 있는
+  `PyJWT[crypto]`가 실제로 설치돼 있지 않아 `shared.security.require_admin`을
+  import하는 모든 모듈(email/telegram/discord/receive/harvester/adress 라우터,
+  `test_whoami_router.py`)이 이 venv에서 임포트 실패함. `pip install -r
+  requirements.txt` 재실행 필요(이번 세션에선 미설치 상태로 문법 검증만 수행).
 - **어드민 백엔드 인증 공백**: (2026-07-27 대응) 가드를 `shared/security/require_admin.py`로
   이동 후 dispatch `email/telegram/discord` POST·`receive` GET/DELETE, harvester
   `scrape/crawl/sites`에 `require_admin` 추가 + 프론트 프록시/클라가 세션 Bearer를
-  백엔드까지 전달(3계층). 상세 WORK_LOG 2026-07-27 [2]. **잔여**: dispatch
-  `watcher/judge/spam/adress`는 어드민 UI 미사용이라 범위 밖 — 각 엔드포인트가
-  외부 인입인지 개별 확인 후 보호 판단(검증 없이 가드 금지). `receive` POST는
-  외부 인입이라 의도적으로 무인증 유지.
-- **기존 실패 테스트**(이번 작업 무관): `apps/mova/tests/test_import_interactor.py`
-  2건, `test_llm_error_handling.py`.
+  백엔드까지 전달(3계층). 상세 WORK_LOG 2026-07-27 [2]. **2026-07-28 추가**:
+  `watcher/judge/spam/adress` 전수 감사 완료 — watcher/judge는 위험 없는 스텁,
+  spam은 미사용 코드, **adress는 실제 무인증 쓰기/조회 취약점이라 수정 완료**
+  (위 "완료됨" 참고). `receive` POST는 외부 인입이라 의도적으로 무인증 유지.
 
 ---
 

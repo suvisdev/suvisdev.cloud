@@ -97,6 +97,67 @@
 
 ---
 
+### [2] PROGRESS 백로그 점검 — 진행 가능한 항목 처리
+
+**배경**: 사용자가 `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`의 "다음/남은 작업"을
+확인 후 지금 바로 진행 가능한 부분을 진행해달라고 요청. 비전 02·05(제품 결정
+대기), 06 저장 지속화·S3(AWS 미연결), 시크릿(a)(단독 실행 금지 명시)는 외부
+의존/결정 때문에 스킵하고, 실제 진행 가능한 두 항목만 처리.
+
+**수정/구현**:
+1. **`apps/mova/tests/test_import_interactor.py` 실패 2건 수정** — 원인은
+   `ImportInteractor.__init__`에 `box_office`/`hub_rag` 파라미터가 추가됐는데
+   테스트는 예전 3-인자 시그니처로 호출하던 것. 두 테스트 모두 이 두 의존성을
+   실제로 쓰지 않는 경로라(`box_office` 미참조, `hub_rag.ingest_movie`는
+   예외를 삼키는 try/except 안) `AsyncMock()` 2개만 추가해 해결. 8개 전부
+   통과 확인(`/home/a/.venv/bin/python -m pytest apps/mova/tests/...`).
+   `test_llm_error_handling.py`는 이미 통과 상태였음(PROGRESS 기록이 stale).
+2. **dispatch `watcher/judge/spam/adress` 인증 공백 감사** — watcher·judge는
+   `/myself` 스캐폴딩 스텁뿐이라 위험 없음. spam은 프론트·백엔드 어디서도
+   호출하는 곳이 없는 미사용 코드라 위험 낮음. **adress는 실제 취약점**:
+   `search`/`upload` 둘 다 인증이 전혀 없었는데, 어드민 UI
+   (`admin/dispatch/contacts/page.tsx`)뿐 아니라 LESSON 공개 데모
+   (`suvis/app/mail/contacts/page.tsx`, 로그인 개념 없음)도 같은 백엔드
+   엔드포인트를 호출 — 2026-07-27 인증 공백 대응 당시 "어드민 UI 미사용"으로
+   보고 범위에서 뺐던 판단이 틀렸음이 이번에 드러남. 사용자 확인 후(어드민만
+   가드, 레슨 데모는 막기로 결정) 2026-07-27과 동일 패턴으로 수정:
+   - BE: `adress_router.py`의 `search`/`upload`에
+     `Depends(require_admin)` 추가.
+   - FE 프록시: `suvis/app/api/dispatch/adress/{search,upload}/route.ts`가
+     들어온 `Authorization` 헤더를 `backendFetch`로 전달하도록 수정(search는
+     raw `fetch`에서 `backendFetch`로 교체).
+   - FE 클라: `admin/dispatch/contacts/page.tsx` 업로드 호출에
+     `suvis-session.ts`의 `authHeader()` 첨부.
+   - `suvis/app/mail/contacts/page.tsx`(공개 레슨 데모)는 코드 변경 없음 —
+     이제 업로드 시 401을 받게 됨(의도된 동작). 이 페이지 자체를 어떻게 할지는
+     별도 결정 필요(PROGRESS 백로그에 남김).
+
+**검증**: `python3 -m ast` 문법 검증 통과, `pnpm exec tsc --noEmit` 통과,
+`pytest apps/mova/tests apps/dispatch`(jwt 미설치로 `test_whoami_router.py`
+제외) 41 passed / 2 failed — 실패 2건은 `test_send_email_interactor.py`
+(orchestrator 프롬프트 포맷 불일치, 이번 작업과 무관하게 기존에 깨져 있던
+것을 우연히 발견 — 수정 안 함, PROGRESS 백로그에 신규 등록).
+
+**오류·막힌 점**:
+- `/home/a/.venv`에 `requirements.txt`엔 있는 `PyJWT[crypto]`가 실제로
+  설치돼 있지 않아 `shared.security.require_admin`을 import하는 모든 모듈
+  (email/telegram/discord/receive/harvester/adress 라우터,
+  `test_whoami_router.py`)이 이 venv에서 import 실패함 — 내 변경으로 생긴
+  문제가 아니라 기존 email_router.py로도 재현 확인. venv에
+  `pip install -r requirements.txt` 재실행 필요(이번 세션에선 미설치 상태로
+  둠, 별도 사용자 확인 필요해 임의 설치 안 함).
+
+### 산출물 (2)
+- `apps/mova/tests/test_import_interactor.py`(수정),
+  `apps/dispatch/adapter/inbound/api/v1/adress_router.py`(수정),
+  `suvis/app/api/dispatch/adress/search/route.ts`,
+  `suvis/app/api/dispatch/adress/upload/route.ts`,
+  `suvis/app/admin/dispatch/contacts/page.tsx`(수정).
+- `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신(완료 항목 반영 + 신규 백로그 3건:
+  mail/contacts 공개 데모 처리, test_send_email_interactor 실패, PyJWT 미설치).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건
