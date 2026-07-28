@@ -461,6 +461,31 @@ mova 시드·스케줄러 함수를 전부 mock으로 대체해 `lifespan()`의 
 
 ---
 
+### [9] LangGraph 하네스 문서 작성
+
+**배경**: 사용자가 LangChain 선형 체인의 한계(분기·루프·상태관리 불가)와
+LangGraph 도입 근거, Neo4j 기반 GraphRAG(지식그래프 구축·Text-to-Cypher·
+하이브리드 검색) 자료를 제공하며, 시멘틱 라우터가 reasoning이 필요한
+질문을 받았을 때 LangGraph를 활용하는 하네스 문서 작성을 요청. 이번엔
+문서만 요청받아 코드는 건드리지 않음.
+
+**작성**: `apps/execsuite/_docs/ranggraph-harness.md` — LangGraph 도입
+근거, GraphRAG/Neo4j 활용법, 장단점, "이 프로젝트와의 접점" 절 작성.
+접점 절은 실제 코드 기준으로 현재 상태를 짚음: `semantic_router_interactor`
+(ontology)는 아직 `crud`/`rag`/`general` 3갈래뿐 "reasoning" 신호 없음,
+`rangchain_chat_engine_repository.py`는 단일 선형 LCEL 체인, `langgraph`/
+`neo4j-graphrag`는 `requirements.txt`에 설치만 돼 있고 코드베이스 어디서도
+미사용, Neo4j 서버 자체가 `.env`에 `NEO4J_URI`/`NEO4J_USER` 없이 미배포
+상태(`neo4j-hanress.md` 기존 확인 내용과 일치). 그 위에 제안 흐름(semantic_router
+"reasoning 필요" 신호 추가 → LangGraph StateGraph의 retrieve→generate→
+verify→재시도/종료 루프 → Neo4j 배포 후 GraphRAG로 retrieve 노드 보강)을
+다이어그램과 단계적 도입 순서로 남김 — 실제 구현은 보류.
+
+### 산출물 (9)
+- `apps/execsuite/_docs/ranggraph-harness.md`(신규 작성).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건
