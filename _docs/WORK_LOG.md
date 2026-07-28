@@ -203,6 +203,46 @@ ChatOllama를 걷어내서 문제되진 않았지만, venv 전체가 `requiremen
 
 ---
 
+### [4] CLAUDE.md 응답 언어 지침 + PROGRESS 백로그 추가 처리
+
+**배경**: 사용자가 CLAUDE.md에 "한국어로만 답변, 다른 언어 금지" 지침 추가 요청.
+이어서 PROGRESS.md를 다시 확인하고 진행 가능한 나머지 항목(테스트 실패, venv
+드리프트) 처리 요청.
+
+**수정/구현**:
+1. `CLAUDE.md`에 "## 응답 언어" 섹션 추가 — 항상 한국어로만 답변, 다른 언어
+   사용 금지.
+2. **`test_send_email_interactor.py` 실패 2건 수정** — `SendEmailInteractor.send()`가
+   이메일 품질 개선을 위해 `orchestrator.generate()` 호출에 `system=` 키워드
+   인자를 추가한 게 실제 기능인데(수신자 정보 포함 프롬프트 + 이메일 작성
+   전문가 시스템 프롬프트), 테스트 2건이 예전 시그니처(위치 인자 하나만)를
+   가정하고 있어 깨졌던 것. `test_hub_record_called_before_orchestrator`의
+   `mock_orc.generate.side_effect` 람다가 `system=` 키워드를 못 받아 TypeError,
+   `test_orchestrator_generates_body`는 호출 인자 자체를 잘못 assert. 둘 다
+   실제 호출 형태에 맞게 테스트 수정. 14개 전부 통과.
+3. **PyJWT/langchain-ollama 미설치 해소** — `pip install -r requirements.txt`
+   전체 실행을 시도했으나 두 단계로 실패:
+   - 1차: `/tmp`가 WSL2 tmpfs(3.9G)라 torch(843MB) 등 받다가
+     `[Errno 28] No space left on device` — `TMPDIR`을 디스크 쪽
+     (`/home/a/.cache/pip-tmp`, `/`는 898G 여유)으로 돌려 재시도.
+   - 2차: `catboost==1.2.8`이 Python 3.14에서 빌드 실패
+     (`AttributeError: 'Distribution' object has no attribute 'dry_run'` —
+     distutils가 Python 3.12+에서 빠지면서 구식 setup.py가 깨짐). titanic 앱이
+     실제로 쓰는 패키지라 requirements.txt에서 못 뺌 — 전체 동기화는 별도
+     결정(catboost 버전 업/Python 버전 조정) 필요해 백로그로 남김.
+   - 실제 목적(PyJWT 미설치)은 전체 동기화 대신 `PyJWT[crypto]==2.10.1`,
+     `langchain-ollama==1.1.0`만 개별 설치로 해결. `require_admin`을 쓰는
+     `email_router`·`rangchain_chat_router` import 확인, `apps/mova/tests`+
+     `apps/dispatch` 47개 전부 통과(이전엔 jwt 없어 수집 실패하던
+     `test_whoami_router.py`도 포함).
+
+### 산출물 (4)
+- `CLAUDE.md`(수정), `suvisdev/apps/dispatch/test/test_send_email_interactor.py`(수정).
+- `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신 — 완료 항목 반영(테스트 수정,
+  PyJWT/langchain-ollama 설치), catboost 빌드 실패를 신규 백로그로 등록.
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건

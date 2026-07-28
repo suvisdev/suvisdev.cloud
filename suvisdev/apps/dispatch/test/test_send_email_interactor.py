@@ -39,7 +39,7 @@ class SendEmailInteractorTest(unittest.TestCase):
         interactor, mock_hub, mock_orc, _ = self._make_interactor()
         call_order: list[str] = []
         mock_hub.record.side_effect = lambda _: call_order.append("hub")
-        mock_orc.generate.side_effect = lambda _: call_order.append("orc") or "본문"
+        mock_orc.generate.side_effect = lambda *_, **__: call_order.append("orc") or "본문"
 
         interactor.send(to="a@b.com", prompt="p", subject="s")
 
@@ -61,7 +61,9 @@ class SendEmailInteractorTest(unittest.TestCase):
 
         interactor.send(to="a@b.com", prompt="p", subject="제목")
 
-        mock_orc.generate.assert_called_once_with("p")
+        mock_orc.generate.assert_called_once_with(
+            "수신자 이메일: a@b.com\n\n지시사항: p", system=SendEmailInteractor._SYSTEM
+        )
         mock_gmail.send.assert_called_once_with(to="a@b.com", subject="제목", body="LLM이 쓴 본문")
 
     def test_send_returns_email_dto(self) -> None:
