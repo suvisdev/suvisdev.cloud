@@ -486,6 +486,30 @@ verify→재시도/종료 루프 → Neo4j 배포 후 GraphRAG로 retrieve 노�
 
 ---
 
+### [10] Neo4j Docker 설치 전략 문서 작성
+
+**배경**: [9] ranggraph-harness.md가 제안한 GraphRAG retrieve 노드를 실제로
+쓰려면 Neo4j 서버가 먼저 떠 있어야 함 — 그 서버를 이 프로젝트 기존
+방식(docker-compose)대로 띄우는 전략 문서 작성 요청. 문서만 요청받아
+`docker-compose.yaml`/`.env` 실제 수정은 하지 않음.
+
+**작성**: `apps/execsuite/_docs/neo4j-strategy.md` — 현재 상태(neo4j 서비스
+없음, `.env`엔 비밀번호만, `star-craft-pipeline.md`에 예전 계획 스니펫
+존재) 재확인 후, `docker-compose.yaml`에 추가할 `neo4j` 서비스 정의안
+(`neo4j:5.26-community`, `NEO4J_AUTH`/`NEO4J_PLUGINS=apoc`, 포트
+7474/7687, `neo4j_data`/`neo4j_logs` 네임드 볼륨, healthcheck — 기존
+db/redis 서비스와 같은 패턴), `.env` 추가안(`NEO4J_URI`/`NEO4J_USER`,
+`neo4j-hanress.md`가 이미 예정해둔 값), backend 컨테이너가 실제로 연결할
+때 `DATABASE_URL`/`REDIS_URL`과 같은 "호스트용 vs 컨테이너용 URI 분리"
+패턴 적용 방법, 기동·검증 절차(기존 `neo4j-hanress.md`의 확인 코드 재사용)
+를 정리. 남은 결정 사항(버전 태그 재확인, EC2 리소스, APOC 필요 여부)도
+명시.
+
+### 산출물 (10)
+- `apps/execsuite/_docs/neo4j-strategy.md`(신규 작성).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건
