@@ -18,6 +18,12 @@ apps/의 어떤 것도 import하지 않는다.
 나중에 이 기법을 실제로 쓸 프로젝트가 생기면, 그때 그 앱의 컨벤션에 맞춰
 가져다 쓴다.
 
+**03(시맨틱 분할)은 04·08과 제외 사유가 다르다** — 아래 `semantic_segmentation/`
+절 참고. 04·08은 순수하게 "용도가 없어서" 빠졌지만, 03은 "용도(서울 보도
+검출)는 있었는데 그 용도를 검증할 데이터가 없어서" 막힌 케이스다. 이
+차이 때문에 03의 labs 데모는 그 막힌 용도를 재현하는 게 아니라 완전히
+무관한 일반 분할 기법 연습이다.
+
 ## Port는 참조 구현일 뿐이다
 
 여기 있는 `ports.py`(예: `PoseEstimationPort`)는 **참조 구현**이다. 실제
@@ -39,6 +45,7 @@ apps/의 어떤 것도 import하지 않는다.
 
 | 디렉토리 | 대응 트랙 | 사전학습 모델 | 상태 |
 |---------|----------|--------------|------|
+| `semantic_segmentation/` | 03(Loom, 시맨틱 분할) | LR-ASPP MobileNetV3(torchvision, Pascal VOC, 3.2M) | 완료 |
 | `pose_estimation/` | 04(Atlas, 자세 추정) | YOLOv8n-pose(ultralytics, 3.3M) | 완료 |
 | `video_classification/` | 08(Chronos, 영상 분류) | S3D(torchvision, Kinetics-400, 8.3M) | 완료 |
 
