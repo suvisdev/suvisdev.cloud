@@ -1,123 +1,72 @@
+"""PassengerJackTrainerMapper 테스트 — titanic(기준선) 모범 형태.
+
+핵심 포인트: to_entity()는 실제 JackTrainerOrm(SQLAlchemy) 타입에 의존하지
+않고 passenger_id/name/gender/survived 속성만 있으면 동작한다(DIP) — 그래서
+진짜 ORM 대신 같은 모양의 가짜(SimpleNamespace)로 스왑해도 결과가 같다는
+걸 별도로 검증한다. 인프라(ORM)를 몰라도 도메인 계층 매핑 규칙을 테스트할
+수 있다는 게 이 패턴의 핵심이다.
+"""
+
+from __future__ import annotations
+
 from types import SimpleNamespace
 
-import pytest
+from titanic.adapter.outbound.mappers.passenger_jack_trainer_mapper import (
+    PassengerJackTrainerMapper,
+)
+from titanic.adapter.outbound.orm.passenger_jack_trainer_orm import JackTrainerOrm
+from titanic.domain.entities.passenger_jack_trainer_entity import PassengerJackTrainer
+from titanic.domain.value_objects.passenger_identity_vo import PassengerIdentity
+from titanic.domain.value_objects.survived_vo import Survived
 
-from titanic.adapter.outbound.mappers.passenger_jack_trainer_mapper import JackTrainerMapper
-from titanic.domain.entities.passenger_jack_trainer_entity import PassengerEntity
-from titanic.domain.value_objects.passenger_jack_trainer_vo import (
-    Age,
-    FamilyRelation,
-    Gender,
-    GenderType,
-    PassengerId,
-    PassengerName,
-    SurvivalStatus,
+_RAW_FIELDS = dict(
+    passenger_id="1",
+    name="Braund, Mr. Owen Harris",
+    gender="male",
+    age="22",
+    sib_sp="1",
+    parch="0",
+    survived="0",
 )
 
 
-def _make_orm(**overrides):
-    defaults = dict(
-        id=1,
-        passenger_id="P001",
-        name="Dawson, Mr. Jack",
-        gender="male",
-        age="30.0",
-        sib_sp="0",
-        parch="0",
-        survived="0",
-    )
-    defaults.update(overrides)
-    return SimpleNamespace(**defaults)
-
-
-def _make_entity(
-    id: int = 1,
-    passenger_id: str = "P001",
-    name: str = "Dawson, Mr. Jack",
-    gender_raw: str = "male",
-    age_value: float = 30.0,
-    sib_sp: int = 0,
-    parch: int = 0,
-    survived: bool | None = False,
-) -> PassengerEntity:
-    return PassengerEntity(
-        id=id,
-        passenger_id=PassengerId(passenger_id),
-        name=PassengerName(name),
-        gender=Gender.from_raw(gender_raw),
-        age=Age(age_value),
-        family_relation=FamilyRelation(sib_sp=sib_sp, parch=parch),
-        survival_status=SurvivalStatus(survived=survived),
-    )
-
-
 class TestToEntity:
-    def test_maps_id(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(id=42))
-        assert entity.id == 42
+    def test_maps_real_orm_to_entity(self) -> None:
+        orm = JackTrainerOrm(**_RAW_FIELDS)
 
-    def test_maps_passenger_id(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(passenger_id="P099"))
-        assert str(entity.passenger_id) == "P099"
+        entity = PassengerJackTrainerMapper.to_entity(orm)
 
-    def test_maps_name(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(name="Smith, Mr. John"))
-        assert entity.name.full_name == "Smith, Mr. John"
+        assert entity.passenger_id == "1"
+        assert entity.identity.title.code == 1  # Mr
+        assert entity.identity.gender.is_female is False
+        assert entity.survived.is_alive is False
 
-    def test_maps_gender_male(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(gender="male"))
-        assert entity.gender.value == GenderType.MALE
+    def test_maps_fake_adapter_with_same_shape_to_identical_entity(self) -> None:
+        """DIP 스왑: 실제 ORM 대신 같은 속성만 가진 가짜로 바꿔도 결과가 같다."""
+        fake_orm = SimpleNamespace(**_RAW_FIELDS)
+        real_orm = JackTrainerOrm(**_RAW_FIELDS)
 
-    def test_maps_gender_female(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(gender="female"))
-        assert entity.gender.value == GenderType.FEMALE
+        from_fake = PassengerJackTrainerMapper.to_entity(fake_orm)  # type: ignore[arg-type]
+        from_real = PassengerJackTrainerMapper.to_entity(real_orm)
 
-    def test_maps_age(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(age="25.0"))
-        assert entity.age.value == 25.0
-
-    def test_maps_family_relation(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(sib_sp="2", parch="3"))
-        assert entity.family_relation.sib_sp == 2
-        assert entity.family_relation.parch == 3
-
-    def test_survived_1_maps_to_true(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(survived="1"))
-        assert entity.survival_status.survived is True
-
-    def test_survived_0_maps_to_false(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(survived="0"))
-        assert entity.survival_status.survived is False
-
-    def test_survived_none_maps_to_unknown(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(survived=None))
-        assert entity.survival_status.is_unknown is True
-
-    def test_none_passenger_id_maps_to_none(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(passenger_id=None))
-        assert entity.passenger_id is None
-
-    def test_none_name_maps_to_none(self):
-        entity = JackTrainerMapper.to_entity(_make_orm(name=None))
-        assert entity.name is None
+        assert from_fake == from_real
+        assert from_fake.identity == from_real.identity
+        assert from_fake.survived == from_real.survived
 
 
-class TestToOrm:
-    # JackTrainerOrm의 PK는 passenger_id이며 id 컬럼이 없음.
-    # 현재 mapper가 JackTrainerOrm(id=entity.id, ...) 로 생성하므로 TypeError 발생.
-    # 아래 테스트는 이 버그를 문서화한다 (Red → 수정 대상).
+class TestToOrmFields:
+    def test_round_trips_back_to_raw_shaped_dict(self) -> None:
+        entity = PassengerJackTrainer.create(
+            "1",
+            PassengerIdentity.from_raw("Braund, Mr. Owen Harris", "male"),
+            Survived.from_raw("0"),
+        )
 
-    def test_survival_true_serializes_to_string_1(self):
-        entity = _make_entity(survived=True)
-        with pytest.raises(TypeError):
-            JackTrainerMapper.to_orm(entity)
+        fields = PassengerJackTrainerMapper.to_orm_fields(entity)
 
-    def test_survival_false_serializes_to_string_0(self):
-        entity = _make_entity(survived=False)
-        with pytest.raises(TypeError):
-            JackTrainerMapper.to_orm(entity)
-
-    def test_survival_unknown_serializes_to_none(self):
-        entity = _make_entity(survived=None)
-        with pytest.raises(TypeError):
-            JackTrainerMapper.to_orm(entity)
+        assert fields == {
+            "passenger_id": "1",
+            "name": "Mr",
+            "gender": "male",
+            "survived": "0",
+        }
