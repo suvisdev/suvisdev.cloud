@@ -158,6 +158,51 @@
 
 ---
 
+### [3] 프론트 프로덕션 API URL 설정 + LangChain 모델을 Gemini로 교체
+
+**배경**: 강사가 `suvisdev/.cursorrules`에 `NEXT_PUBLIC_BASE_URL=https://api.suvisdev.cloud`를
+넣으라고 지시했다는데, 이유를 물어와 확인해보니 지시 자체가 틀렸음. `.cursorrules`는
+Cursor 에디터용 AI 코딩 규칙 문서일 뿐 어떤 코드도 환경변수로 읽지 않고,
+`NEXT_PUBLIC_BASE_URL`이라는 이름도 이 저장소 어디에도 없음(실제 코드가 읽는
+이름은 `NEXT_PUBLIC_API_URL`, `suvis/lib/backend-client.ts` 등 7곳). 게다가
+`NEXT_PUBLIC_*`는 프론트(`suvis/`) 관례라 백엔드(`suvisdev/`) 쪽에 있을 이유도
+없음. 올바른 위치·이름으로 바로잡아 설정.
+
+이어서 랭체인 모델을 Gemini로 바꿀 수 있는지 요청받아 진행.
+
+**수정/구현**:
+1. `suvis/.env.production`(신규) — `NEXT_PUBLIC_API_URL=https://api.suvisdev.cloud`.
+   `.gitignore`엔 `.env.local`만 있어 커밋 가능(NEXT_PUBLIC 값은 어차피 브라우저에
+   노출되는 값이라 커밋해도 안전).
+2. `rangchain_chat_engine_repository.py` — `ChatOllama(exaone3.5:2.4b)` →
+   `ChatGoogleGenerativeAI`(langchain-google-genai)로 교체. 모델 ID는 새로 만들지
+   않고 `core.matrix.vauly_keymaker_secret_manager.GEMINI_MODEL_MAP["flash15"]`
+   (`gemini-3.1-flash-lite`)를 재사용, API 키도 `get_keymaker().gemini_api_key`
+   재사용 — ontology `GeminiLlmAdapter` 등 다른 Gemini 사용처와 키·모델 관리
+   일원화. LCEL 체인 구조(`ChatPromptTemplate`+`MessagesPlaceholder`+
+   `StrOutputParser`)·destination별 프롬프트 분기·에러 래핑은 그대로 유지, LLM
+   provider만 교체.
+3. `requirements.txt` — `langchain-google-genai==4.3.2` 추가, `langchain-core`
+   (1.4.8→1.5.1)·`langsmith`(0.9.3→0.10.10)는 설치 과정에서 자동으로 딸려 올라간
+   실제 버전에 맞춰 갱신. `/home/a/.venv`에 실제 설치 완료.
+
+**검증**: `RangchainChatEngineRepository().generate(...)`를 직접 호출해 실제
+Gemini 응답("안녕하세요! 저는 SUVIS의 한국어 어시스턴트입니다...") 받는 것까지
+확인.
+
+**오류·막힌 점**: `langchain-ollama`도 `/home/a/.venv`에 실제로는 설치돼 있지
+않았음(PyJWT와 같은 종류의 기존 venv-requirements.txt 드리프트) — 이번 작업으로
+ChatOllama를 걷어내서 문제되진 않았지만, venv 전체가 `requirements.txt`와
+계속 어긋나 있다는 신호라 언젠가 `pip install -r requirements.txt` 재실행 필요.
+
+### 산출물 (3)
+- `suvis/.env.production`(신규), `suvisdev/apps/silicon_valley/adapter/outbound/repositories/rangchain_chat_engine_repository.py`(수정),
+  `suvisdev/requirements.txt`(수정).
+- `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`의 LangChain 파이프라인 항목에 Gemini
+  교체 내용 반영.
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건

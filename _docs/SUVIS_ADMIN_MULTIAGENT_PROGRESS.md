@@ -35,10 +35,12 @@
   전 계층 완성. 실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증.
   상세: WORK_LOG 2026-07-27 [4]·[5](네이밍 환원).
 - **silicon_valley LangChain 채팅 파이프라인(2026-07-28)**: `POST /api/v1/langchain/chat`
-  — semantic_router_interactor(ontology)로 의도 판단 후 LangChain(ChatOllama,
-  exaone3.5:2.4b) LCEL 체인이 destination별 시스템 프롬프트로 답변 생성. 클린
-  아키텍처 전 계층 완성, semantic_router의 `HubRagError` 미처리로 500
-  plain-text 새던 버그도 수정. 상세: WORK_LOG 2026-07-28.
+  — semantic_router_interactor(ontology)로 의도 판단 후 LangChain LCEL 체인이
+  destination별 시스템 프롬프트로 답변 생성. 클린 아키텍처 전 계층 완성,
+  semantic_router의 `HubRagError` 미처리로 500 plain-text 새던 버그도 수정.
+  모델은 최초 ChatOllama(exaone3.5:2.4b)로 구현했다가 같은 날 `ChatGoogleGenerativeAI`
+  (Gemini, `core.matrix.Keymaker` 키 재사용)로 교체 — 실제 응답 확인 완료.
+  상세: WORK_LOG 2026-07-28.
 - **기존 실패 테스트 수정(2026-07-28)**: `apps/mova/tests/test_import_interactor.py`
   2건 — `ImportInteractor` 생성자에 `box_office`/`hub_rag`가 추가된 뒤 테스트가
   안 따라가서 실패하던 것, `AsyncMock()` 인자 추가로 수정. `test_llm_error_handling.py`는

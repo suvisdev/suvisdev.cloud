@@ -2,22 +2,22 @@
 
 semantic_router_interactor(ontology)가 판단한 destination·entities·grounding을
 시스템 프롬프트에 반영해, 같은 대화 맥락(history)을 두고 최종 답변을 생성한다.
-모든 spoke가 쓰는 exaone3.5:2.4b(Ollama)를 langchain-ollama로 호출한다.
+Gemini(langchain-google-genai)를 호출한다 — API 키는 core.matrix의 Keymaker를
+그대로 재사용해 ontology GeminiLlmAdapter 등 다른 Gemini 사용처와 키 관리를
+일원화한다.
 """
 
 from __future__ import annotations
 
-import os
-
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 
+from core.matrix.vauly_keymaker_secret_manager import GEMINI_MODEL_MAP, get_keymaker
 from silicon_valley.app.ports.output.rangchain_chat_errors import RangchainChatError
 
-_MODEL = "exaone3.5:2.4b"
-_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+_MODEL = GEMINI_MODEL_MAP["flash15"]
 
 _BASE_PROMPT = (
     "너는 SUVIS의 한국어 어시스턴트야. 반드시 한국어로, 간결하게 답해.\n"
@@ -56,7 +56,7 @@ def _to_langchain_messages(messages: list[dict[str, str]]) -> list[BaseMessage]:
 
 class RangchainChatEngineRepository:
     def __init__(self, model: str = _MODEL) -> None:
-        llm = ChatOllama(model=model, base_url=_OLLAMA_BASE_URL)
+        llm = ChatGoogleGenerativeAI(model=model, google_api_key=get_keymaker().gemini_api_key)
         prompt = ChatPromptTemplate.from_messages(
             [("system", "{system_prompt}"), MessagesPlaceholder("history")]
         )
