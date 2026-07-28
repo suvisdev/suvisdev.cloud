@@ -47,6 +47,16 @@ from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
 
 keymaker = get_keymaker()
 
+# 집(GPU/EXAONE) vs EC2(GPU 없음, Gemini)처럼 배포 환경이 갈릴 때, mova의
+# 부팅 자동 작업(TMDB 시드·랭킹/KOFIC 스케줄러 — 전부 Ollama/GPU 의존)만
+# 코드 변경 없이 끄고 켤 수 있게 하는 플래그. 기본값 true — 안 넣으면 기존
+# 동작(집 환경) 그대로 유지.
+_ENABLE_MOVA_STARTUP = os.getenv("ENABLE_MOVA_STARTUP", "true").strip().lower() not in (
+    "false",
+    "0",
+    "no",
+)
+
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="??? ???")
@@ -81,36 +91,46 @@ async def lifespan(app: FastAPI):
                     await seed_assistants_if_empty()
                 except Exception as ast_err:
                     logger.warning("[main] assistants ?? ??: %s", ast_err)
-                try:
-                    from mova.dependencies.import_provider import seed_catalog_if_sparse
+                if _ENABLE_MOVA_STARTUP:
+                    try:
+                        from mova.dependencies.import_provider import seed_catalog_if_sparse
 
-                    seed_result = await seed_catalog_if_sparse()
-                    if seed_result and seed_result.imported:
-                        logger.info(
-                            "[main] TMDB 카탈로그 시드 — imported=%s rankings=%s",
-                            seed_result.imported,
-                            seed_result.rankings_updated,
+                        seed_result = await seed_catalog_if_sparse()
+                        if seed_result and seed_result.imported:
+                            logger.info(
+                                "[main] TMDB 카탈로그 시드 — imported=%s rankings=%s",
+                                seed_result.imported,
+                                seed_result.rankings_updated,
+                            )
+                    except Exception as tmdb_err:
+                        logger.warning("[main] TMDB 카탈로그 시드 실패: %s", tmdb_err)
+                    try:
+                        from mova.adapter.inbound.scheduler.market_rankings_scheduler import (
+                            run_chat_trend_scheduler,
                         )
-                except Exception as tmdb_err:
-                    logger.warning("[main] TMDB 카탈로그 시드 실패: %s", tmdb_err)
-                try:
-                    from mova.adapter.inbound.scheduler.market_rankings_scheduler import (
-                        run_chat_trend_scheduler,
-                    )
 
-                    app.state.rankings_scheduler = asyncio.create_task(run_chat_trend_scheduler())
-                    logger.info("[main] chat_trend 랭킹 스케줄러 시작 (6시간 주기)")
-                except Exception as sched_err:
-                    logger.warning("[main] 랭킹 스케줄러 시작 실패: %s", sched_err)
-                try:
-                    from mova.adapter.inbound.scheduler.kofic_import_scheduler import (
-                        run_kofic_import_scheduler,
-                    )
+                        app.state.rankings_scheduler = asyncio.create_task(
+                            run_chat_trend_scheduler()
+                        )
+                        logger.info("[main] chat_trend 랭킹 스케줄러 시작 (6시간 주기)")
+                    except Exception as sched_err:
+                        logger.warning("[main] 랭킹 스케줄러 시작 실패: %s", sched_err)
+                    try:
+                        from mova.adapter.inbound.scheduler.kofic_import_scheduler import (
+                            run_kofic_import_scheduler,
+                        )
 
-                    app.state.kofic_scheduler = asyncio.create_task(run_kofic_import_scheduler())
-                    logger.info("[main] KOFIC 박스오피스 자동 수입 스케줄러 시작 (24시간 주기)")
-                except Exception as kofic_sched_err:
-                    logger.warning("[main] KOFIC 수입 스케줄러 시작 실패: %s", kofic_sched_err)
+                        app.state.kofic_scheduler = asyncio.create_task(
+                            run_kofic_import_scheduler()
+                        )
+                        logger.info("[main] KOFIC 박스오피스 자동 수입 스케줄러 시작 (24시간 주기)")
+                    except Exception as kofic_sched_err:
+                        logger.warning("[main] KOFIC 수입 스케줄러 시작 실패: %s", kofic_sched_err)
+                else:
+                    logger.info(
+                        "[main] ENABLE_MOVA_STARTUP=false — mova 부팅 작업"
+                        "(TMDB 시드·랭킹/KOFIC 스케줄러) 비활성화됨"
+                    )
             except Exception as e:
                 logger.error(
                     "DB ???/?? ??? ?? ? DB ?? API? 503 ??: %s",

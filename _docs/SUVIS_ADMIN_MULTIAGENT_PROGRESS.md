@@ -84,6 +84,21 @@
   추론만 — 04는 YOLOv8n-pose(3.3M), 08은 torchvision s3d(8.3M, 가장 가벼운
   옵션으로 실측 비교 후 선택). 둘 다 실제 실행해 결과 확인 완료. 상세:
   WORK_LOG 2026-07-28 [6].
+- **`suvisdev/labs/semantic_segmentation/` 03(시맨틱 분할) 추가(2026-07-28)**:
+  04·08과 동일 패턴. 04·08과 달리 03은 "용도 없음"이 아니라 "용도(서울 보도
+  검출)는 있었는데 검증 데이터(OSM sidewalk 태그 0.4~1.2%)가 없어서" 막힌
+  케이스임을 README에 구분해 명시. 모델은 torchvision segmentation 4종
+  실측 비교 후 가장 가벼운 `lraspp_mobilenet_v3_large`(3.2M, Pascal VOC —
+  도로/보도 클래스 자체가 없어 막힌 용도와 구조적으로 무관) 선택. 실제
+  실행해 결과 확인 완료(bus 31.0%, person 12.2% 정상 검출).
+- **mova 부팅 자동 작업 `ENABLE_MOVA_STARTUP` 플래그(2026-07-28)**: 집(GPU/
+  EXAONE)·EC2(GPU 없음, Gemini) 두 배포 환경에서 mova의 TMDB 시드·chat_trend/
+  KOFIC 스케줄러(전부 Ollama 의존)를 EC2에서 코드 변경 없이 끌 수 있게
+  `main.py` `lifespan()`에 플래그 추가(기본값 true, 하위호환). mock으로
+  DB/Ollama 없이 분기만 격리 검증 — false일 때 3개 함수 전부 미호출+
+  "비활성화됨" 로그, 미설정 시 기존대로 전부 호출됨을 확인. 부수 발견:
+  `seed_assistants_if_empty` import가 존재하지 않는 모듈 참조하는 기존 버그
+  (아래 백로그).
 
 ---
 
@@ -97,6 +112,16 @@
 ## 다음 / 남은 작업 (백로그)
 
 
+- **`seed_assistants_if_empty` import 버그(2026-07-28 발견)**: `main.py`가
+  `mova.adapter.outbound.pg.assistants_pg_repository`에서 이 함수를
+  import하는데, 실제 파일명은 `platform_assistants_pg_repository.py`고
+  `seed_assistants_if_empty` 함수 자체가 코드베이스 어디에도 없음. 매 부팅마다
+  `ModuleNotFoundError`가 나서 기존 try/except로 조용히 삼켜짐. 원인 조사·
+  수정 안 함(이번 요청 범위 밖 발견).
+- **CLIP 모델(`openai/clip-vit-base-patch32`) 다운로드 hang(2026-07-28 발견)**:
+  `apps/ontology/test` 전체 실행 시 Hugging Face Hub에서 이 모델(Sentinel
+  이상탐지가 씀) 다운로드가 1시간 넘게 멈춤(`.incomplete` 파일 확인) —
+  네트워크 문제로 추정, 프로세스 강제 종료로만 대응. 재현·원인 조사 안 함.
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
 - **06 미결**: Sentinel 소프트 플래그 **저장 지속화 + 어드민 오버라이드 엔드포인트**
   (저장 계층 정리 후 — S3 배선인데 AWS 미연결, DB 폴백 `VisionRepository` 미배선).

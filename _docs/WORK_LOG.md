@@ -338,6 +338,71 @@ torch(843MB) 받다가 공간 부족 — `TMPDIR`을 디스크 쪽(`/home/a/.cac
 
 ---
 
+### [7] labs/ 03(시맨틱 분할) 추가 + mova 부팅 작업 ENABLE_MOVA_STARTUP 플래그
+
+**배경**: [6]에 이어 "03도 04·08처럼 labs에 만들 수 있냐"는 질문에, 03은
+04·08과 제외 사유가 다름을 짚었다 — 04·08은 순수 "용도 없음"이지만 03은
+"용도(서울 보도 검출)는 있었는데 검증 데이터(OSM sidewalk 태그)가 없어서"
+막힌 케이스. 사용자 확인 후 04·08과 동일 패턴으로 labs에 추가.
+
+이어서 별개 요청: 이 프로젝트가 집(GPU/EXAONE)·AWS EC2(GPU 없음, Gemini)
+두 환경에 배포되는데, mova의 부팅 자동 작업(TMDB 시드·랭킹/KOFIC 스케줄러 —
+전부 Ollama 의존)이 EC2에서 연결 실패 WARNING을 계속 뿜는 문제를 코드
+제거·브랜치 분리 없이 환경변수 플래그로 해결.
+
+**수정/구현**:
+1. **`suvisdev/labs/semantic_segmentation/`**(03·Loom) — 04·08과 동일 구조
+   (`dto.py`/`ports.py`/`adapters/`/`demo.py`/`samples/`). 모델은
+   torchvision.models.segmentation 4종 실측 비교(lraspp_mobilenet_v3_large
+   3.2M < deeplabv3_mobilenet_v3_large 11.0M < fcn_resnet50 35.3M <
+   deeplabv3_resnet50 42.0M) 후 가장 가벼운 `lraspp_mobilenet_v3_large`
+   선택. Pascal VOC 21클래스 사전학습(도로/보도 클래스 없음 — 그래서 이
+   데모가 막힌 용도인 "서울 보도 검출"과 구조적으로 무관함을 README에 명시).
+   전처리가 짧은 변을 520px로 리사이즈해 마스크 크기가 원본과 달라짐을
+   실측으로 확인 → DTO의 width/height는 원본이 아니라 실제 마스크 크기로
+   정확히 반영. 가중치(~12.5MB)는 torch hub가 `~/.cache/torch/hub/checkpoints/`
+   에 자동 캐시(리포에 안 남음, gitignore 불필요 확인). `samples/sample.jpg`
+   (ultralytics 기본 내장 `bus.jpg`)로 실행 검증 완료(bus 31.0%, person
+   12.2%, 배경 56.8% 정상 검출).
+2. **`main.py`에 `ENABLE_MOVA_STARTUP` 플래그 추가** — `lifespan()` 안
+   TMDB 카탈로그 시드·chat_trend 랭킹 스케줄러·KOFIC 박스오피스 스케줄러
+   3개 try 블록을 `if _ENABLE_MOVA_STARTUP:`로 감싸고 `else:`에 "비활성화됨"
+   info 로그 추가. 기본값 `true`(안 넣으면 기존 집 환경 동작 그대로).
+   "HubRagInteractor 임베딩 ingest"는 별도 호출이 아니라 TMDB 시드
+   (`ImportInteractor._persist_snapshots` → `_ingest_to_hub`) 안에 이미
+   포함돼 있어 TMDB 시드 하나만 감싸면 같이 꺼짐 — 별도 지점 불필요.
+   `seed_viewer_if_empty()`, Ollama 워밍업, 다른 앱(dispatch/execsuite/
+   vision 등)의 부팅 작업은 건드리지 않음.
+
+**부수 발견(건드리지 않음, 백로그 등록)**: `main.py`의 `seed_assistants_if_empty`
+import(`mova.adapter.outbound.pg.assistants_pg_repository`)가 실제로
+존재하지 않는 모듈 — 실제 파일명은 `platform_assistants_pg_repository.py`고
+`seed_assistants_if_empty` 함수 자체가 코드베이스 어디에도 없음. 매 부팅마다
+`ModuleNotFoundError`가 나서 기존 try/except로 조용히 삼켜지고 있던 기존 버그.
+
+**검증**: 실제 DB/Ollama 없이 `verify_connection`/`create_tables`/
+mova 시드·스케줄러 함수를 전부 mock으로 대체해 `lifespan()`의 분기만
+격리 검증.
+- `ENABLE_MOVA_STARTUP=false` → "비활성화됨" info 로그만, 3개 함수
+  (`seed_catalog_if_sparse`/`run_chat_trend_scheduler`/
+  `run_kofic_import_scheduler`) 전부 `called=False` 확인.
+- 미설정(기본값) → 3개 함수 전부 `called=True`, 기존 로그(랭킹/KOFIC
+  스케줄러 시작) 정상 출력 확인.
+
+**오류·막힌 점**: [6]에서 백그라운드로 남겨둔 `mova+dispatch+ontology`
+전체 회귀 테스트가 `openai/clip-vit-base-patch32`(Sentinel 이상탐지가
+쓰는 CLIP 모델) Hugging Face Hub 다운로드에서 1시간 넘게 멈춰 있는 걸
+발견해 프로세스 종료 — execsuite 이름 변경 자체는 별도 직접 import
+검증으로 이미 확인이 끝난 상태라 이 hang은 이번 작업과 무관.
+
+### 산출물 (7)
+- `suvisdev/labs/semantic_segmentation/`(신규): `dto.py`, `ports.py`,
+  `adapters/lraspp_adapter.py`, `demo.py`, `samples/sample.jpg`.
+- `suvisdev/labs/README.md`(03 절 추가, §03 특수 사정 명시).
+- `suvisdev/main.py`(`ENABLE_MOVA_STARTUP` 플래그 추가).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건
