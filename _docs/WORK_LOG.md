@@ -28,6 +28,75 @@
 
 ---
 
+## 2026-07-28
+
+### 작업 내용
+- suvis 프론트 LESSON 사이트에 LangChain 채팅 탭 신설 요청 — 처음엔 UI 틀만
+  (SOCCER 섹션 아래 LANGCHAIN 섹션 추가, `/langchain/chat`), 이후 실제 파이프라인
+  연결까지 확장 요청.
+- silicon_valley 백엔드에 semantic_router(ontology) → LangChain 챗봇 엔진 파이프라인을
+  클린 아키텍처(라우터→유스케이스→포트→리포지토리)로 구현.
+- pnpm 로컬 개발환경 트러블슈팅(susu에 pnpm 잘못 로컬 설치, suvis `pnpm install`
+  sharp 빌드 스크립트 차단) 지원.
+- LangChain 활용 사례 문서 2건 추가(NCL, Elastic) + 기존 Morningstar 문서 접점
+  섹션을 같은 형식으로 보강.
+
+### 수정/구현
+- **프론트(`suvis/`)**: `app/langchain/chat/page.tsx` 신규(soccer 채팅과 동일
+  레이아웃, 인디고 테마, 실제 `/api/v1/langchain/chat` fetch). 사이드바에 LANGCHAIN
+  섹션(채팅 링크)을 11개 페이지에 동일 추가(이 저장소가 사이드바 nav를 페이지마다
+  복사하는 기존 관례를 따름). `pnpm-workspace.yaml`의 `allowBuilds.sharp`를
+  자리표시자 텍스트에서 `true`로 수정. `susu/`에 잘못 로컬 설치됐던
+  `node_modules`/`package.json`/`package-lock.json`/`pnpm-lock.yaml` 정리(삭제).
+- **백엔드(`suvisdev/apps/silicon_valley/`)**: 신규 —
+  `app/ports/output/rangchain_chat_engine_port.py`(`RangchainChatEnginePort`),
+  `adapter/outbound/repositories/rangchain_chat_engine_repository.py`
+  (`ChatPromptTemplate`+`MessagesPlaceholder`+`ChatOllama` LCEL 체인, destination별
+  시스템 프롬프트 분기, `OLLAMA_BASE_URL` 반영), `app/dtos/rangchain_chat_dto.py`,
+  `app/ports/input/rangchain_chat_use_case.py`, `app/ports/output/rangchain_chat_errors.py`,
+  `adapter/inbound/api/schemas/rangchain_chat_schema.py`,
+  `adapter/inbound/api/v1/rangchain_chat_router.py`(`POST /api/v1/langchain/chat`),
+  `dependencies/rangchain_chat_provider.py`(ontology의 `get_semantic_router_use_case`를
+  그대로 DI 재사용 — mova가 ontology를 참조하는 기존 cross-app 관례를 따름).
+  `app/use_case/rangchain_interactor.py` — `semantic_router.route()` 호출 후 결과
+  (destination/entities/answer)를 LangChain 엔진에 전달하도록 작성. `silicon_valley_router`에
+  라우터 등록.
+- **문서**: `apps/silicon_valley/_docs/ranchain-ncl-strategy.md`,
+  `rangchain-elastic-strategy.md` 신규, `rangchain-monigstar-strategy.md` 접점
+  섹션 보강 — 전부 "이 저장소엔 해당 데이터 소스 없음, 문서화만" 결론(실제
+  데이터·구현은 보류).
+
+### 오류·막힌 점
+- **500 plain-text 파싱 오류**(`"Unexpected token 'I', "Internal S"... is not
+  valid JSON"`): 원인은 `SemanticRouterInteractor.route()`(ontology)의
+  general(잡담) 분기가 `HubRagError`를 잡지 않고 그대로 던지는데,
+  `rangchain_chat_router.py`는 `RangchainChatError`만 캐치해서 미처리 예외가
+  FastAPI 기본 500(plain text)으로 나간 것. `rangchain_interactor.py`에서
+  `semantic_router.route()` 호출을 `HubRagError` 캐치 → `RangchainChatError`
+  변환으로 고침. `GEMINI_API_KEY`는 `.env`에 설정돼 있어 정확한 실패 원인
+  (quota/네트워크 등)은 재현 시 에러 메시지로 추가 확인 필요 — 이번 세션에서는
+  백엔드 서버가 환경에 안 떠 있어 재기동 후 실제 검증은 못 함(코드 리뷰로만
+  원인 특정).
+- `[ERR_PNPM_IGNORED_BUILDS] sharp` — `pnpm-workspace.yaml`의 `allowBuilds.sharp`
+  값이 `true` 대신 자리표시자 텍스트였던 게 원인.
+- `[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] Command "dev" not found` — `susu`
+  (Flutter, `package.json` 없음)에서 `pnpm dev`를 실행해 발생. `suvis`(Next.js)가
+  맞는 위치.
+
+### 데이터
+- 해당 없음.
+
+### 산출물
+- 프론트: `suvis/app/langchain/chat/page.tsx`(신규) + 사이드바 11개 파일,
+  `suvis/pnpm-workspace.yaml`.
+- 백엔드: `apps/silicon_valley/` 내 `rangchain_chat_*`/`rangchain_interactor.py`
+  8개 파일 신규, `adapter/inbound/api/__init__.py` 라우터 등록.
+- 문서: `ranchain-ncl-strategy.md`, `rangchain-elastic-strategy.md`(신규),
+  `rangchain-monigstar-strategy.md`(수정).
+- 커밋 해시: 이번 커밋 참고.
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건

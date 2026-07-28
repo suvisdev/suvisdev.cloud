@@ -197,6 +197,15 @@ export default function TitanicDataCollectionPage() {
               채팅
             </Link>
           </div>
+          <p className="mt-6 text-xs font-semibold tracking-wide text-neutral-500">LANGCHAIN</p>
+          <div className="mt-2 space-y-2">
+            <Link
+              href="/langchain/chat"
+              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
+            >
+              채팅
+            </Link>
+          </div>
         </aside>
 
         <section className="rounded-xl border border-neutral-200 bg-white p-6 md:p-8 dark:border-[#252b3b] dark:bg-[#161a24]">
