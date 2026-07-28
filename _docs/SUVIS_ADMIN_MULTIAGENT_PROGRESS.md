@@ -29,12 +29,12 @@
   `vision_uploads` 등이 `create_all()`로만 존재하고 체인엔 CREATE가 없던 문제.
   베이스라인 마이그레이션 신설로 완전히 빈 DB에서 `alembic upgrade head`
   성공 검증 완료(EC2 임시 컨테이너). 상세: WORK_LOG 2026-07-27 [3].
-- **PDF 업로드→추출→요약 파이프라인(silicon_valley, 2026-07-27, `pdf_loader_*` 네이밍)**:
+- **PDF 업로드→추출→요약 파이프라인(execsuite, 구 silicon_valley, 2026-07-27, `pdf_loader_*` 네이밍)**:
   `POST /api/v1/pdf/summarize` — neo4j-graphrag PdfLoader 추출 + EXAONE(Ollama)
   요약 + `pdf_loader_documents` 테이블 저장, inbound router~outbound repository
   전 계층 완성. 실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증.
   상세: WORK_LOG 2026-07-27 [4]·[5](네이밍 환원).
-- **silicon_valley LangChain 채팅 파이프라인(2026-07-28)**: `POST /api/v1/langchain/chat`
+- **execsuite(구 silicon_valley) LangChain 채팅 파이프라인(2026-07-28)**: `POST /api/v1/langchain/chat`
   — semantic_router_interactor(ontology)로 의도 판단 후 LangChain LCEL 체인이
   destination별 시스템 프롬프트로 답변 생성. 클린 아키텍처 전 계층 완성,
   semantic_router의 `HubRagError` 미처리로 500 plain-text 새던 버그도 수정.
@@ -72,6 +72,18 @@
   설치가 끝까지 성공(torch-cu126 포함). `.import_linter_cache`/`.mypy_cache`
   (18M)/`.pytest_cache`/`.ruff_cache` 정리(전부 재생성 가능한 도구 캐시, git
   미추적).
+- **`apps/silicon_valley` → `apps/execsuite` 이름 변경(2026-07-28)**: `admin`은
+  이미 다른 의미(어드민 대시보드/RBAC)로 쓰이고 있어 충돌 우려로 `execsuite`로
+  확정. 102개 파일 rename + 46개 파일 import·외부 3곳(`main.py`,
+  `alembic/env.py`, `.importlinter`) 전부 치환. `execsuite_router`/`main.py`
+  import 검증 완료.
+- **`suvisdev/labs/` 04(자세 추정)·08(영상 분류) 독립 실습 데모(2026-07-28)**:
+  `apps/`와 완전히 분리된 고립 영역(`main.py` 미등록, `.importlinter` 미포함).
+  Port는 참조 구현(실제 편입 시 그 앱 컨벤션대로 재배치), DTO는 도메인
+  중립이라 공유 가능하다고 README에 명시. GPU 없어 학습 없이 사전학습 모델
+  추론만 — 04는 YOLOv8n-pose(3.3M), 08은 torchvision s3d(8.3M, 가장 가벼운
+  옵션으로 실측 비교 후 선택). 둘 다 실제 실행해 결과 확인 완료. 상세:
+  WORK_LOG 2026-07-28 [6].
 
 ---
 

@@ -40,7 +40,7 @@ from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
 from ontology.adapter.inbound.api import nlp_router, ontology_router, vision_router
-from silicon_valley.adapter.inbound.api import silicon_valley_router
+from execsuite.adapter.inbound.api import execsuite_router
 from titanic.adapter.inbound.api import titanic_router
 from viewer.adapter.inbound.api import viewer_router
 from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
@@ -316,7 +316,7 @@ app.include_router(mova_router)
 app.include_router(titanic_router, prefix="/api")
 app.include_router(gildle_router, prefix="/api")
 app.include_router(viewer_router)
-app.include_router(silicon_valley_router, prefix="/api/v1")
+app.include_router(execsuite_router, prefix="/api/v1")
 app.include_router(dispatch_router, prefix="/api/v1")
 app.include_router(contents_router, prefix="/api/v1")
 app.include_router(vision_router, prefix="/api")

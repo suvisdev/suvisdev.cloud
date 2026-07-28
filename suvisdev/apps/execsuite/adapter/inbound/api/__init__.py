@@ -1,0 +1,18 @@
+from fastapi import APIRouter
+
+from execsuite.adapter.inbound.api.v1.piper_bighetti_hr_router import bighetti_hr_router
+from execsuite.adapter.inbound.api.v1.piper_dinesh_dash_router import dinesh_dash_router
+from execsuite.adapter.inbound.api.v1.piper_dunn_coo_router import dunn_coo_router
+from execsuite.adapter.inbound.api.v1.piper_gilfoyle_sys_router import gilfoyle_sys_router
+from execsuite.adapter.inbound.api.v1.piper_hendricks_ceo_router import hendricks_ceo_router
+from execsuite.adapter.inbound.api.v1.pdf_loader_router import pdf_loader_router
+from execsuite.adapter.inbound.api.v1.rangchain_chat_router import rangchain_chat_router
+
+execsuite_router = APIRouter()
+execsuite_router.include_router(hendricks_ceo_router)
+execsuite_router.include_router(gilfoyle_sys_router)
+execsuite_router.include_router(dinesh_dash_router)
+execsuite_router.include_router(dunn_coo_router)
+execsuite_router.include_router(bighetti_hr_router)
+execsuite_router.include_router(pdf_loader_router)
+execsuite_router.include_router(rangchain_chat_router)
