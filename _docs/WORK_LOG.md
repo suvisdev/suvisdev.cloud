@@ -510,6 +510,54 @@ db/redis 서비스와 같은 패턴), `.env` 추가안(`NEO4J_URI`/`NEO4J_USER`,
 
 ---
 
+### [11] EXAONE-3.5-2.4B-Instruct-AWQ 기반 lora-server 초기 세팅 (RTX 4060 8GB, 추론 전용)
+
+**배경**: 초기화된 노트북에 lora-server(mova RAG 답변 생성용)를 새로 세팅.
+원래 계획은 EXAONE AWQ였는데, `EXAONE_LOCAL_AI_SETUP.md` 8-1엔 8GB GPU에서
+EXAONE-AWQ **학습**이 OOM나서 현재 운영은 Qwen2.5-1.5B(plain)로 돼 있다는
+점을 먼저 확인시킴. 사용자는 "추론 전용"이 목적이라 학습 OOM은 무관하다며
+EXAONE-3.5-**2.4B**-Instruct-AWQ(원래 계획이던 7.8B가 아니라 2.4B)로 진행
+결정. 학습된 LoRA 어댑터(`~/lora_adapters/LATEST`)는 이 노트북에도 백업에도
+없어서, 재학습·복사 없이 `serve.py`에 "어댑터 없으면 베이스만" 폴백을 최소
+수정으로 추가하기로 함.
+
+**환경 구성**: `cmake`/`nvidia-cuda-toolkit` sudo 설치(사용자 직접 실행) →
+`uv` 설치 → `~/.venv-exaone`(python 3.12) 생성 → `torch==2.13.0+cu126`,
+`transformers==5.13.1`, `gptqmodel==7.1.0`(소스 빌드), `peft`, `torchvision`
+(gptqmodel 내부 import에 필요 — 기존 문서엔 없던 의존성), `optimum>=1.24.0`
+(peft가 gptqmodel 백엔드를 인식하는 데 필요) 설치. `LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct-AWQ`
+다운로드(2.1GB, repo root).
+
+**실측 확인**:
+- VRAM: 베이스 단독 로드 2455MiB, generate 후 2477MiB, 미학습 더미 LoRA까지
+  얹어도 2533MiB — 8GB 카드에서 여유 충분(~5.6GB 남음).
+- `BACKEND.EXLLAMA_V2` 커널 정상 동작(7.8B에서 겪었다는 Marlin 행 현상 없음,
+  JIT 컴파일 2~16초).
+- `get_peft_model()`이 7.8B 문서의 wte 패치(`_input_embed_layer="wte"`) 없이도
+  정상 동작 — 이 2.4B 체크포인트·현재 transformers/peft/optimum 조합에선
+  해당 패치가 불필요함을 확인.
+
+**오류·막힌 점**:
+- 다운로드된 `modeling_exaone.py`의 `create_causal_mask()` 호출이
+  `transformers==5.13.1`과 호환 안 됨(`input_embeds`→`inputs_embeds` 이름
+  변경, `cache_position` 인자 제거로 `TypeError`). 로컬 체크포인트 파일의
+  해당 호출부만 최소 수정 — 7.8B 문서의 "wte 패치"와 같은 성격(체크포인트
+  remote code가 설치된 transformers 버전보다 오래됨).
+
+**수정/구현**: `model_servers/lora_server/serve.py` — `_read_latest()`가
+`LATEST` 파일이 없으면 `None`(어댑터 없음) + `LORA_FALLBACK_BASE_MODEL`/
+`LORA_FALLBACK_BACKEND`(기본값 EXAONE-3.5-2.4B-Instruct-AWQ/awq_gptqmodel)를
+반환하도록 수정, `_load()`는 `adapter_dir`가 없으면 `PeftModel` 래핑을
+생략하도록 수정. 실제 `uvicorn model_servers.lora_server.serve:app --port 8200`으로
+기동해 `/health`(`adapter_dir: null` 확인)·`/generate` 실호출까지 검증함.
+
+### 산출물 (11)
+- `model_servers/lora_server/serve.py`(수정, 어댑터 없을 때 베이스 전용 폴백).
+- `EXAONE-3.5-2.4B-Instruct-AWQ/modeling_exaone.py`(패치, 다운로드된 체크포인트 파일 — 리포 추적 대상 아님).
+- `~/.venv-exaone`(신규 venv, 리포 밖).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건

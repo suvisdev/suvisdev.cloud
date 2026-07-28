@@ -114,6 +114,13 @@
   메서드·기본 시드 데이터 전부 없음)으로 확인 — `main.py`에서 해당
   try/except 블록 통째로 제거. `ENABLE_MOVA_STARTUP` 두 시나리오 재검증
   결과 WARNING 완전히 사라지고 플래그 동작은 그대로 정상.
+- **lora-server 초기화된 노트북 재세팅(2026-07-28)**: `~/.venv-exaone` +
+  EXAONE-3.5-2.4B-Instruct-AWQ(원래 7.8B 계획에서 VRAM 여유 이유로 2.4B로
+  변경)로 재구성. 학습된 LoRA 어댑터가 이 머신·백업 어디에도 없어 재학습
+  대신 `serve.py`에 어댑터 없으면 베이스만 뜨는 폴백 추가(최소 수정),
+  실기동으로 `/health`·`/generate` 검증 완료(VRAM ~2.5GB, 8GB 카드에서
+  여유 충분). 아래 "VRAM 정책"의 lora-server 스펙과 일치. 상세: WORK_LOG
+  2026-07-28 [11].
 
 ---
 
