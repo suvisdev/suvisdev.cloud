@@ -4,7 +4,7 @@ root_packages =
     titanic
     mova
     viewer
-    silicon_valley
+    execsuite
     dispatch
     gildle
     contents
@@ -23,7 +23,7 @@ forbidden_modules =
     titanic
     mova
     viewer
-    silicon_valley
+    execsuite
     dispatch
     gildle
     contents
@@ -37,7 +37,7 @@ modules =
     titanic
     mova
     viewer
-    silicon_valley
+    execsuite
     dispatch
     gildle
     contents
@@ -109,7 +109,7 @@ source_modules =
     mova
     ontology
     sample
-    silicon_valley
+    execsuite
     titanic
     viewer
 forbidden_modules =
@@ -129,7 +129,7 @@ forbidden_modules =
     mova
     ontology
     sample
-    silicon_valley
+    execsuite
     titanic
     viewer
     auth

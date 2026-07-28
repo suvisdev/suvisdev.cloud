@@ -45,7 +45,7 @@ import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
 import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401,E402
 import dispatch.adapter.outbound.orm.receive_orm  # noqa: F401,E402
 import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
-import silicon_valley.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
+import execsuite.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
 from core.matrix.grid_neo_theone_base import Base as NeoTheOneBase  # noqa: E402
 
 # viewer ORM 등록 — 모듈 import 시 테이블이 ViewerBase.metadata에 붙는다.

@@ -59,7 +59,7 @@ volumes:
 
 ```text
 [Spoke 이벤트 발행]
-  mova / titanic / viewer / silicon_valley
+  mova / titanic / viewer / execsuite
          │  (SpokeEvent — domain/events/)
          ▼
 [star_craft inbound]

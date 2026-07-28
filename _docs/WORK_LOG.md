@@ -279,6 +279,65 @@ torch(843MB) 받다가 공간 부족 — `TMPDIR`을 디스크 쪽(`/home/a/.cac
 
 ---
 
+### [6] silicon_valley → execsuite 앱 이름 변경 + labs/ 04·08 독립 실습 데모
+
+**배경**: 사용자가 `apps/silicon_valley`를 `admin`으로 바꿔달라고 요청 —
+이미 `suvis/app/admin/*`(어드민 대시보드)·`viewer`(RBAC)가 "admin"이라는
+이름을 다른 의미로 쓰고 있어 충돌 우려를 짚고 대안을 물으니 `execsuite`로
+확정. 이어서 "04·08은 mova/gildle에 안 쓰더라도 만들어둘 수 있냐"는 질문에,
+`00_COMMON_conventions.md` §8의 "기법 먼저·용도 나중" 실패 사례를 짚고
+독립 실습 영역으로 분리할 것을 확인받아 진행.
+
+**수정/구현**:
+1. **이름 변경**: `git mv apps/silicon_valley apps/execsuite`(102개 파일
+   rename). 앱 내부 46개 `.py` 파일 + 외부 3곳(`main.py`, `alembic/env.py`,
+   `.importlinter`)의 `silicon_valley`/`silicon-valley` 참조를 전부
+   `execsuite`로 치환. `apps/ontology/_docs/star-craft-pipeline.md`의 앱
+   목록, `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`의 완료 항목 라벨도 "구
+   silicon_valley" 표기로 갱신(WORK_LOG 과거 기록은 당시 이름 그대로 유지).
+   검증: `execsuite_router` 단독 import, `main.py` 전체 import 모두 성공,
+   라우트(`/pdf/summarize`, `/langchain/chat` 등) 정상 확인.
+2. **`suvisdev/labs/` 신설** — `apps/`의 어떤 앱과도 엮이지 않는 완전 고립
+   영역(`main.py` 미등록, `.importlinter` 미포함). README에 명시한 원칙:
+   Port(`ports.py`)는 참조 구현일 뿐 실제 편입 시 그 앱 컨벤션에 맞춰
+   재배치, DTO는 도메인 중립이라 그대로 재사용 가능. GPU 없는 환경
+   (m7i-flex.large)이라 학습 없이 사전학습 모델 추론만.
+   - `pose_estimation/`(04·Atlas): YOLOv8n-pose(ultralytics, 3.3M 파라미터).
+     `yolov8n-pose.pt`는 최초 실행 시 자동 다운로드(`*.pt`는 `.gitignore`에
+     이미 있어 커밋 걱정 없음). 샘플은 ultralytics 기본 내장 `zidane.jpg`
+     복사. 실행 검증 완료 — 샘플에서 사람 2명, 각 17개 COCO keypoint 정상
+     출력.
+   - `video_classification/`(08·Chronos): torchvision.models.video 중 실제
+     파라미터 수 비교(s3d 8.3M < mc3_18 11.7M < r3d_18 33.4M)로 가장 가벼운
+     `s3d`(Kinetics-400, 400개 레이블) 선택. 가중치는 torch hub가
+     `~/.cache/torch/hub/checkpoints/`에 자동 캐시. 이 저장소엔 실제 동영상
+     샘플이 없어 `samples/source.jpg`(ultralytics 기본 내장 `bus.jpg`)를
+     확대하며 프레임을 늘린 합성 클립을 매 실행 즉석 생성(디스크 미저장)해
+     분류 — 진짜 동작이 없으니 결과 자체보다 파이프라인이 CPU에서 학습 없이
+     끝까지 도는지 확인용임을 demo 출력·README에 명시.
+
+**검증**: 두 데모(`python -m labs.pose_estimation.demo`,
+`python -m labs.video_classification.demo`) 실제 실행해 결과 확인.
+`labs/` 전체 `ast.parse` 문법 검증 통과.
+
+**오류·막힌 점**: 없음(이름 변경·labs 구현 모두 실행 검증까지 완료).
+다만 이름 변경 후 회귀 확인용으로 돌린 `mova+dispatch+ontology` 전체
+테스트는 ontology 쪽 비전 모델 로딩이 무거워 커밋 시점까지 계속 실행 중이었음
+— `execsuite_router`/`main.py` 자체는 별도로 직접 import 검증을 마쳐 이름
+변경 자체의 정합성은 확인됨.
+
+### 산출물 (6)
+- `apps/execsuite/`(구 `apps/silicon_valley/`, rename), `main.py`,
+  `alembic/env.py`, `.importlinter`(수정).
+- `suvisdev/labs/`(신규): `README.md`, `pose_estimation/`(`dto.py`,
+  `ports.py`, `adapters/yolov8_pose_adapter.py`, `demo.py`,
+  `samples/sample.jpg`), `video_classification/`(`dto.py`, `ports.py`,
+  `adapters/s3d_adapter.py`, `demo.py`, `samples/source.jpg`).
+- `apps/ontology/_docs/star-craft-pipeline.md`,
+  `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(execsuite 라벨 갱신).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건
