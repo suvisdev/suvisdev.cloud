@@ -243,6 +243,42 @@ ChatOllama를 걷어내서 문제되진 않았지만, venv 전체가 `requiremen
 
 ---
 
+### [5] catboost/Python 3.14 빌드 문제 해소 + 캐시 정리
+
+**배경**: [4]에서 남긴 백로그(`catboost` 빌드 실패로 `pip install -r
+requirements.txt` 전체 불가)를 이어서 처리. 이후 사용자가 `suvisdev/`의
+`.import_linter_cache`/`.mypy_cache`/`.pytest_cache`/`.ruff_cache`가 필요한지
+질문.
+
+**수정/구현**:
+1. `catboost==1.2.8`→`1.2.10` 버전 업 — PyPI에 Python 3.14용 사전빌드 wheel
+   (`catboost-1.2.10-cp314-cp314-manylinux2014_x86_64.whl`)이 존재함을
+   `pip download`로 먼저 확인 후 진행. titanic 앱의 실제 사용(`CatBoostClassifier(
+   iterations=200, verbose=False, random_state=42)`)은 단순 API라 호환 문제
+   없음.
+2. `pip install -r requirements.txt` 재실행 — 이번엔 빌드 에러 없이 끝까지
+   성공(torch-2.12.1+cu126 등 전체 설치). `catboost`/`jwt` import 확인.
+3. `apps/mova/tests`+`apps/dispatch`+`apps/titanic` 전체 재실행 —
+   mova/dispatch는 계속 통과. **`apps/titanic/tests` 4개가 새로 눈에 띔**
+   (패키지 설치와 무관, 지금 코드에 없는 이름 import: `JackTrainerMapper`,
+   `titanic.adapter.outbound.llm`, `PassengerEntity`,
+   `passenger_jack_trainer_vo` 모듈) — 원인 조사·수정 안 함, 백로그 등록.
+4. `.import_linter_cache`/`.mypy_cache`(18M)/`.pytest_cache`/`.ruff_cache`
+   삭제 — 전부 재생성 가능한 도구 캐시. `.mypy_cache`/`.pytest_cache`/
+   `.ruff_cache`는 `.gitignore`에 이미 명시, `.import_linter_cache`는 자체
+   `.gitignore`(`*`)로 커밋 제외돼 있어 git 추적에는 영향 없음.
+
+**오류·막힌 점**: `pip install` 1차 시도 시 `/tmp`가 WSL2 tmpfs(3.9G)라
+torch(843MB) 받다가 공간 부족 — `TMPDIR`을 디스크 쪽(`/home/a/.cache/pip-tmp`)
+으로 돌려 재시도. 이후 catboost 문제로 2차 실패, 버전 업으로 최종 해결.
+
+### 산출물 (5)
+- `suvisdev/requirements.txt`(catboost 버전만 수정).
+- `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신 — catboost 백로그 완료 처리,
+  titanic 테스트 4건 신규 백로그 등록.
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건

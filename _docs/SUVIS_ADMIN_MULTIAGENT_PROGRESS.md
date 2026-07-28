@@ -65,8 +65,13 @@
   `require_admin` import가 안 되던 문제를 `PyJWT[crypto]==2.10.1`,
   `langchain-ollama==1.1.0` 개별 설치로 해결. `apps/mova/tests` + `apps/dispatch`
   전체 47개 테스트 통과 확인(이전엔 jwt 없어 수집 자체가 실패하던
-  `test_whoami_router.py`도 포함). **단, `pip install -r requirements.txt` 전체
-  실행은 여전히 안 됨** — 아래 백로그 참고.
+  `test_whoami_router.py`도 포함).
+- **`catboost`/Python 3.14 빌드 문제 해소 + `pip install -r requirements.txt`
+  전체 성공(2026-07-28)**: `catboost==1.2.8`→`1.2.10`으로 올렸더니 Python
+  3.14용 사전빌드 wheel이 존재해 빌드 에러 없이 설치됨. 전체 `requirements.txt`
+  설치가 끝까지 성공(torch-cu126 포함). `.import_linter_cache`/`.mypy_cache`
+  (18M)/`.pytest_cache`/`.ruff_cache` 정리(전부 재생성 가능한 도구 캐시, git
+  미추적).
 
 ---
 
@@ -90,13 +95,13 @@
   엔드포인트에 `require_admin`을 걸면서 이 페이지는 이제 업로드 시도 시 401만
   받는다. 페이지 자체를 지울지, 로그인 요구 안내로 바꿀지, 별도 더미 데이터로
   분리할지 제품 결정 필요.
-- **`catboost` 빌드 실패로 `pip install -r requirements.txt` 전체 불가(2026-07-28
-  발견)**: `/home/a/.venv`(Python 3.14)에서 `catboost==1.2.8`이 `AttributeError:
-  'Distribution' object has no attribute 'dry_run'`로 빌드 실패 — Python 3.12+에서
-  distutils가 빠지면서 catboost의 구식 setup.py가 깨짐. titanic 앱 ML 모델이
-  실제로 쓰는 패키지라 requirements.txt에서 뺄 수 없음. catboost를 Python 3.14와
-  호환되는 최신 버전으로 올리거나, 이 venv의 Python 버전을 낮추는 결정 필요
-  (당장 필요한 PyJWT/langchain-ollama는 개별 설치로 우회 완료, 위 "완료됨" 참고).
+- **`apps/titanic/tests` 4개 수집 실패(2026-07-28 발견, 이번 작업 무관)**:
+  `test_passenger_jack_trainer_mapper.py`(`JackTrainerMapper` import 실패),
+  `test_korean_ai_adapter.py`(`titanic.adapter.outbound.llm` 모듈 없음),
+  `test_passenger_jack_trainer_entity.py`(`PassengerEntity` import 실패),
+  `test_passenger_jack_trainer_vo.py`(`passenger_jack_trainer_vo` 모듈 없음) —
+  전부 지금 코드에 없는 이름을 import. 패키지 설치와 무관, 예전에 이름이
+  바뀌고 테스트가 안 따라간 것으로 보임. 원인 조사·수정 안 함(범위 밖 발견).
 - **어드민 백엔드 인증 공백**: (2026-07-27 대응) 가드를 `shared/security/require_admin.py`로
   이동 후 dispatch `email/telegram/discord` POST·`receive` GET/DELETE, harvester
   `scrape/crawl/sites`에 `require_admin` 추가 + 프론트 프록시/클라가 세션 Bearer를
