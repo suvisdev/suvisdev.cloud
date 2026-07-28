@@ -403,6 +403,64 @@ mova 시드·스케줄러 함수를 전부 mock으로 대체해 `lifespan()`의 
 
 ---
 
+### [8] PROGRESS 백로그 마저 처리 — titanic 도메인 테스트 재작성 + seed_assistants 죽은 코드 제거
+
+**배경**: [7]에서 남긴 백로그 중 진행 가능한 2건(titanic 테스트 4개 수집
+실패, `seed_assistants_if_empty` import 버그) 처리.
+
+**수정/구현**:
+1. **titanic 테스트 4개** — 조사해보니 단순 이름 변경 드리프트가 아니라
+   도메인이 재설계된 상태였음(관련 VO·엔티티·깨진 테스트 4개가 전부 같은
+   커밋 `251ae61`(2026-07-08, "하위 파일 구조 통째로 업로드 성공")에서
+   한꺼번에 들어옴 — 시간이 지나며 리팩터링된 게 아니라 애초부터 서로 안
+   맞는 버전이 같이 업로드된 것). mova(`platform_users_vo.py` 등)·gildle
+   (`route_edge.py` 등) 둘 다 "필드 하나당 VO 하나"가 아니라 "개념당 VO
+   하나"로 묶는 방식을 쓰고 있어, 지금 titanic의 `PassengerIdentity`/
+   `Survived` 방식이 이 프로젝트의 실제 컨벤션과 일치함을 확인(titanic은
+   `.cursorrules`상 "기준선"). 사용자 확인 후:
+   - `test_korean_ai_adapter.py` 삭제 — `titanic.adapter.outbound.llm.
+     korean_ai_adapter`는 한 번도 만들어진 적 없고, 실제 구현은
+     `tests/korean_ai.py`(프로토타입 스크립트)에 있으며 이미 통과 중인
+     `test_korean_ai.py`가 커버 중인 중복 고아 테스트였음.
+   - 나머지 3개(vo/entity/mapper) 삭제 후, 현재 도메인
+     (`PassengerIdentity`/`Survived`/`Title`/`Gender`/`PassengerJackTrainer`/
+     `PassengerJackTrainerMapper`) 기준으로 41개 테스트 새로 작성 — frozen
+     불변성, 팩토리 검증(from_raw/from_name 성공·실패), DDD 동등성 규칙
+     (passenger_id만으로 동등성 판단), DIP 어댑터 스왑(`SimpleNamespace`로
+     실제 SQLAlchemy ORM 대신 같은 모양의 가짜를 넣어도 매퍼 결과가 같음을
+     검증) 포함 — titanic이 기준선이라 mova/gildle이 참고할 모범 형태로
+     작성.
+   - **작성 중 실제 버그 발견**: `PassengerJackTrainer.summary()`와
+     `PassengerJackTrainerMapper.to_orm_fields()` 둘 다 존재하지 않는
+     `entity.identity.age`를 참조해 `AttributeError`(`PassengerIdentity`는
+     title+gender만 갖고 age는 의도적으로 안 가짐 — docstring에 명시).
+     `identity.age` 참조가 이 두 곳뿐임을 grep으로 확인 후 두 메서드 모두
+     age 참조 제거로 수정.
+   - 검증: `apps/titanic/tests` 44개 전부 통과(1개 ollama 마커 skip).
+2. **`seed_assistants_if_empty` 죽은 코드 제거** — `AssistantsPgRepository`
+   (실제 파일 `platform_assistants_pg_repository.py`)엔 `list_active`/
+   `get_by_slug`만 있고 count/insert 메서드 자체가 없으며, 기본 시드
+   데이터도 어디에도 없음 — 즉 이 시드 기능은 리네임된 게 아니라 애초에
+   구현된 적이 없는 죽은 코드로 확인됨. 사용자 확인 후 `main.py`의 해당
+   try/except 블록 통째로 제거. `ENABLE_MOVA_STARTUP=false`/미설정 두
+   시나리오 mock 하네스로 재검증 — `assistants` WARNING이 완전히 사라지고
+   플래그 동작은 그대로 정상임을 확인.
+
+**검증**: `apps/mova/tests`+`apps/dispatch`+`apps/titanic/tests` 전체
+91 passed, 1 skipped. `main.py` import 정상.
+
+### 산출물 (8)
+- `apps/titanic/domain/entities/passenger_jack_trainer_entity.py`,
+  `apps/titanic/adapter/outbound/mappers/passenger_jack_trainer_mapper.py`
+  (버그 수정).
+- `apps/titanic/tests/domain/value_objects/test_passenger_jack_trainer_vo.py`,
+  `apps/titanic/tests/domain/etitites/test_passenger_jack_trainer_entity.py`,
+  `apps/titanic/tests/adapter/outbound/mappers/test_passenger_jack_trainer_mapper.py`
+  (새로 작성), `test_korean_ai_adapter.py`(삭제).
+- `suvisdev/main.py`(`seed_assistants_if_empty` 블록 제거).
+
+---
+
 ## 2026-07-27
 
 ### [5] pdf_summary → pdf_loader 네이밍 환원 + LangChain 문서 2건

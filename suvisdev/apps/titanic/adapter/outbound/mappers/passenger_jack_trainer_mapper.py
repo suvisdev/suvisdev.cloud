@@ -23,6 +23,5 @@ class PassengerJackTrainerMapper:
             "passenger_id": entity.passenger_id,
             "name": str(entity.identity.title),
             "gender": str(entity.identity.gender),
-            "age": str(entity.identity.age),
             "survived": str(entity.survived),
         }

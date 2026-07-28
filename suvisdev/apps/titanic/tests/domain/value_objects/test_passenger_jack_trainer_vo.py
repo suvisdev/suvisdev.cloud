@@ -1,165 +1,149 @@
+"""Title/Gender/PassengerIdentity/Survived VO 테스트 — titanic(기준선) 모범 형태.
+
+VO는 frozen dataclass + 팩토리(from_raw/from_name)로 생성하고, 원본 문자열이
+잘못됐을 때 ValueError로 즉시 실패한다는 걸 검증한다. mova/gildle도 같은
+"필드 하나가 아니라 개념 하나당 VO 하나" 컨벤션을 쓰므로, 여기서 검증하는
+불변성·팩토리 검증 패턴을 그대로 참고할 수 있다.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+
 import pytest
 
-from titanic.domain.value_objects.passenger_jack_trainer_vo import (
-    Age,
-    FamilyRelation,
-    Gender,
-    GenderType,
-    PassengerId,
-    PassengerName,
-    SurvivalStatus,
-)
+from titanic.domain.value_objects.gender_vo import Gender, GenderType
+from titanic.domain.value_objects.passenger_identity_vo import PassengerIdentity
+from titanic.domain.value_objects.survived_vo import Survived, SurvivedType
+from titanic.domain.value_objects.title_vo import Title, TitleType
 
 
-class TestPassengerId:
-    def test_valid_id_creates_successfully(self):
-        pid = PassengerId("P001")
-        assert pid.value == "P001"
+class TestTitle:
+    @pytest.mark.parametrize(
+        "name, expected",
+        [
+            ("Braund, Mr. Owen Harris", TitleType.MR),
+            ("Heikkinen, Miss. Laina", TitleType.MISS),
+            ("Futrelle, Mrs. Jacques Heath (Lily May Peel)", TitleType.MRS),
+            ("Palsson, Master. Gosta Leonard", TitleType.MASTER),
+        ],
+    )
+    def test_from_name_maps_common_titles(self, name: str, expected: TitleType) -> None:
+        assert Title.from_name(name).value == expected
 
-    def test_empty_string_raises(self):
-        with pytest.raises(ValueError, match="빈 값"):
-            PassengerId("")
+    def test_from_name_maps_rare_titles_to_rare(self) -> None:
+        assert Title.from_name("Someone, Dr. Foo").value == TitleType.RARE
+        assert Title.from_name("Someone, Col. Foo").value == TitleType.RARE
 
-    def test_whitespace_only_raises(self):
-        with pytest.raises(ValueError, match="빈 값"):
-            PassengerId("   ")
+    def test_from_name_maps_royal_titles(self) -> None:
+        assert Title.from_name("Someone, Countess. Foo").value == TitleType.ROYAL
+        assert Title.from_name("Someone, Sir. Foo").value == TitleType.ROYAL
 
-    def test_str_returns_value(self):
-        assert str(PassengerId("42")) == "42"
+    def test_from_name_applies_alias(self) -> None:
+        assert Title.from_name("Someone, Mlle. Foo").value == TitleType.MR
+        assert Title.from_name("Someone, Ms. Foo").value == TitleType.MISS
 
-
-class TestPassengerName:
-    def test_valid_name_creates_successfully(self):
-        name = PassengerName("Dawson, Mr. Jack")
-        assert name.full_name == "Dawson, Mr. Jack"
-
-    def test_empty_string_raises(self):
+    def test_from_name_raises_on_empty(self) -> None:
         with pytest.raises(ValueError):
-            PassengerName("")
+            Title.from_name("")
+        with pytest.raises(ValueError):
+            Title.from_name(None)
 
-    def test_exactly_200_chars_is_allowed(self):
-        PassengerName("A" * 200)
+    def test_from_name_raises_when_no_title_pattern(self) -> None:
+        with pytest.raises(ValueError):
+            Title.from_name("이름에 호칭이 없음")
 
-    def test_201_chars_raises(self):
-        with pytest.raises(ValueError, match="200자"):
-            PassengerName("A" * 201)
+    def test_is_frozen(self) -> None:
+        title = Title.from_name("Braund, Mr. Owen Harris")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            title.value = TitleType.MISS  # type: ignore[misc]
 
-    def test_normalized_strips_surrounding_whitespace(self):
-        assert PassengerName("  Jack  ").normalized == "Jack"
+    def test_str_capitalizes_type_name(self) -> None:
+        assert str(Title.from_name("Braund, Mr. Owen Harris")) == "Mr"
 
 
 class TestGender:
-    def test_from_raw_male(self):
-        assert Gender.from_raw("male").value == GenderType.MALE
+    @pytest.mark.parametrize("raw", ["male", "MALE", " Male "])
+    def test_from_raw_parses_male(self, raw: str) -> None:
+        gender = Gender.from_raw(raw)
+        assert gender.value == GenderType.MALE
+        assert gender.is_female is False
 
-    def test_from_raw_female(self):
-        assert Gender.from_raw("female").value == GenderType.FEMALE
+    @pytest.mark.parametrize("raw", ["female", "FEMALE"])
+    def test_from_raw_parses_female(self, raw: str) -> None:
+        gender = Gender.from_raw(raw)
+        assert gender.value == GenderType.FEMALE
+        assert gender.is_female is True
 
-    def test_from_raw_none_is_unknown(self):
-        assert Gender.from_raw(None).value == GenderType.UNKNOWN
-
-    def test_from_raw_uppercase_is_normalized(self):
-        assert Gender.from_raw("MALE").value == GenderType.MALE
-
-    def test_from_raw_unrecognized_string_is_unknown(self):
-        assert Gender.from_raw("other").value == GenderType.UNKNOWN
-
-    def test_is_female_true_for_female(self):
-        assert Gender.from_raw("female").is_female() is True
-
-    def test_is_female_false_for_male(self):
-        assert Gender.from_raw("male").is_female() is False
-
-    def test_is_female_false_for_unknown(self):
-        assert Gender.from_raw(None).is_female() is False
-
-
-class TestAge:
-    def test_from_raw_valid_string(self):
-        assert Age.from_raw("22.5").value == 22.5
-
-    def test_from_raw_none_is_unknown(self):
-        assert Age.from_raw(None).is_unknown is True
-
-    def test_from_raw_empty_string_is_unknown(self):
-        assert Age.from_raw("").is_unknown is True
-
-    def test_negative_age_raises(self):
+    def test_from_raw_raises_on_empty_or_none(self) -> None:
         with pytest.raises(ValueError):
-            Age(value=-1.0)
-
-    def test_age_over_120_raises(self):
+            Gender.from_raw("")
         with pytest.raises(ValueError):
-            Age(value=121.0)
+            Gender.from_raw(None)
 
-    def test_boundary_0_is_valid(self):
-        Age(value=0.0)
+    def test_from_raw_raises_on_unknown_value(self) -> None:
+        with pytest.raises(ValueError):
+            Gender.from_raw("unknown")
 
-    def test_boundary_120_is_valid(self):
-        Age(value=120.0)
-
-    def test_non_numeric_string_raises(self):
-        with pytest.raises(ValueError, match="파싱 실패"):
-            Age.from_raw("abc")
-
-    def test_is_minor_true_under_18(self):
-        assert Age(value=17.9).is_minor is True
-
-    def test_is_minor_false_at_18(self):
-        assert Age(value=18.0).is_minor is False
-
-    def test_is_minor_false_for_unknown_age(self):
-        assert Age(value=None).is_minor is False
+    def test_is_frozen(self) -> None:
+        gender = Gender.from_raw("male")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            gender.value = GenderType.FEMALE  # type: ignore[misc]
 
 
-class TestFamilyRelation:
-    def test_total_family_size_sums_sib_sp_and_parch(self):
-        assert FamilyRelation(sib_sp=2, parch=3).total_family_size == 5
+class TestPassengerIdentity:
+    def test_from_raw_combines_title_and_gender(self) -> None:
+        identity = PassengerIdentity.from_raw("Braund, Mr. Owen Harris", "male")
+        assert identity.title.value == TitleType.MR
+        assert identity.gender.value == GenderType.MALE
 
-    def test_is_alone_when_both_zero(self):
-        assert FamilyRelation(sib_sp=0, parch=0).is_alone is True
+    def test_is_female_delegates_to_gender(self) -> None:
+        female = PassengerIdentity.from_raw("Heikkinen, Miss. Laina", "female")
+        male = PassengerIdentity.from_raw("Braund, Mr. Owen Harris", "male")
+        assert female.is_female is True
+        assert male.is_female is False
 
-    def test_not_alone_with_siblings(self):
-        assert FamilyRelation(sib_sp=1, parch=0).is_alone is False
+    def test_str_combines_title_and_gender(self) -> None:
+        identity = PassengerIdentity.from_raw("Braund, Mr. Owen Harris", "male")
+        assert str(identity) == "Mr / male"
 
-    def test_not_alone_with_children(self):
-        assert FamilyRelation(sib_sp=0, parch=1).is_alone is False
-
-    def test_from_raw_parses_string_values(self):
-        relation = FamilyRelation.from_raw("1", "2")
-        assert relation.sib_sp == 1
-        assert relation.parch == 2
-
-    def test_from_raw_none_defaults_to_zero(self):
-        relation = FamilyRelation.from_raw(None, None)
-        assert relation.sib_sp == 0
-        assert relation.parch == 0
-
-    def test_negative_sib_sp_raises(self):
-        with pytest.raises(ValueError, match="sib_sp"):
-            FamilyRelation(sib_sp=-1, parch=0)
-
-    def test_negative_parch_raises(self):
-        with pytest.raises(ValueError, match="parch"):
-            FamilyRelation(sib_sp=0, parch=-1)
+    def test_is_frozen(self) -> None:
+        identity = PassengerIdentity.from_raw("Braund, Mr. Owen Harris", "male")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            identity.title = Title.from_name("Heikkinen, Miss. Laina")  # type: ignore[misc]
 
 
-class TestSurvivalStatus:
-    def test_from_raw_1_means_survived(self):
-        assert SurvivalStatus.from_raw("1").survived is True
+class TestSurvived:
+    def test_from_raw_parses_dead_and_alive(self) -> None:
+        assert Survived.from_raw("0").value == SurvivedType.DEAD
+        assert Survived.from_raw("1").value == SurvivedType.ALIVE
 
-    def test_from_raw_0_means_did_not_survive(self):
-        assert SurvivalStatus.from_raw("0").survived is False
+    def test_from_raw_none_or_blank_is_unknown(self) -> None:
+        assert Survived.from_raw(None).value is None
+        assert Survived.from_raw("").value is None
+        assert Survived.from_raw("  ").value is None
 
-    def test_from_raw_none_is_unknown(self):
-        assert SurvivalStatus.from_raw(None).is_unknown is True
+    def test_from_raw_raises_on_invalid_value(self) -> None:
+        with pytest.raises(ValueError):
+            Survived.from_raw("2")
+        with pytest.raises(ValueError):
+            Survived.from_raw("not-a-number")
 
-    def test_from_raw_empty_string_is_unknown(self):
-        assert SurvivalStatus.from_raw("").is_unknown is True
+    def test_unknown_factory(self) -> None:
+        assert Survived.unknown().value is None
+        assert Survived.unknown().is_alive is None
 
-    def test_from_raw_invalid_value_raises(self):
-        with pytest.raises(ValueError, match="파싱 실패"):
-            SurvivalStatus.from_raw("2")
+    def test_is_alive_reflects_value(self) -> None:
+        assert Survived.from_raw("1").is_alive is True
+        assert Survived.from_raw("0").is_alive is False
+        assert Survived.unknown().is_alive is None
 
-    def test_is_unknown_false_when_survival_is_known(self):
-        assert SurvivalStatus.from_raw("1").is_unknown is False
+    def test_str_round_trips_raw_value(self) -> None:
+        assert str(Survived.from_raw("1")) == "1"
+        assert str(Survived.from_raw("0")) == "0"
+        assert str(Survived.unknown()) == ""
+
+    def test_is_frozen(self) -> None:
+        survived = Survived.from_raw("1")
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            survived.value = SurvivedType.DEAD  # type: ignore[misc]

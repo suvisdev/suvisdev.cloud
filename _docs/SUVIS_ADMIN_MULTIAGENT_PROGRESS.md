@@ -99,6 +99,21 @@
   "비활성화됨" 로그, 미설정 시 기존대로 전부 호출됨을 확인. 부수 발견:
   `seed_assistants_if_empty` import가 존재하지 않는 모듈 참조하는 기존 버그
   (아래 백로그).
+- **titanic 도메인 테스트 4개 재작성 + 실제 버그 2건 수정(2026-07-28)**: 조사
+  결과 단순 리네임 드리프트가 아니라 도메인 재설계(관련 VO·엔티티·깨진
+  테스트가 전부 같은 커밋에서 한꺼번에 업로드됨)였음을 확인. mova/gildle도
+  "개념당 VO 하나" 컨벤션을 써서 지금 titanic 도메인(`PassengerIdentity`/
+  `Survived`)이 실제 컨벤션과 일치함을 검증 후, `test_korean_ai_adapter.py`
+  삭제(중복 고아) + 나머지 3개 삭제 후 41개로 새로 작성(frozen 불변성,
+  DDD 동등성, DIP 어댑터 스왑 포함 — titanic이 기준선이라 다른 앱이 참고할
+  모범 형태로). 작성 중 `summary()`/`to_orm_fields()`가 존재하지 않는
+  `identity.age`를 참조하는 실제 버그 발견해 수정. `apps/titanic/tests`
+  44개 전부 통과.
+- **`seed_assistants_if_empty` 죽은 코드 제거(2026-07-28)**: 실제 조사 결과
+  리네임이 아니라 한 번도 구현된 적 없는 기능(repository에 count/insert
+  메서드·기본 시드 데이터 전부 없음)으로 확인 — `main.py`에서 해당
+  try/except 블록 통째로 제거. `ENABLE_MOVA_STARTUP` 두 시나리오 재검증
+  결과 WARNING 완전히 사라지고 플래그 동작은 그대로 정상.
 
 ---
 
@@ -112,12 +127,6 @@
 ## 다음 / 남은 작업 (백로그)
 
 
-- **`seed_assistants_if_empty` import 버그(2026-07-28 발견)**: `main.py`가
-  `mova.adapter.outbound.pg.assistants_pg_repository`에서 이 함수를
-  import하는데, 실제 파일명은 `platform_assistants_pg_repository.py`고
-  `seed_assistants_if_empty` 함수 자체가 코드베이스 어디에도 없음. 매 부팅마다
-  `ModuleNotFoundError`가 나서 기존 try/except로 조용히 삼켜짐. 원인 조사·
-  수정 안 함(이번 요청 범위 밖 발견).
 - **CLIP 모델(`openai/clip-vit-base-patch32`) 다운로드 hang(2026-07-28 발견)**:
   `apps/ontology/test` 전체 실행 시 Hugging Face Hub에서 이 모델(Sentinel
   이상탐지가 씀) 다운로드가 1시간 넘게 멈춤(`.incomplete` 파일 확인) —
@@ -132,13 +141,6 @@
   엔드포인트에 `require_admin`을 걸면서 이 페이지는 이제 업로드 시도 시 401만
   받는다. 페이지 자체를 지울지, 로그인 요구 안내로 바꿀지, 별도 더미 데이터로
   분리할지 제품 결정 필요.
-- **`apps/titanic/tests` 4개 수집 실패(2026-07-28 발견, 이번 작업 무관)**:
-  `test_passenger_jack_trainer_mapper.py`(`JackTrainerMapper` import 실패),
-  `test_korean_ai_adapter.py`(`titanic.adapter.outbound.llm` 모듈 없음),
-  `test_passenger_jack_trainer_entity.py`(`PassengerEntity` import 실패),
-  `test_passenger_jack_trainer_vo.py`(`passenger_jack_trainer_vo` 모듈 없음) —
-  전부 지금 코드에 없는 이름을 import. 패키지 설치와 무관, 예전에 이름이
-  바뀌고 테스트가 안 따라간 것으로 보임. 원인 조사·수정 안 함(범위 밖 발견).
 - **어드민 백엔드 인증 공백**: (2026-07-27 대응) 가드를 `shared/security/require_admin.py`로
   이동 후 dispatch `email/telegram/discord` POST·`receive` GET/DELETE, harvester
   `scrape/crawl/sites`에 `require_admin` 추가 + 프론트 프록시/클라가 세션 Bearer를

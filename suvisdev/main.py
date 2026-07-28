@@ -83,14 +83,6 @@ async def lifespan(app: FastAPI):
             try:
                 await create_tables()
                 await seed_viewer_if_empty()
-                try:
-                    from mova.adapter.outbound.pg.assistants_pg_repository import (
-                        seed_assistants_if_empty,
-                    )
-
-                    await seed_assistants_if_empty()
-                except Exception as ast_err:
-                    logger.warning("[main] assistants ?? ??: %s", ast_err)
                 if _ENABLE_MOVA_STARTUP:
                     try:
                         from mova.dependencies.import_provider import seed_catalog_if_sparse
