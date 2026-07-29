@@ -86,6 +86,14 @@
   (`-home-a-projects-suvis`, 절대경로의 `/`→`-`)을 넣어 `git mv`로 이동(이력 보존).
   단, **홈(`~/.claude/...`)이 아니라 저장소 안이라 자동 로드되지 않는다** — 두
   경로가 `~/` 유무만 달라 혼동 위험이 커서 양쪽 문서에 구분을 명시했다.
+- **`memory/auto-memory.md` 신규**: 자동 메모리 동작 방식(`MEMORY.md` 첫 200줄만
+  세션 시작 시 로드, 초과분·주제 파일은 필요할 때만, 200줄 제한은 `MEMORY.md`
+  전용, `CLAUDE.md`는 길이 무관 전체 로드) + 활성화/비활성화 방법
+  (`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, `autoMemoryEnabled`, `/memory` 토글).
+  기존 문서와 겹치는 "두 위치 차이"는 링크로만 처리.
+- **루트 `CLAUDE.md`에 커밋 메시지 규칙 추가**: Conventional Commits·제목 50자
+  이내·한국어. 실측 대조 결과 최근 14건 중 11건이 50자를 넘지만(중앙값 60자대),
+  사용자 결정으로 **소급 없이 앞으로 지킬 목표**로 둔다.
 
 ### 오류·막힌 점
 - **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
@@ -107,6 +115,10 @@
   코드가 아니라 "캐시가 있어도 매번 HF Hub etag 확인 → 멈추면 무한 대기" 구조.
   `HF_HUB_OFFLINE` 적용 후 캐시 누락 시 hang 대신 4.5초 만에 `OSError`로 즉시
   실패하는 것까지 실측 확인.
+- **루트 `CLAUDE.md`가 권장 길이를 넘겼다** — 자동 메모리 문서를 쓰며 확인:
+  `CLAUDE.md`는 길이와 무관하게 전체 로드되지만 200줄 이내가 지시 준수에 유리한데,
+  이번 세션의 추가분으로 216줄이 됐다. 더 늘릴 내용은 `.claude/rules/`나 `_docs/`로
+  빼는 게 낫다는 메모를 `auto-memory.md`에 남겼다(정리 자체는 미착수).
 - **붙여넣은 규칙 템플릿이 다른 프로젝트 것이었다** — 루트 `CLAUDE.md`에 추가하라고
   받은 내용이 "Node.js REST API / npm test / Jest+Supertest / `AppError`(`src/errors/`)
   / `src/legacy/` / payments PCI / `.env.local` / develop 브랜치"였는데, 실제로는
