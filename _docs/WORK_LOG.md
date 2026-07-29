@@ -45,6 +45,9 @@
 - 메인 페이지 우측 히어로 자리를 정지 이미지에서 영상으로 교체 요청.
 - 전역 `Suvisdev AI` 채팅 버블을 LESSON `/langchain/chat`과 같은 백엔드
   설정으로 전환 요청.
+- 완전히 빈 DB에서 `alembic upgrade head`가 성공하는지 실제 검증(사용자
+  요청) — 이 날 앞선 세션이 "로컬 Postgres 미기동"으로 미뤄뒀던 검증을
+  도커 임시 컨테이너로 이어서 수행하고, 검증 중 발견된 누락 마이그레이션 보완.
 
 ### 수정/구현
 - **DB 스키마**: `alembic/versions/20260729_0001_add_vision_upload_soft_flags.py`
@@ -213,12 +216,60 @@
   흔적 없음·로그인 입력창 `rgb(255,255,255)` 확인, (2) `/mova` 진입 → `html.dark`
   있음(시네마 테마 그대로) 확인, (3) mova→홈 복귀 → 다시 라이트로 강제되는
   것까지 3단계 전부 스크린샷과 함께 확인.
+- **DB 스키마**: `alembic/versions/20260729_0002_create_hub_knowledge.py`
+  신규 — `HubKnowledgeOrm`(2026-07-14, cc2c334에서 추가)이 마이그레이션 체인에
+  한 번도 CREATE된 적 없이 `ensure_titanic_tables()`의 `create_all()`로만
+  존재해 온 것을 확인하고 보완(`down_revision=20260729_0001`, pgvector
+  `CREATE EXTENSION IF NOT EXISTS vector` 포함). 이 리비전 이후 alembic
+  체인만으로 앱이 실제로 쓰는 모든 테이블(contents/gildle/mova/titanic/
+  dispatch/ontology/execsuite/viewer 전 앱)이 생성됨을 확인.
+- **`main.py`의 `create_tables()`(→`ensure_titanic_tables()`) 재확인**: 이미
+  이전 세션(a42e667)에서 mova/viewer 테이블은 "Alembic이 전담, create_all
+  우회 생성 금지"로 정리돼 있었음. 남은 건 `grid_neo_theone_base.Base`
+  소유 테이블(titanic/dispatch_adress/vision_uploads/hub_knowledge) —
+  주석상 "삭제 후 업로드 복구용" 의도적 fallback이고 `create_all`은
+  `checkfirst=True`라 이미 있는 테이블은 건드리지 않아 충돌은 아님. 다만
+  `ensure_titanic_tables()`가 `dispatch.receive_orm`(dispatch_inbox)·
+  `execsuite.pdf_loader_orm`은 import하지 않아 그 두 테이블은 create_all
+  대상이 아님 — 지금은 두 테이블 다 알렘빅 마이그레이션이 있어 문제 없지만,
+  "복구용" 의도라면 어떤 테이블까지가 대상인지 import 목록과 주석이
+  불일치함. 코드 변경은 하지 않고 다음 정리로 제안만 남김: (1) 복구
+  대상을 정말 titanic 전용으로 좁히려면 hub_knowledge/vision_uploads/
+  dispatch_adress import를 이 함수에서 빼거나, (2) 지금처럼 유지한다면
+  주석을 "NeoTheOneBase 전체 복구용"으로 정정해 목록과 의도를 맞출 것.
 
 ### 오류·막힌 점
-- **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
+- **로컬 Postgres 미기동(세션 초반)** — DB 프로세스가 안 떠 있어
   `alembic upgrade head`로 신규 마이그레이션을 실제 DB에 적용해보는 검증은
-  못 함(문법·체인 유효성만 `alembic history`로 확인). DB 뜬 환경에서 별도
-  검증 필요.
+  당장 못 함(문법·체인 유효성만 `alembic history`로 확인). → 아래 "완전히
+  빈 DB 검증 성공"에서 도커 임시 컨테이너로 이어서 검증.
+- **리비전 ID 충돌** — `hub_knowledge` 마이그레이션을 처음엔
+  `20260729_0001`로 만들었는데, 같은 시점에 `git pull`로 받아온
+  `20260729_0001_add_vision_upload_soft_flags.py`와 리비전 ID·
+  `down_revision`이 완전히 겹침(두 세션이 같은 날짜로 각자 새 리비전을
+  만든 것). `20260729_0002`로 재번호 + `down_revision`을
+  `20260729_0001`로 체인해 단일 head 유지.
+- **검증 중 실수로 실제 로컬 dev DB에 접속**(중요, 재발 방지용 기록) —
+  임시 도커 컨테이너(포트 55432)를 만들어 `DATABASE_URL`만 그 컨테이너로
+  export했는데, `alembic/env.py`의 `_database_url()`이
+  `MOVA_DATABASE_URL`을 `DATABASE_URL`보다 먼저 확인하고, `suvisdev/.env`가
+  이미 `MOVA_DATABASE_URL=localhost:5432`(docker-compose `suvisdev-db-1`,
+  실제 로컬 개발 DB)를 정의하고 있어 그쪽으로 연결됨. 그 DB는 실제
+  백엔드가 상시 기동 중이라(`suvisdev-backend-1`) `create_all()`로 이미
+  `titanic_passengers`/`dispatch_adress`/`vision_uploads`/`hub_knowledge`가
+  떠 있는 상태였고, 알렘빅은 한 번도 안 돈 상태(alembic_version 없음) —
+  결과적으로 사용자가 신고한 버그의 실물 사례를 우연히 재현(`20260604_0000`이
+  이미 있는 `titanic_passengers`를 CREATE하려다 `DuplicateTable`). 각
+  마이그레이션은 트랜잭션으로 묶여 있어 실패 시 롤백 확인(`\dt`로 실 DB에
+  변경 없음 확인) — 실제 데이터 손상 없음. 원인 규명 후 `DATABASE_URL`·
+  `MOVA_DATABASE_URL` 둘 다 임시 컨테이너로 export하도록 고쳐서 재검증.
+- **완전히 빈 DB 검증 성공** — 위 실수를 바로잡은 뒤 순수 도커
+  `pgvector/pgvector:pg16` 컨테이너(빈 DB, `create_all` 전혀 안 거침)에
+  `alembic upgrade head`를 처음부터 끝까지 실행, 에러 없이 34개 테이블
+  전부(`hub_knowledge` 포함) 생성 확인. `alembic/env.py`는 무거운
+  ML/ORM import(torch·transformers 등, 이 머신엔 미설치) 없이 순수 SQL
+  DDL만 검증하려고 임시로 target_metadata를 비웠다가 검증 후 원본으로
+  완전히 복원(`git diff` 무변경 확인).
 - import-linter가 `vision_repository.py`(hub-independence 위반, ontology→
   core.matrix.grid_oracle_database_manager→titanic/mova/viewer/dispatch)를
   잡아내는데, `git stash` 비교로 이번 변경 이전부터 있던 기존 위반임을
@@ -270,6 +321,8 @@
 - 코드: 위 "수정/구현" 파일 전체.
 - 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(완료분 이동),
   루트 `CLAUDE.md`, `.claude/rules/` 4종, `.claude/projects/memory/` 3종.
+- `alembic/versions/20260729_0002_create_hub_knowledge.py` 신규 —
+  빈 DB에서 `alembic upgrade head` 성공까지 확인 후 커밋.
 
 ## 2026-07-28
 
