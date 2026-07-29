@@ -66,8 +66,11 @@ const API_BASE =
 
 const tabListClass =
   "grid h-10 w-full grid-cols-2 rounded-xl border border-neutral-300 bg-neutral-100/80 p-1"
+// 이 카드는 다크 모드에서도 항상 라이트로 고정 렌더링된다(auth-dialog.tsx가 bg-white
+// 고정). shadcn Tabs 베이스가 dark:data-[state=active]:bg-input/30 등을 갖고 있어
+// .dark 스코프에서 specificity로 이겨버리므로, ! 로 명시적으로 라이트를 강제한다.
 const tabTriggerClass =
-  "rounded-lg border-transparent text-sm text-neutral-600 shadow-none focus-visible:ring-0 focus-visible:outline-none data-[state=active]:border-transparent data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm"
+  "rounded-lg border-transparent text-sm text-neutral-600 shadow-none focus-visible:ring-0 focus-visible:outline-none data-[state=active]:border-transparent data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm dark:text-neutral-600! dark:data-[state=active]:border-transparent! dark:data-[state=active]:bg-white! dark:data-[state=active]:text-neutral-900!"
 
 function parseApiDetail(body: AuthApiErrorBody, status: number, notFound: string, failed: string) {
   const fallback = status === 404 ? notFound : failed
@@ -233,8 +236,12 @@ export function AuthForms({
     }
   }
 
+  // 이 카드는 다크 모드에서도 항상 라이트로 고정 렌더링된다. shadcn Input 베이스가
+  // dark:bg-input/30(어드민 팔레트에서 거의 검정, oklch 0.22)을 갖고 있어 .dark
+  // 스코프에서 bg-white보다 specificity가 높아 이겨버리므로, ! 로 명시적으로 라이트를
+  // 강제한다(components/ui/input.tsx 수정은 사이트 전역 다크 모드를 깨뜨리므로 대신 여기서).
   const inputClass =
-    "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-400/40"
+    "border-neutral-300 bg-white text-neutral-900 placeholder:text-neutral-400 focus-visible:ring-neutral-400/40 dark:bg-white! dark:text-neutral-900! dark:border-neutral-300! dark:placeholder:text-neutral-400!"
 
   const passwordToggle = (
     <button
