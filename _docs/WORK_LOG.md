@@ -72,13 +72,20 @@
   단언 경계 — `suvis/` 실측: type 167 : interface 4, any 0, enum 0, React.FC 0),
   `api-standards.md`(제네릭 fetch 래퍼·Bearer 3계층·`safeApiErrorMessage`·
   라우트 핸들러 상태코드), `testing.md`(마커·conftest 격리·포트 fake),
-  `security/pci.md`(결제 코드가 생길 때 발동하는 게이트로 작성).
+  `security/pci.md`(결제 코드가 생길 때 발동하는 게이트로 작성),
+  `security/auth.md`(`require_admin` 단일 가드·role은 서버 산출 JWT claim만 신뢰·
+  토큰 3계층 전달·무인증 지점은 근거 주석·IDOR·엔드포인트 체크리스트 5항목.
+  이 저장소에서 무인증 취약점이 실제로 두 번 나온 영역이라 규칙으로 굳힘).
 - **루트 `CLAUDE.md`**: 기존 내용 수정 없이 섹션 추가 — 명령어(3스택별)·테스트·
   환경 변수·브랜치 전략·주의사항·하네스 설정(`.claude/` 구조, 메모리 두 곳의
   차이, 훅 동작).
-- **`.claude/projects/memory/`**: `MEMORY.md`(인덱스)·`debugging.md`(lint-imports
-  baseline red, CLIP hang, DB 미기동, 기존 실패 테스트)·`patterns.md`(백엔드 계층·
-  어드민 엔드포인트·마이그레이션·테스트 패턴).
+- **`.claude/projects/-home-a-projects-suvis/memory/`**: `MEMORY.md`(인덱스)·
+  `debugging.md`(lint-imports baseline red, CLIP hang, DB 미기동, 기존 실패
+  테스트)·`patterns.md`(백엔드 계층·어드민 엔드포인트·마이그레이션·테스트 패턴).
+  처음엔 `projects/memory/`로 만들었다가, 하네스 관례인 `<프로젝트 경로>` 인코딩
+  (`-home-a-projects-suvis`, 절대경로의 `/`→`-`)을 넣어 `git mv`로 이동(이력 보존).
+  단, **홈(`~/.claude/...`)이 아니라 저장소 안이라 자동 로드되지 않는다** — 두
+  경로가 `~/` 유무만 달라 혼동 위험이 커서 양쪽 문서에 구분을 명시했다.
 
 ### 오류·막힌 점
 - **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어

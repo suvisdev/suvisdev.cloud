@@ -174,9 +174,10 @@ docker compose up -d
 │   ├── typescript.md      #   **/*.ts, **/*.tsx
 │   ├── api-standards.md   #   suvis/lib/*-api.ts, suvis/app/api/**/route.ts
 │   ├── testing.md         #   suvisdev/**/test(s)/**/*.py
+│   ├── security/auth.md   #   라우터·프록시·세션 — require_admin, 토큰 3계층 전달
 │   └── security/pci.md    #   결제 코드가 생기면 발동 (현재 대상 파일 없음)
-└── projects/memory/       # 주제별 메모 — 자동 로드 아님, 읽으라고 지시해야 함
-    ├── MEMORY.md          #   인덱스
+└── projects/-home-a-projects-suvis/memory/   # 주제별 메모 — 자동 로드 아님
+    ├── MEMORY.md          #   인덱스              (읽으라고 지시해야 반영됨)
     ├── debugging.md       #   원인 규명한 문제와 진단 방법
     └── patterns.md        #   계층 구조·마이그레이션·테스트 패턴
 ```
@@ -193,8 +194,11 @@ docker compose up -d
 
 | 위치 | 자동 로드 | 커밋 | 용도 |
 |------|-----------|------|------|
-| `.claude/projects/memory/` | ✗ | ✓ | 팀·다른 에이전트와 공유하는 주제별 메모 |
-| `~/.claude/projects/-home-a-projects-suvis/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
+| 저장소 안 `.claude/projects/-home-a-projects-suvis/memory/` | ✗ | ✓ | 팀·다른 에이전트와 공유하는 주제별 메모 |
+| 홈 `~/.claude/projects/-home-a-projects-suvis/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
+
+**두 경로는 `~/`(홈)이냐 저장소 루트냐만 다르고 나머지가 같다.** 헷갈리면
+자동 로드되는 쪽은 항상 홈이다.
 
 같은 내용을 양쪽에 두지 않는다. 갈라지면 어느 쪽이 맞는지 알 수 없다.
 

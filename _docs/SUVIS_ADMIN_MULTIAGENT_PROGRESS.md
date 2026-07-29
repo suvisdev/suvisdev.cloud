@@ -118,9 +118,10 @@
   collection이 아니라 테스트 실행 중 `from_pretrained()`의 HF Hub 왕복이 원인
   (캐시에 490MB `.incomplete` 블롭 잔존 확인). `apps/ontology/test/conftest.py`에
   `HF_HUB_OFFLINE`을 걸어 "캐시 있으면 통과, 없으면 즉시 실패"로 전환 — Sentinel
-  판별 로직은 미변경. 함께 `.claude/rules/` 4종(typescript·api-standards·testing·
-  security/pci)과 루트 `CLAUDE.md` 하네스/명령어/환경변수 섹션을 실측 기반으로
-  작성. 상세: WORK_LOG 2026-07-29.
+  판별 로직은 미변경. 함께 `.claude/rules/` 5종(typescript·api-standards·testing·
+  security/auth·security/pci)과 루트 `CLAUDE.md` 하네스/명령어/환경변수 섹션을
+  실측 기반으로 작성. `security/auth.md`에는 아래 백로그의 미해결 건(IDOR,
+  `mail/contacts`)을 "복사하지 말 것"으로 명시해 두었다. 상세: WORK_LOG 2026-07-29.
 - **06 Sentinel 소프트 플래그 DB 지속화 + 어드민 오버라이드 엔드포인트
   (2026-07-29)**: 저장 계층을 S3(자격증명 미연결)/DB(`VisionRepository`,
   구현은 있으나 DI 미배선) 중 DB로 일원화. `vision_uploads`에
