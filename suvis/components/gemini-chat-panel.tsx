@@ -2,20 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { CornerDownLeft, MessageCircle, Mic, Plus, SlidersHorizontal, X } from "lucide-react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { patchState } from "@/lib/form-status"
 import { cn } from "@/lib/utils"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 type Role = "user" | "assistant"
 type ChatMessage = { role: Role; content: string }
-type ModelKey = "flash" | "flash15" | "pro"
 
 type ChatUiState = {
   open: boolean
@@ -26,15 +18,16 @@ type ChatState = {
   messages: ChatMessage[]
   loading: boolean
   error: string | null
-  model: ModelKey
 }
 
 type MessageFormProps = { message: string }
 
-const CHAT_API = "/api/chat"
+// LESSON의 LangChain 채팅(app/langchain/chat/page.tsx)과 동일한 백엔드 —
+// semantic_router가 의도를 판단한 뒤 LangChain 체인이 답변을 생성한다.
+const CHAT_API = "/api/v1/langchain/chat"
 
-type ChatApiResponse = { reply?: string; text?: string }
-type ChatApiErrorBody = { detail?: string | { msg?: string }[]; error?: string }
+type ChatApiResponse = { reply?: string }
+type ChatApiErrorBody = { detail?: string | { msg?: string }[] }
 type SpeechRecognitionAlternativeLike = { transcript: string }
 type SpeechRecognitionResultLike = { 0: SpeechRecognitionAlternativeLike }
 type SpeechRecognitionEventLike = {
@@ -55,23 +48,15 @@ const initialChat: ChatState = {
   messages: [],
   loading: false,
   error: null,
-  model: "flash15",
 }
 
 function parseChatApiError(body: ChatApiErrorBody, status: number): string {
   const raw =
-    safeApiErrorMessage(body.detail, body.error ?? `요청에 실패했습니다. (${status})`, status) ||
+    safeApiErrorMessage(body.detail, `요청에 실패했습니다. (${status})`, status) ||
     `요청에 실패했습니다. (${status})`
 
-  if (
-    status === 429 ||
-    raw.includes("429") ||
-    /quota|resource_exhausted|한도/i.test(raw)
-  ) {
-    return "Gemini 사용 한도에 도달했습니다. 1분 정도 기다린 뒤 다시 시도하거나, 모델을 '빠른 모델'로 바꿔 주세요."
-  }
-  if (status === 400 && /모델을 찾을 수 없|not found/i.test(raw)) {
-    return "선택한 Gemini 모델을 사용할 수 없습니다. 'Flash 2.5 (권장)'으로 바꾼 뒤 다시 시도해 주세요."
+  if (status === 429 || raw.includes("429") || /quota|resource_exhausted|한도/i.test(raw)) {
+    return "AI 사용 한도에 도달했습니다. 잠시 후 다시 시도해 주세요."
   }
   if (raw.length > 280) return `${raw.slice(0, 280)}…`
   return raw
@@ -113,13 +98,13 @@ export function SuvisChatPanel() {
         const res = await fetch(CHAT_API, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed, model: chat.model }),
+          body: JSON.stringify({ messages: nextMessages }),
         })
         const data = (await res.json()) as ChatApiResponse & ChatApiErrorBody
         if (!res.ok) {
           throw new Error(parseChatApiError(data, res.status))
         }
-        const reply = (data.reply ?? data.text)?.trim() ?? ""
+        const reply = data.reply?.trim() ?? ""
         setChat((prev) => ({
           ...prev,
           messages: [...prev.messages, { role: "assistant", content: reply || "(응답 없음)" }],
@@ -136,15 +121,16 @@ export function SuvisChatPanel() {
         if (inputRef.current) inputRef.current.value = trimmed
       }
     },
-    [chat.loading, chat.messages, chat.model],
+    [chat.loading, chat.messages],
   )
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const formData = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const formData = new FormData(form)
     const formProps = Object.fromEntries(formData.entries()) as MessageFormProps
     await sendMessage(formProps.message)
-    e.currentTarget.reset()
+    form.reset()
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -321,30 +307,6 @@ export function SuvisChatPanel() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                <Select
-                  value={chat.model}
-                  onValueChange={(v) => patchChat({ model: v as ModelKey })}
-                  disabled={chat.loading}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    className="h-7 border-neutral-300 bg-white px-2 text-[11px] text-neutral-700 shadow-none hover:bg-neutral-50 focus-visible:ring-neutral-300"
-                  >
-                    <SelectValue placeholder="모델" />
-                  </SelectTrigger>
-                  <SelectContent className="border-neutral-200 bg-white text-neutral-900">
-                    <SelectItem value="flash" className="text-xs focus:bg-neutral-100">
-                      빠른 모델
-                    </SelectItem>
-                    <SelectItem value="flash15" className="text-xs focus:bg-neutral-100">
-                      Flash 2.5
-                    </SelectItem>
-                    <SelectItem value="pro" className="text-xs focus:bg-neutral-100">
-                      Pro
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
                 <button
                   type="submit"
                   disabled={chat.loading}
