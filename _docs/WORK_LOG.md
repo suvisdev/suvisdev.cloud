@@ -38,6 +38,10 @@
   사전 조사 결과 저장 계층이 S3(자격증명 미연결로 사실상 미동작)/DB
   (`VisionRepository`, 실제 구현이나 DI 미배선) 둘로 쪼개져 있던 것을 확인,
   DB로 일원화하기로 결정(S3는 `.env`에 AWS 키가 전혀 없어 당장 못 씀).
+- 같은 백로그의 "CLIP 모델 다운로드 hang" 착수 — 재현·원인 규명 후 최소 수정.
+- `.claude/rules/` 경로별 코딩 규칙 4종 신규 작성 + 루트 `CLAUDE.md` 보강
+  (하네스 설정·명령어·환경변수·브랜치·테스트 섹션이 아예 없던 것을 추가).
+- `.claude/projects/memory/` 팀 공유용 주제별 메모 신설.
 
 ### 수정/구현
 - **DB 스키마**: `alembic/versions/20260729_0001_add_vision_upload_soft_flags.py`
@@ -61,6 +65,20 @@
 - **테스트**: `test_vision_upload_sentinel_gate.py` — 새 추상 메서드로 깨질
   뻔한 `_FakeVisionRepository`에 `update_poster_flag` 구현 추가, GPU 불필요한
   `override_poster_flag` 위임 테스트 1개 신설.
+- **CLIP hang 수정**: `apps/ontology/test/conftest.py` 신규 — `HF_HUB_OFFLINE`·
+  `TRANSFORMERS_OFFLINE`을 세션 시작 시 설정해 GPU 테스트가 네트워크를 타지 않고
+  로컬 캐시만 쓰게 강제. Sentinel 판별 로직·임계값은 건드리지 않음.
+- **`.claude/rules/`**: `typescript.md`(strict·any 금지·type 별칭·enum 금지·
+  단언 경계 — `suvis/` 실측: type 167 : interface 4, any 0, enum 0, React.FC 0),
+  `api-standards.md`(제네릭 fetch 래퍼·Bearer 3계층·`safeApiErrorMessage`·
+  라우트 핸들러 상태코드), `testing.md`(마커·conftest 격리·포트 fake),
+  `security/pci.md`(결제 코드가 생길 때 발동하는 게이트로 작성).
+- **루트 `CLAUDE.md`**: 기존 내용 수정 없이 섹션 추가 — 명령어(3스택별)·테스트·
+  환경 변수·브랜치 전략·주의사항·하네스 설정(`.claude/` 구조, 메모리 두 곳의
+  차이, 훅 동작).
+- **`.claude/projects/memory/`**: `MEMORY.md`(인덱스)·`debugging.md`(lint-imports
+  baseline red, CLIP hang, DB 미기동, 기존 실패 테스트)·`patterns.md`(백엔드 계층·
+  어드민 엔드포인트·마이그레이션·테스트 패턴).
 
 ### 오류·막힌 점
 - **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
@@ -73,9 +91,28 @@
   확인(파일 자체는 이전에도 있었고 DI만 안 됐을 뿐이라 정적 분석엔 그때도
   걸렸음) — 이번 작업이 새로 만든 문제 아님.
 
+- **CLIP hang은 이번 세션에서 재현되지 않았다** — 네트워크가 정상이라
+  `from_pretrained()`가 17초에 성공. 대신 캐시에서 결정적 증거를 찾았다:
+  `~/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/blobs/*.incomplete`
+  (490MB, 07-28 16:09 생성 후 정체). hang 단계는 collection이 아니라 **테스트 실행
+  중 `from_pretrained()`의 네트워크 왕복**으로 특정(어댑터가 함수 본문 안에서
+  import되고 모델 로드도 `detect()` 시점이라 collection은 영향 없음). 근본 원인은
+  코드가 아니라 "캐시가 있어도 매번 HF Hub etag 확인 → 멈추면 무한 대기" 구조.
+  `HF_HUB_OFFLINE` 적용 후 캐시 누락 시 hang 대신 4.5초 만에 `OSError`로 즉시
+  실패하는 것까지 실측 확인.
+- **붙여넣은 규칙 템플릿이 다른 프로젝트 것이었다** — 루트 `CLAUDE.md`에 추가하라고
+  받은 내용이 "Node.js REST API / npm test / Jest+Supertest / `AppError`(`src/errors/`)
+  / `src/legacy/` / payments PCI / `.env.local` / develop 브랜치"였는데, 실제로는
+  백엔드가 Python·FastAPI, 프론트는 pnpm(테스트 0건), `src/`·`AppError`·`payments`·
+  `develop` 전부 부재, env는 `suvisdev/.env` 하나. 대조표로 보고하고 카테고리만
+  살려 실측 값으로 채웠다. 미리 만들어져 있던 빈 규칙 파일 `testing.md`·
+  `security/pci.md`도 같은 출처 — `testing.md`는 백엔드 pytest 기준으로 다시 쓰고,
+  `pci.md`는 결제 코드가 없다는 배너를 달아 "생기면 발동하는 게이트"로 작성.
+
 ### 산출물
 - 코드: 위 "수정/구현" 파일 전체.
-- 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(완료됨으로 이동).
+- 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(완료분 이동),
+  루트 `CLAUDE.md`, `.claude/rules/` 4종, `.claude/projects/memory/` 3종.
 
 ## 2026-07-28
 

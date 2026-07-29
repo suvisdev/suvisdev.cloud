@@ -101,3 +101,105 @@ cloud.suvisdev/
 데이터/산출물)을 따르고, 최신 날짜가 맨 위에 오게 추가한다. 이미 그날
 항목이 있으면 새로 만들지 말고 이어서 보강한다. 단순 질의응답·읽기
 전용 조사만 한 세션은 생략해도 된다.
+
+## 명령어
+
+세 스택이 한 저장소에 있으므로 **어느 디렉터리에서 실행하는지**가 중요하다.
+
+```bash
+# 프론트엔드 (suvis/) — pnpm 사용, npm 아님
+pnpm dev             # 개발 서버
+pnpm build
+pnpm lint
+pnpm type-check      # tsc --noEmit
+pnpm format          # prettier --write
+
+# 백엔드 (suvisdev/)
+python main.py                    # uvicorn 127.0.0.1:8000, reload
+pytest                            # pytest.ini의 testpaths 전체
+pytest -m "not gpu"               # GPU·모델 가중치 필요한 테스트 제외
+alembic upgrade head              # 마이그레이션 적용
+alembic history                   # 리비전 체인 확인
+PYTHONPATH="$PWD:$PWD/apps" lint-imports   # 클린 아키텍처 의존 규칙 검사
+
+# 모바일 (susu/)
+flutter run
+
+# 인프라 (루트) — postgres(pgvector) · redis · pgadmin · cloudflared
+docker compose up -d
+```
+
+## 테스트
+
+- 프레임워크는 **pytest**다(백엔드). 프론트(`suvis/`)에는 현재 테스트 코드·테스트
+  의존성이 없다 — 검증은 `pnpm type-check`·`pnpm lint`로 한다.
+- 마커(`suvisdev/pytest.ini`): `gpu`(실제 GPU + 모델 가중치 필요),
+  `ollama`(실제 Ollama 서버 필요). 일반 실행은 `-m "not gpu"`를 붙인다.
+- `apps/ontology/test/conftest.py`가 `HF_HUB_OFFLINE`을 켜 둔다. GPU 테스트는
+  **로컬에 이미 캐시된** HF 모델만 쓰며, 캐시가 없으면 hang 대신 즉시 실패한다.
+- 학습 산출물(`apps/ontology/runs/`)은 `.gitignore` 대상이라 클론 직후에는 이를
+  요구하는 테스트가 실패할 수 있다(정상).
+
+## 환경 변수
+
+- 파일은 **`suvisdev/.env` 하나**다(`.env.local` 아님). `suvis/`에는 `.env`가 없고,
+  백엔드 주소는 `NEXT_PUBLIC_API_URL` 미설정 시 `http://127.0.0.1:8000`으로 폴백한다.
+- 필수: `DATABASE_URL`, `MOVA_DATABASE_URL`, `JWT_SECRET`
+- 외부 API: `GEMINI_API_KEY`, `TMDB_API_KEY`, `KOFIC_API_KEY`, `OPENWEATHERMAP_API_KEY`
+- OAuth: `{GOOGLE,KAKAO,NAVER}_CLIENT_ID` / `_CLIENT_SECRET` / `_REDIRECT_URI`
+- **미설정 상태**: `AWS_ACCESS_KEY_ID`·`VISION_S3_BUCKET` — S3가 아직 연결되지
+  않았다. S3 경로를 타는 코드는 호출 시 실패한다는 전제로 작업할 것.
+
+## 브랜치 전략
+
+- `main` — 기본 브랜치(PR 대상). `suvisdev` — 주 작업 브랜치. `suvis` — 프론트 작업용.
+- **`develop` 브랜치는 없다.** 머지 방향은 `suvisdev` → `main`이다.
+- 커밋·푸시는 사용자가 요청할 때만 한다.
+
+## 주의사항
+
+- **VRAM**: `lora-server`(EXAONE-2.4B AWQ)가 상시 기동 중이다. 모델 학습 전
+  `systemctl --user stop lora-server`, 학습 후 `start` + `:8200/health` 확인.
+  `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
+- 배포 환경이 둘이다 — 집(GPU/EXAONE)과 EC2(GPU 없음/Gemini). Ollama에 의존하는
+  mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끌 수 있다(기본 true).
+
+## 하네스 설정 (`.claude/`)
+
+```text
+.claude/
+├── settings.json          # 훅 설정 (커밋됨, 팀 공용)
+├── settings.local.json    # 개인 권한 허용 목록
+├── rules/                 # 경로별 코딩 규칙 — 해당 파일을 다룰 때 자동 로드
+│   ├── typescript.md      #   **/*.ts, **/*.tsx
+│   ├── api-standards.md   #   suvis/lib/*-api.ts, suvis/app/api/**/route.ts
+│   ├── testing.md         #   suvisdev/**/test(s)/**/*.py
+│   └── security/pci.md    #   결제 코드가 생기면 발동 (현재 대상 파일 없음)
+└── projects/memory/       # 주제별 메모 — 자동 로드 아님, 읽으라고 지시해야 함
+    ├── MEMORY.md          #   인덱스
+    ├── debugging.md       #   원인 규명한 문제와 진단 방법
+    └── patterns.md        #   계층 구조·마이그레이션·테스트 패턴
+```
+
+### 규칙 문서를 새로 쓸 때
+
+- **경로가 한정되는 규칙**(특정 언어·디렉터리)은 `.claude/rules/`에 둔다. 이 파일에
+  넣지 않는다 — 여기는 매 세션 로드되므로 전 영역 공통 지침만 남긴다.
+- `rules/*.md`는 `paths:` frontmatter가 **필수**다. 없으면 언제 적용되는지 알 수 없다.
+- 규칙은 **저장소에서 실측한 관례**만 적는다. 다른 프로젝트 템플릿을 그대로 옮기지
+  않는다(명령어·디렉터리·클래스가 실재하는지 `ls`/`grep`으로 확인할 것).
+
+### 메모리 두 곳의 차이
+
+| 위치 | 자동 로드 | 커밋 | 용도 |
+|------|-----------|------|------|
+| `.claude/projects/memory/` | ✗ | ✓ | 팀·다른 에이전트와 공유하는 주제별 메모 |
+| `~/.claude/projects/-home-a-projects-suvis/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
+
+같은 내용을 양쪽에 두지 않는다. 갈라지면 어느 쪽이 맞는지 알 수 없다.
+
+### 훅
+
+`settings.json`의 `UserPromptSubmit` 훅이 프롬프트에 "commit·커밋"이 들어오면
+**`_docs/WORK_LOG.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저 갱신하라**는
+지시를 주입한다. 위 "작업 일지" 규칙을 커밋 시점에 강제하는 장치다.
