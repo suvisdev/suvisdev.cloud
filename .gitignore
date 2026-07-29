@@ -8,3 +8,7 @@ Qwen2.5-1.5B-Instruct/
 
 __pycache__/
 *.pyc
+
+# Claude Code 로컬 상태 (사용자별 — 공유 대상 아님)
+# 프로젝트 MCP 서버 설정은 .mcp.json 에 두고 커밋한다.
+.claude.json

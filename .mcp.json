@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "gmail": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"]
+    },
+    "suvis-vision-sentinel": {
+      "type": "stdio",
+      "command": "${SUVIS_PYTHON}",
+      "args": [
+        "suvisdev/apps/ontology/adapter/inbound/mcp/anomaly_detection_mcp_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "suvisdev:suvisdev/apps"
+      }
+    },
+    "suvis-vision-genre": {
+      "type": "stdio",
+      "command": "${SUVIS_PYTHON}",
+      "args": [
+        "suvisdev/apps/ontology/adapter/inbound/mcp/image_classifier_mcp_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "suvisdev:suvisdev/apps"
+      }
+    }
+  }
+}

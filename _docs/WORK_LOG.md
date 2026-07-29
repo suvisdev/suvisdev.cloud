@@ -91,6 +91,21 @@
   전용, `CLAUDE.md`는 길이 무관 전체 로드) + 활성화/비활성화 방법
   (`CLAUDE_CODE_DISABLE_AUTO_MEMORY`, `autoMemoryEnabled`, `/memory` 토글).
   기존 문서와 겹치는 "두 위치 차이"는 링크로만 처리.
+- **`.mcp.json` 정리 + 내부 MCP 서버 2종 등록·검증**: 예시로 있던 `postgres`·
+  `notion`을 지우고 `github` 유지 + `gmail` 추가. gmail은 공식 서버가 없어
+  (`@modelcontextprotocol/server-gmail` 부재를 npm으로 확인) 사용자 선택으로
+  `@gongrzhe/server-gmail-autoauth-mcp` 채택. 저장소 내부 FastMCP 서버 중
+  `suvis-vision-sentinel`·`suvis-vision-genre`를 상대경로 + `PYTHONPATH=
+  suvisdev:suvisdev/apps`로 등록(팀 공유 고려해 절대경로 회피).
+  `.claude.json`은 0바이트 로컬 상태 파일이라 등록 위치로 쓰지 않고 `.gitignore`에 추가.
+- **`${VAR:-default}` 문법 지원 여부 실측 확정**: `claude mcp list` A/B 대조로
+  판정 — `${SUVIS_PYTHON:-python}`일 때는 변수 미설정에도 경고가 없고,
+  `${SUVIS_PYTHON}`으로 바꾸면 "Missing environment variables: SUVIS_PYTHON"
+  경고가 뜬다(기본값 없는 `${GITHUB_TOKEN}`과 동일 거동). 즉 **`:-` 문법은
+  지원된다.** 그럼에도 **기본값을 제거**했는데, 이 머신엔 `python`이 없고
+  (`/usr/bin/python3`뿐, 그마저 `mcp` 미설치) 기본값이 있으면 검증을 통과한 뒤
+  기동 단계에서 조용히 실패하기 때문이다. 기본값을 빼면 Claude Code가 명확한
+  누락 경고를 준다.
 - **루트 `CLAUDE.md`에 커밋 메시지 규칙 추가**: Conventional Commits·제목 50자
   이내·한국어. 실측 대조 결과 최근 14건 중 11건이 50자를 넘지만(중앙값 60자대),
   사용자 결정으로 **소급 없이 앞으로 지킬 목표**로 둔다.
@@ -115,6 +130,19 @@
   코드가 아니라 "캐시가 있어도 매번 HF Hub etag 확인 → 멈추면 무한 대기" 구조.
   `HF_HUB_OFFLINE` 적용 후 캐시 누락 시 hang 대신 4.5초 만에 `OSError`로 즉시
   실패하는 것까지 실측 확인.
+- **genre MCP 도구는 500 — 설정이 아니라 학습 산출물 부재** —
+  `suvis-vision-sentinel`의 `detect_anomaly`는 백엔드까지 왕복해 정상 응답
+  (`is_poster=true`, `poster_confidence=0.699`, `sharpness=2587.96`). 반면
+  `suvis-vision-genre`의 `list_supported_classes`는 백엔드 500이고 원인은
+  `apps/ontology/runs/genre_classify/classes.json` 부재였다. `runs/`는
+  `.gitignore` 대상(`suvisdev/.gitignore:70`)이고 디렉터리 자체가 없다 —
+  echo 어댑터 테스트가 실패하는 것과 같은 기존 조건이며 MCP 설정 문제가 아니다.
+  등록·연결·`tools/list`는 두 서버 모두 정상.
+- **세션 내에서는 connected 상태를 확인할 수 없다** — `.mcp.json`은 세션 시작 시
+  로드되고, `claude mcp list`상 두 서버는 `⏸ Pending approval` 상태다. 프로젝트
+  스코프 서버는 사용자 승인이 필요하므로 최종 connected 확인은 사용자 몫이다.
+  대신 Claude Code와 동일한 방식(stdio JSON-RPC)으로 직접 띄워 `initialize`~
+  `tools/call`까지 왕복시켜 검증했다.
 - **루트 `CLAUDE.md`가 권장 길이를 넘겼다** — 자동 메모리 문서를 쓰며 확인:
   `CLAUDE.md`는 길이와 무관하게 전체 로드되지만 200줄 이내가 지시 준수에 유리한데,
   이번 세션의 추가분으로 216줄이 됐다. 더 늘릴 내용은 `.claude/rules/`나 `_docs/`로
