@@ -10,6 +10,7 @@ from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
+    VisionPosterFlagOverrideDto,
     VisionUploadResponse,
 )
 from ontology.app.ports.output.vision_port import VisionPort
@@ -45,3 +46,10 @@ class VisionS3Repository(VisionPort):
             size_bytes=len(command.content),
             saved_path=url,
         )
+
+    async def update_poster_flag(
+        self, upload_id: int, is_poster_warning: bool
+    ) -> VisionPosterFlagOverrideDto:
+        # S3 백엔드는 메타데이터 row가 없어 오버라이드 대상을 찾을 수 없다.
+        # 소프트 플래그 지속화는 DB 폴백(VisionRepository) 전용.
+        raise NotImplementedError("S3 백엔드는 소프트 플래그 오버라이드를 지원하지 않습니다.")

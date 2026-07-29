@@ -28,6 +28,55 @@
 
 ---
 
+## 2026-07-29
+
+### 작업 내용
+- `origin/main`의 lora-server 베이스 모델 폴백 커밋(4703232)을 `suvisdev`
+  브랜치로 cherry-pick.
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그 중 "06 Sentinel 소프트
+  플래그 저장 지속화 + 어드민 오버라이드 엔드포인트" 착수(사용자 선택).
+  사전 조사 결과 저장 계층이 S3(자격증명 미연결로 사실상 미동작)/DB
+  (`VisionRepository`, 실제 구현이나 DI 미배선) 둘로 쪼개져 있던 것을 확인,
+  DB로 일원화하기로 결정(S3는 `.env`에 AWS 키가 전혀 없어 당장 못 씀).
+
+### 수정/구현
+- **DB 스키마**: `alembic/versions/20260729_0001_add_vision_upload_soft_flags.py`
+  신규 — `vision_uploads`에 `poster_confidence`/`sharpness_score`/
+  `is_poster_warning` 컬럼 추가(`down_revision=20260727_0001`, 단일 head 체인
+  유지). `VisionUploadOrm`에 동일 컬럼 추가.
+- **DTO/포트**: `vision_dto.py`에 `VisionImageCommand`·`VisionUploadResponse`
+  플래그 필드 + `upload_id`, 신규 `VisionPosterFlagOverrideDto` 추가.
+  `VisionPort`/`VisionUseCase`에 `update_poster_flag`/`override_poster_flag`
+  추상 메서드 신설.
+- **리포지토리**: `VisionRepository.save_image`가 플래그를 실제 persist,
+  신규 `update_poster_flag`(select→갱신→commit, id 없으면 `updated=False`)
+  구현. `VisionS3Repository`는 인터페이스 계약만 맞추도록
+  `update_poster_flag`에서 `NotImplementedError`(메타데이터 row가 없어 오버라이드
+  불가) — 나머지 S3 코드는 손 안 댐.
+- **DI 전환**: `vision_provider.py`의 `get_vision_repository`를
+  `VisionS3Repository` → `VisionRepository`(DB)로 교체.
+- **어드민 엔드포인트**: `PATCH /vision/{upload_id}/poster-flag` 신설
+  (`vision_router.py` + 신규 `vision_schema.py`), `require_admin` 가드 적용
+  (mova `market_picks_router.py`의 PATCH 패턴을 그대로 따름).
+- **테스트**: `test_vision_upload_sentinel_gate.py` — 새 추상 메서드로 깨질
+  뻔한 `_FakeVisionRepository`에 `update_poster_flag` 구현 추가, GPU 불필요한
+  `override_poster_flag` 위임 테스트 1개 신설.
+
+### 오류·막힌 점
+- **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
+  `alembic upgrade head`로 신규 마이그레이션을 실제 DB에 적용해보는 검증은
+  못 함(문법·체인 유효성만 `alembic history`로 확인). DB 뜬 환경에서 별도
+  검증 필요.
+- import-linter가 `vision_repository.py`(hub-independence 위반, ontology→
+  core.matrix.grid_oracle_database_manager→titanic/mova/viewer/dispatch)를
+  잡아내는데, `git stash` 비교로 이번 변경 이전부터 있던 기존 위반임을
+  확인(파일 자체는 이전에도 있었고 DI만 안 됐을 뿐이라 정적 분석엔 그때도
+  걸렸음) — 이번 작업이 새로 만든 문제 아님.
+
+### 산출물
+- 코드: 위 "수정/구현" 파일 전체.
+- 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(완료됨으로 이동).
+
 ## 2026-07-28
 
 ### 작업 내용

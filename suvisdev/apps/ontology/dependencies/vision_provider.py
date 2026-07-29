@@ -1,6 +1,6 @@
 from fastapi import Depends
 
-from ontology.adapter.outbound.repositories.vision_s3_repository import VisionS3Repository
+from ontology.adapter.outbound.repositories.vision_repository import VisionRepository
 from ontology.app.ports.input.vision_use_case import VisionUseCase
 from ontology.app.ports.output.vision_port import VisionPort
 from ontology.app.use_cases.vision_interactor import VisionInteractor
@@ -8,7 +8,9 @@ from ontology.dependencies.anomaly_detection_provider import get_anomaly_detecti
 
 
 def get_vision_repository() -> VisionPort:
-    return VisionS3Repository()
+    # S3(VisionS3Repository)는 AWS 자격증명 미연결로 보류 — 소프트 플래그
+    # 지속화까지 필요해져 DB 폴백(VisionRepository)을 기본 배선으로 전환.
+    return VisionRepository()
 
 
 def get_vision_use_case(

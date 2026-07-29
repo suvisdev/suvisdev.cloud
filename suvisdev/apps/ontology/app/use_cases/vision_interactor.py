@@ -7,6 +7,7 @@ from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
+    VisionPosterFlagOverrideDto,
     VisionUploadResponse,
 )
 from ontology.app.ports.input.vision_use_case import VisionUseCase
@@ -71,7 +72,13 @@ class VisionInteractor(VisionUseCase):
         is_poster_warning = result.poster_confidence < _POSTER_CONFIDENCE_THRESHOLD
 
         response = await self._repository.save_image(
-            VisionImageCommand(filename=filename, content=content),
+            VisionImageCommand(
+                filename=filename,
+                content=content,
+                poster_confidence=result.poster_confidence,
+                sharpness_score=result.sharpness_score,
+                is_poster_warning=is_poster_warning,
+            ),
         )
         return replace(
             response,
@@ -79,3 +86,8 @@ class VisionInteractor(VisionUseCase):
             sharpness_score=result.sharpness_score,
             is_poster_warning=is_poster_warning,
         )
+
+    async def override_poster_flag(
+        self, upload_id: int, is_poster_warning: bool
+    ) -> VisionPosterFlagOverrideDto:
+        return await self._repository.update_poster_flag(upload_id, is_poster_warning)

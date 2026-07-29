@@ -19,6 +19,11 @@ class VisionIntroduceResponse:
 class VisionImageCommand:
     filename: str
     content: bytes
+    # Sentinel 업로드 게이트(H6) 소프트 플래그 — interactor가 게이트 판정 후 채워
+    # repository로 넘긴다(지속화 대상).
+    poster_confidence: float = 0.0
+    sharpness_score: float = 0.0
+    is_poster_warning: bool = False
 
 
 @dataclass(frozen=True)
@@ -32,3 +37,15 @@ class VisionUploadResponse:
     poster_confidence: float = 0.0
     sharpness_score: float = 0.0
     is_poster_warning: bool = False
+    # DB 폴백 저장소일 때만 채워짐(vision_uploads.id) — 어드민 오버라이드가
+    # 이 id로 대상 row를 찾는다. S3 백엔드는 DB row가 없어 None.
+    upload_id: int | None = None
+
+
+@dataclass(frozen=True)
+class VisionPosterFlagOverrideDto:
+    """어드민이 Sentinel 소프트 플래그(is_poster_warning)를 수동 재판정한 결과."""
+
+    upload_id: int
+    is_poster_warning: bool
+    updated: bool

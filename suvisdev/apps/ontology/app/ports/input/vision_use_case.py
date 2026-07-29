@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from ontology.app.dtos.vision_dto import (
     VisionIntroduceQuery,
     VisionIntroduceResponse,
+    VisionPosterFlagOverrideDto,
     VisionUploadResponse,
 )
 
@@ -25,4 +26,12 @@ class VisionUseCase(ABC):
         filename: str,
         content: bytes,
     ) -> VisionUploadResponse:
+        pass
+
+    @abstractmethod
+    async def override_poster_flag(
+        self,
+        upload_id: int,
+        is_poster_warning: bool,
+    ) -> VisionPosterFlagOverrideDto:
         pass

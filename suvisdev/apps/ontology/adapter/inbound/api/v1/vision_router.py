@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
+from ontology.adapter.inbound.api.schemas.vision_schema import (
+    VisionPosterFlagSchema,
+    VisionPosterFlagUpdateSchema,
+)
 from ontology.app.dtos.vision_dto import (
     VisionIntroduceQuery,
     VisionIntroduceResponse,
@@ -7,6 +11,7 @@ from ontology.app.dtos.vision_dto import (
 )
 from ontology.app.ports.input.vision_use_case import VisionUseCase
 from ontology.dependencies.vision_provider import get_vision_use_case
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 vision_introduce_router = APIRouter(tags=["vision"])
 
@@ -30,3 +35,19 @@ async def upload_image(
         return await vision.upload_image(file.filename or "", content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@vision_introduce_router.patch("/{upload_id}/poster-flag", response_model=VisionPosterFlagSchema)
+async def override_poster_flag(
+    upload_id: int,
+    body: VisionPosterFlagUpdateSchema,
+    _: AdminPrincipal = Depends(require_admin),
+    vision: VisionUseCase = Depends(get_vision_use_case),
+) -> VisionPosterFlagSchema:
+    """Sentinel 소프트 플래그(is_poster_warning) 어드민 수동 재판정."""
+    dto = await vision.override_poster_flag(upload_id, body.is_poster_warning)
+    if not dto.updated:
+        raise HTTPException(status_code=404, detail=f"vision_uploads id={upload_id} 없음")
+    return VisionPosterFlagSchema(
+        upload_id=dto.upload_id, is_poster_warning=dto.is_poster_warning, updated=dto.updated
+    )

@@ -12,6 +12,7 @@ from ontology.app.dtos.vision_dto import (  # noqa: E402
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
+    VisionPosterFlagOverrideDto,
     VisionUploadResponse,
 )
 from ontology.app.ports.output.vision_port import VisionPort  # noqa: E402
@@ -39,6 +40,13 @@ class _FakeVisionRepository(VisionPort):
             saved_path=f"fake://{command.filename}",
         )
 
+    async def update_poster_flag(
+        self, upload_id: int, is_poster_warning: bool
+    ) -> VisionPosterFlagOverrideDto:
+        return VisionPosterFlagOverrideDto(
+            upload_id=upload_id, is_poster_warning=is_poster_warning, updated=True
+        )
+
 
 def _make_interactor(repo: _FakeVisionRepository):
     from ontology.adapter.outbound.resource_adapters.sentinel_anomaly.sentinel_anomaly_adapter import (
@@ -47,6 +55,21 @@ def _make_interactor(repo: _FakeVisionRepository):
     from ontology.app.use_cases.vision_interactor import VisionInteractor
 
     return VisionInteractor(repository=repo, anomaly_port=SentinelAnomalyAdapter())
+
+
+@pytest.mark.asyncio
+async def test_override_poster_flag_delegates_to_repository() -> None:
+    """어드민 오버라이드는 Sentinel 판정과 무관 — repository로 그대로 위임한다."""
+    from ontology.app.use_cases.vision_interactor import VisionInteractor
+
+    repo = _FakeVisionRepository()
+    interactor = VisionInteractor(repository=repo, anomaly_port=None)  # type: ignore[arg-type]
+
+    dto = await interactor.override_poster_flag(upload_id=42, is_poster_warning=True)
+
+    assert dto.upload_id == 42
+    assert dto.is_poster_warning is True
+    assert dto.updated is True
 
 
 # ── 실제 GPU(또는 CPU 폴백) + CLIP 다운로드가 필요한 통합 테스트 ────────
