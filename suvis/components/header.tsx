@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { LayoutDashboard } from "lucide-react"
 import { AuthLoginButton } from "@/components/auth/auth-login-button"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { getSuvisSession, SUVIS_SESSION_CHANGED_EVENT } from "@/lib/suvis-session"
 
 const navLinkClass =
@@ -86,8 +85,6 @@ export function Header() {
           </div>
 
           <AuthLoginButton />
-
-          <ThemeToggle />
 
           {isAdmin && (
             <Link

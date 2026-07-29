@@ -188,6 +188,31 @@
   까지 확인해 검증. mova 쪽은 `mova-login-button.tsx` 주석으로 이미 예전에
   자체 다크 테마(`--mova-*` CSS 변수, shadcn Input 미사용)로 교체돼 이 버그의
   영향을 받지 않음을 확인 — 별도 수정 없음.
+- **위 버그 수정 배포 확인 중 mova 다크모드 구조 재발견 + 방향 전환**: 배포
+  사이트에서 여전히 회색으로 보인다는 사용자 피드백에 git 상태(`main`이
+  최신 커밋을 포함하는지, 머지 누락 없는지)를 재확인했으나 이상 없었음 —
+  실제 원인은 Vercel 캐시/배포 지연으로 추정된 상태였으나, 사용자가 문제를
+  이 시점에서 근본적으로 우회하기로 결정: **"메인 사이트는 다크모드 자체를
+  없애고 mova만 유지"**. 조사 중 `mova-theme-setter.tsx`를 확인해 기존에
+  가졌던 이해("mova는 독립된 always-dark 테마")가 틀렸음을 확인 — 실제로는
+  `MovaThemeSetter`가 `/mova` 진입 시 전역 next-themes 상태를 `setTheme("dark")`로
+  강제하고 나갈 때 이전 값으로 복원하는 구조였고, mova 자체 헤더에도 별도
+  `ThemeToggle`이 있어 mova 안에서 라이트("Warm Cinema")로 전환 가능함
+  (`mova.css`의 `html:not(.dark) .mova-app`). 즉 메인 사이트와 mova가 같은
+  전역 토글 상태를 공유하고 있었던 것.
+- **다크 모드를 mova 전용으로 한정**: `components/header.tsx`에서
+  `<ThemeToggle />` 제거(메인 사이트에서 다크 진입 경로 원천 차단).
+  `components/site-chrome.tsx`에 `useEffect`로 `pathname`이 `/mova`가
+  아니면 매번 `setTheme("light")`를 강제하는 로직 추가 — 토글 UI를 없애는
+  것만으로는 next-themes가 localStorage에 저장해 둔 예전 `dark` 값이 계속
+  복원되는 문제(이번 세션 내내 다크로 테스트해 온 사용자가 실제로 이 상태였음)
+  까지는 못 막아서 필요했음. `admin`도 같은 조건으로 라이트 고정(별도
+  다크 스타일이 없어 원래도 영향 없었지만 범위를 명확히 함).
+  **검증**: 헤드리스 브라우저로 (1) `localStorage.theme="dark"`를 미리 심어
+  기존 다크 사용자 상태를 재현한 뒤 홈 진입 → `html.dark` 없음·헤더에 토글
+  흔적 없음·로그인 입력창 `rgb(255,255,255)` 확인, (2) `/mova` 진입 → `html.dark`
+  있음(시네마 테마 그대로) 확인, (3) mova→홈 복귀 → 다시 라이트로 강제되는
+  것까지 3단계 전부 스크린샷과 함께 확인.
 
 ### 오류·막힌 점
 - **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
