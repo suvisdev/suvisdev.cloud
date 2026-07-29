@@ -173,6 +173,21 @@
   원본 코드로 되돌려 대조한 결과 **이 스크롤은 원래도 있던 것**임을 확인
   (콘텐츠 자체가 이미 뷰포트보다 김) — 이번 변경은 정확히 padding만큼만
   늘렸을 뿐 새로 만든 문제가 아님.
+- **다크 모드에서 로그인 카드 입력창이 검게 변하는 버그 수정**: 로그인 모달
+  (`auth-dialog.tsx`)은 다크 모드에서도 항상 흰 배경으로 고정되도록 만들어져
+  있는데, `Input`·`Tabs` shadcn 베이스 컴포넌트가 `dark:bg-input/30` 등을 갖고
+  있어(색상 변수 `--input: oklch(0.22 0.01 260)`, 거의 검정) `.dark` 스코프에서
+  `bg-white`보다 CSS 명시도가 높아 이겨버리는 게 원인 — `bg-white`(무조건 적용)와
+  `dark:bg-input/30`(다크 전용)은 Tailwind `twMerge`가 서로 다른 modifier로 보고
+  충돌 처리를 안 해서 둘 다 남는데, `.dark .dark\:bg-input\/30` compound selector가
+  더 구체적이라 이긴다. `app/login/auth-forms.tsx`의 `inputClass`(입력창·셀렉트)·
+  `tabTriggerClass`(로그인/회원가입 탭)에 `dark:...!`(Tailwind v4 important 문법)를
+  추가해 라이트 스타일을 명시적으로 강제 — `components/ui/input.tsx` 같은 공용
+  베이스는 사이트 전역 다크 모드가 정상 동작해야 해서 건드리지 않음. 실제로
+  다크 모드를 켜고 모달을 열어 계산된 스타일(`background-color: rgb(255,255,255)`)
+  까지 확인해 검증. mova 쪽은 `mova-login-button.tsx` 주석으로 이미 예전에
+  자체 다크 테마(`--mova-*` CSS 변수, shadcn Input 미사용)로 교체돼 이 버그의
+  영향을 받지 않음을 확인 — 별도 수정 없음.
 
 ### 오류·막힌 점
 - **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
