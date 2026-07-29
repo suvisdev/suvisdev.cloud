@@ -5,8 +5,8 @@ import { HeroImagePanel } from "@/components/home/hero-image-panel"
 
 export default function Home() {
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#e8e8e8] px-4 pb-4 pt-0 dark:bg-[#0d0f14] md:px-6 md:pb-6">
-      <main className="grid min-h-[calc(100vh-4rem-1.5rem)] gap-6 lg:grid-cols-2 lg:gap-8">
+    <div className="min-h-[calc(100vh-4rem-1rem)] bg-[#e8e8e8] px-4 pt-3 pb-4 dark:bg-[#0d0f14] md:px-6 md:pt-4 md:pb-6">
+      <main className="grid min-h-[calc(100vh-4rem-2.5rem)] gap-6 lg:grid-cols-2 lg:gap-8">
         <section className="flex flex-col justify-between gap-12 rounded-3xl bg-white px-6 py-8 dark:bg-[#161a24] sm:px-10 sm:py-10 lg:px-12 lg:py-14">
           <div className="space-y-10 md:space-y-12">
             <div className="flex items-start gap-6">
