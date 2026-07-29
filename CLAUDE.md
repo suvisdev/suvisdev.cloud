@@ -207,3 +207,10 @@ docker compose up -d
 `settings.json`의 `UserPromptSubmit` 훅이 프롬프트에 "commit·커밋"이 들어오면
 **`_docs/WORK_LOG.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저 갱신하라**는
 지시를 주입한다. 위 "작업 일지" 규칙을 커밋 시점에 강제하는 장치다.
+
+## 커밋 메시지 규칙
+
+- Conventional Commits 형식 사용 (`feat:`, `fix:`, `docs:`, `refactor:`)
+- 제목은 50자 이내
+- 한국어로 작성
+- 예시: `feat: 사용자 로그인 기능 추가`

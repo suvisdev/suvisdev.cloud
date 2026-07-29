@@ -38,6 +38,9 @@ export function Header() {
           <Link href="/apps" className={navLinkClass}>
             Apps
           </Link>
+          <Link href="/devlog" className={navLinkClass}>
+            Devlog
+          </Link>
           <Link href="/contact#about" className={navLinkClass}>
             About
           </Link>
@@ -49,6 +52,9 @@ export function Header() {
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5 md:gap-4">
           <Link href="/apps" className={`${navLinkClass} md:hidden`}>
             Apps
+          </Link>
+          <Link href="/devlog" className={`${navLinkClass} md:hidden`}>
+            Devlog
           </Link>
           <Link href="/lesson" className={`${navLinkClass} sm:hidden`}>
             LESSON
