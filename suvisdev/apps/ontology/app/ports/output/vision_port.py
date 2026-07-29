@@ -6,6 +6,7 @@ from ontology.app.dtos.vision_dto import (
     VisionImageCommand,
     VisionIntroduceQuery,
     VisionIntroduceResponse,
+    VisionPosterFlagOverrideDto,
     VisionUploadResponse,
 )
 
@@ -19,4 +20,10 @@ class VisionPort(ABC):
 
     @abstractmethod
     async def save_image(self, command: VisionImageCommand) -> VisionUploadResponse:
+        pass
+
+    @abstractmethod
+    async def update_poster_flag(
+        self, upload_id: int, is_poster_warning: bool
+    ) -> VisionPosterFlagOverrideDto:
         pass

@@ -114,6 +114,22 @@
   메서드·기본 시드 데이터 전부 없음)으로 확인 — `main.py`에서 해당
   try/except 블록 통째로 제거. `ENABLE_MOVA_STARTUP` 두 시나리오 재검증
   결과 WARNING 완전히 사라지고 플래그 동작은 그대로 정상.
+- **CLIP 다운로드 hang 해결 + `.claude/rules/` 규칙 정비(2026-07-29)**: hang은
+  collection이 아니라 테스트 실행 중 `from_pretrained()`의 HF Hub 왕복이 원인
+  (캐시에 490MB `.incomplete` 블롭 잔존 확인). `apps/ontology/test/conftest.py`에
+  `HF_HUB_OFFLINE`을 걸어 "캐시 있으면 통과, 없으면 즉시 실패"로 전환 — Sentinel
+  판별 로직은 미변경. 함께 `.claude/rules/` 5종(typescript·api-standards·testing·
+  security/auth·security/pci)과 루트 `CLAUDE.md` 하네스/명령어/환경변수 섹션을
+  실측 기반으로 작성. `security/auth.md`에는 아래 백로그의 미해결 건(IDOR,
+  `mail/contacts`)을 "복사하지 말 것"으로 명시해 두었다. 상세: WORK_LOG 2026-07-29.
+- **06 Sentinel 소프트 플래그 DB 지속화 + 어드민 오버라이드 엔드포인트
+  (2026-07-29)**: 저장 계층을 S3(자격증명 미연결)/DB(`VisionRepository`,
+  구현은 있으나 DI 미배선) 중 DB로 일원화. `vision_uploads`에
+  `poster_confidence`/`sharpness_score`/`is_poster_warning` 컬럼 추가
+  (alembic `20260729_0001`), `VisionRepository`를 DI에 연결, `PATCH
+  /vision/{upload_id}/poster-flag`(`require_admin`) 신설. 로컬 DB 미기동으로
+  `alembic upgrade head` 실 적용은 미검증(문법·체인만 확인). 상세: WORK_LOG
+  2026-07-29.
 - **lora-server 초기화된 노트북 재세팅(2026-07-28)**: `~/.venv-exaone` +
   EXAONE-3.5-2.4B-Instruct-AWQ(원래 7.8B 계획에서 VRAM 여유 이유로 2.4B로
   변경)로 재구성. 학습된 LoRA 어댑터가 이 머신·백업 어디에도 없어 재학습
@@ -134,13 +150,7 @@
 ## 다음 / 남은 작업 (백로그)
 
 
-- **CLIP 모델(`openai/clip-vit-base-patch32`) 다운로드 hang(2026-07-28 발견)**:
-  `apps/ontology/test` 전체 실행 시 Hugging Face Hub에서 이 모델(Sentinel
-  이상탐지가 씀) 다운로드가 1시간 넘게 멈춤(`.incomplete` 파일 확인) —
-  네트워크 문제로 추정, 프로세스 강제 종료로만 대응. 재현·원인 조사 안 함.
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
-- **06 미결**: Sentinel 소프트 플래그 **저장 지속화 + 어드민 오버라이드 엔드포인트**
-  (저장 계층 정리 후 — S3 배선인데 AWS 미연결, DB 폴백 `VisionRepository` 미배선).
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
 - **S3**: AWS 실연결(버킷+키 세팅) 후 Tank 단일 경로 실 업로드 검증.

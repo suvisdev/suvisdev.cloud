@@ -28,6 +28,99 @@
 
 ---
 
+## 2026-07-29
+
+### 작업 내용
+- `origin/main`의 lora-server 베이스 모델 폴백 커밋(4703232)을 `suvisdev`
+  브랜치로 cherry-pick.
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그 중 "06 Sentinel 소프트
+  플래그 저장 지속화 + 어드민 오버라이드 엔드포인트" 착수(사용자 선택).
+  사전 조사 결과 저장 계층이 S3(자격증명 미연결로 사실상 미동작)/DB
+  (`VisionRepository`, 실제 구현이나 DI 미배선) 둘로 쪼개져 있던 것을 확인,
+  DB로 일원화하기로 결정(S3는 `.env`에 AWS 키가 전혀 없어 당장 못 씀).
+- 같은 백로그의 "CLIP 모델 다운로드 hang" 착수 — 재현·원인 규명 후 최소 수정.
+- `.claude/rules/` 경로별 코딩 규칙 4종 신규 작성 + 루트 `CLAUDE.md` 보강
+  (하네스 설정·명령어·환경변수·브랜치·테스트 섹션이 아예 없던 것을 추가).
+- `.claude/projects/memory/` 팀 공유용 주제별 메모 신설.
+
+### 수정/구현
+- **DB 스키마**: `alembic/versions/20260729_0001_add_vision_upload_soft_flags.py`
+  신규 — `vision_uploads`에 `poster_confidence`/`sharpness_score`/
+  `is_poster_warning` 컬럼 추가(`down_revision=20260727_0001`, 단일 head 체인
+  유지). `VisionUploadOrm`에 동일 컬럼 추가.
+- **DTO/포트**: `vision_dto.py`에 `VisionImageCommand`·`VisionUploadResponse`
+  플래그 필드 + `upload_id`, 신규 `VisionPosterFlagOverrideDto` 추가.
+  `VisionPort`/`VisionUseCase`에 `update_poster_flag`/`override_poster_flag`
+  추상 메서드 신설.
+- **리포지토리**: `VisionRepository.save_image`가 플래그를 실제 persist,
+  신규 `update_poster_flag`(select→갱신→commit, id 없으면 `updated=False`)
+  구현. `VisionS3Repository`는 인터페이스 계약만 맞추도록
+  `update_poster_flag`에서 `NotImplementedError`(메타데이터 row가 없어 오버라이드
+  불가) — 나머지 S3 코드는 손 안 댐.
+- **DI 전환**: `vision_provider.py`의 `get_vision_repository`를
+  `VisionS3Repository` → `VisionRepository`(DB)로 교체.
+- **어드민 엔드포인트**: `PATCH /vision/{upload_id}/poster-flag` 신설
+  (`vision_router.py` + 신규 `vision_schema.py`), `require_admin` 가드 적용
+  (mova `market_picks_router.py`의 PATCH 패턴을 그대로 따름).
+- **테스트**: `test_vision_upload_sentinel_gate.py` — 새 추상 메서드로 깨질
+  뻔한 `_FakeVisionRepository`에 `update_poster_flag` 구현 추가, GPU 불필요한
+  `override_poster_flag` 위임 테스트 1개 신설.
+- **CLIP hang 수정**: `apps/ontology/test/conftest.py` 신규 — `HF_HUB_OFFLINE`·
+  `TRANSFORMERS_OFFLINE`을 세션 시작 시 설정해 GPU 테스트가 네트워크를 타지 않고
+  로컬 캐시만 쓰게 강제. Sentinel 판별 로직·임계값은 건드리지 않음.
+- **`.claude/rules/`**: `typescript.md`(strict·any 금지·type 별칭·enum 금지·
+  단언 경계 — `suvis/` 실측: type 167 : interface 4, any 0, enum 0, React.FC 0),
+  `api-standards.md`(제네릭 fetch 래퍼·Bearer 3계층·`safeApiErrorMessage`·
+  라우트 핸들러 상태코드), `testing.md`(마커·conftest 격리·포트 fake),
+  `security/pci.md`(결제 코드가 생길 때 발동하는 게이트로 작성),
+  `security/auth.md`(`require_admin` 단일 가드·role은 서버 산출 JWT claim만 신뢰·
+  토큰 3계층 전달·무인증 지점은 근거 주석·IDOR·엔드포인트 체크리스트 5항목.
+  이 저장소에서 무인증 취약점이 실제로 두 번 나온 영역이라 규칙으로 굳힘).
+- **루트 `CLAUDE.md`**: 기존 내용 수정 없이 섹션 추가 — 명령어(3스택별)·테스트·
+  환경 변수·브랜치 전략·주의사항·하네스 설정(`.claude/` 구조, 메모리 두 곳의
+  차이, 훅 동작).
+- **`.claude/projects/-home-a-projects-suvis/memory/`**: `MEMORY.md`(인덱스)·
+  `debugging.md`(lint-imports baseline red, CLIP hang, DB 미기동, 기존 실패
+  테스트)·`patterns.md`(백엔드 계층·어드민 엔드포인트·마이그레이션·테스트 패턴).
+  처음엔 `projects/memory/`로 만들었다가, 하네스 관례인 `<프로젝트 경로>` 인코딩
+  (`-home-a-projects-suvis`, 절대경로의 `/`→`-`)을 넣어 `git mv`로 이동(이력 보존).
+  단, **홈(`~/.claude/...`)이 아니라 저장소 안이라 자동 로드되지 않는다** — 두
+  경로가 `~/` 유무만 달라 혼동 위험이 커서 양쪽 문서에 구분을 명시했다.
+
+### 오류·막힌 점
+- **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
+  `alembic upgrade head`로 신규 마이그레이션을 실제 DB에 적용해보는 검증은
+  못 함(문법·체인 유효성만 `alembic history`로 확인). DB 뜬 환경에서 별도
+  검증 필요.
+- import-linter가 `vision_repository.py`(hub-independence 위반, ontology→
+  core.matrix.grid_oracle_database_manager→titanic/mova/viewer/dispatch)를
+  잡아내는데, `git stash` 비교로 이번 변경 이전부터 있던 기존 위반임을
+  확인(파일 자체는 이전에도 있었고 DI만 안 됐을 뿐이라 정적 분석엔 그때도
+  걸렸음) — 이번 작업이 새로 만든 문제 아님.
+
+- **CLIP hang은 이번 세션에서 재현되지 않았다** — 네트워크가 정상이라
+  `from_pretrained()`가 17초에 성공. 대신 캐시에서 결정적 증거를 찾았다:
+  `~/.cache/huggingface/hub/models--openai--clip-vit-base-patch32/blobs/*.incomplete`
+  (490MB, 07-28 16:09 생성 후 정체). hang 단계는 collection이 아니라 **테스트 실행
+  중 `from_pretrained()`의 네트워크 왕복**으로 특정(어댑터가 함수 본문 안에서
+  import되고 모델 로드도 `detect()` 시점이라 collection은 영향 없음). 근본 원인은
+  코드가 아니라 "캐시가 있어도 매번 HF Hub etag 확인 → 멈추면 무한 대기" 구조.
+  `HF_HUB_OFFLINE` 적용 후 캐시 누락 시 hang 대신 4.5초 만에 `OSError`로 즉시
+  실패하는 것까지 실측 확인.
+- **붙여넣은 규칙 템플릿이 다른 프로젝트 것이었다** — 루트 `CLAUDE.md`에 추가하라고
+  받은 내용이 "Node.js REST API / npm test / Jest+Supertest / `AppError`(`src/errors/`)
+  / `src/legacy/` / payments PCI / `.env.local` / develop 브랜치"였는데, 실제로는
+  백엔드가 Python·FastAPI, 프론트는 pnpm(테스트 0건), `src/`·`AppError`·`payments`·
+  `develop` 전부 부재, env는 `suvisdev/.env` 하나. 대조표로 보고하고 카테고리만
+  살려 실측 값으로 채웠다. 미리 만들어져 있던 빈 규칙 파일 `testing.md`·
+  `security/pci.md`도 같은 출처 — `testing.md`는 백엔드 pytest 기준으로 다시 쓰고,
+  `pci.md`는 결제 코드가 없다는 배너를 달아 "생기면 발동하는 게이트"로 작성.
+
+### 산출물
+- 코드: 위 "수정/구현" 파일 전체.
+- 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(완료분 이동),
+  루트 `CLAUDE.md`, `.claude/rules/` 4종, `.claude/projects/memory/` 3종.
+
 ## 2026-07-28
 
 ### 작업 내용
