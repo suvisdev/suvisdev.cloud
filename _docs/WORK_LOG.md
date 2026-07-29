@@ -42,6 +42,9 @@
 - `.claude/rules/` 경로별 코딩 규칙 4종 신규 작성 + 루트 `CLAUDE.md` 보강
   (하네스 설정·명령어·환경변수·브랜치·테스트 섹션이 아예 없던 것을 추가).
 - `.claude/projects/memory/` 팀 공유용 주제별 메모 신설.
+- 메인 페이지 우측 히어로 자리를 정지 이미지에서 영상으로 교체 요청.
+- 전역 `Suvisdev AI` 채팅 버블을 LESSON `/langchain/chat`과 같은 백엔드
+  설정으로 전환 요청.
 
 ### 수정/구현
 - **DB 스키마**: `alembic/versions/20260729_0001_add_vision_upload_soft_flags.py`
@@ -137,6 +140,31 @@
 - **루트 `CLAUDE.md`에 커밋 메시지 규칙 추가**: Conventional Commits·제목 50자
   이내·한국어. 실측 대조 결과 최근 14건 중 11건이 50자를 넘지만(중앙값 60자대),
   사용자 결정으로 **소급 없이 앞으로 지킬 목표**로 둔다.
+- **메인 페이지 우측 히어로를 정지 이미지 → 영상으로 교체**: 사용자가 준
+  mp4(H.264, 1280×720, 8초, ~2MB)를 `suvis/public/hero-holographic-mask.mp4`로
+  파일명 정리해 추가(원본 경로에 특수문자 포함, URL 문제 방지). `hero-image-panel.tsx`의
+  `next/image` `<Image>`를 `<video autoPlay loop muted playsInline>`로 교체,
+  기존 정지 이미지는 `poster`(로딩 중 표시)로 재활용. 실제 dev 서버 + 헤드리스
+  브라우저로 데스크톱(1440px)·모바일(390px) 두 폭 모두에서 `paused: false`·
+  `currentTime` 증가까지 확인해 재생 중임을 실측 검증(정적 스크린샷만으로는
+  autoplay 성공 여부를 알 수 없어서).
+- **전역 `Suvisdev AI` 채팅 버블을 LESSON `/langchain/chat`과 같은 백엔드로
+  전환**: 기존엔 `/api/chat`(Next 로컬 라우트, Gemini SDK 직접 호출 +
+  모델 선택 드롭다운)을 썼는데, `/api/v1/langchain/chat`(semantic_router가
+  의도 판단 → LangChain 체인이 답변, 레슨 페이지와 완전히 동일한 백엔드)으로
+  교체. 요청 형식도 `{message, model}` → `{messages: [...]}`(대화 이력 전체,
+  레슨 페이지와 동일)로 변경. 모델 선택 드롭다운은 제거 — 백엔드 스키마에
+  `model` 필드가 있지만 라우터가 실제로 안 씀(`use_case.chat()`에 미전달)을
+  코드로 확인, 남겨두면 선택이 무시되는데도 되는 것처럼 보여 오해를 만듦.
+  백엔드 직접 `curl` 확인 + 헤드리스 브라우저로 버블 열기→입력→전송→응답
+  전 과정 재현, 네트워크 로그로 실제 호출 엔드포인트·페이로드까지 확인.
+- **버그 발견·수정(범위 밖, 검증 중 발견)**: 전송 흐름을 실제로 클릭 테스트하다
+  `pageerror: Cannot read properties of null (reading 'reset')` 발생 —
+  `handleSubmit`이 `await sendMessage(...)` **이후**에 `e.currentTarget.reset()`을
+  호출하는데, React `SyntheticEvent.currentTarget`은 동기 디스패치가 끝나면
+  null이 되는 구조적 함정. `git diff`로 이 코드가 이번 변경 이전부터 있던
+  것임을 확인(이번에 처음 실제 인터랙션 테스트를 돌리며 드러남). `await` 전에
+  폼 참조를 변수로 미리 잡아두는 방식으로 수정, 재검증 결과 에러 사라짐.
 
 ### 오류·막힌 점
 - **로컬 Postgres 미기동** — 이 세션 환경에 DB 프로세스가 안 떠 있어
