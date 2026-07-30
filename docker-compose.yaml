@@ -1,4 +1,28 @@
 services:
+  # nginx 구동
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    command: '/bin/sh -c ''while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'''
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    restart: always
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+
   # 1. 백엔드(FastAPI) 서비스 정의
   backend:
     build:
@@ -43,13 +67,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+#    deploy:
+ #     resources:
+  #      reservations:
+   #       devices:
+    #        - driver: nvidia
+     #         count: all
+      #        capabilities: [gpu]
 
   # 1-1. auth 게이트웨이 — RS256 JWT 발급 전용, 병렬 구축(이번 라운드는 실트래픽 미연결).
   # backend와 같은 이미지/컨텍스트를 재사용하고 command만 다르게 띄운다.
@@ -137,7 +161,7 @@ services:
   # 실행: docker compose --env-file suvisdev/.env up -d cloudflared
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel run --token ${TUNNEL_TOKEN}
+    command: tunnel --protocol http2 run --token ${TUNNEL_TOKEN}
     networks: [default]  # 이 compose 파일엔 top-level networks: 블록이 없어 전부 암묵적
     # 기본 네트워크(실제 이름 suvisdev_default)를 공유한다 — backend/auth를 그 이름으로
     # 직접 명시하면 top-level 선언이 없어 별도 네트워크가 생겨 서비스명 DNS가 끊긴다.

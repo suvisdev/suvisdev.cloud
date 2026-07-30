@@ -89,6 +89,33 @@
 - `docker-compose.yaml` neo4j 서비스 추가, `suvisdev/.env`(gitignore 대상,
   미추적) `NEO4J_PASSWORD` 교체 + 손상 라인 제거.
 
+### 작업 내용 (이어서 — nginx/certbot 커밋)
+- EC2 호스트에서 코드만 고치고 커밋 안 된 상태(`docker-compose.yaml` 수정 +
+  `nginx/` 미추적)를 정리해 커밋으로 남김(사용자 요청).
+
+### 수정/구현
+- `docker-compose.yaml`(기존 EC2 로컬 수정, 내용은 불변): `nginx`/`certbot`
+  서비스 추가, `backend`의 `deploy.resources`(GPU 예약) 블록 주석 처리(EC2엔
+  GPU 없음), `cloudflared` command에 `--protocol http2` 추가. neo4j는 이전
+  커밋(a112cb5)에서 이미 반영되어 있던 것 유지.
+- `nginx/conf.d/app.conf` 신규 추적 시작 — `docker-compose.yaml`의
+  `./nginx/conf.d:/etc/nginx/conf.d` 마운트가 실제로 참조하는 리버스 프록시
+  설정(`api.suvisdev.cloud` → `backend:8000`).
+
+### 오류·막힌 점
+- 루트에 `docker-compose.yaml.ec2-backup`(HEAD보다 오래된 중간 스냅샷)과
+  `e.yaml docker-compose.yaml.ec2-backup`(내용이 `git diff` 출력 텍스트인
+  실수 파일)가 있어 사용자에게 처리 방법 확인 후 둘 다 삭제(git 미추적
+  상태였으므로 히스토리엔 영향 없음).
+- 루트의 `nginx.conf`(docker-compose가 참조하지 않는 초안, `proxy_pass`
+  대상이 실제 서비스명과 다름)는 사용자 지시로 손대지 않고 미추적 상태 유지.
+- 원래 지침(`suvisdev` 작업 → `main` 병합)과 달리 이번엔 EC2가 이미 `main`
+  브랜치였고, 사용자가 이번 건은 예외적으로 `main`에 직접 커밋하기로 확인.
+
+### 산출물
+- `docker-compose.yaml`, `nginx/conf.d/app.conf` 커밋 예정(다음 커밋 해시는
+  이 항목 갱신 후 기록).
+
 ---
 
 ## 2026-07-29
