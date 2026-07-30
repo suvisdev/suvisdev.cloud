@@ -57,7 +57,7 @@ type SignupFormProps = {
   birth_year: string
 }
 
-type AuthApiResponse = { message?: string; id?: number; username?: string }
+type AuthApiResponse = { message?: string; id?: number; username?: string; nickname?: string }
 type AuthApiErrorBody = { detail?: string | unknown }
 
 const API_BASE =
@@ -162,7 +162,7 @@ export function AuthForms({
         return
       }
       if (typeof body.id === "number" && body.username) {
-        saveSuvisSession({ id: body.id, username: body.username })
+        saveSuvisSession({ id: body.id, username: body.username, nickname: body.nickname })
       }
       patchLogin({ message: body.message ?? "로그인에 성공했습니다." })
       onAuthSuccess?.()

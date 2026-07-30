@@ -3,6 +3,7 @@
 export type SuvisSession = {
   id: number
   username: string
+  nickname?: string
   token?: string
   role?: "admin" | "user"
 }

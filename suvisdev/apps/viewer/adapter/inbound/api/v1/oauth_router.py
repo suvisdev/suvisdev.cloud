@@ -97,6 +97,7 @@ class OAuthConsentRequest(BaseModel):
 class OAuthExchangeResponse(BaseModel):
     id: int
     username: str
+    nickname: str
     token: str
     role: str
 
@@ -110,7 +111,11 @@ async def oauth_exchange(
     if session is None:
         raise HTTPException(status_code=400, detail="만료되었거나 이미 사용된 코드입니다.")
     return OAuthExchangeResponse(
-        id=session.user_id, username=session.username, token=session.token, role=session.role
+        id=session.user_id,
+        username=session.username,
+        nickname=session.nickname,
+        token=session.token,
+        role=session.role,
     )
 
 
@@ -126,5 +131,9 @@ async def oauth_consent(
             status_code=400, detail="만료되었거나 이미 처리된 요청이거나, 동의가 거부됐습니다."
         )
     return OAuthExchangeResponse(
-        id=session.user_id, username=session.username, token=session.token, role=session.role
+        id=session.user_id,
+        username=session.username,
+        nickname=session.nickname,
+        token=session.token,
+        role=session.role,
     )

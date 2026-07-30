@@ -19,6 +19,7 @@ class OAuthIdentity:
 class SessionPayloadDto:
     user_id: int
     username: str
+    nickname: str
     token: str
     role: str
 

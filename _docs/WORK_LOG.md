@@ -172,6 +172,80 @@
   `20260729_0002`. backend 이미지 재빌드·재기동. 백업 파일:
   `/tmp/suvisdev_backup_20260730_0232.sql`.
 
+### 작업 내용 (이어서 — 어드민 화면 미노출 수정 + 닉네임 표시/변경 기능)
+- 사용자가 `ssuvisdev@gmail.com`으로 로그인해도 어드민 화면이 안 보인다고
+  보고 → 원인 조사 후 수정.
+- 메인페이지 로그인 표시가 이메일(정확히는 OAuth로 자동 생성된
+  `{이메일 로컬파트}_{provider}` 형태의 `username`)로 보여서, OAuth 로그인도
+  닉네임을 설정할 수 있고 헤더에 닉네임이 뜨도록 개선(사용자 요청).
+
+### 수정/구현
+- **어드민 미노출 원인**: `_resolve_role()`(RBAC)이 `ADMIN_EMAILS` env를
+  기준으로 role을 산출하는데, `suvisdev/.env`에 이 항목 자체가 누락돼 있어
+  누가 로그인해도 role이 항상 `user`였음. `.env`에
+  `ADMIN_EMAILS=ssuvisdev@gmail.com` 추가 후 `docker compose up -d
+  --force-recreate backend`로 재기동(이미지 재빌드 불필요, env만 반영).
+- **닉네임 표시/변경**: 로그인 응답 체인
+  (`LoginResponseDto → SessionPayloadDto → JWT 세션 핸드오프 → 프론트 응답`)
+  전체에 `nickname` 필드를 추가해 로그인 시 프론트 세션(localStorage)에
+  닉네임이 실리도록 함. 변경 파일: `auth_command_dto.py`,
+  `login_pg_repository.py`, `oauth_identity_pg_repository.py`,
+  `oauth_dto.py`, `session_store_port.py`,
+  `redis_session_store_adapter.py`(handoff 문자열에 nickname 필드 추가),
+  `oauth_login_interactor.py`, `oauth_router.py`, `login_router.py`.
+  - 신규 `PATCH /viewer/profile/{user_id}`(닉네임 변경) — 본인 확인 가드
+    `shared/security/require_user.py`(신규, `require_admin.py`와 동일한
+    HS256 검증이되 role 체크 없음) + 요청자 user_id와 경로 user_id 일치
+    검증(`.claude/rules/security/auth.md` §5 IDOR 규칙 준수). 포트/유스케이스/
+    리포지토리(`profile_repository.py`, `profile_use_case.py`,
+    `profile_interactor.py`, `profile_pg_repository.py`,
+    `user_orm.py::update_user_nickname`) 계층 전부 관통.
+  - 프론트: 헤더(`auth-login-button.tsx`)가 `username` 대신 `nickname`
+    표시(`?? username` 폴백). 마이페이지에 닉네임 인라인 편집 UI 추가
+    (`profile-api.ts::updateNickname`, `app/api/viewer/profile/route.ts`에
+    `PATCH` 프록시 추가, 저장 성공 시 로컬 세션도 즉시 갱신해 재로그인 없이
+    헤더 반영). `SuvisSession`/`OAuthSessionResult` 타입에 `nickname` 추가.
+
+### 오류·막힌 점
+- 없음. `apps/viewer`에 기존 테스트가 없어(pytest testpaths 미포함) 자동
+  회귀 테스트는 못 돌렸고, 대신 backend 컨테이너 안에서 실제 계정
+  (`user_id=1`, `ssuvisdev@gmail.com`, 기존 닉네임 "진수택")으로 수동
+  검증: `RedisSessionStoreAdapter.issue_session→redeem_handoff_code`
+  체인에 nickname/role 정상 전달, `PATCH /viewer/profile/1`을
+  토큰 없이(401)·남의 id로(403)·본인 id로 동일 닉네임값(200, 멱등) 호출해
+  가드·소유권 검증 확인, `GET`으로 값 보존 재확인(실데이터 훼손 없음),
+  `POST /viewer/login/login`(admin 시드 계정) 응답에도 nickname 포함 확인.
+  프론트는 이 EC2에 `pnpm`/`node_modules`가 없어 `pnpm type-check` 실행
+  불가 — 타입은 수동 검토만 함.
+
+### 산출물
+- 코드 변경 파일: 백엔드 16개 + 신규 1개(`shared/security/require_user.py`),
+  프론트 7개. `suvisdev/.env`에 `ADMIN_EMAILS` 추가(gitignore 대상, 커밋
+  안 됨). backend 재빌드·재기동 완료.
+
+### 작업 내용 (이어서 — Neo4j GraphRAG 스키마(제약+벡터 인덱스) 생성)
+- 2026-07-30 앞부분에서 provisioning만 하고 실기동 검증이 미완이던 neo4j
+  컨테이너에, pg `movies` 스키마 기준 도메인 제약·인덱스를 실제로 생성
+  (사용자 요청, 데이터는 아직 안 넣음 — TMDB/KOFIC import가 나중에 채울 예정).
+
+### 수정/구현
+- `docker compose exec neo4j cypher-shell`로 실행: 유니크 제약 4개
+  (`movie_slug`→Movie.slug, `genre_name`→Genre.name, `person_slug`→Person.slug,
+  `collection_id`→Collection.ext_id, 각각 자동 RANGE 인덱스 동반), 검색용
+  `movie_title`(Movie.title, RANGE), 벡터 인덱스 `movie_embedding`
+  (Movie.embedding, 768차원, cosine — pg embedding 컬럼과 동일 스펙).
+
+### 오류·막힌 점
+- `suvisdev/.env` 소스 시 29번째 줄에 예전(76번째 줄, 2026-07-29 수정분)과
+  같은 종류의 손상(단독 `1` 문자, `GEMINI_API_KEY` 바로 다음 줄)이 있어
+  `source` 경고가 났음 — `NEO4J_PASSWORD`는 정상 로드돼 이번 작업엔 지장
+  없었고, 이번 작업 범위 밖이라 손대지 않음(백로그).
+
+### 산출물
+- `SHOW CONSTRAINTS`/`SHOW INDEXES`로 4개 제약 + 6개 인덱스(벡터 포함)
+  전부 `state=ONLINE` 확인, `MATCH (n) RETURN count(n)` = 0 확인(데이터
+  없음, 그릇만 존재).
+
 ---
 
 ## 2026-07-29

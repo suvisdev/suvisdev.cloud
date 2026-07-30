@@ -51,14 +51,14 @@ class LoginPgRepository(LoginRepository):
         ).scalar_one_or_none()
         if user is not None and _verify_password(password, user.password_hash):
             logger.info("[LoginPgRepository] login_user 완료 — user_id=%s", user.id)
-            return LoginResponseDto(user_id=user.id, username=user.username)
+            return LoginResponseDto(user_id=user.id, username=user.username, nickname=user.nickname)
 
         admin = (
             await session.execute(select(Admin).where(Admin.username == username))
         ).scalar_one_or_none()
         if admin is not None and _verify_password(password, admin.password_hash):
             logger.info("[LoginPgRepository] login_user 완료 — admin_id=%s", admin.id)
-            return LoginResponseDto(user_id=admin.id, username=admin.username)
+            return LoginResponseDto(user_id=admin.id, username=admin.username, nickname=admin.nickname)
 
         raise LoginRepositoryError(
             "아이디 또는 비밀번호가 올바르지 않습니다.",

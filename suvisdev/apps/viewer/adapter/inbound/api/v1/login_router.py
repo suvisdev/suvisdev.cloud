@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 class LoginResponse(BaseModel):
     id: int
     username: str
+    nickname: str
 
 
 @login_router.post("/login", response_model=LoginResponse)
@@ -30,4 +31,4 @@ async def login(
     except LoginRepositoryError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     logger.info("🤖 [LoginRouter] login 완료 — user_id=%s", result.user_id)
-    return LoginResponse(id=result.user_id, username=result.username)
+    return LoginResponse(id=result.user_id, username=result.username, nickname=result.nickname)

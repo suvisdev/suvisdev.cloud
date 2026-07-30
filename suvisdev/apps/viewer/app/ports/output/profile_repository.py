@@ -11,3 +11,7 @@ class ProfileRepository(ABC):
     @abstractmethod
     async def get_profile(self, user_id: int) -> ProfileDto | None:
         pass
+
+    @abstractmethod
+    async def update_nickname(self, user_id: int, nickname: str) -> ProfileDto | None:
+        pass

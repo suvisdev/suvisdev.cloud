@@ -96,6 +96,17 @@ async def get_viewer_user_profile(user_id: int) -> dict:
         }
 
 
+async def update_user_nickname(user_id: int, nickname: str) -> bool:
+    factory = get_viewer_session_factory()
+    async with factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            return False
+        user.nickname = nickname
+        await session.commit()
+        return True
+
+
 async def seed_viewer_if_empty() -> None:
     """Viewer 시드 — groups + admin."""
     await seed_groups_if_empty()

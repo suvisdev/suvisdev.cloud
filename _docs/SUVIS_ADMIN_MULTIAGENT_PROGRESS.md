@@ -157,6 +157,26 @@
   실기동으로 `/health`·`/generate` 검증 완료(VRAM ~2.5GB, 8GB 카드에서
   여유 충분). 아래 "VRAM 정책"의 lora-server 스펙과 일치. 상세: WORK_LOG
   2026-07-28 [11].
+- **Neo4j 컨테이너 실기동 검증 + GraphRAG 스키마 생성(2026-07-30, EC2)**:
+  이전에 미완이던 실기동 검증을 EC2에서 완료 — `docker compose exec neo4j
+  cypher-shell`로 pg `movies` 스키마 기준 도메인 제약 4개(Movie.slug 등,
+  자동 RANGE 인덱스 포함) + 벡터 인덱스 `movie_embedding`(768차원, cosine)
+  생성, 전부 `ONLINE` 확인. 데이터(노드)는 아직 미투입 — TMDB/KOFIC import가
+  나중에 채움. 상세: WORK_LOG 2026-07-30.
+- **EC2 alembic 마이그레이션 적용 + backend 재배포로 로그인 500 복구
+  (2026-07-30)**: `git pull`로 들어온 마이그레이션 2건이 backend 옛
+  이미지 때문에 미적용이던 상태를 DB 백업 → backend 재빌드(디스크 부족
+  해결 포함) → `20260729_0001` upgrade + `20260729_0002`는 `create_all()`과의
+  이중 관리 충돌로 `stamp` 우회 → 로그인 401 정상화까지 복구. `create_all()`/
+  alembic 이중 관리는 근본 원인으로 남아 있음(아래 "다음/남은 작업" 참고).
+  상세: WORK_LOG 2026-07-30.
+- **어드민 화면 미노출 수정 + OAuth 닉네임 표시/변경 기능(2026-07-30, EC2)**:
+  `ADMIN_EMAILS` env 누락으로 RBAC role이 항상 `user`였던 버그 수정
+  (`suvisdev/.env`에 추가). 겸사겸사 헤더에 이메일 유사 문자열(`username`)
+  대신 `nickname`이 뜨도록 로그인 응답 체인 전체에 nickname 필드 추가,
+  마이페이지에 닉네임 인라인 편집 UI + `PATCH /viewer/profile/{id}`(본인
+  확인 가드 `shared/security/require_user.py` 신규) 추가. 실제 계정으로
+  인증·소유권(401/403/200)·값 보존 수동 검증 완료. 상세: WORK_LOG 2026-07-30.
 
 ---
 
@@ -169,12 +189,19 @@
 
 ## 다음 / 남은 작업 (백로그)
 
-
-- **Neo4j 컨테이너 실기동 검증(2026-07-30 신규)**: `docker-compose.yaml`에
-  neo4j 서비스 provisioning은 끝났지만 `docker compose up -d neo4j` →
-  `logs`에서 "Started." 확인 → `docker ps`로 Up 상태 확인이 아직 안 됨(WSL
-  세션에서 Docker 데몬 미연결). 실제 Docker가 붙는 환경(EC2 또는 WSL 통합
-  복구 후)에서 기동 검증 필요.
+- **Neo4j 데이터 투입**: 스키마(제약+벡터 인덱스)만 있고 노드는 0건. TMDB/KOFIC
+  import 파이프라인으로 채워야 함(착수 전).
+- **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:
+  `ensure_titanic_tables()`의 `create_all()`과 alembic이 테이블 생성을
+  이중으로 관리하고 있어, 새 ORM 모델이 추가될 때마다 이번(`hub_knowledge`)과
+  같은 `DuplicateTable`/`stamp` 우회가 반복될 수 있다. 근본 해결은
+  `create_all()` 경로를 제거하고 alembic을 단일 소스로 삼는 것. 상세:
+  WORK_LOG 2026-07-30.
+- **`suvisdev/.env` 손상 재발(2026-07-30 신규, 경미)**: 29번째 줄
+  (`GEMINI_API_KEY` 바로 다음)에 76번째 줄(2026-07-29 수정분)과 같은 종류의
+  단독 `1` 문자가 또 발견됨. `NEO4J_PASSWORD` 로드엔 지장 없어 이번엔
+  방치했지만, 반복되는 패턴이라 원인(에디터/스크립트 추정) 파악이 필요할 수
+  있음.
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).

@@ -3,6 +3,7 @@ import { safeApiErrorMessage } from "@/lib/user-facing-error"
 export type OAuthSessionResult = {
   id: number
   username: string
+  nickname: string
   token: string
   role: "admin" | "user"
 }
