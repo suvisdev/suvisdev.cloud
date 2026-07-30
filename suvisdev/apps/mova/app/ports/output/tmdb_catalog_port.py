@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from mova.app.dtos.studio_import_dto import TmdbMovieSnapshotDto
+from mova.app.dtos.studio_import_dto import TmdbCreditsDto, TmdbMovieSnapshotDto
 
 
 class TmdbCatalogPort(ABC):
@@ -23,3 +23,12 @@ class TmdbCatalogPort(ABC):
     @abstractmethod
     async def fetch_by_id(self, tmdb_id: int) -> TmdbMovieSnapshotDto:
         """TMDB /movie/{id} + credits."""
+
+    @abstractmethod
+    async def fetch_credits(self, tmdb_id: int) -> TmdbCreditsDto:
+        """TMDB /movie/{id} + credits — cast/crew만 필요한 credits 백필 전용.
+
+        fetch_by_id와 같은 엔드포인트를 호출하지만 리턴 타입이 다르다(영화
+        스냅샷이 아니라 cast/crew). seed/import 경로가 쓰는 fetch_by_id는
+        건드리지 않는다.
+        """

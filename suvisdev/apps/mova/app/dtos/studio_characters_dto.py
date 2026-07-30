@@ -6,6 +6,16 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class CharacterUpsertCommand:
+    """(movie_id, actor_id, character_name) 기준 upsert — 1인 다역 허용."""
+
+    movie_id: int
+    actor_id: int
+    character_name: str
+    billing_order: int | None = None
+
+
+@dataclass(frozen=True)
 class CharacterDto:
     """characters 행 기본 정보."""
 

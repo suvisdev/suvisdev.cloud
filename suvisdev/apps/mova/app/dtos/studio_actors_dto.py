@@ -6,6 +6,16 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ActorUpsertCommand:
+    """tmdb_person_id 기준 upsert — 동명이인은 id가 다르면 별도 행."""
+
+    tmdb_person_id: int
+    name: str
+    role_type: str = "actor"
+    profile_photo_url: str = ""
+
+
+@dataclass(frozen=True)
 class MovieInActorDto:
     """배우 filmography 항목 — characters + movies JOIN 결과."""
 

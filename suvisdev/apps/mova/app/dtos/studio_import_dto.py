@@ -32,6 +32,34 @@ class TmdbMovieSnapshotDto:
 
 
 @dataclass(frozen=True)
+class TmdbCastMemberDto:
+    """TMDB credits.cast[] 한 명 — actors/characters 백필용(map_cast_names의 이름만 추출과 다름)."""
+
+    tmdb_person_id: int
+    name: str
+    character: str
+    order: int
+    profile_photo_url: str = ""
+
+
+@dataclass(frozen=True)
+class TmdbDirectorDto:
+    """TMDB credits.crew[] 중 job == 'Director'인 인물."""
+
+    tmdb_person_id: int
+    name: str
+    profile_photo_url: str = ""
+
+
+@dataclass(frozen=True)
+class TmdbCreditsDto:
+    """TMDB 영화 상세(append_to_response=credits) 한 편 분량의 cast/crew."""
+
+    cast: list[TmdbCastMemberDto] = field(default_factory=list)
+    directors: list[TmdbDirectorDto] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class MovieUpsertCommand:
     slug: str
     title: str
@@ -69,3 +97,13 @@ class MovieImportResultDto:
             rankings_updated=self.rankings_updated,
             message=self.message,
         )
+
+
+@dataclass(frozen=True)
+class CreditsBackfillResultDto:
+    """TMDB credits 백필 1회 실행 결과. _ingest_to_hub와 달리 실패를 조용히 삼키지 않고 집계한다."""
+
+    succeeded: int = 0
+    failed: int = 0
+    skipped: int = 0
+    failed_slugs: list[str] = field(default_factory=list)

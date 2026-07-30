@@ -13,6 +13,14 @@ TMDB_BASE = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
 
+def build_image_url(path: str | None) -> str:
+    """TMDB 이미지 경로(poster_path/profile_path 공용) → 절대 URL."""
+    if not path:
+        return ""
+    normalized = path if path.startswith("/") else f"/{path}"
+    return f"{TMDB_IMAGE_BASE}{normalized}"
+
+
 class TmdbAdapterError(Exception):
     def __init__(self, message: str, *, status_code: int = 502) -> None:
         super().__init__(message)
@@ -30,10 +38,7 @@ class TmdbAdapter:
             )
 
     def poster_url(self, poster_path: str | None) -> str:
-        if not poster_path:
-            return ""
-        path = poster_path if poster_path.startswith("/") else f"/{poster_path}"
-        return f"{TMDB_IMAGE_BASE}{path}"
+        return build_image_url(poster_path)
 
     async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict:
         query = {"api_key": self.api_key, "language": self.language}

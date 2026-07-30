@@ -158,6 +158,10 @@ class MoviesPgRepository(MoviesRepositoryPort):
         total_r = await self._session.execute(select(func.count(MovaMovie.id)))
         return int(total_r.scalar_one())
 
+    async def list_all_slugs(self) -> list[tuple[int, str]]:
+        rows = await self._session.execute(select(MovaMovie.id, MovaMovie.slug))
+        return [(int(row.id), row.slug) for row in rows]
+
     async def upsert_movie(self, command: MovieUpsertCommand) -> int:
         existing_q = await self._session.execute(
             select(MovaMovie).where(MovaMovie.slug == command.slug)

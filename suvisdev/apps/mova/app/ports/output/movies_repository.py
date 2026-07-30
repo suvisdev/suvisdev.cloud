@@ -28,3 +28,11 @@ class MoviesRepositoryPort(ABC):
     @abstractmethod
     async def upsert_movie(self, command: MovieUpsertCommand) -> int:
         """slug 기준 insert 또는 update — movie.id 반환."""
+
+    @abstractmethod
+    async def list_all_slugs(self) -> list[tuple[int, str]]:
+        """(movie.id, slug) 전체 목록 — credits 백필 순회 전용.
+
+        list_movies()는 필터/정렬/페이지네이션이 있는 공개 조회용이라 배치 순회에
+        오용하지 않기 위해 별도로 둔다.
+        """
