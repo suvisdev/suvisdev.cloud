@@ -1,4 +1,4 @@
-"""LangChain으로 구현한 챗봇 엔진 — RangchainChatEnginePort 구현체.
+"""LangChain으로 구현한 챗봇 엔진 — LangchainChatEnginePort 구현체.
 
 semantic_router_interactor(ontology)가 판단한 destination·entities·grounding을
 시스템 프롬프트에 반영해, 같은 대화 맥락(history)을 두고 최종 답변을 생성한다.
@@ -15,7 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from core.matrix.vauly_keymaker_secret_manager import GEMINI_MODEL_MAP, get_keymaker
-from execsuite.app.ports.output.rangchain_chat_errors import RangchainChatError
+from execsuite.app.ports.output.langchain_chat_errors import LangchainChatError
 
 _MODEL = GEMINI_MODEL_MAP["flash15"]
 
@@ -54,7 +54,7 @@ def _to_langchain_messages(messages: list[dict[str, str]]) -> list[BaseMessage]:
     ]
 
 
-class RangchainChatEngineRepository:
+class LangchainChatEngineRepository:
     def __init__(self, model: str = _MODEL) -> None:
         llm = ChatGoogleGenerativeAI(model=model, google_api_key=get_keymaker().gemini_api_key)
         prompt = ChatPromptTemplate.from_messages(
@@ -78,4 +78,4 @@ class RangchainChatEngineRepository:
                 {"system_prompt": system_prompt, "history": _to_langchain_messages(messages)}
             )
         except Exception as e:
-            raise RangchainChatError(f"LangChain 챗봇 엔진 호출 실패: {e}") from e
+            raise LangchainChatError(f"LangChain 챗봇 엔진 호출 실패: {e}") from e

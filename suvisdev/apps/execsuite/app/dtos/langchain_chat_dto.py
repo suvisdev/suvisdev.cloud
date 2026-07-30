@@ -4,5 +4,5 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class RangchainChatDto:
+class LangchainChatDto:
     reply: str

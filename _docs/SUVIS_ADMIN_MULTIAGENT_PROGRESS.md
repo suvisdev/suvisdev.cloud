@@ -134,6 +134,13 @@
   /vision/{upload_id}/poster-flag`(`require_admin`) 신설. `alembic upgrade
   head` 실 적용은 같은 날 후속으로 빈 DB 검증 완료(위 baseline 항목 참고).
   상세: WORK_LOG 2026-07-29.
+- **execsuite `rangchain`/`ranggraph` 네이밍 오타 정정 + LangGraph+Neo4j 확장
+  전략 문서화(2026-07-30)**: 2026-07-28 LangChain 채팅 파이프라인 구현 시
+  붙은 `rangchain`/`ranggraph` 오타를 코드 파일 10개(클래스명·함수명 포함)와
+  관련 문서 5개에서 `langchain`/`langgraph`로 일괄 정정. `apps/execsuite/_docs/langgraph-strategy.md`에
+  "LangChain+pgVector → LangGraph+Neo4j" 4단계 도입 로드맵(Neo4j 도입 →
+  Hybrid Retrieval → LangGraph 전환 → 에이전틱 피드백 루프) 신규 작성 —
+  문서화만, 구현은 착수 전. 상세: WORK_LOG 2026-07-30.
 - **lora-server 초기화된 노트북 재세팅(2026-07-28)**: `~/.venv-exaone` +
   EXAONE-3.5-2.4B-Instruct-AWQ(원래 7.8B 계획에서 VRAM 여유 이유로 2.4B로
   변경)로 재구성. 학습된 LoRA 어댑터가 이 머신·백업 어디에도 없어 재학습
