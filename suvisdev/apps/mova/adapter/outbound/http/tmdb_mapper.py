@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from mova.app.dtos.studio_import_dto import TmdbMovieSnapshotDto
+from mova.adapter.outbound.http.tmdb_adapter import build_image_url
+from mova.app.dtos.studio_import_dto import (
+    TmdbCastMemberDto,
+    TmdbCreditsDto,
+    TmdbDirectorDto,
+    TmdbMovieSnapshotDto,
+)
 
 
 def tmdb_slug(tmdb_id: int) -> str:
@@ -62,6 +68,70 @@ def map_cast_names(credits: object, *, limit: int = 5) -> list[str]:
         if len(names) >= limit:
             break
     return names
+
+
+def map_credits(credits: object, *, cast_limit: int = 10) -> TmdbCreditsDto:
+    """TMDB append_to_response=credits 전체를 actors/characters 백필용으로 매핑.
+
+    map_cast_names()(hub_rag 텍스트 색인용, 이름만 상위 5명)와는 별개 — 이쪽은
+    person id/character/order/crew까지 보존한다.
+    """
+    if not isinstance(credits, dict):
+        return TmdbCreditsDto()
+
+    cast: list[TmdbCastMemberDto] = []
+    seen_person_ids: set[int] = set()
+    for member in credits.get("cast") or []:
+        if not isinstance(member, dict):
+            continue
+        person_id = member.get("id")
+        name = str(member.get("name") or "").strip()
+        if person_id is None or not name:
+            continue
+        try:
+            pid = int(person_id)
+        except (TypeError, ValueError):
+            continue
+        if pid in seen_person_ids:
+            continue
+        seen_person_ids.add(pid)
+        cast.append(
+            TmdbCastMemberDto(
+                tmdb_person_id=pid,
+                name=name,
+                character=str(member.get("character") or "").strip(),
+                order=int(member.get("order") or 0),
+                profile_photo_url=build_image_url(member.get("profile_path")),
+            )
+        )
+        if len(cast) >= cast_limit:
+            break
+
+    directors: list[TmdbDirectorDto] = []
+    seen_director_ids: set[int] = set()
+    for member in credits.get("crew") or []:
+        if not isinstance(member, dict) or member.get("job") != "Director":
+            continue
+        person_id = member.get("id")
+        name = str(member.get("name") or "").strip()
+        if person_id is None or not name:
+            continue
+        try:
+            pid = int(person_id)
+        except (TypeError, ValueError):
+            continue
+        if pid in seen_director_ids:
+            continue
+        seen_director_ids.add(pid)
+        directors.append(
+            TmdbDirectorDto(
+                tmdb_person_id=pid,
+                name=name,
+                profile_photo_url=build_image_url(member.get("profile_path")),
+            )
+        )
+
+    return TmdbCreditsDto(cast=cast, directors=directors)
 
 
 def map_tmdb_row(

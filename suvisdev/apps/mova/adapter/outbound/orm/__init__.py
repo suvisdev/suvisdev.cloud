@@ -18,6 +18,7 @@ from mova.adapter.outbound.orm.market_watchlist_orm import MovaWatchlist
 from mova.adapter.outbound.orm.platform_assistants_orm import MovaAssistant
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
+from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie, slugify_movie
 from mova.adapter.outbound.orm.studio_tags_orm import (
     TAG_KIND_CAST,
@@ -37,6 +38,7 @@ __all__ = [
     "MovaAssistant",
     "MovaActor",
     "MovaCharacter",
+    "MovaMovieDirector",
     "MovaTag",
     "TAG_KIND_MOOD",
     "TAG_KIND_GENRE",

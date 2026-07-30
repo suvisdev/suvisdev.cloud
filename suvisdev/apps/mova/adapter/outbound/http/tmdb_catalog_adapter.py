@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapter
-from mova.adapter.outbound.http.tmdb_mapper import map_tmdb_row
-from mova.app.dtos.studio_import_dto import TmdbMovieSnapshotDto
+from mova.adapter.outbound.http.tmdb_mapper import map_credits, map_tmdb_row
+from mova.app.dtos.studio_import_dto import TmdbCreditsDto, TmdbMovieSnapshotDto
 from mova.app.ports.output.tmdb_catalog_port import TmdbCatalogPort
 
 logger = logging.getLogger(__name__)
@@ -81,3 +81,7 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
                 cast=mapped.cast,
             )
         return mapped
+
+    async def fetch_credits(self, tmdb_id: int) -> TmdbCreditsDto:
+        row = await self._client.fetch_movie_detail(tmdb_id)
+        return map_credits(row.get("credits"))

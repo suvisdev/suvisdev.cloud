@@ -246,6 +246,101 @@
   전부 `state=ONLINE` 확인, `MATCH (n) RETURN count(n)` = 0 확인(데이터
   없음, 그릇만 존재).
 
+### 작업 내용 (이어서 — ADMIN_EMAILS 추가 + mova TMDB credits 백필 조사·설계·구현)
+- 로컬 `suvisdev/.env`에 `ADMIN_EMAILS` 항목 자체가 없어(어드민 role 판정이
+  전부 "user"로만 나오는 상태) `ADMIN_EMAILS=ssuvisdev@gmail.com` 추가(사용자
+  요청). `.env`는 gitignore 대상이라 로컬 전용 — EC2 `.env`는 별도로 채워야
+  함을 안내.
+- mova의 TMDB/KOFIC import 경로 코드 조사(사용자 요청, 코드 수정 없이 조사만):
+  actors/characters 테이블이 스키마·ORM·읽기 API는 있지만 **쓰기 경로가
+  0건**이라 pg `actors` 0행인 것을 확인. TMDB credits(cast/crew) 조회도
+  `fetch_movie_detail()`(단일 상세)에만 있고 시드가 쓰는 `fetch_popular`
+  등에는 없어 cast가 늘 빈 값. `movies.embedding` 컬럼도 스키마 주석은
+  Gemini를 가리키지만 실제로는 아무 코드도 안 채움 — 임베딩은 별도로
+  `_ingest_to_hub()`가 ontology `hub_knowledge` 테이블에만 씀. 결과를 표로
+  보고(구현됨/정의만 되고 안 도는 것/없는 것 3단 구분).
+- 위 조사를 바탕으로 "TMDB credits 배선" 2단계 작업 Phase A(조사·설계, 코드
+  변경 금지) 진행: actors/characters 스키마 전체, Port·DTO 현재 인터페이스,
+  `.importlinter` 레이어 제약, TMDB credits 응답 필드, 설계안 검토, 변경
+  파일 목록, TDD 테스트 목록을 보고. 사용자가 세 가지 결정 확정: ① 마이그레이션
+  4건 진행(`actors.tmdb_person_id`, `characters.billing_order`,
+  `movie_directors` 조인 테이블, `uq_actors_name_role` DROP — 사용자가 이
+  네 번째 항목을 직접 지적함, 안 빼면 동명이인 upsert가 기존 제약에 막혀
+  실패), ② 감독 관계는 movie_directors 조인 테이블(공동 감독 지원, characters와
+  대칭), ③ 실행은 수동 스크립트 전용(어드민 엔드포인트·스케줄러 배선 금지).
+- Phase B로 TDD 구현 진행(사용자 승인, "커밋은 하되 push는 확인 후" 조건).
+
+### 수정/구현
+- `alembic/versions/20260730_0001_add_tmdb_credits_columns.py` 신규
+  (`down_revision=20260729_0002`, 현재 head): `actors.tmdb_person_id`
+  INTEGER UNIQUE NULL 추가 + 인덱스, `characters.billing_order` INTEGER
+  NULL 추가, `movie_directors(movie_id, actor_id)` 테이블 신설(FK CASCADE,
+  UNIQUE), `uq_actors_name_role` DROP(+downgrade에서 복원).
+- ORM: `studio_actors_orm.py`(`tmdb_person_id` 컬럼, UNIQUE 제약을
+  name+role_type에서 tmdb_person_id로 교체), `studio_characters_orm.py`
+  (`billing_order` 컬럼), 신규 `studio_movie_directors_orm.py`
+  (`MovaMovieDirector`, characters와 대칭 구조) — `adapter/outbound/orm/__init__.py`에
+  등록해 `core.matrix.grid_oracle_database_manager`의 `import
+  mova.adapter.outbound.orm`으로 메타데이터에 잡히게 함.
+- DTO: `studio_import_dto.py`에 `TmdbCastMemberDto`/`TmdbDirectorDto`/
+  `TmdbCreditsDto`/`CreditsBackfillResultDto`(succeeded/failed/skipped +
+  실패 slug 목록, `_ingest_to_hub`처럼 조용히 삼키지 않음), `studio_actors_dto.py`에
+  `ActorUpsertCommand`, `studio_characters_dto.py`에 `CharacterUpsertCommand`,
+  신규 `studio_movie_directors_dto.py`에 `MovieDirectorUpsertCommand`.
+- 매퍼: `tmdb_mapper.py`에 `map_credits()` 신규(person id/character/order/
+  crew 보존, 기존 `map_cast_names`(hub_rag용, 이름만)는 불변). `tmdb_adapter.py`의
+  `poster_url()` 내부 로직을 모듈 함수 `build_image_url()`로 추출해
+  profile_path에도 재사용(동작 동일, 순수 리팩터).
+- Port 확장: `ActorsRepositoryPort.upsert_actor`, `CharactersRepositoryPort.upsert_character`,
+  신규 `MovieDirectorsRepositoryPort.upsert_director`, `MoviesRepositoryPort.list_all_slugs`
+  (배치 순회 전용, 기존 필터·페이지네이션용 `list_movies`와 분리),
+  `TmdbCatalogPort.fetch_credits`(기존 `fetch_by_id`는 불변 — seed/import
+  경로 안 건드림).
+- PgRepository 구현: `ActorsPgRepository.upsert_actor`(tmdb_person_id
+  기준 select-then-insert/update, 기존 `upsert_movie` 패턴과 동일),
+  `CharactersPgRepository.upsert_character`, 신규
+  `MovieDirectorsPgRepository`(movie_id+actor_id 기준, 필드가 없어 이미
+  있으면 그대로 반환하는 순수 멱등 insert), `MoviesPgRepository.list_all_slugs`,
+  `TmdbCatalogAdapter.fetch_credits`(`fetch_movie_detail` 재사용 + `map_credits`).
+- 유스케이스: 신규 `credits_backfill_use_case.py`(입력 포트) +
+  `credits_backfill_interactor.py` — `list_all_slugs()` 순회, `slug`가
+  `tmdb-{id}` 형식이 아니면 skipped 집계 후 계속(이 파싱 전제를 코드 주석에
+  명시), 영화 1편의 credits 조회·upsert가 실패해도 예외를 잡아 failed 집계
+  후 다음 영화로 진행(전체 중단 안 함).
+- DI: 신규 `dependencies/credits_backfill_provider.py` — FastAPI 요청
+  컨텍스트 없이 `get_mova_session_factory()`로 직접 세션을 여는
+  `seed_catalog_if_sparse`와 동일 패턴(어드민 엔드포인트 없음).
+- 실행 진입점: 신규 `scripts/backfill_credits_cli.py` — 기존
+  `scripts/harvester_cli.py`와 동일하게 `sys.path` 수동 부트스트랩 후 직접
+  실행(`docker compose exec backend python scripts/backfill_credits_cli.py`).
+  사용자가 예시로 든 `python -m ...`은 이 저장소에 PYTHONPATH 설정이 없어
+  그대로는 안 돼 기존 컨벤션에 맞춰 조정했음을 보고에 명시.
+- 테스트: 신규 `apps/mova/tests/test_credits_backfill.py` 14건 —
+  `map_credits`(credits 없음/cast만/crew job 필터/공동 감독 2명/cast person
+  id 중복 제거/cast_limit/profile_path→URL), `_parse_tmdb_id`(정상/비-TMDB
+  slug/파싱 실패), `CreditsBackfillInteractor`(AsyncMock 포트 — 비-TMDB
+  slug skip, cast+감독 upsert 오케스트레이션, 한 편 실패해도 나머지 진행,
+  전부 실패 시 집계).
+
+### 오류·막힌 점
+- repository upsert의 실제 멱등성·동명이인 분리(같은 tmdb_person_id 재upsert
+  시 행 1개 유지, 다른 tmdb_person_id+같은 이름은 별도 행)는 Postgres 없이는
+  검증 불가 — 로컬 Docker 데몬 미연결이라 마이그레이션 적용·backfill 실행·
+  이 검증은 EC2에서 사용자가 직접 진행하기로 함(사전 합의).
+- `apps/mova/tests/` 전체 47개 + 신규 14개 = 61개 전부 통과, `import-linter`
+  결과 "Spokes must not import each other directly"·"Mova domain must not
+  import app or adapter" 둘 다 KEPT(이번 변경으로 깨진 계약 없음). 남은
+  broken contract 1건(Hub-independence, ontology→core.matrix→spoke 전이
+  경로)은 이번 세션 파일과 무관한 기존 이슈.
+
+### 산출물
+- 마이그레이션 1건 + ORM 3개 파일 + DTO 4개 파일 + Port 5개(4개 확장,
+  1개 신규) + PgRepository 4개 파일 + 유스케이스 2개 파일(신규) + DI
+  프로바이더 1개(신규) + CLI 스크립트 1개(신규) + 테스트 1개 파일(14건) —
+  총 16개 수정 + 10개 신규, 로컬 커밋만 하고 push는 보류(사용자 확인 후).
+  마이그레이션 실제 적용(`alembic upgrade head`)과 backfill 실행은 EC2에서
+  사용자가 별도 진행.
+
 ---
 
 ## 2026-07-29

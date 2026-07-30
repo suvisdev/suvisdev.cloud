@@ -150,6 +150,20 @@
   WSL에서 Docker 데몬 연결 불가(Docker Desktop WSL 통합 문제로 추정),
   사용자가 별도 환경에서 `docker compose up -d neo4j` 확인 필요. 상세:
   WORK_LOG 2026-07-30.
+- **mova TMDB credits 배선(actors/characters/movie_directors) 설계+구현
+  (2026-07-30)**: 조사 결과 actors/characters가 스키마·읽기 API는 있지만
+  쓰기 경로가 0건이라 pg actors 0행이었음을 확인(movies.embedding도 같은
+  패턴 — 컬럼만 있고 채우는 코드 없음). Phase A(조사·설계 보고, 코드 변경
+  금지)를 거쳐 사용자가 확정한 설계대로 Phase B 구현: alembic 마이그레이션
+  `20260730_0001`(actors.tmdb_person_id UNIQUE, characters.billing_order,
+  movie_directors 조인 테이블, uq_actors_name_role DROP), TMDB credits
+  전용 매퍼·Port·PgRepository·별도 backfill 유스케이스·수동 실행 CLI
+  스크립트(`scripts/backfill_credits_cli.py`) 신규. 기존 seed_catalog_if_sparse/
+  `_ingest_to_hub`/fetch_by_id는 전혀 안 건드림. 유닛 테스트 14건 추가,
+  mova 전체 61개 전부 통과, import-linter 계약 위반 없음(레이어 경계 확인).
+  **로컬 커밋만 완료, push는 사용자 확인 후.** 마이그레이션 실제 적용과
+  backfill 실행은 EC2에서 별도 진행 필요(아래 백로그). 상세: WORK_LOG
+  2026-07-30.
 - **lora-server 초기화된 노트북 재세팅(2026-07-28)**: `~/.venv-exaone` +
   EXAONE-3.5-2.4B-Instruct-AWQ(원래 7.8B 계획에서 VRAM 여유 이유로 2.4B로
   변경)로 재구성. 학습된 LoRA 어댑터가 이 머신·백업 어디에도 없어 재학습
@@ -189,6 +203,11 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **mova TMDB credits 백필 EC2 실행(2026-07-30 신규)**: `alembic upgrade
+  head`로 `20260730_0001`(actors.tmdb_person_id 등 4건) 적용 후
+  `docker compose exec backend python scripts/backfill_credits_cli.py`
+  실행 필요 — 로컬 Docker 미연결로 마이그레이션 적용·backfill 실행 둘 다
+  미검증. 기존 movies 40편 기준 TMDB 상세 40회 호출(쿼터 확인 권장).
 - **Neo4j 데이터 투입**: 스키마(제약+벡터 인덱스)만 있고 노드는 0건. TMDB/KOFIC
   import 파이프라인으로 채워야 함(착수 전).
 - **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:
