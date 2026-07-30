@@ -3,7 +3,7 @@
 ## 왜 LangChain 체인에 LangGraph를 더하는가
 
 LangChain의 체인(Chain)은 A → B → C로 흐르는 단방향 파이프라인이다. 지금
-execsuite의 `rangchain_chat_engine_repository.py`(`ChatPromptTemplate` →
+execsuite의 `langchain_chat_engine_repository.py`(`ChatPromptTemplate` →
 `ChatGoogleGenerativeAI` → `StrOutputParser`)가 정확히 이 구조다 — 순서가
 고정돼 있어 "답이 부족하니 검색 단계로 되돌아가기" 같은 루프나, 판단에
 따라 다른 경로를 타는 분기가 불가능하다.
@@ -56,7 +56,7 @@ Neo4j는 데이터 간 관계를 노드·엣지로 저장하는 그래프 DB로,
   `crud`/`rag`/`general` 3갈래로만 분류한다(`qwen_intent_classifier.py`
   `_DESTINATIONS`). "reasoning"(다단계 추론이 필요한 질문) 갈래는 아직
   없다.
-- `apps/execsuite/adapter/outbound/repositories/rangchain_chat_engine_repository.py` —
+- `apps/execsuite/adapter/outbound/repositories/langchain_chat_engine_repository.py` —
   `ChatPromptTemplate → ChatGoogleGenerativeAI → StrOutputParser` 단일
   선형 LCEL 체인. 분기·루프·재시도 없음.
 - `requirements.txt`에 `langgraph`/`langgraph-checkpoint`/`langgraph-prebuilt`,
@@ -78,7 +78,7 @@ semantic_router_interactor (ontology)
    │  + "reasoning 필요 여부" 신호 추가 (다단계 추론·비교·근거 검증이
    │    필요한 rag 질문인지 판단)
    │
-   ├─ reasoning 불필요 ──► 기존 rangchain_chat_engine_repository.py
+   ├─ reasoning 불필요 ──► 기존 langchain_chat_engine_repository.py
    │                       (LangChain 단일 체인, 지금 그대로)
    │
    └─ reasoning 필요 ────► LangGraph StateGraph
@@ -111,7 +111,7 @@ semantic_router_interactor (ontology)
 1. `semantic_router_interactor`가 destination과 함께 "reasoning 필요"
    신호를 반환하도록 확장(Neo4j 없이도 `rag`의 기존 벡터 검색만으로 우선
    루프/재시도 구조부터 검증 가능).
-2. `execsuite`에 `rangchain_reasoning_graph.py` 같은 새 어댑터를 두고,
+2. `execsuite`에 `langgraph_reasoning_graph.py` 같은 새 어댑터를 두고,
    `LangGraph StateGraph`로 retrieve → generate → verify → (재시도 or 종료)
    구현. 최대 재시도 횟수로 종료 계약을 반드시 건다.
 3. Neo4j 실배포 후 retrieve 노드를 GraphRAG(Text-to-Cypher + 벡터 하이브리드)

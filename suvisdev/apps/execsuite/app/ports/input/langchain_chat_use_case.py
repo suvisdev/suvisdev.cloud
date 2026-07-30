@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from execsuite.app.dtos.rangchain_chat_dto import RangchainChatDto
+from execsuite.app.dtos.langchain_chat_dto import LangchainChatDto
 
 
-class RangchainChatUseCase(Protocol):
+class LangchainChatUseCase(Protocol):
     async def chat(
         self, *, messages: list[dict[str, str]], system: str | None
-    ) -> RangchainChatDto: ...
+    ) -> LangchainChatDto: ...

@@ -28,6 +28,44 @@
 
 ---
 
+## 2026-07-30
+
+### 작업 내용
+- `apps/execsuite/_docs/langgraph-strategy.md`(빈 파일)에 사용자가 제시한
+  "LangChain+pgVector → LangGraph+Neo4j" 4단계 확장 전략(Neo4j 도입 → Hybrid
+  Retrieval → LangGraph 전환 → 에이전틱 피드백 루프)을 harness 문서 형식으로
+  작성. 코드 구현은 하지 않음.
+- execsuite 전역에 남아 있던 `rangchain`/`ranggraph` 오타를 `langchain`/
+  `langgraph`로 정정(사용자 요청).
+
+### 수정/구현
+- 코드 파일 9개 + 빈 파일 1개(`ranggraph_interactor.py`)를 `git mv`로 리네임하고
+  내부 식별자(`Rangchain*` 클래스명, `rangchain_*` 함수명)를 `Langchain*`/
+  `langchain_*`로 일괄 치환: `langchain_chat_schema.py`,
+  `langchain_chat_router.py`, `langchain_chat_engine_repository.py`,
+  `langchain_chat_dto.py`, `langchain_chat_use_case.py`,
+  `langchain_chat_engine_port.py`, `langchain_chat_errors.py`,
+  `langchain_interactor.py`, `langgraph_interactor.py`,
+  `langchain_chat_provider.py`. `adapter/inbound/api/__init__.py`의 import·
+  라우터 등록도 갱신.
+- 위 리네임을 반영해 `langgraph-harness.md`·`neo4j-strategy.md`·
+  `langchain-elastic-strategy.md`·`langchain-ncl-strategy.md`·
+  `langchain-monigstar-strategy.md`가 언급하던 옛 파일명(`rangchain_*.py`,
+  `ranggraph_interactor.py`, `ranggraph-harness.md`)도 함께 정정. 제안
+  파일명 `rangchain_reasoning_graph.py`는 LangGraph StateGraph 구현체라는
+  맥락에 맞춰 `langgraph_reasoning_graph.py`로 수정.
+- 리네임된 모듈들의 stale `__pycache__/*.pyc`(옛 모듈 경로) 삭제.
+
+### 오류·막힌 점
+- 없음. `ast.parse`로 리네임된 10개 파일 구문 검증, 저장소 전체
+  `rangchain|ranggraph` grep으로 잔여 참조 없음 확인.
+
+### 산출물
+- `apps/execsuite/_docs/langgraph-strategy.md` 신규 작성.
+- 코드 리네임 10건 + 관련 문서 5건 수정 (미커밋 — 사용자 요청 시 커밋).
+
+---
+
 ## 2026-07-29
 
 ### 작업 내용

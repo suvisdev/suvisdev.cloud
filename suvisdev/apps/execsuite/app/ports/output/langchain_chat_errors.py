@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-class RangchainChatError(Exception):
+class LangchainChatError(Exception):
     def __init__(self, detail: str, *, status_code: int = 502) -> None:
         super().__init__(detail)
         self.detail = detail

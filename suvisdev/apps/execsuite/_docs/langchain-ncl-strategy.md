@@ -12,8 +12,8 @@ NCL(노르웨이 크루즈 라인)은 LangChain을 이용해 고객들이 이상
 
 이 저장소엔 크루즈/여행 도메인 데이터나 고객 선호도·탐색 기록을 수집하는
 인프라가 없다. 현재 `adapter/outbound/llm/`에는 PDF 요약 파이프라인
-(`pdf_loader_ollama_summarizer.py`)만 있고, `app/use_case/`의 `rangchain_interactor.py`·
-`ranggraph_interactor.py`는 아직 빈 파일이다 — LangChain 레이어 자체가
+(`pdf_loader_ollama_summarizer.py`)만 있고, `app/use_case/`의 `langchain_interactor.py`·
+`langgraph_interactor.py`는 아직 빈 파일이다 — LangChain 레이어 자체가
 설계 전 단계다.
 
 NCL 패턴(선호도·탐색 기록 → 맞춤 추천)을 옮기려면 먼저 다음이 정해져야

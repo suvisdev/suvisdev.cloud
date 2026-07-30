@@ -1,6 +1,6 @@
 # Neo4j Docker 설치 전략
 
-`ranggraph-harness.md`가 제안한 LangGraph retrieve 노드의 GraphRAG(하이브리드
+`langgraph-harness.md`가 제안한 LangGraph retrieve 노드의 GraphRAG(하이브리드
 검색)를 실제로 쓰려면 Neo4j 서버가 먼저 떠 있어야 한다. 이 문서는 그 서버를
 이 프로젝트의 기존 방식대로 docker-compose에 추가하는 전략만 다룬다 —
 `docker-compose.yaml`/`.env` 실제 수정은 하지 않는다.
@@ -29,7 +29,7 @@ docker-compose로 관리한다. Neo4j도 같은 방식으로 두면:
 ## docker-compose.yaml 추가안
 
 ```yaml
-  # 6. Neo4j — GraphRAG(ranggraph-harness.md)용 그래프 DB
+  # 6. Neo4j — GraphRAG(langgraph-harness.md)용 그래프 DB
   # 실행: docker compose --env-file suvisdev/.env up -d neo4j
   neo4j:
     image: neo4j:5.26-community   # 실제 적용 시 최신 5.x 안정 패치로 재확인
@@ -106,9 +106,9 @@ NEO4J_USER=neo4j
 컨테이너를 내렸다 올려도 데이터가 유지된다. 백업 전략은 이번 스코프
 밖(운영 전환 시 별도 문서).
 
-## `ranggraph-harness.md`와의 연결
+## `langgraph-harness.md`와의 연결
 
-`ranggraph-harness.md`의 "단계적 도입 순서" 3번("Neo4j 실배포 후 retrieve
+`langgraph-harness.md`의 "단계적 도입 순서" 3번("Neo4j 실배포 후 retrieve
 노드를 GraphRAG로 교체·보강")이 이 문서가 다루는 작업이다. 이 전략대로
 Neo4j가 뜨고 나면, 그 문서가 제안한 retrieve 노드(Text-to-Cypher + 벡터
 하이브리드 검색)를 실제로 구현할 수 있다.

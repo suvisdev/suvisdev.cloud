@@ -3,16 +3,16 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class RangchainChatMessageSchema(BaseModel):
+class LangchainChatMessageSchema(BaseModel):
     role: str
     content: str
 
 
-class RangchainChatRequestSchema(BaseModel):
-    messages: list[RangchainChatMessageSchema]
+class LangchainChatRequestSchema(BaseModel):
+    messages: list[LangchainChatMessageSchema]
     model: str | None = None
     systemInstruction: str | None = None
 
 
-class RangchainChatResponseSchema(BaseModel):
+class LangchainChatResponseSchema(BaseModel):
     reply: str

@@ -13,7 +13,7 @@ LangChain은 고객의 요구에 맞춘 맞춤형 솔루션을 제공할 수 있
 
 이 저장소엔 실제 금융/시장 데이터 소스가 없다(mova는 영화 도메인). 현재
 `adapter/outbound/llm/`에는 PDF 요약 파이프라인(`pdf_loader_ollama_summarizer.py`)만
-있고, `app/use_case/`의 `rangchain_interactor.py`·`ranggraph_interactor.py`는
+있고, `app/use_case/`의 `langchain_interactor.py`·`langgraph_interactor.py`는
 아직 빈 파일이다 — LangChain 레이어 자체가 설계 전 단계다.
 
 Morningstar 패턴(재무 보고서·시장 데이터 분석 → 맞춤 인사이트)을 옮기려면

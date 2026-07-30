@@ -16,7 +16,7 @@ Elastic은 보안 분석가들을 지원하기 위해 LangChain을 활용해 AI 
 페르소나는 `piper_gilfoyle_sys_interactor.py`(시스템 담당)이지만, 관련
 DTO(`GilfoyleSysQuery`/`GilfoyleSysResponse`, `app/dtos/piper_gilfoyle_sys_dto.py`)는
 `id`, `name` 필드만 있는 스텁이라 실제 보안 경고 데이터는 다루지 않는다.
-`app/use_case/`의 `rangchain_interactor.py`·`ranggraph_interactor.py`도
+`app/use_case/`의 `langchain_interactor.py`·`langgraph_interactor.py`도
 아직 빈 파일이다 — LangChain 레이어 자체가 설계 전 단계다.
 
 Elastic 패턴(보안 경고 요약 → 워크플로우 제안 → 쿼리 생성/변환)을 옮기려면
