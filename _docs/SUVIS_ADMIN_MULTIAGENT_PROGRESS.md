@@ -24,11 +24,15 @@
   까지 검토 후 관문0 실측 → 보도 신호 자체가 서울 OSM에 없음(`sidewalk=*`
   0.4~1.2%, 커버리지 보도/도로 = 0.04, `width` 전무). 04·08과 동급 정식 제외.
   상세: `03_semantic_segmentation_agent.md` §5.4, WORK_LOG 2026-07-27.
-- **alembic 마이그레이션 체인 베이스라인 누락 수정(2026-07-27)**: `users`/
-  `groups`/`admins`, mova 전체 테이블, `dispatch_adress`, `titanic_passengers`,
-  `vision_uploads` 등이 `create_all()`로만 존재하고 체인엔 CREATE가 없던 문제.
-  베이스라인 마이그레이션 신설로 완전히 빈 DB에서 `alembic upgrade head`
-  성공 검증 완료(EC2 임시 컨테이너). 상세: WORK_LOG 2026-07-27 [3].
+- **alembic 마이그레이션 체인 베이스라인 누락 수정(2026-07-27, 후속
+  2026-07-29)**: `users`/`groups`/`admins`, mova 전체 테이블, `dispatch_adress`,
+  `titanic_passengers`, `vision_uploads` 등이 `create_all()`로만 존재하고
+  체인엔 CREATE가 없던 문제. 베이스라인 마이그레이션 신설로 완전히 빈 DB에서
+  `alembic upgrade head` 성공 검증(EC2 임시 컨테이너, 2026-07-27). 이후
+  같은 방식으로 빈 DB 재검증하다 `hub_knowledge`(2026-07-14 추가, 체인에
+  CREATE 없이 create_all 전용이었던 테이블)를 추가로 발견해 `20260729_0002`로
+  보완, 도커 임시 컨테이너로 34개 테이블 전부 생성되는 것까지 재확인.
+  상세: WORK_LOG 2026-07-27 [3], 2026-07-29.
 - **PDF 업로드→추출→요약 파이프라인(execsuite, 구 silicon_valley, 2026-07-27, `pdf_loader_*` 네이밍)**:
   `POST /api/v1/pdf/summarize` — neo4j-graphrag PdfLoader 추출 + EXAONE(Ollama)
   요약 + `pdf_loader_documents` 테이블 저장, inbound router~outbound repository
@@ -127,9 +131,9 @@
   구현은 있으나 DI 미배선) 중 DB로 일원화. `vision_uploads`에
   `poster_confidence`/`sharpness_score`/`is_poster_warning` 컬럼 추가
   (alembic `20260729_0001`), `VisionRepository`를 DI에 연결, `PATCH
-  /vision/{upload_id}/poster-flag`(`require_admin`) 신설. 로컬 DB 미기동으로
-  `alembic upgrade head` 실 적용은 미검증(문법·체인만 확인). 상세: WORK_LOG
-  2026-07-29.
+  /vision/{upload_id}/poster-flag`(`require_admin`) 신설. `alembic upgrade
+  head` 실 적용은 같은 날 후속으로 빈 DB 검증 완료(위 baseline 항목 참고).
+  상세: WORK_LOG 2026-07-29.
 - **execsuite `rangchain`/`ranggraph` 네이밍 오타 정정 + LangGraph+Neo4j 확장
   전략 문서화(2026-07-30)**: 2026-07-28 LangChain 채팅 파이프라인 구현 시
   붙은 `rangchain`/`ranggraph` 오타를 코드 파일 10개(클래스명·함수명 포함)와
