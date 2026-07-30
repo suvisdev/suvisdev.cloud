@@ -37,6 +37,9 @@
   작성. 코드 구현은 하지 않음.
 - execsuite 전역에 남아 있던 `rangchain`/`ranggraph` 오타를 `langchain`/
   `langgraph`로 정정(사용자 요청).
+- 루트 `docker-compose.yaml`에 GraphRAG용 Neo4j 서비스 추가(사용자 요청, 상세
+  스펙 지정: heap/pagecache 캡, 127.0.0.1 전용 바인딩, `.env` 비밀번호 참조,
+  named volume, 기존 pgvector/PostgreSQL·다른 서비스·`requirements.txt` 불변).
 
 ### 수정/구현
 - 코드 파일 9개 + 빈 파일 1개(`ranggraph_interactor.py`)를 `git mv`로 리네임하고
@@ -55,14 +58,36 @@
   파일명 `rangchain_reasoning_graph.py`는 LangGraph StateGraph 구현체라는
   맥락에 맞춰 `langgraph_reasoning_graph.py`로 수정.
 - 리네임된 모듈들의 stale `__pycache__/*.pyc`(옛 모듈 경로) 삭제.
+- `docker-compose.yaml`에 `neo4j` 서비스 신설: `image: neo4j:5.26-community`,
+  `NEO4J_server_memory_heap_{initial,max}__size=1G`/`NEO4J_server_memory_pagecache_size=512m`로
+  캡, `ports`는 `127.0.0.1:7474:7474`/`127.0.0.1:7687:7687`만(0.0.0.0 미노출),
+  `NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}`, `neo4j_data` named volume,
+  `restart: unless-stopped`. 다른 서비스 블록은 미변경.
+- `suvisdev/.env`의 `NEO4J_PASSWORD`가 이미 있었으나 값이 약한 기본값 패턴
+  (`suvisdev123`)이었음 — 아직 코드 어디서도 참조하지 않아 안전하게 강한
+  임의값(hex 48자)으로 교체.
 
 ### 오류·막힌 점
-- 없음. `ast.parse`로 리네임된 10개 파일 구문 검증, 저장소 전체
-  `rangchain|ranggraph` grep으로 잔여 참조 없음 확인.
+- 코드 리네임 관련: 없음. `ast.parse`로 리네임된 10개 파일 구문 검증, 저장소
+  전체 `rangchain|ranggraph` grep으로 잔여 참조 없음 확인.
+- `docker-compose.yaml` 편집 중 파일 끝에 `1` 한 글자가 단독으로 붙어 있어
+  YAML이 깨져 있던 것 발견(이번 세션 이전부터 존재하던 상태, 원인 불명) —
+  제거.
+- `suvisdev/.env` 76번째 줄에 `TUNNEL_TOKEN suvisdev/.env | cat`이라는 실행되다
+  만 셸 명령어 조각이 값 대신 들어가 있어 `.env` 파싱 자체가 실패하던 것 발견
+  (역시 이전부터 존재, 바로 다음 줄에 정상 `TUNNEL_TOKEN=...` 있음) — 그
+  줄만 제거.
+- 이 WSL 세션에서 Docker Desktop 데몬(`npipe:////./pipe/dockerDesktopLinuxEngine`)에
+  연결이 안 돼 `docker compose up -d neo4j`/`logs`/`docker ps` 실행 검증은
+  못 함. `docker compose config`로 문법·서비스 등록만 확인. 사용자가 Docker가
+  붙는 환경에서 직접 기동·검증하기로 함.
 
 ### 산출물
 - `apps/execsuite/_docs/langgraph-strategy.md` 신규 작성.
-- 코드 리네임 10건 + 관련 문서 5건 수정 (미커밋 — 사용자 요청 시 커밋).
+- 코드 리네임 10건 + 관련 문서 5건 수정 — 커밋 `bff6d48` → `main` PR #16
+  머지(`93ce0c3`).
+- `docker-compose.yaml` neo4j 서비스 추가, `suvisdev/.env`(gitignore 대상,
+  미추적) `NEO4J_PASSWORD` 교체 + 손상 라인 제거.
 
 ---
 
