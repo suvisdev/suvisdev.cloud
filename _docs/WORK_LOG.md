@@ -113,8 +113,8 @@
   브랜치였고, 사용자가 이번 건은 예외적으로 `main`에 직접 커밋하기로 확인.
 
 ### 산출물
-- `docker-compose.yaml`, `nginx/conf.d/app.conf` 커밋 예정(다음 커밋 해시는
-  이 항목 갱신 후 기록).
+- `docker-compose.yaml`, `nginx/conf.d/app.conf` 커밋 `41d56a6`(`main`
+  직접 커밋).
 
 ---
 
