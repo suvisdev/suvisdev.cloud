@@ -145,7 +145,27 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # 6. Neo4j — GraphRAG용 그래프 DB (pgvector/PostgreSQL은 그대로 유지, 완전 교체 아님)
+  # EC2 메모리(7.6GB, 컨테이너 8개 상시 기동)가 빠듯해 JVM heap/pagecache를 캡 건다.
+  # 7474/7687은 인터넷에 노출하지 않는다 — nginx/Cloudflare Tunnel 전용 패턴을 따라
+  # 127.0.0.1에만 바인딩(다른 서비스처럼 0.0.0.0으로 열지 않음).
+  # 실행: docker compose --env-file suvisdev/.env up -d neo4j
+  neo4j:
+    image: neo4j:5.26-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_initial__size: 1G
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512m
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+
 volumes:
   db_data:
   redis_data:
   pgadmin_data:
+  neo4j_data:

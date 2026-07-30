@@ -141,6 +141,15 @@
   "LangChain+pgVector → LangGraph+Neo4j" 4단계 도입 로드맵(Neo4j 도입 →
   Hybrid Retrieval → LangGraph 전환 → 에이전틱 피드백 루프) 신규 작성 —
   문서화만, 구현은 착수 전. 상세: WORK_LOG 2026-07-30.
+- **`docker-compose.yaml` Neo4j 서비스 provisioning(2026-07-30)**: GraphRAG용
+  Neo4j 컨테이너 추가(heap 1G/pagecache 512m 캡, 127.0.0.1 전용 바인딩,
+  `.env` `NEO4J_PASSWORD` 참조, named volume) — pgvector/기존 서비스는
+  불변, `requirements.txt`도 아직 미변경(provisioning까지만). 김에 발견한
+  사전 존재 손상 2건(`docker-compose.yaml` 끝 stray `1`, `.env` 76행 깨진
+  셸 명령어 조각)도 제거. **컨테이너 실기동/검증은 미완료** — 이 세션의
+  WSL에서 Docker 데몬 연결 불가(Docker Desktop WSL 통합 문제로 추정),
+  사용자가 별도 환경에서 `docker compose up -d neo4j` 확인 필요. 상세:
+  WORK_LOG 2026-07-30.
 - **lora-server 초기화된 노트북 재세팅(2026-07-28)**: `~/.venv-exaone` +
   EXAONE-3.5-2.4B-Instruct-AWQ(원래 7.8B 계획에서 VRAM 여유 이유로 2.4B로
   변경)로 재구성. 학습된 LoRA 어댑터가 이 머신·백업 어디에도 없어 재학습
@@ -161,6 +170,11 @@
 ## 다음 / 남은 작업 (백로그)
 
 
+- **Neo4j 컨테이너 실기동 검증(2026-07-30 신규)**: `docker-compose.yaml`에
+  neo4j 서비스 provisioning은 끝났지만 `docker compose up -d neo4j` →
+  `logs`에서 "Started." 확인 → `docker ps`로 Up 상태 확인이 아직 안 됨(WSL
+  세션에서 Docker 데몬 미연결). 실제 Docker가 붙는 환경(EC2 또는 WSL 통합
+  복구 후)에서 기동 검증 필요.
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
