@@ -116,6 +116,62 @@
 - `docker-compose.yaml`, `nginx/conf.d/app.conf` 커밋 `41d56a6`(`main`
   직접 커밋).
 
+### 작업 내용 (이어서 — alembic 마이그레이션 적용 + backend 재배포, 로그인 500 복구)
+- `git pull`로 마이그레이션 2개(`20260729_0001_add_vision_upload_soft_flags`,
+  `20260729_0002_create_hub_knowledge`)가 들어왔는데 backend 컨테이너는 옛
+  이미지로 떠 있어 `user_identities`/`hub_knowledge` 관련 로그인 500 발생 →
+  복구(사용자 요청, 순서 지정: DB 백업 → 마이그레이션 → backend 재배포 →
+  로그인 검증).
+
+### 수정/구현
+- (코드 변경 없음 — 순수 배포/운영 작업)
+- DB 백업: `docker compose exec db pg_dump` → `/tmp/suvisdev_backup_20260730_0232.sql`
+  (94KB, 0바이트 아님 확인).
+- `docker image prune -f`(dangling만, 0B 회수 — 태그 이미지와 레이어 공유) +
+  `docker builder prune -f`(빌드 캐시 9GB 회수, 둘 다 사용자 승인) →
+  `/` 여유공간 5.0G→14G.
+- `docker compose up -d --build backend`로 재빌드(새 마이그레이션 파일
+  포함) 후 `alembic upgrade 20260729_0001`(vision_uploads 3컬럼:
+  `poster_confidence`/`sharpness_score`/`is_poster_warning`) 적용,
+  `alembic stamp 20260729_0002`로 버전만 기록(아래 오류 참고).
+
+### 오류·막힌 점
+- **컨테이너 이미지 stale**: `docker compose exec backend alembic heads`가
+  재빌드 전엔 옛 head(`20260727_0001`)만 인식 — `docker-compose.yaml`이
+  `suvisdev/` 전체를 bind mount하지 않아(코드는 build-time COPY) 새
+  마이그레이션 파일이 이미지 밖에 있었음. 지시된 순서(마이그레이션 먼저 →
+  재빌드 나중)로는 4번이 no-op이 됐을 것 — 사용자 확인 후 순서를
+  재빌드 우선으로 변경.
+- **호스트에 alembic 실행 환경 없음**: `pip` 모듈조차 시스템 python3에
+  없고 프로젝트 venv도 전무 — 호스트 직접 실행(1안) 대신 컨테이너 재빌드
+  경유(2안)로 전환.
+- **디스크 공간 부족**: 1차 `docker compose up -d --build backend`가
+  `pip install` 중 `OSError: [Errno 28] No space left on device`로 실패
+  (`/` 84% 사용, 5.0G 남음, dangling 이미지 18.2GB reclaimable). `docker
+  image prune -f`는 태그 이미지와 레이어를 공유해 0B 회수 — 실제로는
+  `docker builder prune -f`(빌드 캐시 9GB)가 필요했음(둘 다 사용자 승인
+  받고 실행).
+- **hub_knowledge DuplicateTable**: `alembic upgrade head`가
+  `20260729_0002`(hub_knowledge 생성)에서 `psycopg.errors.DuplicateTable`로
+  실패. 트랜잭션 전체가 롤백돼 DB 손상은 없었음(`alembic_version`
+  `20260727_0001` 그대로, vision_uploads 컬럼도 안 들어감). 원인은 마이그레이션
+  파일 자체 docstring에 있었음 — `HubKnowledgeOrm`이 2026-07-14(cc2c334)에
+  추가된 뒤 `ensure_titanic_tables()`의 `create_all()`로만 생성돼 왔고, 이
+  DB엔 이미 그 경로로 테이블이 존재. 컬럼·인덱스·유니크제약까지 마이그레이션
+  정의와 완전히 일치함을 확인한 뒤, `20260729_0001`만 `upgrade`로 적용하고
+  `20260729_0002`는 `stamp`로 버전만 기록(SQL 미실행)하는 우회로 해결(사용자
+  승인).
+- **백로그**: `create_all()`(`ensure_titanic_tables`)과 alembic이 테이블
+  생성을 이중 관리하고 있어 새 테이블이 추가될 때마다 이번과 같은 stamp
+  충돌이 반복될 수 있다. 근본 해결은 `create_all()` 경로를 제거하고 alembic을
+  테이블 생성의 단일 소스로 삼는 것 — 오늘은 `20260729_0002` stamp로
+  우회했을 뿐 근본 원인은 그대로 남아 있음.
+
+### 산출물
+- 커밋 없음(순수 배포). DB `alembic_version`: `20260727_0001` →
+  `20260729_0002`. backend 이미지 재빌드·재기동. 백업 파일:
+  `/tmp/suvisdev_backup_20260730_0232.sql`.
+
 ---
 
 ## 2026-07-29
