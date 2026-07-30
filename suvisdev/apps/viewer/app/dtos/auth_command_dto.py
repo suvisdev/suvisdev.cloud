@@ -55,6 +55,7 @@ class SignupCommand:
 class LoginResponseDto:
     user_id: int
     username: str
+    nickname: str
 
 
 @dataclass

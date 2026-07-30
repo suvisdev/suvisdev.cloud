@@ -35,7 +35,9 @@ class RedisSessionStoreAdapter(SessionStorePort):
     def __init__(self, *, redis_url: str = _REDIS_URL) -> None:
         self._client = redis.from_url(redis_url, decode_responses=True)
 
-    def issue_session(self, *, user_id: int, username: str, email: str | None) -> str:
+    def issue_session(
+        self, *, user_id: int, username: str, nickname: str, email: str | None
+    ) -> str:
         if not _JWT_SECRET:
             raise RuntimeError("JWT_SECRET이 설정되지 않았습니다.")
 
@@ -59,7 +61,7 @@ class RedisSessionStoreAdapter(SessionStorePort):
         handoff_code = secrets.token_urlsafe(24)
         self._client.set(
             f"viewer:oauth_handoff:{handoff_code}",
-            f"{user_id}\t{username}\t{role}\t{token}",
+            f"{user_id}\t{username}\t{nickname}\t{role}\t{token}",
             ex=int(_HANDOFF_TTL.total_seconds()),
         )
         return handoff_code
@@ -70,5 +72,7 @@ class RedisSessionStoreAdapter(SessionStorePort):
         if raw is None:
             return None
         self._client.delete(key)
-        user_id_str, username, role, token = raw.split("\t", 3)
-        return SessionPayloadDto(user_id=int(user_id_str), username=username, token=token, role=role)
+        user_id_str, username, nickname, role, token = raw.split("\t", 4)
+        return SessionPayloadDto(
+            user_id=int(user_id_str), username=username, nickname=nickname, token=token, role=role
+        )

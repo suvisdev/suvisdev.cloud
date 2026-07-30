@@ -37,9 +37,9 @@ export function AuthLoginButton({ className }: AuthLoginButtonProps) {
       <div className={cn("flex shrink-0 items-center gap-2", className)}>
         <span
           className="hidden max-w-[7rem] truncate text-xs font-medium text-neutral-700 dark:text-neutral-300 sm:inline md:max-w-[9rem] md:text-sm"
-          title={session.username}
+          title={session.nickname ?? session.username}
         >
-          {session.username}
+          {session.nickname ?? session.username}
         </span>
         <Link
           href="/mypage"

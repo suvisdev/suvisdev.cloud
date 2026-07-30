@@ -70,7 +70,7 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
             "[OAuthIdentityPgRepository] %s 기존 연결 — user_id=%s",
             identity.provider, user.id,
         )
-        return LoginResponseDto(user_id=user.id, username=user.username)
+        return LoginResponseDto(user_id=user.id, username=user.username, nickname=user.nickname)
 
     async def _create_linked_user(
         self, session: AsyncSession, identity: OAuthIdentity
@@ -89,7 +89,7 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
             "[OAuthIdentityPgRepository] %s 신규 연결(약관 동의 완료) — user_id=%s",
             identity.provider, user.id,
         )
-        return LoginResponseDto(user_id=user.id, username=user.username)
+        return LoginResponseDto(user_id=user.id, username=user.username, nickname=user.nickname)
 
     async def _find_or_create_local_user(
         self, session: AsyncSession, identity: OAuthIdentity

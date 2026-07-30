@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
-import { fetchProfile, type ProfileResult } from "@/lib/profile-api"
-import { getSuvisSession } from "@/lib/suvis-session"
+import { ArrowLeft, Check, Pencil, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { fetchProfile, updateNickname, type ProfileResult } from "@/lib/profile-api"
+import { getSuvisSession, saveSuvisSession } from "@/lib/suvis-session"
 
 const GENDER_LABEL: Record<string, string> = {
   male: "남성",
@@ -24,6 +26,10 @@ export default function MyPage() {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [editingNickname, setEditingNickname] = useState(false)
+  const [nicknameInput, setNicknameInput] = useState("")
+  const [nicknameError, setNicknameError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const session = getSuvisSession()
@@ -35,6 +41,36 @@ export default function MyPage() {
       .then(setProfile)
       .catch((e: Error) => setError(e.message))
   }, [router])
+
+  const startEditingNickname = () => {
+    if (!profile) return
+    setNicknameInput(profile.nickname)
+    setNicknameError(null)
+    setEditingNickname(true)
+  }
+
+  const cancelEditingNickname = () => {
+    setEditingNickname(false)
+    setNicknameError(null)
+  }
+
+  const saveNickname = async () => {
+    const session = getSuvisSession()
+    const trimmed = nicknameInput.trim()
+    if (!session || !trimmed) return
+    setSaving(true)
+    setNicknameError(null)
+    try {
+      const updated = await updateNickname(session.id, trimmed)
+      setProfile(updated)
+      saveSuvisSession({ ...session, nickname: updated.nickname })
+      setEditingNickname(false)
+    } catch (e) {
+      setNicknameError(e instanceof Error ? e.message : "닉네임을 변경하지 못했습니다.")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (error) {
     return (
@@ -57,7 +93,6 @@ export default function MyPage() {
 
   const rows: { label: string; value: string }[] = [
     { label: "아이디", value: profile.username },
-    { label: "닉네임", value: profile.nickname },
     { label: "이메일", value: profile.email },
     { label: "성별", value: GENDER_LABEL[profile.gender] ?? profile.gender },
     {
@@ -75,6 +110,57 @@ export default function MyPage() {
         <p className="mt-1 text-sm text-neutral-500">내 계정 정보</p>
 
         <div className="mt-6 divide-y divide-neutral-100">
+          <div className="py-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-500">닉네임</span>
+              {editingNickname ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={nicknameInput}
+                    onChange={(e) => setNicknameInput(e.target.value)}
+                    maxLength={50}
+                    autoFocus
+                    className="h-7 w-32 text-sm"
+                    disabled={saving}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={saveNickname}
+                    disabled={saving || !nicknameInput.trim()}
+                    aria-label="닉네임 저장"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={cancelEditingNickname}
+                    disabled={saving}
+                    aria-label="닉네임 편집 취소"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startEditingNickname}
+                  className="inline-flex items-center gap-1.5 font-medium text-neutral-900 transition-colors hover:text-neutral-600"
+                >
+                  {profile.nickname}
+                  <Pencil className="h-3 w-3 text-neutral-400" aria-hidden />
+                </button>
+              )}
+            </div>
+            {nicknameError && (
+              <p className="mt-1 text-right text-xs text-red-600">{nicknameError}</p>
+            )}
+          </div>
           {rows.map((row) => (
             <div key={row.label} className="flex items-center justify-between py-3 text-sm">
               <span className="text-neutral-500">{row.label}</span>
