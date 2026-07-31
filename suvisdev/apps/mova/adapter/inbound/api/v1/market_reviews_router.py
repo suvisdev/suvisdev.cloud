@@ -15,6 +15,7 @@ from mova.adapter.inbound.api.schemas.market_reviews_schema import (
     ReviewWithUserSchema,
 )
 from mova.app.ports.input.market_reviews_use_case import ReviewsUseCase
+from mova.app.ports.output.market_reviews_errors import ReviewValidationError
 from mova.dependencies.market_reviews_provider import get_reviews_use_case
 from shared.security.require_user import UserPrincipal, require_user
 
@@ -48,8 +49,11 @@ async def add_review(
     principal: UserPrincipal = Depends(require_user),
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
 ) -> ReviewSchema:
-    """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert)."""
-    dto = await use_case.add_review(principal.user_id, body.movie_id, body.rating, body.body)
+    """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert). 별점만/본문만/둘 다 허용."""
+    try:
+        dto = await use_case.add_review(principal.user_id, body.movie_id, body.rating, body.body)
+    except ReviewValidationError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     return dto.to_schema()
 
 

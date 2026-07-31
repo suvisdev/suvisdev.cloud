@@ -16,6 +16,7 @@ import {
   fetchMovaReviewsByMovie,
   movaReviewToComment,
   removeFromWatchlist,
+  type MovaReviewRow,
 } from "@/lib/mova-api"
 import type { MovaComment, MovaMovie } from "@/lib/mova-movies"
 import { coercePosterUrl } from "@/lib/mova-poster"
@@ -59,11 +60,26 @@ export function MovaTitleView({
   const [reviewCount, setReviewCount] = useState<number | null>(initialReviewCount)
   const [session, setSession] = useState<SuvisSession | null>(null)
   const [review, setReview] = useState<FormStatus>(initialFormStatus)
+  const [myReview, setMyReview] = useState<MovaReviewRow | null>(null)
   const [inWatchlist, setInWatchlist] = useState(false)
   const [watchlistLoading, setWatchlistLoading] = useState(false)
   const patchReview = (patch: Partial<FormStatus>) => patchState(setReview, patch)
 
   const canSubmitReview = Boolean(movie.movieDbId)
+
+  const refreshReviews = async (currentSession: SuvisSession | null) => {
+    if (!movie.movieDbId) return
+    const [rows, summary] = await Promise.all([
+      fetchMovaReviewsByMovie(movie.movieDbId),
+      fetchMovaRating(movie.movieDbId),
+    ])
+    setComments(rows.map(movaReviewToComment))
+    setMyReview(currentSession ? (rows.find((r) => r.user_id === currentSession.id) ?? null) : null)
+    if (summary) {
+      setAverageRating(summary.average_rating)
+      setReviewCount(summary.review_count)
+    }
+  }
 
   useEffect(() => {
     setComments(movie.comments)
@@ -75,6 +91,8 @@ export function MovaTitleView({
     if (s && movie.movieDbId) {
       checkWatchlist(s.id, movie.movieDbId).then(setInWatchlist).catch(() => null)
     }
+    void refreshReviews(s)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movie.movieDbId])
 
   const handleWatchlistToggle = async () => {
@@ -95,19 +113,6 @@ export function MovaTitleView({
     }
   }
 
-  const refreshReviews = async () => {
-    if (!movie.movieDbId) return
-    const [rows, summary] = await Promise.all([
-      fetchMovaReviewsByMovie(movie.movieDbId),
-      fetchMovaRating(movie.movieDbId),
-    ])
-    setComments(rows.map(movaReviewToComment))
-    if (summary) {
-      setAverageRating(summary.average_rating)
-      setReviewCount(summary.review_count)
-    }
-  }
-
   const handleReviewSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
@@ -117,7 +122,9 @@ export function MovaTitleView({
     }
 
     const text = (formProps.text ?? "").trim()
-    const rating = Number(formProps.rating)
+    const ratingValue = Number(formProps.rating)
+    const hasRating = Boolean(formProps.rating) && ratingValue >= 0.5 && ratingValue <= 5
+    const hasText = text.length > 0
 
     const errors: Record<string, string> = {}
     if (!canSubmitReview) {
@@ -126,8 +133,9 @@ export function MovaTitleView({
     if (!session) {
       errors.text = "리뷰를 남기려면 로그인해 주세요."
     }
-    if (!text) errors.text = errors.text ?? "리뷰 내용을 입력해 주세요."
-    if (!rating || rating < 0.5 || rating > 5) errors.rating = "평점을 선택해 주세요."
+    if (!hasRating && !hasText) {
+      errors.rating = "별점 또는 감상평 중 하나는 입력해 주세요."
+    }
     if (Object.keys(errors).length > 0) {
       patchReview({ errors, message: null })
       return
@@ -138,12 +146,11 @@ export function MovaTitleView({
     try {
       await createMovaReview({
         movie_id: movie.movieDbId,
-        rating,
-        body: text,
+        rating: hasRating ? ratingValue : null,
+        body: hasText ? text : null,
       })
-      await refreshReviews()
+      await refreshReviews(session)
       patchReview({ submitting: false, message: "리뷰가 등록되었습니다." })
-      e.currentTarget.reset()
     } catch (err) {
       patchReview({
         submitting: false,
@@ -303,9 +310,13 @@ export function MovaTitleView({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-[var(--mova-text)]">{comment.user}</p>
-                        <RatingStars rating={comment.rating} className="text-xs" />
+                        {comment.rating > 0 ? (
+                          <RatingStars rating={comment.rating} className="text-xs" />
+                        ) : null}
                       </div>
-                      <p className="mt-2 text-sm leading-relaxed text-neutral-300">{comment.text}</p>
+                      {comment.text ? (
+                        <p className="mt-2 text-sm leading-relaxed text-neutral-300">{comment.text}</p>
+                      ) : null}
                       <p className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-500">
                         <ThumbsUp className="h-3 w-3" />
                         {comment.likes}
@@ -330,8 +341,16 @@ export function MovaTitleView({
                   </Link>
                   후 리뷰를 남길 수 있습니다.
                 </p>
+              ) : myReview ? (
+                <p className="mt-3 text-xs text-neutral-500">
+                  이미 남긴 리뷰가 있습니다 — 아래에서 수정할 수 있습니다.
+                </p>
               ) : null}
-              <form onSubmit={handleReviewSubmit} className="mt-4 space-y-3">
+              <form
+                key={myReview?.id ?? "new-review"}
+                onSubmit={handleReviewSubmit}
+                className="mt-4 space-y-3"
+              >
                 <div className="space-y-1">
                   <label className="text-xs text-neutral-400" htmlFor="review-rating">
                     평점
@@ -339,7 +358,7 @@ export function MovaTitleView({
                   <select
                     id="review-rating"
                     name="rating"
-                    defaultValue=""
+                    defaultValue={myReview && myReview.rating > 0 ? String(myReview.rating) : ""}
                     disabled={!canSubmitReview || review.submitting}
                     className="h-9 w-full rounded-md border border-[var(--mova-border)] bg-[var(--mova-bg)] px-3 text-sm text-[var(--mova-text)]"
                   >
@@ -366,7 +385,8 @@ export function MovaTitleView({
                     id="review-text"
                     name="text"
                     rows={4}
-                    placeholder="감상을 간단히 남겨 주세요."
+                    placeholder="감상을 간단히 남겨 주세요. (선택)"
+                    defaultValue={myReview?.body ?? ""}
                     disabled={!canSubmitReview || review.submitting}
                     className="w-full resize-none rounded-md border border-[var(--mova-border)] bg-[var(--mova-bg)] px-3 py-2 text-sm text-[var(--mova-text)]"
                   />
@@ -380,8 +400,10 @@ export function MovaTitleView({
                   {review.submitting ? (
                     <span className="inline-flex items-center gap-1.5">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      등록 중
+                      {myReview ? "수정 중" : "등록 중"}
                     </span>
+                  ) : myReview ? (
+                    "리뷰 수정"
                   ) : (
                     "리뷰 등록"
                   )}

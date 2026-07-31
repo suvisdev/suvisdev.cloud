@@ -503,8 +503,8 @@ export async function fetchMovaRating(movieId: number): Promise<MovaRatingSummar
 
 export async function createMovaReview(input: {
   movie_id: number
-  rating: number
-  body: string
+  rating: number | null
+  body: string | null
 }): Promise<void> {
   const res = await fetch(reviewsFetchUrl(""), {
     method: "POST",

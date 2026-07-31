@@ -197,6 +197,35 @@
     `lint-imports` 5개 계약 유지(기존에 깨져 있던 hub-independence 1건은 무관),
     `pnpm type-check` 통과, dev 서버로 새 라우트 전부 200 확인(백엔드 미기동
     상태라 실제 숫자 표시까지는 미확인).
+- **mova 리뷰 Phase B — 별점+리뷰 UX 완성**(Phase A 보안 가드·upsert는 무변경,
+  watched 게이트는 여전히 범위 밖):
+  - `ReviewCreateSchema`: `rating`/`body` 둘 다 `Optional`로 — `rating`은
+    `Field(ge=0.5, le=5.0, multiple_of=0.5)`, `body`는 `max_length=500`.
+    별점만/본문만/둘 다 제출 허용, 완전히 빈 제출만 인터랙터에서 거부.
+  - `market_reviews_errors.py` 신규 — `ReviewValidationError`(422). 인터랙터
+    `add_review()`가 `rating is None and not body.strip()`이면 이 예외를
+    던지고, 라우터가 `HTTPException(422)`로 변환.
+  - `ReviewsPgRepository`: `add_review()`가 `rating=None`일 때 `float(None)`으로
+    죽던 잠재 버그 수정(None 가드 추가). 별점 클램프 하한을 스키마와 맞춰
+    1.0→0.5로 정정(`add_review`·`update_review` 둘 다) — 안 맞추면 0.5점
+    재제출이 upsert 경로(`update_review`)에서 1.0으로 조용히 뭉개짐.
+  - 프론트 `mova-title-view.tsx`: 제출 검증을 "둘 다 필수"에서 "둘 다 없으면만
+    거부"로 변경. 로그인 유저가 이미 남긴 리뷰가 있으면 `fetchMovaReviewsByMovie`
+    결과에서 `user_id`로 찾아 폼에 prefill(`key`로 폼 강제 리마운트해 uncontrolled
+    input에도 defaultValue 반영), 버튼 라벨도 "리뷰 등록"/"리뷰 수정"으로 분기.
+    리뷰 목록에서 별점 없는 리뷰는 별 표시 생략, 본문 없는 리뷰는 본문 생략.
+  - `apps/mova/tests/test_market_reviews.py`에 라우터 5건 + 인터랙터 4건 추가
+    (별점만/본문만 201, 둘 다 없음 422, 범위·0.5단위 위반 422). 전체
+    73→18건 신규 포함 pytest 전부 통과, `pnpm type-check` 통과.
+  - **부수 발견·수정**: `apps/analytics/tests/`가 gildle과 똑같이 bare
+    `tests.app.fakes` 임포트 패턴을 써서, 전체 스위트를 한 번에 돌리면(개별
+    앱 단위로만 돌릴 땐 안 드러남) 먼저 import되는 쪽이 이겨서 다른 쪽
+    fakes 모듈을 못 찾는 충돌이 있었음(내가 지난 세션에 analytics 앱을
+    만들며 넣은 버그). `analytics/tests/conftest.py`에서 `apps/analytics/`를
+    sys.path에 얹는 부분을 제거하고, 두 테스트 파일의 import를
+    `analytics.tests.app.fakes`(패키지 경로 명시)로 바꿔 해결. 전체
+    `pytest -m "not gpu"` 340 passed(1건은 실 Ollama 서버 필요한 기존
+    마커 테스트라 이 환경에선 원래도 실패 — 무관).
 
 ### 오류·막힌 점
 - Docker Desktop(WSL2)이 이 세션에서 미기동 상태라 마이그레이션 실제
@@ -240,6 +269,10 @@
 - 커밋 10: `suvis/tsconfig.tsbuildinfo` git 추적 해제(`git rm --cached`) —
   `.gitignore`엔 추가했지만 이미 추적 중이던 파일이라 계속 modified로
   잡히던 것 정리.
+- 커밋 11: mova 리뷰 Phase B(별점+리뷰 UX) — 백엔드 5개 파일 + 신규 errors
+  모듈 1개 + 테스트 파일 1개(9건 추가) + analytics 테스트 충돌 수정(conftest
+  1개 + 테스트 2개, import 경로만 변경) + 프론트 2개 파일 + 작업 일지.
+  사용자 지시로 이번엔 push는 보류.
 - 커밋하지 않은 나머지 변경(사용자 지시로 계속 제외): 파일 권한만 바뀐
   2534개 파일(내용 변경 없음, `core.fileMode false`로 재발 방지), `.idea/`
   (이번에 `.gitignore` 추가, 애초에 미추적).

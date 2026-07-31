@@ -33,11 +33,15 @@ class ReviewActivityWithMovieSchema(BaseModel):
 
 
 class ReviewCreateSchema(BaseModel):
-    """user_id는 요청 바디로 받지 않는다 — require_user principal에서 파생."""
+    """user_id는 요청 바디로 받지 않는다 — require_user principal에서 파생.
+
+    별점만 / 본문만 / 둘 다 제출을 허용한다 — 둘 다 비어 있으면 인터랙터가
+    거부한다(ReviewValidationError, 422).
+    """
 
     movie_id: int
-    rating: float
-    body: str = ""
+    rating: float | None = Field(default=None, ge=0.5, le=5.0, multiple_of=0.5)
+    body: str | None = Field(default=None, max_length=500)
 
 
 class ReviewSchema(BaseModel):
