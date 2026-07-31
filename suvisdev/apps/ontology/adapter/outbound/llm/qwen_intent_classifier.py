@@ -16,9 +16,10 @@ from ontology.app.ports.output.intent_classifier_port import IntentClassifierPor
 logger = logging.getLogger(__name__)
 
 _DESTINATIONS = ("crud", "rag", "general")
-# 분류 실패(호출 에러·JSON 파싱 실패) 시 rag로 보내면 영화와 무관한 질문에 엉뚱한
-# 영화 추천이 나간다 — general(Gemini)은 임의 질문에 무난히 답할 수 있어 더 안전하다.
-_DEFAULT_DESTINATION = "general"
+# 분류 실패(호출 에러·JSON 파싱 실패) 시 general로 보내면 실제 추천 요청이 시스템
+# 프롬프트 없는 Gemini 산문으로 새 버린다(2026-07-31 회귀 실측) — mova는 추천 앱이라
+# "산문으로 새는 것"보다 "구조화 카드 경로에서 실패하는 것"이 사용자 기대에 가깝다.
+_DEFAULT_DESTINATION = "rag"
 
 _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
 아래 JSON 스키마로만 응답하고, 다른 설명·인사말·예시는 절대 붙이지 마.
@@ -56,7 +57,25 @@ _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 
 답변: {"destination": "general", "entities": []}
 
 질문: "봉준호 감독 영화 추천해줘"
-답변: {"destination": "rag", "entities": ["봉준호"]}"""
+답변: {"destination": "rag", "entities": ["봉준호"]}
+
+질문: "장르별로 4편씩 추천해줘"
+답변: {"destination": "rag", "entities": ["장르별", "4편"]}
+
+질문: "가볍게 볼 만한 한국 영화 몇 개 골라줘"
+답변: {"destination": "rag", "entities": ["가벼운", "한국 영화"]}
+
+질문: "주말에 볼 로맨스랑 코미디 하나씩"
+답변: {"destination": "rag", "entities": ["로맨스", "코미디"]}
+
+질문: "심각하지 않고 기분 좋아지는 영화"
+답변: {"destination": "rag", "entities": ["기분 좋은"]}
+
+질문: "이 영화 감독 누구야?"
+답변: {"destination": "general", "entities": []}
+
+질문: "줄거리만 알려줘"
+답변: {"destination": "general", "entities": []}"""
 
 
 class QwenIntentClassifier(IntentClassifierPort):

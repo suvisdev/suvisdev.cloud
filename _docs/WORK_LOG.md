@@ -93,10 +93,14 @@
   - `downgrade()`가 `upgrade()`를 정확히 역순으로 되돌리는 구조 확인(정적
     검토 — Docker 데몬 미기동으로 실제 upgrade→downgrade→upgrade 왕복은
     미실행, "환경 없음" 스킵).
-- (이번 세션에서 만들어졌지만 이번 커밋에는 포함하지 않음 — 다음 커밋에서
-  처리 여부 확인 필요): mova 채팅 라우팅 회귀 수정
-  (`qwen_intent_classifier.py`·`market_chat_interactor.py`·관련 테스트),
-  mova 검색창 디커플링(`mova-search-bar.tsx`).
+- **mova 채팅 라우팅 회귀 수정** — 별도 커밋으로 분리 처리(아래):
+  `_DEFAULT_DESTINATION`을 `general`→`rag`로 뒤집어 분류 애매/실패 시 산문
+  누수 대신 카드 실패로 떨어지게 함, rag/general 대조 few-shot 6개 추가,
+  `_reply_general`의 `system=None` 버그를 `_GENERAL_CHAT_SYSTEM_PROMPT` 주입으로
+  수정. 대상: `qwen_intent_classifier.py`·`market_chat_interactor.py`·
+  `test_qwen_intent_classifier.py`·`test_market_chat_interactor.py`(신규).
+  mova 검색창 디커플링(`mova-search-bar.tsx`)은 이번에도 커밋 보류 —
+  워킹트리에 미커밋 상태로 유지.
 - **리뷰 API 보안 하드닝(Phase A)** — `shared/security/require_user.py`(HS256,
   `UserPrincipal(user_id, username)`)를 `viewer/profile_router.py`와 동일한
   패턴(`Depends(require_user)` + 소유권 비교)으로 재사용:
@@ -147,8 +151,10 @@
   파일 + 작업 일지. 마이그레이션 파일 자체는 무변경(검증만).
 - 커밋 2: 리뷰 API 보안 하드닝(Phase A) — 백엔드 6개 파일 + 신규 테스트
   1개 + 프론트 3개 파일 + 작업 일지.
-- 커밋하지 않은 나머지 변경(사용자 확인 후 별도 커밋 예정): mova 채팅
-  라우팅 회귀 수정, mova 검색창 디커플링.
+- 커밋 3: mova 채팅 라우팅 회귀 수정 — `qwen_intent_classifier.py`·
+  `market_chat_interactor.py` + 관련 테스트 2개 파일 + 작업 일지.
+- 커밋하지 않은 나머지 변경(사용자 지시로 워킹트리에 유지): mova 검색창
+  디커플링(`mova-search-bar.tsx`).
 
 ---
 
