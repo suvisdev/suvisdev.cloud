@@ -55,34 +55,38 @@ export function Header() {
           <Link href="/devlog" className={`${navLinkClass} md:hidden`}>
             Devlog
           </Link>
-          <Link href="/lesson" className={`${navLinkClass} sm:hidden`}>
-            LESSON
-          </Link>
+          {isAdmin && (
+            <>
+              <Link href="/lesson" className={`${navLinkClass} sm:hidden`}>
+                LESSON
+              </Link>
 
-          <div className="group relative hidden sm:block">
-            <Link
-              href="/lesson"
-              className={`${navLinkClass} inline-flex items-center gap-1`}
-              aria-haspopup="menu"
-            >
-              LESSON
-              <span aria-hidden>▾</span>
-            </Link>
-            <div className="invisible absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-neutral-200 bg-white p-1 opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-[#252b3b] dark:bg-[#161a24]">
-              <Link
-                href="/titanic"
-                className="block rounded-lg px-3 py-2 text-xs text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
-              >
-                타이타닉
-              </Link>
-              <Link
-                href="/titanic/data-collection"
-                className="block rounded-lg px-3 py-2 text-xs text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
-              >
-                데이터 수집
-              </Link>
-            </div>
-          </div>
+              <div className="group relative hidden sm:block">
+                <Link
+                  href="/lesson"
+                  className={`${navLinkClass} inline-flex items-center gap-1`}
+                  aria-haspopup="menu"
+                >
+                  LESSON
+                  <span aria-hidden>▾</span>
+                </Link>
+                <div className="invisible absolute right-0 top-full z-50 mt-2 min-w-40 rounded-xl border border-neutral-200 bg-white p-1 opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 dark:border-[#252b3b] dark:bg-[#161a24]">
+                  <Link
+                    href="/titanic"
+                    className="block rounded-lg px-3 py-2 text-xs text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
+                  >
+                    타이타닉
+                  </Link>
+                  <Link
+                    href="/titanic/data-collection"
+                    className="block rounded-lg px-3 py-2 text-xs text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
+                  >
+                    데이터 수집
+                  </Link>
+                </div>
+              </div>
+            </>
+          )}
 
           <AuthLoginButton />
 
