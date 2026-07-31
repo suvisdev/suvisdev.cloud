@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Search } from "lucide-react"
 import { fetchMovaSearch, movaMatchLabel, type MovaSearchResult } from "@/lib/mova-api"
 import { searchMovaMovies } from "@/lib/mova-movies"
@@ -41,19 +41,9 @@ export function MovaSearchBar({
   onEmptySubmit,
 }: MovaSearchBarProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [search, setSearch] = useState<SearchState>(initialSearch)
   const patchSearch = (patch: Partial<SearchState>) => patchState(setSearch, patch)
   const wrapRef = useRef<HTMLDivElement>(null)
-  const seededFromUrl = useRef(false)
-
-  useEffect(() => {
-    if (seededFromUrl.current) return
-    const q = searchParams.get("q")?.trim()
-    if (!q) return
-    seededFromUrl.current = true
-    patchSearch({ query: q, open: true })
-  }, [searchParams])
 
   useEffect(() => {
     const q = search.query.trim()
