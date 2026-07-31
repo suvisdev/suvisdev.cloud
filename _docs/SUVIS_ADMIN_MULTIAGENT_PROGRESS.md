@@ -203,11 +203,17 @@
 
 ## 다음 / 남은 작업 (백로그)
 
-- **mova TMDB credits 백필 EC2 실행(2026-07-30 신규)**: `alembic upgrade
-  head`로 `20260730_0001`(actors.tmdb_person_id 등 4건) 적용 후
-  `docker compose exec backend python scripts/backfill_credits_cli.py`
-  실행 필요 — 로컬 Docker 미연결로 마이그레이션 적용·backfill 실행 둘 다
-  미검증. 기존 movies 40편 기준 TMDB 상세 40회 호출(쿼터 확인 권장).
+- **mova TMDB credits 백필 집(GPU) 실행(2026-07-30 신규, 2026-07-31 사전준비
+  완료)**: `alembic upgrade head`로 `20260730_0001`(actors.tmdb_person_id 등
+  4건) 적용 후 `python scripts/backfill_credits_cli.py` 실행 필요. 2026-07-31에
+  학원 환경에서 할 수 있는 사전 준비 끝: ① 마이그레이션 체인 정적 검증(단일
+  head, 선형 연결, UNIQUE/DROP/downgrade 안전성 확인 — 단 Docker 미기동으로
+  실제 upgrade/downgrade 왕복은 미검증), ② CLI에 `--limit N`(시험 실행)·
+  `--dry-run`(DB write 없이 로그만) 추가, ③ TMDB 429 백오프 + 영화 간 sleep
+  추가로 안정성 보강. **남은 건 집에서 실제 `alembic upgrade head` 적용 +
+  `--limit 3 --dry-run`으로 먼저 시험 후 전량 실행뿐.** 실행 전
+  `SELECT COUNT(*) FROM actors;`로 0행인지 먼저 확인 권장(마이그레이션이 그
+  전제를 코드로 검증하지 않음). 상세: WORK_LOG 2026-07-31.
 - **Neo4j 데이터 투입**: 스키마(제약+벡터 인덱스)만 있고 노드는 0건. TMDB/KOFIC
   import 파이프라인으로 채워야 함(착수 전).
 - **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:

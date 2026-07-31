@@ -218,6 +218,67 @@ class CreditsBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.failed, 2)
         self.assertEqual(set(result.failed_slugs), {"tmdb-1", "tmdb-2"})
 
+    async def test_limit_processes_only_first_n(self) -> None:
+        interactor, movies, actors, characters, directors = self._build(
+            slugs=[(1, "tmdb-1"), (2, "tmdb-2"), (3, "tmdb-3")],
+            credits_by_tmdb_id={1: TmdbCreditsDto(), 2: TmdbCreditsDto(), 3: TmdbCreditsDto()},
+        )
+
+        result = await interactor.backfill_credits(limit=2)
+
+        self.assertEqual(result.succeeded, 2)
+        self.assertEqual(interactor._catalog.fetch_credits.await_count, 2)
+
+    async def test_dry_run_skips_writes(self) -> None:
+        from mova.app.dtos.studio_import_dto import TmdbCastMemberDto, TmdbDirectorDto
+
+        credits = TmdbCreditsDto(
+            cast=[TmdbCastMemberDto(tmdb_person_id=100, name="배우A", character="역할1", order=0)],
+            directors=[TmdbDirectorDto(tmdb_person_id=200, name="감독A")],
+        )
+        interactor, movies, actors, characters, directors = self._build(
+            slugs=[(1, "tmdb-550")],
+            credits_by_tmdb_id={550: credits},
+        )
+
+        result = await interactor.backfill_credits(dry_run=True)
+
+        self.assertEqual(result.succeeded, 1)
+        actors.upsert_actor.assert_not_awaited()
+        characters.upsert_character.assert_not_awaited()
+        directors.upsert_director.assert_not_awaited()
+
+
+class ParseArgsTests(unittest.TestCase):
+    """scripts/backfill_credits_cli.py --limit/--dry-run 인자 파싱."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        suvisdev_root = ROOT
+        if str(suvisdev_root) not in sys.path:
+            sys.path.insert(0, str(suvisdev_root))
+        from scripts.backfill_credits_cli import _parse_args
+
+        cls._parse_args = staticmethod(_parse_args)
+
+    def test_defaults_are_full_run(self) -> None:
+        args = self._parse_args([])
+        self.assertIsNone(args.limit)
+        self.assertFalse(args.dry_run)
+
+    def test_limit_parses_as_int(self) -> None:
+        args = self._parse_args(["--limit", "3"])
+        self.assertEqual(args.limit, 3)
+
+    def test_dry_run_flag(self) -> None:
+        args = self._parse_args(["--dry-run"])
+        self.assertTrue(args.dry_run)
+
+    def test_limit_and_dry_run_combined(self) -> None:
+        args = self._parse_args(["--limit", "3", "--dry-run"])
+        self.assertEqual(args.limit, 3)
+        self.assertTrue(args.dry_run)
+
 
 if __name__ == "__main__":
     unittest.main()

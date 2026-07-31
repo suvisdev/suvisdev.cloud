@@ -28,6 +28,90 @@
 
 ---
 
+## 2026-07-31
+
+### 작업 내용
+- mova 채팅이 "포스터 3개 카드"에서 "장르별 4편 산문"으로 회귀한 원인 조사 →
+  수정. `LoraRecommendationAdapter`(rag 경로: 프롬프트·DTO·파싱·프론트 카드)는
+  전부 정상이었고, 실제 원인은 시맨틱 인텐트 라우터(`QwenIntentClassifier`)가
+  분류 실패/애매한 요청을 `general`로 폴백시켜 시스템 프롬프트 없는 Gemini
+  산문으로 새는 것이었음(진입점: `market_chat_interactor.py`의
+  `destination in ("general","crud")` 분기).
+- mova 상단 검색창이 AI 채팅 입력과 같은 값으로 채워지는(연동돼 보이는) 버그
+  조사 → `/mova/main`에서 `MovaHeader`(작은 검색창)와 `MovaAiChatBar`(채팅)가
+  같은 URL `q` 파라미터를 각자 다른 의도로 읽고 있던 것이 원인.
+- `~/projects/suvisdev/.claude/settings.local.json`(존재하지 않는 경로) 요청을
+  받고 실제로는 IDE에 열려 있던 저장소 루트 `.claude/settings.local.json`임을
+  확인 후 SessionStart 훅(`git pull --ff-only`, matcher `startup`) 추가 요청 —
+  파일이 JSON 객체 2개가 이어붙어 있어 이미 무효 상태였던 것도 함께 발견·수정.
+- mova DB 채우기("집 실행") 전 파이프라인 현황을 순수 조사(코드 변경 없음):
+  벡터 저장소(hub_knowledge가 실제 리트리버 소스, movies.embedding/neo4j는
+  참조 0건), credits 경로(HEAD 커밋에 이미 actors/characters/movie_directors
+  쓰기 경로 배선 완료돼 있었음), 시드 진입점(`MIN_CATALOG_MOVIES=5` vs
+  `.env.example` 주석 "12편" 불일치).
+- mova 리뷰 기능 구현 전 현황을 순수 조사(코드 변경 없음): `reviews`/
+  `user_actions` 테이블·ORM·인터랙터·라우터·프론트 폼까지 전 계층이 이미
+  존재(기존 확장 대상)하지만 라우터에 로그인 가드가 전혀 없고(`user_id`를
+  요청 바디에서 그대로 신뢰) watched 게이트 로직도 없음을 확인.
+- 위 조사에서 나온 "TMDB credits 백필을 집(GPU)에서 돌리기 전 준비" 요청 —
+  마이그레이션 `20260730_0001` 정적 검증 + 백필 CLI 안전화(이 항목만 이번
+  커밋 대상, 나머지는 아래 "산출물" 참고).
+
+### 수정/구현
+- **credits 백필 CLI 안전화** (임베딩/Ollama·seed_catalog_if_sparse 자동 편입·
+  프로덕션/EC2 실행은 손대지 않음):
+  - `scripts/backfill_credits_cli.py`: `argparse`로 `--limit N`(앞 N편만
+    처리)·`--dry-run`(DB write 생략, fetch 결과만 로그) 추가. 인자 없으면
+    기존과 동일하게 전량 실행.
+  - `apps/mova/app/use_cases/credits_backfill_interactor.py`:
+    `backfill_credits(*, limit=None, dry_run=False)`로 확장. dry_run이면
+    `_backfill_one`이 upsert 대신 cast/directors 이름만 로그. 영화 간
+    TMDB 호출 사이에 `asyncio.sleep(0.25)` 삽입(레이트리밋 대비).
+  - `apps/mova/app/ports/input/credits_backfill_use_case.py`,
+    `apps/mova/dependencies/credits_backfill_provider.py`: 위 시그니처
+    변경을 포트·DI까지 동기화.
+  - `apps/mova/adapter/outbound/http/tmdb_adapter.py`: `_get()`에 429 응답
+    시 `Retry-After` 헤더(없으면 고정 백오프) 기반 재시도(최대 3회) 추가.
+  - `apps/mova/tests/test_credits_backfill.py`: limit/dry_run 동작 테스트
+    2건 + CLI 인자 파싱 테스트 4건(`ParseArgsTests`) 추가. 기존 14건 포함
+    전체 20건 통과.
+  - `.env.example`: 시드 임계 주석을 실제 상수(`MIN_CATALOG_MOVIES=5`)에
+    맞춰 "12편 미만" → "5편 미만"으로 정정(코드 상수는 불변).
+- **마이그레이션 `20260730_0001` 정적 검증**(변경 없음, 검증만):
+  - `alembic heads` 단일 head(`20260730_0001`) 확인, `alembic history`로
+    `20260729_0002 → 20260730_0001` 선형 연결 확인 — 분기·누락 없음.
+  - `actors.tmdb_person_id` UNIQUE는 nullable 컬럼에 추가돼 Postgres가
+    NULL 다중 허용이라 안전하나, 이 마이그는 "actors가 현재 0행"이라는
+    전제를 코드로 검증하지 않고 그냥 가정함(직전 커밋 메시지·이번 조사
+    둘 다 0행이라고 명시). **집에서 실제 실행 전 `SELECT COUNT(*) FROM
+    actors;`로 그 전제를 먼저 확인 권장.**
+  - `uq_actors_name_role` DROP을 코드에서 참조/의존하는 곳 0건(grep 확인) —
+    안전.
+  - `downgrade()`가 `upgrade()`를 정확히 역순으로 되돌리는 구조 확인(정적
+    검토 — Docker 데몬 미기동으로 실제 upgrade→downgrade→upgrade 왕복은
+    미실행, "환경 없음" 스킵).
+- (이번 세션에서 만들어졌지만 이번 커밋에는 포함하지 않음 — 다음 커밋에서
+  처리 여부 확인 필요): mova 채팅 라우팅 회귀 수정
+  (`qwen_intent_classifier.py`·`market_chat_interactor.py`·관련 테스트),
+  mova 검색창 디커플링(`mova-search-bar.tsx`).
+
+### 오류·막힌 점
+- Docker Desktop(WSL2)이 이 세션에서 미기동 상태라 마이그레이션 실제
+  upgrade/downgrade 왕복 검증은 하지 못함 — 정적 검토로 대체.
+- `pytest`/`ruff`가 시스템 `python`/`PATH`엔 없고 `/home/a/.venv`를
+  activate해야 잡힘(반복 확인 필요한 환경 특이사항).
+
+### 데이터
+- 변경 없음(코드·설정만 수정, DB 접속·마이그레이션 적용 없음).
+
+### 산출물
+- 이번 커밋 대상: credits 백필 CLI 안전화 6개 파일 + `.env.example` 주석
+  정정 1개 파일 + 이 작업 일지. 마이그레이션 파일 자체는 무변경(검증만).
+- 커밋하지 않은 나머지 변경(사용자 확인 후 별도 커밋 예정): mova 채팅
+  라우팅 회귀 수정, mova 검색창 디커플링.
+
+---
+
 ## 2026-07-30
 
 ### 작업 내용

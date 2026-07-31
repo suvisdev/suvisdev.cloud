@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 TMDB_BASE = "https://api.themoviedb.org/3"
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
+# 429(rate limit) 재시도 횟수·기본 백오프(초) — Retry-After 헤더가 있으면 그걸 우선한다.
+_RATE_LIMIT_MAX_RETRIES = 3
+_RATE_LIMIT_BACKOFF_SECONDS = 1.0
+
 
 def build_image_url(path: str | None) -> str:
     """TMDB 이미지 경로(poster_path/profile_path 공용) → 절대 URL."""
@@ -19,6 +24,16 @@ def build_image_url(path: str | None) -> str:
         return ""
     normalized = path if path.startswith("/") else f"/{path}"
     return f"{TMDB_IMAGE_BASE}{normalized}"
+
+
+def _rate_limit_wait_seconds(response: httpx.Response, attempt: int) -> float:
+    retry_after = response.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return max(0.0, float(retry_after))
+        except ValueError:
+            pass
+    return _RATE_LIMIT_BACKOFF_SECONDS * (attempt + 1)
 
 
 class TmdbAdapterError(Exception):
@@ -45,22 +60,36 @@ class TmdbAdapter:
         if params:
             query.update(params)
         url = f"{TMDB_BASE}{path}"
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                response = await client.get(url, params=query)
-                response.raise_for_status()
-                return response.json()
-        except httpx.HTTPStatusError as e:
-            detail = ""
+        for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
             try:
-                detail = e.response.json().get("status_message", "")
-            except Exception:
-                pass
-            msg = detail or f"TMDB HTTP {e.response.status_code}"
-            logger.warning("[TmdbAdapter] %s %s — %s", path, e.response.status_code, msg)
-            raise TmdbAdapterError(msg, status_code=e.response.status_code) from e
-        except httpx.RequestError as e:
-            raise TmdbAdapterError(f"TMDB 연결 실패: {e!s}") from e
+                async with httpx.AsyncClient(timeout=20.0) as client:
+                    response = await client.get(url, params=query)
+                    response.raise_for_status()
+                    return response.json()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < _RATE_LIMIT_MAX_RETRIES:
+                    wait = _rate_limit_wait_seconds(e.response, attempt)
+                    logger.warning(
+                        "[TmdbAdapter] %s 429 rate limit, %.1fs 후 재시도(%d/%d)",
+                        path,
+                        wait,
+                        attempt + 1,
+                        _RATE_LIMIT_MAX_RETRIES,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                detail = ""
+                try:
+                    detail = e.response.json().get("status_message", "")
+                except Exception:
+                    pass
+                msg = detail or f"TMDB HTTP {e.response.status_code}"
+                logger.warning("[TmdbAdapter] %s %s — %s", path, e.response.status_code, msg)
+                raise TmdbAdapterError(msg, status_code=e.response.status_code) from e
+            except httpx.RequestError as e:
+                raise TmdbAdapterError(f"TMDB 연결 실패: {e!s}") from e
+        msg = "TMDB 429 rate limit — 재시도 초과"
+        raise TmdbAdapterError(msg, status_code=429)
 
     async def genre_map(self) -> dict[int, str]:
         data = await self._get("/genre/movie/list")
