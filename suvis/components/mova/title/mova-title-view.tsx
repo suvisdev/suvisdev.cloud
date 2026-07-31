@@ -137,7 +137,6 @@ export function MovaTitleView({
     patchReview({ errors: {}, submitting: true, message: null })
     try {
       await createMovaReview({
-        user_id: session.id,
         movie_id: movie.movieDbId,
         rating,
         body: text,

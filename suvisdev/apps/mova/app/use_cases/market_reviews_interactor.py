@@ -22,7 +22,18 @@ class ReviewsInteractor(ReviewsUseCase):
         return await self._repository.add_activity(user_id, movie_id, action_type)
 
     async def add_review(self, user_id: int, movie_id: int, rating: float, body: str) -> ReviewDto:
-        return await self._repository.add_review(user_id, movie_id, rating, body)
+        """UNIQUE(user_id, movie_id) 위반을 IntegrityError로 새지 않게 upsert로 처리한다.
+
+        재제출 = 수정(단일 리뷰 폼 전제) — 기존 리뷰가 있으면 갱신, 없으면 신규 작성.
+        """
+        existing = await self._repository.find_by_user_and_movie(user_id, movie_id)
+        if existing is None:
+            return await self._repository.add_review(user_id, movie_id, rating, body)
+        updated = await self._repository.update_review(existing.id, rating, body)
+        return updated if updated is not None else existing
+
+    async def get_by_id(self, review_id: int) -> ReviewDto | None:
+        return await self._repository.get_by_id(review_id)
 
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
         return await self._repository.get_by_movie(movie_id, limit, offset)

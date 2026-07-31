@@ -56,6 +56,9 @@
 - 위 조사에서 나온 "TMDB credits 백필을 집(GPU)에서 돌리기 전 준비" 요청 —
   마이그레이션 `20260730_0001` 정적 검증 + 백필 CLI 안전화(이 항목만 이번
   커밋 대상, 나머지는 아래 "산출물" 참고).
+- 리뷰 API 보안 하드닝(Phase A) — 위 리뷰 기능 조사에서 발견한 무인증·IDOR·
+  미처리 UNIQUE 위반 공백을 실제로 막음. watched 게이트(Phase B, '봤어요'
+  버튼)는 이번 범위 밖으로 명시적으로 제외.
 
 ### 수정/구현
 - **credits 백필 CLI 안전화** (임베딩/Ollama·seed_catalog_if_sparse 자동 편입·
@@ -94,6 +97,41 @@
   처리 여부 확인 필요): mova 채팅 라우팅 회귀 수정
   (`qwen_intent_classifier.py`·`market_chat_interactor.py`·관련 테스트),
   mova 검색창 디커플링(`mova-search-bar.tsx`).
+- **리뷰 API 보안 하드닝(Phase A)** — `shared/security/require_user.py`(HS256,
+  `UserPrincipal(user_id, username)`)를 `viewer/profile_router.py`와 동일한
+  패턴(`Depends(require_user)` + 소유권 비교)으로 재사용:
+  - `market_reviews_router.py`: `POST /mova/reviews`·`POST
+    /mova/reviews/activity`·`PATCH /mova/reviews/{review_id}` 세 라우트에
+    `Depends(require_user)` 추가. `body.user_id` 대신 `principal.user_id`만
+    신뢰. PATCH는 `use_case.get_by_id(review_id)`로 먼저 로드해 없으면 404,
+    소유자 불일치면 403.
+  - `market_reviews_schema.py`: `ReviewCreateSchema`·
+    `ReviewActivityCreateSchema`에서 `user_id` 필드 제거(클라이언트가 보내도
+    무시가 아니라 애초에 스키마에 없음).
+  - `market_reviews_repository.py`(포트)·`market_reviews_pg_repository.py`:
+    `get_by_id`(소유권 검증용)·`find_by_user_and_movie`(중복 방지용) 신설.
+  - `market_reviews_use_case.py`(포트)·`market_reviews_interactor.py`:
+    `get_by_id` 패스스루 추가. `add_review()`에 upsert 정책 구현 —
+    `find_by_user_and_movie`로 기존 리뷰 조회 후 있으면
+    `update_review`(재제출=수정, 단일 폼 전제), 없으면 `add_review`(INSERT).
+    `reviews.UNIQUE(user_id, movie_id)` 위반이 처리되지 않은
+    `IntegrityError`로 500 새는 경로를 구조적으로 제거(중복 INSERT 자체가
+    발생 안 함).
+  - 프론트: `lib/mova-api.ts`의 `createMovaReview()`에서 `user_id` 파라미터
+    제거하고 `authHeader()`(`suvis-session.ts`, 기존 함수 재사용)로
+    `Authorization: Bearer` 전송. `app/api/mova/reviews/route.ts`(프록시)가
+    받은 헤더를 백엔드까지 그대로 전달하도록 수정(3계층 전달 — 이거 빠뜨리면
+    토큰이 프록시에서 끊겨 로그인 유저도 401 남). `mova-title-view.tsx`
+    호출부에서 `user_id: session.id` 제거.
+  - 범위 밖(의도적으로 안 건드림): watched 게이트/'봤어요' 버튼(Phase B),
+    채팅·추천·임베딩·리트리버, `mova-ai-chat-bar.tsx` 등 다른 토큰 미전송
+    지점.
+  - 테스트: `apps/mova/tests/test_market_reviews.py` 신규 9건 — 토큰
+    없음→401(3라우트), body의 user_id 무시하고 principal 값 사용, 타인 리뷰
+    PATCH→403, 없는 리뷰→404, 본인 리뷰 PATCH 성공, upsert 인터랙터 2건
+    (신규 insert / 기존 update로 분기, `add_review`·`update_review` 호출
+    여부까지 검증). 전체 스위트 324 passed(기존 무관 실패 1건만 유지, 회귀
+    없음). `pnpm type-check` 통과.
 
 ### 오류·막힌 점
 - Docker Desktop(WSL2)이 이 세션에서 미기동 상태라 마이그레이션 실제
@@ -105,8 +143,10 @@
 - 변경 없음(코드·설정만 수정, DB 접속·마이그레이션 적용 없음).
 
 ### 산출물
-- 이번 커밋 대상: credits 백필 CLI 안전화 6개 파일 + `.env.example` 주석
-  정정 1개 파일 + 이 작업 일지. 마이그레이션 파일 자체는 무변경(검증만).
+- 커밋 1: credits 백필 CLI 안전화 6개 파일 + `.env.example` 주석 정정 1개
+  파일 + 작업 일지. 마이그레이션 파일 자체는 무변경(검증만).
+- 커밋 2: 리뷰 API 보안 하드닝(Phase A) — 백엔드 6개 파일 + 신규 테스트
+  1개 + 프론트 3개 파일 + 작업 일지.
 - 커밋하지 않은 나머지 변경(사용자 확인 후 별도 커밋 예정): mova 채팅
   라우팅 회귀 수정, mova 검색창 디커플링.
 

@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 
 
 class ReviewActivityCreateSchema(BaseModel):
-    user_id: int
+    """user_id는 요청 바디로 받지 않는다 — require_user principal에서 파생."""
+
     movie_id: int
     action_type: str
 
@@ -32,7 +33,8 @@ class ReviewActivityWithMovieSchema(BaseModel):
 
 
 class ReviewCreateSchema(BaseModel):
-    user_id: int
+    """user_id는 요청 바디로 받지 않는다 — require_user principal에서 파생."""
+
     movie_id: int
     rating: float
     body: str = ""

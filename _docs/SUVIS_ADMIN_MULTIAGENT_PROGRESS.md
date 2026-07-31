@@ -191,6 +191,18 @@
   마이페이지에 닉네임 인라인 편집 UI + `PATCH /viewer/profile/{id}`(본인
   확인 가드 `shared/security/require_user.py` 신규) 추가. 실제 계정으로
   인증·소유권(401/403/200)·값 보존 수동 검증 완료. 상세: WORK_LOG 2026-07-30.
+- **mova 리뷰 API 보안 하드닝 Phase A(2026-07-31)**: `POST /mova/reviews`·
+  `POST /mova/reviews/activity`·`PATCH /mova/reviews/{review_id}`가 인증
+  없이 열려 있고 `user_id`를 요청 바디에서 그대로 신뢰하던 것을
+  `shared/security/require_user.py`(2026-07-30 mypage에서 신설한 것과 동일
+  가드)로 잠금. PATCH는 `review.user_id`와 `principal.user_id` 대조해 403
+  (IDOR 수정). `reviews.UNIQUE(user_id, movie_id)` 재작성 시 미처리
+  `IntegrityError`로 500 나던 것을 인터랙터 레벨 upsert(기존 리뷰 있으면
+  update, 없으면 insert)로 구조적으로 제거. 프론트 `createMovaReview()` +
+  프록시 `route.ts`가 `Authorization` 헤더를 끝까지 전달하도록 3계층 배선.
+  단위 테스트 9건(401/403/404/200 + upsert 분기) 추가, 회귀 없음. watched
+  게이트('봤어요' 버튼)는 Phase B로 의도적으로 남김. 상세: WORK_LOG
+  2026-07-31.
 
 ---
 
@@ -203,6 +215,12 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **mova 리뷰 watched 게이트 Phase B(2026-07-31 신규)**: "watched로 기록한
+  유저만 리뷰 작성 가능" 정책은 이번 Phase A에 포함 안 함 — '봤어요' 버튼
+  프론트 UI + `ReviewsRepositoryPort.has_watched(user_id, movie_id)`(신설
+  필요, `user_actions.action_type == "watched"` 조회) + `add_review()`에
+  게이트 삽입이 남은 작업. rating을 watched 판정 근거로 쓰면 안 됨(순환
+  논리 — 상세 WORK_LOG 2026-07-31 리뷰 사전조사 항목 참고).
 - **mova TMDB credits 백필 집(GPU) 실행(2026-07-30 신규, 2026-07-31 사전준비
   완료)**: `alembic upgrade head`로 `20260730_0001`(actors.tmdb_person_id 등
   4건) 적용 후 `python scripts/backfill_credits_cli.py` 실행 필요. 2026-07-31에

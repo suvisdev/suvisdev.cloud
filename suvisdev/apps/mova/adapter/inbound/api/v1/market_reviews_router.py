@@ -16,6 +16,7 @@ from mova.adapter.inbound.api.schemas.market_reviews_schema import (
 )
 from mova.app.ports.input.market_reviews_use_case import ReviewsUseCase
 from mova.dependencies.market_reviews_provider import get_reviews_use_case
+from shared.security.require_user import UserPrincipal, require_user
 
 market_reviews_router = APIRouter(prefix="/reviews", tags=["mova-reviews"])
 
@@ -33,20 +34,22 @@ async def introduce_myself() -> _MyselfResponse:
 @market_reviews_router.post("/activity", response_model=ReviewActivitySchema, status_code=201)
 async def add_activity(
     body: ReviewActivityCreateSchema,
+    principal: UserPrincipal = Depends(require_user),
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
 ) -> ReviewActivitySchema:
     """이벤트(favorite/watched/click/not_interested) 기록."""
-    dto = await use_case.add_activity(body.user_id, body.movie_id, body.action_type)
+    dto = await use_case.add_activity(principal.user_id, body.movie_id, body.action_type)
     return dto.to_schema()
 
 
 @market_reviews_router.post("", response_model=ReviewSchema, status_code=201)
 async def add_review(
     body: ReviewCreateSchema,
+    principal: UserPrincipal = Depends(require_user),
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
 ) -> ReviewSchema:
-    """별점·감상평 리뷰 저장."""
-    dto = await use_case.add_review(body.user_id, body.movie_id, body.rating, body.body)
+    """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert)."""
+    dto = await use_case.add_review(principal.user_id, body.movie_id, body.rating, body.body)
     return dto.to_schema()
 
 
@@ -76,9 +79,15 @@ async def get_rating_summary(
 async def update_review(
     review_id: int,
     body: ReviewUpdateSchema,
+    principal: UserPrincipal = Depends(require_user),
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
 ) -> ReviewSchema:
-    """리뷰 수정."""
+    """리뷰 수정 — 본인 리뷰만 가능(IDOR 방지)."""
+    existing = await use_case.get_by_id(review_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
+    if existing.user_id != principal.user_id:
+        raise HTTPException(status_code=403, detail="본인 리뷰만 수정할 수 있습니다.")
     dto = await use_case.update_review(review_id, body.rating, body.body)
     if dto is None:
         raise HTTPException(status_code=404, detail=f"Review {review_id} not found")

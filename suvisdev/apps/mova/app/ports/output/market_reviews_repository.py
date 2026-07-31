@@ -24,6 +24,14 @@ class ReviewsRepositoryPort(ABC):
         """별점·감상평 리뷰 저장 (action_type=review)."""
 
     @abstractmethod
+    async def find_by_user_and_movie(self, user_id: int, movie_id: int) -> ReviewDto | None:
+        """user_id+movie_id 기존 리뷰 조회 (중복 INSERT 방지용)."""
+
+    @abstractmethod
+    async def get_by_id(self, review_id: int) -> ReviewDto | None:
+        """리뷰 단건 조회 (소유권 검증용)."""
+
+    @abstractmethod
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
         """영화별 리뷰 목록 (user join)."""
 
