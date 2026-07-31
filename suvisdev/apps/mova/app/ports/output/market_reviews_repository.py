@@ -20,8 +20,10 @@ class ReviewsRepositoryPort(ABC):
         """이벤트(favorite/watched/click/not_interested) 기록."""
 
     @abstractmethod
-    async def add_review(self, user_id: int, movie_id: int, rating: float, body: str) -> ReviewDto:
-        """별점·감상평 리뷰 저장 (action_type=review)."""
+    async def add_review(
+        self, user_id: int, movie_id: int, rating: float | None, body: str | None
+    ) -> ReviewDto:
+        """별점·감상평 리뷰 저장 (action_type=review). 별점만/본문만/둘 다 허용."""
 
     @abstractmethod
     async def find_by_user_and_movie(self, user_id: int, movie_id: int) -> ReviewDto | None:

@@ -201,8 +201,18 @@
   update, 없으면 insert)로 구조적으로 제거. 프론트 `createMovaReview()` +
   프록시 `route.ts`가 `Authorization` 헤더를 끝까지 전달하도록 3계층 배선.
   단위 테스트 9건(401/403/404/200 + upsert 분기) 추가, 회귀 없음. watched
-  게이트('봤어요' 버튼)는 Phase B로 의도적으로 남김. 상세: WORK_LOG
-  2026-07-31.
+  게이트('봤어요' 버튼)는 별도 백로그 항목("mova 리뷰 watched 게이트")으로
+  의도적으로 남김. 상세: WORK_LOG 2026-07-31.
+- **mova 리뷰 별점+리뷰 UX 완성(2026-07-31)**: 로그인 유저가 watched 여부
+  무관하게 별점만/본문만/둘 다 제출 가능하게 확장(완전히 빈 제출만 422로
+  거부). `ReviewCreateSchema` rating/body Optional화(rating은
+  `ge=0.5,le=5.0,multiple_of=0.5`), 인터랙터에 `ReviewValidationError` 신설,
+  `ReviewsPgRepository`의 rating=None 크래시 버그 수정 + 클램프 하한을
+  0.5로 정정. 프론트는 기존 리뷰 prefill(수정 가능) + 리뷰 목록에서
+  별점/본문 없는 쪽은 생략 표시. Phase A(인증·IDOR·upsert)·watched
+  게이트(아래 백로그)는 건드리지 않음. 부수적으로 `apps/analytics/tests`가
+  gildle과 테스트 모듈명이 충돌하던 버그(전체 스위트를 같이 돌릴 때만
+  드러남)도 함께 수정. 상세: WORK_LOG 2026-07-31.
 - **어드민 통계 — 방문자 탭 + 크롤링 탭(2026-07-31)**: `/admin/stats`를
   개요/방문자/크롤링 3탭으로 재구성. 방문자는 신규 백엔드 앱 `apps/analytics`
   (자체 방문 기록, GA 연동 없음)로 실집계, 크롤링은 `crawl_config.yaml` 정책 +
@@ -231,8 +241,9 @@
   정상 연결돼 있음은 `alembic history`로 확인했지만, Docker(Postgres) 접근
   불가로 `alembic upgrade head` 실제 적용은 못 했다. 집/EC2에서 적용 후
   `/admin/stats/visitors` 탭이 실제 숫자를 보여주는지 확인 필요.
-- **mova 리뷰 watched 게이트 Phase B(2026-07-31 신규)**: "watched로 기록한
-  유저만 리뷰 작성 가능" 정책은 이번 Phase A에 포함 안 함 — '봤어요' 버튼
+- **mova 리뷰 watched 게이트(2026-07-31 신규, 별점+리뷰 UX와는 별개 — 그쪽은
+  완료됨 참고)**: "watched로 기록한 유저만 리뷰 작성 가능" 정책은 이번
+  Phase A·별점+리뷰 UX 어디에도 포함 안 함 — '봤어요' 버튼
   프론트 UI + `ReviewsRepositoryPort.has_watched(user_id, movie_id)`(신설
   필요, `user_actions.action_type == "watched"` 조회) + `add_review()`에
   게이트 삽입이 남은 작업. rating을 watched 판정 근거로 쓰면 안 됨(순환

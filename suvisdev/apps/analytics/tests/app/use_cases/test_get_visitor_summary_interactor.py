@@ -2,9 +2,9 @@ from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from tests.app.fakes import _FakeVisitorActivityRepository
 
 from analytics.app.use_cases.get_visitor_summary_interactor import GetVisitorSummaryInteractor
+from analytics.tests.app.fakes import _FakeVisitorActivityRepository
 
 _KST = ZoneInfo("Asia/Seoul")
 

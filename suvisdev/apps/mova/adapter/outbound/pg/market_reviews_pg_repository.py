@@ -47,11 +47,13 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             action_at=row.action_at,
         )
 
-    async def add_review(self, user_id: int, movie_id: int, rating: float, body: str) -> ReviewDto:
+    async def add_review(
+        self, user_id: int, movie_id: int, rating: float | None, body: str | None
+    ) -> ReviewDto:
         row = MovaReview(
             user_id=user_id,
             movie_id=movie_id,
-            rating=max(1.0, min(5.0, float(rating))),
+            rating=max(0.5, min(5.0, float(rating))) if rating is not None else None,
             body=body,
         )
         self._session.add(row)
@@ -135,7 +137,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         if row is None:
             return None
         if rating is not None:
-            row.rating = max(1.0, min(5.0, float(rating)))
+            row.rating = max(0.5, min(5.0, float(rating)))
         if body is not None:
             row.body = body
         await self._session.commit()

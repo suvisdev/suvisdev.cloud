@@ -1,9 +1,9 @@
 import uuid
 
 import pytest
-from tests.app.fakes import _FakeVisitorActivityRepository
 
 from analytics.app.use_cases.record_visit_interactor import RecordVisitInteractor
+from analytics.tests.app.fakes import _FakeVisitorActivityRepository
 
 
 class TestRecordVisit:

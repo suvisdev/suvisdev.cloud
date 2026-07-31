@@ -20,7 +20,9 @@ class ReviewsUseCase(ABC):
         pass
 
     @abstractmethod
-    async def add_review(self, user_id: int, movie_id: int, rating: float, body: str) -> ReviewDto:
+    async def add_review(
+        self, user_id: int, movie_id: int, rating: float | None, body: str | None
+    ) -> ReviewDto:
         pass
 
     @abstractmethod
