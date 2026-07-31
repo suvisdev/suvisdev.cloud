@@ -15,6 +15,8 @@ from ontology.adapter.outbound.scraper.registry import SITE_REGISTRY
 from ontology.app.ports.input.crawl_schedule_use_case import CrawlScheduleUseCase
 from ontology.app.ports.input.custom_url_scrape_use_case import CustomUrlScrapeUseCase
 from ontology.app.ports.input.scrape_dataset_use_case import ScrapeDatasetUseCase
+from ontology.app.ports.output.crawl_policy_port import CrawlPolicyPort
+from ontology.app.ports.output.crawl_schedule_state_port import CrawlScheduleStatePort
 from ontology.app.ports.output.harvester_command_parser_port import HarvesterCommandParserPort
 from ontology.app.ports.output.keyword_source_port import KeywordSourcePort
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
@@ -119,6 +121,24 @@ def build_scrape_dataset_use_case(scraper: SiteScraperPort) -> ScrapeDatasetUseC
     from ontology.app.use_cases.Scraper_interactor import ScrapeDatasetInteractor
 
     return ScrapeDatasetInteractor(scraper=scraper, writer=LocalJsonlDatasetRepository())
+
+
+def build_crawl_policy_port() -> CrawlPolicyPort:
+    """크롤링 탭(읽기 전용 정책 현황판)이 재사용하는, 정책 어댑터만 단독 노출."""
+    from ontology.adapter.outbound.config.yaml_crawl_policy_adapter import (
+        YamlCrawlPolicyAdapter,
+    )
+
+    return YamlCrawlPolicyAdapter()
+
+
+def build_crawl_schedule_state_port() -> CrawlScheduleStatePort:
+    """크롤링 탭이 site별 마지막 실행 시각을 읽기 위해 재사용하는 단독 노출."""
+    from ontology.adapter.outbound.cache.redis_crawl_schedule_state_adapter import (
+        RedisCrawlScheduleStateAdapter,
+    )
+
+    return RedisCrawlScheduleStateAdapter()
 
 
 def build_crawl_schedule_use_case(

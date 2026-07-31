@@ -14,11 +14,13 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from ontology.adapter.inbound.api.schemas.harvester_schema import (
     HarvesterCommandRequestSchema,
+    HarvesterPolicySchema,
     HarvesterRunResponseSchema,
     HarvesterSiteSchema,
 )
@@ -29,6 +31,8 @@ from ontology.app.ports.output.crawl_errors import CrawlFetchError
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.dependencies.harvester_provider import (
     UnknownSiteError,
+    build_crawl_policy_port,
+    build_crawl_schedule_state_port,
     build_crawl_schedule_use_case,
     build_custom_url_scrape_use_case,
     build_harvester_command_parser,
@@ -49,6 +53,36 @@ async def sites(_: AdminPrincipal = Depends(require_admin)) -> list[HarvesterSit
         HarvesterSiteSchema(site_id=site_id, fetcher_kind=cls.fetcher_kind)
         for site_id, cls in sorted(SITE_REGISTRY.items())
     ]
+
+
+@harvester_router.get("/policies", response_model=list[HarvesterPolicySchema])
+async def policies(_: AdminPrincipal = Depends(require_admin)) -> list[HarvesterPolicySchema]:
+    """크롤링 탭 — crawl_config.yaml 재수집 정책 + site별 마지막 실행 시각 현황판.
+
+    주의: Redis에 남는 마지막 실행 시각은 site_id 단위다. crawl_config.yaml에서 같은
+    site(예: google_news)에 정책이 여러 개면 last_run_at이 그 site의 마지막 실행
+    시각 하나로 전부 동일하게 나온다 — 정책별이 아니라 사이트별 값이다.
+    """
+    policy_port = build_crawl_policy_port()
+    state_port = build_crawl_schedule_state_port()
+    now = datetime.now(UTC)
+
+    out: list[HarvesterPolicySchema] = []
+    for p in policy_port.get_policies():
+        last_run = state_port.get_last_run(p.site_id)
+        is_due = last_run is None or (now - last_run) >= timedelta(minutes=p.interval_minutes)
+        out.append(
+            HarvesterPolicySchema(
+                site_id=p.site_id,
+                keywords=list(p.keywords),
+                keyword_source=p.keyword_source,
+                interval_minutes=p.interval_minutes,
+                limit_per_keyword=p.limit_per_keyword,
+                last_run_at=last_run.isoformat() if last_run else None,
+                is_due=is_due,
+            )
+        )
+    return out
 
 
 async def _run_custom_url(url: str, instruction: str, *, append: bool) -> HarvesterRunResponseSchema:

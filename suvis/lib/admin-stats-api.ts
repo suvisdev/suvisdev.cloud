@@ -7,7 +7,6 @@ export type AgentUsageSlice = { name: string; value: number }
 
 export type StatsData = {
   callTrend: TrendPoint[]
-  crawlPerf: TrendPoint[]
   agentUsage: AgentUsageSlice[]
   userActivity: TrendPoint[]
 }
@@ -43,7 +42,6 @@ export async function getStats(period: StatsPeriod): Promise<StatsData> {
 
   return {
     callTrend: buildTrend(period, 1, 20, 60),
-    crawlPerf: buildTrend(period, 2, 3, 15),
     agentUsage,
     userActivity: buildTrend(period, 3, 2, 10),
   }

@@ -203,6 +203,17 @@
   단위 테스트 9건(401/403/404/200 + upsert 분기) 추가, 회귀 없음. watched
   게이트('봤어요' 버튼)는 Phase B로 의도적으로 남김. 상세: WORK_LOG
   2026-07-31.
+- **어드민 통계 — 방문자 탭 + 크롤링 탭(2026-07-31)**: `/admin/stats`를
+  개요/방문자/크롤링 3탭으로 재구성. 방문자는 신규 백엔드 앱 `apps/analytics`
+  (자체 방문 기록, GA 연동 없음)로 실집계, 크롤링은 `crawl_config.yaml` 정책 +
+  Redis 마지막 실행 시각을 조합한 읽기 전용 현황판(harvester `GET /policies`
+  신설). 코드 레벨은 전부 완성·단위 테스트 통과, **다만 alembic 마이그레이션
+  `20260731_0001`을 실제 DB에 적용하는 건 미검증**(이 세션에서 Docker 접근
+  불가 — 아래 "다음/남은 작업" 참고). 상세: WORK_LOG 2026-07-31.
+- **suvis 레슨 메뉴 admin 전용 노출**: 헤더 LESSON 링크 + 하위 9개 페이지
+  전체를 `AdminAuthGate`로 로그인(관리자) 전용 처리. `AdminAuthGate`를
+  `app/admin/_components/`에서 `components/auth/`로 이동(다른 라우트에서도
+  재사용). 상세: WORK_LOG 2026-07-31.
 
 ---
 
@@ -215,6 +226,11 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규)**: 마이그레이션
+  `20260731_0001_create_analytics_visitor_activity`가 `20260730_0001` 뒤에
+  정상 연결돼 있음은 `alembic history`로 확인했지만, Docker(Postgres) 접근
+  불가로 `alembic upgrade head` 실제 적용은 못 했다. 집/EC2에서 적용 후
+  `/admin/stats/visitors` 탭이 실제 숫자를 보여주는지 확인 필요.
 - **mova 리뷰 watched 게이트 Phase B(2026-07-31 신규)**: "watched로 기록한
   유저만 리뷰 작성 가능" 정책은 이번 Phase A에 포함 안 함 — '봤어요' 버튼
   프론트 UI + `ReviewsRepositoryPort.has_watched(user_id, movie_id)`(신설

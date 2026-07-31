@@ -9,6 +9,7 @@ root_packages =
     gildle
     contents
     sample
+    analytics
     core
     auth
     shared
@@ -28,6 +29,7 @@ forbidden_modules =
     gildle
     contents
     sample
+    analytics
 
 # Rule 2: Spokes must not import each other directly (star topology).
 [importlinter:contract:spoke-independence]
@@ -42,6 +44,7 @@ modules =
     gildle
     contents
     sample
+    analytics
     auth
 # Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
 #
@@ -112,6 +115,7 @@ source_modules =
     execsuite
     titanic
     viewer
+    analytics
 forbidden_modules =
     auth
 
@@ -132,4 +136,5 @@ forbidden_modules =
     execsuite
     titanic
     viewer
+    analytics
     auth

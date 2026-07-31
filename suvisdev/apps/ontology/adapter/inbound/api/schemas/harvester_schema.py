@@ -19,3 +19,15 @@ class HarvesterRunResponseSchema(BaseModel):
     path: str
     parsed_keyword: str
     parsed_limit: int
+
+
+class HarvesterPolicySchema(BaseModel):
+    """크롤링 탭 — crawl_config.yaml 정책 + Redis 마지막 실행 시각 현황판."""
+
+    site_id: str
+    keywords: list[str]
+    keyword_source: str | None
+    interval_minutes: int
+    limit_per_keyword: int | None
+    last_run_at: str | None
+    is_due: bool

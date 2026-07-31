@@ -27,6 +27,7 @@ for _p in (_BACKEND_ROOT, _APPS_ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+from analytics.adapter.inbound.api import analytics_router
 from contents.adapter.inbound.api import contents_router
 from core.matrix.grid_oracle_database_manager import (
     create_tables,
@@ -334,6 +335,7 @@ app.include_router(contents_router, prefix="/api/v1")
 app.include_router(vision_router, prefix="/api")
 app.include_router(ontology_router, prefix="/api")
 app.include_router(nlp_router, prefix="/api")
+app.include_router(analytics_router, prefix="/api/v1")
 
 
 @app.get("/api-login", response_class=HTMLResponse, include_in_schema=False)
