@@ -237,9 +237,12 @@
 - 커밋 9: `.claude/skills/`(code-review 스킬) + `.claude/scripts/
   protect-files.sh`(파일 보호 훅 스크립트, 단 `.claude/settings.json`에
   아직 연결 안 돼 있음 — 별도 확인 필요) 추가.
+- 커밋 10: `suvis/tsconfig.tsbuildinfo` git 추적 해제(`git rm --cached`) —
+  `.gitignore`엔 추가했지만 이미 추적 중이던 파일이라 계속 modified로
+  잡히던 것 정리.
 - 커밋하지 않은 나머지 변경(사용자 지시로 계속 제외): 파일 권한만 바뀐
-  2534개 파일(내용 변경 없음, `core.fileMode false`로 재발 방지), `.idea/`·
-  `suvis/tsconfig.tsbuildinfo`(둘 다 이번에 `.gitignore` 추가).
+  2534개 파일(내용 변경 없음, `core.fileMode false`로 재발 방지), `.idea/`
+  (이번에 `.gitignore` 추가, 애초에 미추적).
 
 ---
 
