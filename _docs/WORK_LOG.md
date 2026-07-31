@@ -226,11 +226,20 @@
 - 커밋 5: suvis 레슨 admin 전용 노출 + 페이지 게이트.
 - 커밋 6: 어드민 통계 방문자·크롤링 탭(백엔드 `analytics` 앱 신설 +
   harvester 확장 + 프론트 탭 재구성).
-- 커밋하지 않은 나머지 변경(사용자 지시로 워킹트리에 유지): mova 검색창
-  디커플링(`mova-search-bar.tsx`), 파일 권한만 바뀐 2534개 파일(내용 변경
-  없음), `.idea/`·`.claude/scripts`·`.claude/skills`·`susu/_docs`(이번 세션과
-  무관한 기존 미추적 상태, 검토 없이 포함하지 않음), `suvis/tsconfig.tsbuildinfo`
-  (빌드 캐시).
+- 사용자가 내용 확인(`git diff`·폴더 목록) 후 커밋 지시 — 사전 수정으로
+  `.claude/scripts/protect-files.sh` 24번째 줄의 의미 없는 단독 `1` 문자
+  제거(`exit 0` 뒤 잔재), `.gitignore`에 `.idea/`·`suvis/tsconfig.tsbuildinfo`
+  추가(둘 다 계속 커밋 대상에서 제외).
+- 커밋 7: mova 검색창-채팅 디커플링(`mova-search-bar.tsx`, 어제 세션에서
+  보류했던 것을 사용자 확인 후 커밋).
+- 커밋 8: susu Android/iOS 빌드 환경 가이드 문서 추가(`susu/_docs/
+  flutter-{android,ios}-harness.md`, 기존 작성분).
+- 커밋 9: `.claude/skills/`(code-review 스킬) + `.claude/scripts/
+  protect-files.sh`(파일 보호 훅 스크립트, 단 `.claude/settings.json`에
+  아직 연결 안 돼 있음 — 별도 확인 필요) 추가.
+- 커밋하지 않은 나머지 변경(사용자 지시로 계속 제외): 파일 권한만 바뀐
+  2534개 파일(내용 변경 없음, `core.fileMode false`로 재발 방지), `.idea/`·
+  `suvis/tsconfig.tsbuildinfo`(둘 다 이번에 `.gitignore` 추가).
 
 ---
 
