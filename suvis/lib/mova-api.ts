@@ -2,6 +2,7 @@ import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import type { MovaComment, MovaMovie } from "@/lib/mova-movies"
 import { MOVA_RANKING } from "@/lib/mova-movies"
 import { coercePosterUrl } from "@/lib/mova-poster"
+import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 const API_BASE =
@@ -501,14 +502,13 @@ export async function fetchMovaRating(movieId: number): Promise<MovaRatingSummar
 }
 
 export async function createMovaReview(input: {
-  user_id: number
   movie_id: number
   rating: number
   body: string
 }): Promise<void> {
   const res = await fetch(reviewsFetchUrl(""), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeader() },
     body: JSON.stringify(input),
   })
   if (!res.ok) {

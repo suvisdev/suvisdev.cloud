@@ -191,6 +191,29 @@
   마이페이지에 닉네임 인라인 편집 UI + `PATCH /viewer/profile/{id}`(본인
   확인 가드 `shared/security/require_user.py` 신규) 추가. 실제 계정으로
   인증·소유권(401/403/200)·값 보존 수동 검증 완료. 상세: WORK_LOG 2026-07-30.
+- **mova 리뷰 API 보안 하드닝 Phase A(2026-07-31)**: `POST /mova/reviews`·
+  `POST /mova/reviews/activity`·`PATCH /mova/reviews/{review_id}`가 인증
+  없이 열려 있고 `user_id`를 요청 바디에서 그대로 신뢰하던 것을
+  `shared/security/require_user.py`(2026-07-30 mypage에서 신설한 것과 동일
+  가드)로 잠금. PATCH는 `review.user_id`와 `principal.user_id` 대조해 403
+  (IDOR 수정). `reviews.UNIQUE(user_id, movie_id)` 재작성 시 미처리
+  `IntegrityError`로 500 나던 것을 인터랙터 레벨 upsert(기존 리뷰 있으면
+  update, 없으면 insert)로 구조적으로 제거. 프론트 `createMovaReview()` +
+  프록시 `route.ts`가 `Authorization` 헤더를 끝까지 전달하도록 3계층 배선.
+  단위 테스트 9건(401/403/404/200 + upsert 분기) 추가, 회귀 없음. watched
+  게이트('봤어요' 버튼)는 Phase B로 의도적으로 남김. 상세: WORK_LOG
+  2026-07-31.
+- **어드민 통계 — 방문자 탭 + 크롤링 탭(2026-07-31)**: `/admin/stats`를
+  개요/방문자/크롤링 3탭으로 재구성. 방문자는 신규 백엔드 앱 `apps/analytics`
+  (자체 방문 기록, GA 연동 없음)로 실집계, 크롤링은 `crawl_config.yaml` 정책 +
+  Redis 마지막 실행 시각을 조합한 읽기 전용 현황판(harvester `GET /policies`
+  신설). 코드 레벨은 전부 완성·단위 테스트 통과, **다만 alembic 마이그레이션
+  `20260731_0001`을 실제 DB에 적용하는 건 미검증**(이 세션에서 Docker 접근
+  불가 — 아래 "다음/남은 작업" 참고). 상세: WORK_LOG 2026-07-31.
+- **suvis 레슨 메뉴 admin 전용 노출**: 헤더 LESSON 링크 + 하위 9개 페이지
+  전체를 `AdminAuthGate`로 로그인(관리자) 전용 처리. `AdminAuthGate`를
+  `app/admin/_components/`에서 `components/auth/`로 이동(다른 라우트에서도
+  재사용). 상세: WORK_LOG 2026-07-31.
 
 ---
 
@@ -203,11 +226,28 @@
 
 ## 다음 / 남은 작업 (백로그)
 
-- **mova TMDB credits 백필 EC2 실행(2026-07-30 신규)**: `alembic upgrade
-  head`로 `20260730_0001`(actors.tmdb_person_id 등 4건) 적용 후
-  `docker compose exec backend python scripts/backfill_credits_cli.py`
-  실행 필요 — 로컬 Docker 미연결로 마이그레이션 적용·backfill 실행 둘 다
-  미검증. 기존 movies 40편 기준 TMDB 상세 40회 호출(쿼터 확인 권장).
+- **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규)**: 마이그레이션
+  `20260731_0001_create_analytics_visitor_activity`가 `20260730_0001` 뒤에
+  정상 연결돼 있음은 `alembic history`로 확인했지만, Docker(Postgres) 접근
+  불가로 `alembic upgrade head` 실제 적용은 못 했다. 집/EC2에서 적용 후
+  `/admin/stats/visitors` 탭이 실제 숫자를 보여주는지 확인 필요.
+- **mova 리뷰 watched 게이트 Phase B(2026-07-31 신규)**: "watched로 기록한
+  유저만 리뷰 작성 가능" 정책은 이번 Phase A에 포함 안 함 — '봤어요' 버튼
+  프론트 UI + `ReviewsRepositoryPort.has_watched(user_id, movie_id)`(신설
+  필요, `user_actions.action_type == "watched"` 조회) + `add_review()`에
+  게이트 삽입이 남은 작업. rating을 watched 판정 근거로 쓰면 안 됨(순환
+  논리 — 상세 WORK_LOG 2026-07-31 리뷰 사전조사 항목 참고).
+- **mova TMDB credits 백필 집(GPU) 실행(2026-07-30 신규, 2026-07-31 사전준비
+  완료)**: `alembic upgrade head`로 `20260730_0001`(actors.tmdb_person_id 등
+  4건) 적용 후 `python scripts/backfill_credits_cli.py` 실행 필요. 2026-07-31에
+  학원 환경에서 할 수 있는 사전 준비 끝: ① 마이그레이션 체인 정적 검증(단일
+  head, 선형 연결, UNIQUE/DROP/downgrade 안전성 확인 — 단 Docker 미기동으로
+  실제 upgrade/downgrade 왕복은 미검증), ② CLI에 `--limit N`(시험 실행)·
+  `--dry-run`(DB write 없이 로그만) 추가, ③ TMDB 429 백오프 + 영화 간 sleep
+  추가로 안정성 보강. **남은 건 집에서 실제 `alembic upgrade head` 적용 +
+  `--limit 3 --dry-run`으로 먼저 시험 후 전량 실행뿐.** 실행 전
+  `SELECT COUNT(*) FROM actors;`로 0행인지 먼저 확인 권장(마이그레이션이 그
+  전제를 코드로 검증하지 않음). 상세: WORK_LOG 2026-07-31.
 - **Neo4j 데이터 투입**: 스키마(제약+벡터 인덱스)만 있고 노드는 0건. TMDB/KOFIC
   import 파이프라인으로 채워야 함(착수 전).
 - **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:

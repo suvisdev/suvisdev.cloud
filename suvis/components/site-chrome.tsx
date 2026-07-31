@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { Header } from "@/components/header"
 import { SuvisChatPanel } from "@/components/gemini-chat-panel"
+import { VisitorTracker } from "@/components/visitor-tracker"
 
 export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { setTheme } = useTheme()
-  const hideDefaultLayout =
-    pathname?.startsWith("/mova") || pathname?.startsWith("/admin")
+  const isAdminPath = pathname?.startsWith("/admin")
+  const hideDefaultLayout = pathname?.startsWith("/mova") || isAdminPath
 
   // 다크 모드는 mova 전용이다. mova 밖(메인 사이트 전체, admin 포함)에서는
   // 토글 UI 자체가 없지만, mova에 들렀다 나온 세션이나 예전에 저장된
@@ -24,6 +25,8 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/* 어드민 본인 트래픽은 방문자 집계에서 제외 */}
+      {!isAdminPath && <VisitorTracker />}
       {!hideDefaultLayout && <Header />}
       {children}
       {!hideDefaultLayout && <SuvisChatPanel />}

@@ -13,3 +13,9 @@ __pycache__/
 # 프로젝트 MCP 서버 설정은 .mcp.json 에 두고 커밋한다.
 .claude.json
 .env
+
+# IDE 로컬 상태 (사용자별 — 공유 대상 아님)
+.idea/
+
+# TypeScript incremental build 캐시 (자동 재생성됨)
+suvis/tsconfig.tsbuildinfo

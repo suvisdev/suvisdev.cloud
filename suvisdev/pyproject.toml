@@ -28,6 +28,7 @@ known-first-party = [
     "friday13th", "imitation_game", "inception", "social_network",
     "gildle",
     "contents",
+    "analytics",
     "core",
 ]
 

@@ -28,6 +28,224 @@
 
 ---
 
+## 2026-07-31
+
+### 작업 내용
+- mova 채팅이 "포스터 3개 카드"에서 "장르별 4편 산문"으로 회귀한 원인 조사 →
+  수정. `LoraRecommendationAdapter`(rag 경로: 프롬프트·DTO·파싱·프론트 카드)는
+  전부 정상이었고, 실제 원인은 시맨틱 인텐트 라우터(`QwenIntentClassifier`)가
+  분류 실패/애매한 요청을 `general`로 폴백시켜 시스템 프롬프트 없는 Gemini
+  산문으로 새는 것이었음(진입점: `market_chat_interactor.py`의
+  `destination in ("general","crud")` 분기).
+- mova 상단 검색창이 AI 채팅 입력과 같은 값으로 채워지는(연동돼 보이는) 버그
+  조사 → `/mova/main`에서 `MovaHeader`(작은 검색창)와 `MovaAiChatBar`(채팅)가
+  같은 URL `q` 파라미터를 각자 다른 의도로 읽고 있던 것이 원인.
+- `~/projects/suvisdev/.claude/settings.local.json`(존재하지 않는 경로) 요청을
+  받고 실제로는 IDE에 열려 있던 저장소 루트 `.claude/settings.local.json`임을
+  확인 후 SessionStart 훅(`git pull --ff-only`, matcher `startup`) 추가 요청 —
+  파일이 JSON 객체 2개가 이어붙어 있어 이미 무효 상태였던 것도 함께 발견·수정.
+- mova DB 채우기("집 실행") 전 파이프라인 현황을 순수 조사(코드 변경 없음):
+  벡터 저장소(hub_knowledge가 실제 리트리버 소스, movies.embedding/neo4j는
+  참조 0건), credits 경로(HEAD 커밋에 이미 actors/characters/movie_directors
+  쓰기 경로 배선 완료돼 있었음), 시드 진입점(`MIN_CATALOG_MOVIES=5` vs
+  `.env.example` 주석 "12편" 불일치).
+- mova 리뷰 기능 구현 전 현황을 순수 조사(코드 변경 없음): `reviews`/
+  `user_actions` 테이블·ORM·인터랙터·라우터·프론트 폼까지 전 계층이 이미
+  존재(기존 확장 대상)하지만 라우터에 로그인 가드가 전혀 없고(`user_id`를
+  요청 바디에서 그대로 신뢰) watched 게이트 로직도 없음을 확인.
+- 위 조사에서 나온 "TMDB credits 백필을 집(GPU)에서 돌리기 전 준비" 요청 —
+  마이그레이션 `20260730_0001` 정적 검증 + 백필 CLI 안전화(이 항목만 이번
+  커밋 대상, 나머지는 아래 "산출물" 참고).
+- 리뷰 API 보안 하드닝(Phase A) — 위 리뷰 기능 조사에서 발견한 무인증·IDOR·
+  미처리 UNIQUE 위반 공백을 실제로 막음. watched 게이트(Phase B, '봤어요'
+  버튼)는 이번 범위 밖으로 명시적으로 제외.
+- susu(Flutter) 스톱워치 위젯 추가 + 안드로이드 실행 오류 수정 — 사용자가 준
+  카운터 예제(`.dart`가 잘못 `kotlin/counter/` 폴더에 들어가 있던 것)를 참고해
+  정식 위치(`lib/`)에 스톱워치 위젯 작성. 실제 안드로이드 폰(SM F966N, API 36)에서
+  `flutter run` 중 `ClassNotFoundException: com.example.susu.MainActivity`
+  발생 → 조사·수정.
+- suvis 레슨 메뉴 admin 전용 노출 + 페이지 게이트 — "레슨도 admin처럼 로그인했을
+  때만 보이게" 요청. 헤더 LESSON 링크를 `isAdmin`일 때만 렌더링하고, `/lesson`
+  및 하위 9개 페이지(titanic·vision·soccer/chat·langchain/chat)에 직접 URL
+  접근도 차단.
+- 어드민 통계 — 방문자 탭 + 크롤링 탭 추가 — 레퍼런스 스크린샷(iOS/macOS 위젯) 기반
+  "지금 접속/오늘/최근 7일/누적" 방문자 통계 요청 + 기존 "크롤링 실적" mock 차트를
+  실제 크롤링 대상 현황판으로 교체 요청. Google Analytics·자체 방문 기록 둘 다
+  전무함을 확인 후 자체 방문 기록 구축으로 결정(plan mode로 설계 승인받음).
+
+### 수정/구현
+- **credits 백필 CLI 안전화** (임베딩/Ollama·seed_catalog_if_sparse 자동 편입·
+  프로덕션/EC2 실행은 손대지 않음):
+  - `scripts/backfill_credits_cli.py`: `argparse`로 `--limit N`(앞 N편만
+    처리)·`--dry-run`(DB write 생략, fetch 결과만 로그) 추가. 인자 없으면
+    기존과 동일하게 전량 실행.
+  - `apps/mova/app/use_cases/credits_backfill_interactor.py`:
+    `backfill_credits(*, limit=None, dry_run=False)`로 확장. dry_run이면
+    `_backfill_one`이 upsert 대신 cast/directors 이름만 로그. 영화 간
+    TMDB 호출 사이에 `asyncio.sleep(0.25)` 삽입(레이트리밋 대비).
+  - `apps/mova/app/ports/input/credits_backfill_use_case.py`,
+    `apps/mova/dependencies/credits_backfill_provider.py`: 위 시그니처
+    변경을 포트·DI까지 동기화.
+  - `apps/mova/adapter/outbound/http/tmdb_adapter.py`: `_get()`에 429 응답
+    시 `Retry-After` 헤더(없으면 고정 백오프) 기반 재시도(최대 3회) 추가.
+  - `apps/mova/tests/test_credits_backfill.py`: limit/dry_run 동작 테스트
+    2건 + CLI 인자 파싱 테스트 4건(`ParseArgsTests`) 추가. 기존 14건 포함
+    전체 20건 통과.
+  - `.env.example`: 시드 임계 주석을 실제 상수(`MIN_CATALOG_MOVIES=5`)에
+    맞춰 "12편 미만" → "5편 미만"으로 정정(코드 상수는 불변).
+- **마이그레이션 `20260730_0001` 정적 검증**(변경 없음, 검증만):
+  - `alembic heads` 단일 head(`20260730_0001`) 확인, `alembic history`로
+    `20260729_0002 → 20260730_0001` 선형 연결 확인 — 분기·누락 없음.
+  - `actors.tmdb_person_id` UNIQUE는 nullable 컬럼에 추가돼 Postgres가
+    NULL 다중 허용이라 안전하나, 이 마이그는 "actors가 현재 0행"이라는
+    전제를 코드로 검증하지 않고 그냥 가정함(직전 커밋 메시지·이번 조사
+    둘 다 0행이라고 명시). **집에서 실제 실행 전 `SELECT COUNT(*) FROM
+    actors;`로 그 전제를 먼저 확인 권장.**
+  - `uq_actors_name_role` DROP을 코드에서 참조/의존하는 곳 0건(grep 확인) —
+    안전.
+  - `downgrade()`가 `upgrade()`를 정확히 역순으로 되돌리는 구조 확인(정적
+    검토 — Docker 데몬 미기동으로 실제 upgrade→downgrade→upgrade 왕복은
+    미실행, "환경 없음" 스킵).
+- **mova 채팅 라우팅 회귀 수정** — 별도 커밋으로 분리 처리(아래):
+  `_DEFAULT_DESTINATION`을 `general`→`rag`로 뒤집어 분류 애매/실패 시 산문
+  누수 대신 카드 실패로 떨어지게 함, rag/general 대조 few-shot 6개 추가,
+  `_reply_general`의 `system=None` 버그를 `_GENERAL_CHAT_SYSTEM_PROMPT` 주입으로
+  수정. 대상: `qwen_intent_classifier.py`·`market_chat_interactor.py`·
+  `test_qwen_intent_classifier.py`·`test_market_chat_interactor.py`(신규).
+  mova 검색창 디커플링(`mova-search-bar.tsx`)은 이번에도 커밋 보류 —
+  워킹트리에 미커밋 상태로 유지.
+- **리뷰 API 보안 하드닝(Phase A)** — `shared/security/require_user.py`(HS256,
+  `UserPrincipal(user_id, username)`)를 `viewer/profile_router.py`와 동일한
+  패턴(`Depends(require_user)` + 소유권 비교)으로 재사용:
+  - `market_reviews_router.py`: `POST /mova/reviews`·`POST
+    /mova/reviews/activity`·`PATCH /mova/reviews/{review_id}` 세 라우트에
+    `Depends(require_user)` 추가. `body.user_id` 대신 `principal.user_id`만
+    신뢰. PATCH는 `use_case.get_by_id(review_id)`로 먼저 로드해 없으면 404,
+    소유자 불일치면 403.
+  - `market_reviews_schema.py`: `ReviewCreateSchema`·
+    `ReviewActivityCreateSchema`에서 `user_id` 필드 제거(클라이언트가 보내도
+    무시가 아니라 애초에 스키마에 없음).
+  - `market_reviews_repository.py`(포트)·`market_reviews_pg_repository.py`:
+    `get_by_id`(소유권 검증용)·`find_by_user_and_movie`(중복 방지용) 신설.
+  - `market_reviews_use_case.py`(포트)·`market_reviews_interactor.py`:
+    `get_by_id` 패스스루 추가. `add_review()`에 upsert 정책 구현 —
+    `find_by_user_and_movie`로 기존 리뷰 조회 후 있으면
+    `update_review`(재제출=수정, 단일 폼 전제), 없으면 `add_review`(INSERT).
+    `reviews.UNIQUE(user_id, movie_id)` 위반이 처리되지 않은
+    `IntegrityError`로 500 새는 경로를 구조적으로 제거(중복 INSERT 자체가
+    발생 안 함).
+  - 프론트: `lib/mova-api.ts`의 `createMovaReview()`에서 `user_id` 파라미터
+    제거하고 `authHeader()`(`suvis-session.ts`, 기존 함수 재사용)로
+    `Authorization: Bearer` 전송. `app/api/mova/reviews/route.ts`(프록시)가
+    받은 헤더를 백엔드까지 그대로 전달하도록 수정(3계층 전달 — 이거 빠뜨리면
+    토큰이 프록시에서 끊겨 로그인 유저도 401 남). `mova-title-view.tsx`
+    호출부에서 `user_id: session.id` 제거.
+  - 범위 밖(의도적으로 안 건드림): watched 게이트/'봤어요' 버튼(Phase B),
+    채팅·추천·임베딩·리트리버, `mova-ai-chat-bar.tsx` 등 다른 토큰 미전송
+    지점.
+  - 테스트: `apps/mova/tests/test_market_reviews.py` 신규 9건 — 토큰
+    없음→401(3라우트), body의 user_id 무시하고 principal 값 사용, 타인 리뷰
+    PATCH→403, 없는 리뷰→404, 본인 리뷰 PATCH 성공, upsert 인터랙터 2건
+    (신규 insert / 기존 update로 분기, `add_review`·`update_review` 호출
+    여부까지 검증). 전체 스위트 324 passed(기존 무관 실패 1건만 유지, 회귀
+    없음). `pnpm type-check` 통과.
+- **susu 스톱워치 위젯 + 안드로이드 실행 오류 수정**:
+  - `susu/lib/stopwatch_page.dart` 신규 — `Stopwatch`+`Timer.periodic(30ms)`,
+    랩/시작·중단, 랩 3개 이상일 때 최단·최장 랩 색상 구분(애플 스톱워치 방식).
+  - `susu/lib/main.dart`: IntroScreen에 "스톱워치 열기" 버튼 추가, `Navigator.push`로
+    연결.
+  - `susu/android/app/src/main/kotlin/counter/counteractvity.kt` 삭제 — Dart
+    코드가 안드로이드 네이티브 kotlin 소스 트리에 잘못 들어가 있던 것(빌드 시
+    컴파일 에러 유발 가능한 상태).
+  - **원인 규명**: `android/app/build.gradle.kts`의 `namespace`/`applicationId`가
+    Flutter 기본 템플릿 값 `com.example.susu` 그대로였는데, 실제
+    `MainActivity.kt`는 `package cloude.suvisdev.susu`(오타, 폴더명 `cloud`와도
+    불일치)로 선언돼 있어 컴파일된 클래스 경로와 매니페스트가 찾는 경로가 달랐음.
+  - **수정**: `namespace`/`applicationId`를 `cloud.suvisdev.susu`로 통일,
+    `MainActivity.kt` 패키지 오타 수정. 실제 폰(SM F966N, Android 16/API 36,
+    무선 ADB)에서 재빌드·설치·정상 기동 확인.
+- **suvis 레슨 admin 전용 노출 + 페이지 게이트**:
+  - `components/header.tsx`: LESSON 링크(모바일+데스크톱 드롭다운)를 기존 Admin
+    링크와 동일하게 `isAdmin`일 때만 렌더링.
+  - `components/auth/admin-auth-gate.tsx` 신규(기존 `app/admin/_components/
+    admin-auth-gate.tsx`에서 이동 — admin 외 라우트에서도 재사용하게 됨).
+    `app/admin/layout.tsx` import 경로 갱신.
+  - `app/{lesson,titanic,vision,soccer,langchain}/layout.tsx` 5개 신규 — 전부
+    `AdminAuthGate`로 감싸 role!=admin이면 홈으로 리다이렉트(9개 하위 페이지
+    전체 커버).
+- **어드민 통계 — 방문자 탭 + 크롤링 탭**:
+  - 백엔드 신규 앱 `suvisdev/apps/analytics`(Clean Architecture, domain 레이어
+    없음) — `visitor_activity` 테이블(복합PK `visitor_id`+`visit_date`, 쿠키
+    UUID·PII 없음), `POST /api/v1/analytics/visitors/ping`(무인증 — 익명
+    방문자도 집계 대상이라 인증 불가, 근거 주석 있음), `GET
+    /api/v1/analytics/visitors/summary`(require_admin). 지표: 지금 접속(최근
+    2분 이내 heartbeat), 오늘(KST 자정 기준), 최근 7일(일별 합), 누적.
+  - alembic `20260731_0001`(head `20260730_0001` 뒤에 연결) — `visitor_activity`
+    생성, 실제 DB 적용은 미검증(Docker 미기동).
+  - `.importlinter`(5곳)·`pyproject.toml`·`pytest.ini`에 `analytics` 등록.
+  - `apps/ontology/dependencies/harvester_provider.py`에 `build_crawl_policy_port`/
+    `build_crawl_schedule_state_port` 신설(기존엔 `build_crawl_schedule_use_case`
+    내부에서만 조립돼 재사용 불가했음), `harvester_router.py`에 `GET
+    /harvester/policies`(require_admin) 추가 — crawl_config.yaml 정책 + Redis
+    site별 마지막 실행 시각 조합. 기존 "수집기"(실행 폼) 탭과 별개의 읽기 전용
+    현황판.
+  - 프론트 `app/admin/stats/`를 개요/방문자/크롤링 3탭으로 재구성
+    (`layout.tsx`+`overview·visitors·crawling/page.tsx` 신규, 기존 `page.tsx`는
+    `/overview`로 redirect). mock "크롤링 실적" 차트 제거. `VisitorTracker`
+    컴포넌트(60초 heartbeat, `/admin` 경로 제외)를 `site-chrome.tsx`에 연결.
+  - 검증: analytics pytest 7건 통과, 기존 ontology pytest 54건 회귀 없음,
+    `lint-imports` 5개 계약 유지(기존에 깨져 있던 hub-independence 1건은 무관),
+    `pnpm type-check` 통과, dev 서버로 새 라우트 전부 200 확인(백엔드 미기동
+    상태라 실제 숫자 표시까지는 미확인).
+
+### 오류·막힌 점
+- Docker Desktop(WSL2)이 이 세션에서 미기동 상태라 마이그레이션 실제
+  upgrade/downgrade 왕복 검증은 하지 못함 — 정적 검토로 대체.
+- `pytest`/`ruff`가 시스템 `python`/`PATH`엔 없고 `/home/a/.venv`를
+  activate해야 잡힘(반복 확인 필요한 환경 특이사항). `ruff` 자체는 이 venv에
+  미설치(`mypy`는 있음) — 이번 세션은 `mypy`로 대체 확인.
+- 무선 ADB(SM F966N) 연결이 세션 중간에 끊김(`Lost connection to device`,
+  폰 화면 꺼짐/네트워크 문제로 추정) — 재연결 시도 중 사용자에게 보고, 코드
+  변경과 무관.
+- 이 저장소 워킹트리 전체가 실제 내용 변경 없이 파일 권한만 644→755로 바뀐
+  상태(2536개 중 2534개, WSL 마운트 특성으로 추정) — `git diff --raw`로
+  blob 내용은 동일함을 확인. 이번 커밋에는 포함하지 않고 로컬
+  `git config core.fileMode false`로 앞으로 이 노이즈를 끄도록 안내.
+
+### 데이터
+- 변경 없음(코드·설정만 수정, DB 접속·마이그레이션 적용 없음).
+
+### 산출물
+- 커밋 1: credits 백필 CLI 안전화 6개 파일 + `.env.example` 주석 정정 1개
+  파일 + 작업 일지. 마이그레이션 파일 자체는 무변경(검증만).
+- 커밋 2: 리뷰 API 보안 하드닝(Phase A) — 백엔드 6개 파일 + 신규 테스트
+  1개 + 프론트 3개 파일 + 작업 일지.
+- 커밋 3: mova 채팅 라우팅 회귀 수정 — `qwen_intent_classifier.py`·
+  `market_chat_interactor.py` + 관련 테스트 2개 파일 + 작업 일지.
+- 커밋 4: susu 스톱워치 위젯 + 안드로이드 실행 오류 수정.
+- 커밋 5: suvis 레슨 admin 전용 노출 + 페이지 게이트.
+- 커밋 6: 어드민 통계 방문자·크롤링 탭(백엔드 `analytics` 앱 신설 +
+  harvester 확장 + 프론트 탭 재구성).
+- 사용자가 내용 확인(`git diff`·폴더 목록) 후 커밋 지시 — 사전 수정으로
+  `.claude/scripts/protect-files.sh` 24번째 줄의 의미 없는 단독 `1` 문자
+  제거(`exit 0` 뒤 잔재), `.gitignore`에 `.idea/`·`suvis/tsconfig.tsbuildinfo`
+  추가(둘 다 계속 커밋 대상에서 제외).
+- 커밋 7: mova 검색창-채팅 디커플링(`mova-search-bar.tsx`, 어제 세션에서
+  보류했던 것을 사용자 확인 후 커밋).
+- 커밋 8: susu Android/iOS 빌드 환경 가이드 문서 추가(`susu/_docs/
+  flutter-{android,ios}-harness.md`, 기존 작성분).
+- 커밋 9: `.claude/skills/`(code-review 스킬) + `.claude/scripts/
+  protect-files.sh`(파일 보호 훅 스크립트, 단 `.claude/settings.json`에
+  아직 연결 안 돼 있음 — 별도 확인 필요) 추가.
+- 커밋 10: `suvis/tsconfig.tsbuildinfo` git 추적 해제(`git rm --cached`) —
+  `.gitignore`엔 추가했지만 이미 추적 중이던 파일이라 계속 modified로
+  잡히던 것 정리.
+- 커밋하지 않은 나머지 변경(사용자 지시로 계속 제외): 파일 권한만 바뀐
+  2534개 파일(내용 변경 없음, `core.fileMode false`로 재발 방지), `.idea/`
+  (이번에 `.gitignore` 추가, 애초에 미추적).
+
+---
+
 ## 2026-07-30
 
 ### 작업 내용

@@ -67,6 +67,41 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             action_at=row.created_at,
         )
 
+    async def find_by_user_and_movie(self, user_id: int, movie_id: int) -> ReviewDto | None:
+        row = (
+            await self._session.execute(
+                select(MovaReview).where(
+                    MovaReview.user_id == user_id,
+                    MovaReview.movie_id == movie_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return ReviewDto(
+            id=row.id,
+            user_id=row.user_id,
+            movie_id=row.movie_id,
+            rating=float(row.rating or 0),
+            body=row.body or "",
+            action_at=row.created_at,
+        )
+
+    async def get_by_id(self, review_id: int) -> ReviewDto | None:
+        row = (
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        return ReviewDto(
+            id=row.id,
+            user_id=row.user_id,
+            movie_id=row.movie_id,
+            rating=float(row.rating or 0),
+            body=row.body or "",
+            action_at=row.created_at,
+        )
+
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
         rows = (
             await self._session.execute(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from mova.app.dtos.studio_actors_dto import ActorUpsertCommand
@@ -16,6 +17,8 @@ from mova.app.ports.output.tmdb_catalog_port import TmdbCatalogPort
 logger = logging.getLogger(__name__)
 
 _TMDB_SLUG_PREFIX = "tmdb-"
+# TMDB rate limit 대비 — 영화당 fetch_credits 호출 사이 최소 간격.
+_TMDB_CALL_INTERVAL_SECONDS = 0.25
 
 
 def _parse_tmdb_id(slug: str) -> int | None:
@@ -48,12 +51,17 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
         self._characters = characters
         self._directors = directors
 
-    async def backfill_credits(self) -> CreditsBackfillResultDto:
+    async def backfill_credits(
+        self, *, limit: int | None = None, dry_run: bool = False
+    ) -> CreditsBackfillResultDto:
         slugs = await self._movies.list_all_slugs()
+        if limit is not None:
+            slugs = slugs[:limit]
         succeeded = 0
         failed = 0
         skipped = 0
         failed_slugs: list[str] = []
+        called_tmdb = False
 
         for movie_id, slug in slugs:
             tmdb_id = _parse_tmdb_id(slug)
@@ -65,8 +73,12 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
                 )
                 continue
 
+            if called_tmdb:
+                await asyncio.sleep(_TMDB_CALL_INTERVAL_SECONDS)
+            called_tmdb = True
+
             try:
-                await self._backfill_one(movie_id, tmdb_id)
+                await self._backfill_one(movie_id, tmdb_id, slug, dry_run=dry_run)
                 succeeded += 1
             except Exception:
                 failed += 1
@@ -78,10 +90,11 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
                 )
 
         logger.info(
-            "[CreditsBackfillInteractor] 완료 succeeded=%d failed=%d skipped=%d",
+            "[CreditsBackfillInteractor] 완료 succeeded=%d failed=%d skipped=%d dry_run=%s",
             succeeded,
             failed,
             skipped,
+            dry_run,
         )
         return CreditsBackfillResultDto(
             succeeded=succeeded,
@@ -90,8 +103,19 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
             failed_slugs=failed_slugs,
         )
 
-    async def _backfill_one(self, movie_id: int, tmdb_id: int) -> None:
+    async def _backfill_one(
+        self, movie_id: int, tmdb_id: int, slug: str, *, dry_run: bool
+    ) -> None:
         credits = await self._catalog.fetch_credits(tmdb_id)
+
+        if dry_run:
+            logger.info(
+                "[CreditsBackfillInteractor] dry-run slug=%s cast=%s directors=%s",
+                slug,
+                [f"{m.name}({m.character})" for m in credits.cast],
+                [d.name for d in credits.directors],
+            )
+            return
 
         for member in credits.cast:
             actor_id = await self._actors.upsert_actor(

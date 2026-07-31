@@ -21,6 +21,13 @@ from ontology.app.ports.output.intent_classifier_port import IntentClassifierPor
 
 logger = logging.getLogger(__name__)
 
+# rag 경로(ChatPromptBuilder.MOVA_SYSTEM_PROMPT)는 JSON 카드 강제용이라 general에
+# 재사용하지 않는다 — general은 포맷 강제 없는 대화체 답변이 목적이다.
+_GENERAL_CHAT_SYSTEM_PROMPT = (
+    "너는 mova의 영화 대화 도우미다. 영화/작품 관련 일반 질문에 한국어로 간결하고 "
+    "자연스럽게 답한다. 추천 요청이면 목록을 나열하지 말고 대화로 안내한다."
+)
+
 
 class ChatInteractor(ChatUseCase):
     def __init__(
@@ -154,7 +161,9 @@ class ChatInteractor(ChatUseCase):
 
     async def _reply_general(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
         """영화 지식 조회가 필요 없는 잡담 — RAG·추천 없이 Gemini(Mycroft) 답변만 저장·반환."""
-        answer = await self._general.ask(MycroftAskCommand(question=request.message))
+        answer = await self._general.ask(
+            MycroftAskCommand(question=request.message, system=_GENERAL_CHAT_SYSTEM_PROMPT)
+        )
         chat_id = await self._repo.save_chat(
             user_id=request.user_id,
             assistant_id=None,

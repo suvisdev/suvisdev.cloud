@@ -24,6 +24,10 @@ class ReviewsUseCase(ABC):
         pass
 
     @abstractmethod
+    async def get_by_id(self, review_id: int) -> ReviewDto | None:
+        pass
+
+    @abstractmethod
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
         pass
 

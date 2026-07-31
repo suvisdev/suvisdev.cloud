@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import type { ReactNode } from "react"
-import { AdminAuthGate } from "./_components/admin-auth-gate"
+import { AdminAuthGate } from "@/components/auth/admin-auth-gate"
 import { AdminSidebar } from "./_components/admin-sidebar"
 import { AdminSidebarProvider } from "./_components/admin-sidebar-context"
 

@@ -27,10 +27,14 @@ def _build_credits_backfill_interactor(session: AsyncSession) -> CreditsBackfill
     )
 
 
-async def backfill_credits() -> CreditsBackfillResultDto:
+async def backfill_credits(
+    *, limit: int | None = None, dry_run: bool = False
+) -> CreditsBackfillResultDto:
     """스크립트 전용 진입점 — FastAPI 요청 컨텍스트 없이 직접 세션을 연다(seed_catalog_if_sparse와 동일 패턴)."""
     from core.matrix.grid_oracle_database_manager import get_mova_session_factory
 
     factory = get_mova_session_factory()
     async with factory() as session:
-        return await _build_credits_backfill_interactor(session).backfill_credits()
+        return await _build_credits_backfill_interactor(session).backfill_credits(
+            limit=limit, dry_run=dry_run
+        )
