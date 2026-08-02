@@ -28,6 +28,83 @@
 
 ---
 
+## 2026-08-02
+
+### 작업 내용
+- 로컬 개발 DB(집, Docker) 세팅 — `.env` 확인부터 마이그레이션·credits 백필·
+  hub_knowledge 인제스트까지 전체 파이프라인 실행. `suvisdev/suvisdev/.env`에
+  `POSTGRES_USER/PASSWORD/DB` 채운 뒤(사용자) `docker compose --env-file
+  suvisdev/.env`로 db/backend 정상 접속 확인.
+- `alembic upgrade head` 1차 시도에서 `DuplicateTable(titanic_passengers)`
+  발생 → 조사 결과 DB에 `alembic_version` 테이블 자체가 없어 한 번도 alembic
+  관리를 받은 적 없는 상태였고, 기존 7개 테이블이 마이그레이션 히스토리와
+  무관하게 섞여 있었음을 확인. 로컬 개발 DB라 사용자 승인 받아 `public`
+  스키마 DROP CASCADE 후 재구축.
+- 재구축 후에도 `alembic upgrade head`가 head를 `20260727_0001`로 오인식
+  (hub_knowledge/movie_directors 등 최신 4개 마이그레이션 누락) → backend
+  컨테이너 이미지가 4일 전 빌드(라이브 마운트 아닌 COPY 방식)라서 최신
+  `alembic/versions/*.py`를 컨테이너가 못 보던 게 원인. `docker compose up -d
+  --build backend`로 재빌드 후 재적용 — 33개→36개 테이블 완성(hub_knowledge/
+  movie_directors/visitor_activity 포함).
+- `scripts/backfill_credits_cli.py` dry-run(3편) → 전량(39편) 실행:
+  actors 389 / characters 371 / movie_directors 40 채움.
+- hub_knowledge 인제스트: 사용자 초안 스크립트가 전제한 "`import_provider.py`
+  `apps.` 접두사 누락 버그"는 실제로는 버그가 아니었음 — 코드베이스 158개
+  파일 전부 접두사 없는 스타일이라 이 파일이 정상(오히려 `apps.`로 고치면
+  관례 위반이라 되돌림). 추가로 `get_import_interactor` 함수 자체가
+  없고, `_ingest_to_hub`는 `TmdbMovieSnapshotDto`를 받아 `movies` DB
+  엔티티와 타입이 안 맞음을 확인. 세 가지 불일치를 근거로
+  `HubRagInteractor.ingest_movie()`를 movies+characters+movie_directors
+  조인으로 직접 호출하는 `scripts/ingest_hub_knowledge.py` 신규 작성.
+- 신규 스크립트 1차 실행 — 39편 전부 "ingest 완료" 로그가 찍혔는데 DB엔
+  0건. 원인은 호스트 Ollama가 `127.0.0.1`에만 바인딩돼(`OLLAMA_HOST`
+  미설정) 컨테이너의 `host.docker.internal:11434` 요청이 거부된 것.
+  `/etc/systemd/system/ollama.service.d/override.conf`(`OLLAMA_HOST=0.0.0.0`)
+  추가 후 재시작 — 이 세션은 TTY 없어 `sudo`가 비대화형으로 막혀 사용자가
+  별도 터미널에서 직접 실행.
+- 바인딩 정상화 후 재실행해도 여전히 0건 — `HubKnowledgeRepository.upsert()`가
+  `flush()`만 하고 `commit()`을 안 하는 구조였음(`get_mova_db()` FastAPI
+  의존성만 응답 종료 시 자동 commit, `get_mova_session_factory()`를 직접
+  쓰면 커밋 책임이 호출자에게 있음 — `characters`/`movie_directors`
+  레포지토리는 자체 commit해서 이전 백필은 문제없었던 것). 스크립트에
+  `session.commit()` 추가 후 재실행 → `hub_knowledge` 39건 정상 적재.
+
+### 수정/구현
+- `suvisdev/scripts/ingest_hub_knowledge.py` 신규 — `movies` 전체를
+  `characters`(출연진 상위 5)·`movie_directors`와 조인해
+  `HubKnowledgeUpsertCommand` 구성, `HubRagInteractor.ingest_movie()` 직접
+  호출. sys.path 부트스트랩은 `backfill_credits_cli.py`와 동일 패턴. 루프
+  끝에 `session.commit()` 명시.
+- `import_provider.py`는 수정 시도 후 원상 복구(버그 아님으로 판명, git diff
+  없음).
+- 호스트 systemd: `/etc/systemd/system/ollama.service.d/override.conf` 신설
+  (`OLLAMA_HOST=0.0.0.0`) — 저장소 밖 시스템 설정, git 미추적. 이 호스트에만
+  적용(EC2는 Ollama 미사용이라 무관).
+
+### 오류·막힌 점
+- `DuplicateTable(titanic_passengers)`: DB가 alembic 미관리 상태였던 게
+  원인 → 스키마 재구축으로 해결.
+- 재구축 후에도 마이그레이션 4개 누락: backend 이미지가 오래돼서(빌드
+  방식, 라이브 마운트 아님) → `--build`로 재빌드해 해결.
+- hub_knowledge 0건(1차): 사용자 초안 스크립트의 import 경로/존재하지 않는
+  함수/DTO 타입 3중 불일치 → 시그니처 확인 후 새 스크립트 작성으로 해결.
+- hub_knowledge 0건(2차, 새 스크립트로도): Ollama가 `127.0.0.1` 바인딩이라
+  컨테이너에서 연결 불가 → `OLLAMA_HOST=0.0.0.0` systemd override로 해결.
+- hub_knowledge 0건(3차, 바인딩 고친 후에도): 세션 `commit()` 누락
+  (`HubKnowledgeRepository.upsert()`는 `flush()`만 함) → 스크립트에 commit
+  추가로 해결.
+
+### 데이터
+- 로컬 Docker DB(`suvisdev/suvisdev/.env` 기준) 기준: `actors` 389 /
+  `characters` 371 / `movie_directors` 40 / `movies` 39 / `hub_knowledge` 39.
+
+### 산출물
+- 신규 파일: `suvisdev/scripts/ingest_hub_knowledge.py` (커밋 대상).
+- 로컬 Docker DB가 alembic head(`20260731_0001`)까지 완전 재구축 + credits/
+  hub_knowledge 데이터 적재 완료.
+
+---
+
 ## 2026-07-31
 
 ### 작업 내용

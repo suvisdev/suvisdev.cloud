@@ -224,6 +224,13 @@
   전체를 `AdminAuthGate`로 로그인(관리자) 전용 처리. `AdminAuthGate`를
   `app/admin/_components/`에서 `components/auth/`로 이동(다른 라우트에서도
   재사용). 상세: WORK_LOG 2026-07-31.
+- **로컬 개발 DB(집, Docker) 완전 세팅(2026-08-02)**: `alembic_version`
+  테이블조차 없던 미관리 DB를 스키마 재구축 → `alembic upgrade head`(head
+  `20260731_0001`, 36테이블)로 정상화. `scripts/backfill_credits_cli.py`
+  전량 실행으로 actors 389/characters 371/movie_directors 40 채움.
+  `hub_knowledge`는 신규 `scripts/ingest_hub_knowledge.py`로 movies 39편
+  전부 인제스트(호스트 Ollama `OLLAMA_HOST=0.0.0.0` systemd override 필요—
+  이 호스트에 적용 완료). 상세: WORK_LOG 2026-08-02.
 
 ---
 
@@ -236,11 +243,12 @@
 
 ## 다음 / 남은 작업 (백로그)
 
-- **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규)**: 마이그레이션
-  `20260731_0001_create_analytics_visitor_activity`가 `20260730_0001` 뒤에
-  정상 연결돼 있음은 `alembic history`로 확인했지만, Docker(Postgres) 접근
-  불가로 `alembic upgrade head` 실제 적용은 못 했다. 집/EC2에서 적용 후
-  `/admin/stats/visitors` 탭이 실제 숫자를 보여주는지 확인 필요.
+- **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규, 2026-08-02
+  집 로컬 DB 적용 완료)**: `20260731_0001_create_analytics_visitor_activity`를
+  집 로컬 Docker DB에는 실제 적용 완료(`visitor_activity` 테이블 생성 확인,
+  WORK_LOG 2026-08-02). **EC2 DB에는 아직 미적용** — EC2에서
+  `alembic upgrade head` 실행 후 `/admin/stats/visitors` 탭이 실제 숫자를
+  보여주는지 확인 필요.
 - **mova 리뷰 watched 게이트(2026-07-31 신규, 별점+리뷰 UX와는 별개 — 그쪽은
   완료됨 참고)**: "watched로 기록한 유저만 리뷰 작성 가능" 정책은 이번
   Phase A·별점+리뷰 UX 어디에도 포함 안 함 — '봤어요' 버튼
@@ -248,17 +256,12 @@
   필요, `user_actions.action_type == "watched"` 조회) + `add_review()`에
   게이트 삽입이 남은 작업. rating을 watched 판정 근거로 쓰면 안 됨(순환
   논리 — 상세 WORK_LOG 2026-07-31 리뷰 사전조사 항목 참고).
-- **mova TMDB credits 백필 집(GPU) 실행(2026-07-30 신규, 2026-07-31 사전준비
-  완료)**: `alembic upgrade head`로 `20260730_0001`(actors.tmdb_person_id 등
-  4건) 적용 후 `python scripts/backfill_credits_cli.py` 실행 필요. 2026-07-31에
-  학원 환경에서 할 수 있는 사전 준비 끝: ① 마이그레이션 체인 정적 검증(단일
-  head, 선형 연결, UNIQUE/DROP/downgrade 안전성 확인 — 단 Docker 미기동으로
-  실제 upgrade/downgrade 왕복은 미검증), ② CLI에 `--limit N`(시험 실행)·
-  `--dry-run`(DB write 없이 로그만) 추가, ③ TMDB 429 백오프 + 영화 간 sleep
-  추가로 안정성 보강. **남은 건 집에서 실제 `alembic upgrade head` 적용 +
-  `--limit 3 --dry-run`으로 먼저 시험 후 전량 실행뿐.** 실행 전
-  `SELECT COUNT(*) FROM actors;`로 0행인지 먼저 확인 권장(마이그레이션이 그
-  전제를 코드로 검증하지 않음). 상세: WORK_LOG 2026-07-31.
+- **mova TMDB credits 백필 EC2 실행(2026-07-30 신규, 2026-08-02 집 로컬
+  완료·EC2는 아직)**: 집 로컬 Docker DB는 2026-08-02에 `alembic upgrade
+  head` + `scripts/backfill_credits_cli.py` 전량 실행까지 완료(actors 389/
+  characters 371/movie_directors 40, WORK_LOG 2026-08-02 참고). **EC2 DB는
+  아직 미실행** — 동일하게 `alembic upgrade head` 적용 후
+  `--limit 3 --dry-run`으로 먼저 시험 후 전량 실행 필요.
 - **Neo4j 데이터 투입**: 스키마(제약+벡터 인덱스)만 있고 노드는 0건. TMDB/KOFIC
   import 파이프라인으로 채워야 함(착수 전).
 - **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:
@@ -267,6 +270,13 @@
   같은 `DuplicateTable`/`stamp` 우회가 반복될 수 있다. 근본 해결은
   `create_all()` 경로를 제거하고 alembic을 단일 소스로 삼는 것. 상세:
   WORK_LOG 2026-07-30.
+- **`get_mova_session_factory()` 직접 사용 시 commit 누락 함정(2026-08-02
+  신규, 경미)**: `HubKnowledgeRepository.upsert()`처럼 `flush()`만 하고
+  `commit()`을 안 하는 레포지토리가 있음 — `get_mova_db()`(FastAPI
+  의존성)는 응답 종료 시 자동 commit하지만, `get_mova_session_factory()`를
+  일회성 스크립트에서 직접 쓸 땐 호출자가 명시적으로 `session.commit()`을
+  해야 함(`scripts/ingest_hub_knowledge.py` 참고). 근본 해결(레포지토리
+  commit 정책 통일)은 안 함 — 향후 유사 스크립트 작성 시 주의만 필요.
 - **`suvisdev/.env` 손상 재발(2026-07-30 신규, 경미)**: 29번째 줄
   (`GEMINI_API_KEY` 바로 다음)에 76번째 줄(2026-07-29 수정분)과 같은 종류의
   단독 `1` 문자가 또 발견됨. `NEO4J_PASSWORD` 로드엔 지장 없어 이번엔
