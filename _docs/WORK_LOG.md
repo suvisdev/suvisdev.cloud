@@ -94,6 +94,12 @@
   `loop.stop()` 등 강제 종료 호출 0건 확인(코드 레벨 원인 못 찾음, EC2
   OOM/systemd 재시작 등 배포 환경 쪽 가설만 제시). 조사 후 대량 수집
   구현으로 복귀.
+- mova 채팅이 EC2(GPU 없음)에서 503 나는 문제 조사·수정. `market_chat_provider.
+  get_recommendation_port()`가 환경 분기 없이 무조건 `LoraRecommendationAdapter`
+  를 반환해 EC2엔 없는 lora_server를 호출하던 게 원인. `GeminiRecommendationAdapter`
+  와 `LoraRecommendationAdapter`의 인터페이스(생성자 무인자, `extract_intent`/
+  `generate_recommendation` 시그니처)가 동일함을 먼저 확인한 뒤 `RECOMMENDATION_
+  BACKEND` env 분기 추가.
 
 ### 수정/구현
 - `suvisdev/scripts/ingest_hub_knowledge.py` 신규 — `movies` 전체를
@@ -116,6 +122,10 @@
 - `apps/mova/tests/test_bulk_import_movies.py` 신규 — `fetch_discover` mock
   테스트 2건 + `bulk_import_movies` argparse 테스트 4건. `pytest -m "not gpu"`
   apps/mova/tests 73개 전부 통과(회귀 없음).
+- `apps/mova/dependencies/market_chat_provider.py`: `get_recommendation_port()`에
+  `RECOMMENDATION_BACKEND`(기본값 `"lora"`) 분기 추가 — `"gemini"`면
+  `GeminiRecommendationAdapter()`, 그 외엔 기존 `LoraRecommendationAdapter()`.
+  포트 인터페이스·다른 코드는 미변경.
 
 ### 오류·막힌 점
 - `DuplicateTable(titanic_passengers)`: DB가 alembic 미관리 상태였던 게
@@ -143,6 +153,10 @@
 - 신규 파일: `suvisdev/scripts/bulk_import_movies.py`,
   `apps/mova/tests/test_bulk_import_movies.py` (커밋 대상). 수정:
   `tmdb_adapter.py`/`tmdb_catalog_adapter.py`/`kofic_adapter.py`.
+- 수정: `apps/mova/dependencies/market_chat_provider.py` (커밋 대상,
+  `fix(mova): add RECOMMENDATION_BACKEND env branch (gemini for EC2, lora
+  default)`). **EC2 `.env`에 `RECOMMENDATION_BACKEND=gemini` 추가 필요**
+  (`GEMINI_API_KEY`는 이미 설정돼 있음, 이름 일치 확인함).
 
 ---
 

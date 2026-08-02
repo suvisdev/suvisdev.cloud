@@ -1,9 +1,14 @@
 """채팅 DI."""
 
+import os
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_mova_db
+from mova.adapter.outbound.llm.gemini_recommendation_adapter import (
+    GeminiRecommendationAdapter,
+)
 from mova.adapter.outbound.llm.lora_recommendation_adapter import (
     LoraRecommendationAdapter,
 )
@@ -33,6 +38,9 @@ def get_chat_repository(
 
 
 def get_recommendation_port() -> RecommendationPort:
+    backend = os.getenv("RECOMMENDATION_BACKEND", "lora")
+    if backend == "gemini":
+        return GeminiRecommendationAdapter()
     return LoraRecommendationAdapter()
 
 
