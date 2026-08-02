@@ -67,6 +67,27 @@ class KoficAdapter:
         movie_info_result = data.get("movieInfoResult") or {}
         return dict(movie_info_result.get("movieInfo") or {})
 
+    async def fetch_movie_list(
+        self,
+        *,
+        page: int = 1,
+        item_per_page: int = 100,
+        rep_nation_cd: str | None = None,
+    ) -> list[dict]:
+        """KOFIC 영화 목록 — movieNm/directors/prdtYear/genreAlt 등 기본 필드만 준다(상세는 fetch_movie_info).
+
+        rep_nation_cd: "K"(한국영화)/"F"(외국영화). None이면 국적 필터 없이 전체.
+        """
+        params: dict[str, str] = {
+            "curPage": str(max(1, page)),
+            "itemPerPage": str(max(1, min(item_per_page, 100))),
+        }
+        if rep_nation_cd:
+            params["repNationCd"] = rep_nation_cd
+        data = await self._get("/movie/searchMovieList.json", params=params)
+        movie_list_result = data.get("movieListResult") or {}
+        return list(movie_list_result.get("movieList") or [])
+
     @staticmethod
     def default_target_date() -> str:
         return (date.today() - timedelta(days=1)).strftime("%Y%m%d")

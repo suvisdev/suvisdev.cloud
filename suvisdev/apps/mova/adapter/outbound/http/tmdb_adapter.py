@@ -103,6 +103,23 @@ class TmdbAdapter:
         data = await self._get("/movie/top_rated", params={"page": max(1, page)})
         return list(data.get("results") or [])
 
+    async def fetch_discover(
+        self,
+        *,
+        page: int = 1,
+        with_origin_country: str | None = None,
+        with_genres: str | None = None,
+        sort_by: str = "popularity.desc",
+    ) -> list[dict]:
+        """TMDB /discover/movie — region/genre 등 필터를 걸어 대량 수집할 때 사용."""
+        params: dict[str, Any] = {"page": max(1, page), "sort_by": sort_by}
+        if with_origin_country:
+            params["with_origin_country"] = with_origin_country
+        if with_genres:
+            params["with_genres"] = with_genres
+        data = await self._get("/discover/movie", params=params)
+        return list(data.get("results") or [])
+
     async def search_movies(self, query: str, *, page: int = 1) -> list[dict]:
         q = query.strip()
         if not q:

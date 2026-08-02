@@ -231,6 +231,16 @@
   `hub_knowledge`는 신규 `scripts/ingest_hub_knowledge.py`로 movies 39편
   전부 인제스트(호스트 Ollama `OLLAMA_HOST=0.0.0.0` systemd override 필요—
   이 호스트에 적용 완료). 상세: WORK_LOG 2026-08-02.
+- **mova 대량 영화 수집 파이프라인 코드 완성(2026-08-02)**: TMDB
+  `/discover/movie`(`TmdbAdapter.fetch_discover`+`TmdbCatalogAdapter.fetch_discover`,
+  region/장르 필터), KOFIC 영화 목록(`KoficAdapter.fetch_movie_list`,
+  `searchMovieList.json`), 배치 CLI(`scripts/bulk_import_movies.py` —
+  `--source tmdb_popular|tmdb_discover|kofic`, `--country`, `--pages`,
+  `--start-page` 재시작 지원) 신규. 영화당 upsert→credits 백필→hub_knowledge
+  순으로 처리하고 단계별 실패는 해당 영화만 스킵. 유닛 테스트 6건 추가,
+  `apps/mova/tests` 73개 전부 통과. **코드만 완성 — 실제 대량 실행(TMDB
+  discover/KOFIC 목록으로 수만 편 적재)은 아직 안 함(아래 백로그).** 상세:
+  WORK_LOG 2026-08-02.
 
 ---
 
@@ -270,6 +280,14 @@
   같은 `DuplicateTable`/`stamp` 우회가 반복될 수 있다. 근본 해결은
   `create_all()` 경로를 제거하고 alembic을 단일 소스로 삼는 것. 상세:
   WORK_LOG 2026-07-30.
+- **mova 대량 영화 수집 실제 실행(2026-08-02 신규, 코드는 완성)**:
+  `scripts/bulk_import_movies.py`를 아직 한 번도 실행하지 않음 — 목표는
+  TMDB(해외)+KOFIC(한국) 합산 수만 편, 하루 배치(예: `--pages` 조절해 1000편
+  안팎)로 점진 적재. 실행 전 TMDB API 요청량(수만 편×credits 1회씩)이
+  일일 쿼터에 걸리는지 확인 필요. `scripts/backfill_hub_movies_rag.py`(정적
+  JSONL 기반 구버전 hub_knowledge 백필)와 목적이 겹치므로, 대량 수집이
+  안정화되면 이 구버전 스크립트를 정리(삭제 또는 문서화)할지도 함께 결정
+  필요. 상세: WORK_LOG 2026-08-02.
 - **`get_mova_session_factory()` 직접 사용 시 commit 누락 함정(2026-08-02
   신규, 경미)**: `HubKnowledgeRepository.upsert()`처럼 `flush()`만 하고
   `commit()`을 안 하는 레포지토리가 있음 — `get_mova_db()`(FastAPI

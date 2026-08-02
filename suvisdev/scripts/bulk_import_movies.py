@@ -1,0 +1,290 @@
+"""TMDB(해외)+KOFIC(한국) 대량 영화 수집 배치 — 하루 페이지 단위 점진 적재.
+
+재시작 안전: MoviesPgRepository.upsert_movie가 slug(tmdb-{id}/kofic-{movieCd})
+기준 idempotent라 같은 페이지를 다시 돌려도 중복이 안 생긴다. 중단되면 마지막
+줄에 찍힌 "재시작하려면: --start-page N"을 그대로 다음 실행에 넘기면 이어받는다.
+
+Usage (suvisdev 폴더에서):
+  docker compose exec backend python scripts/bulk_import_movies.py \
+      --source tmdb_discover --country KR --pages 50
+  docker compose exec backend python scripts/bulk_import_movies.py \
+      --source tmdb_popular --pages 20 --start-page 21
+  docker compose exec backend python scripts/bulk_import_movies.py \
+      --source kofic --country KR --pages 30
+
+  --source        tmdb_popular | tmdb_discover | kofic
+  --country       KR | US | ALL (kofic은 K/F 2분류만 지원 — US는 F로 매핑)
+  --pages N       이번 실행에서 처리할 페이지 수
+  --start-page N  이어받을 시작 페이지(기본 1)
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import logging
+import sys
+from pathlib import Path
+
+_BACKEND = Path(__file__).resolve().parents[1]
+_APPS = _BACKEND / "apps"
+for _p in (_BACKEND, _APPS):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:\t%(message)s")
+logger = logging.getLogger("bulk_import_movies")
+
+_SOURCES = ("tmdb_popular", "tmdb_discover", "kofic")
+_TMDB_SLEEP_SECONDS = 0.25
+_KOFIC_NATION_CD = {"KR": "K", "US": "F"}
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", choices=_SOURCES, required=True)
+    parser.add_argument("--country", choices=("KR", "US", "ALL"), default="ALL")
+    parser.add_argument("--pages", type=int, required=True, help="이번 실행에서 처리할 페이지 수")
+    parser.add_argument("--start-page", type=int, default=1, help="이어받을 시작 페이지")
+    return parser.parse_args(argv)
+
+
+def _hub_content(overview: str, genres: list[str], cast: list[str]) -> str:
+    lines = [overview]
+    if genres:
+        lines.append(f"장르: {', '.join(genres)}")
+    if cast:
+        lines.append(f"출연: {', '.join(cast)}")
+    return "\n".join(line for line in lines if line)
+
+
+async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, session) -> str:
+    """반환값: 'succeeded' | 'failed' — 실패해도 이 영화만 건너뛰고 배치는 계속된다."""
+    from mova.app.dtos.studio_import_dto import MovieUpsertCommand
+
+    try:
+        movie_id = await movies_repo.upsert_movie(
+            MovieUpsertCommand(
+                slug=snap.slug,
+                title=snap.title,
+                release_year=snap.release_year,
+                rating=snap.rating,
+                poster_url=snap.poster_url,
+                genres=snap.genres,
+            )
+        )
+    except Exception:
+        logger.warning("[bulk_import] upsert_movie 실패 | slug=%s", snap.slug, exc_info=True)
+        return "failed"
+
+    try:
+        # CreditsBackfillInteractor의 배치 진입점(backfill_credits)은 매번 전체
+        # movies를 재스캔한다 — 방금 upsert한 영화 하나만 채우면 되므로 영화당
+        # 처리 메서드(_backfill_one)를 직접 재사용한다(scripts/ 스크립트에서
+        # _ingest_to_hub를 직접 부르는 것과 동일한 패턴).
+        await credits_interactor._backfill_one(movie_id, snap.tmdb_id, snap.slug, dry_run=False)
+    except Exception:
+        logger.warning(
+            "[bulk_import] credits 백필 실패(카탈로그는 유지) | slug=%s", snap.slug, exc_info=True
+        )
+    await asyncio.sleep(_TMDB_SLEEP_SECONDS)
+
+    from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand
+
+    try:
+        await hub_rag.ingest_movie(
+            HubKnowledgeUpsertCommand(
+                source="mova_movie",
+                source_ref=snap.slug,
+                title=snap.title,
+                content=_hub_content(snap.overview, snap.genres, snap.cast),
+            )
+        )
+        await session.commit()
+    except Exception:
+        logger.warning(
+            "[bulk_import] hub_knowledge 인제스트 실패 | slug=%s", snap.slug, exc_info=True
+        )
+
+    return "succeeded"
+
+
+async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
+    """KOFIC은 tmdb_person_id가 없어 actors/characters/movie_directors 백필 대상 밖 —
+    movies + hub_knowledge까지만 채운다.
+
+    반환값: 'succeeded' | 'failed' | 'skipped'.
+    """
+    from mova.app.dtos.studio_import_dto import MovieUpsertCommand
+
+    movie_cd = str(row.get("movieCd") or "").strip()
+    title = str(row.get("movieNm") or "").strip()
+    if not movie_cd or not title:
+        return "skipped"
+
+    slug = f"kofic-{movie_cd}"
+    prdt_year_raw = str(row.get("prdtYear") or "").strip()
+    release_year = int(prdt_year_raw) if prdt_year_raw.isdigit() else 0
+    genres = [g.strip() for g in str(row.get("genreAlt") or "").split(",") if g.strip()]
+    directors = [
+        str(d.get("peopleNm") or "").strip()
+        for d in (row.get("directors") or [])
+        if d.get("peopleNm")
+    ]
+
+    try:
+        await movies_repo.upsert_movie(
+            MovieUpsertCommand(
+                slug=slug,
+                title=title,
+                release_year=release_year,
+                rating=0.0,
+                poster_url="",
+                genres=genres,
+            )
+        )
+    except Exception:
+        logger.warning("[bulk_import] upsert_movie 실패 | slug=%s", slug, exc_info=True)
+        return "failed"
+
+    from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand
+
+    content_lines = []
+    if genres:
+        content_lines.append(f"장르: {', '.join(genres)}")
+    if directors:
+        content_lines.append(f"감독: {', '.join(directors)}")
+    if release_year:
+        content_lines.append(f"제작연도: {release_year}")
+
+    try:
+        await hub_rag.ingest_movie(
+            HubKnowledgeUpsertCommand(
+                source="mova_movie",
+                source_ref=slug,
+                title=title,
+                content="\n".join(content_lines),
+            )
+        )
+        await session.commit()
+    except Exception:
+        logger.warning("[bulk_import] hub_knowledge 인제스트 실패 | slug=%s", slug, exc_info=True)
+
+    return "succeeded"
+
+
+async def _run(args: argparse.Namespace) -> None:
+    from core.matrix.grid_oracle_database_manager import get_mova_session_factory
+    from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+    from mova.adapter.outbound.http.kofic_adapter import KoficAdapter, KoficAdapterError
+    from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapterError
+    from mova.adapter.outbound.http.tmdb_catalog_adapter import TmdbCatalogAdapter
+    from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
+    from mova.adapter.outbound.pg.studio_actors_pg_repository import ActorsPgRepository
+    from mova.adapter.outbound.pg.studio_characters_pg_repository import CharactersPgRepository
+    from mova.adapter.outbound.pg.studio_movie_directors_pg_repository import (
+        MovieDirectorsPgRepository,
+    )
+    from mova.app.use_cases.credits_backfill_interactor import CreditsBackfillInteractor
+    from ontology.adapter.outbound.llm.ollama_embedding_adapter import OllamaEmbeddingAdapter
+    from ontology.adapter.outbound.repositories.hub_knowledge_repository import (
+        HubKnowledgeRepository,
+    )
+    from ontology.app.use_cases.hub_rag_interactor import HubRagInteractor
+
+    keymaker = get_keymaker()
+    factory = get_mova_session_factory()
+
+    stats = {"succeeded": 0, "failed": 0, "skipped": 0}
+    last_page = args.start_page - 1
+
+    async with factory() as session:
+        movies_repo = MoviesPgRepository(session)
+        hub_rag = HubRagInteractor(
+            repository=HubKnowledgeRepository(session), embedding=OllamaEmbeddingAdapter()
+        )
+
+        if args.source in ("tmdb_popular", "tmdb_discover"):
+            catalog = TmdbCatalogAdapter(keymaker.tmdb_api_key)
+            credits_interactor = CreditsBackfillInteractor(
+                movies=movies_repo,
+                catalog=catalog,
+                actors=ActorsPgRepository(session),
+                characters=CharactersPgRepository(session),
+                directors=MovieDirectorsPgRepository(session),
+            )
+            origin = None if args.country == "ALL" else args.country
+
+            for page in range(args.start_page, args.start_page + args.pages):
+                try:
+                    if args.source == "tmdb_popular":
+                        snapshots = await catalog.fetch_popular(page=page)
+                    else:
+                        snapshots = await catalog.fetch_discover(
+                            page=page, with_origin_country=origin
+                        )
+                except TmdbAdapterError as e:
+                    logger.error("[bulk_import] page=%d TMDB fetch 실패, 배치 중단 — %s", page, e)
+                    break
+
+                if not snapshots:
+                    print(f"[bulk_import] page={page} 결과 없음 — 종료")
+                    last_page = page
+                    break
+
+                for snap in snapshots:
+                    outcome = await _ingest_tmdb_movie(
+                        snap, movies_repo, hub_rag, credits_interactor, session
+                    )
+                    stats[outcome] += 1
+
+                last_page = page
+                print(
+                    f"[bulk_import] page={page} 처리 완료 (누적 "
+                    f"succeeded={stats['succeeded']} failed={stats['failed']} "
+                    f"skipped={stats['skipped']})"
+                )
+                await asyncio.sleep(_TMDB_SLEEP_SECONDS)
+
+        else:  # kofic
+            if not keymaker.kofic_api_key:
+                print("[bulk_import] KOFIC_API_KEY 미설정 — kofic 소스 스킵")
+                return
+            kofic = KoficAdapter(keymaker.kofic_api_key)
+            rep_nation_cd = _KOFIC_NATION_CD.get(args.country)
+
+            for page in range(args.start_page, args.start_page + args.pages):
+                try:
+                    rows = await kofic.fetch_movie_list(
+                        page=page, item_per_page=100, rep_nation_cd=rep_nation_cd
+                    )
+                except KoficAdapterError as e:
+                    logger.error("[bulk_import] page=%d KOFIC fetch 실패, 배치 중단 — %s", page, e)
+                    break
+
+                if not rows:
+                    print(f"[bulk_import] page={page} 결과 없음 — 종료")
+                    last_page = page
+                    break
+
+                for row in rows:
+                    outcome = await _ingest_kofic_movie(row, movies_repo, hub_rag, session)
+                    stats[outcome] += 1
+
+                last_page = page
+                print(
+                    f"[bulk_import] page={page} 처리 완료 (누적 "
+                    f"succeeded={stats['succeeded']} failed={stats['failed']} "
+                    f"skipped={stats['skipped']})"
+                )
+
+    print(
+        f"[bulk_import] 완료 source={args.source} country={args.country} "
+        f"succeeded={stats['succeeded']} failed={stats['failed']} skipped={stats['skipped']} "
+        f"last_page={last_page}"
+    )
+    print(f"[bulk_import] 재시작하려면: --start-page {last_page + 1}")
+
+
+if __name__ == "__main__":
+    asyncio.run(_run(_parse_args()))

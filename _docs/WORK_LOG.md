@@ -68,6 +68,32 @@
   쓰면 커밋 책임이 호출자에게 있음 — `characters`/`movie_directors`
   레포지토리는 자체 commit해서 이전 백필은 문제없었던 것). 스크립트에
   `session.commit()` 추가 후 재실행 → `hub_knowledge` 39건 정상 적재.
+- mova 대량 영화 수집(TMDB+KOFIC 합산 수만 편, 하루 배치 점진 적재) 파이프라인
+  조사 → 구현. 조사 결과 TMDB는 `/discover/movie`(region/장르 필터)가 없어
+  popular/top_rated만으로는 한국/해외를 분리 수집할 수 없었고, KOFIC은
+  박스오피스 랭킹 API만 있고 영화 목록 API(`searchMovieList.json`)가 미구현
+  상태였으며, `ImportInteractor`엔 배치 재시작용 커서/체크포인트가 전혀
+  없었음(단 `upsert_movie`는 slug 기준 idempotent라 재시작 안전성 자체는
+  이미 확보돼 있었음). 조사 중 기존 `scripts/backfill_hub_movies_rag.py`(정적
+  JSONL 기반)가 이번에 만들 파이프라인과 목적이 겹친다는 점도 확인(정리는
+  이번 범위 밖, 백로그로 남김).
+- 설계 확정 뒤 3가지 신규 구현: ① `TmdbAdapter.fetch_discover`(raw)+
+  `TmdbCatalogAdapter.fetch_discover`(TmdbMovieSnapshotDto 매핑) — Port
+  (`TmdbCatalogPort`)는 다른 구현체·페이크에 영향 안 주려고 의도적으로
+  안 건드림(구체 클래스에만 추가). ② `KoficAdapter.fetch_movie_list` —
+  `searchMovieList.json` 래퍼(page/itemPerPage/repNationCd). ③
+  `scripts/bulk_import_movies.py` — `--source tmdb_popular|tmdb_discover|kofic`,
+  `--country KR|US|ALL`, `--pages N`, `--start-page N`(재시작용). 영화당
+  upsert_movie → credits 백필(`CreditsBackfillInteractor._backfill_one`
+  재사용, TMDB만) → hub_knowledge 인제스트 순서로 처리하고 각 단계 실패는
+  해당 영화만 스킵. KOFIC 소스는 tmdb_person_id가 없어 credits 백필 대상
+  밖(movies+hub_knowledge까지만).
+- 구현 중간에 사용자가 별도 조사(EC2 backend가 KOFIC 스케줄러 완료 후
+  자동 종료되는 버그)를 먼저 요청해 잠시 전환 — `kofic_import_scheduler.py`·
+  `main.py` 등록부·`apps/mova`+`core` 전체에서 `sys.exit`/`os._exit`/
+  `loop.stop()` 등 강제 종료 호출 0건 확인(코드 레벨 원인 못 찾음, EC2
+  OOM/systemd 재시작 등 배포 환경 쪽 가설만 제시). 조사 후 대량 수집
+  구현으로 복귀.
 
 ### 수정/구현
 - `suvisdev/scripts/ingest_hub_knowledge.py` 신규 — `movies` 전체를
@@ -80,6 +106,16 @@
 - 호스트 systemd: `/etc/systemd/system/ollama.service.d/override.conf` 신설
   (`OLLAMA_HOST=0.0.0.0`) — 저장소 밖 시스템 설정, git 미추적. 이 호스트에만
   적용(EC2는 Ollama 미사용이라 무관).
+- `apps/mova/adapter/outbound/http/tmdb_adapter.py`: `fetch_discover` 추가
+  (page/with_origin_country/with_genres/sort_by, `/discover/movie`).
+- `apps/mova/adapter/outbound/http/tmdb_catalog_adapter.py`: `fetch_discover`
+  추가(raw dict → `TmdbMovieSnapshotDto` 매핑, fetch_popular과 동일 패턴).
+- `apps/mova/adapter/outbound/http/kofic_adapter.py`: `fetch_movie_list` 추가
+  (`searchMovieList.json`, repNationCd K/F).
+- `suvisdev/scripts/bulk_import_movies.py` 신규 — 대량 수집 배치 CLI.
+- `apps/mova/tests/test_bulk_import_movies.py` 신규 — `fetch_discover` mock
+  테스트 2건 + `bulk_import_movies` argparse 테스트 4건. `pytest -m "not gpu"`
+  apps/mova/tests 73개 전부 통과(회귀 없음).
 
 ### 오류·막힌 점
 - `DuplicateTable(titanic_passengers)`: DB가 alembic 미관리 상태였던 게
@@ -97,11 +133,16 @@
 ### 데이터
 - 로컬 Docker DB(`suvisdev/suvisdev/.env` 기준) 기준: `actors` 389 /
   `characters` 371 / `movie_directors` 40 / `movies` 39 / `hub_knowledge` 39.
+- 대량 수집 배치는 이 세션에서 코드만 완성 — 실제 `bulk_import_movies.py`
+  실행(수만 편 적재)은 아직 안 함(백로그).
 
 ### 산출물
 - 신규 파일: `suvisdev/scripts/ingest_hub_knowledge.py` (커밋 대상).
 - 로컬 Docker DB가 alembic head(`20260731_0001`)까지 완전 재구축 + credits/
   hub_knowledge 데이터 적재 완료.
+- 신규 파일: `suvisdev/scripts/bulk_import_movies.py`,
+  `apps/mova/tests/test_bulk_import_movies.py` (커밋 대상). 수정:
+  `tmdb_adapter.py`/`tmdb_catalog_adapter.py`/`kofic_adapter.py`.
 
 ---
 
