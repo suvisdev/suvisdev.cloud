@@ -91,6 +91,22 @@
   없어 `susu/lib/api_config.dart`가 `127.0.0.1:9000`(로컬호스트)을 직접 보고
   있었음. `authBaseUrl`을 `https://api.suvisdev.cloud`로 교체, `docker-compose.yaml`
   auth 서비스 주석도 "실트래픽 미연결" → 실제 라우팅 상태로 갱신.
+- **EC2 배포 반영 + 실기기 카카오 로그인 E2E 성공**: EC2(`~/suvisdev.cloud`)의
+  자동배포 스크립트(`~/auto-deploy.sh`, cron)가 `origin suvisdev`를 pull은 하지만
+  `docker compose restart`만 해서(이미지 `--build` 없음) 코드 변경이 반영 안 되고
+  있었음을 SSH 접속(`aws` 호스트) 확인으로 발견. 사용자가 직접 EC2에서
+  `git pull` + `docker compose up -d --build auth` + `nginx restart` 실행 →
+  폰에서 카카오 로그인 → JWT 수신 → 스톱워치 화면 이동까지 실제 성공 확인.
+- **StopwatchPage → IntroScreen 뒤로가기 버튼 추가**: 로그인 성공 후
+  `pushAndRemoveUntil`로 스택이 비워져 시스템 뒤로가기가 안 먹히던 문제 — AppBar
+  뒤로가기 아이콘 추가(`main.dart`의 `IntroScreen`으로 이동). `stopwatch_page.dart`
+  ↔ `main.dart` 순환 import는 Dart에서 문제없음(`flutter analyze` 클린).
+- **mova 추천 챗 화면(feature slice 1개) — 앱 뼈대 도입**: 사용자가 susu를
+  WebView 래핑이 아닌 네이티브 앱으로 만들되 "앱 뼈대 + mova 추천 챗 화면 1개"로
+  범위를 한정. 착수 전 `apps/mova/adapter/inbound/api/v1/market_chat_router.py`
+  실제 코드 확인 — `POST /mova/chat`(mova_router prefix `/mova` + 자체 prefix
+  `/chat`), 인증 불필요(IP 기준 rate limit만 있음, `require_admin`/JWT 의존성
+  없음) 확인 완료.
 
 ### 오류·막힌 점
 - 카카오 Native App Key와 백엔드 `/auth/kakao/mobile` 엔드포인트가 원래
@@ -110,6 +126,10 @@
   디버깅 화면에 매번 바뀌는 포트)로만 재연결하면 됨.
 - iOS 쪽은 실제 빌드 검증(디바이스/시뮬레이터) 못 함 — Info.plist 설정은 공식
   문서 기준 표준 보일러플레이트로 작성, 실제 빌드 전 재확인 필요.
+- **mova 추천 챗 화면 실기기/데스크톱 검증 미완료**: 폰 무선 adb 연결이 다시
+  끊겨(`adb devices` 빈 목록) `flutter run` 실행을 못 함. 코드는
+  `flutter analyze` 클린까지만 확인, 실제 `/mova/chat` 호출·카드 렌더링은 아직
+  미검증 상태로 커밋(사용자 지시로 검증보다 커밋 우선 진행).
 
 ### 산출물
 - 신규 파일: `suvisdev/apps/auth/{kakao_mobile_verifier,mobile_refresh_store}.py`,
@@ -117,9 +137,13 @@
   `susu/lib/{auth,kakao_config,api_config}.dart`,
   `susu/assets/videos/intro.mp4`,
   `susu/_docs/flutter-kakao-oauth-harness.md`,
-  `suvisdev/_docs/flutter-kakao-oauth-harness.md`.
+  `suvisdev/_docs/flutter-kakao-oauth-harness.md`,
+  `susu/lib/core/{config/env,network/dio_client}.dart`,
+  `susu/lib/features/mova/{data/models/mova_chat_{request,recommendation,response},
+  data/mova_chat_{api,repository_impl},domain/mova_chat_repository,
+  presentation/mova_chat_{controller,screen}}.dart`.
 - 수정 파일: `suvisdev/apps/auth/{repository,services,router,schemas}.py`,
-  `susu/{pubspec.yaml,lib/main.dart}`,
+  `susu/{pubspec.yaml,lib/main.dart,lib/stopwatch_page.dart}`,
   `susu/android/app/src/main/AndroidManifest.xml`, `susu/ios/Runner/Info.plist`,
   `suvisdev/.env`, `nginx/conf.d/app.conf`, `docker-compose.yaml`.
 
