@@ -241,6 +241,14 @@
   `apps/mova/tests` 73개 전부 통과. **코드만 완성 — 실제 대량 실행(TMDB
   discover/KOFIC 목록으로 수만 편 적재)은 아직 안 함(아래 백로그).** 상세:
   WORK_LOG 2026-08-02.
+- **susu(Flutter) 카카오 모바일 로그인 + 백엔드 JWT 발급(2026-08-03)**: 하네스
+  문서 2건(`susu/_docs/`, `suvisdev/_docs/`), 백엔드(`apps/auth`) kapi 검증
+  어댑터/모바일 전용 Redis refresh store(`auth:refresh:mobile:{userId}`)/유저
+  자동 upsert/`POST /auth/kakao/mobile`·`/auth/mobile/refresh`·
+  `/auth/mobile/logout` 라우트 + 테스트(G2/G3) 전부 완료, `pytest` 통과.
+  Flutter 클라(`lib/auth.dart`, `lib/main.dart` 인트로영상→로그인→세션유지
+  분기) + nginx `/auth/*` 라우팅까지 구현 완료. **배포 반영과 실기기 검증은
+  아직(아래 백로그).** 상세: WORK_LOG 2026-08-03.
 
 ---
 
@@ -253,6 +261,14 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **susu 카카오 모바일 로그인 — 배포 반영·실기기 검증(2026-08-03 신규, 코드는
+  완성)**: nginx `/auth/*` 라우팅 추가는 이 리포에만 반영됨 — 실제 배포
+  머신(집 GPU 또는 EC2, 실제로 compose 스택이 떠 있는 쪽)에서 git pull 후
+  nginx 컨테이너 재시작/reload 필요(로컬 WSL엔 Docker 자체가 없어 에이전트가
+  직접 확인 못 함). 그 다음 폰 실기기(무선 adb)로 `flutter run`해서
+  카카오 로그인 → JWT 수신 → 스톱워치 이동까지 실제 성공하는지 확인 필요.
+  iOS는 Info.plist를 공식 문서 기준 표준값으로만 넣어뒀고 실제 빌드 검증은
+  전혀 안 함. 상세: WORK_LOG 2026-08-03.
 - **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규, 2026-08-02
   집 로컬 DB 적용 완료)**: `20260731_0001_create_analytics_visitor_activity`를
   집 로컬 Docker DB에는 실제 적용 완료(`visitor_activity` 테이블 생성 확인,

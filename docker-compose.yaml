@@ -75,7 +75,9 @@ services:
      #         count: all
       #        capabilities: [gpu]
 
-  # 1-1. auth 게이트웨이 — RS256 JWT 발급 전용, 병렬 구축(이번 라운드는 실트래픽 미연결).
+  # 1-1. auth 게이트웨이 — RS256 JWT 발급 전용. nginx(nginx/conf.d/app.conf)가
+  # api.suvisdev.cloud의 /auth/*, /.well-known/jwks.json을 이 컨테이너로 프록시한다
+  # (susu 카카오 모바일 로그인부터 실트래픽 연결).
   # backend와 같은 이미지/컨텍스트를 재사용하고 command만 다르게 띄운다.
   # 실행: docker compose --env-file suvisdev/.env up -d --build auth
   auth:

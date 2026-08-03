@@ -12,6 +12,7 @@ signup(신규)은 users 테이블에 INSERT하므로 조회 전용이 아니게 
 from __future__ import annotations
 
 import hashlib
+import secrets
 from dataclasses import dataclass
 
 import bcrypt
@@ -197,6 +198,70 @@ class UserRepository:
                 bio="",
             )
             session.add(new_user)
+            await session.commit()
+            await session.refresh(new_user)
+            return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
+
+    async def find_or_create_by_kakao(
+        self, *, provider_user_id: str, email: str | None, nickname: str | None
+    ) -> User:
+        """카카오 모바일 로그인 전용 upsert. 웹 OAuth(find_by_oauth_identity)는 미연동
+        identity를 자동 생성하지 않지만(OAuthIdentityNotLinked — viewer에서 먼저 연동
+        필요), 모바일은 첫 로그인 시점에 바로 계정을 만든다(하네스 R2)."""
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            identity = (
+                await session.execute(
+                    select(UserIdentityMirror).where(
+                        UserIdentityMirror.provider == "kakao",
+                        UserIdentityMirror.provider_user_id == provider_user_id,
+                    )
+                )
+            ).scalar_one_or_none()
+
+            if identity is not None:
+                row = (
+                    await session.execute(
+                        select(UserMirror, GroupMirror.code)
+                        .join(GroupMirror, UserMirror.group_id == GroupMirror.id)
+                        .where(UserMirror.id == identity.user_id)
+                    )
+                ).one_or_none()
+                if row is not None:
+                    user, group_code = row
+                    return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
+
+            group_id = (
+                await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
+            ).scalar_one_or_none()
+            if group_id is None:
+                raise RuntimeError("groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요.")
+
+            # 카카오는 email/닉네임 동의 스코프가 없으면 값을 안 줄 수 있다 — users
+            # 테이블 NOT NULL 제약을 만족시키기 위한 폴백. password_hash는 OAuth 전용
+            # 계정이라 실제로 쓰이지 않으므로 무작위 값을 해시해 채운다.
+            resolved_nickname = nickname or f"kakao_{provider_user_id}"
+            new_user = UserMirror(
+                group_id=group_id,
+                username=resolved_nickname,
+                password_hash=_hash_password(secrets.token_urlsafe(32)),
+                email=email or f"kakao_{provider_user_id}@kakao.local",
+                nickname=resolved_nickname,
+                gender=_DEFAULT_GENDER,
+                preferred_genres=[],
+                bio="",
+            )
+            session.add(new_user)
+            await session.flush()
+
+            session.add(
+                UserIdentityMirror(
+                    user_id=new_user.id,
+                    provider="kakao",
+                    provider_user_id=provider_user_id,
+                    email=email,
+                )
+            )
             await session.commit()
             await session.refresh(new_user)
             return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
