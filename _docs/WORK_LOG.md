@@ -107,6 +107,15 @@
   실제 코드 확인 — `POST /mova/chat`(mova_router prefix `/mova` + 자체 prefix
   `/chat`), 인증 불필요(IP 기준 rate limit만 있음, `require_admin`/JWT 의존성
   없음) 확인 완료.
+- **로그아웃 기능 추가**: `AuthSession.clear()`는 있었지만 어디서도 호출되지
+  않아 실제 로그아웃 UI가 없던 문제 — `StopwatchPage` AppBar에 로그아웃
+  아이콘 버튼 추가(`AuthSession.logout()` 신규: `POST /auth/mobile/logout`
+  best-effort 호출 후 로컬 secure storage 삭제, `AuthScreen`으로 이동).
+- **mova 추천 — 원격 GPU(집) 대응 하드닝**: EC2 백엔드는 유지하고 mova 추천
+  요청만 Cloudflare Tunnel로 뚫은 집 `lora_server`를 호출하는 구조로 분리하기
+  전, `LoraRecommendationOrchestrator`/`lora_server`를 실제 코드로 먼저 조사
+  (`LORA_SERVER_URL` env 하나만 바꾸면 됨 확인, 재시도 0회·인증 없음·`is_ready()`
+  미사용 세 가지 리스크 확인) → 계획 제시 후 사용자 승인 받아 반영.
 
 ### 오류·막힌 점
 - 카카오 Native App Key와 백엔드 `/auth/kakao/mobile` 엔드포인트가 원래
@@ -130,6 +139,11 @@
   끊겨(`adb devices` 빈 목록) `flutter run` 실행을 못 함. 코드는
   `flutter analyze` 클린까지만 확인, 실제 `/mova/chat` 호출·카드 렌더링은 아직
   미검증 상태로 커밋(사용자 지시로 검증보다 커밋 우선 진행).
+- **원격 GPU 하드닝은 코드·테스트까지만** — 실제 Cloudflare Tunnel로 집
+  `lora_server`를 노출하고 EC2에서 `RECOMMENDATION_BACKEND=lora` +
+  `LORA_SERVER_URL=https://...`로 붙여보는 실 연동은 아직 안 함(터널 설정
+  자체가 이번 세션 범위 밖). `is_ready()`가 어디서도 호출되지 않는 문제도
+  의도적으로 그대로 둠(별도 이슈로 미룸).
 
 ### 산출물
 - 신규 파일: `suvisdev/apps/auth/{kakao_mobile_verifier,mobile_refresh_store}.py`,
@@ -141,8 +155,13 @@
   `susu/lib/core/{config/env,network/dio_client}.dart`,
   `susu/lib/features/mova/{data/models/mova_chat_{request,recommendation,response},
   data/mova_chat_{api,repository_impl},domain/mova_chat_repository,
-  presentation/mova_chat_{controller,screen}}.dart`.
+  presentation/mova_chat_{controller,screen}}.dart`,
+  `suvisdev/_docs/lora-remote-gpu-ops.md`,
+  `suvisdev/core/lol/tests/{conftest,test_lora_recommendation_orchestrator}.py`.
 - 수정 파일: `suvisdev/apps/auth/{repository,services,router,schemas}.py`,
+  `suvisdev/core/lol/lora_recommendation_orchestrator.py`,
+  `model_servers/lora_server/serve.py`, `suvisdev/.env.example`,
+  `suvisdev/pytest.ini`,
   `susu/{pubspec.yaml,lib/main.dart,lib/stopwatch_page.dart}`,
   `susu/android/app/src/main/AndroidManifest.xml`, `susu/ios/Runner/Info.plist`,
   `suvisdev/.env`, `nginx/conf.d/app.conf`, `docker-compose.yaml`.

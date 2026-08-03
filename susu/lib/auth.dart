@@ -41,6 +41,25 @@ class AuthSession {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }
+
+  /// 서버 쪽 refresh token 폐기(POST /auth/mobile/logout) 시도 후 로컬 세션을
+  /// 지운다. 서버 호출이 실패해도(네트워크 등) 로컬 로그아웃은 항상 진행한다 —
+  /// best-effort revoke.
+  static Future<void> logout() async {
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await http.post(
+          Uri.parse('$authBaseUrl/auth/mobile/logout'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refresh_token': refreshToken}),
+        );
+      } catch (_) {
+        // 서버 revoke는 best-effort — 실패해도 아래 clear()로 로컬은 항상 로그아웃.
+      }
+    }
+    await clear();
+  }
 }
 
 class AuthScreen extends StatefulWidget {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
+import 'auth.dart';
 import 'main.dart';
 
 class StopwatchPage extends StatefulWidget {
@@ -46,6 +47,15 @@ class _StopwatchPageState extends State<StopwatchPage> {
         _lastLapMark = Duration.zero;
       }
     });
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    await AuthSession.logout();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (route) => false,
+    );
   }
 
   String _format(Duration d) {
@@ -97,6 +107,13 @@ class _StopwatchPageState extends State<StopwatchPage> {
             MaterialPageRoute(builder: (_) => const IntroScreen()),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: '로그아웃',
+            onPressed: () => _logout(context),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
