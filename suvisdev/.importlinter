@@ -10,6 +10,7 @@ root_packages =
     contents
     sample
     analytics
+    media
     core
     auth
     shared
@@ -30,6 +31,7 @@ forbidden_modules =
     contents
     sample
     analytics
+    media
 
 # Rule 2: Spokes must not import each other directly (star topology).
 [importlinter:contract:spoke-independence]
@@ -45,6 +47,7 @@ modules =
     contents
     sample
     analytics
+    media
     auth
 # Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
 #
@@ -116,6 +119,7 @@ source_modules =
     titanic
     viewer
     analytics
+    media
 forbidden_modules =
     auth
 
@@ -137,4 +141,5 @@ forbidden_modules =
     titanic
     viewer
     analytics
+    media
     auth

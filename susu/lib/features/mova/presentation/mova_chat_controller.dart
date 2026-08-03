@@ -8,8 +8,6 @@ import '../data/mova_chat_api.dart';
 import '../data/mova_chat_repository_impl.dart';
 import '../domain/mova_chat_repository.dart';
 
-final dioProvider = Provider<Dio>((ref) => createDio());
-
 final movaChatApiProvider = Provider<MovaChatApi>(
   (ref) => MovaChatApi(ref.watch(dioProvider)),
 );

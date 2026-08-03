@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth.dart';
 import '../config/env.dart';
 
-/// 임시 개발용 토큰 — 실제 로그인 JWT 발급 흐름이 이 화면 뒤로 연결되기 전까지
-/// Authorization 헤더에 넣을 자리만 마련해둔다. 지금 쓰는 /mova/chat 자체는
-/// 인증을 요구하지 않는다(백엔드 라우터 확인 완료) — 이후 인증 필요한
-/// 엔드포인트가 추가되면 이 슬롯이 그대로 쓰인다.
+/// 로그인 세션(카카오 모바일 JWT)이 있으면 그 access token을 Authorization
+/// 헤더에 싣는다. 없으면(로그인 전 화면 등) 개발용 토큰(DEV_AUTH_TOKEN)
+/// 슬롯으로 폴백 — /mova/chat처럼 인증 불필요한 엔드포인트에는 영향 없다.
 const String _devAuthToken = String.fromEnvironment('DEV_AUTH_TOKEN');
 
 Dio createDio() {
@@ -20,8 +21,11 @@ Dio createDio() {
 
   dio.interceptors.add(
     InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (_devAuthToken.isNotEmpty) {
+      onRequest: (options, handler) async {
+        final sessionToken = await AuthSession.readAccessToken();
+        if (sessionToken != null && sessionToken.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $sessionToken';
+        } else if (_devAuthToken.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $_devAuthToken';
         }
         handler.next(options);
@@ -38,3 +42,5 @@ Dio createDio() {
 
   return dio;
 }
+
+final dioProvider = Provider<Dio>((ref) => createDio());

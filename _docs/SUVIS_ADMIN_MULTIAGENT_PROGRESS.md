@@ -276,6 +276,14 @@
   (수동 스위치 유지 — 어떤 모델이 답했는지 불투명해지는 것 방지).
   **실제 Cloudflare Tunnel 연결·EC2↔집 GPU 실 연동은 아직 안 함(아래 백로그).**
   상세: WORK_LOG 2026-08-03.
+- **폰 카메라 → S3 업로드(2026-08-03)**: 새 경량 앱 `apps/media`(DB 없음) —
+  `POST /api/media/photos`(JWT 필요, JPG/PNG/WebP·10MB 제한, 기존 Sentinel
+  vision 업로드와 무관하게 분리), `.importlinter`에 `media` 스포크 등록,
+  테스트 5건. Flutter는 `features/media/`(image_picker 카메라 촬영 → Dio
+  multipart 업로드), `IntroScreen`에 카메라 버튼. `dio_client.dart`의
+  Authorization 슬롯을 실제 로그인 JWT로 연결(그동안 플레이스홀더였던 자리
+  실사용 전환). **실기기 검증은 아직(아래 백로그).**
+  상세: WORK_LOG 2026-08-03.
 
 ---
 
@@ -288,6 +296,10 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **폰 카메라 → S3 업로드 실기기 검증(2026-08-03 신규, 코드는 완성)**: 폰
+  adb 연결이 계속 끊겨 `flutter run`으로 실제 촬영→업로드 확인 못 함
+  (`pytest`/`flutter analyze`만 확인). access token 10분 TTL 만료 시 자동
+  재발급(refresh)도 미구현 — 만료되면 401, 재로그인 필요.
 - **mova 추천 원격 GPU — 실제 Tunnel 연동(2026-08-03 신규, 코드는 완성)**:
   `_docs/lora-remote-gpu-ops.md` 절차대로 집 GPU에서 `lora_server` 기동 +
   Cloudflare Tunnel Public Hostname 추가 + EC2 `.env`

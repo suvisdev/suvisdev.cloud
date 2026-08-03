@@ -131,6 +131,25 @@
   전, `LoraRecommendationOrchestrator`/`lora_server`를 실제 코드로 먼저 조사
   (`LORA_SERVER_URL` env 하나만 바꾸면 됨 확인, 재시도 0회·인증 없음·`is_ready()`
   미사용 세 가지 리스크 확인) → 계획 제시 후 사용자 승인 받아 반영.
+- **폰 카메라 → S3 업로드 신규 기능**: 사용자가 강사님 프로젝트 폴더 구조를
+  착각해 붙여넣은 내용(`star_craft` 앱, `AWS_DEFAULT_REGION` 등 — 이 저장소엔
+  없음)을 실제 코드로 검증해 정정. 기존 `apps/ontology`의 `POST /api/vision/upload`는
+  Sentinel 이상탐지(블러 하드 게이트·포스터 소프트 경고) 전용이라 재사용 부적합
+  확인 후, 새 경량 앱 `apps/media`(DB 없음) 신설:
+  - `POST /api/media/photos` — JWT 필요(`aud=suvis-susu`, mova의
+    `dependencies/require_auth.py`와 동일 패턴을 이 앱 자체 파일에 복제),
+    JPG/PNG/WebP만·최대 10MB, `core/matrix/aws_tank_s3_manager.py`의 `Tank`로
+    S3 업로드 후 `{key,url,size_bytes,content_type}` 반환.
+  - `.importlinter`에 `media` 스포크 등록(5개 계약 전부 kept — 기존 hub-independence
+    위반 1건은 무관한 사전 존재 이슈, `media`와 무관함을 diff로 확인).
+  - 테스트 5건(성공/타입 거부/빈 파일/S3 실패→502/무인증 401) 신규,
+    `main.py` 부팅+라우트 등록 확인.
+  - Flutter(`features/media/`): `image_picker`로 카메라 촬영 → Dio multipart
+    업로드. `dio_client.dart`의 Authorization 슬롯(그동안 DEV_AUTH_TOKEN
+    플레이스홀더만 있던 자리)을 실제 로그인 JWT(`AuthSession.readAccessToken()`
+    신규 공개 메서드)로 연결 — `mova_chat_controller.dart`의 `dioProvider`도
+    공용화해 재사용. `IntroScreen` AppBar에 카메라 버튼 추가, 업로드
+    중/성공/실패 SnackBar. Android(`CAMERA` 권한)/iOS(`NSCameraUsageDescription`) 추가.
 
 ### 오류·막힌 점
 - 카카오 Native App Key와 백엔드 `/auth/kakao/mobile` 엔드포인트가 원래
@@ -159,6 +178,10 @@
   `LORA_SERVER_URL=https://...`로 붙여보는 실 연동은 아직 안 함(터널 설정
   자체가 이번 세션 범위 밖). `is_ready()`가 어디서도 호출되지 않는 문제도
   의도적으로 그대로 둠(별도 이슈로 미룸).
+- **카메라 업로드 실기기 검증 미완료**: 폰 adb 연결이 계속 끊기는 상태라
+  `flutter run`으로 실제 촬영→S3 업로드까지는 못 봄(`pytest`/`flutter analyze`만
+  확인). access token 10분 TTL 만료 시 자동 재발급(refresh)도 이번 범위 밖 —
+  만료되면 401 나고 재로그인해야 함.
 
 ### 산출물
 - 신규 파일: `suvisdev/apps/auth/{kakao_mobile_verifier,mobile_refresh_store}.py`,
@@ -172,8 +195,17 @@
   data/mova_chat_{api,repository_impl},domain/mova_chat_repository,
   presentation/mova_chat_{controller,screen}}.dart`,
   `suvisdev/_docs/lora-remote-gpu-ops.md`,
-  `suvisdev/core/lol/tests/{conftest,test_lora_recommendation_orchestrator}.py`.
+  `suvisdev/core/lol/tests/{conftest,test_lora_recommendation_orchestrator}.py`,
+  `suvisdev/apps/media/{__init__,router,schemas}.py`,
+  `suvisdev/apps/media/dependencies/{__init__,require_auth}.py`,
+  `suvisdev/apps/media/tests/{__init__,conftest,test_router}.py`,
+  `susu/lib/features/media/{data/models/photo_upload_response,data/media_api,
+  data/media_repository_impl,domain/media_repository,
+  presentation/photo_capture_controller}.dart`.
 - 수정 파일: `suvisdev/apps/auth/{repository,services,router,schemas}.py`,
+  `suvisdev/main.py`, `suvisdev/.importlinter`,
+  `susu/lib/{auth,core/network/dio_client,features/mova/presentation/mova_chat_controller}.dart`,
+  `susu/android/app/src/main/AndroidManifest.xml`, `susu/ios/Runner/Info.plist`,
   `suvisdev/core/lol/lora_recommendation_orchestrator.py`,
   `model_servers/lora_server/serve.py`, `suvisdev/.env.example`,
   `suvisdev/pytest.ini`,
