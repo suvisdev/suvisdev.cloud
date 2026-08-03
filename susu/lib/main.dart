@@ -47,7 +47,7 @@ class SuvisApp extends StatelessWidget {
 }
 
 /// 앱 진입점 — 저장된 모바일 세션이 있으면(하네스 R "모바일 세션 유지") 곧바로
-/// StopwatchPage로, 없으면 인트로 영상을 4~5초 재생한 뒤 AuthScreen(카카오
+/// IntroScreen(메인)으로, 없으면 인트로 영상을 4~5초 재생한 뒤 AuthScreen(카카오
 /// 로그인)으로 자동 전환한다.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -72,7 +72,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     if (hasSession) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const StopwatchPage()),
+        MaterialPageRoute(builder: (_) => const IntroScreen()),
       );
       return;
     }
@@ -119,12 +119,32 @@ class _SplashScreenState extends State<SplashScreen> {
 class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
 
+  Future<void> _logout(BuildContext context) async {
+    await AuthSession.logout();
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = _Colors(isDark);
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout, color: colors.strong),
+            tooltip: '로그아웃',
+            onPressed: () => _logout(context),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

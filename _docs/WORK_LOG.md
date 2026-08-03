@@ -108,9 +108,24 @@
   `/chat`), 인증 불필요(IP 기준 rate limit만 있음, `require_admin`/JWT 의존성
   없음) 확인 완료.
 - **로그아웃 기능 추가**: `AuthSession.clear()`는 있었지만 어디서도 호출되지
-  않아 실제 로그아웃 UI가 없던 문제 — `StopwatchPage` AppBar에 로그아웃
-  아이콘 버튼 추가(`AuthSession.logout()` 신규: `POST /auth/mobile/logout`
-  best-effort 호출 후 로컬 secure storage 삭제, `AuthScreen`으로 이동).
+  않아 실제 로그아웃 UI가 없던 문제 — 로그아웃 아이콘 버튼 추가
+  (`AuthSession.logout()` 신규: `POST /auth/mobile/logout` best-effort 호출
+  후 로컬 secure storage 삭제, `AuthScreen`으로 이동). 처음엔 `StopwatchPage`
+  AppBar에 뒀다가, 아래 네비게이션 재구성으로 `IntroScreen`으로 옮김.
+- **로그인 후 메인 화면을 IntroScreen으로 변경**: 원래 로그인 성공/세션 유지 시
+  곧장 `StopwatchPage`로 가던 걸, 사용자 요청으로 `IntroScreen`(main.dart의
+  마케팅 카드 화면)이 로그인 후 메인이 되도록 변경 — `SplashScreen`(세션 있을
+  때)과 `AuthScreen`(로그인 성공 시) 둘 다 목적지를 `IntroScreen`으로 수정.
+  `StopwatchPage`는 `IntroScreen`의 "스톱워치 열기" 버튼으로만 들어가는
+  서브 화면이 됨 — AppBar 뒤로가기도 단순 `pop()`으로 단순화(더 이상
+  `main.dart`/`auth.dart`를 import할 필요 없어짐). 로그아웃 버튼은
+  `IntroScreen` AppBar로 이동.
+- **S3 버킷 env 오류 수정**: 사용자가 `.env`에 버킷 이름 대신 ARN 전체
+  (`arn:aws:s3:::...`)를 `KEY=` 없이 그대로 붙여넣어 파싱 자체가 안 되던 상태
+  발견 → `VISION_S3_BUCKET=`(버킷 이름만, ARN 접두사 제거)로 수정. `boto3`의
+  `Bucket=` 파라미터가 순수 이름만 받는다는 점 확인(`core/matrix/aws_tank_s3_manager.py`).
+  `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`은 아직 미설정
+  (로컬에서 S3 쓰려면 필요, EC2는 인스턴스 IAM Role로 대체 가능).
 - **mova 추천 — 원격 GPU(집) 대응 하드닝**: EC2 백엔드는 유지하고 mova 추천
   요청만 Cloudflare Tunnel로 뚫은 집 `lora_server`를 호출하는 구조로 분리하기
   전, `LoraRecommendationOrchestrator`/`lora_server`를 실제 코드로 먼저 조사

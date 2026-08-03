@@ -260,9 +260,11 @@
   platform,hook}` 등) 그대로 매핑한 모델·포스터 카드 UI 완성.
   `flutter analyze` 클린. **실기기/데스크톱 실행 검증은 아직(아래 백로그).**
   상세: WORK_LOG 2026-08-03.
-- **susu 로그아웃 기능(2026-08-03)**: `AuthSession.clear()`는 있었지만 호출부가
-  없어 로그아웃할 방법이 없던 문제 — `StopwatchPage` AppBar에 로그아웃 버튼
-  추가, `POST /auth/mobile/logout` best-effort 호출 후 로컬 세션 삭제.
+- **susu 네비게이션 재구성 + 로그아웃(2026-08-03)**: 로그인 성공/세션 유지 시
+  메인 화면을 `StopwatchPage`에서 `IntroScreen`(마케팅 카드)으로 변경 —
+  `StopwatchPage`는 이제 `IntroScreen`의 "스톱워치 열기" 버튼으로만 들어가는
+  서브 화면. 로그아웃 버튼(`AuthSession.logout()` — `POST /auth/mobile/logout`
+  best-effort + 로컬 세션 삭제)은 `IntroScreen` AppBar에 위치.
 - **mova 추천 — 원격 GPU(집) 대응 하드닝(2026-08-03)**: EC2 백엔드는 유지하고
   mova 추천만 Cloudflare Tunnel로 뚫은 집 `lora_server`를 호출하는 구조로
   분리하기 위한 선행 작업. `LoraRecommendationOrchestrator` httpx 타임아웃
