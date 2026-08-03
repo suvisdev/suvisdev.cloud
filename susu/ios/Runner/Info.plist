@@ -39,6 +39,8 @@
 	<array>
 		<string>kakaokompassauth</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>사진을 촬영해 업로드하려면 카메라 접근 권한이 필요합니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

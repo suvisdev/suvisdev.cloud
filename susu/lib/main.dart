@@ -7,6 +7,7 @@ import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
 import 'package:video_player/video_player.dart';
 
 import 'auth.dart';
+import 'features/media/presentation/photo_capture_controller.dart';
 import 'features/mova/presentation/mova_chat_screen.dart';
 import 'kakao_config.dart';
 import 'stopwatch_page.dart';
@@ -116,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class IntroScreen extends StatelessWidget {
+class IntroScreen extends ConsumerWidget {
   const IntroScreen({super.key});
 
   Future<void> _logout(BuildContext context) async {
@@ -129,15 +130,41 @@ class IntroScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colors = _Colors(isDark);
+
+    ref.listen(photoCaptureControllerProvider, (previous, next) {
+      final messenger = ScaffoldMessenger.of(context);
+      switch (next.status) {
+        case PhotoUploadStatus.loading:
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('사진 업로드 중...')));
+        case PhotoUploadStatus.success:
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('사진이 저장됐습니다.')));
+        case PhotoUploadStatus.error:
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(next.errorMessage ?? '업로드에 실패했습니다.')));
+        case PhotoUploadStatus.idle:
+          break;
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: Icon(Icons.camera_alt, color: colors.strong),
+            tooltip: '사진 찍기',
+            onPressed: () =>
+                ref.read(photoCaptureControllerProvider.notifier).captureAndUpload(),
+          ),
           IconButton(
             icon: Icon(Icons.logout, color: colors.strong),
             tooltip: '로그아웃',

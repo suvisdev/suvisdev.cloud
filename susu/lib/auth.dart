@@ -29,6 +29,13 @@ class AuthSession {
     return refreshToken != null && refreshToken.isNotEmpty;
   }
 
+  /// 인증이 필요한 API 호출(예: 사진 업로드)의 Authorization 헤더에 쓴다.
+  /// access token은 10분 TTL이라 만료 후 호출은 401을 받을 수 있음 — 이번
+  /// 범위에서는 자동 재발급(refresh)까지는 구현하지 않는다.
+  static Future<String?> readAccessToken() async {
+    return _storage.read(key: _accessTokenKey);
+  }
+
   static Future<void> _save({
     required String accessToken,
     required String refreshToken,

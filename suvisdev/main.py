@@ -37,6 +37,7 @@ from core.matrix.grid_oracle_database_manager import (
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from dispatch.adapter.inbound.api import dispatch_router
 from gildle.adapter.inbound.api import gildle_router
+from media.router import media_router
 from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
@@ -336,6 +337,7 @@ app.include_router(vision_router, prefix="/api")
 app.include_router(ontology_router, prefix="/api")
 app.include_router(nlp_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(media_router, prefix="/api")
 
 
 @app.get("/api-login", response_class=HTMLResponse, include_in_schema=False)
