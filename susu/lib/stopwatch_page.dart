@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
+import 'main.dart';
+
 class StopwatchPage extends StatefulWidget {
   const StopwatchPage({super.key});
 
@@ -86,10 +88,20 @@ class _StopwatchPageState extends State<StopwatchPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const IntroScreen()),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 40),
+            const SizedBox(height: 8),
             Text(
               _format(_stopwatch.elapsed),
               style: const TextStyle(

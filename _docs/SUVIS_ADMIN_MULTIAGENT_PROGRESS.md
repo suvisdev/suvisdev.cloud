@@ -247,8 +247,19 @@
   자동 upsert/`POST /auth/kakao/mobile`·`/auth/mobile/refresh`·
   `/auth/mobile/logout` 라우트 + 테스트(G2/G3) 전부 완료, `pytest` 통과.
   Flutter 클라(`lib/auth.dart`, `lib/main.dart` 인트로영상→로그인→세션유지
-  분기) + nginx `/auth/*` 라우팅까지 구현 완료. **배포 반영과 실기기 검증은
-  아직(아래 백로그).** 상세: WORK_LOG 2026-08-03.
+  분기) + nginx `/auth/*` 라우팅까지 구현 완료. **EC2 배포 반영 + 폰 실기기
+  카카오 로그인 E2E 성공까지 확인 완료**(EC2 auto-deploy.sh가 `docker compose
+  restart`만 해서 `--build` 누락으로 코드 미반영이던 것 발견, 사용자가 직접
+  `--build auth` + nginx 재시작 후 검증). iOS는 실빌드 미검증(아래 백로그).
+  상세: WORK_LOG 2026-08-03.
+- **mova 추천 챗 화면(feature slice, 2026-08-03)**: susu를 WebView가 아닌
+  네이티브 앱으로 전환하는 첫 슬라이스. Dio+Riverpod+go_router 앱 뼈대
+  (`lib/core/`), `features/mova/{data,domain,presentation}` 구조로
+  `POST /mova/chat`(인증 불필요, 실제 라우터 확인 완료) 연동, 응답
+  필드명(`reply`/`recommendations[].{id,movie_id,title,year,poster,synopsis,
+  platform,hook}` 등) 그대로 매핑한 모델·포스터 카드 UI 완성.
+  `flutter analyze` 클린. **실기기/데스크톱 실행 검증은 아직(아래 백로그).**
+  상세: WORK_LOG 2026-08-03.
 
 ---
 
@@ -261,14 +272,18 @@
 
 ## 다음 / 남은 작업 (백로그)
 
-- **susu 카카오 모바일 로그인 — 배포 반영·실기기 검증(2026-08-03 신규, 코드는
-  완성)**: nginx `/auth/*` 라우팅 추가는 이 리포에만 반영됨 — 실제 배포
-  머신(집 GPU 또는 EC2, 실제로 compose 스택이 떠 있는 쪽)에서 git pull 후
-  nginx 컨테이너 재시작/reload 필요(로컬 WSL엔 Docker 자체가 없어 에이전트가
-  직접 확인 못 함). 그 다음 폰 실기기(무선 adb)로 `flutter run`해서
-  카카오 로그인 → JWT 수신 → 스톱워치 이동까지 실제 성공하는지 확인 필요.
-  iOS는 Info.plist를 공식 문서 기준 표준값으로만 넣어뒀고 실제 빌드 검증은
-  전혀 안 함. 상세: WORK_LOG 2026-08-03.
+- **susu 카카오 모바일 로그인 — iOS 실빌드 검증(2026-08-03 신규)**: Android는
+  EC2 배포 반영 후 실기기 E2E 성공 확인 완료. iOS는 Info.plist를 공식 문서
+  기준 표준값으로만 넣어뒀고 실제 빌드 검증은 전혀 안 함. 상세: WORK_LOG
+  2026-08-03.
+- **mova 추천 챗 화면 — 실기기/데스크톱 실행 검증(2026-08-03 신규, 코드는
+  완성)**: 폰 무선 adb 연결이 끊겨(`adb devices` 빈 목록) `flutter run`을
+  못 돌려봄. `flutter analyze`만 클린 확인한 상태로 커밋(사용자 지시로 검증
+  보다 커밋 우선). 폰 재연결 또는 `flutter run -d linux`(데스크톱, 이 화면은
+  카카오 SDK 의존이 없어 데스크톱에서도 검증 가능하나 IntroScreen 진입에
+  카카오 로그인을 거쳐야 하는 현재 네비게이션 구조상 데스크톱에선 로그인
+  단계가 막힘 — 임시 진입 경로 필요 여부 검토)로 실제 `/mova/chat` 응답·
+  포스터 카드 렌더링 확인 필요. 상세: WORK_LOG 2026-08-03.
 - **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규, 2026-08-02
   집 로컬 DB 적용 완료)**: `20260731_0001_create_analytics_visitor_activity`를
   집 로컬 Docker DB에는 실제 적용 완료(`visitor_activity` 테이블 생성 확인,

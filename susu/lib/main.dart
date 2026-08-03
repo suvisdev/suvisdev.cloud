@@ -1,25 +1,35 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
 import 'package:video_player/video_player.dart';
 
 import 'auth.dart';
+import 'features/mova/presentation/mova_chat_screen.dart';
 import 'kakao_config.dart';
 import 'stopwatch_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await KakaoSdk.init(nativeAppKey: kakaoNativeAppKey);
-  runApp(const SuvisApp());
+  runApp(const ProviderScope(child: SuvisApp()));
 }
+
+// go_router는 이번 라운드엔 진입점(root) 하나만 등록한다 — 앱 전체 화면 그래프를
+// 한 번에 선언형으로 옮기는 대신, 기존 SplashScreen/AuthScreen/StopwatchPage/
+// IntroScreen 내부 전환은 지금처럼 Navigator.push(imperative)를 그대로 쓴다.
+final _router = GoRouter(
+  routes: [GoRoute(path: '/', builder: (context, state) => const SplashScreen())],
+);
 
 class SuvisApp extends StatelessWidget {
   const SuvisApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Suvisdev',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
@@ -31,7 +41,7 @@ class SuvisApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0F14),
       ),
-      home: const SplashScreen(),
+      routerConfig: _router,
     );
   }
 }
@@ -324,6 +334,33 @@ class _ContentCard extends StatelessWidget {
                   ),
                   child: const Text(
                     '스톱워치 열기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MovaChatScreen()),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colors.strong,
+                    side: BorderSide(color: colors.border),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'mova 추천 챗 열기',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
