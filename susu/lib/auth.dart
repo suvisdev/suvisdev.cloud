@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 import 'api_config.dart';
-import 'stopwatch_page.dart';
+import 'main.dart';
 
 /// 모바일 세션(백엔드가 발급한 자체 JWT/refresh token) 저장소.
 ///
@@ -85,7 +85,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const StopwatchPage()),
+        MaterialPageRoute(builder: (_) => const IntroScreen()),
         (route) => false,
       );
     } catch (e) {
