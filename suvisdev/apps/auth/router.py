@@ -7,10 +7,14 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 
+from auth.kakao_mobile_verifier import KakaoTokenInvalid
+from auth.mobile_refresh_store import MobileTokenInvalid
 from auth.oauth_adapters import OAuthError
 from auth.refresh_store import ReuseDetected
 from auth.repository import EmailAlreadyExists
 from auth.schemas import (
+    KakaoMobileLoginRequest,
+    KakaoMobileTokenResponse,
     LoginRequest,
     OAuthExchangeRequest,
     RefreshRequest,
@@ -116,6 +120,28 @@ async def oauth_exchange(body: OAuthExchangeRequest) -> TokenResponse:
     if token_response is None:
         raise HTTPException(status_code=404, detail="handoff code가 없거나 만료되었습니다.")
     return token_response
+
+
+@router.post("/auth/kakao/mobile", response_model=KakaoMobileTokenResponse)
+async def kakao_mobile_login(body: KakaoMobileLoginRequest) -> KakaoMobileTokenResponse:
+    """susu(Flutter) 전용 — 클라는 access_token만 보낸다(me() 호출 금지, 검증은 여기서만)."""
+    try:
+        return await _service.login_with_kakao_mobile(body.access_token)
+    except KakaoTokenInvalid as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.post("/auth/mobile/refresh", response_model=TokenResponse)
+async def mobile_refresh(body: RefreshRequest) -> TokenResponse:
+    try:
+        return await _service.mobile_refresh(body.refresh_token)
+    except MobileTokenInvalid as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.post("/auth/mobile/logout", status_code=204)
+async def mobile_logout(body: RefreshRequest) -> None:
+    await _service.mobile_logout(body.refresh_token)
 
 
 @router.get("/.well-known/jwks.json")

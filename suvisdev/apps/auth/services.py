@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from auth.kakao_mobile_verifier import KakaoMobileTokenVerifier
+from auth.mobile_refresh_store import MobileRefreshTokenStore
 from auth.oauth_adapters import OAuthError
 from auth.oauth_adapters.google import GoogleOAuthAdapter
 from auth.oauth_adapters.kakao import KakaoOAuthAdapter
@@ -8,10 +10,11 @@ from auth.oauth_handoff_store import OAuthHandoffStore
 from auth.oauth_state_store import OAuthStateStore
 from auth.refresh_store import RefreshTokenStore, ReuseDetected
 from auth.repository import UserRepository
-from auth.schemas import TokenResponse
+from auth.schemas import KakaoMobileTokenResponse, TokenResponse
 from auth.security import JwtAdapter
 
 _ACCESS_TTL_MIN = 10
+_MOBILE_AUD = "suvis-susu"
 
 
 class OAuthIdentityNotLinked(Exception):
@@ -39,6 +42,8 @@ class AuthService:
         oauth_adapters: dict[str, object] | None = None,
         oauth_state_store: OAuthStateStore | None = None,
         oauth_handoff_store: OAuthHandoffStore | None = None,
+        kakao_mobile_verifier: KakaoMobileTokenVerifier | None = None,
+        mobile_refresh_store: MobileRefreshTokenStore | None = None,
     ) -> None:
         self._users = user_repository or UserRepository()
         self._tokens = token_issuer or JwtAdapter()
@@ -50,6 +55,8 @@ class AuthService:
         }
         self._oauth_state = oauth_state_store or OAuthStateStore()
         self._oauth_handoff = oauth_handoff_store or OAuthHandoffStore()
+        self._kakao_mobile_verifier = kakao_mobile_verifier or KakaoMobileTokenVerifier()
+        self._mobile_refresh = mobile_refresh_store or MobileRefreshTokenStore()
 
     def build_authorize_url(self, provider: str, state: str) -> str:
         adapter = self._get_oauth_adapter(provider)
@@ -127,6 +134,43 @@ class AuthService:
             self._refresh.revoke_family(rotated.family_id)
         except ReuseDetected:
             pass  # 이미 무효화된 토큰 — 로그아웃 목적은 이미 달성된 상태
+
+    async def login_with_kakao_mobile(self, access_token: str) -> KakaoMobileTokenResponse:
+        """모바일(susu) 전용 — kapi로 access_token을 검증한 뒤 곧바로 계정을 만들거나
+        조회한다(웹과 달리 자동 생성). 발급된 refresh token은 auth:refresh:mobile:{userId}
+        네임스페이스에 저장되어 웹 세션과 완전히 분리된다."""
+        identity = await self._kakao_mobile_verifier.verify(access_token)
+        user = await self._users.find_or_create_by_kakao(
+            provider_user_id=identity.provider_user_id,
+            email=identity.email,
+            nickname=identity.nickname,
+        )
+        access_jwt = self._tokens.issue_access_token(
+            sub=str(user.user_id), roles=user.role_values(), aud=_MOBILE_AUD, expires_min=_ACCESS_TTL_MIN
+        )
+        refresh_token = self._mobile_refresh.issue(
+            user_id=str(user.user_id), sub=str(user.user_id), aud=_MOBILE_AUD, roles=user.role_values()
+        )
+        return KakaoMobileTokenResponse(
+            access_token=access_jwt,
+            refresh_token=refresh_token,
+            expires_in=_ACCESS_TTL_MIN * 60,
+            nickname=identity.nickname,
+        )
+
+    async def mobile_refresh(self, refresh_token: str) -> TokenResponse:
+        session = self._mobile_refresh.rotate(refresh_token=refresh_token)
+        access_jwt = self._tokens.issue_access_token(
+            sub=session.sub, roles=session.roles, aud=session.aud, expires_min=_ACCESS_TTL_MIN
+        )
+        return TokenResponse(
+            access_token=access_jwt,
+            refresh_token=session.refresh_token,
+            expires_in=_ACCESS_TTL_MIN * 60,
+        )
+
+    async def mobile_logout(self, refresh_token: str) -> None:
+        self._mobile_refresh.revoke(refresh_token=refresh_token)
 
     def _issue_token_pair(self, *, sub: str, roles: list[str], aud: str) -> TokenResponse:
         access_token = self._tokens.issue_access_token(

@@ -1,8 +1,16 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
+import 'package:video_player/video_player.dart';
+
+import 'auth.dart';
+import 'kakao_config.dart';
 import 'stopwatch_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await KakaoSdk.init(nativeAppKey: kakaoNativeAppKey);
   runApp(const SuvisApp());
 }
 
@@ -23,7 +31,77 @@ class SuvisApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0D0F14),
       ),
-      home: const IntroScreen(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+/// 앱 진입점 — 저장된 모바일 세션이 있으면(하네스 R "모바일 세션 유지") 곧바로
+/// StopwatchPage로, 없으면 인트로 영상을 4~5초 재생한 뒤 AuthScreen(카카오
+/// 로그인)으로 자동 전환한다.
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  VideoPlayerController? _videoController;
+  Timer? _autoAdvanceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _decideNextScreen();
+  }
+
+  Future<void> _decideNextScreen() async {
+    final hasSession = await AuthSession.hasStoredSession();
+    if (!mounted) return;
+
+    if (hasSession) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const StopwatchPage()),
+      );
+      return;
+    }
+
+    final controller = VideoPlayerController.asset('assets/videos/intro.mp4');
+    _videoController = controller;
+    await controller.initialize();
+    if (!mounted) return;
+    setState(() {});
+    controller.play();
+
+    _autoAdvanceTimer = Timer(const Duration(seconds: 5), () {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AuthScreen()),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoAdvanceTimer?.cancel();
+    _videoController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _videoController;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: (controller != null && controller.value.isInitialized)
+          ? Center(
+              child: AspectRatio(
+                aspectRatio: controller.value.aspectRatio,
+                child: VideoPlayer(controller),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

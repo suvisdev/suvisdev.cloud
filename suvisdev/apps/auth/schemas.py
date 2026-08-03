@@ -35,11 +35,21 @@ class OAuthExchangeRequest(BaseModel):
     code: str = Field(..., min_length=1)
 
 
+class KakaoMobileLoginRequest(BaseModel):
+    access_token: str = Field(..., min_length=1, description="kakao_flutter_sdk 로그인 결과의 access token")
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
+
+
+class KakaoMobileTokenResponse(TokenResponse):
+    """모바일 로그인 응답 — 클라가 별도로 me()를 호출하지 않도록 표시용 닉네임을 함께 준다."""
+
+    nickname: str | None = None
 
 
 class TokenPayload(BaseModel):

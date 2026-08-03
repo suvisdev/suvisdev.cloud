@@ -28,6 +28,103 @@
 
 ---
 
+## 2026-08-03
+
+### 작업 내용
+- 루트 `.env`(GITHUB_PAT만 존재)를 `suvisdev/.env`로 병합 후 루트 파일 삭제 —
+  프로젝트 규칙(".env 파일은 suvisdev/.env 하나") 정리.
+- `suvisdev/.env.auth`와 `suvisdev/.env` 분리 이유 확인 — `docker-compose.yaml`상
+  `backend`는 `.env`만, `auth` 컨테이너는 `.env`+`.env.auth`를 로드. RS256 서명
+  개인키(`JWT_PRIVATE_KEY_B64`)를 backend 컨테이너에 노출시키지 않기 위한 의도된
+  보안 격리라 병합하지 않기로 함.
+- susu(Flutter) 카카오 모바일 로그인 + 백엔드 JWT 발급 하네스 문서 작성 후,
+  풀스택(백엔드+Flutter 클라이언트) 구현까지 진행.
+
+### 수정/구현
+- **하네스 문서**: `susu/_docs/flutter-kakao-oauth-harness.md`(클라 담당분),
+  `suvisdev/_docs/flutter-kakao-oauth-harness.md`(백엔드 담당분) — 서로 상대
+  경로로 상호 링크.
+- **백엔드(`apps/auth`)**:
+  - `kakao_mobile_verifier.py` 신규 — kapi `/v2/user/me`로 모바일 access_token
+    검증(`KakaoMobileTokenVerifier`). 웹의 `oauth_adapters/kakao.py`(OIDC
+    id_token 방식)와는 별도 어댑터.
+  - `mobile_refresh_store.py` 신규 — `auth:refresh:mobile:{userId}` 네임스페이스
+    Redis 저장소(`MobileRefreshTokenStore`). 웹의 `refresh_store.py`
+    (`auth:refresh:{jti}`)는 무변경.
+  - `repository.py`에 `find_or_create_by_kakao()` 추가 — 카카오 최초 로그인 시
+    `UserMirror`/`UserIdentityMirror` 자동 생성(웹 OAuth와 달리 자동 가입).
+  - `services.py`에 `login_with_kakao_mobile`/`mobile_refresh`/`mobile_logout`
+    추가, `router.py`에 `POST /auth/kakao/mobile`, `/auth/mobile/refresh`,
+    `/auth/mobile/logout` 라우트 추가. `schemas.py`에
+    `KakaoMobileLoginRequest`/`KakaoMobileTokenResponse` 추가.
+  - `tests/test_kakao_mobile.py` 신규 — G2(유효/무효 토큰), G3(모바일·웹 Redis
+    네임스페이스 분리, 모바일 로그아웃이 웹 세션에 무영향) 커버. `pytest -m
+    "not gpu"` 전체 352 passed(+1 fail은 실 Ollama 서버 필요한 기존 이슈,
+    이번 변경과 무관).
+- **Flutter(`susu`)**:
+  - `pubspec.yaml`에 `kakao_flutter_sdk_common`/`kakao_flutter_sdk_user`/
+    `video_player`/`flutter_secure_storage`/`http` 추가(`flutter pub add`로
+    버전 자동 해결). 인트로 영상을 `assets/videos/intro.mp4`로 추가, assets
+    등록.
+  - Android(`AndroidManifest.xml`)/iOS(`Info.plist`)에 카카오 로그인 커스텀
+    URL 스킴(`kakao{NATIVE_APP_KEY}`) 설정 추가. Native App Key는 사용자가
+    카카오 콘솔에서 직접 발급해 `suvisdev/.env`(`KAKAO_NATIVE_APP_KEY`)와
+    `susu/lib/kakao_config.dart`에 반영.
+  - `lib/auth.dart` 신규 — 카카오톡 설치 시 `loginWithKakaoTalk()` → 실패/미설치
+    시 `loginWithKakaoAccount()` 폴백. `UserApi.instance.me()` 미호출(백엔드가
+    kapi로 단독 검증). `POST /auth/kakao/mobile`로 access_token만 전송, 응답
+    JWT/refresh token을 `flutter_secure_storage`에 저장 후 `StopwatchPage`로
+    이동.
+  - `lib/main.dart` — `KakaoSdk.init()`을 `runApp()` 전에 호출하도록 `main()`
+    수정. 기존 `IntroScreen`(마케팅 카드)은 그대로 두되 `home:`을 신규
+    `SplashScreen`으로 교체 — 저장된 모바일 세션 있으면 바로
+    `StopwatchPage`로, 없으면 인트로 영상 5초 재생 후 `AuthScreen`으로 자동
+    전환.
+  - `flutter analyze` 결과 새 코드는 클린, 기존 코드의 사전 경고(`_UnfoldedLayout`
+    등 미사용 `key` 파라미터, `test/widget_test.dart`의 `MyApp` 참조 오류)만
+    잔존 — 이번 변경과 무관하므로 미수정.
+
+- `nginx/conf.d/app.conf`에 `/auth/*`, `/.well-known/jwks.json` → `auth:9000`
+  프록시 location 추가(기존 `backend:8000` 라우팅과 동일 패턴). 사용자가
+  "강사님이 말한 로컬→AWS→앱 구조와 다르다"고 지적 — 확인해보니 메인 백엔드는
+  이미 nginx로 `api.suvisdev.cloud`에 연결돼 있었지만 auth 게이트웨이만 라우팅이
+  없어 `susu/lib/api_config.dart`가 `127.0.0.1:9000`(로컬호스트)을 직접 보고
+  있었음. `authBaseUrl`을 `https://api.suvisdev.cloud`로 교체, `docker-compose.yaml`
+  auth 서비스 주석도 "실트래픽 미연결" → 실제 라우팅 상태로 갱신.
+
+### 오류·막힌 점
+- 카카오 Native App Key와 백엔드 `/auth/kakao/mobile` 엔드포인트가 원래
+  존재하지 않아 사용자에게 확인 후(플레이스홀더 진행 → 실제 키로 교체, 백엔드
+  풀스택 병행 구현) 진행.
+- `auth 게이트웨이`(9000포트)가 애초 cloudflared/nginx로 공개 라우팅되지 않아
+  `susu/lib/api_config.dart`가 로컬호스트를 직접 가리키던 문제 발견 → nginx
+  라우팅 추가로 해결(위 항목 참고). **단, 이 리포는 로컬 WSL에 Docker가 없어서
+  (Docker Desktop WSL 연동 비활성) 실제 배포 머신(집 GPU 또는 EC2)에서 git
+  pull 후 nginx 컨테이너를 재시작/reload해야 반영된다 — 이번 세션에서는
+  코드만 고쳤고 실제 반영 확인은 못 함.**
+- 로컬 `flutter run -d linux`가 `libsecret-1-dev` 시스템 패키지 부재로 실패 —
+  sudo가 비밀번호 TTY를 요구해 에이전트가 대신 설치 못 함, 사용자가 직접
+  실행하도록 안내.
+- 폰 실기기 무선 adb 연결이 끊겨 있었음(`adb devices` 빈 목록) — 기존에
+  페어링된 키는 남아 있어 재-pair 없이 `adb connect <IP>:<PORT>`(폰의 무선
+  디버깅 화면에 매번 바뀌는 포트)로만 재연결하면 됨.
+- iOS 쪽은 실제 빌드 검증(디바이스/시뮬레이터) 못 함 — Info.plist 설정은 공식
+  문서 기준 표준 보일러플레이트로 작성, 실제 빌드 전 재확인 필요.
+
+### 산출물
+- 신규 파일: `suvisdev/apps/auth/{kakao_mobile_verifier,mobile_refresh_store}.py`,
+  `suvisdev/apps/auth/tests/test_kakao_mobile.py`,
+  `susu/lib/{auth,kakao_config,api_config}.dart`,
+  `susu/assets/videos/intro.mp4`,
+  `susu/_docs/flutter-kakao-oauth-harness.md`,
+  `suvisdev/_docs/flutter-kakao-oauth-harness.md`.
+- 수정 파일: `suvisdev/apps/auth/{repository,services,router,schemas}.py`,
+  `susu/{pubspec.yaml,lib/main.dart}`,
+  `susu/android/app/src/main/AndroidManifest.xml`, `susu/ios/Runner/Info.plist`,
+  `suvisdev/.env`, `nginx/conf.d/app.conf`, `docker-compose.yaml`.
+
+---
+
 ## 2026-08-02
 
 ### 작업 내용
