@@ -20,7 +20,7 @@ from typing import Any
 
 import gptqmodel.nn_modules.qlinear.gemm_awq as _gemm_awq
 import torch
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from peft import PeftModel
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -86,6 +86,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def require_lora_token(x_lora_token: str | None = Header(default=None)) -> None:
+    """LORA_SERVER_TOKEN이 비어있으면(로컬 개발) 인증을 생략한다. 원격(Cloudflare
+    Tunnel 등)으로 노출할 때만 값을 채워 활성화한다 — orchestrator 쪽
+    (core/lol/lora_recommendation_orchestrator.py)도 같은 값을 X-LoRA-Token
+    헤더로 보내야 한다."""
+    expected = os.getenv("LORA_SERVER_TOKEN", "")
+    if not expected:
+        return
+    if x_lora_token != expected:
+        raise HTTPException(status_code=401, detail="invalid or missing token")
+
+
 class GenerateRequest(BaseModel):
     prompt: str
     system: str | None = None
@@ -105,7 +117,7 @@ def health() -> dict[str, object]:
     }
 
 
-@app.post("/reload")
+@app.post("/reload", dependencies=[Depends(require_lora_token)])
 def reload_adapter() -> dict[str, object]:
     """train_mova_lora.py 재학습 후 최신 어댑터로 교체한다(프로세스 재시작 불필요)."""
     del _state["model"]
@@ -115,7 +127,7 @@ def reload_adapter() -> dict[str, object]:
     return {"reloaded": True, "adapter_dir": adapter_dir}
 
 
-@app.post("/generate")
+@app.post("/generate", dependencies=[Depends(require_lora_token)])
 def generate(req: GenerateRequest) -> GenerateResponse:
     tokenizer = _state["tokenizer"]
     model = _state["model"]

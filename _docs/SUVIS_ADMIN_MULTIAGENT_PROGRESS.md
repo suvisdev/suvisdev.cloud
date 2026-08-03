@@ -260,6 +260,20 @@
   platform,hook}` 등) 그대로 매핑한 모델·포스터 카드 UI 완성.
   `flutter analyze` 클린. **실기기/데스크톱 실행 검증은 아직(아래 백로그).**
   상세: WORK_LOG 2026-08-03.
+- **susu 로그아웃 기능(2026-08-03)**: `AuthSession.clear()`는 있었지만 호출부가
+  없어 로그아웃할 방법이 없던 문제 — `StopwatchPage` AppBar에 로그아웃 버튼
+  추가, `POST /auth/mobile/logout` best-effort 호출 후 로컬 세션 삭제.
+- **mova 추천 — 원격 GPU(집) 대응 하드닝(2026-08-03)**: EC2 백엔드는 유지하고
+  mova 추천만 Cloudflare Tunnel로 뚫은 집 `lora_server`를 호출하는 구조로
+  분리하기 위한 선행 작업. `LoraRecommendationOrchestrator` httpx 타임아웃
+  세분화(connect 5s/read 60s), 네트워크 예외 1회 재시도(HTTP 에러는 즉시
+  실패), `X-LoRA-Token` 헤더 인증(`lora_server`도 동일 검증 추가, 토큰
+  비어있으면 로컬 개발 무영향), `.env.example` 가이드,
+  `_docs/lora-remote-gpu-ops.md` 운영 문서, 테스트 6건 추가(`core/lol/tests`
+  신규 — `pytest.ini` testpaths 추가). Gemini 자동 폴백은 의도적으로 미도입
+  (수동 스위치 유지 — 어떤 모델이 답했는지 불투명해지는 것 방지).
+  **실제 Cloudflare Tunnel 연결·EC2↔집 GPU 실 연동은 아직 안 함(아래 백로그).**
+  상세: WORK_LOG 2026-08-03.
 
 ---
 
@@ -272,6 +286,13 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **mova 추천 원격 GPU — 실제 Tunnel 연동(2026-08-03 신규, 코드는 완성)**:
+  `_docs/lora-remote-gpu-ops.md` 절차대로 집 GPU에서 `lora_server` 기동 +
+  Cloudflare Tunnel Public Hostname 추가 + EC2 `.env`
+  (`RECOMMENDATION_BACKEND=lora`/`LORA_SERVER_URL`/`LORA_SERVER_TOKEN`)
+  실제 반영·연동 테스트 필요. `is_ready()` 헬스체크가 코드 어디서도 안 불리는
+  문제도 미해결(별도 이슈로 미룸 — 지금은 실패가 실제 `/generate` 호출
+  타임아웃/에러로만 드러남).
 - **susu 카카오 모바일 로그인 — iOS 실빌드 검증(2026-08-03 신규)**: Android는
   EC2 배포 반영 후 실기기 E2E 성공 확인 완료. iOS는 Info.plist를 공식 문서
   기준 표준값으로만 넣어뒀고 실제 빌드 검증은 전혀 안 함. 상세: WORK_LOG
