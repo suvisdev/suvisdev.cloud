@@ -3,12 +3,13 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
-import { ArrowLeft, Bookmark, BookmarkCheck, Loader2, Star, ThumbsUp } from "lucide-react"
+import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { Button } from "@/components/ui/button"
 import { initialFormStatus, patchState, type FormStatus } from "@/lib/form-status"
 import {
+  addReviewActivity,
   addToWatchlist,
   checkWatchlist,
   createMovaReview,
@@ -63,6 +64,10 @@ export function MovaTitleView({
   const [myReview, setMyReview] = useState<MovaReviewRow | null>(null)
   const [inWatchlist, setInWatchlist] = useState(false)
   const [watchlistLoading, setWatchlistLoading] = useState(false)
+  // watched는 조회 API가 없어(백엔드는 기록만 함) 이 세션에서 누른 적 있는지만 표시한다.
+  // 새로고침하면 다시 안 눌린 상태로 보이지만, 백엔드 기록 자체는 남아 있어 리뷰 게이트는 그대로 통과한다.
+  const [watchedMarking, setWatchedMarking] = useState(false)
+  const [watchedMarked, setWatchedMarked] = useState(false)
   const patchReview = (patch: Partial<FormStatus>) => patchState(setReview, patch)
 
   const canSubmitReview = Boolean(movie.movieDbId)
@@ -110,6 +115,19 @@ export function MovaTitleView({
       // silent fail
     } finally {
       setWatchlistLoading(false)
+    }
+  }
+
+  const handleMarkWatched = async () => {
+    if (!session || !movie.movieDbId) return
+    setWatchedMarking(true)
+    try {
+      await addReviewActivity({ movie_id: movie.movieDbId, action_type: "watched" })
+      setWatchedMarked(true)
+    } catch {
+      // silent fail — 리뷰 제출 시 게이트 에러 메시지로도 안내되므로 여기선 조용히 무시
+    } finally {
+      setWatchedMarking(false)
     }
   }
 
@@ -236,6 +254,23 @@ export function MovaTitleView({
                     {inWatchlist ? "찜 완료" : "찜하기"}
                   </button>
                 ) : null}
+                {session && movie.movieDbId ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleMarkWatched()}
+                    disabled={watchedMarking || watchedMarked}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                      watchedMarked
+                        ? "border-mova-accent bg-mova-accent-soft text-mova-accent"
+                        : "border-mova-border bg-mova-surface text-neutral-400 hover:border-mova-accent/40 hover:text-mova-text",
+                      "disabled:opacity-50",
+                    )}
+                  >
+                    {watchedMarked ? <Check className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {watchedMarked ? "봤어요 완료" : "봤어요"}
+                  </button>
+                ) : null}
                 <RatingStars rating={averageRating ?? movie.rating} />
                 {reviewCount !== null ? (
                   <span className="text-xs text-neutral-500">리뷰 {reviewCount.toLocaleString()}개</span>
@@ -345,7 +380,11 @@ export function MovaTitleView({
                 <p className="mt-3 text-xs text-neutral-500">
                   이미 남긴 리뷰가 있습니다 — 아래에서 수정할 수 있습니다.
                 </p>
-              ) : null}
+              ) : (
+                <p className="mt-3 text-xs text-neutral-500">
+                  위 &ldquo;봤어요&rdquo; 버튼을 먼저 눌러야 리뷰를 남길 수 있습니다.
+                </p>
+              )}
               <form
                 key={myReview?.id ?? "new-review"}
                 onSubmit={handleReviewSubmit}

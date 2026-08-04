@@ -8,7 +8,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
-from mova.adapter.outbound.orm.market_user_actions_orm import EVENT_ACTION_TYPES, MovaUserAction
+from mova.adapter.outbound.orm.market_user_actions_orm import (
+    ACTION_WATCHED,
+    EVENT_ACTION_TYPES,
+    MovaUserAction,
+)
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
@@ -46,6 +50,20 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             action_type=row.action_type,
             action_at=row.action_at,
         )
+
+    async def has_watched(self, user_id: int, movie_id: int) -> bool:
+        row = (
+            await self._session.execute(
+                select(MovaUserAction.id)
+                .where(
+                    MovaUserAction.user_id == user_id,
+                    MovaUserAction.movie_id == movie_id,
+                    MovaUserAction.action_type == ACTION_WATCHED,
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        return row is not None
 
     async def add_review(
         self, user_id: int, movie_id: int, rating: float | None, body: str | None

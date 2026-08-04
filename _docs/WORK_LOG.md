@@ -163,6 +163,88 @@
   `suvisdev/apps/media/{router,schemas}.py`,
   `suvisdev/apps/media/tests/test_router.py`, `suvis/app/lesson/page.tsx`.
 
+### 작업 내용(추가③) — EC2 실배포 디버깅 + PROGRESS.md 백로그 2건 이어서 진행
+
+사용자가 Vercel(프론트)·EC2(백엔드) 배포 후 `/lesson/photos`가 502로 안 뜬다고
+보고 → 원인 규명 및 수정. 이어서 사용자가 실제로 사진을 올렸는데도 목록이
+비어 있다고 재보고 → 계정 불일치 발견·수정. 이후 `SUVIS_ADMIN_MULTIAGENT_
+PROGRESS.md` 백로그를 같이 훑고 "어드민 통계 방문자 EC2 확인"·"mova 리뷰
+watched 게이트" 2건을 이어서 진행하기로 함.
+
+### 오류·막힌 점(추가③) — 실제로 겪은 프로덕션 이슈 3건, 원인·조치 순서대로
+
+1. **502 — `docker compose up -d --build backend`를 `--env-file` 없이 실행**:
+   `docker-compose.yaml` 주석에 `--env-file suvisdev/.env` 필수라고 이미
+   적혀 있었는데 빠뜨림 → `${POSTGRES_USER}` 등이 compose 파일 안에서 빈
+   문자열로 치환돼 `db` 컨테이너가 빈 자격증명으로 재생성, 백엔드
+   `DATABASE_URL`도 같이 깨져 `fe_sendauth: no password supplied`로 전
+   요청 502. `db_data` named volume은 그대로라 데이터 유실은 없었음(실제
+   저장된 비밀번호는 재생성으로도 안 바뀜) — 다만 `--env-file` 없이 돌리면
+   `db`가 매번 불필요하게 재생성되는 부작용은 있음. `docker compose
+   --env-file suvisdev/.env up -d --build backend db`로 재실행해 복구.
+2. **AWS 자격증명 자체가 EC2에 없었음(이번 502와 별개, 원래부터 있던 문제)**:
+   `Tank.list_objects` 테스트 중 `NoCredentialsError` 발견 — 이 EC2 인스턴스는
+   IAM Role이 아예 안 붙어 있고 `suvisdev/.env`에도 `AWS_ACCESS_KEY_ID`/
+   `AWS_SECRET_ACCESS_KEY`가 없었음(둘 다 0건). 로컬(이 세션 샌드박스)
+   `.env`에도 없어서, 사용자가 실제 테스트했던 "111 영수증" 업로드는 이
+   세션이 아니라 집 컴퓨터에서 한 것으로 추정. 사용자가 EC2 `.env`에 키를
+   추가 → 1차 시도는 `AWS_SECRET_ACCESS_KEY`가 40자가 아니라 14자로 잘려
+   있어 `InvalidAccessKeyId`로 재실패 → 재발급 후 정상화, 실제 S3
+   객체(`111.jpg`, 책장 사진)로 다운로드+Gemini OCR 종단 검증 완료. 값은
+   채팅에 노출하지 않고 로컬→EC2로 SSH 파이프(`grep | ssh ... "cat >>
+   .env"`)로만 옮김.
+3. **susu(카카오)·웹 관리자(구글) 계정 불일치**: 실제 업로드가 `media/4/...`
+   로 잘 들어갔는데도 `/lesson/photos`가 빈 목록이었던 원인 — `require_admin`
+   본인 `user_id`로 `media/` prefix를 좁힌 게 문제였음. `users` 테이블
+   확인 결과 susu 카카오 로그인(`user_id=4`, `kakao_5000588573@kakao.local`
+   플레이스홀더 이메일)과 웹 관리자 구글 로그인(`ssuvisdev@gmail.com`,
+   다른 `user_id`)이 서로 안 이어진 별개 계정임을 확인. 사용자 요청으로
+   "관리자는 전체 사용자 사진을 봄"으로 스코프 변경(`media/` 전체 스캔 +
+   응답에 `user_id` 추가) — 계정 연결 기능 자체는 별도 백로그로 남김(오늘
+   손대지 않음).
+
+### 수정/구현(추가③)
+- `suvisdev/apps/media/{router,schemas}.py`: `GET /api/media/photos/ocr`을
+  관리자 본인 prefix 스코프에서 `media/` 전체 스캔으로 변경, `OcrPhotoItem`에
+  `user_id` 필드 추가(키 `media/{user_id}/...`에서 파싱). 테스트도 "전체
+  사용자가 다 보임" 시나리오로 갱신(`apps/media/tests/test_router.py`, 9개
+  전부 통과).
+- **어드민 통계 방문자(백로그 재확인)**: `alembic current`가 이미
+  `20260731_0001 (head)`였고 `visitor_activity`도 실데이터 15행 보유 —
+  이전에 이미 반영된 상태였음을 확인만 하고 완료 처리(추가 조치 없음).
+- **mova 리뷰 watched 게이트(백로그 구현)**: `ReviewsRepositoryPort
+  .has_watched()` 신설 + PG 구현(`user_actions` EXISTS 조회) +
+  `ReviewsInteractor.add_review()` 맨 앞 게이트(신규
+  `ReviewNotWatchedError`, 403) + 라우터에서 캐치. 프론트
+  `POST /mova/reviews/activity` 프록시·`addReviewActivity()`·영화 상세
+  페이지 "봤어요" 버튼(찜하기 버튼과 동일 톤, `Eye`/`Check` 아이콘) 신규.
+  워치 상태 조회 API가 없어 버튼 표시는 세션 로컬 상태로만 추적(서버 기록
+  자체는 항상 남음). 인터랙터 테스트 2건 추가 + 기존 6건에 `has_watched`
+  명시적 스텁 보강 — `apps/mova/tests` 81개 전부 통과. `pnpm type-check`·
+  `pnpm build` 통과.
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`: 완료된 3건(S3 실연결,
+  어드민 통계 방문자 EC2, mova watched 게이트)을 백로그에서 "완료됨"으로
+  이동.
+
+### 데이터(추가③)
+- EC2 실 S3 버킷(`suvisdev-s3-584569945696-ap-northeast-2-an`) 확인 —
+  susu 업로드 경로(`media/4/...`) 사진 1장 + 버킷 루트에 수동 테스트
+  파일 2개(`1.png`, `111.jpg`, 이번 작업으로 새로 만든 것 아님).
+
+### 산출물(추가③)
+- 수정: `suvisdev/apps/media/{router,schemas,tests/test_router.py}`,
+  `suvisdev/apps/mova/app/ports/output/market_reviews_{errors,repository}.py`,
+  `suvisdev/apps/mova/app/use_cases/market_reviews_interactor.py`,
+  `suvisdev/apps/mova/adapter/outbound/pg/market_reviews_pg_repository.py`,
+  `suvisdev/apps/mova/adapter/inbound/api/v1/market_reviews_router.py`,
+  `suvisdev/apps/mova/tests/test_market_reviews.py`, `suvis/lib/mova-api.ts`,
+  `suvis/components/mova/title/mova-title-view.tsx`,
+  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`.
+- 신규: `suvis/app/api/mova/reviews/activity/route.ts`.
+- EC2 `.env`에 AWS 자격증명 반영(값은 기록하지 않음).
+- 커밋: media 관련은 `9afa558`, PR #29 머지(`3bfc864`), EC2 반영 완료.
+  watched 게이트는 이 항목 갱신 직후 커밋에서 확정.
+
 ---
 
 ## 2026-08-03

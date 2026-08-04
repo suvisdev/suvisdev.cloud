@@ -21,7 +21,10 @@ from mova.app.dtos.market_reviews_dto import (  # noqa: E402
     ReviewDto,
     ReviewWithUserDto,
 )
-from mova.app.ports.output.market_reviews_errors import ReviewValidationError  # noqa: E402
+from mova.app.ports.output.market_reviews_errors import (  # noqa: E402
+    ReviewNotWatchedError,
+    ReviewValidationError,
+)
 from mova.app.use_cases.market_reviews_interactor import ReviewsInteractor  # noqa: E402
 from mova.dependencies.market_reviews_provider import get_reviews_use_case  # noqa: E402
 from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
@@ -206,6 +209,7 @@ class ReviewsInteractorUpsertTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_add_review_inserts_when_no_existing_review(self) -> None:
         repo = AsyncMock()
+        repo.has_watched.return_value = True
         repo.find_by_user_and_movie.return_value = None
         repo.add_review.return_value = ReviewDto(
             id=1, user_id=1, movie_id=10, rating=4.0, body="신규", action_at=_NOW
@@ -221,6 +225,7 @@ class ReviewsInteractorUpsertTests(unittest.IsolatedAsyncioTestCase):
     async def test_add_review_updates_existing_instead_of_duplicate_insert(self) -> None:
         existing = ReviewDto(id=7, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
         repo = AsyncMock()
+        repo.has_watched.return_value = True
         repo.find_by_user_and_movie.return_value = existing
         repo.update_review.return_value = ReviewDto(
             id=7, user_id=1, movie_id=10, rating=5.0, body="재작성", action_at=_NOW
@@ -240,6 +245,7 @@ class ReviewsInteractorPhaseBTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_rejects_when_both_rating_and_body_missing(self) -> None:
         repo = AsyncMock()
+        repo.has_watched.return_value = True
         interactor = ReviewsInteractor(repository=repo)
 
         with self.assertRaises(ReviewValidationError):
@@ -248,6 +254,7 @@ class ReviewsInteractorPhaseBTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_rejects_when_body_is_blank_string(self) -> None:
         repo = AsyncMock()
+        repo.has_watched.return_value = True
         interactor = ReviewsInteractor(repository=repo)
 
         with self.assertRaises(ReviewValidationError):
@@ -255,6 +262,7 @@ class ReviewsInteractorPhaseBTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_allows_rating_only(self) -> None:
         repo = AsyncMock()
+        repo.has_watched.return_value = True
         repo.find_by_user_and_movie.return_value = None
         repo.add_review.return_value = ReviewDto(
             id=1, user_id=1, movie_id=10, rating=4.0, body="", action_at=_NOW
@@ -267,6 +275,7 @@ class ReviewsInteractorPhaseBTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_allows_body_only(self) -> None:
         repo = AsyncMock()
+        repo.has_watched.return_value = True
         repo.find_by_user_and_movie.return_value = None
         repo.add_review.return_value = ReviewDto(
             id=1, user_id=1, movie_id=10, rating=0, body="좋아요", action_at=_NOW
@@ -276,6 +285,34 @@ class ReviewsInteractorPhaseBTests(unittest.IsolatedAsyncioTestCase):
         await interactor.add_review(1, 10, None, "좋아요")
 
         repo.add_review.assert_awaited_once_with(1, 10, None, "좋아요")
+
+
+class ReviewsInteractorWatchedGateTests(unittest.IsolatedAsyncioTestCase):
+    """watched 게이트 — rating을 판정 근거로 쓰지 않고 has_watched만 본다."""
+
+    async def test_rejects_when_not_watched_even_with_valid_content(self) -> None:
+        repo = AsyncMock()
+        repo.has_watched.return_value = False
+        interactor = ReviewsInteractor(repository=repo)
+
+        with self.assertRaises(ReviewNotWatchedError):
+            await interactor.add_review(1, 10, 5.0, "재밌어요")
+        repo.find_by_user_and_movie.assert_not_awaited()
+        repo.add_review.assert_not_awaited()
+
+    async def test_allows_when_watched(self) -> None:
+        repo = AsyncMock()
+        repo.has_watched.return_value = True
+        repo.find_by_user_and_movie.return_value = None
+        repo.add_review.return_value = ReviewDto(
+            id=1, user_id=1, movie_id=10, rating=5.0, body="재밌어요", action_at=_NOW
+        )
+        interactor = ReviewsInteractor(repository=repo)
+
+        result = await interactor.add_review(1, 10, 5.0, "재밌어요")
+
+        repo.has_watched.assert_awaited_once_with(1, 10)
+        self.assertEqual(result.body, "재밌어요")
 
 
 if __name__ == "__main__":

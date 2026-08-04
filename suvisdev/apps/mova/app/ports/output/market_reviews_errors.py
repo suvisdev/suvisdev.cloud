@@ -11,3 +11,13 @@ class ReviewValidationError(Exception):
     def __init__(self, detail: str) -> None:
         super().__init__(detail)
         self.detail = detail
+
+
+class ReviewNotWatchedError(Exception):
+    """watched 게이트 위반 — 시청 기록 없이 리뷰를 남기려는 시도(권한 성격이라 403)."""
+
+    status_code = 403
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
