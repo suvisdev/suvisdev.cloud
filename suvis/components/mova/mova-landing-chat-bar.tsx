@@ -60,7 +60,7 @@ export function MovaLandingChatBar() {
     <div className="w-full">
       <form
         onSubmit={onSubmit}
-        className="relative rounded-2xl border border-[var(--mova-border)] bg-[var(--mova-surface)] shadow-[0_8px_40px_rgba(0,0,0,0.45)] transition-shadow focus-within:border-[var(--mova-accent)]/40 focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)]"
+        className="relative rounded-2xl border border-mova-border bg-mova-surface shadow-[0_8px_40px_rgba(0,0,0,0.45)] transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)]"
       >
         <textarea
           ref={inputRef}
@@ -71,7 +71,7 @@ export function MovaLandingChatBar() {
           onKeyDown={onKeyDown}
           disabled={loading}
           placeholder="장르, 분위기, 배우를 알려주세요…"
-          className="max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed text-[var(--mova-text)] placeholder:text-neutral-500 outline-none disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
+          className="max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
         />
         <button
           type="submit"
@@ -80,8 +80,8 @@ export function MovaLandingChatBar() {
           className={cn(
             "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-lg transition-all",
             value.trim()
-              ? "bg-[var(--mova-accent)] text-white shadow-md hover:brightness-110"
-              : "bg-[var(--mova-surface-2)] text-[var(--mova-muted)]",
+              ? "bg-mova-accent text-white shadow-md hover:brightness-110"
+              : "bg-mova-surface-2 text-mova-muted",
             "disabled:opacity-40",
           )}
         >
@@ -100,7 +100,7 @@ export function MovaLandingChatBar() {
             type="button"
             disabled={loading}
             onClick={() => goMain(hint)}
-            className="rounded-full border border-[var(--mova-border)] bg-[var(--mova-surface)] px-3 py-1.5 text-xs text-[var(--mova-muted)] transition-colors hover:border-[var(--mova-accent)]/30 hover:bg-[var(--mova-accent-soft)] hover:text-[var(--mova-text)] disabled:opacity-50"
+            className="rounded-full border border-mova-border bg-mova-surface px-3 py-1.5 text-xs text-mova-muted transition-colors hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
           >
             {hint}
           </button>

@@ -60,7 +60,7 @@ function MovieCard({ movie }: { movie: ApiMovieRow }) {
     <li>
       <Link
         href={`/mova/title/${catalogId}`}
-        className="group block overflow-hidden rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)] transition hover:border-[var(--mova-accent)]/40"
+        className="group block overflow-hidden rounded-lg border border-mova-border bg-mova-surface transition hover:border-mova-accent/40"
       >
         <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
           <MovaRankingPoster
@@ -71,7 +71,7 @@ function MovieCard({ movie }: { movie: ApiMovieRow }) {
           />
         </div>
         <div className="space-y-1 p-2.5">
-          <p className="line-clamp-2 text-sm font-medium text-[var(--mova-text)]">{movie.title}</p>
+          <p className="line-clamp-2 text-sm font-medium text-mova-text">{movie.title}</p>
           <div className="flex items-center justify-between gap-2 text-xs text-neutral-400">
             <span>{movie.release_year || "연도미상"}</span>
             <span className="inline-flex items-center gap-0.5">
@@ -97,18 +97,18 @@ function TrendingCard({ item, rank }: { item: MovaHotRankingItem; rank: number }
       href={`/mova/title/${item.id}`}
       className="group relative w-[100px] shrink-0 md:w-[112px]"
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-[var(--mova-border)] transition group-hover:ring-[var(--mova-accent)]/50">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
         <MovaRankingPoster
           src={item.poster}
           alt={item.title}
           sizes="112px"
           className="object-cover transition duration-300 group-hover:scale-105"
         />
-        <span className="absolute top-1.5 left-1.5 flex h-5 min-w-5 items-center justify-center rounded bg-[var(--mova-accent)] px-1 text-[11px] font-bold text-white">
+        <span className="absolute top-1.5 left-1.5 flex h-5 min-w-5 items-center justify-center rounded bg-mova-accent px-1 text-[11px] font-bold text-white">
           {rank}
         </span>
       </div>
-      <p className="mt-1.5 line-clamp-2 text-xs font-medium text-[var(--mova-text)] group-hover:text-[var(--mova-accent)]">
+      <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
         {item.title}
       </p>
     </Link>
@@ -178,8 +178,8 @@ export default function MovaMoviesPage() {
         {trending.length > 0 && (
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[var(--mova-accent)]" />
-              <h2 className="text-sm font-semibold text-[var(--mova-text)]">인기 검색 영화</h2>
+              <TrendingUp className="h-4 w-4 text-mova-accent" />
+              <h2 className="text-sm font-semibold text-mova-text">인기 검색 영화</h2>
               <span className="text-xs text-neutral-500">AI 채팅 기반</span>
             </div>
             <div className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
@@ -195,7 +195,7 @@ export default function MovaMoviesPage() {
         {/* 장르 탭 */}
         <section>
           <div className="mb-4 flex items-center justify-between gap-2">
-            <h1 className="text-lg font-semibold text-[var(--mova-text)] md:text-xl">영화</h1>
+            <h1 className="text-lg font-semibold text-mova-text md:text-xl">영화</h1>
             {!page.loading && (
               <span className="text-xs text-neutral-500">총 {page.total}편</span>
             )}
@@ -211,8 +211,8 @@ export default function MovaMoviesPage() {
                   className={cn(
                     "shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
                     activeGenre === genre
-                      ? "border-[var(--mova-accent)] bg-[var(--mova-accent)] text-white"
-                      : "border-[var(--mova-border)] bg-[var(--mova-surface)] text-[var(--mova-muted)] hover:border-[var(--mova-accent)]/40 hover:text-[var(--mova-text)]",
+                      ? "border-mova-accent bg-mova-accent text-white"
+                      : "border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/40 hover:text-mova-text",
                   )}
                 >
                   {genre}

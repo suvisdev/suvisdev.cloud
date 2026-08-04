@@ -114,6 +114,21 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* mova(app/mova/mova.css) 전용 토큰 — 값은 .mova-app 스코프에서 정의(다크/라이트
+     시네마 브랜딩). shadcn 토큰과 같은 @theme inline 경로로만 노출해 bg-mova-*
+     형태의 명명 유틸리티를 쓰게 한다(전역 :root 색상이 아니므로 .mova-app
+     밖에서는 값이 없다). */
+  --color-mova-bg: var(--mova-bg);
+  --color-mova-surface: var(--mova-surface);
+  --color-mova-surface-2: var(--mova-surface-2);
+  --color-mova-border: var(--mova-border);
+  --color-mova-accent: var(--mova-accent);
+  --color-mova-accent-soft: var(--mova-accent-soft);
+  --color-mova-accent-bright: var(--mova-accent-bright);
+  --color-mova-ai: var(--mova-ai);
+  --color-mova-muted: var(--mova-muted);
+  --color-mova-text: var(--mova-text);
 }
 
 @layer base {

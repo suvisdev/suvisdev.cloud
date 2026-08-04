@@ -129,14 +129,14 @@ export function MovaSearchBar({
           onFocus={() => patchSearch({ open: true })}
           placeholder={placeholder}
           className={cn(
-            "h-9 w-full min-w-0 rounded-md border border-transparent bg-[var(--mova-surface-2)] pr-3 pl-9 text-sm text-[var(--mova-text)] placeholder:text-neutral-500 outline-none ring-0 focus:border-[var(--mova-accent)]/30 focus:bg-[var(--mova-surface)]",
+            "h-9 w-full min-w-0 rounded-md border border-transparent bg-mova-surface-2 pr-3 pl-9 text-sm text-mova-text placeholder:text-neutral-500 outline-none ring-0 focus:border-mova-accent/30 focus:bg-mova-surface",
             inputClassName,
           )}
         />
       </form>
 
       {showDropdown && (
-        <ul className="absolute top-full right-0 z-50 mt-1 max-h-[min(18rem,50vh)] w-[min(100vw-2rem,16rem)] min-w-full overflow-auto rounded-md border border-[var(--mova-border)] bg-[var(--mova-surface)] py-1 shadow-xl sm:w-64">
+        <ul className="absolute top-full right-0 z-50 mt-1 max-h-[min(18rem,50vh)] w-[min(100vw-2rem,16rem)] min-w-full overflow-auto rounded-md border border-mova-border bg-mova-surface py-1 shadow-xl sm:w-64">
           {search.loading && (
             <li className="px-3 py-2.5 text-sm text-neutral-500">검색 중…</li>
           )}
@@ -144,7 +144,7 @@ export function MovaSearchBar({
             <li className="px-3 py-2.5 text-sm text-neutral-500">{search.error}</li>
           )}
           {!search.loading && search.error && search.results.length > 0 && (
-            <li className="border-b border-[var(--mova-border)] px-3 py-2 text-xs text-amber-500/90">
+            <li className="border-b border-mova-border px-3 py-2 text-xs text-amber-500/90">
               {search.error}
             </li>
           )}
@@ -154,7 +154,7 @@ export function MovaSearchBar({
                 <button
                   type="button"
                   onClick={() => goToMovie(item.id)}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-[var(--mova-text)] hover:bg-[var(--mova-surface-2)]"
+                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-mova-text hover:bg-mova-surface-2"
                 >
                   <span className="line-clamp-1 flex-1 font-medium">{item.title}</span>
                   <span className="shrink-0 text-[10px] text-neutral-500">

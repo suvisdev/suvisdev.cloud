@@ -6,7 +6,7 @@ import type { MovaHotRankingItem } from "@/lib/mova-api"
 import { cn } from "@/lib/utils"
 
 function rankLabelClass(rank: number) {
-  if (rank === 1) return "text-[var(--mova-accent-bright)]"
+  if (rank === 1) return "text-mova-accent-bright"
   if (rank <= 3) return "text-amber-400"
   return "text-neutral-500"
 }
@@ -30,10 +30,10 @@ export function MovaRankingSection({
   if (variant === "sidebar") {
     return (
       <aside id="movies" className="scroll-mt-20 lg:sticky lg:top-[4.5rem]">
-        <div className="overflow-hidden rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)]">
-          <div className="border-b border-[var(--mova-border)] px-4 py-3">
+        <div className="overflow-hidden rounded-xl border border-mova-border bg-mova-surface">
+          <div className="border-b border-mova-border px-4 py-3">
             <div className="flex items-center gap-2">
-              <h2 className="font-display text-base font-bold text-[var(--mova-text)]">{heading}</h2>
+              <h2 className="font-display text-base font-bold text-mova-text">{heading}</h2>
               <button
                 type="button"
                 aria-label="랭킹 안내"
@@ -45,12 +45,12 @@ export function MovaRankingSection({
             <p className="mt-0.5 text-xs text-neutral-500">실시간 인기 1위 ~ 10위</p>
           </div>
 
-          <ol className="max-h-[640px] divide-y divide-[var(--mova-border)] overflow-y-auto">
+          <ol className="max-h-[640px] divide-y divide-mova-border overflow-y-auto">
             {items.map((item) => (
               <li key={item.id}>
                 <Link
                   href={`/mova/title/${item.id}`}
-                  className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--mova-surface-2)]"
+                  className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-mova-surface-2"
                 >
                   <span
                     className={cn(
@@ -60,7 +60,7 @@ export function MovaRankingSection({
                   >
                     {item.rank}
                   </span>
-                  <div className="relative h-[72px] w-[48px] shrink-0 overflow-hidden rounded bg-[var(--mova-surface-2)]">
+                  <div className="relative h-[72px] w-[48px] shrink-0 overflow-hidden rounded bg-mova-surface-2">
                     <MovaRankingPoster
                       src={item.poster}
                       alt={item.title}
@@ -80,7 +80,7 @@ export function MovaRankingSection({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <h3 className="truncate text-sm font-medium text-[var(--mova-text)] group-hover:text-[var(--mova-accent-bright)]">
+                      <h3 className="truncate text-sm font-medium text-mova-text group-hover:text-mova-accent-bright">
                         {item.title}
                       </h3>
                       {item.platform && <MovaPlatformBadge platform={item.platform} />}
@@ -101,7 +101,7 @@ export function MovaRankingSection({
   return (
     <section id="trending" className="scroll-mt-20">
       <div className="mb-4 flex items-center gap-2">
-        <h2 className="font-display text-lg font-bold text-[var(--mova-text)] md:text-xl">{heading}</h2>
+        <h2 className="font-display text-lg font-bold text-mova-text md:text-xl">{heading}</h2>
         <button type="button" aria-label="랭킹 안내" className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300">
           <Info className="h-4 w-4" />
         </button>
@@ -117,14 +117,14 @@ export function MovaRankingSection({
             >
               <span
                 className={cn(
-                  "font-display pointer-events-none absolute -left-1 bottom-6 z-10 text-[4.5rem] leading-none font-bold text-[var(--mova-muted)]/20 select-none md:text-[5.5rem]",
-                  item.rank === 1 && "text-[var(--mova-accent)]/25",
+                  "font-display pointer-events-none absolute -left-1 bottom-6 z-10 text-[4.5rem] leading-none font-bold text-mova-muted/20 select-none md:text-[5.5rem]",
+                  item.rank === 1 && "text-mova-accent/25",
                 )}
                 aria-hidden
               >
                 {item.rank}
               </span>
-              <div className="mova-poster-card relative ml-6 aspect-[2/3] w-[108px] overflow-hidden rounded-sm bg-[var(--mova-surface-2)] shadow-lg md:ml-8 md:w-[120px]">
+              <div className="mova-poster-card relative ml-6 aspect-[2/3] w-[108px] overflow-hidden rounded-sm bg-mova-surface-2 shadow-lg md:ml-8 md:w-[120px]">
                 <MovaRankingPoster
                   src={item.poster}
                   alt={item.title}
@@ -148,7 +148,7 @@ export function MovaRankingSection({
                 )}
               </div>
               <div className="mb-1 min-w-0 flex-1 pb-1">
-                <h3 className="line-clamp-2 text-sm font-medium text-[var(--mova-text)]">{item.title}</h3>
+                <h3 className="line-clamp-2 text-sm font-medium text-mova-text">{item.title}</h3>
                 <p className="mt-0.5 text-xs text-neutral-500">
                   {item.year} · ★ {item.rating}
                 </p>

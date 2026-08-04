@@ -14,7 +14,7 @@ export function MovaSuvisHomeLink({ className }: MovaSuvisHomeLinkProps) {
       aria-label="Suvisdev 메인으로"
       title="Suvisdev 메인"
       className={cn(
-        "inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md border border-[var(--mova-border)] bg-[var(--mova-surface-2)] text-[var(--mova-muted)] transition-colors hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-accent-soft)] hover:text-[var(--mova-text)]",
+        "inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md border border-mova-border bg-mova-surface-2 text-mova-muted transition-colors hover:border-mova-accent/40 hover:bg-mova-accent-soft hover:text-mova-text",
         className,
       )}
     >

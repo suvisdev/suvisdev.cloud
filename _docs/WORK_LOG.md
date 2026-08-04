@@ -28,6 +28,63 @@
 
 ---
 
+## 2026-08-04
+
+### 작업 내용
+- S3에 저장된 사진을 웹에서 읽어오는 기능(vision OCR scan) 착수 전, 사용자가
+  준 초안 하네스를 저장소 실측 코드와 대조해 검증 후 백엔드/프론트 하네스
+  문서로 분리 작성.
+- `suvis/package.json`에 shadcn을 "추가"해달라는 요청 확인 — 이미 전부 설치돼
+  있음을 확인하고 무엇이 빠졌는지(최신 채팅 UI 컴포넌트군)만 회신, 코드 변경
+  없음.
+- `suvis/` 스타일링을 Tailwind CSS + shadcn/ui 토큰 체계 하나로 통일 — 사용자
+  확인 후 문서 작성 + 실제 마이그레이션까지 진행.
+
+### 수정/구현
+- **vision_ocr_scan 하네스**: `suvisdev/_docs/s3-ocr-reverse-harness.md`,
+  `suvis/_docs/s3-ocr-reverse-harness.md` 신규. 초안의 잘못된 전제 3개를
+  바로잡음 — (1) `Tank`(`core/matrix/aws_tank_s3_manager.py`)는 boto3 기본
+  자격증명 체인이라 EC2 IAM Role과 이미 호환됨("Tank 금지"는 오류,
+  `VisionS3Repository.save_image`가 이미 씀), (2) vision 업로드 기본 배선은
+  지금 S3가 아니라 DB(`VisionRepository`) — read 하네스가 스캔할 대상이
+  어디 있는지 별도 결정 필요, (3) S3 키가 평면 구조(`vision/{timestamp}_
+  {filename}`)라 `folder=` 쿼리 파라미터 전제가 성립하지 않음. 착수 전
+  "결정 필요" 4항목(OCR 엔진·스캔 대상 경로·인증 여부·지속화 여부)으로
+  정리. 실제 코드 구현은 아직 없음 — 계획 문서만.
+- **suvis 스타일링 통일**(`suvis/_docs/DESIGN.md` 신규 + 실행):
+  - `app/globals.css`의 `@theme inline`에 `--color-mova-*` 10개 토큰 등록
+    (`app/mova/mova.css`가 정의하는 `--mova-bg`/`--mova-surface`/`--mova-accent`
+    등을 shadcn 토큰과 같은 경로로 노출).
+  - `app/mova/**`·`components/mova/**` 27개 tsx 파일에서 `text-[var(--mova-
+    text)]` 류 Tailwind 임의값 문법 354곳을 `text-mova-text` 같은 명명
+    유틸리티로 기계적 치환(정규식 `\[var\(--mova-([a-z0-9-]+)\)\]` →
+    `mova-$1`). 합성 arbitrary value(그라디언트, `shadow-[0_0_12px_var(...)]`)와
+    SVG `stroke` 속성 3곳은 named token으로 못 바꿔 그대로 둠.
+  - 미사용 죽은 파일 `suvis/styles/globals.css` 삭제(`app/globals.css`만
+    실제 사용, `styles/`쪽은 아무 데서도 import 안 됐음).
+  - mova.css의 스크롤바·`offset-path` 모션·`@keyframes` 등 Tailwind로 표현
+    안 되는 raw CSS는 그대로 유지(억지로 인라인화하지 않음 — `app/globals.css`
+    자체도 같은 패턴을 이미 씀).
+
+### 오류·막힌 점
+- 없음. `pnpm type-check`·`pnpm build` 통과, 빌드 산출물 CSS(`.next/static/
+  chunks/*.css`)에서 `bg-mova-surface` 등이 치환 전과 동일한 `var(--mova-*)`
+  참조로 생성되는 것 직접 확인(시각적 회귀 없음, 순수 문법 치환).
+- `pnpm lint`는 이 환경에 `eslint` 바이너리 자체가 미설치라 실행 불가(clean
+  tree에서도 동일하게 실패하는 기존 환경 문제, 이번 변경과 무관 — 확인만 함).
+
+### 데이터
+- 해당 없음.
+
+### 산출물
+- 신규: `suvisdev/_docs/s3-ocr-reverse-harness.md`,
+  `suvis/_docs/s3-ocr-reverse-harness.md`, `suvis/_docs/DESIGN.md`.
+- 수정: `suvis/app/globals.css`, `app/mova/**`·`components/mova/**` 27개 tsx.
+- 삭제: `suvis/styles/globals.css`.
+- 커밋 해시는 이 항목 갱신 직후 커밋에서 확정.
+
+---
+
 ## 2026-08-03
 
 ### 작업 내용

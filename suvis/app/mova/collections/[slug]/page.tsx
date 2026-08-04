@@ -33,18 +33,18 @@ export default async function MovaCollectionDetailPage({ params }: PageProps) {
       <main className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 md:py-8">
         <Link
           href="/mova/collections"
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-neutral-400 transition hover:text-[var(--mova-text)]"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm text-neutral-400 transition hover:text-mova-text"
         >
           <ArrowLeft className="h-4 w-4" />
           컬렉션 목록
         </Link>
 
         <div className="mb-8">
-          <h1 className="font-display text-2xl font-bold text-[var(--mova-text)] md:text-3xl">
+          <h1 className="font-display text-2xl font-bold text-mova-text md:text-3xl">
             {col.name}
           </h1>
           {col.description && (
-            <p className="mt-2 text-sm leading-relaxed text-[var(--mova-muted)]">
+            <p className="mt-2 text-sm leading-relaxed text-mova-muted">
               {col.description}
             </p>
           )}
@@ -61,7 +61,7 @@ export default async function MovaCollectionDetailPage({ params }: PageProps) {
                 <li key={movie.id}>
                   <Link
                     href={`/mova/title/${titleSlug}`}
-                    className="group block overflow-hidden rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)] transition hover:border-[var(--mova-accent)]/40"
+                    className="group block overflow-hidden rounded-lg border border-mova-border bg-mova-surface transition hover:border-mova-accent/40"
                   >
                     <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
                       <MovaRankingPoster
@@ -72,7 +72,7 @@ export default async function MovaCollectionDetailPage({ params }: PageProps) {
                       />
                     </div>
                     <div className="space-y-1 p-2.5">
-                      <p className="line-clamp-2 text-sm font-medium text-[var(--mova-text)]">
+                      <p className="line-clamp-2 text-sm font-medium text-mova-text">
                         {movie.title}
                       </p>
                       <div className="flex items-center justify-between gap-2 text-xs text-neutral-400">

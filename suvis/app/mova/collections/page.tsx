@@ -21,8 +21,8 @@ export default async function MovaCollectionsPage() {
       <MovaHeader />
       <main className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex items-center gap-2">
-          <Layers className="h-5 w-5 text-[var(--mova-accent)]" />
-          <h1 className="text-xl font-semibold text-[var(--mova-text)]">컬렉션</h1>
+          <Layers className="h-5 w-5 text-mova-accent" />
+          <h1 className="text-xl font-semibold text-mova-text">컬렉션</h1>
           {items.length > 0 && (
             <span className="text-sm text-neutral-500">{items.length}개</span>
           )}
@@ -36,18 +36,18 @@ export default async function MovaCollectionsPage() {
               <li key={col.slug}>
                 <Link
                   href={`/mova/collections/${col.slug}`}
-                  className="group flex h-full flex-col gap-3 rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] p-5 transition hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-surface-2)]"
+                  className="group flex h-full flex-col gap-3 rounded-xl border border-mova-border bg-mova-surface p-5 transition hover:border-mova-accent/40 hover:bg-mova-surface-2"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="text-base font-semibold text-[var(--mova-text)] group-hover:text-[var(--mova-accent-bright)]">
+                    <h2 className="text-base font-semibold text-mova-text group-hover:text-mova-accent-bright">
                       {col.name}
                     </h2>
-                    <span className="shrink-0 rounded-full bg-[var(--mova-surface-2)] px-2.5 py-0.5 text-xs text-neutral-400">
+                    <span className="shrink-0 rounded-full bg-mova-surface-2 px-2.5 py-0.5 text-xs text-neutral-400">
                       {col.movie_count}편
                     </span>
                   </div>
                   {col.description && (
-                    <p className="line-clamp-2 text-sm leading-relaxed text-[var(--mova-muted)]">
+                    <p className="line-clamp-2 text-sm leading-relaxed text-mova-muted">
                       {col.description}
                     </p>
                   )}

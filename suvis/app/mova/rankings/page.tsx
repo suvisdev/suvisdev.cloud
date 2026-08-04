@@ -35,8 +35,8 @@ export default async function MovaRankingsPage({
       <main className="mx-auto max-w-[900px] space-y-5 px-4 py-5 md:px-6 md:py-8">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-[var(--mova-accent)]" />
-            <h1 className="text-lg font-bold text-[var(--mova-text)] md:text-xl">HOT 랭킹</h1>
+            <TrendingUp className="h-5 w-5 text-mova-accent" />
+            <h1 className="text-lg font-bold text-mova-text md:text-xl">HOT 랭킹</h1>
           </div>
           {/* 새로고침은 chat_trend 집계만 지원 (백엔드 refresh) */}
           {source === "chat_trend" && <RankingsRefreshButton source={source} />}
@@ -52,8 +52,8 @@ export default async function MovaRankingsPage({
               className={cn(
                 "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
                 source === tab.key
-                  ? "border-[var(--mova-accent)] bg-[var(--mova-accent)] text-white"
-                  : "border-[var(--mova-border)] bg-[var(--mova-surface)] text-[var(--mova-muted)] hover:text-[var(--mova-text)]",
+                  ? "border-mova-accent bg-mova-accent text-white"
+                  : "border-mova-border bg-mova-surface text-mova-muted hover:text-mova-text",
               )}
             >
               {tab.label}
@@ -71,7 +71,7 @@ export default async function MovaRankingsPage({
               <li key={item.id}>
                 <Link
                   href={`/mova/title/${item.id}`}
-                  className="group flex items-center gap-4 rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] p-3 transition hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-accent-soft)] md:p-4"
+                  className="group flex items-center gap-4 rounded-xl border border-mova-border bg-mova-surface p-3 transition hover:border-mova-accent/40 hover:bg-mova-accent-soft md:p-4"
                 >
                   {/* 순위 — 1·2·3위 강조 */}
                   <span
@@ -101,7 +101,7 @@ export default async function MovaRankingsPage({
 
                   {/* 정보 */}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-[var(--mova-text)] group-hover:text-[var(--mova-accent)]">
+                    <p className="truncate font-semibold text-mova-text group-hover:text-mova-accent">
                       {item.title}
                     </p>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-400">
@@ -115,7 +115,7 @@ export default async function MovaRankingsPage({
                   </div>
 
                   {item.badge && (
-                    <span className="shrink-0 rounded bg-[var(--mova-accent)] px-2 py-0.5 text-[10px] font-bold text-white">
+                    <span className="shrink-0 rounded bg-mova-accent px-2 py-0.5 text-[10px] font-bold text-white">
                       {item.badge}
                     </span>
                   )}

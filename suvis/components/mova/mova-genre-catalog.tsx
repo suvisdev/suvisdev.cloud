@@ -14,7 +14,7 @@ function MovieCard({ movie }: { movie: MovaMovie }) {
       href={`/mova/title/${movie.id}`}
       className="mova-poster-card group w-[118px] shrink-0 md:w-[132px]"
     >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-[var(--mova-surface-2)] shadow-sm ring-1 ring-[var(--mova-border)] transition-shadow group-hover:shadow-md">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-mova-surface-2 shadow-sm ring-1 ring-mova-border transition-shadow group-hover:shadow-md">
         <Image
           src={coercePosterUrl(movie.poster) ?? POSTER_PLACEHOLDER}
           alt={movie.title}
@@ -42,10 +42,10 @@ function MovieCard({ movie }: { movie: MovaMovie }) {
           </span>
         )}
       </div>
-      <h3 className="mt-2 line-clamp-1 text-sm font-medium text-[var(--mova-text)] group-hover:text-[var(--mova-accent)]">
+      <h3 className="mt-2 line-clamp-1 text-sm font-medium text-mova-text group-hover:text-mova-accent">
         {movie.title}
       </h3>
-      <p className="mt-0.5 text-xs text-[var(--mova-muted)]">
+      <p className="mt-0.5 text-xs text-mova-muted">
         {movie.year} · ★ {movie.rating}
       </p>
     </Link>
@@ -65,7 +65,7 @@ export function MovaGenreCatalog({
 }: MovaGenreCatalogProps) {
   if (groups.length === 0) {
     return (
-      <p className="rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] px-6 py-12 text-center text-sm text-[var(--mova-muted)]">
+      <p className="rounded-xl border border-mova-border bg-mova-surface px-6 py-12 text-center text-sm text-mova-muted">
         표시할 작품이 없습니다.
       </p>
     )
@@ -74,19 +74,19 @@ export function MovaGenreCatalog({
   return (
     <div className="space-y-10 md:space-y-12">
       {/* 페이지 헤더 */}
-      <div className="flex items-end justify-between gap-4 border-b border-[var(--mova-border)] pb-5">
+      <div className="flex items-end justify-between gap-4 border-b border-mova-border pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--mova-accent-soft)]">
-              <Film className="h-4 w-4 text-[var(--mova-accent)]" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-mova-accent-soft">
+              <Film className="h-4 w-4 text-mova-accent" />
             </span>
-            <h1 className="font-display text-2xl font-bold text-[var(--mova-text)] md:text-3xl">{title}</h1>
+            <h1 className="font-display text-2xl font-bold text-mova-text md:text-3xl">{title}</h1>
           </div>
           {subtitle && (
-            <p className="mt-2 text-sm text-[var(--mova-muted)]">{subtitle}</p>
+            <p className="mt-2 text-sm text-mova-muted">{subtitle}</p>
           )}
         </div>
-        <p className="shrink-0 text-xs text-[var(--mova-muted)]">{groups.length}개 장르</p>
+        <p className="shrink-0 text-xs text-mova-muted">{groups.length}개 장르</p>
       </div>
 
       {/* 장르 섹션 */}
@@ -94,14 +94,14 @@ export function MovaGenreCatalog({
         {groups.map(({ genre, movies }, index) => (
           <section key={genre} id={`genre-${genre}`} className="scroll-mt-24">
             {index > 0 && (
-              <div className="mb-8 border-t border-[var(--mova-border)] md:mb-10" />
+              <div className="mb-8 border-t border-mova-border md:mb-10" />
             )}
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <span className="block h-5 w-1 rounded-full bg-[var(--mova-accent)]" />
-                <h2 className="font-display text-base font-bold text-[var(--mova-text)] md:text-lg">{genre}</h2>
+                <span className="block h-5 w-1 rounded-full bg-mova-accent" />
+                <h2 className="font-display text-base font-bold text-mova-text md:text-lg">{genre}</h2>
               </div>
-              <span className="rounded-full bg-[var(--mova-accent-soft)] px-2.5 py-0.5 text-xs font-medium text-[var(--mova-accent)]">
+              <span className="rounded-full bg-mova-accent-soft px-2.5 py-0.5 text-xs font-medium text-mova-accent">
                 {movies.length}편
               </span>
             </div>
