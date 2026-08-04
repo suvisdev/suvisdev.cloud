@@ -17,13 +17,13 @@ export function MovaLogo({ href = "/mova", className, size = "md" }: MovaLogoPro
   const inner = (
     <span
       className={cn(
-        "font-display inline-flex items-center font-bold tracking-[0.12em] text-[var(--mova-text)] uppercase",
+        "font-display inline-flex items-center font-bold tracking-[0.12em] text-mova-text uppercase",
         sizeClass[size],
         className,
       )}
     >
       <span
-        className="h-[1.1em] w-[3px] shrink-0 rounded-full bg-[var(--mova-accent)] shadow-[0_0_12px_var(--mova-accent-soft)]"
+        className="h-[1.1em] w-[3px] shrink-0 rounded-full bg-mova-accent shadow-[0_0_12px_var(--mova-accent-soft)]"
         aria-hidden
       />
       Mova

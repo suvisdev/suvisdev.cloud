@@ -66,13 +66,13 @@ export default function MypagePage() {
       <main className="mx-auto max-w-[900px] space-y-6 px-4 py-5 md:px-6 md:py-8">
 
         {/* 프로필 헤더 */}
-        <section className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--mova-border)] bg-[var(--mova-surface)] p-5">
+        <section className="flex items-center justify-between gap-4 rounded-2xl border border-mova-border bg-mova-surface p-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--mova-accent-soft)]">
-              <User className="h-7 w-7 text-[var(--mova-accent)]" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-mova-accent-soft">
+              <User className="h-7 w-7 text-mova-accent" />
             </div>
             <div>
-              <p className="text-lg font-bold text-[var(--mova-text)]">
+              <p className="text-lg font-bold text-mova-text">
                 {data?.nickname ?? session?.username ?? "로딩 중…"}
               </p>
               <p className="text-sm text-neutral-400">@{session?.username}</p>
@@ -81,7 +81,7 @@ export default function MypagePage() {
                   {data.preferred_genres.map((g) => (
                     <span
                       key={g}
-                      className="rounded-full bg-[var(--mova-accent-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--mova-accent)]"
+                      className="rounded-full bg-mova-accent-soft px-2.5 py-0.5 text-[11px] font-medium text-mova-accent"
                     >
                       {g}
                     </span>
@@ -93,7 +93,7 @@ export default function MypagePage() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-lg border border-[var(--mova-border)] px-3 py-2 text-xs text-neutral-400 transition hover:border-rose-500/40 hover:text-rose-400"
+            className="flex items-center gap-1.5 rounded-lg border border-mova-border px-3 py-2 text-xs text-neutral-400 transition hover:border-rose-500/40 hover:text-rose-400"
           >
             <LogOut className="h-3.5 w-3.5" />
             로그아웃
@@ -112,15 +112,15 @@ export default function MypagePage() {
             {/* AI 픽 기록 */}
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <Film className="h-4 w-4 text-[var(--mova-accent)]" />
-                <h2 className="text-sm font-semibold text-[var(--mova-text)]">AI 추천 기록</h2>
+                <Film className="h-4 w-4 text-mova-accent" />
+                <h2 className="text-sm font-semibold text-mova-text">AI 추천 기록</h2>
                 <span className="text-xs text-neutral-500">{data.recent_picks.length}편</span>
               </div>
 
               {data.recent_picks.length === 0 ? (
-                <p className="rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] px-5 py-8 text-center text-sm text-neutral-500">
+                <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
                   아직 AI 추천을 받은 적이 없어요.{" "}
-                  <Link href="/mova/main" className="text-[var(--mova-accent)] underline-offset-2 hover:underline">
+                  <Link href="/mova/main" className="text-mova-accent underline-offset-2 hover:underline">
                     채팅하러 가기 →
                   </Link>
                 </p>
@@ -136,7 +136,7 @@ export default function MypagePage() {
                           href={`/mova/title/${slug}`}
                           className="group w-[100px] shrink-0 md:w-[112px]"
                         >
-                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-[var(--mova-border)] transition group-hover:ring-[var(--mova-accent)]/50">
+                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
                             <Image
                               src={poster}
                               alt={pick.title}
@@ -145,7 +145,7 @@ export default function MypagePage() {
                               sizes="112px"
                             />
                           </div>
-                          <p className="mt-1.5 line-clamp-2 text-xs font-medium text-[var(--mova-text)] group-hover:text-[var(--mova-accent)]">
+                          <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
                             {pick.title}
                           </p>
                           {pick.hook && (
@@ -167,13 +167,13 @@ export default function MypagePage() {
             {/* 찜 목록 */}
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <Bookmark className="h-4 w-4 text-[var(--mova-accent)]" />
-                <h2 className="text-sm font-semibold text-[var(--mova-text)]">찜한 영화</h2>
+                <Bookmark className="h-4 w-4 text-mova-accent" />
+                <h2 className="text-sm font-semibold text-mova-text">찜한 영화</h2>
                 <span className="text-xs text-neutral-500">{watchlist.length}편</span>
               </div>
 
               {watchlist.length === 0 ? (
-                <p className="rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] px-5 py-8 text-center text-sm text-neutral-500">
+                <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
                   찜한 영화가 없어요. 영화 상세 페이지에서 찜하기를 눌러보세요.
                 </p>
               ) : (
@@ -188,7 +188,7 @@ export default function MypagePage() {
                           href={`/mova/title/${slug}`}
                           className="group w-[100px] shrink-0 md:w-[112px]"
                         >
-                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-[var(--mova-border)] transition group-hover:ring-[var(--mova-accent)]/50">
+                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
                             <Image
                               src={poster}
                               alt={item.title}
@@ -197,7 +197,7 @@ export default function MypagePage() {
                               sizes="112px"
                             />
                           </div>
-                          <p className="mt-1.5 line-clamp-2 text-xs font-medium text-[var(--mova-text)] group-hover:text-[var(--mova-accent)]">
+                          <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
                             {item.title}
                           </p>
                           <p className="mt-0.5 text-[10px] text-neutral-500">{item.release_year}</p>
@@ -212,12 +212,12 @@ export default function MypagePage() {
             {/* 최근 검색 */}
             <section>
               <div className="mb-3 flex items-center gap-2">
-                <Search className="h-4 w-4 text-[var(--mova-accent)]" />
-                <h2 className="text-sm font-semibold text-[var(--mova-text)]">최근 검색</h2>
+                <Search className="h-4 w-4 text-mova-accent" />
+                <h2 className="text-sm font-semibold text-mova-text">최근 검색</h2>
               </div>
 
               {data.recent_searches.length === 0 ? (
-                <p className="rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] px-5 py-8 text-center text-sm text-neutral-500">
+                <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
                   검색 기록이 없어요.
                 </p>
               ) : (
@@ -230,12 +230,12 @@ export default function MypagePage() {
                           router.push(`/mova/main?q=${encodeURIComponent(s.refined_query)}`)
                         }
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] px-4 py-3 text-left transition",
-                          "hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-accent-soft)]",
+                          "flex w-full items-center gap-3 rounded-xl border border-mova-border bg-mova-surface px-4 py-3 text-left transition",
+                          "hover:border-mova-accent/40 hover:bg-mova-accent-soft",
                         )}
                       >
                         <Clock className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
-                        <span className="flex-1 text-sm text-[var(--mova-text)]">
+                        <span className="flex-1 text-sm text-mova-text">
                           {s.refined_query}
                         </span>
                         <span className="text-xs text-neutral-500">

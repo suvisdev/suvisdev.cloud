@@ -54,7 +54,7 @@ const PROVIDERS: { id: OAuthProvider; label: string; className: string }[] = [
 ]
 
 const inputClass =
-  "h-9 w-full rounded-md border border-[var(--mova-border)] bg-[var(--mova-surface-2)] px-2.5 text-xs text-[var(--mova-text)] placeholder:text-neutral-500 outline-none transition focus:border-[var(--mova-accent)]/50"
+  "h-9 w-full rounded-md border border-mova-border bg-mova-surface-2 px-2.5 text-xs text-mova-text placeholder:text-neutral-500 outline-none transition focus:border-mova-accent/50"
 
 function startOAuthLogin(provider: OAuthProvider) {
   const params = new URLSearchParams({ aud: MOVA_AUD, return_to: MOVA_RETURN_TO })
@@ -226,7 +226,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
           }}
           aria-label="로그아웃"
           className={cn(
-            "inline-flex items-center justify-center gap-1 rounded-md border border-[var(--mova-border)] bg-[var(--mova-surface-2)] text-[var(--mova-muted)] transition-colors hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-accent-soft)] hover:text-[var(--mova-text)]",
+            "inline-flex items-center justify-center gap-1 rounded-md border border-mova-border bg-mova-surface-2 text-mova-muted transition-colors hover:border-mova-accent/40 hover:bg-mova-accent-soft hover:text-mova-text",
             size === "sm" ? "h-8 min-w-8 px-2 text-xs sm:min-w-0 sm:px-2.5" : "h-9 px-3 text-sm",
           )}
         >
@@ -244,7 +244,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
         onClick={() => setMenuOpen((v) => !v)}
         aria-label="로그인"
         className={cn(
-          "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-[var(--mova-accent)]/35 bg-[var(--mova-accent-soft)] font-medium text-[var(--mova-accent-bright)] transition-colors hover:border-[var(--mova-accent)]/55 hover:bg-[var(--mova-accent)]/25 hover:text-[var(--mova-text)]",
+          "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-mova-accent/35 bg-mova-accent-soft font-medium text-mova-accent-bright transition-colors hover:border-mova-accent/55 hover:bg-mova-accent/25 hover:text-mova-text",
           size === "sm" ? "h-8 min-w-8 px-2 text-xs sm:min-w-0 sm:px-3 sm:text-sm" : "h-9 px-4 text-sm",
         )}
       >
@@ -252,7 +252,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
         <span className="hidden sm:inline">로그인</span>
       </button>
       {menuOpen && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-64 space-y-2 rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] p-3 shadow-lg shadow-black/20">
+        <div className="absolute right-0 top-full z-50 mt-2 w-64 space-y-2 rounded-xl border border-mova-border bg-mova-surface p-3 shadow-lg shadow-black/20">
           {!emailFormOpen && (
             <>
               {PROVIDERS.map(({ id, label, className: providerClassName }) => (
@@ -269,9 +269,9 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
                 </button>
               ))}
               <div className="flex items-center gap-2 py-0.5">
-                <div className="h-px flex-1 bg-[var(--mova-border)]" />
+                <div className="h-px flex-1 bg-mova-border" />
                 <span className="text-[10px] text-neutral-500">또는</span>
-                <div className="h-px flex-1 bg-[var(--mova-border)]" />
+                <div className="h-px flex-1 bg-mova-border" />
               </div>
               <button
                 type="button"
@@ -279,7 +279,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
                   setEmailFormOpen(true)
                   setEmailFormError(null)
                 }}
-                className="flex w-full items-center justify-center rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface-2)] px-3 py-2 text-xs font-semibold text-[var(--mova-text)] transition-colors hover:bg-[var(--mova-accent-soft)]"
+                className="flex w-full items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2 px-3 py-2 text-xs font-semibold text-mova-text transition-colors hover:bg-mova-accent-soft"
               >
                 이메일로 가입/로그인
               </button>
@@ -288,7 +288,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
 
           {emailFormOpen && (
             <div className="space-y-2.5">
-              <div className="flex gap-1 rounded-lg bg-[var(--mova-surface-2)] p-0.5">
+              <div className="flex gap-1 rounded-lg bg-mova-surface-2 p-0.5">
                 {(["login", "signup"] as const).map((mode) => (
                   <button
                     key={mode}
@@ -300,8 +300,8 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
                     className={cn(
                       "flex-1 rounded-md py-1.5 text-xs font-semibold transition-colors",
                       emailFormMode === mode
-                        ? "bg-[var(--mova-accent)] text-white"
-                        : "text-neutral-400 hover:text-[var(--mova-text)]",
+                        ? "bg-mova-accent text-white"
+                        : "text-neutral-400 hover:text-mova-text",
                     )}
                   >
                     {mode === "login" ? "로그인" : "회원가입"}
@@ -347,7 +347,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
                 <button
                   type="submit"
                   disabled={emailFormSubmitting}
-                  className="h-9 w-full rounded-md bg-[var(--mova-accent)] text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
+                  className="h-9 w-full rounded-md bg-mova-accent text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-50"
                 >
                   {emailFormSubmitting
                     ? "처리 중..."
@@ -363,7 +363,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
                   setEmailFormOpen(false)
                   setEmailFormError(null)
                 }}
-                className="w-full text-center text-[11px] text-neutral-500 hover:text-[var(--mova-text)]"
+                className="w-full text-center text-[11px] text-neutral-500 hover:text-mova-text"
               >
                 ← 다른 방법으로 로그인
               </button>

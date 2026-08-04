@@ -303,7 +303,7 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
   return (
     <section
       className={cn(
-        "relative flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] shadow-[0_2px_12px_rgba(0,0,0,0.07)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.45)]",
+        "relative flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-mova-border bg-mova-surface shadow-[0_2px_12px_rgba(0,0,0,0.07)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.45)]",
         compact
           ? "min-h-[min(360px,42vh)] max-h-[min(480px,52vh)]"
           : "min-h-[min(420px,65vh)] sm:min-h-[480px] lg:min-h-[640px]",
@@ -323,15 +323,15 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
         }}
       />
 
-      <header className="relative z-10 flex items-center gap-3 border-b border-[var(--mova-border)] bg-[var(--mova-surface)]/90 px-4 py-3 backdrop-blur-md">
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--mova-accent)] to-[#6b2d4a] shadow-lg shadow-[var(--mova-accent-soft)]">
+      <header className="relative z-10 flex items-center gap-3 border-b border-mova-border bg-mova-surface/90 px-4 py-3 backdrop-blur-md">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-mova-accent to-[#6b2d4a] shadow-lg shadow-mova-accent-soft">
           <Clapperboard className="h-5 w-5 text-white" />
-          <span className="absolute -right-0.5 -bottom-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--mova-bg)] ring-2 ring-[var(--mova-surface)]">
-            <Sparkles className="h-2.5 w-2.5 text-[var(--mova-accent-bright)]" />
+          <span className="absolute -right-0.5 -bottom-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-mova-bg ring-2 ring-mova-surface">
+            <Sparkles className="h-2.5 w-2.5 text-mova-accent-bright" />
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold tracking-wide text-[var(--mova-text)]">Mova AI 컨시어지</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-mova-text">Mova AI 컨시어지</h2>
           <p className="text-[11px] text-neutral-500">맞춤 영화 · 드라마 추천</p>
         </div>
         <span className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 sm:inline">
@@ -352,8 +352,8 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
             )}
           >
             {msg.role === "assistant" && (
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface-2)]">
-                <Sparkles className="h-3.5 w-3.5 text-[var(--mova-accent)]" />
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2">
+                <Sparkles className="h-3.5 w-3.5 text-mova-accent" />
               </span>
             )}
             <div
@@ -368,8 +368,8 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
                 className={cn(
                   "max-w-full rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed break-words [overflow-wrap:anywhere]",
                   msg.role === "user"
-                    ? "rounded-tr-md bg-gradient-to-br from-[var(--mova-accent)] to-[#b84a72] text-white shadow-md shadow-[var(--mova-accent-soft)]"
-                    : "rounded-tl-md border border-[var(--mova-border)] bg-[var(--mova-surface-2)] text-[var(--mova-text)]",
+                    ? "rounded-tr-md bg-gradient-to-br from-mova-accent to-[#b84a72] text-white shadow-md shadow-mova-accent-soft"
+                    : "rounded-tl-md border border-mova-border bg-mova-surface-2 text-mova-text",
                 )}
               >
                 {msg.content}
@@ -381,7 +381,7 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
               )}
               {msg.role === "user" && msg.intentLabel && (
                 <p className="max-w-full px-1 text-right text-[10px] break-words text-neutral-500 [overflow-wrap:anywhere]">
-                  DB 저장 · <span className="text-[var(--mova-accent-bright)]">{msg.intentLabel}</span>
+                  DB 저장 · <span className="text-mova-accent-bright">{msg.intentLabel}</span>
                 </p>
               )}
             </div>
@@ -389,11 +389,11 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
         ))}
         {chat.loading && (
           <div className="flex gap-2.5">
-            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface-2)]">
-              <Sparkles className="h-3.5 w-3.5 animate-pulse text-[var(--mova-accent)]" />
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2">
+              <Sparkles className="h-3.5 w-3.5 animate-pulse text-mova-accent" />
             </span>
-            <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-[var(--mova-border)] bg-[var(--mova-surface-2)] px-3.5 py-2.5 text-sm text-[var(--mova-muted)]">
-              <Loader2 className="h-4 w-4 animate-spin text-[var(--mova-accent)]" />
+            <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-3.5 py-2.5 text-sm text-mova-muted">
+              <Loader2 className="h-4 w-4 animate-spin text-mova-accent" />
               추천 큐레이션 중…
             </div>
           </div>
@@ -407,14 +407,14 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
       )}
 
       {showSuggestions && (
-        <div className="relative z-10 flex max-w-full flex-wrap gap-2 border-t border-[var(--mova-border)] bg-[var(--mova-surface-2)] px-3 py-2.5 md:px-4">
+        <div className="relative z-10 flex max-w-full flex-wrap gap-2 border-t border-mova-border bg-mova-surface-2 px-3 py-2.5 md:px-4">
           {dailySuggestions.map((s) => (
             <button
               key={s}
               type="button"
               disabled={chat.loading}
               onClick={() => void sendMessage(s)}
-              className="rounded-full border border-[var(--mova-border)] bg-[var(--mova-surface)] px-3 py-1 text-xs text-[var(--mova-muted)] transition-colors hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-accent-soft)] hover:text-[var(--mova-text)] disabled:opacity-50"
+              className="rounded-full border border-mova-border bg-mova-surface px-3 py-1 text-xs text-mova-muted transition-colors hover:border-mova-accent/40 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
             >
               {s}
             </button>
@@ -424,7 +424,7 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="relative z-10 flex items-end gap-2 border-t border-[var(--mova-border)] bg-[var(--mova-bg)] px-3 py-3 md:px-4"
+        className="relative z-10 flex items-end gap-2 border-t border-mova-border bg-mova-bg px-3 py-3 md:px-4"
       >
         <textarea
           ref={inputRef}
@@ -433,24 +433,24 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
           rows={1}
           placeholder="장르, 분위기, 배우를 알려주세요…"
           disabled={chat.loading}
-          className="max-h-24 min-h-[44px] flex-1 resize-none rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface-2)] px-4 py-3 text-sm text-[var(--mova-text)] placeholder:text-neutral-500 outline-none transition-colors focus:border-[var(--mova-accent)]/50 focus:ring-1 focus:ring-[var(--mova-accent-soft)] disabled:opacity-60"
+          className="max-h-24 min-h-[44px] flex-1 resize-none rounded-lg border border-mova-border bg-mova-surface-2 px-4 py-3 text-sm text-mova-text placeholder:text-neutral-500 outline-none transition-colors focus:border-mova-accent/50 focus:ring-1 focus:ring-mova-accent-soft disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={chat.loading}
           aria-label="전송"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--mova-accent)] text-white shadow-lg shadow-[var(--mova-accent-soft)] transition-all hover:brightness-110 disabled:opacity-40 disabled:shadow-none"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-mova-accent text-white shadow-lg shadow-mova-accent-soft transition-all hover:brightness-110 disabled:opacity-40 disabled:shadow-none"
         >
           {chat.loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </button>
       </form>
 
       {!compact && (
-        <p className="relative z-10 border-t border-[var(--mova-border)] bg-[var(--mova-bg)] px-4 py-2 text-center text-[10px] text-neutral-500">
+        <p className="relative z-10 border-t border-mova-border bg-mova-bg px-4 py-2 text-center text-[10px] text-neutral-500">
           AI 추천은 참고용입니다. 작품 상세는{" "}
           <Link
             href="/mova/main"
-            className="text-neutral-400 underline-offset-2 hover:text-[var(--mova-accent-bright)] hover:underline"
+            className="text-neutral-400 underline-offset-2 hover:text-mova-accent-bright hover:underline"
           >
             메인 HOT 랭킹
           </Link>

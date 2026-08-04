@@ -56,8 +56,8 @@ function WatchlistButton({ userId, movieId }: { userId: number; movieId: number 
       className={cn(
         "absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full transition",
         inWatchlist
-          ? "bg-[var(--mova-accent)] text-white"
-          : "bg-black/50 text-white hover:bg-[var(--mova-accent)]",
+          ? "bg-mova-accent text-white"
+          : "bg-black/50 text-white hover:bg-mova-accent",
         "disabled:opacity-50",
       )}
     >
@@ -92,7 +92,7 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
 
         const cardContent = (
           <>
-            <div className="relative aspect-[2/3] bg-[var(--mova-surface-2)]">
+            <div className="relative aspect-[2/3] bg-mova-surface-2">
               {posterSrc ? (
                 <Image
                   src={posterSrc}
@@ -103,7 +103,7 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center" aria-hidden>
-                  <Clapperboard className="h-8 w-8 text-[var(--mova-muted)]" />
+                  <Clapperboard className="h-8 w-8 text-mova-muted" />
                 </div>
               )}
               {userId && item.movieDbId ? (
@@ -117,15 +117,15 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
             </div>
             <div className="p-2.5">
               <div className="flex items-start justify-between gap-1">
-                <p className="line-clamp-1 text-sm font-semibold text-[var(--mova-text)]">{item.title}</p>
+                <p className="line-clamp-1 text-sm font-semibold text-mova-text">{item.title}</p>
                 {platformKey && <MovaPlatformBadge platform={platformKey} />}
               </div>
               <p className="text-[10px] text-neutral-500">{item.year}</p>
-              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-[var(--mova-muted)]">
+              <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-mova-muted">
                 {item.synopsis}
               </p>
               {item.hook && (
-                <p className="mt-1 line-clamp-1 text-[10px] text-[var(--mova-accent-bright)]">
+                <p className="mt-1 line-clamp-1 text-[10px] text-mova-accent-bright">
                   {item.hook}
                 </p>
               )}
@@ -133,13 +133,13 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
           </>
         )
 
-        const cardClass = "w-[200px] shrink-0 overflow-hidden rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)]"
+        const cardClass = "w-[200px] shrink-0 overflow-hidden rounded-lg border border-mova-border bg-mova-surface"
 
         return item.movieDbId ? (
           <Link
             key={item.id}
             href={`/mova/title/${item.id}`}
-            className={cn(cardClass, "transition hover:border-[var(--mova-accent)]/40 hover:bg-[var(--mova-surface-2)]")}
+            className={cn(cardClass, "transition hover:border-mova-accent/40 hover:bg-mova-surface-2")}
           >
             {cardContent}
           </Link>

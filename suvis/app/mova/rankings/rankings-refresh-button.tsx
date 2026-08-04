@@ -26,7 +26,7 @@ export function RankingsRefreshButton({ source }: { source: string }) {
       type="button"
       onClick={handleRefresh}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--mova-border)] bg-[var(--mova-surface)] px-3 py-1.5 text-xs font-medium text-[var(--mova-muted)] transition-colors hover:text-[var(--mova-text)] disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 rounded-full border border-mova-border bg-mova-surface px-3 py-1.5 text-xs font-medium text-mova-muted transition-colors hover:text-mova-text disabled:opacity-50"
     >
       {loading ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />

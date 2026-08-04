@@ -21,7 +21,7 @@ type AuthApiBody = {
 }
 
 const inputClass =
-  "h-11 w-full rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface-2)] px-4 text-sm text-[var(--mova-text)] placeholder:text-neutral-500 outline-none transition focus:border-[var(--mova-accent)]/50 focus:ring-1 focus:ring-[var(--mova-accent-soft)]"
+  "h-11 w-full rounded-lg border border-mova-border bg-mova-surface-2 px-4 text-sm text-mova-text placeholder:text-neutral-500 outline-none transition focus:border-mova-accent/50 focus:ring-1 focus:ring-mova-accent-soft"
 
 export function MovaAuthForms() {
   const router = useRouter()
@@ -141,8 +141,8 @@ export function MovaAuthForms() {
           <MovaLogo size="lg" href="/mova" />
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[var(--mova-border)] bg-[var(--mova-surface)] shadow-[0_12px_48px_rgba(0,0,0,0.5)]">
-          <div className="flex border-b border-[var(--mova-border)]">
+        <div className="overflow-hidden rounded-2xl border border-mova-border bg-mova-surface shadow-[0_12px_48px_rgba(0,0,0,0.5)]">
+          <div className="flex border-b border-mova-border">
             {(["login", "signup"] as const).map((t) => (
               <button
                 key={t}
@@ -151,8 +151,8 @@ export function MovaAuthForms() {
                 className={cn(
                   "flex-1 py-4 text-sm font-semibold transition-colors",
                   tab === t
-                    ? "border-b-2 border-[var(--mova-accent)] text-[var(--mova-text)]"
-                    : "text-neutral-500 hover:text-[var(--mova-text)]",
+                    ? "border-b-2 border-mova-accent text-mova-text"
+                    : "text-neutral-500 hover:text-mova-text",
                 )}
               >
                 {t === "login" ? "로그인" : "회원가입"}
@@ -182,7 +182,7 @@ export function MovaAuthForms() {
                   {login.message}
                 </p>
               )}
-              <button type="submit" disabled={login.submitting} className="h-11 w-full rounded-lg bg-[var(--mova-accent)] text-sm font-semibold text-white shadow-lg shadow-[var(--mova-accent-soft)] transition hover:brightness-110 disabled:opacity-50">
+              <button type="submit" disabled={login.submitting} className="h-11 w-full rounded-lg bg-mova-accent text-sm font-semibold text-white shadow-lg shadow-mova-accent-soft transition hover:brightness-110 disabled:opacity-50">
                 {login.submitting ? "로그인 중…" : "로그인"}
               </button>
             </form>
@@ -218,7 +218,7 @@ export function MovaAuthForms() {
                   {signup.message}
                 </p>
               )}
-              <button type="submit" disabled={signup.submitting} className="h-11 w-full rounded-lg bg-[var(--mova-accent)] text-sm font-semibold text-white shadow-lg shadow-[var(--mova-accent-soft)] transition hover:brightness-110 disabled:opacity-50">
+              <button type="submit" disabled={signup.submitting} className="h-11 w-full rounded-lg bg-mova-accent text-sm font-semibold text-white shadow-lg shadow-mova-accent-soft transition hover:brightness-110 disabled:opacity-50">
                 {signup.submitting ? "가입 중…" : "회원가입"}
               </button>
             </form>
@@ -226,7 +226,7 @@ export function MovaAuthForms() {
         </div>
 
         <p className="mt-6 text-center">
-          <Link href="/mova" className="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-[var(--mova-text)]">
+          <Link href="/mova" className="inline-flex items-center gap-1.5 text-sm text-neutral-500 transition-colors hover:text-mova-text">
             <ArrowLeft className="h-3.5 w-3.5" />
             Mova로 돌아가기
           </Link>

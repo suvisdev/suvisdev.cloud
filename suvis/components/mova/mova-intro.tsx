@@ -72,7 +72,7 @@ export function MovaIntro({ onDone }: { onDone: () => void }) {
         </g>
       </svg>
 
-      <p className="font-display text-lg font-bold tracking-tight text-[var(--mova-text)] sm:text-xl">
+      <p className="font-display text-lg font-bold tracking-tight text-mova-text sm:text-xl">
         {INTRO_TEXT}
       </p>
     </button>

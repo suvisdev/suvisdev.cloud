@@ -14,7 +14,7 @@ export function MovaFeaturedRow() {
     <div className="grid gap-3 md:grid-cols-3 md:gap-4">
       <Link
         href="/mova/title/interstellar"
-        className="group relative block min-h-[220px] overflow-hidden rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)] md:min-h-[260px]"
+        className="group relative block min-h-[220px] overflow-hidden rounded-lg border border-mova-border bg-mova-surface md:min-h-[260px]"
       >
         <Image
           src={articleImg}
@@ -23,7 +23,7 @@ export function MovaFeaturedRow() {
           className="object-cover object-top opacity-90 transition-transform duration-500 group-hover:scale-105"
           sizes="(max-width: 768px) 100vw, 33vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--mova-bg)] via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-mova-bg via-black/30 to-transparent" />
         <span className="absolute top-3 left-3 rounded bg-white/15 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
           에디터 픽
         </span>
@@ -39,7 +39,7 @@ export function MovaFeaturedRow() {
 
       <Link
         href="/mova/title/dune-2"
-        className="group relative block min-h-[220px] overflow-hidden rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)] md:min-h-[260px]"
+        className="group relative block min-h-[220px] overflow-hidden rounded-lg border border-mova-border bg-mova-surface md:min-h-[260px]"
       >
         <Image
           src={posterImg}
@@ -49,7 +49,7 @@ export function MovaFeaturedRow() {
           sizes="(max-width: 768px) 100vw, 33vw"
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-          <span className="mb-2 self-start rounded bg-[var(--mova-accent)] px-2 py-0.5 text-[10px] font-bold text-white">
+          <span className="mb-2 self-start rounded bg-mova-accent px-2 py-0.5 text-[10px] font-bold text-white">
             지금 가장 핫한 작품
           </span>
           <div className="relative h-[140px] w-[95px] overflow-hidden rounded-sm shadow-2xl md:h-[160px] md:w-[108px]">
@@ -67,7 +67,7 @@ export function MovaFeaturedRow() {
 
       <Link
         href="/mova/title/oppenheimer"
-        className="group relative block min-h-[220px] overflow-hidden rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)] md:min-h-[260px]"
+        className="group relative block min-h-[220px] overflow-hidden rounded-lg border border-mova-border bg-mova-surface md:min-h-[260px]"
       >
         <Image
           src={trailerImg}

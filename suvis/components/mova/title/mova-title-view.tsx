@@ -45,7 +45,7 @@ function RatingStars({ rating, className }: { rating: number; className?: string
   return (
     <span className={cn("inline-flex items-center gap-1", className)}>
       <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-      <span className="font-medium text-[var(--mova-text)]">{rating.toFixed(1)}</span>
+      <span className="font-medium text-mova-text">{rating.toFixed(1)}</span>
     </span>
   )
 }
@@ -171,7 +171,7 @@ export function MovaTitleView({
       <MovaHeader />
       <main className="pb-10">
         <section className="relative min-h-[280px] overflow-hidden md:min-h-[360px]">
-          <div className="absolute inset-0 bg-[var(--mova-surface)]">
+          <div className="absolute inset-0 bg-mova-surface">
             <MovaRankingPoster
               src={movie.backdrop}
               alt=""
@@ -179,13 +179,13 @@ export function MovaTitleView({
               className="object-cover opacity-35 blur-sm scale-105"
             />
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-[var(--mova-bg)] via-[var(--mova-bg)]/90 to-[var(--mova-bg)]/40" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--mova-bg)] via-transparent to-[var(--mova-bg)]/50" />
+          <div className="absolute inset-0 bg-gradient-to-r from-mova-bg via-mova-bg/90 to-mova-bg/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-mova-bg via-transparent to-mova-bg/50" />
 
           <div className="relative mx-auto max-w-[1400px] px-4 pt-5 md:px-6 md:pt-6">
             <Link
               href="/mova/movies"
-              className="inline-flex items-center gap-1.5 text-sm text-neutral-400 transition hover:text-[var(--mova-text)]"
+              className="inline-flex items-center gap-1.5 text-sm text-neutral-400 transition hover:text-mova-text"
             >
               <ArrowLeft className="h-4 w-4" />
               영화 목록
@@ -204,15 +204,15 @@ export function MovaTitleView({
 
             <div className="min-w-0 flex-1 pb-1">
               {movie.rankBadge ? (
-                <p className="mb-2 text-xs font-medium tracking-wide text-[var(--mova-accent-bright)]">
+                <p className="mb-2 text-xs font-medium tracking-wide text-mova-accent-bright">
                   {movie.rankBadge}
                 </p>
               ) : null}
-              <h1 className="font-display text-2xl font-bold text-[var(--mova-text)] md:text-4xl">
+              <h1 className="font-display text-2xl font-bold text-mova-text md:text-4xl">
                 {movie.title}
               </h1>
               {metaParts.length > 0 ? (
-                <p className="mt-2 text-sm text-[var(--mova-muted)]">{metaParts.join(" · ")}</p>
+                <p className="mt-2 text-sm text-mova-muted">{metaParts.join(" · ")}</p>
               ) : null}
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 {session && movie.movieDbId ? (
@@ -223,8 +223,8 @@ export function MovaTitleView({
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
                       inWatchlist
-                        ? "border-[var(--mova-accent)] bg-[var(--mova-accent-soft)] text-[var(--mova-accent)]"
-                        : "border-[var(--mova-border)] bg-[var(--mova-surface)] text-neutral-400 hover:border-[var(--mova-accent)]/40 hover:text-[var(--mova-text)]",
+                        ? "border-mova-accent bg-mova-accent-soft text-mova-accent"
+                        : "border-mova-border bg-mova-surface text-neutral-400 hover:border-mova-accent/40 hover:text-mova-text",
                       "disabled:opacity-50",
                     )}
                   >
@@ -243,12 +243,12 @@ export function MovaTitleView({
                   <span className="text-xs text-neutral-500">{movie.ratingCount.toLocaleString()}명 평가</span>
                 ) : null}
                 {movie.platform ? (
-                  <span className="rounded-full border border-[var(--mova-border)] bg-[var(--mova-surface)] px-2.5 py-0.5 text-xs capitalize text-neutral-300">
+                  <span className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300">
                     {movie.platform}
                   </span>
                 ) : null}
                 {movie.badge ? (
-                  <span className="rounded bg-[var(--mova-accent)] px-2 py-0.5 text-[10px] font-bold text-white">
+                  <span className="rounded bg-mova-accent px-2 py-0.5 text-[10px] font-bold text-white">
                     {movie.badge}
                   </span>
                 ) : null}
@@ -259,20 +259,20 @@ export function MovaTitleView({
 
         <div className="mx-auto max-w-[1400px] space-y-8 px-4 py-6 md:px-6 md:py-8">
           {movie.synopsis ? (
-            <section className="rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] p-4 md:p-5">
-              <h2 className="text-base font-semibold text-[var(--mova-text)]">줄거리</h2>
+            <section className="rounded-xl border border-mova-border bg-mova-surface p-4 md:p-5">
+              <h2 className="text-base font-semibold text-mova-text">줄거리</h2>
               <p className="mt-3 text-sm leading-relaxed text-neutral-300">{movie.synopsis}</p>
             </section>
           ) : null}
 
           {movie.cast.length > 0 ? (
             <section>
-              <h2 className="mb-3 text-base font-semibold text-[var(--mova-text)]">출연 · 제작</h2>
+              <h2 className="mb-3 text-base font-semibold text-mova-text">출연 · 제작</h2>
               <ul className="mova-row-scroll flex gap-4 overflow-x-auto pb-2">
                 {movie.cast.map((member) => (
                   <li key={`${member.name}-${member.role}`} className="w-24 shrink-0 text-center md:w-28">
                     <CastAvatar name={member.name} photo={member.photo} />
-                    <p className="mt-2 truncate text-sm font-medium text-[var(--mova-text)]">{member.name}</p>
+                    <p className="mt-2 truncate text-sm font-medium text-mova-text">{member.name}</p>
                     <p className="truncate text-xs text-neutral-500">{member.role}</p>
                   </li>
                 ))}
@@ -282,12 +282,12 @@ export function MovaTitleView({
 
           {movie.gallery.length > 0 ? (
             <section>
-              <h2 className="mb-3 text-base font-semibold text-[var(--mova-text)]">스틸컷</h2>
+              <h2 className="mb-3 text-base font-semibold text-mova-text">스틸컷</h2>
               <ul className="mova-row-scroll flex gap-3 overflow-x-auto pb-2">
                 {movie.gallery.map((src) => (
                   <li
                     key={src}
-                    className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg border border-[var(--mova-border)] md:h-36 md:w-56"
+                    className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg border border-mova-border md:h-36 md:w-56"
                   >
                     <MovaRankingPoster src={src} alt="" sizes="224px" className="object-cover" />
                   </li>
@@ -298,7 +298,7 @@ export function MovaTitleView({
 
           <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
-              <h2 className="mb-3 text-base font-semibold text-[var(--mova-text)]">리뷰</h2>
+              <h2 className="mb-3 text-base font-semibold text-mova-text">리뷰</h2>
               {comments.length === 0 ? (
                 <p className="text-sm text-neutral-400">아직 등록된 리뷰가 없습니다.</p>
               ) : (
@@ -306,10 +306,10 @@ export function MovaTitleView({
                   {comments.map((comment) => (
                     <li
                       key={comment.id}
-                      className="rounded-lg border border-[var(--mova-border)] bg-[var(--mova-surface)] p-4"
+                      className="rounded-lg border border-mova-border bg-mova-surface p-4"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-[var(--mova-text)]">{comment.user}</p>
+                        <p className="text-sm font-medium text-mova-text">{comment.user}</p>
                         {comment.rating > 0 ? (
                           <RatingStars rating={comment.rating} className="text-xs" />
                         ) : null}
@@ -328,15 +328,15 @@ export function MovaTitleView({
               )}
             </div>
 
-            <aside className="h-fit rounded-xl border border-[var(--mova-border)] bg-[var(--mova-surface)] p-4 md:p-5">
-              <h2 className="text-base font-semibold text-[var(--mova-text)]">리뷰 남기기</h2>
+            <aside className="h-fit rounded-xl border border-mova-border bg-mova-surface p-4 md:p-5">
+              <h2 className="text-base font-semibold text-mova-text">리뷰 남기기</h2>
               {!canSubmitReview ? (
                 <p className="mt-3 text-xs text-neutral-500">
                   API에 등록된 작품만 리뷰를 남길 수 있습니다.
                 </p>
               ) : !session ? (
                 <p className="mt-3 text-xs text-neutral-500">
-                  <Link href="/login" className="text-[var(--mova-accent-bright)] hover:underline">
+                  <Link href="/login" className="text-mova-accent-bright hover:underline">
                     로그인
                   </Link>
                   후 리뷰를 남길 수 있습니다.
@@ -360,7 +360,7 @@ export function MovaTitleView({
                     name="rating"
                     defaultValue={myReview && myReview.rating > 0 ? String(myReview.rating) : ""}
                     disabled={!canSubmitReview || review.submitting}
-                    className="h-9 w-full rounded-md border border-[var(--mova-border)] bg-[var(--mova-bg)] px-3 text-sm text-[var(--mova-text)]"
+                    className="h-9 w-full rounded-md border border-mova-border bg-mova-bg px-3 text-sm text-mova-text"
                   >
                     <option value="" disabled>
                       선택
@@ -388,7 +388,7 @@ export function MovaTitleView({
                     placeholder="감상을 간단히 남겨 주세요. (선택)"
                     defaultValue={myReview?.body ?? ""}
                     disabled={!canSubmitReview || review.submitting}
-                    className="w-full resize-none rounded-md border border-[var(--mova-border)] bg-[var(--mova-bg)] px-3 py-2 text-sm text-[var(--mova-text)]"
+                    className="w-full resize-none rounded-md border border-mova-border bg-mova-bg px-3 py-2 text-sm text-mova-text"
                   />
                   {review.errors.text ? (
                     <p className="text-xs text-rose-400" role="alert">
