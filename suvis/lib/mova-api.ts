@@ -501,6 +501,25 @@ export async function fetchMovaRating(movieId: number): Promise<MovaRatingSummar
   return (await res.json()) as MovaRatingSummary
 }
 
+export async function addReviewActivity(input: {
+  movie_id: number
+  action_type: "favorite" | "watched" | "click" | "not_interested"
+}): Promise<void> {
+  const res = await fetch(reviewsFetchUrl("/activity"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const detail =
+      typeof data === "object" && data && "detail" in data
+        ? (data as { detail: unknown }).detail
+        : undefined
+    throw new Error(safeApiErrorMessage(detail, `처리 실패 (${res.status})`, res.status))
+  }
+}
+
 export async function createMovaReview(input: {
   movie_id: number
   rating: number | null

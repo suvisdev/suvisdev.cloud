@@ -276,6 +276,33 @@
   (수동 스위치 유지 — 어떤 모델이 답했는지 불투명해지는 것 방지).
   **실제 Cloudflare Tunnel 연결·EC2↔집 GPU 실 연동은 아직 안 함(아래 백로그).**
   상세: WORK_LOG 2026-08-03.
+- **EC2 S3 실연결 + `/lesson/photos` OCR 기능(2026-08-04)**: EC2가 지금까지 S3에
+  붙어본 적이 없었음을 실증으로 발견(IAM Role 미부착, `.env`에 AWS 키 자체가
+  없어 `NoCredentialsError`) — `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`를
+  EC2 `.env`에 추가해 해결(첫 시도 값은 시크릿 40자가 14자로 잘려 있어
+  `InvalidAccessKeyId`로 재실패, 재발급 후 성공). `Tank.list_objects` 신규 +
+  `apps/media`에 Gemini 멀티모달 OCR(`ocr.py`) + `GET /api/media/photos/ocr`
+  (`require_admin`, 처음엔 관리자 본인 user_id로 좁혔다가 susu=카카오/웹
+  관리자=구글이 별개 계정으로 남는 걸 발견해 전체 `media/` prefix로 확장,
+  응답에 `user_id` 추가). `suvis/app/lesson/photos`에 프론트 페이지 신설.
+  실제 S3 데이터(영수증 이미지)로 다운로드+OCR 종단 검증 완료. 별개로 EC2
+  배포 시 `docker compose --env-file suvisdev/.env`를 빠뜨리면
+  `POSTGRES_USER`등이 빈 값으로 치환돼 DB 연결이 깨지는 함정도 실제로
+  겪고 기록(아래 "S3" 항목 갱신, 배포 시 항상 `--env-file` 필수).
+- **어드민 통계 방문자 — EC2 alembic 재확인(2026-08-04)**: 백로그에 "EC2
+  미적용"으로 남아 있었으나 실제로는 `alembic current`가 이미
+  `20260731_0001 (head)`였고 `visitor_activity` 테이블도 실데이터 15행 보유—
+  이전 세션 어느 시점에 이미 반영된 상태였음을 확인만 하고 완료 처리.
+- **mova 리뷰 watched 게이트(2026-08-04)**: 백로그 항목 구현 완료.
+  `ReviewsRepositoryPort.has_watched(user_id, movie_id)` 신설(PG 구현은
+  `user_actions`에서 `action_type=watched` EXISTS 조회), `ReviewsInteractor
+  .add_review()` 맨 앞에서 게이트(미시청이면 신규 `ReviewNotWatchedError`
+  403 — 별점 존재 여부로 판정하지 않음, 순환 논리 방지 원칙 그대로 지킴).
+  프론트: `POST /mova/reviews/activity` 프록시·`addReviewActivity()` 신규,
+  영화 상세 페이지에 "봤어요" 버튼 추가(찜하기 버튼과 동일 톤). 조회 API가
+  없어 버튼 상태는 세션 로컬에서만 추적(새로고침하면 리셋되지만 서버 기록은
+  유지되어 게이트는 정상 통과). 인터랙터 테스트 2건 추가 + 기존 6건에
+  `has_watched` 명시적 스텁 보강, mova 전체 81개 전부 통과.
 - **폰 카메라 → S3 업로드(2026-08-03)**: 새 경량 앱 `apps/media`(DB 없음) —
   `POST /api/media/photos`(JWT 필요, JPG/PNG/WebP·10MB 제한, 기존 Sentinel
   vision 업로드와 무관하게 분리), `.importlinter`에 `media` 스포크 등록,
@@ -319,19 +346,6 @@
   카카오 로그인을 거쳐야 하는 현재 네비게이션 구조상 데스크톱에선 로그인
   단계가 막힘 — 임시 진입 경로 필요 여부 검토)로 실제 `/mova/chat` 응답·
   포스터 카드 렌더링 확인 필요. 상세: WORK_LOG 2026-08-03.
-- **어드민 통계 방문자 — alembic 적용 확인(2026-07-31 신규, 2026-08-02
-  집 로컬 DB 적용 완료)**: `20260731_0001_create_analytics_visitor_activity`를
-  집 로컬 Docker DB에는 실제 적용 완료(`visitor_activity` 테이블 생성 확인,
-  WORK_LOG 2026-08-02). **EC2 DB에는 아직 미적용** — EC2에서
-  `alembic upgrade head` 실행 후 `/admin/stats/visitors` 탭이 실제 숫자를
-  보여주는지 확인 필요.
-- **mova 리뷰 watched 게이트(2026-07-31 신규, 별점+리뷰 UX와는 별개 — 그쪽은
-  완료됨 참고)**: "watched로 기록한 유저만 리뷰 작성 가능" 정책은 이번
-  Phase A·별점+리뷰 UX 어디에도 포함 안 함 — '봤어요' 버튼
-  프론트 UI + `ReviewsRepositoryPort.has_watched(user_id, movie_id)`(신설
-  필요, `user_actions.action_type == "watched"` 조회) + `add_review()`에
-  게이트 삽입이 남은 작업. rating을 watched 판정 근거로 쓰면 안 됨(순환
-  논리 — 상세 WORK_LOG 2026-07-31 리뷰 사전조사 항목 참고).
 - **mova TMDB credits 백필 EC2 실행(2026-07-30 신규, 2026-08-02 집 로컬
   완료·EC2는 아직)**: 집 로컬 Docker DB는 2026-08-02에 `alembic upgrade
   head` + `scripts/backfill_credits_cli.py` 전량 실행까지 완료(actors 389/
@@ -373,7 +387,6 @@
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
-- **S3**: AWS 실연결(버킷+키 세팅) 후 Tank 단일 경로 실 업로드 검증.
 - **`suvis/app/mail/contacts` 공개 레슨 데모 처리(2026-07-28 신규)**: adress
   엔드포인트에 `require_admin`을 걸면서 이 페이지는 이제 업로드 시도 시 401만
   받는다. 페이지 자체를 지울지, 로그인 요구 안내로 바꿀지, 별도 더미 데이터로
