@@ -78,6 +78,19 @@ class Tank:
             logger.exception("[Tank] S3 다운로드 실패 | bucket=%s key=%s", target, key)
             raise RuntimeError(f"S3 다운로드 실패: {e}") from e
 
+    def list_objects(self, prefix: str, *, bucket: str | None = None) -> list[str]:
+        """prefix로 시작하는 객체 key 목록(list_objects_v2, 페이지네이션 포함)."""
+        target = self._resolve_bucket(bucket)
+        keys: list[str] = []
+        try:
+            paginator = self.client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=target, Prefix=prefix):
+                keys.extend(obj["Key"] for obj in page.get("Contents", []))
+        except (BotoCoreError, ClientError) as e:
+            logger.exception("[Tank] S3 목록 조회 실패 | bucket=%s prefix=%s", target, prefix)
+            raise RuntimeError(f"S3 목록 조회 실패: {e}") from e
+        return keys
+
     def generate_presigned_url(
         self,
         key: str,

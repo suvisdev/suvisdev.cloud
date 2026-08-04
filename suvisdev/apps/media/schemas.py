@@ -8,3 +8,8 @@ class PhotoUploadResponse(BaseModel):
     url: str
     size_bytes: int
     content_type: str
+
+
+class OcrPhotoItem(BaseModel):
+    image_url: str
+    extracted_text: str
