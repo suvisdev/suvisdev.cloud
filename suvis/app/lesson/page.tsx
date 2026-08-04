@@ -151,7 +151,7 @@ export default function LessonHomePage() {
               S3 사진 OCR
             </Link>
             <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-              susu 카메라로 S3에 올린 내 사진을 불러와 Gemini로 텍스트를 추출하는 도구
+              susu 카메라로 S3에 올린 전체 사용자 사진을 불러와 Gemini로 텍스트를 추출하는 도구
             </p>
             <div className="mt-4 flex gap-3">
               <Link

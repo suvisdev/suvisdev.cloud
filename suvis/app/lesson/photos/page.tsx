@@ -119,8 +119,8 @@ export default function LessonPhotosPage() {
             S3 사진 OCR
           </h1>
           <p className="mt-5 max-w-3xl text-sm leading-7 text-neutral-600 md:text-base dark:text-neutral-400">
-            susu(모바일) 카메라로 찍어 S3에 올린 내 사진을 불러와, Gemini로 사진 속
-            텍스트를 추출해서 함께 보여줍니다.
+            susu(모바일) 카메라로 찍어 S3에 올린 전체 사용자 사진을 불러와, Gemini로
+            사진 속 텍스트를 추출해서 함께 보여줍니다(관리자 전용).
           </p>
 
           <div className="mt-8">
@@ -155,6 +155,9 @@ function LessonPhotosBody({ scan }: { scan: ScanState }) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, next/image remotePatterns 설정 불필요한 범위 */}
           <img src={item.image_url} alt="" className="h-56 w-full object-cover" />
+          <div className="border-t border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 dark:border-[#252b3b] dark:text-neutral-500">
+            user_id: {item.user_id}
+          </div>
           <figcaption className="whitespace-pre-wrap p-3 text-sm text-neutral-700 dark:text-neutral-300">
             {item.extracted_text || "(텍스트 없음)"}
           </figcaption>

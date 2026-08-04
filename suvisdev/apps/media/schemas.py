@@ -13,3 +13,4 @@ class PhotoUploadResponse(BaseModel):
 class OcrPhotoItem(BaseModel):
     image_url: str
     extracted_text: str
+    user_id: str

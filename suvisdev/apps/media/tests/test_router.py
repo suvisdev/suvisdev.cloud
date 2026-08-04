@@ -118,7 +118,7 @@ def test_upload_photo_requires_auth():
     assert resp.status_code == 401
 
 
-def test_list_photos_with_ocr_scopes_to_admin_prefix_and_sorts_newest_first(monkeypatch):
+def test_list_photos_with_ocr_shows_all_users_sorted_newest_first(monkeypatch):
     tank = _FakeTank(
         objects={
             "media/42/20260101_000000_a.jpg": b"img-a",
@@ -134,9 +134,11 @@ def test_list_photos_with_ocr_scopes_to_admin_prefix_and_sorts_newest_first(monk
 
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 2  # user_id=7 소유 객체는 제외됨
-    assert body[0]["image_url"].endswith("20260201_000000_b.jpg?presigned=1")
+    assert len(body) == 3  # admin은 다른 사용자 사진도 전부 봄
+    assert body[0]["image_url"].endswith("20260301_000000_other-user.jpg?presigned=1")
+    assert body[0]["user_id"] == "7"
     assert body[0]["extracted_text"] == "hello"
+    assert body[1]["user_id"] == "42"
 
 
 def test_list_photos_with_ocr_falls_back_on_per_item_ocr_failure(monkeypatch):
