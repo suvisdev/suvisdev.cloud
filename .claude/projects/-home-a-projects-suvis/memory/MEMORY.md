@@ -24,4 +24,4 @@
 | 작업 일지 (날짜별 상세) | `_docs/WORK_LOG.md` |
 | 어드민·멀티에이전트 진행 상황 · 백로그 | `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` |
 | 경로별 코딩 규칙 | `.claude/rules/` |
-| 프론트엔드 상세 규칙 | `suvis/_docs/CLAUDE.MD` · `react-rules.md` |
+| 프론트엔드 상세 규칙 | `suvis/CLAUDE.md` · `suvis/_docs/react-rules.md` |

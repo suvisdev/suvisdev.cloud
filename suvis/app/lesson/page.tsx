@@ -56,6 +56,15 @@ export default function LessonHomePage() {
               객체 탐지
             </Link>
           </div>
+          <p className="mt-6 text-xs font-semibold tracking-wide text-neutral-500">MEDIA</p>
+          <div className="mt-2 space-y-2">
+            <Link
+              href="/lesson/photos"
+              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
+            >
+              S3 사진 OCR
+            </Link>
+          </div>
           <p className="mt-6 text-xs font-semibold tracking-wide text-neutral-500">SOCCER</p>
           <div className="mt-2 space-y-2">
             <Link
@@ -129,6 +138,27 @@ export default function LessonHomePage() {
                 className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-neutral-200 transition-colors hover:bg-neutral-100 dark:bg-[#252b3b] dark:text-neutral-200 dark:ring-[#2d3447] dark:hover:bg-[#2d3447]"
               >
                 이미지 업로드
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-6 dark:border-[#252b3b] dark:bg-[#1a1f2d]">
+            <p className="text-xs font-semibold tracking-[0.2em] text-neutral-500">MEDIA</p>
+            <Link
+              href="/lesson/photos"
+              className="mt-2 block text-lg font-semibold text-neutral-900 hover:underline dark:text-neutral-100"
+            >
+              S3 사진 OCR
+            </Link>
+            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+              susu 카메라로 S3에 올린 내 사진을 불러와 Gemini로 텍스트를 추출하는 도구
+            </p>
+            <div className="mt-4 flex gap-3">
+              <Link
+                href="/lesson/photos"
+                className="rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-neutral-200 transition-colors hover:bg-neutral-100 dark:bg-[#252b3b] dark:text-neutral-200 dark:ring-[#2d3447] dark:hover:bg-[#2d3447]"
+              >
+                S3 사진 OCR 보기
               </Link>
             </div>
           </div>

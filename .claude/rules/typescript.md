@@ -11,7 +11,7 @@ paths:
 새 코드는 이 관례를 따른다.
 
 > React·컴포넌트 세부 규칙은 `suvis/_docs/react-rules.md`, 프론트 전반 구조는
-> `suvis/_docs/CLAUDE.MD`를 따른다. 여기서는 **타입 언어 차원의 규칙**만 다룬다.
+> `suvis/CLAUDE.md`를 따른다. 여기서는 **타입 언어 차원의 규칙**만 다룬다.
 
 ### 1. strict mode 필수
 
@@ -73,7 +73,7 @@ paths:
 - `null`을 기본으로 쓰고(`| null` 106건 : `| undefined` 20건), 값이 없을 수 있는
   자리는 `??`로 대체값을 준다.
 - 필드가 아예 없을 수 있으면 `foo?: T`, "비어 있음"이 API·UI 계약상 명시적일 때만
-  `foo: T | null`. 상세 기준은 `suvis/_docs/CLAUDE.MD` C.5 및
+  `foo: T | null`. 상세 기준은 `suvis/CLAUDE.md` C.5 및
   `react-rules.md` §8을 따른다.
 - `Record<string, T | null>` 금지 — `Record`는 **동적 키**에만 쓴다.
 

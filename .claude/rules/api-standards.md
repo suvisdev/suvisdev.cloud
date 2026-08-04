@@ -11,7 +11,7 @@ paths:
 관례다.
 
 > 어느 계층에서 무엇을 호출하는지(서버 컴포넌트는 직접 `fetch`, 클라이언트
-> 컴포넌트는 `lib/` 경유)는 `suvis/_docs/CLAUDE.MD` C.2가 기준이다. 여기서는
+> 컴포넌트는 `lib/` 경유)는 `suvis/CLAUDE.md` C.2가 기준이다. 여기서는
 > **그 함수를 어떻게 쓰는지**만 다룬다.
 
 ### 1. 베이스 URL
@@ -71,7 +71,7 @@ paths:
   `JSON.stringify`로 그대로 노출하지 않는다.
 - 커스텀 에러 클래스는 두지 않는다 — `throw new Error(safeApiErrorMessage(...))`가
   현행 관례다.
-- `try/catch`는 경계 한 겹만. 상세 기준은 `suvis/_docs/CLAUDE.MD` C.7 및
+- `try/catch`는 경계 한 겹만. 상세 기준은 `suvis/CLAUDE.md` C.7 및
   `react-rules.md` §10.
 
 ### 5. 라우트 핸들러(`app/api/**/route.ts`)
