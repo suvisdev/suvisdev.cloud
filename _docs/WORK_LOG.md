@@ -294,7 +294,43 @@ watched 게이트" 2건을 이어서 진행하기로 함.
   `suvis/app/api/v1/contents/soccer/chat/route.ts`,
   `suvis/app/api/v1/langchain/chat/route.ts`.
 - 수정: `suvis/next.config.mjs`, `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`.
-- 커밋 해시는 이 항목 갱신 직후 커밋들에서 확정.
+- 커밋: 라우트 3개 `04bfbb2`, 리라이트 삭제 `2cbdb17`, 문서 `f408e0f`, main
+  머지(PR #31) `0d70acf`. 6개 라우트 `x-matched-path` 헤더 배포 후 실증 완료.
+
+### 작업 내용(추가⑤) — Tank presigned URL 403 버그 발견·수정
+
+PR #31 배포 검증 중 사용자가 `/lesson/photos` 스크린샷을 보내 "썸네일이 안
+뜨는 게 정상이냐"고 질문 — OCR 텍스트는 정상 추출됐는데 이미지만 깨진 아이콘.
+EC2에서 실제 presigned URL을 발급해 `curl -I`로 재현 → `307`(글로벌
+엔드포인트 `s3.amazonaws.com` → 리전 엔드포인트로 리다이렉트) 이후 같은
+서명으로 `403`. `boto3.client("s3", region_name=...)`만 주면 리전이
+us-east-1이 아닐 때 URL 생성 자체는 글로벌 엔드포인트 기준으로 되는데,
+SigV4 서명에 `Host` 헤더가 포함돼 있어 리다이렉트된 새 호스트에서 서명이
+안 맞는 게 원인.
+
+### 수정/구현(추가⑤)
+- `core/matrix/aws_tank_s3_manager.py`의 `Tank.client`에 `endpoint_url=
+  f"https://s3.{self.region}.amazonaws.com"` 명시 — 리다이렉트 자체가
+  안 생기게 함(업로드·다운로드·목록 조회도 같은 클라이언트를 쓰므로 함께
+  개선됨, presigned URL만의 문제는 아니었음).
+- 로컬에서 실제 S3 객체(`media/4/...jpg`, susu 업로드분)로 재발급한 URL을
+  직접 `curl`로 검증 — `GET` → `200 OK`, `Content-Type: image/jpeg`,
+  `Content-Length: 1554281`(원본과 일치). (`curl -I`/HEAD는 여전히 403이
+  나오는데, 이건 presigned URL이 `get_object` 즉 GET 메서드로만 서명돼 있어
+  HEAD가 별도 인가를 안 받는 것 — 브라우저 `<img>` 태그는 GET을 쓰므로
+  무관함을 확인.)
+
+### 오류·막힌 점(추가⑤)
+- 없음. `pytest apps/media/tests apps/ontology/test -m "not gpu"` 63개 통과
+  (Tank 관련 기존 테스트는 fake라 이 변경과 무관, 회귀 없음 확인).
+
+### 데이터(추가⑤)
+- 해당 없음.
+
+### 산출물(추가⑤)
+- 수정: `suvisdev/core/matrix/aws_tank_s3_manager.py`.
+- 커밋: `b4f4500`(로컬 브랜치 push까지, main 머지·EC2 배포는 이 항목 갱신
+  직후 진행).
 
 ---
 
