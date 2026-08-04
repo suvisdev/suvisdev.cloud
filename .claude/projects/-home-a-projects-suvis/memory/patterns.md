@@ -11,7 +11,7 @@
 |------|------|
 | TypeScript 언어 규칙 (any 금지, type 별칭, enum 금지 등) | `.claude/rules/typescript.md` |
 | API 클라이언트 · 라우트 핸들러 | `.claude/rules/api-standards.md` |
-| 프론트 구조 · 서버/클라이언트 컴포넌트 · null · try/catch | `suvis/_docs/CLAUDE.MD` |
+| 프론트 구조 · 서버/클라이언트 컴포넌트 · null · try/catch | `suvis/CLAUDE.md` |
 | React 세부 (§8 null, §9 분기, §10 try/catch) | `suvis/_docs/react-rules.md` |
 
 ---

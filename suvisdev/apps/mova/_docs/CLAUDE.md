@@ -145,7 +145,7 @@ from core.matrix.grid_oracle_database_manager import get_mova_db
 - `None`은 **해당 필드에 값이 없음**이 도메인·API 계약에 필요할 때만.
 - **경계에서만 raw dict:** TMDB JSON, ORM JSONB 읽기 직후. Mapper·Repository에서 Dto/Schema로 좁힌 뒤 상위 레이어로 전달.
 - 동적 맵(예: 메타데이터 키·값 쌍)이 아니면 `dict` 대신 명시적 필드 타입을 쓴다.
-- 프론트 타입 규칙: `suvis/_docs/CLAUDE.MD` §C.5.
+- 프론트 타입 규칙: `suvis/CLAUDE.md` §C.5.
 
 ### D.2 분기 · if/else (루트 `CLAUDE.md` §6)
 
@@ -153,7 +153,7 @@ from core.matrix.grid_oracle_database_manager import get_mova_db
 - **Interactor:** `tmdb_id` / `query` / `popular_pages`처럼 **상호 배타 모드**는 `match` 또는 전용 private 메서드. Router에 긴 `elif` 체인 금지.
 - **짧은 2갈래** (`found` / `not found`, `count < 5`)는 plain `if/else` — 추상화하지 않는다.
 - **Outbound adapter:** HTTP 상태·파싱 실패는 도메인 예외로 raise. Router에서 `try/except`로 HTTP 변환 (§D.3).
-- 프론트 분기 규칙: `suvis/_docs/CLAUDE.MD` §C.6.
+- 프론트 분기 규칙: `suvis/CLAUDE.md` §C.6.
 
 ### D.3 try · except (루트 `CLAUDE.md` §7)
 
@@ -165,7 +165,7 @@ from core.matrix.grid_oracle_database_manager import get_mova_db
 - **Outbound (LLM·TMDB·HTTP):** 외부 API·파싱 실패를 **구체 예외**로 변환해 raise. `except Exception: pass` 금지.
   - JSON 파싱 fallback(`JSONDecodeError`)은 **해당 adapter 내부·짧게**만 허용.
 - **Startup / DI (`import_provider.seed_catalog_if_sparse`):** 시드 실패 시 앱 기동은 계속 — `TmdbAdapterError`만 잡고 로그/무시. 비즈니스 요청 경로와 동일하게 취급하지 않는다.
-- 프론트 `try/catch`: `suvis/_docs/CLAUDE.MD` §C.7.
+- 프론트 `try/catch`: `suvis/CLAUDE.md` §C.7.
 
 ---
 

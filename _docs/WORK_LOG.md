@@ -81,7 +81,87 @@
   `suvis/_docs/s3-ocr-reverse-harness.md`, `suvis/_docs/DESIGN.md`.
 - 수정: `suvis/app/globals.css`, `app/mova/**`·`components/mova/**` 27개 tsx.
 - 삭제: `suvis/styles/globals.css`.
-- 커밋 해시는 이 항목 갱신 직후 커밋에서 확정.
+- 커밋: `ec788cf`, PR #27 머지(`53dd78e`).
+
+### 작업 내용(추가①) — `suvis/_docs/CLAUDE.MD`를 `suvis/CLAUDE.md`로 이동 + 최신화
+- 사용자가 이 문서가 정말 프론트 전용인지, 아니면 다른 곳으로 옮길 내용이
+  섞였는지 물어봐서 전문을 검토. 다른 스택(백엔드·Flutter) 내용은 없었지만
+  실제 코드 상태와 크게 어긋나 있었음(존재하지 않는 `types/` 디렉터리를
+  전역 타입 위치로 문서화 — `.claude/rules/typescript.md` §3과 정반대,
+  `app/` 디렉터리 구조표가 admin/dispatch/harvester/vision 등 대부분 누락,
+  `lib/` 목록도 9개뿐으로 stale). 사용자가 "최신화 + `_docs/` 밖으로 꺼내서
+  `suvis/`에 담자"고 확정.
+
+### 수정/구현(추가①)
+- `suvis/CLAUDE.md` 신규 작성(디렉터리 구조·`lib/` 목록·라우트 표 전면
+  갱신, `types/` 모순 제거, C.3 스타일 절에 오늘 작업한 shadcn 토큰 통일
+  내용과 `_docs/DESIGN.md` 링크 반영) — `suvis/_docs/CLAUDE.MD`는 삭제.
+  루트 `CLAUDE.md`의 링크 테이블이 원래부터 `suvis/CLAUDE.md`를 가리키고
+  있어 실제 위치를 그 기대에 맞춘 것.
+- 옛 경로(`suvis/_docs/CLAUDE.MD`)를 참조하던 6곳 경로 수정:
+  `.claude/rules/typescript.md`, `.claude/rules/api-standards.md`, 저장소
+  메모리(`MEMORY.md`, `patterns.md`), `suvis/.cursorrules`,
+  `suvisdev/apps/mova/_docs/CLAUDE.md`(+`.cursorrules`).
+
+### 오류·막힌 점(추가①)
+- 옛 `suvis/_docs/CLAUDE.MD`를 지우기 직전 `git diff`에서 `---`와
+  `## C. 핵심 규칙` 사이에 정체불명의 단독 `1` 문자가 끼어 있는 걸 발견 —
+  `suvisdev/.env` 반복 손상(2026-07-29, 07-30, `SUVIS_ADMIN_MULTIAGENT_
+  PROGRESS.md` 기존 항목)과 정확히 같은 패턴. `.env`와 마크다운(IDE에서 열려
+  있던 파일) 둘 다에서 나타나 파일 타입 문제가 아니라는 정황이 늘어남 —
+  진행 상황 문서에 정황 추가, 원인은 미해결.
+
+### 산출물(추가①)
+- 신규: `suvis/CLAUDE.md`. 삭제: `suvis/_docs/CLAUDE.MD`.
+- 수정: `.claude/rules/{typescript,api-standards}.md`,
+  `.claude/projects/-home-a-projects-suvis/memory/{MEMORY,patterns}.md`,
+  `suvis/.cursorrules`, `suvisdev/apps/mova/_docs/{CLAUDE.md,.cursorrules}`,
+  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(단독 `1` 문자 정황 추가).
+
+### 작업 내용(추가②) — `/lesson`에 S3 사진 OCR 페이지 신설
+- 사용자가 "아까 한 이미지 다운받은거 lesson 페이지에 출력"을 요청 — 확인해
+  보니 전날 만든 건 계획 문서(하네스)뿐이고 실 구현은 없었음(`Tank.list_objects`
+  도, OCR 엔드포인트도 없었음)을 먼저 정정. S3에 실제로 있는 이미지는
+  susu 카메라 업로드(`media/{user_id}/...`, 개인 사진) 하나뿐이라, 공개
+  페이지에 그대로 노출하면 `adress`/`mail/contacts`와 같은 무인증 개인정보
+  노출 패턴이 될 위험을 짚고 사용자 확인 후 "로그인한 본인 사진만" 노선으로
+  확정. 이어서 `/lesson`이 이미 `AdminAuthGate`로 관리자 전용임을 발견 —
+  그 로그인(HS256 `require_admin` 체계)을 그대로 재사용하기로 함(susu/mova가
+  쓰는 RS256 aud 체계와는 별개지만 `user_id`가 같은 테이블이라 prefix가
+  그대로 맞음).
+
+### 수정/구현(추가②)
+- **백엔드**: `core/matrix/aws_tank_s3_manager.py`에 `Tank.list_objects(prefix)`
+  추가(list_objects_v2 페이지네이션). `apps/media/ocr.py` 신규 — Gemini
+  멀티모달로 이미지→텍스트(`mova`/`ontology`의 `Keymaker` 재사용 패턴과
+  동일한 에러 매핑). `apps/media/router.py`에 `GET /api/media/photos/ocr`
+  추가 — `require_admin`으로 가드, `media/{admin.user_id}/` prefix만 조회해
+  본인 사진만 반환, 최신순 정렬, 최대 12장, 개별 OCR 실패는 전체를 막지
+  않고 "(텍스트 추출 실패)"로 대체. `apps/media/schemas.py`에 `OcrPhotoItem`
+  추가. 테스트 4건 추가(`apps/media/tests/test_router.py`, `_FakeTank`에
+  `list_objects`/`download_bytes`/`generate_presigned_url` 확장) — 9개 전부
+  통과, import-linter 위반은 기존 것과 무관함 확인.
+- **프론트엔드**: `lib/media-api.ts`, `app/api/media/photos/ocr/route.ts`
+  (프록시, `backendFetch` 재사용) 신규. `app/lesson/photos/page.tsx` 신규 —
+  기존 레슨 페이지들과 동일한 사이드바 셸을 복제해 일관된 톤 유지, 로딩/
+  에러/빈 목록/그리드 상태 분기. `app/lesson/page.tsx`에 "MEDIA" 사이드바
+  섹션·카드 추가해 연결.
+
+### 오류·막힌 점(추가②)
+- 없음. `pnpm type-check`·`pnpm build` 통과(`/lesson/photos`,
+  `/api/media/photos/ocr` 라우트 정상 컴파일), 백엔드 `pytest apps/media/tests`
+  9개 통과.
+
+### 데이터(추가②)
+- 해당 없음(S3 실제 데이터 연동은 배포 환경에서 자격증명·susu 업로드 실측
+  필요 — 로컬에서는 fake 기반 테스트만 검증).
+
+### 산출물(추가②)
+- 신규: `suvisdev/apps/media/ocr.py`, `suvis/lib/media-api.ts`,
+  `suvis/app/api/media/photos/ocr/route.ts`, `suvis/app/lesson/photos/page.tsx`.
+- 수정: `suvisdev/core/matrix/aws_tank_s3_manager.py`,
+  `suvisdev/apps/media/{router,schemas}.py`,
+  `suvisdev/apps/media/tests/test_router.py`, `suvis/app/lesson/page.tsx`.
 
 ---
 
