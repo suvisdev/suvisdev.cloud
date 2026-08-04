@@ -35,9 +35,21 @@ class Tank:
     @property
     def client(self):
         """boto3 S3 클라이언트(캐시). 자격증명은 기본 체인이 해결하며, 없으면
-        호출 시점에 boto3가 NoCredentialsError를 던진다."""
+        호출 시점에 boto3가 NoCredentialsError를 던진다.
+
+        endpoint_url을 리전 전용으로 명시한다 — region_name만 주면 boto3가
+        글로벌 엔드포인트(s3.amazonaws.com)로 URL을 만드는데, us-east-1이
+        아닌 버킷(여기는 ap-northeast-2)은 S3가 리전 엔드포인트로 307
+        리다이렉트시킨다. SigV4 서명에 Host 헤더가 포함돼 있어 리다이렉트된
+        새 호스트에서는 서명이 안 맞아 presigned URL이 403으로 깨진다
+        (실측: /lesson/photos 갤러리 썸네일이 전부 깨져 있던 원인).
+        """
         if self._client is None:
-            self._client = boto3.client("s3", region_name=self.region)
+            self._client = boto3.client(
+                "s3",
+                region_name=self.region,
+                endpoint_url=f"https://s3.{self.region}.amazonaws.com",
+            )
         return self._client
 
     def list_buckets(self) -> list[str]:
