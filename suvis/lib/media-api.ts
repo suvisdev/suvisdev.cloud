@@ -6,6 +6,7 @@ import { safeApiErrorMessage } from "@/lib/user-facing-error"
 export type OcrPhotoItem = {
   image_url: string
   extracted_text: string
+  user_id: string
 }
 
 type ApiErrorBody = { detail?: string | unknown }

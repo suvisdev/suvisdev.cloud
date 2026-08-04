@@ -56,14 +56,15 @@ async def upload_photo(
 async def list_photos_with_ocr(
     admin: AdminPrincipal = Depends(require_admin),
 ) -> list[OcrPhotoItem]:
-    """suvis 웹 레슨 페이지 전용 — 관리자 본인이 susu로 올린 사진만 OCR해서 보여준다.
-    require_admin(HS256, viewer 로그인 체계)을 쓴다 — susu 업로드가 쓰는
-    get_current_user(RS256, aud=suvis-susu)와는 다른 토큰 체계지만, 두 체계 모두
-    같은 users 테이블 user_id를 sub/user_id로 쓰므로 prefix가 그대로 맞는다."""
+    """suvis 웹 레슨 페이지 전용 — require_admin(HS256, viewer 로그인 체계)이면
+    susu로 올라온 전체 사용자 사진을 OCR해서 보여준다. susu 업로드가 쓰는
+    get_current_user(RS256, aud=suvis-susu)와는 다른 토큰 체계인데, susu(카카오)와
+    웹 관리자(구글) 로그인이 users 테이블에서 서로 다른 계정으로 남는 경우가 있어
+    관리자 본인 user_id로 좁히면 다른 사용자가 올린 사진이 안 보이는 문제가 있었다
+    — admin 권한 자체가 이미 전체 열람을 전제하므로 prefix를 media/ 전체로 연다."""
     tank = get_tank()
-    prefix = f"media/{admin.user_id}/"
     try:
-        keys = await asyncio.to_thread(tank.list_objects, prefix)
+        keys = await asyncio.to_thread(tank.list_objects, "media/")
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
@@ -82,6 +83,9 @@ async def list_photos_with_ocr(
             text = "(텍스트 추출 실패)"  # OCR 실패해도 사진 자체는 보여준다
 
         url = tank.generate_presigned_url(key)
-        items.append(OcrPhotoItem(image_url=url, extracted_text=text))
+        # key = "media/{user_id}/{filename}" — 다른 형태(버킷 루트 등)면 알 수 없음 처리
+        parts = key.split("/")
+        user_id = parts[1] if len(parts) >= 3 and parts[0] == "media" else "?"
+        items.append(OcrPhotoItem(image_url=url, extracted_text=text, user_id=user_id))
 
     return items
