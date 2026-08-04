@@ -245,6 +245,57 @@ watched 게이트" 2건을 이어서 진행하기로 함.
 - 커밋: media 관련은 `9afa558`, PR #29 머지(`3bfc864`), EC2 반영 완료.
   watched 게이트는 이 항목 갱신 직후 커밋에서 확정.
 
+### 작업 내용(추가④) — mova 동적 세그먼트 404 원인 규명 → 3단계 사이클로 해결
+
+사용자가 mova 프론트 5개 페이지(홈/영화/컬렉션/랭킹/마이) 골격을 짜기 전 백엔드
+데이터 매핑 조사를 요청 → 조사 중 "마이페이지 Not Found" 원인을 추적하다가
+`suvis/app/api/mova/**`의 **동적 세그먼트 프록시 라우트 전체**(`[user_id]`,
+`[slug]`, `[movieId]`)가 Vercel에서 404남을 발견(`x-matched-path` 헤더 없음,
+정적 라우트는 정상). 이후 세 번의 승인 사이클로 진행:
+
+1. **원인 확정 조사**(수정 없음): `next.config.mjs`의 `async rewrites()`가
+   `/api/:path*` 캐치올로 백엔드 직결을 하고 있었고, Next.js rewrite 적용
+   순서상(`afterFiles` 단계가 동적 라우트 매칭보다 먼저 실행) 이 캐치올이
+   동적 세그먼트 라우트 파일을 가로채고 있었음. 로컬 `pnpm build`로
+   `.next/server/app/api/mova/`에 9개 동적 route.js가 전부 정상 생성됨을
+   확인해 "빌드 누락" 가설은 기각 — 런타임 라우팅 문제로 확정.
+2. **캐치올 삭제 전 전수 의존성 조사**(수정 없음): `suvis/app/api/` 트리
+   전체와 저장소 전체의 `/api/` fetch 호출을 교차 대조 → `titanic/smith/chat`,
+   `v1/contents/soccer/chat`, `v1/langchain/chat` 3개가 대응 route.ts 없이
+   이 캐치올에만 의존 중임을 발견(백엔드가 `/api` 또는 `/api/v1`로 마운트된
+   앱들이라 캐치올이 우연히 맞아떨어지고 있었음 — mova만 `/api` prefix 없이
+   마운트돼 있어서 유일하게 깨졌던 것도 이때 확정).
+3. **스트리밍·인증 사전 확인**(수정 없음) → **route.ts 3개 신설 + 캐치올
+   삭제 + 배포**(이번 항목).
+
+### 수정/구현(추가④)
+- **route.ts 3개 신규**(`app/api/titanic/smith/chat`, `app/api/v1/contents/
+  soccer/chat`, `app/api/v1/langchain/chat`) — `app/api/mova/chat/route.ts`
+  패턴 그대로 복제(`backendFetch` 호출 + JSON 파싱 실패 폴백). 사전 확인 결과
+  세 백엔드 핸들러 전부 스트리밍 아님(`response_model=...Schema` 일반 응답),
+  프론트 3곳도 `res.json()`으로만 소비 — 스트리밍 처리 불필요했음. 인증도
+  셋 다 무인증이라 Authorization 헤더 전달 로직 없이 그대로 구현.
+- **`next.config.mjs`의 `async rewrites()` 캐치올 블록 삭제** — `typescript`/
+  `images` 필드는 그대로 유지, 문법 확인 완료.
+- **백로그 2건** `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`에 기록: (1) mova만
+  `/api` prefix 없이 마운트된 근본 원인 — 향후 통일 마이그레이션 고려,
+  (2) `titanic/smith/chat`·`langchain/chat`·`soccer/chat` 셋 다 무인증+무
+  rate-limit(LLM 호출인데 남용 벡터 가능성) — 의도된 설계인지 재확인 필요.
+
+### 오류·막힌 점(추가④)
+- 없음. `pnpm type-check`·`pnpm build` 매 단계 통과, `.next/server/app/api/`
+  트리 직접 확인으로 mova 동적 9개 + 신규 3개 = 12개 전부 생성 재확인.
+
+### 데이터(추가④)
+- 해당 없음.
+
+### 산출물(추가④)
+- 신규: `suvis/app/api/titanic/smith/chat/route.ts`,
+  `suvis/app/api/v1/contents/soccer/chat/route.ts`,
+  `suvis/app/api/v1/langchain/chat/route.ts`.
+- 수정: `suvis/next.config.mjs`, `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`.
+- 커밋 해시는 이 항목 갱신 직후 커밋들에서 확정.
+
 ---
 
 ## 2026-08-03

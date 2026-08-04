@@ -323,6 +323,27 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
+  중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
+  (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),
+  `execsuite/langchain/chat`(`apps/execsuite/.../langchain_chat_router.py`),
+  `contents/soccer/chat`(`apps/contents/.../soccer_chat_router.py`) 셋 다
+  `require_user`/`require_admin` 같은 인증 가드가 전혀 없고, `main.py`에
+  글로벌 rate-limit 미들웨어도 없고, 각 앱 자체에도 rate_limit 의존성이 없음
+  (mova `/mova/chat`은 IP 기준 rate limit이라도 있는 것과 대조). Gemini 호출
+  뒤라 무인증·무제한이면 남용(과금 유발) 벡터가 될 수 있음 — **의도된
+  설계인지(레슨 데모라 의도적으로 열어둔 것인지) 제품 결정으로 재확인
+  필요.** 이번 리라이트 정리 스코프와는 별개, 손대지 않음.
+- **mova만 백엔드 `/api` prefix 없이 마운트됨(2026-08-04 신규)**: `suvisdev/main.py`에서
+  `titanic`/`gildle`/`execsuite`/`dispatch`/`contents`/`vision`/`ontology`/`nlp`/
+  `analytics`/`media`는 전부 `/api` 또는 `/api/v1`로 마운트되는데 `mova_router`만
+  prefix 없이 `/mova/...`로 마운트됨. `suvis/next.config.mjs`의 캐치올 리라이트
+  (`/api/:path* → ${backendUrl}/api/:path*`)가 이 불일치 때문에 mova 동적 세그먼트
+  프록시(`/api/mova/mypage/[user_id]` 등)를 엉뚱한 백엔드 경로로 흘려보내 404가
+  나던 근본 원인이었음(조사 완료, 수정은 `route.ts` 신설 후 리라이트 삭제로 진행
+  예정 — 별도 스레드). **이번 스코프엔 미포함** — 나중에 mova도 다른 앱처럼 `/api`
+  prefix로 통일하는 마이그레이션을 고려할 것(susu/모바일이 `/mova/...`를 직접
+  호출하는 곳들도 같이 바뀌어야 해서 블라스트 레이디어스가 큼 — 별도 계획 필요).
 - **폰 카메라 → S3 업로드 실기기 검증(2026-08-03 신규, 코드는 완성)**: 폰
   adb 연결이 계속 끊겨 `flutter run`으로 실제 촬영→업로드 확인 못 함
   (`pytest`/`flutter analyze`만 확인). access token 10분 TTL 만료 시 자동
