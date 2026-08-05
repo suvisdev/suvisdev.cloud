@@ -24,8 +24,8 @@ export function Header() {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-[#e8e8e8] px-3 pt-2 dark:bg-[#0d0f14] md:px-5 md:pt-2.5">
-      <div className="mx-auto flex h-11 max-w-[1600px] items-center justify-between gap-6 rounded-xl border border-neutral-300/80 bg-white px-4 shadow-sm dark:border-[#252b3b] dark:bg-[#161a24] md:h-12 md:gap-8 md:rounded-2xl md:px-7 lg:px-9">
+    <header className="sticky top-0 z-50 w-full border-b border-neutral-300/80 bg-white px-4 dark:border-[#252b3b] dark:bg-[#161a24] md:px-7 lg:px-9">
+      <div className="mx-auto flex h-11 w-full max-w-[1600px] items-center justify-between gap-6 md:h-12 md:gap-8">
         <Link
           href="/"
           className="shrink-0 text-base font-bold tracking-tight text-neutral-900 transition-opacity hover:opacity-85 dark:text-neutral-100 md:text-lg"

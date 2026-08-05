@@ -16,11 +16,12 @@ class PlatformSchema(BaseModel):
 
 
 class ActorInMovieSchema(BaseModel):
-    character_id: int
+    character_id: int | None
     actor_id: int
     name: str
     role_type: Literal["director", "actor"]
     profile_photo_url: str
+    character_name: str | None = None
 
 
 class TagInMovieSchema(BaseModel):

@@ -183,7 +183,12 @@ type MovieDetailApiRow = {
   platforms: { provider: string }[]
   age_rating: string | null
   genres: string[]
-  actors: { name: string; role_type: "director" | "actor"; profile_photo_url: string }[]
+  actors: {
+    name: string
+    role_type: "director" | "actor"
+    profile_photo_url: string
+    character_name: string | null
+  }[]
 }
 
 export async function fetchMovaTitle(slug: string): Promise<MovaMovie | null> {
@@ -223,7 +228,12 @@ export async function fetchMovaTitle(slug: string): Promise<MovaMovie | null> {
     ratingDistribution: Array(10).fill(0),
     cast: row.actors.map((a) => ({
       name: a.name,
-      role: a.role_type === "director" ? "감독" : "출연",
+      role:
+        a.role_type === "director"
+          ? "감독"
+          : a.character_name
+            ? `출연 | ${a.character_name}`
+            : "출연",
       photo: a.profile_photo_url,
     })),
     comments: [],
