@@ -100,10 +100,25 @@ class MovieImportResultDto:
 
 
 @dataclass(frozen=True)
+class BackfillOneResultDto:
+    """`_backfill_one()` 한 편 처리 결과 — cast/director 개별 실패 건수.
+
+    2026-08-05: character_name VARCHAR(50) 초과 등 캐스트 1명의 실패가
+    나머지 전원 + directors를 통째로 스킵시키던 문제 수정 이후, 그 통짜
+    실패 대신 몇 명이 개별적으로 스킵됐는지를 이 dto로 노출한다.
+    """
+
+    skipped_cast: int = 0
+    skipped_directors: int = 0
+
+
+@dataclass(frozen=True)
 class CreditsBackfillResultDto:
     """TMDB credits 백필 1회 실행 결과. _ingest_to_hub와 달리 실패를 조용히 삼키지 않고 집계한다."""
 
     succeeded: int = 0
     failed: int = 0
     skipped: int = 0
+    skipped_cast: int = 0
+    skipped_directors: int = 0
     failed_slugs: list[str] = field(default_factory=list)

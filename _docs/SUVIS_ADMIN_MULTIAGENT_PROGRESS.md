@@ -401,6 +401,14 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ## 다음 / 남은 작업 (백로그)
 
+- **SUVIS 저장소 컬럼 길이 정책 부재(2026-08-05 신규)**: `character_name`
+  VARCHAR(50) truncation 조사 중 확인 — `movies.title` `String(255)`,
+  `actors.name` `String(128)`, `characters.character_name`(수정 전
+  `String(50)`)처럼 이름·제목류 컬럼 길이가 테이블마다 임의로 다르고,
+  일관된 컨벤션 문서가 없다. name/title 계열은 TEXT를 기본값으로 하고
+  식별자·코드(slug, role_type 등) 계열만 길이 제한을 두는 컨벤션을
+  `.claude/rules/` 또는 앱 `_docs/`에 문서화할 필요 — 이번 스코프 밖,
+  착수 전.
 - **EC2 hub_knowledge 임베딩 어댑터 부재(2026-08-04 신규)**: `bulk_import_movies.py`
   가 EC2에서 실행되면 movies/credits는 정상 저장되지만 `HubRagInteractor`가 쓰는
   `OllamaEmbeddingAdapter`가 EC2엔 없는 Ollama를 호출하려다 매 영화마다
@@ -419,6 +427,49 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   것 자체는 정리 필요. **판단 필요**: (a) 죽은 코드니 그냥 제거할지, (b)
   `HubRagInteractor`가 `HubRagError`를 삼키지 않고 올려보내도록 고쳐서
   rollback이 실제로 의미를 갖게 할지 — 이번 스코프 밖, 착수 전.
+- **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback —
+  오늘 0회 발동한 이유 특정(2026-08-05 신규)**: 사용자 요청으로 원래
+  418건 도미노를 유발한 예외의 정확한 발생 지점을 재조사.
+  - **원래 트리거 특정**: 어제 도미노의 실제 원인은
+    `psycopg.errors.StringDataRightTruncation: value too long for type
+    character varying(50)`(`characters.character_name` 초과) —
+    발생 지점은 `upsert_movie()`가 아니라 `CharactersPgRepository
+    .upsert_character()`(`studio_characters_pg_repository.py:58`,
+    `self._session.commit()`)이며, 이는 `credits_interactor._backfill_one()`을
+    통해 **credits 백필 except(92~96행)** 안에서 호출된다. 즉 76~84행
+    자체가 이 데이터 문제를 직접 겪은 적은 원래도 없다 — 오늘 로그로
+    같은 에러(`StringDataRightTruncation`)가 credits 백필 except에서
+    13번 재발함을 직접 확인(어제와 동일 조건, 완전히 없어지지 않음).
+  - **76~84행이 어제 418번 발동했던 진짜 이유**: 92~96행(당시 rollback
+    없음)에서 커밋 실패로 세션이 pending-rollback 상태가 된 채 다음
+    단계(hub_knowledge, 111~115행— 역시 당시 rollback 없음)로 넘어가고,
+    그 다음 영화의 첫 세션 작업인 `upsert_movie()` 호출이 **상속된**
+    `PendingRollbackError`를 즉시 던진 것 — 즉 76~84행은 "그 영화 자신의
+    데이터 문제"가 아니라 "이전 영화가 남긴 오염"을 매번 새로 검출만
+    했던 것. 어제 커밋 diff(`6935352`)를 재확인한 결과 `character_name`
+    컬럼 길이·검증·트렁케이션 로직 변경은 전혀 없었음(rollback 5곳
+    추가가 전부) — 데이터 조건 자체는 그대로.
+  - **판정 — (나)에 가까움, 단 조건부**: 92~96행(그리고 111~115행)에
+    rollback이 생기면서 오염이 애초에 다음 영화로 넘어가지 않게 됐으므로,
+    "이전 영화의 오염을 상속받아 76~84행이 발동"하는 **원래의 418-도미노
+    전파 경로는 구조적으로 막혔다** — 이 경로에 한해서는 76~84행이 (B)와
+    같은 도달 불가 코드가 됐다고 볼 수 있음. 다만 76~84행은 이론적으로
+    `upsert_movie()` **자신의** 독립적 실패(movies 테이블 자체 제약
+    위반 등)에도 반응하도록 남아 있고, 이 클래스는 오늘도 관측된 적이
+    없어 순수 (가)(데이터 우연/미검증) 상태다 — 다만 `movies.title`이
+    `String(255)`(characters.character_name `String(50)`보다 훨씬 넉넉)라
+    이 독립 실패 클래스 자체의 발생 확률은 낮다고 봄.
+  - **백로그 정리**: (1) 92~96행 rollback → **검증됨**(위 완료 항목
+    참고, 그대로 둠). (2) 76~84행 rollback → 원래 전파 경로 기준으로는
+    도달 불가에 가까움, `upsert_movie()` 자체의 독립 실패 대비용으로는
+    여전히 유효하니 제거하지 않음 — 재현 시험이 필요하다면 KOFIC 소스나
+    타이틀이 비정상적으로 긴 데이터셋으로 별도 확인 필요(우선순위 낮음).
+- **`characters.character_name` VARCHAR(50) truncation — 수정 코드 완료,
+  EC2 배포·데이터 복구 진행 중(2026-08-05)**: 조사(유실 규모 cast 458명 중
+  421명, directors 21명 전원 — 표는 WORK_LOG 2026-08-05 추가②)에 이어 같은
+  날 구조적 수정(컬럼 TEXT 마이그레이션 + `_backfill_one()` per-member
+  방어) + 회귀 테스트까지 로컬 완료(WORK_LOG 추가③). EC2 배포·실제
+  데이터 복구는 다음 항목 참고 — 완료되면 이 줄을 "완료됨"으로 옮길 것.
 - **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
   중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
   (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),

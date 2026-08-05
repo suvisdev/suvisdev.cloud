@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mova.adapter.outbound.orm.base_orm import MovaModel
@@ -30,7 +30,7 @@ class MovaCharacter(MovaModel):
         nullable=False,
         index=True,
     )
-    character_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    character_name: Mapped[str] = mapped_column(Text, nullable=False)
     billing_order: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

@@ -109,9 +109,150 @@
 
 ### 산출물
 - 커밋: `6935352`(로컬), PR #33 머지 `bf53dda`(main), EC2 `git pull`로
-  반영·`--build backend` 재배포 완료. 검증 범위 정정 문서 커밋 `2c76e3a`.
+  반영·`--build backend` 재배포 완료. 검증 범위 정정 문서 커밋 `2c76e3a`,
+  `b32055d`.
 - 문서: `_docs/WORK_LOG.md`(이 항목), `_docs/SUVIS_ADMIN_MULTIAGENT_
   PROGRESS.md`(실행 결과 + 부수 관찰 절 + 백로그 보강, 검증 범위 정정).
+
+### 작업 내용(추가①) — upsert_movie except(76~84행) 0회 발동 원인 특정
+
+사용자가 "원래 418건 도미노를 유발한 지점이 오늘은 왜 한 번도 안 걸렸는지"를
+데이터 우연(가)인지 근본 원인 제거(나)인지 판별해달라고 요청 — 코드 변경 없이
+로그·소스 재조사만 진행.
+
+### 오류·막힌 점(추가①)
+- **원래 트리거 재확인**: EC2 로그에서 오늘도 재현된 credits 백필 실패의
+  실제 예외를 직접 확인 — `psycopg.errors.StringDataRightTruncation: value
+  too long for type character varying(50)`(`characters.character_name`
+  초과). 발생 지점은 `CharactersPgRepository.upsert_character()`의
+  `self._session.commit()`(`studio_characters_pg_repository.py:58`) —
+  `upsert_character`는 이 메서드 안에서 자체 `commit()`을 호출하는
+  구조라 이 실패가 바로 여기서 터진다. 이 호출은 `credits_interactor
+  ._backfill_one()`을 통해 **credits 백필 except(92~96행)** 안에서
+  일어나며, `upsert_movie()`(76~84행이 감싸는 대상) 자체는 애초에
+  `character_name`을 다루지 않아 이 데이터 문제를 직접 겪을 수 없다.
+- **76~84행이 어제 418번 발동했던 진짜 메커니즘**: 어제는 92~96행·
+  111~115행에 rollback이 없어, 92~96행의 커밋 실패로 세션이
+  pending-rollback 상태가 된 채 방치됐고, **다음 영화**의 첫 세션
+  작업인 `upsert_movie()` 호출이 그 오염을 그대로 상속받아
+  `PendingRollbackError`를 던진 것이 76~84행에서 "upsert_movie 실패"로
+  기록된 정체였음(그 영화 자신의 데이터 문제가 아니라 이전 영화의
+  오염 검출). 어제 커밋(`6935352`) diff를 다시 확인해 `character_name`
+  길이 제한·검증·트렁케이션 관련 변경이 전혀 없었음(rollback 5곳
+  추가뿐)도 재확인 — 오늘 같은 에러가 13번 그대로 재현된 것과 일치.
+- **판정**: 92~96행에 rollback이 생기면서 오염이 다음 영화로 전파되는
+  경로 자체가 막혔으므로, 원래 418-도미노를 만들었던 "상속된 오염으로
+  76~84행 발동" 경로는 **구조적으로 닫혔다**(나)에 해당). 다만 76~84행은
+  `upsert_movie()` 자신의 독립적 실패(movies 테이블 자체 문제)에도
+  반응하도록 남아 있고 이 클래스는 관측된 적이 없어 (가)(데이터 우연/
+  미검증) 상태로 남음 — 다만 `movies.title`이 `String(255)`로
+  `characters.character_name`(`String(50)`)보다 훨씬 여유가 있어 이
+  클래스의 발생 확률 자체는 낮다고 판단.
+- 코드 변경 없음(사용자 지시대로 조사만).
+
+### 데이터(추가①)
+- 해당 없음(로그 재조회만).
+
+### 산출물(추가①)
+- 문서: `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그에 조사 결과
+  추가(코드 변경 없음, 문서만).
+
+### 작업 내용(추가②) — character_name VARCHAR(50) truncation 데이터 유실 규모 조사
+
+사용자가 "13건 truncation이 실제로 데이터를 얼마나 유실시켰는지, 원인(TMDB
+데이터 이상 여부), 수정 옵션(컬럼 확장/앱 레벨 truncate/둘 다)"을 조사해달라고
+요청 — 코드 변경 없이 로그·DB·TMDB API 대조만 진행.
+
+### 오류·막힌 점(추가②)
+- **유실 범위가 예상(캐릭터 1건)보다 훨씬 컸음**: `CreditsBackfillInteractor
+  ._backfill_one()`의 cast 순회 `for` 루프에 per-member try/except가 없어,
+  루프 중간의 캐릭터 1건이 `StringDataRightTruncation`으로 실패하면 예외가
+  `_backfill_one()` 밖으로 그대로 전파돼 **그 시점 이후 나머지 cast 전원 +
+  directors 루프 전체**가 통째로 스킵됨. TMDB API를 직접 재조회해 13개
+  영화 전부 대조한 결과 `cast 458명 중 421명 유실`(DB엔 characters 37건만
+  남음), `directors 21명 전원 유실`(movie_directors 0건) — 영화 자체는
+  `succeeded`로 집계돼 `failed=0` 리포트엔 전혀 안 잡힘. 실패한 cast
+  멤버 자신의 `actors` 행은 `upsert_actor()`가 캐릭터 upsert보다 먼저
+  별도 커밋을 해버려서 이미 저장돼 있음(이 영화와의 연결만 없는 고아
+  상태).
+- **샘플 확인 결과 데이터 이상 아님**: 13건 전부 TMDB `credits.cast[]
+  .character` 필드가 합법적으로 긴 값 — 애니메이션 다역 성우(최댓값 The
+  Simpsons Movie 332자), 1인 다역 배우(Split 84자), 생애주기·자막 병기
+  표기(59자) 등. 파싱·인코딩 오류 없음, TMDB 원본 그대로.
+- 코드 변경 없음(조사만).
+
+### 데이터(추가②)
+- EC2 실 DB + TMDB API 실시간 재조회로 13개 영화(`movie_id` 142/157/447/
+  567/676/782/818/832/858/884/889/955/1031) 전수 대조:
+  - cast: TMDB 458명 vs DB characters 37건 (유실 421)
+  - directors: TMDB 21명 vs DB movie_directors 0건 (유실 21, 전원)
+  - character_name 길이 분포(관측 13건 기준): 최소 52자 ~ 최대 332자.
+
+### 산출물(추가②)
+- 문서: `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그에 유실 규모 표 +
+  수정 옵션(a/b/c) 비교 + ERD 교차 확인 + 재실행 필요 여부 판단 추가.
+  판단: 오늘 배치(50페이지) 전체 재실행은 불필요 — movies 카탈로그
+  1000편은 정상이라 컬럼 마이그레이션 적용 후 `scripts/backfill_credits_
+  cli.py`(idempotent 전체 재실행, TMDB 재조회 약 4~5분)만으로 13편의
+  누락 credits 복구 가능.
+
+### 작업 내용(추가③) — character_name 유실 구조적 수정 + 데이터 복구
+
+사용자가 (1) 구조적 원인 제거, (2) 오늘 유실 데이터 복구, (3) 회귀 방지 3가지
+목표로 실제 수정+복구를 지시 — 조사(추가②)에서 나온 옵션 (c)를 그대로 채택.
+
+### 수정/구현(추가③)
+- **Alembic `20260805_0001`**: `characters.character_name` VARCHAR(50) →
+  TEXT. docstring에 실측 근거(최댓값 332자, 애니메이션 다역 성우 구조적
+  상한 없음, PG에서 TEXT/VARCHAR(n) 성능 동일, 인덱스 대상 아님) 명시.
+  **downgrade는 의도적으로 미지원** — TEXT로 넓힌 뒤 저장된 50자 초과
+  데이터를 truncate 없이 되돌릴 방법이 없고, 이 리비전의 존재 이유 자체가
+  "50자가 틀렸다"는 것이라 되돌리는 게 무의미하다는 판단(호출 시
+  `RuntimeError`로 안내). ORM(`studio_characters_orm.py`)·ERD 문서
+  (`mova_database.md`, `MOVA_ERD.md`) 동기화.
+- **`CreditsBackfillInteractor._backfill_one()` cast/directors 루프에
+  per-member try/except 추가**: 한 명 실패가 나머지 전원을 더 이상 안
+  날림 — 실패한 멤버만 `skipped_cast`/`skipped_directors`로 집계하고
+  WARNING 로그(영화 slug, tmdb_person_id, character/name, exc_info) 남긴
+  뒤 다음 멤버로 진행. rollback은 세션을 쥔 리포지토리가 담당해야
+  Clean Architecture 경계(인터랙터는 세션을 모른다)를 안 깨서,
+  `ActorsRepositoryPort`에 `rollback()` 추상 메서드를 신설하고
+  `ActorsPgRepository`가 `session.rollback()`으로 구현 — 인터랙터는
+  `await self._actors.rollback()`만 호출.
+  `BackfillOneResultDto`(신규 dto) 반환값으로 두 카운트 노출,
+  `CreditsBackfillResultDto`에도 누적값 추가.
+- **`scripts/bulk_import_movies.py`**: `_ingest_tmdb_movie()` 반환값을
+  `str` → `tuple[str, int, int]`(outcome, skipped_cast, skipped_directors)로
+  변경, `_run()`의 stats에 `skipped_cast`/`skipped_directors` 필드 추가해
+  페이지별·최종 리포트에 노출 — "failed=0인데 credits는 유실"이 이제는
+  리포트에서 바로 보임.
+- **회귀 테스트**: `test_credits_backfill.py`에 2건(cast 1명 실패해도
+  나머지 cast+directors 정상 처리, director 1명 실패해도 나머지 director
+  정상 처리) — 둘 다 `rollback()` 호출 확인 포함.
+  `test_bulk_import_movies.py` 기존 3건을 새 튜플 반환값에 맞게 수정 +
+  skipped_cast/skipped_directors가 반환값에 그대로 노출되는지 확인하는
+  신규 1건 추가. `apps/mova/tests` 90건 전부 통과, `lint-imports` mova
+  계약 위반 없음.
+
+### 오류·막힌 점(추가③)
+- 로컬 WSL의 Docker 통합이 이 세션에서도 계속 불가(기존에 여러 번 기록된
+  같은 증상) — 로컬 DB로 마이그레이션 실제 적용 검증은 못 하고 pytest
+  (DB 불필요, mock 기반)로만 로컬 검증. 실제 마이그레이션 적용·데이터
+  복구는 EC2에서 진행(아래 산출물 참고).
+
+### 데이터(추가③)
+- 아래 항목에서 계속(EC2 실행 결과는 이 항목 갱신 후 별도로 기록).
+
+### 산출물(추가③)
+- 신규: `suvisdev/alembic/versions/20260805_0001_widen_character_name_to_text.py`.
+- 수정: `apps/mova/adapter/outbound/orm/studio_characters_orm.py`,
+  `apps/mova/adapter/outbound/pg/studio_actors_pg_repository.py`,
+  `apps/mova/app/dtos/studio_import_dto.py`,
+  `apps/mova/app/ports/output/studio_actors_repository.py`,
+  `apps/mova/app/use_cases/credits_backfill_interactor.py`,
+  `apps/mova/tests/{test_bulk_import_movies,test_credits_backfill}.py`,
+  `scripts/bulk_import_movies.py`,
+  `apps/mova/_docs/{mova_database.md,MOVA_ERD.md}`.
 
 ---
 
