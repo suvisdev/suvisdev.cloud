@@ -787,6 +787,38 @@ API 응답→프론트 매핑→화면 표시까지 관통시켜 완결했다.
   `lora.suvisdev.cloud`를 아는 사람 누구나 호출 가능 — Zero Trust Access로
   잠그는 작업 필요.
 
+### 작업 내용(추가⑭)
+- 사용자가 프론트에서 mova 채팅 시 "Backend response error (502)"를 실제로
+  겪었다고 스크린샷과 함께 보고 — lora 전환이 실제로 원인인지, 아니면
+  별개 문제인지 확인 요청.
+
+### 오류·막힌 점(추가⑭)
+- 재현: `curl -X POST https://api.suvisdev.cloud/mova/chat`이 약 50%
+  확률로 502(`server: cloudflare`, 순수 텍스트 "error code: 502" —
+  Cloudflare 엣지가 만드는 최소 에러, 우리 FastAPI/nginx JSON 에러
+  아님). 실패 시 항상 ~8.5초 뒤 502, 성공 시 0.5~3.7초로 뚜렷하게 구분됨.
+- 원인 격리: EC2 로컬에서 `curl http://localhost/mova/chat -H "Host:
+  api.suvisdev.cloud"`(nginx 직접 호출, Cloudflare Tunnel 완전히 우회)는
+  **항상 200** — LoRA `/generate`까지 포함해 정상 동작 확인. nginx 접근
+  로그에도 문제의 요청들이 아예 안 찍혀 있어 nginx까지도 못 왔다는 뜻.
+  → 결론: **오늘 작업(lora 전환)과 무관**, `suvisdevcloud-cloudflared-1`
+  (기존 api/ssh/auth 공용 터널)이 원인. `GET /`, `GET
+  /mova/rankings/hot`, `POST /mova/chat` 등 라우트 무관하게 전부 같은
+  50% 패턴을 보여 lora 관련 라우트만의 문제가 아님도 확인.
+- `docker compose --env-file suvisdev/.env restart cloudflared` 1회
+  실행 — 재기동 직후 커넥션 4개(icn05×2, icn06, icn01) 새로 등록됐으나,
+  이후 반복 테스트(`GET /` 4회, `POST /mova/chat` 3회, `GET
+  /mova/rankings/hot` 6회)에서도 여전히 ~50% 502가 재현돼 근본 해결은
+  안 됨 — 등록된 4개 커넥션 중 일부가 여전히 죽은 채로 로드밸런싱에
+  포함되는 것으로 추정. `docker-compose.yaml`엔 이미 `--protocol http2`가
+  적용돼 있었음(과거 2026-08-02 QUIC 실패 이후 조치로 추정). 사용자
+  확인 결과 이번 세션에선 추가 조치(설정 변경·재재기동) 없이 백로그로만
+  남기기로 함(PROGRESS.md 0순위 추가).
+
+### 산출물(추가⑭)
+- 코드 변경 없음(진단만). `suvisdevcloud-cloudflared-1` 1회 재기동
+  (완전 불통 → 50%로 부분 개선, 미해결).
+
 ---
 
 ## 2026-08-04

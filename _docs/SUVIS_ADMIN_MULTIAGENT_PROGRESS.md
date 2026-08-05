@@ -484,6 +484,21 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 
+🔥 **0순위: EC2 기존 Cloudflare Tunnel(api/ssh/auth) 절반 확률 502**
+- 증상: `api.suvisdev.cloud`(GET `/`, `GET /mova/rankings/hot`, `POST
+  /mova/chat` 등 라우트 무관 전부)가 약 50% 확률로 502. 실패 시 항상
+  ~8.5초 걸린 뒤 502, 성공 시 0.5~3.7초 — `suvisdevcloud-cloudflared-1`이
+  등록한 4개 커넥션 중 일부가 죽어 있다가 타임아웃되는 패턴으로 추정.
+- **오늘 작업(lora 전환)과 무관** — nginx+backend를 EC2 로컬에서 직접
+  호출하면 항상 200/정상. `docker compose --env-file suvisdev/.env
+  restart cloudflared`로 한 번 재기동해 완전 불통(0%)에서 50%로는
+  개선됐으나 완전히 해소되진 않음. 2026-08-02 이력에도 이 터널의 QUIC
+  연결 실패 로그가 있어(`--protocol http2`로 이미 전환된 상태에서도)
+  간헐적 네트워크 이슈로 보임 — EC2 쪽에서 계속 재발할 가능성.
+- 다음 시도 후보(미실행): `docker-compose.yaml`의 `cloudflared.command`에
+  `--edge-ip-version 4` 추가, 또는 `--ha-connections` 축소, 또는 대시보드
+  에서 터널 자체를 재생성. 상세: WORK_LOG 2026-08-05(추가⑭).
+
 🔥 **1순위: mova 카탈로그 커버리지 확장**
 - 이유: Phase 1 골든셋 실패 4건이 매칭 문제가 아니라 커버리지 문제로
   확정됨(§ WORK_LOG 2026-08-05). 매칭 신뢰도는 이번 세션에 확보됐으니
