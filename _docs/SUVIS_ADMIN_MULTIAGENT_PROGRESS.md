@@ -406,6 +406,31 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   비교해 "421명 유실"로 과대 집계했었음 — 앱이 실제로 저장하려 했던 양
   (`min(TMDB cast, 10)`) 기준으로 재계산하면 실제 유실은 cast 90명
   (directors는 상한 없어 21명 전원 유실은 그대로 정확).
+- **mova 추천 품질 검증 Phase 1(EC2 Gemini 경로, 2026-08-05)**: 골든셋
+  15개로 `/mova/chat` 실제 호출·판정 완료(통과 6·부분 5·실패 4) —
+  상세는 `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`, WORK_LOG 추가⑤
+  참고. 실행 전 `RECOMMENDATION_BACKEND`가 EC2에 아예 미설정(기본값
+  `lora`)이던 걸 발견해 `gemini`로 설정 + backend 재시작. 핵심 발견은
+  "환각"(존재하지 않는 영화 지어내기)이 아니라 (a) 카탈로그 커버리지
+  부족, (b) 제목 문자열 매칭 취약성(동명이인 오귀속 1건 포함) — 근본
+  해결은 매칭을 title 대신 TMDB id 기반으로 바꾸는 것(백로그 참고).
+  hub_knowledge 백필(Phase 2, 집 GPU) 사전 조사도 같은 문서에 포함 —
+  `ingest_hub_knowledge.py`의 `limit=100` 하드코딩과 rollback 없는 except를
+  Phase 2 착수 전 수정 필요 항목으로 남김(코드 수정은 안 함, 조사만).
+- **mova 추천 오귀속 근본 원인 조사(2026-08-05)**: 위 Phase 1에서 발견한
+  두 버그(동명이인 오귀속·제목 포맷 미매칭)가 `ChatReplyService.
+  enrich_from_db()`(`chat_reply.py`)의 완전일치 3단계 매칭 체인이라는
+  **같은 코드**의 결함임을 확정 — "괴물"은 DB에 동명 영화가 여럿이라
+  tiebreaker가 없어서가 아니라(실제 1건뿐) `find_by_title()`이 매칭 시
+  요청 맥락(배우 등)을 전혀 검증 안 해서 발생. 3가지 해결안(매칭 강화/
+  grounded prompting/hub_knowledge 우선) 비교 후 **grounded prompting
+  권장**(기존 tag_catalog 배관에 id 강제 응답 추가 — 새 인프라 불필요).
+  `RECOMMENDATION_BACKEND` EC2 미설정 경위도 특정: 2026-08-03 커밋에서
+  `.env.example`엔 이미 "EC2는 gemini여야 함"이 주석돼 있었으나 실제
+  `.env`(git 미추적)엔 반영된 적이 없었던 배포 절차 누락 — 다른
+  네트워킹 민감 변수는 `docker-compose.yaml`에 하드코딩돼 안전함을
+  대조 확인. 상세는 `_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`.
+  **착수는 다음 세션, 이번엔 코드 변경 없음.**
 
 ---
 
@@ -418,6 +443,43 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ## 다음 / 남은 작업 (백로그)
 
+- **`.env.example` vs 실제 `.env` drift 자동 감지 부재(2026-08-05 신규)**:
+  `RECOMMENDATION_BACKEND`이 `.env.example`엔 이미 문서화(2026-08-03)돼
+  있었는데 실제 EC2 `.env`엔 반영된 적이 없었던 사고(상세 WORK_LOG
+  2026-08-05 추가⑥)의 재발 방지. 배포 스크립트나 CI에 `.env.example`의
+  키 목록과 실제 `.env`의 키 목록을 비교해 누락된 키를 경고하는 단계
+  추가 검토(값 비교는 비밀번호라 불가, 키 존재 여부만) — 이번 스코프
+  밖, 착수 전.
+- **"구현과 의도 갭" 감사 사이클 후보(2026-08-05 신규)**: 이번 세션에서만
+  같은 패턴(코드는 있는데 실제로 작동 안 함/의도대로 안 씀)이 3건 발견됨
+  — (1) `CreditsBackfillInteractor._backfill_one()`이 원래 "실패해도 배치는
+  계속"이 의도였는데 실제로는 루프 전체가 중단(오늘 수정됨), (2)
+  `HubRagInteractor`가 임베딩 실패를 내부에서 삼켜서 `bulk_import_movies.py`
+  의 rollback 방어 코드가 그 경로에서 한 번도 안 불림(백로그에 이미 기록),
+  (3) `tag_catalog`가 이미 movie_id를 갖고 있었는데 프롬프트가 "가능하면"
+  수준으로만 지시하고 `enrich_from_db()`는 그 id를 안 쓰고 title로 재매칭
+  (오늘 수정됨). 세 건 다 "코드는 존재·의도는 문서화돼 있지만 실행 경로가
+  그 의도를 실제로 안 지킨다"는 같은 유형 — 다른 곳에도 있을 가능성이 있어
+  별도 감사 사이클(예: 각 인터랙터의 docstring/주석에 적힌 의도와 실제
+  동작 대조) 후보로 기록. 착수 전.
+- **mova 추천 — 제목 문자열 매칭 취약성(2026-08-05 신규)**: `/mova/chat`
+  추천이 Gemini가 자유 텍스트로 준 영화 제목을 문자열로 우리 DB와 매칭하는
+  구조라 (a) 동명이인 영화 오귀속(`괴물` — 봉준호 2006 vs 존 카펜터
+  `The Thing` 1982, 실측 사례 있음), (b) 연도 접미사 같은 사소한 포맷
+  차이로도 매칭 실패(실측 사례 있음)가 발생. 근본 해결은 Gemini에게 후보를
+  먼저 DB에서 뽑아 주는 RAG형 구조로 바꾸거나 TMDB id 기반 매칭 도입 —
+  설계 결정 필요, 상세는 `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`.
+- **mova 추천 — TMDB popular 50페이지만으론 카탈로그 커버리지 부족
+  (2026-08-05 신규)**: 배우 지정 검색(국내외 유명 배우 다수)과 고전/독립
+  영화 감성 무드 쿼리에서 Gemini는 정확한 답을 알지만 DB에 없어 카드가
+  전부 `movie_id=null`로 나오는 사례 다수 확인. `tmdb_discover`(장르/국가
+  필터) 소스나 추가 페이지 수집으로 보완 검토.
+- **hub_knowledge 백필 스크립트 정비 필요(Phase 2 착수 전, 2026-08-05
+  신규)**: `scripts/ingest_hub_knowledge.py`가 `limit=100` 하드코딩(현재
+  카탈로그 1055편 기준 955편 스킵)과 루프 끝 단일 커밋+rollback 없는
+  except(오늘 고친 도미노 패턴과 동일 위험)를 갖고 있음 — 집 GPU에서
+  Phase 2(hub_knowledge 채우기) 착수 전 두 가지 다 수정 필요. 상세 체크리스트
+  `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §4.
 - **EC2 `backend`/`auth` 이미지 중복 태깅으로 디스크 낭비(2026-08-05
   신규)**: `docker-compose.yaml`에서 두 서비스가 완전히 동일한
   Dockerfile·빌드 컨텍스트(`./suvisdev`)를 쓰는데 이미지가 `suvisdevcloud-

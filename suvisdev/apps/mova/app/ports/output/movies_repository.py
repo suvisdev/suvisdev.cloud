@@ -15,7 +15,12 @@ class MoviesRepositoryPort(ABC):
 
     @abstractmethod
     async def find_by_title(self, title: str) -> MovieDetailDto | None:
-        """제목 일치 영화 1건 (채팅 추천 enrich용)."""
+        """제목 일치 영화 1건 (import/harvest 매칭용 — 채팅 추천 enrich는 find_by_id 사용)."""
+
+    @abstractmethod
+    async def find_by_id(self, movie_id: int) -> MovieDetailDto | None:
+        """movie.id로 상세 조회 (채팅 추천 enrich용 — Gemini가 카탈로그에서 고른
+        movie_id를 그대로 신뢰해 조회한다. title 문자열 재매칭은 하지 않는다)."""
 
     @abstractmethod
     async def list_movies(self, query: MovieFilterQuery) -> MovieListDto:

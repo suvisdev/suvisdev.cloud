@@ -82,6 +82,15 @@ class MoviesPgRepository(MoviesRepositoryPort):
             return None
         return await self.get_by_slug(movie.slug)
 
+    async def find_by_id(self, movie_id: int) -> MovieDetailDto | None:
+        movie_q = await self._session.execute(
+            select(MovaMovie).where(MovaMovie.id == movie_id).limit(1)
+        )
+        movie = movie_q.scalar_one_or_none()
+        if not movie:
+            return None
+        return await self.get_by_slug(movie.slug)
+
     async def list_movies(self, query: MovieFilterQuery) -> MovieListDto:
         stmt = select(MovaMovie)
         count_stmt = select(func.count(MovaMovie.id))

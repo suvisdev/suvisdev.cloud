@@ -22,19 +22,6 @@ TITLE_TO_CANONICAL_SLUG: dict[str, str] = {
 }
 
 
-def resolve_canonical_slug(key: str, *, title: str | None = None) -> str:
-    k = key.strip()
-    if not k and title:
-        k = title.strip()
-    if k in TITLE_TO_CANONICAL_SLUG:
-        return TITLE_TO_CANONICAL_SLUG[k]
-    if title:
-        t = title.strip()
-        if t in TITLE_TO_CANONICAL_SLUG:
-            return TITLE_TO_CANONICAL_SLUG[t]
-    return k or "movie"
-
-
 def title_for_canonical_slug(canonical: str) -> str | None:
     for title, slug in TITLE_TO_CANONICAL_SLUG.items():
         if slug == canonical.strip():
