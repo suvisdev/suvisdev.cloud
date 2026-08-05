@@ -352,6 +352,15 @@
   발동 0건). KOFIC 쪽 두 곳(154~158·180~182행)은 이번 소스가
   `tmdb_popular`라 아예 실행되지 않았다. 상세: 아래 "멀티에이전트 하네스
   auto-invoke 관찰" 및 WORK_LOG 2026-08-05.
+- **mova 추천 원격 GPU — 실제 Tunnel 연동 완료(2026-08-05)**: 아래 백로그에
+  있던 항목. 노트북 `lora-server`를 systemd 유저 서비스로 상시화하고
+  Cloudflare Tunnel(`lora.suvisdev.cloud`)로 노출, EC2 `.env`에
+  `RECOMMENDATION_BACKEND=lora`/`LORA_SERVER_URL` 반영. 도중
+  `docker-compose.yaml`의 `LORA_SERVER_URL` 하드코딩이 `.env` 오버라이드를
+  막고 있던 버그를 발견해 변수화(`${LORA_SERVER_URL:-...}`)하는 별도 수정도
+  포함. `/mova/chat` 실호출 → LoRA `/generate` 200 로그 확인, gemini↔lora
+  수동 폴백 전환 리허설(각 4초) 완료. `is_ready()` 헬스체크 미사용 이슈는
+  여전히 미해결(원래 알려진 별개 이슈). 상세: WORK_LOG 2026-08-05.
 
 ### 부수 관찰 — 멀티에이전트 하네스 auto-invoke (명시적 스킬 호출 없이 진행, 관찰만)
 
@@ -684,13 +693,11 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   adb 연결이 계속 끊겨 `flutter run`으로 실제 촬영→업로드 확인 못 함
   (`pytest`/`flutter analyze`만 확인). access token 10분 TTL 만료 시 자동
   재발급(refresh)도 미구현 — 만료되면 401, 재로그인 필요.
-- **mova 추천 원격 GPU — 실제 Tunnel 연동(2026-08-03 신규, 코드는 완성)**:
-  `_docs/lora-remote-gpu-ops.md` 절차대로 집 GPU에서 `lora_server` 기동 +
-  Cloudflare Tunnel Public Hostname 추가 + EC2 `.env`
-  (`RECOMMENDATION_BACKEND=lora`/`LORA_SERVER_URL`/`LORA_SERVER_TOKEN`)
-  실제 반영·연동 테스트 필요. `is_ready()` 헬스체크가 코드 어디서도 안 불리는
-  문제도 미해결(별도 이슈로 미룸 — 지금은 실패가 실제 `/generate` 호출
-  타임아웃/에러로만 드러남).
+- **mova 추천 — CF Tunnel public 상태를 Zero Trust Access로 잠그기
+  (2026-08-05 신규)**: `lora.suvisdev.cloud`는 현재 인증 없이 URL만 알면
+  누구나 호출 가능(public tunnel, 왕복 검증 목적으로 의도적으로 열어둠).
+  `is_ready()` 헬스체크가 코드 어디서도 안 불리는 문제도 미해결(별도
+  이슈 — 지금은 실패가 실제 `/generate` 호출 타임아웃/에러로만 드러남).
 - **susu 카카오 모바일 로그인 — iOS 실빌드 검증(2026-08-03 신규)**: Android는
   EC2 배포 반영 후 실기기 E2E 성공 확인 완료. iOS는 Info.plist를 공식 문서
   기준 표준값으로만 넣어뒀고 실제 빌드 검증은 전혀 안 함. 상세: WORK_LOG

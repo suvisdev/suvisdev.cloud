@@ -701,6 +701,92 @@ API 응답→프론트 매핑→화면 표시까지 관통시켜 완결했다.
   💤4순위(mova UX 완성) 진행 상황 갱신 + 세분화, 🔥1순위에 `MovaGenreCatalog`
   배선 연계 메모, 신규 백로그(`movies.synopsis` 컬럼 부재) 추가.
 
+### 작업 내용(추가⑬)
+- 노트북(WSL) `lora-server`를 nohup 대신 systemd 유저 서비스로 등록해
+  재부팅 후에도 자동 기동되게 하고, Cloudflare Tunnel로
+  `lora.suvisdev.cloud`에 공개 노출한 뒤, EC2 backend가 그 주소를 바라보게
+  전환해 mova AI 추천이 실제로 노트북 GPU까지 왕복하는지 검증.
+- 배경: EC2는 GPU가 없어 mova 추천을 Gemini로만 돌리던 상태였는데, 노트북
+  GPU(EXAONE LoRA 어댑터)를 CF Tunnel로 뚫어 EC2가 원격으로 호출하게
+  만드는 게 이번 목표.
+
+### 수정/구현(추가⑬)
+- `~/.config/systemd/user/lora-server.service` 신규 — 지시받은 유닛과 달리
+  실제 venv 경로가 `~/projects/suvisdev/.venv-exaone`이 아니라
+  `~/.venv-exaone`(홈 루트)이라 `ExecStart`/`PATH`를 그에 맞게 정정.
+  `daemon-reload` → `enable --now` → `/health` model_loaded:true,
+  `/generate` 한국어 응답, `systemctl --user restart` 재기동까지 확인.
+  `sudo loginctl enable-linger $USER`는 하네스가 TTY 없이 sudo를 못 띄워
+  사용자가 직접 WSL 터미널에서 실행 → `Linger=yes` 확인.
+- cloudflared 신규 설치(`/usr/local/bin/cloudflared` — 지시서의
+  `/usr/bin`과 다름, 실측해서 정정) → `tunnel login`(브라우저 인증, 사용자가
+  URL을 Windows 브라우저에서 승인) → `tunnel create lora-notebook`
+  (UUID `97489360-2f03-424e-a9d4-c10679c088d2`, 기존 EC2 터널과 이름 겹침
+  없음) → `~/.cloudflared/config.yml` 작성(ingress: `lora.suvisdev.cloud`
+  → `localhost:8200`) → `tunnel route dns`로 CNAME 등록 → 포그라운드
+  실행으로 `/health`·`/generate` 외부 왕복 확인 후
+  `~/.config/systemd/user/cloudflared-lora.service` 등록, `enable --now`,
+  재기동 시나리오까지 검증(linger는 위에서 이미 켜둔 상태라 재사용).
+- EC2(`~/suvisdev.cloud`, 지시서의 `~/projects/suvisdev`와 다름 — 실측
+  정정) `.env`에 `RECOMMENDATION_BACKEND=lora`, `LORA_SERVER_URL=
+  https://lora.suvisdev.cloud` 반영 후 `docker compose --env-file
+  suvisdev/.env up -d --force-recreate --no-deps backend`로 재기동했으나
+  컨테이너 안 값이 그대로 `host.docker.internal:8200`이라 재현 안 됨.
+  원인 추적 결과 `docker-compose.yaml`의 `backend.environment`에
+  `LORA_SERVER_URL=http://host.docker.internal:8200`이 하드코딩돼 있어
+  `--env-file`보다 항상 우선했음 — `${LORA_SERVER_URL:-http://
+  host.docker.internal:8200}`로 변수화(로컬 WSL 기본 동작은 그대로 유지,
+  EC2만 `.env`로 오버라이드 가능)해 커밋·push, EC2에서 `git pull
+  --no-rebase`(EC2 로컬 커밋과 11개 어긋나 있었으나 실질 diff는 `.gitignore`
+  한 줄뿐이라 안전 확인 후 병합) → backend 재기동 → 컨테이너 내
+  `LORA_SERVER_URL=https://lora.suvisdev.cloud` 정상 반영 확인.
+
+### 오류·막힌 점(추가⑬)
+- 지시서의 사전 가정 3개가 실제와 달랐음(모두 실측 후 정정 진행):
+  ① `.venv-exaone` 위치, ② `cloudflared` 설치 경로, ③ EC2 프로젝트
+  경로(`~/projects/suvisdev`가 아니라 `~/suvisdev.cloud`).
+- `sudo loginctl enable-linger`, `sudo dpkg -i cloudflared.deb`는 하네스
+  Bash가 TTY 없이 sudo 인증을 못 띄워(`sudo: a terminal is required`)
+  두 번 다 사용자에게 WSL 터미널에서 직접 실행해달라고 요청.
+- `docker compose --env-file` 없이 `ps` 한 번 실행해 `POSTGRES_USER` 등
+  빈 문자열 경고가 떴음(읽기 전용이라 실피해는 없었음) — 이후 모든 명령에
+  `--env-file suvisdev/.env` 강제.
+- backend 컨테이너에 `curl`이 없어 `python -c "import urllib.request..."`로
+  대체했다가 Cloudflare가 `Python-urllib` 기본 User-Agent를 403으로 차단;
+  실제 운영 코드가 쓰는 `httpx` 기본 UA(`python-httpx/x.y.z`)로는 정상
+  통과함을 확인해 오검출로 결론.
+- EC2 `git`이 origin/main과 11 ahead/2 behind로 발산해 있었음 — ahead
+  커밋 11개 중 10개는 반복된 빈 머지 커밋, 실질 변경은 `.gitignore`
+  한 줄(`chore: gitignore tmp/`)뿐이라 `git pull --no-rebase`로 안전하게
+  병합(글로벌 `git config` 변경 없이 이번 호출에만 옵션 적용).
+- `docker-compose.yaml`의 `LORA_SERVER_URL` 하드코딩은 07-29 세팅 당시부터
+  있던 근본 원인으로 추정 — 그날 겪었다던 "500" 이슈가 `.env`가 아니라
+  compose 파일 쪽이었을 가능성이 큼(과거 로그가 없어 확정은 못 함).
+- mova 채팅 실호출 자체는 200으로 성공(`intent_type=filter_and` 필터형
+  질의, LoRA `/generate` 200 로그도 확인)했지만, 두 번째 호출에서 LoRA
+  모델이 마크다운 JSON 펜스(` ```json ... ``` `)를 그대로 `reply`에
+  흘려보내는 파싱 실패 사례 발견 — 연결·전환 자체는 정상이라 이번
+  스코프에선 기록만 하고 보류(프롬프트/파싱 품질 이슈, 별도 백로그).
+
+### 데이터(추가⑬)
+- 해당 없음.
+
+### 산출물(추가⑬)
+- 신규: `~/.config/systemd/user/lora-server.service`,
+  `~/.config/systemd/user/cloudflared-lora.service`(둘 다 노트북 로컬,
+  저장소 밖), `~/.cloudflared/config.yml`.
+- 수정: `docker-compose.yaml`(`LORA_SERVER_URL` 변수화, 커밋
+  `440cd28`), `CLAUDE.md`(환경 변수 절 — EC2 mova 추천 기본 lora +
+  수동 폴백 절차로 갱신, 커밋 `534348e`).
+- EC2 `.env` 최종값: `RECOMMENDATION_BACKEND=lora`,
+  `LORA_SERVER_URL=https://lora.suvisdev.cloud`(수정 전 백업:
+  `suvisdev/.env.bak.20260805_120510`).
+- 폴백 리허설 실측: `lora→gemini` 4초, `gemini→lora` 4초(각 `--force-recreate
+  --no-deps backend` 기준, 총 8초).
+- 다음 태스크(스코프 밖으로 명시 보류): CF Tunnel이 현재 public이라
+  `lora.suvisdev.cloud`를 아는 사람 누구나 호출 가능 — Zero Trust Access로
+  잠그는 작업 필요.
+
 ---
 
 ## 2026-08-04
