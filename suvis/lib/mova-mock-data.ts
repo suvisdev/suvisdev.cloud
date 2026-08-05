@@ -8,11 +8,3 @@ export const MOVA_NAV: MovaNavItem[] = [
   { label: "마이", href: "/mova/mypage" },
 ]
 
-export const MOVA_QUICK_ACTIONS = [
-  { id: "magazine", label: "매거진", emoji: "📰" },
-  { id: "event", label: "이벤트", emoji: "🎁" },
-  { id: "rating", label: "평가", emoji: "⭐" },
-  { id: "taste", label: "취향분석", emoji: "🎯" },
-  { id: "recommend", label: "추천", emoji: "✨" },
-]
-
