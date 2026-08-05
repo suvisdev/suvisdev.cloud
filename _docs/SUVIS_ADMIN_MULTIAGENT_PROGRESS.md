@@ -503,6 +503,13 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ---
 
+- **`suvisdev/_docs/CLAUDE.MD` 구버전 잔존(2026-08-05 발견)**: 실제
+  `suvisdev/CLAUDE.md`와 전혀 다른 내용의 431줄짜리 구버전 문서가
+  `suvisdev/_docs/CLAUDE.MD`에 그대로 남아 있음 — 2026-08-04에 처리한
+  `suvis/_docs/CLAUDE.MD`(→ `suvis/CLAUDE.md` 이동 + 구버전 삭제)와
+  정확히 같은 패턴인데 suvisdev 쪽은 그때 안 치워짐. 루트 `CLAUDE.md`
+  정리 세션에서 발견만 하고 스코프 밖이라 미조치 — 다음에 같은 방식으로
+  정리할 것.
 - **`.env.example` vs 실제 `.env` drift 자동 감지 부재(2026-08-05 신규)**:
   `RECOMMENDATION_BACKEND`이 `.env.example`엔 이미 문서화(2026-08-03)돼
   있었는데 실제 EC2 `.env`엔 반영된 적이 없었던 사고(상세 WORK_LOG

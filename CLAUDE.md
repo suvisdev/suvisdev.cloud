@@ -62,17 +62,21 @@ Karpathy가 지적한 전형적인 문제는 다음과 같다.
 
 ```text
 cloud.suvisdev/
-├── _docs/                 ← 공통 문서 (워크스페이스·인프라·도구 설정)
-├── suvisdev/              ← 백엔드 (FastAPI)
-│   ├── _docs/             ← 백엔드 문서 (아키텍처·API·ERD·규칙)
-│   ├── _claude/           ← 백엔드 Claude 규칙
-│   └── apps/<app>/_docs/  ← 앱별 ERD·도메인 문서
+├── _docs/                 ← 공통 문서 (워크스페이스·인프라·도구 설정, 작업 일지)
+├── suvisdev/              ← 백엔드 (FastAPI, Clean Architecture)
+│   ├── CLAUDE.md          ← 백엔드 SSOT(레이어·SOLID·스타-토폴로지)
+│   ├── _docs/             ← 백엔드 문서 (엔티티·인증·DB·배포 규칙)
+│   └── apps/<app>/_docs/  ← 앱별 ERD·도메인 문서 + CLAUDE.md
 ├── suvis/                 ← 프론트엔드 (Next.js)
-│   ├── _docs/             ← 프론트엔드 문서 (화면 설계·컴포넌트 규칙)
-│   └── _claude/           ← 프론트 Claude 규칙
+│   ├── CLAUDE.md          ← 프론트 SSOT(디렉터리·컴포넌트 규칙)
+│   └── _docs/             ← 프론트 문서 (React 세부 규칙·디자인 정책)
 └── susu/                  ← 모바일 (Flutter)
-    └── _docs/             ← Flutter 문서 (화면 설계·위젯 규칙)
+    ├── CLAUDE.md          ← 아직 비어 있음 — 당분간 _docs/ 하네스 문서가 대신함
+    └── _docs/             ← Flutter 문서 (카카오 OAuth·Android/iOS 하네스)
 ```
+
+> `_claude/` 라는 이름의 하위 폴더는 어디에도 없다 — 각 스택의 규칙은
+> 스택 루트의 `CLAUDE.md` + 그 옆 `_docs/`에 있다.
 
 ### 문서 배치 규칙
 
@@ -90,6 +94,7 @@ cloud.suvisdev/
 |-----------|-----------|
 | 백엔드 (FastAPI · Clean Architecture) | [`suvisdev/CLAUDE.md`](suvisdev/CLAUDE.md) |
 | 프론트엔드 (Next.js) | [`suvis/CLAUDE.md`](suvis/CLAUDE.md) |
+| 모바일 (Flutter) | `susu/CLAUDE.md`는 비어 있음 — `susu/_docs/`의 하네스 문서(카카오 OAuth·Android·iOS)를 대신 참조 |
 
 **Karpathy 네 원칙은 모든 영역에서 항상 유효하다.**
 
@@ -101,6 +106,12 @@ cloud.suvisdev/
 데이터/산출물)을 따르고, 최신 날짜가 맨 위에 오게 추가한다. 이미 그날
 항목이 있으면 새로 만들지 말고 이어서 보강한다. 단순 질의응답·읽기
 전용 조사만 한 세션은 생략해도 된다.
+
+`_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`는 WORK_LOG와 짝을 이루는
+**재개용 요약**이다 — WORK_LOG가 "그날 있었던 일"의 상세 기록이라면,
+PROGRESS.md는 "지금 뭐가 끝났고 뭐가 남았는지"만 압축해서 유지한다.
+완료된 항목은 상세 대신 WORK_LOG 날짜만 남기고, 백로그는 최신 상태로
+갱신한다(오래된 항목이 이미 완료돼 있으면 확인 후 옮긴다).
 
 ## 명령어
 
@@ -126,8 +137,13 @@ PYTHONPATH="$PWD:$PWD/apps" lint-imports   # 클린 아키텍처 의존 규칙 �
 flutter run
 
 # 인프라 (루트) — postgres(pgvector) · redis · pgadmin · cloudflared
-docker compose up -d
+docker compose --env-file suvisdev/.env up -d
 ```
+
+**`--env-file suvisdev/.env`를 빠뜨리지 말 것** — 이거 없이 `up -d --build`를
+돌리면 `${POSTGRES_USER}` 등이 compose 파일 안에서 빈 문자열로 치환되고,
+`db` 컨테이너가 빈 자격증명으로 재생성돼 백엔드 전체가 502로 죽는다(실제
+겪은 사고, 2026-07-30·08-04).
 
 ## 테스트
 
@@ -149,6 +165,12 @@ docker compose up -d
 - OAuth: `{GOOGLE,KAKAO,NAVER}_CLIENT_ID` / `_CLIENT_SECRET` / `_REDIRECT_URI`
 - **미설정 상태**: `AWS_ACCESS_KEY_ID`·`VISION_S3_BUCKET` — S3가 아직 연결되지
   않았다. S3 경로를 타는 코드는 호출 시 실패한다는 전제로 작업할 것.
+- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: GPU 없는 EC2는
+  반드시 `gemini`로 명시 설정해야 한다. `.env.example`에만 문서화되고 실제
+  `.env`엔 반영 안 된 채로 방치된 전례가 있다(2026-08-05) — EC2 배포 후엔
+  항상 `docker exec <backend> printenv | grep RECOMMENDATION_BACKEND`로
+  확인할 것. 미설정이어도 에러 없이 조용히 lora(붙지도 않는 집 GPU)로
+  폴백해서 원인 찾기가 오래 걸린다.
 
 ## 브랜치 전략
 
@@ -163,6 +185,12 @@ docker compose up -d
   `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
 - 배포 환경이 둘이다 — 집(GPU/EXAONE)과 EC2(GPU 없음/Gemini). Ollama에 의존하는
   mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끌 수 있다(기본 true).
+- **EC2 디스크는 30GB로 작다** — `backend`·`auth`가 완전히 동일한(무거운
+  torch+CUDA) Dockerfile인데 이미지가 따로 태깅돼 있어, 재빌드 중 디스크가
+  자주 부족해진다(2026-08-05 반복 경험). 막히면 `docker system df`로 확인
+  후 `docker builder prune -a`, 그래도 부족하면 둘 중 하나를 잠깐 내려
+  중복 레이어를 해제하고 재빌드 — 근본 해결(이미지 통합)은 아직 안 함,
+  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그 참고.
 
 ## 하네스 설정 (`.claude/`)
 
@@ -178,6 +206,7 @@ docker compose up -d
 │   └── security/pci.md    #   결제 코드가 생기면 발동 (현재 대상 파일 없음)
 └── projects/-home-a-projects-suvis/memory/   # 주제별 메모 — 자동 로드 아님
     ├── MEMORY.md          #   인덱스              (읽으라고 지시해야 반영됨)
+    ├── auto-memory.md     #   자동 메모리(홈 경로)가 뭘 언제 읽는지 설명
     ├── debugging.md       #   원인 규명한 문제와 진단 방법
     └── patterns.md        #   계층 구조·마이그레이션·테스트 패턴
 ```
