@@ -332,6 +332,45 @@ SigV4 서명에 `Host` 헤더가 포함돼 있어 리다이렉트된 새 호스�
 - 커밋: `b4f4500`(로컬 브랜치 push까지, main 머지·EC2 배포는 이 항목 갱신
   직후 진행).
 
+### 작업 내용(추가⑥) — mova 대량 수집 시험 실행 중 418건 도미노 실패 발견·수정
+
+`bulk_import_movies.py`(2026-08-02 코드 완성, 이날까지 실행 이력 없음)를 처음
+실행해보는 중 `characters.character_name VARCHAR(50)` 초과로 영화 1건의
+upsert가 실패한 뒤, 이후 같은 배치 세션을 쓰는 나머지 영화 418건이 전부
+`PendingRollbackError`로 연쇄 실패하는 것을 발견.
+
+### 오류·막힌 점(추가⑥)
+- SQLAlchemy AsyncSession은 flush 실패 시 세션을 pending-rollback 상태로
+  남긴다 — 명시적으로 `session.rollback()`을 호출하지 않으면 같은 세션을
+  재사용하는 이후 모든 쿼리가 즉시 `PendingRollbackError`로 실패한다.
+  `_ingest_tmdb_movie`/`_ingest_kofic_movie`의 각 `except` 블록이 로그만
+  남기고 다음 영화로 넘어가던 게 원인 — "영화 한 편 실패가 배치 전체를
+  막지 않는다"는 원래 설계 의도가 이 세션 오염 때문에 실제로는 지켜지지
+  않고 있었음.
+
+### 수정/구현(추가⑥)
+- `_ingest_tmdb_movie`의 upsert_movie/credits 백필/hub_knowledge 인제스트
+  3개 except 블록과 `_ingest_kofic_movie`의 upsert_movie/hub_knowledge 2개
+  except 블록에 각각 `await session.rollback()` 추가 — 실패를 해당 영화
+  하나로 격리.
+- `apps/mova/tests/test_bulk_import_movies.py`에 회귀 테스트 3건 추가
+  (`IngestTmdbMovieRollbackTests`): upsert 실패 시 rollback 확인, credits
+  실패해도 영화 자체는 succeeded 유지, 실패한 영화 다음 영화가 깨끗한
+  세션으로 정상 처리되는지(도미노 재현 방지) 검증.
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그에 "EC2 hub_knowledge
+  임베딩 어댑터 부재"(EC2엔 Ollama가 없어 hub_knowledge 인제스트가 매
+  영화마다 조용히 실패 — movies/credits 저장에는 지장 없음) 신규 기록.
+
+### 데이터(추가⑥)
+- 이 시험 실행분 데이터는 실제 반영 여부 미확인 상태로 세션 종료 —
+  다음 세션에서 처음부터 페이지 단위로 재실행하며 확인 예정.
+
+### 산출물(추가⑥)
+- 수정: `suvisdev/scripts/bulk_import_movies.py`,
+  `apps/mova/tests/test_bulk_import_movies.py`,
+  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`.
+- 커밋: 로컬 미커밋 상태로 세션 종료(다음 세션 커밋 예정).
+
 ---
 
 ## 2026-08-03
