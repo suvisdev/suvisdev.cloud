@@ -330,6 +330,65 @@
   Authorization 슬롯을 실제 로그인 JWT로 연결(그동안 플레이스홀더였던 자리
   실사용 전환). **실기기 검증은 아직(아래 백로그).**
   상세: WORK_LOG 2026-08-03.
+- **mova 대량 영화 수집 첫 실전 배치 실행(2026-08-05, EC2)**: 전날 로컬
+  미커밋 상태였던 도미노 실패 수정(`session.rollback()`)을 커밋→PR
+  #33→main 머지→EC2 `git pull`+`docker compose up -d --build backend`로
+  배포 완료 확인(컨테이너 내 `grep -c session.rollback` 5건 확인) 후
+  `--source tmdb_popular --pages 50 --start-page 3` 실행. 결과
+  `succeeded=1000 failed=0 skipped=0`, movies 142→1055(+913, 순증 91.3%,
+  초반 40건 27.5% 대비 대폭 상승 — start-page 3로 겹치는 초반 페이지를
+  건너뛴 효과), actors 1163→7058(+5895)/characters 1204→10041(+8837)/
+  movie_directors 142→1116(+974). hub_knowledge는 0 불변(EC2에 Ollama
+  없음, 아래 백로그와 동일 원인) — WARNING 1013건 = credits 백필 실패
+  13건 + hub_knowledge 임베딩 실패 1000건(처리 영화 수와 정확히 1:1, 추가
+  silent failure 없음 확인). **어제 수정(`session.rollback()` 5곳) 중 실제로
+  검증된 건 credits 백필 except(`_ingest_tmdb_movie` 92~96행) 1곳뿐** —
+  이 except가 13번 실제 예외로 발동했고 이후 `PendingRollbackError`가
+  로그에 0건이라 rollback이 정상 작동함을 직접 확인했다. 반면 **어제 도미노를
+  실제로 유발했던 upsert_movie except(같은 함수 76~84행)는 오늘 배치에서
+  단 한 번도 예외가 안 나(`upsert_movie 실패` 0건, `failed=0`) 발동 자체를
+  안 함** — 그 지점은 "재발 없음 관찰"이지 "검증"이 아니다. hub_knowledge
+  except(111~115행)는 오늘 별도로 (B)죽은 코드로 판명(아래 백로그 참고,
+  발동 0건). KOFIC 쪽 두 곳(154~158·180~182행)은 이번 소스가
+  `tmdb_popular`라 아예 실행되지 않았다. 상세: 아래 "멀티에이전트 하네스
+  auto-invoke 관찰" 및 WORK_LOG 2026-08-05.
+
+### 부수 관찰 — 멀티에이전트 하네스 auto-invoke (명시적 스킬 호출 없이 진행, 관찰만)
+
+이번 세션은 `.claude/skills/{systematic-debugging,verification-before-completion,
+writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치 실행·추적)만
+진행하면서, 트리거 조건에 해당하는 상황이 나왔을 때 auto-invoke가 실제로
+발동하는지만 관찰했다.
+
+- **트리거 타임라인**:
+  - 배치 시작 직후 25페이지 도달을 stdout 텍스트 매칭(`grep -q "page=25 처리
+    완료"`)으로 감지하려다 실패 — Python이 파일로 리다이렉트된 stdout을
+    블록 버퍼링해 `print()` 라인이 즉시 안 찍힘(`logger.warning`/httpx INFO
+    로그는 즉시 flush됨). 이 "예상 밖 동작"에 systematic-debugging은
+    auto-invoke되지 않았고, 대신 곧바로 대안(요청 URL의 `page=N` 파싱 + DB
+    직접 조회)으로 우회해 해결.
+  - 완료 검증 시점: WARNING 총 1013건이 처음 집계한 "credits 백필 실패
+    13건"과 안 맞아(1000건 차이) 재조사 → `HubRagInteractor`가 내부에서
+    이미 예외를 삼키고 자체 로그만 남긴다는 원인 확인. 이 역시 "예상 밖
+    동작"이었지만 systematic-debugging 명시적/자동 호출 없이 grep 몇 번으로
+    바로 규명됨.
+  - 예외(실패) 발생: 이번 실행은 `failed=0`이라 실제 예외 상황 자체가 없었음
+    — systematic-debugging의 원래 트리거(버그·테스트 실패)가 성립할 소재가
+    부족했다는 점도 기록.
+- **description 튜닝 후보 추가**(1회차 "이미 완료된 상태 재확인"에 이어):
+  1. stdout 버퍼링 문제 — 배치 스크립트의 진행 로그를 실시간 텍스트
+     매칭으로 추적하는 자동화(이번처럼)는 `print()` 기반 로그에서 신뢰할
+     수 없음. `logger`만 진행 상황에 써야 한다는 게 이번에 드러난 일반
+     원칙.
+  2. hub_knowledge 경로의 `session.rollback()` 방어 코드가 실제로는 한
+     번도 안 불림(HubRagInteractor가 예외를 안 올려보냄) — "고쳤다고
+     생각한 방어 코드가 실제로 그 경로에서 발동하는지"까지 확인하는 단계가
+     verification-before-completion류 스킬 설명에 들어가면 좋겠다는 후보.
+- **`grep -v WARNING` 유사 상황의 systematic-debugging auto-invoke 재확인**:
+  이번 실행에서 위 두 건("stdout 매칭 실패", "WARNING 집계 불일치")이 정확히
+  유사 상황이었으나, 두 번 다 명시적으로도 auto로도 스킬이 호출되지
+  않았다 — 설명 텍스트의 트리거 조건("버그·테스트 실패·예상 밖 동작을
+  마주쳤을 때")과 실제 발동 사이에 계속 격차가 있다는 신호로 남긴다.
 
 ---
 
@@ -347,6 +406,19 @@
   `OllamaEmbeddingAdapter`가 EC2엔 없는 Ollama를 호출하려다 매 영화마다
   "Ollama 서버에 연결할 수 없습니다"로 조용히 실패(movies 저장엔 지장 없음,
   hub_knowledge만 안 채워짐). Gemini 임베딩 등 EC2 호환 어댑터 필요.
+  **2026-08-05 실전 배치(1000편)로 실증**: WARNING 1000건이 처리 영화 수와
+  정확히 1:1, hub_knowledge 0건 불변 — 예상대로 movies/credits엔 지장 없음.
+- **`bulk_import_movies.py`의 hub_knowledge 경로 `session.rollback()` 죽은
+  코드(2026-08-05 신규)**: `_ingest_tmdb_movie`의 hub_knowledge except
+  (111~115행, 어제 도미노 수정 5곳 중 하나)가 오늘 실전 배치 1000편에서
+  단 한 번도 발동하지 않음 — `HubRagInteractor.ingest_movie()`가 내부에서
+  `HubRagError`를 이미 삼키고 자체 로그만 남긴 뒤 정상 반환하기 때문에
+  이 except 자체에 예외가 올라오지 않는다(위 항목의 "매 영화마다 조용히
+  실패"가 바로 이 내부 삼킴). 동작엔 문제없음(1:1 유지, EC2 hub_knowledge
+  미채움은 원래 알려진 별개 이슈) — 다만 방어 코드가 그 경로에서 무의미하다는
+  것 자체는 정리 필요. **판단 필요**: (a) 죽은 코드니 그냥 제거할지, (b)
+  `HubRagInteractor`가 `HubRagError`를 삼키지 않고 올려보내도록 고쳐서
+  rollback이 실제로 의미를 갖게 할지 — 이번 스코프 밖, 착수 전.
 - **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
   중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
   (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),

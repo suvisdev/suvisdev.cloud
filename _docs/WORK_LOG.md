@@ -28,6 +28,93 @@
 
 ---
 
+## 2026-08-05
+
+### 작업 내용
+- 어제(2026-08-04) 로컬 미커밋 상태로 남아 있던 mova 대량 수집 도미노 실패
+  수정을 실전 배포하고, PROGRESS.md의 "옵션 1"(TMDB popular 50페이지,
+  `--start-page 3`)을 실제로 EC2에서 처음 실행. 실행 중간(25페이지 시점)·
+  완료 후 count 검증, hub_knowledge WARNING 개수 대조까지 추적.
+- 겸사겸사 `.claude/skills/{systematic-debugging,verification-before-completion,
+  writing-plans}` 도그푸딩 — 스킬을 명시적으로 부르지 않고 실제 작업만
+  진행하면서 트리거 상황에서 auto-invoke가 실제로 발동하는지 관찰(결과는
+  PROGRESS.md "부수 관찰" 절 참고, 이 세션에선 두 번의 "예상 밖 동작" 모두
+  auto-invoke 없이 직접 조사로 해결됨).
+
+### 수정/구현
+- 로컬 확인 결과 EC2(`main`)에 어제 수정(`session.rollback()` 5곳)이
+  전혀 반영 안 돼 있었음(커밋 자체가 안 됨) — 커밋→push→PR #33→main
+  머지(`bf53dda`) → EC2 `git pull`(로컬 main이 `origin/main` 대비
+  ahead 6/behind 2로 이미 발산 상태였음 — 내용 diff 확인 결과 EC2 로컬의
+  `.gitignore`에 `tmp/` 한 줄만 추가돼 있던 것 외엔 실질 차이 없어
+  `git pull --no-rebase --no-edit`로 안전하게 병합) → `docker compose
+  --env-file suvisdev/.env up -d --build backend`로 재빌드·재기동.
+  컨테이너 내 `grep -c session.rollback scripts/bulk_import_movies.py`로
+  5건 확인 후 실행.
+- `scripts/bulk_import_movies.py --source tmdb_popular --pages 50
+  --start-page 3`를 `docker exec -d`로 backend 컨테이너 안에서 백그라운드
+  실행(로그는 컨테이너 내 `/tmp/bulk_import.log`).
+
+### 오류·막힌 점
+- **원래 계획했던 "25페이지 도달 시 stdout 텍스트 매칭" 추적 방식이
+  실패**: 스크립트의 페이지별 `print(f"page={page} 처리 완료...")`가
+  파일로 리다이렉트된 stdout 블록 버퍼링에 걸려 실시간으로 안 찍힘
+  (`logger.warning`/httpx 자체 INFO 로그는 즉시 flush돼 정상 노출).
+  25페이지 체크포인트 시점엔 이미 실제로는 31페이지까지 진행돼 있었음 —
+  요청 URL의 `page=N`을 직접 파싱 + DB count 직접 조회로 우회 확인.
+  일반화하면: 배치 스크립트의 진행 상황을 실시간 로그 매칭으로 자동
+  추적하려면 `print()`가 아니라 `logger`를 써야 한다.
+- **완료 후 WARNING 총계(1013건)가 처음 집계한 "credits 백필 실패
+  13건"과 안 맞음** → 재조사 결과 hub_knowledge 실패 WARNING(1000건, 처리
+  영화 수와 정확히 1:1)이 `bulk_import_movies.py` 자체의 `except` 블록이
+  아니라 `HubRagInteractor` 내부에서 이미 예외를 삼키고 자체 로그만 남기는
+  경로에서 나온 것이었음 — 즉 어제 그 경로에 추가한 `session.rollback()`은
+  이 경로에서는 예외가 애초에 안 올라와 한 번도 실행되지 않는 죽은 코드.
+  동작 자체엔 문제없음(1:1 유지, 추가 silent failure 없음)이라 이번엔
+  코드 수정 없이 관찰만 기록(백로그로 정리).
+- **"어제 수정이 실전에서 검증됨"은 재확인 결과 과잉 결론이었음** — 사용자
+  지적으로 로그를 다시 대조. 어제 수정한 `session.rollback()` 5곳 중:
+  - `_ingest_tmdb_movie`의 **credits 백필 except**(92~96행)만 오늘 진짜로
+    발동(13회, `credits 백필 실패` WARNING과 정확히 일치)했고, 이후
+    `PendingRollbackError`가 로그 전체에 0건이라 rollback이 실제로
+    작동해 후속 영화로 도미노가 안 번진 것을 직접 확인 — **이 지점은
+    검증됨**.
+  - 정작 어제 418건 도미노를 유발했던 **upsert_movie except**(같은 함수
+    76~84행)는 오늘 배치에서 예외가 단 한 번도 안 나서(`upsert_movie 실패`
+    0건, `failed=0`) 발동 자체를 안 함 — **이 지점은 "재발 없음 관찰"이지
+    "검증"이 아님**(원래 버그를 유발한 조건 자체가 오늘 재현되지 않았다는
+    뜻).
+  - **hub_knowledge except**(111~115행)는 바로 위에서 정리한 죽은 코드 —
+    발동 0건.
+  - KOFIC 쪽 두 곳(154~158·180~182행)은 오늘 소스가 `tmdb_popular`라
+    아예 실행 안 됨 — 미확인.
+  결론: 도미노 자체는 재발하지 않았고 rollback 메커니즘이 실제 예외
+  상황(credits 경로)에서 한 번은 제대로 작동한 것까지는 확인됐지만,
+  "어제 수정 5곳이 전부 검증됨"은 부정확한 표현이었음 — PROGRESS.md 문구
+  정정.
+
+### 데이터
+- EC2 실 DB(`suvisdevcloud-db-1`), 실행 전/후:
+  - movies: 142 → 1055 (+913, 순증 91.3%)
+  - actors: 1163 → 7058 (+5895)
+  - characters: 1204 → 10041 (+8837)
+  - movie_directors: 142 → 1116 (+974)
+  - hub_knowledge: 0 → 0 (불변, EC2 Ollama 부재로 전량 실패 — 백로그
+    "EC2 hub_knowledge 임베딩 어댑터 부재" 참고)
+  - 스크립트 자체 리포트: `succeeded=1000 failed=0 skipped=0 last_page=52`
+    (다음 배치는 `--start-page 53`).
+  - 중간(31페이지 도달 시점) 스냅샷: movies 633(순증 87%대) — 초반 40건의
+    27.5%보다 크게 상승, `--start-page 3`로 겹치는 초반 페이지를 건너뛴
+    효과로 해석.
+
+### 산출물
+- 커밋: `6935352`(로컬), PR #33 머지 `bf53dda`(main), EC2 `git pull`로
+  반영·`--build backend` 재배포 완료.
+- 문서: `_docs/WORK_LOG.md`(이 항목), `_docs/SUVIS_ADMIN_MULTIAGENT_
+  PROGRESS.md`(실행 결과 + 부수 관찰 절 + 백로그 보강).
+
+---
+
 ## 2026-08-04
 
 ### 작업 내용
