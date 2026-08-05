@@ -165,12 +165,17 @@ docker compose --env-file suvisdev/.env up -d
 - OAuth: `{GOOGLE,KAKAO,NAVER}_CLIENT_ID` / `_CLIENT_SECRET` / `_REDIRECT_URI`
 - **미설정 상태**: `AWS_ACCESS_KEY_ID`·`VISION_S3_BUCKET` — S3가 아직 연결되지
   않았다. S3 경로를 타는 코드는 호출 시 실패한다는 전제로 작업할 것.
-- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: GPU 없는 EC2는
-  반드시 `gemini`로 명시 설정해야 한다. `.env.example`에만 문서화되고 실제
-  `.env`엔 반영 안 된 채로 방치된 전례가 있다(2026-08-05) — EC2 배포 후엔
-  항상 `docker exec <backend> printenv | grep RECOMMENDATION_BACKEND`로
-  확인할 것. 미설정이어도 에러 없이 조용히 lora(붙지도 않는 집 GPU)로
-  폴백해서 원인 찾기가 오래 걸린다.
+- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: EC2는 기본
+  `lora`를 쓴다 — 노트북 GPU의 `lora-server`(systemd, `:8200`)를 Cloudflare
+  Tunnel로 노출한 `LORA_SERVER_URL=https://lora.suvisdev.cloud`를 호출한다
+  (2026-08-05, `docker-compose.yaml`의 `LORA_SERVER_URL`을
+  `${LORA_SERVER_URL:-http://host.docker.internal:8200}`로 변수화해 `.env`
+  오버라이드가 실제로 먹도록 고침 — 전에는 하드코딩 때문에 `.env`를 고쳐도
+  무시됐다). 노트북이 꺼져 있거나 터널이 끊기면 `RECOMMENDATION_BACKEND=gemini`로
+  바꾸고 `docker compose --env-file suvisdev/.env up -d --force-recreate --no-deps backend`로
+  수동 폴백한다(전환 왕복 약 8초 확인됨). EC2 배포 후엔 항상
+  `docker exec <backend> printenv | grep -E 'RECOMMENDATION_BACKEND|LORA_SERVER_URL'`로
+  확인할 것.
 
 ## 브랜치 전략
 
