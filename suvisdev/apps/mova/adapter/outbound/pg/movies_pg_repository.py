@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
+from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.adapter.outbound.orm.studio_tags_orm import TAG_KIND_GENRE, MovaTag, slugify_tag
 from mova.app.dtos.studio_import_dto import MovieUpsertCommand
@@ -57,6 +58,14 @@ class MoviesPgRepository(MoviesRepositoryPort):
         )
         char_actors = char_actor_q.all()
 
+        director_actor_q = await self._session.execute(
+            select(MovaMovieDirector, MovaActor)
+            .join(MovaActor, MovaMovieDirector.actor_id == MovaActor.id)
+            .where(MovaMovieDirector.movie_id == movie.id)
+            .order_by(MovaActor.name)
+        )
+        director_actors = director_actor_q.all()
+
         tags_q = await self._session.execute(
             select(MovaTag)
             .where(MovaTag.movie_id == movie.id)
@@ -65,13 +74,14 @@ class MoviesPgRepository(MoviesRepositoryPort):
         tags = list(tags_q.scalars().all())
 
         logger.debug(
-            "[MoviesPgRepository] get_by_slug=%s actors=%d tags=%d",
+            "[MoviesPgRepository] get_by_slug=%s actors=%d directors=%d tags=%d",
             slug,
             len(char_actors),
+            len(director_actors),
             len(tags),
         )
         genres = [t.label for t in tags if t.tag_kind == TAG_KIND_GENRE]
-        return MovieDetailDto.from_orm(movie, char_actors, tags, genres)
+        return MovieDetailDto.from_orm(movie, char_actors, tags, genres, director_actors)
 
     async def find_by_title(self, title: str) -> MovieDetailDto | None:
         movie_q = await self._session.execute(

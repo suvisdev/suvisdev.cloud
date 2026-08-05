@@ -20,13 +20,18 @@ class PlatformDto:
 
 @dataclass(frozen=True)
 class ActorInMovieDto:
-    """characters + actors JOIN 결과 — 출연진 한 줄."""
+    """characters + actors 또는 movie_directors + actors JOIN 결과 — 출연진/감독 한 줄.
 
-    character_id: int
+    감독은 characters 테이블에 행이 없으므로(별도 movie_directors 테이블)
+    character_id·character_name이 None이다.
+    """
+
+    character_id: int | None
     actor_id: int
     name: str
     role_type: str
     profile_photo_url: str
+    character_name: str | None
 
 
 @dataclass(frozen=True)
@@ -66,6 +71,7 @@ class MovieDetailDto:
         char_actor_rows: list,
         tag_rows: list,
         genres: list[str],
+        director_actor_rows: list | None = None,
     ) -> MovieDetailDto:
         platforms = [
             PlatformDto.from_dict(p)
@@ -73,13 +79,25 @@ class MovieDetailDto:
             else PlatformDto(p.provider, p.url, p.type)
             for p in (getattr(movie, "platforms", None) or [])
         ]
-        actors = [
+        directors = [
+            ActorInMovieDto(
+                character_id=None,
+                actor_id=actor.id,
+                name=actor.name,
+                role_type=actor.role_type,
+                profile_photo_url=actor.profile_photo_url or "",
+                character_name=None,
+            )
+            for _, actor in (director_actor_rows or [])
+        ]
+        actors = directors + [
             ActorInMovieDto(
                 character_id=char.id,
                 actor_id=actor.id,
                 name=actor.name,
                 role_type=actor.role_type,
                 profile_photo_url=actor.profile_photo_url or "",
+                character_name=char.character_name,
             )
             for char, actor in char_actor_rows
         ]
@@ -137,6 +155,7 @@ class MovieDetailDto:
                     name=a.name,
                     role_type=a.role_type,
                     profile_photo_url=a.profile_photo_url,
+                    character_name=a.character_name,
                 )
                 for a in self.actors
             ],
