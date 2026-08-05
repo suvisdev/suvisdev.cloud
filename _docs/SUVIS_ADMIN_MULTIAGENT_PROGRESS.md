@@ -389,6 +389,23 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   유사 상황이었으나, 두 번 다 명시적으로도 auto로도 스킬이 호출되지
   않았다 — 설명 텍스트의 트리거 조건("버그·테스트 실패·예상 밖 동작을
   마주쳤을 때")과 실제 발동 사이에 계속 격차가 있다는 신호로 남긴다.
+- **`characters.character_name` VARCHAR(50) truncation — 구조적 수정 +
+  데이터 복구 완료(2026-08-05)**: 조사(WORK_LOG 추가②) → 구조적 수정
+  (WORK_LOG 추가③: `characters.character_name` VARCHAR(50)→TEXT 마이그레이션
+  `20260805_0001`, `_backfill_one()` cast/directors 루프 per-member
+  try/except + `ActorsRepositoryPort.rollback()` 신설, 회귀 테스트 3건) →
+  EC2 배포 + 데이터 복구(WORK_LOG 추가④)까지 완료. EC2 배포 중 디스크 부족이
+  재발해(원인: `backend`·`auth`가 동일 Dockerfile인데 이미지가 따로 태깅돼
+  8.84GB pip 레이어를 중복 보유 — 백로그 참고) `auth`를 사용자 승인 받아
+  잠깐 내려 해제 후 재빌드. `scripts/backfill_credits_cli.py` 전체 재실행
+  (`succeeded=1044 failed=0 skipped=11`) 결과 13편 전부 100% 복구 확인
+  (사용자가 지목한 KPop Demon Hunters·The Simpsons Movie·Split 포함).
+  **복구 검증 중 조사(추가②)의 유실 규모 계산이 틀렸던 것도 발견해 정정**:
+  `tmdb_mapper.map_credits(cast_limit=10)`가 2026-07-30부터 있던 의도된
+  설계(영화당 상위 10명만 저장)임을 놓치고 TMDB 원본 총원(458명)과
+  비교해 "421명 유실"로 과대 집계했었음 — 앱이 실제로 저장하려 했던 양
+  (`min(TMDB cast, 10)`) 기준으로 재계산하면 실제 유실은 cast 90명
+  (directors는 상한 없어 21명 전원 유실은 그대로 정확).
 
 ---
 
@@ -401,6 +418,18 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ## 다음 / 남은 작업 (백로그)
 
+- **EC2 `backend`/`auth` 이미지 중복 태깅으로 디스크 낭비(2026-08-05
+  신규)**: `docker-compose.yaml`에서 두 서비스가 완전히 동일한
+  Dockerfile·빌드 컨텍스트(`./suvisdev`)를 쓰는데 이미지가 `suvisdevcloud-
+  backend`/`suvisdevcloud-auth`로 따로 태깅돼, 8.84GB짜리 pip 설치 레이어를
+  중복으로 디스크에 물고 있다(하나만 지워도 다른 쪽이 참조 중이라 공간이
+  안 풀림 — 2026-08-05 배포 중 디스크 부족 재발의 근본 원인, 상세 WORK_LOG
+  추가④). 근본 해결은 두 서비스가 같은 `image:` 태그를 공유하도록
+  compose를 재구성하거나(빌드는 한 번만, `command:`만 서비스별로 override),
+  최소한 배포 스크립트에서 "둘 다 재빌드 필요할 땐 순서·캐시 재사용"을
+  명시하는 것. 이번엔 임시 조치(임시로 `auth` 내려서 중복 레이어 해제 →
+  `backend` 재빌드 → `auth`는 캐시 히트로 재빌드)로만 우회, 구조 변경은
+  안 함 — 착수 전.
 - **SUVIS 저장소 컬럼 길이 정책 부재(2026-08-05 신규)**: `character_name`
   VARCHAR(50) truncation 조사 중 확인 — `movies.title` `String(255)`,
   `actors.name` `String(128)`, `characters.character_name`(수정 전
@@ -464,12 +493,6 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
     도달 불가에 가까움, `upsert_movie()` 자체의 독립 실패 대비용으로는
     여전히 유효하니 제거하지 않음 — 재현 시험이 필요하다면 KOFIC 소스나
     타이틀이 비정상적으로 긴 데이터셋으로 별도 확인 필요(우선순위 낮음).
-- **`characters.character_name` VARCHAR(50) truncation — 수정 코드 완료,
-  EC2 배포·데이터 복구 진행 중(2026-08-05)**: 조사(유실 규모 cast 458명 중
-  421명, directors 21명 전원 — 표는 WORK_LOG 2026-08-05 추가②)에 이어 같은
-  날 구조적 수정(컬럼 TEXT 마이그레이션 + `_backfill_one()` per-member
-  방어) + 회귀 테스트까지 로컬 완료(WORK_LOG 추가③). EC2 배포·실제
-  데이터 복구는 다음 항목 참고 — 완료되면 이 줄을 "완료됨"으로 옮길 것.
 - **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
   중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
   (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),

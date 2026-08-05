@@ -254,6 +254,75 @@
   `scripts/bulk_import_movies.py`,
   `apps/mova/_docs/{mova_database.md,MOVA_ERD.md}`.
 
+### 작업 내용(추가④) — EC2 배포 중 디스크 부족 재발 + 데이터 복구 + 유실 규모 재계산 정정
+
+PR #34 머지 후 EC2 `docker compose up -d --build backend` 실행 중
+`pip install`이 torch 다운로드 도중 `[Errno 28] No space left on device`로
+반복 실패(2026-07-30·2026-08-02에도 있었던 디스크 부족 재발). 원인 규명 후
+해결하고 실제 데이터 복구까지 완료했는데, 복구 결과를 검증하다가 이전
+조사(추가②)의 유실 규모 계산이 틀렸다는 것도 발견해 함께 정정한다.
+
+### 오류·막힌 점(추가④)
+- **디스크 부족 근본 원인**: `docker system df`로 확인 결과 `backend`·`auth`
+  두 서비스가 `docker-compose.yaml`에서 **완전히 동일한 Dockerfile·빌드
+  컨텍스트**(`./suvisdev`)를 쓰는데 이미지가 따로 태깅돼 있어, 8.84GB짜리
+  pip 설치 레이어를 중복으로 디스크에 물고 있었음(`backend` 이미지를
+  지워도 `auth`가 같은 레이어를 참조 중이라 공간이 전혀 안 풀림으로 확인).
+  `docker image prune -a`·`docker builder prune -a`로는 8.8GB짜리 실패한
+  빌드 캐시(19GB)만 정리됐고, 실제 재빌드엔 여전히 부족(13GB 여유로 설치
+  마지막 파일 직전에서 재실패). **사용자 승인 받아 `auth`까지 잠깐 내려서
+  중복 레이어 해제**(22GB 확보) → `backend` 재빌드 성공 → `auth` 재빌드는
+  동일 컨텍스트라 캐시 100% 히트로 즉시 완료(추가 디스크 0). 두 서비스 다시
+  정상 기동 확인. **근본 해결 아님**(같은 이미지를 두 개 태그로 관리하는
+  구조 자체가 문제) — 백로그로 남김(아래 산출물 참고).
+- **유실 규모 재계산 필요 — 추가②의 "cast 458명 중 421명 유실"은 과대
+  집계였음**: 복구 후 검증 중 `characters_cnt`가 전부 정확히 10건(또는
+  TMDB cast가 10명 미만인 영화는 그 실제 수)으로 고정되는 것을 발견 →
+  원인은 `tmdb_mapper.map_credits(cast_limit=10)`이 **2026-07-30부터 이미
+  있던 의도된 설계**(영화당 상위 10명만 저장, 오늘 버그와 무관, 내가
+  건드리지 않음)였음. 추가②에서 TMDB 원본 cast 총원(458명)과 DB를 그대로
+  비교해 유실을 계산한 게 실수 — **앱이 실제로 저장하려 했던 양(각 영화
+  min(TMDB cast, 10))** 기준으로 다시 계산하면 실제 유실은 cast
+  **90명**(directors는 상한이 없어 21명 전원 유실은 그대로 맞음). 아래
+  "완료됨"에 정정된 표로 갱신.
+- 코드 변경 없음(디스크 정리·데이터 복구만, 재계산은 순수 재검증).
+
+### 데이터(추가④)
+- **13편 dry-run 사전 검증**: 전부 예외 없이 통과(임시 검증 스크립트로
+  `_backfill_one(dry_run=True)` 직접 호출, 저장소에 커밋 안 함·작업 후 삭제).
+- **`scripts/backfill_credits_cli.py` 전체 재실행**(1055편 대상):
+  `succeeded=1044 failed=0 skipped=11`(스킵은 tmdb- 접두사 아닌 기존
+  hand-curated 슬러그, 이번 문제와 무관·기존 정상 동작).
+- **13편 재검증(정정된 기준)** — TMDB cast/directors vs DB characters/
+  movie_directors, 복구 전(추가②) → 복구 후:
+
+  | movie_id | 제목 | 앱 의도(min(TMDB,10)) | 복구 전 | 복구 후 | TMDB directors | 복구 전 | 복구 후 |
+  |---|---|---|---|---|---|---|---|
+  | 142 | KPop Demon Hunters | 10 | 8 | **10** | 2 | 0 | **2** |
+  | 157 | Coraline | 10 | 7 | **10** | 1 | 0 | **1** |
+  | 447 | Corpse Bride | 10 | 4 | **10** | 2 | 0 | **2** |
+  | 567 | The Simpsons Movie | 10 | 0 | **10** | 1 | 0 | **1** |
+  | 676 | Karuppu | 10 | 0 | **10** | 1 | 0 | **1** |
+  | 782 | SpongeBob SquarePants Movie | 10 | 3 | **10** | 1 | 0 | **1** |
+  | 818 | Nightmare Before Christmas | 10 | 0 | **10** | 1 | 0 | **1** |
+  | 832 | Cinema Paradiso | 10 | 4 | **10** | 1 | 0 | **1** |
+  | 858 | Snow White and the Seven Dwarfs | 10 | 4 | **10** | 6 | 0 | **6** |
+  | 884 | Escoriandoli | 7(TMDB 총원 7명) | 4 | **7** | 2 | 0 | **2** |
+  | 889 | Split | 10 | 0 | **10** | 1 | 0 | **1** |
+  | 955 | Who Framed Roger Rabbit | 10 | 3 | **10** | 1 | 0 | **1** |
+  | 1031 | The Secret Agent | 10 | 0 | **10** | 1 | 0 | **1** |
+
+  **13편 전부 앱이 의도한 양과 정확히 일치 — 100% 복구 확인**(사용자가
+  콕 짚은 KPop Demon Hunters·The Simpsons Movie·Split 포함). 실제 유실은
+  cast 90명(458명 아님) + directors 21명 전원.
+
+### 산출물(추가④)
+- EC2: `docker system prune`류 정리, `auth` 이미지 삭제 후 재빌드(캐시
+  히트), `backend` 재빌드·`alembic upgrade head`(`20260805_0001`),
+  `scripts/backfill_credits_cli.py` 전체 재실행.
+- 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` "완료됨" 갱신
+  (유실 규모 정정 포함) + 백로그 1건 추가(backend/auth 중복 이미지 태깅).
+
 ---
 
 ## 2026-08-04
