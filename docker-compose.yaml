@@ -51,7 +51,9 @@ services:
       # ~/.venv-exaone, --port 8200). train_mova_lora.py가 남긴 ~/lora_adapters/LATEST를
       # 읽어 베이스 모델(현재 Qwen2.5-1.5B, VRAM 여유 생기면 EXAONE-AWQ로 교체 가능)+
       # 최신 어댑터를 서빙한다.
-      - LORA_SERVER_URL=http://host.docker.internal:8200
+      # EC2처럼 호스트에 lora_server가 없는 환경은 .env의 LORA_SERVER_URL로 원격
+      # (Cloudflare Tunnel 등) 주소를 덮어쓴다 — 없으면 기존 기본값 유지.
+      - LORA_SERVER_URL=${LORA_SERVER_URL:-http://host.docker.internal:8200}
       # ontology(Hub) 크롤러가 대상(website+keyword)을 읽어오는 곳 — redis 컨테이너는
       # 같은 compose 네트워크라 서비스명으로 바로 붙는다 (host.docker.internal 불필요).
       - REDIS_URL=redis://redis:6379/0
