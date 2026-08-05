@@ -2,6 +2,8 @@ import json
 import logging
 import re
 
+from pydantic import BaseModel, ValidationError
+
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommendationSchema
@@ -10,12 +12,28 @@ from mova.adapter.outbound.orm.studio_movies_orm import slugify_movie
 from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
 from mova.app.dtos.studio_import_dto import MovieUpsertCommand
 from mova.app.dtos.studio_movies_dto import MovieDetailDto
-from mova.domain.value_objects.studio_movies_vo import resolve_canonical_slug
 
 logger = logging.getLogger(__name__)
 
 
 _HANJA_PATTERN = re.compile(r"[一-鿿㐀-䶿]+")
+
+
+class _GeminiPickSchema(BaseModel):
+    """Gemini 원문 JSON의 pick 1건 검증 — movie_id 필수.
+
+    title 문자열을 사후에 DB와 매칭하던 방식이 동명이인 오귀속("괴물"→
+    The Thing)과 포맷 미매칭("빽 투 더 퓨쳐 (1985)") 두 버그의 공통 원인이었다
+    (_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md). 프롬프트가 제시한
+    카탈로그의 movie_id를 그대로 돌려받아 파싱 단계에서 검증하고, 없거나
+    정수로 안 읽히면 그 pick만 드롭한다(전체 응답을 실패시키지 않음)."""
+
+    movie_id: int
+    title: str
+    hook: str = ""
+    synopsis: str = ""
+    poster: str | None = None
+    platform: str | None = None
 
 
 def _strip_hanja(text: str) -> str:
@@ -56,28 +74,33 @@ class ChatReplyService:
         recommendations: list[MovaChatRecommendationSchema] = []
 
         if isinstance(picks, list):
-            for item in picks[:3]:
+            for item in picks:
+                if len(recommendations) >= 3:
+                    break
                 if not isinstance(item, dict):
                     continue
-                title = _strip_hanja(str(item.get("title", "")).strip())
-                if not title:
-                    title = _strip_hanja(str(item.get("slug", "")).strip())
+                try:
+                    pick = _GeminiPickSchema.model_validate(item)
+                except ValidationError:
+                    logger.warning(
+                        "[ChatReplyService] movie_id 없는/유효하지 않은 pick 드롭 — "
+                        "카탈로그 grounding 위반 | item=%r",
+                        item,
+                    )
+                    continue
+
+                title = _strip_hanja(pick.title.strip())
                 if not title:
                     continue
-                hook = _strip_hanja(str(item.get("hook", "")).strip())[:120]
-                platform_raw = item.get("platform")
-                platform = (
-                    str(platform_raw).strip()
-                    if isinstance(platform_raw, str) and platform_raw.strip()
-                    else None
-                )
+                hook = _strip_hanja(pick.hook.strip())[:120]
+                platform = pick.platform.strip() if pick.platform and pick.platform.strip() else None
                 recommendations.append(
                     MovaChatRecommendationSchema(
                         id=slugify_movie(title),
+                        movie_id=pick.movie_id,
                         title=title,
-                        year=str(item.get("year", "")).strip() or "",
-                        poster=_coerce_poster(item.get("poster")),
-                        synopsis=str(item.get("synopsis", "")).strip()[:100] or "",
+                        poster=_coerce_poster(pick.poster),
+                        synopsis=pick.synopsis.strip()[:100] if pick.synopsis else "",
                         platform=platform,
                         hook=hook or "취향에 맞는 작품이에요.",
                     ),
@@ -94,6 +117,16 @@ class ChatReplyService:
         self,
         recommendations: list[MovaChatRecommendationSchema],
     ) -> list[MovaChatRecommendationSchema]:
+        """Gemini가 카탈로그에서 고른 movie_id로 직접 조회한다.
+
+        2026-08-05 이전엔 title 문자열을 canonical map→slug→find_by_title
+        순으로 사후 재매칭했다 — 이게 동명이인 오귀속·포맷 미매칭 두 버그의
+        공통 원인이었다(_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md).
+        이제 title 매칭을 하지 않으므로 두 버그 모두 이 경로에서 원천 차단된다.
+        movie_id가 실제 DB에 없으면(Gemini가 카탈로그를 무시한 프롬프트 위반)
+        그 pick만 드롭한다 — 예전처럼 미확인 제목으로 placeholder movie를
+        새로 만들지 않는다(카탈로그 밖 데이터가 DB에 섞이는 것 방지).
+        """
         if not recommendations:
             return []
 
@@ -103,65 +136,54 @@ class ChatReplyService:
         async with factory() as session:
             repo = MoviesPgRepository(session)
             for rec in recommendations:
-                canonical = resolve_canonical_slug(rec.id, title=rec.title)
-                movie = (
-                    await repo.get_by_slug(canonical)
-                    or await repo.get_by_slug(rec.id)
-                    or await repo.find_by_title(rec.title)
-                )
+                movie = await repo.find_by_id(rec.movie_id) if rec.movie_id is not None else None
+                if movie is None:
+                    logger.warning(
+                        "[ChatReplyService] 카탈로그에 없는 movie_id 응답 — 드롭 | "
+                        "movie_id=%s title=%r",
+                        rec.movie_id,
+                        rec.title,
+                    )
+                    continue
+
                 poster = _coerce_poster(rec.poster)
                 year = rec.year
                 platform = rec.platform
-                slug = canonical if canonical != "movie" else rec.id
-                if movie is not None:
-                    slug = movie.slug
-                    if not poster:
-                        poster = (movie.poster_url or "").strip()
-                    if not year:
-                        year = str(movie.release_year or "")
-                    if not platform:
-                        platform = _platform_from_dto(movie)
+                if not poster:
+                    poster = (movie.poster_url or "").strip()
+                if not year:
+                    year = str(movie.release_year or "")
+                if not platform:
+                    platform = _platform_from_dto(movie)
 
                 if not poster:
                     poster = await self._fetch_tmdb_poster(rec.title, year)
 
-                try:
-                    if movie is not None:
-                        if poster and poster != (movie.poster_url or "").strip():
-                            await repo.upsert_movie(
-                                MovieUpsertCommand(
-                                    slug=movie.slug,
-                                    title=movie.title,
-                                    release_year=movie.release_year or 0,
-                                    rating=movie.rating,
-                                    poster_url=poster,
-                                    # 빈 리스트 → upsert_movie가 genre 태그를 건드리지 않음(기존 유지).
-                                    genres=[],
-                                )
-                            )
-                    else:
+                if poster and poster != (movie.poster_url or "").strip():
+                    try:
                         await repo.upsert_movie(
                             MovieUpsertCommand(
-                                slug=slug,
-                                title=rec.title,
-                                release_year=int(year) if str(year).isdigit() else 0,
-                                rating=0.0,
-                                poster_url=poster or "",
+                                slug=movie.slug,
+                                title=movie.title,
+                                release_year=movie.release_year or 0,
+                                rating=movie.rating,
+                                poster_url=poster,
+                                # 빈 리스트 → upsert_movie가 genre 태그를 건드리지 않음(기존 유지).
                                 genres=[],
                             )
                         )
-                except Exception:
-                    logger.debug(
-                        "[ChatReplyService] 영화 DB 저장 스킵 — %r",
-                        rec.title,
-                        exc_info=True,
-                    )
+                    except Exception:
+                        logger.debug(
+                            "[ChatReplyService] 포스터 갱신 스킵 — %r",
+                            rec.title,
+                            exc_info=True,
+                        )
 
                 enriched.append(
                     rec.model_copy(
                         update={
-                            "id": slug,
-                            "movie_id": movie.id if movie is not None else None,
+                            "id": movie.slug,
+                            "movie_id": movie.id,
                             "poster": poster,
                             "year": year,
                             "platform": platform,

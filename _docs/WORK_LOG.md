@@ -323,6 +323,148 @@ PR #34 머지 후 EC2 `docker compose up -d --build backend` 실행 중
 - 문서: 이 항목 + `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` "완료됨" 갱신
   (유실 규모 정정 포함) + 백로그 1건 추가(backend/auth 중복 이미지 태깅).
 
+### 작업 내용(추가⑤) — mova 추천 품질 검증 Phase 1(EC2 Gemini 경로)
+
+학원 PC(GPU·LoRA 접근 없음)에서 EC2 `/mova/chat`의 Gemini 경로만 대상으로
+골든셋 15개를 만들어 실제 호출·판정 + hub_knowledge 백필 절차 사전 조사.
+`_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` 신규.
+
+### 오류·막힌 점(추가⑤)
+- **실행 전 발견 — `RECOMMENDATION_BACKEND` EC2 미설정**: 코드 기본값이
+  `"lora"`인데 EC2 `.env`엔 이 변수가 아예 없어 mova chat이 붙지도 않는
+  집 GPU를 호출하려던 상태였음(2026-08-02에 env 분기 코드만 추가되고
+  실제 값 설정은 안 됐던 것으로 추정). `RECOMMENDATION_BACKEND=gemini`를
+  EC2 `.env`에 추가 + `docker compose up -d backend`로 반영 후 골든셋
+  진행 — 배포 체크리스트 누락 항목으로 백로그 등록.
+- **핵심 발견 — 배우 오귀속(title-collision)**: "송강호 출연 스릴러"
+  쿼리에서 봉준호 감독의 `괴물`(2006, 송강호 주연)을 의도한 것으로 보이는
+  추천이, 한국어 로컬라이즈 제목이 똑같이 "괴물"인 `The Thing`(1982, 존
+  카펜터 감독, 송강호 무관)에 잘못 매칭됨. `movie_id`가 있어도(grounded로
+  보여도) 실제로는 다른 영화일 수 있다는 뜻 — null보다 더 위험한 실패
+  모드로 판단, 근본 원인은 제목 문자열 매칭 구조.
+- **부수 발견 — 포맷 차이로 미매칭**: 같은 "빽 투 더 퓨쳐"가 한 쿼리에선
+  `movie_id` 매칭 성공, 다른 쿼리에선 Gemini가 연도를 괄호로 덧붙였다는
+  이유만으로 매칭 실패(null) — 제목 매칭이 문자열 완전일치에 의존하는
+  취약한 구조임을 보여주는 구체 사례.
+- **hub_knowledge 백필 스크립트(`ingest_hub_knowledge.py`) 재확인 중
+  발견**: `limit=100` 하드코딩(오늘 카탈로그 1055편 기준 955편 스킵),
+  루프 끝 단일 커밋 + rollback 없는 except(오늘 고친 도미노 패턴과 동일
+  위험) — Phase 2 착수 전 수정 필요 항목으로 문서에 정리, 이번엔 코드
+  수정 안 함(사용자 지시로 조사만).
+
+### 데이터(추가⑤)
+- 골든셋 15개 실행: 통과 6 · 부분 5 · 실패 4. intent 분류(`filter_and`/
+  `mood`)는 15/15 전부 의도대로 동작, 카드 vs 산문 분기에서 산문 회귀는
+  0건. "환각"으로 분류될 만한, 존재하지 않는 영화를 지어낸 사례는 0건 —
+  실패 원인은 전부 카탈로그 커버리지 부족 또는 제목 매칭 취약성.
+
+### 산출물(추가⑤)
+- 신규: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`.
+- EC2: `.env`에 `RECOMMENDATION_BACKEND=gemini` 추가, `docker compose up
+  -d backend`로 반영.
+- 코드 변경 없음(조사·실측만).
+
+### 작업 내용(추가⑥) — mova 추천 오귀속 근본 원인 조사
+
+Phase 1에서 발견한 두 버그(동명이인 오귀속·제목 포맷 미매칭)가 같은 결함인지
+특정하고 해결 방향 3가지를 비교. `_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`
+신규. 코드 변경 없음(조사만).
+
+### 오류·막힌 점(추가⑥)
+- **당초 가설 기각**: "괴물"이 DB에 동명 영화 여러 건이라 tiebreaker 없이
+  아무거나 골랐다"는 가설을 세우고 확인했으나, 실제론 DB에 "괴물" 제목이
+  **1건뿐**(`The Thing`, 1982, 존 카펜터 — 송강호와 무관). 진짜 원인은
+  `ChatReplyService.enrich_from_db()`의 3단계 매칭 체인 중 3단계
+  `find_by_title()`이 문자열이 일치하면 그걸로 끝 — 원래 요청 맥락(배우
+  등)과 실제로 관련 있는지 전혀 검증하지 않는 것. 동일 함수가 완전일치
+  요구 때문에 "빽 투 더 퓨쳐 (1985)"처럼 사소한 포맷 차이엔 반대로 너무
+  깐깐해서 미스 — **매칭이 너무 빡빡해 정상 케이스를 놓치는 것과, 그
+  빡빡한 매칭이 우연히 성공했을 때 아무도 검증 안 하는 것이 같은 코드에서
+  동시에 나오는 구조적 결함**임을 확정.
+- `RECOMMENDATION_BACKEND` 미설정 경위: `.env.example`엔 커밋 `db6623b`
+  (2026-08-03)로 "EC2는 gemini여야 함"이 주석으로 이미 명시돼 있었으나,
+  이건 템플릿일 뿐이고 실제 `.env`(git 미추적)엔 반영된 적이 없었음 —
+  코드 버그가 아니라 배포 절차 누락. 다른 네트워킹 민감 변수(`REDIS_URL`
+  등)는 전부 `docker-compose.yaml`의 `environment:` 블록에 하드코딩돼
+  `.env` 내용과 무관하게 안전함을 확인 — `RECOMMENDATION_BACKEND`은 순수
+  기능 플래그라 이 안전망 대상이 아니었던 게 유독 취약했던 이유.
+
+### 데이터(추가⑥)
+- "송강호 출연 스릴러 영화" 쿼리 재실행 2/2 재현(동일하게 `The Thing` 포함).
+  DB `movies WHERE title ILIKE '%괴물%'` 결과 1건(`id=426`) 직접 확인.
+
+### 산출물(추가⑥)
+- 신규: `_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`.
+- 수정: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` 백로그 항목 갱신
+  (근본 원인 문서로 링크).
+- 코드 변경 없음(조사만, 착수는 다음 세션).
+
+### 작업 내용(추가⑦) — mova 추천 매칭 오귀속 근본 수정: Grounded Prompting
+
+추가⑥에서 권장한 (b) Grounded prompting 구현. Gemini 응답을 title 재매칭
+없이 movie_id로 직접 확정하도록 프롬프트·파싱·매칭 계층을 함께 교체.
+
+### 수정/구현(추가⑦)
+- **`chat_prompt.py`**: `MOVA_SYSTEM_PROMPT`에 "반드시 카탈로그 목록의
+  movie_id만 사용, 목록에 없는 영화 추천 금지, 부족하면 있는 만큼만(0~2편)"
+  규칙 추가 + 출력 형식에 `movie_id` 필드 명시. `format_tag_catalog_section`
+  이 후보마다 `movie_id=N`을 표시하고 "가능하면"(권고) → "반드시"(강제)로
+  지시 강도 변경.
+- **`chat_reply.py`**: `_GeminiPickSchema`(pydantic) 신설 — `movie_id: int`
+  필수, `ValidationError`면 그 pick만 드롭 + WARNING 로그(전체 응답은 안
+  죽음, 2026-08-04 도미노 수정과 같은 원칙). `enrich_from_db()`를 완전히
+  교체 — 기존 3단계 완전일치 체인(canonical map→slug 재조회→
+  `find_by_title` 완전일치)을 전부 제거하고 `repo.find_by_id(rec.movie_id)`
+  단일 조회로 대체. DB에 없는 movie_id(카탈로그 무시 — 프롬프트 위반)는
+  그 pick만 드롭 + WARNING, 나머지는 반환. **부수 변경**: 예전엔 매칭
+  실패 시 Gemini의 title 그대로 placeholder movie를 DB에 새로 만들었는데
+  (분석 결과 이 자체가 카탈로그 밖 데이터가 섞이는 위험이었음), 이제는
+  드롭만 하고 DB에 아무것도 안 씀 — 의도된 동작 변경.
+- **`movies_pg_repository.py`/`movies_repository.py`(포트)**: `find_by_id()`
+  신설(`find_by_title`과 동일 패턴, `MovaMovie.id`로 조회 후
+  `get_by_slug()` 위임). `find_by_title()`은 `import_interactor.py`/
+  `harvest_ingest_interactor.py`가 여전히 쓰고 있어 **그대로 유지**(제거
+  안 함, grep으로 다른 호출부 확인 후 판단).
+- **`studio_movies_vo.py`**: `resolve_canonical_slug()` 제거 — `chat_reply.py`
+  가 유일한 호출부였는데 그 호출을 없앴으므로 죽은 코드가 됨. `TITLE_TO_
+  CANONICAL_SLUG` 딕셔너리·`title_for_canonical_slug()`는 무관한
+  기존(별도) 죽은 코드라 손 안 댐.
+- **아키텍처 확인 — 이 수정은 Gemini 전용이 아니라 4개 추천 백엔드
+  (Gemini/LoRA/Qwen/EXAONE) 공유 코드**: `ChatPromptBuilder`·
+  `ChatReplyService`를 `lora_recommendation_adapter.py`·
+  `qwen_recommendation_adapter.py`·`exaone_recommendation_adapter.py`가
+  전부 그대로 재사용하고 있음을 확인 — 프롬프트·매칭 계층 변경이 네 경로
+  모두에 동일하게 적용됨(로컬 모델이 movie_id 요구에 덜 순응하면 그만큼
+  pick이 더 드롭될 뿐, 크래시하지 않는 방향으로 설계해 안전).
+- **`market_chat_schema.py`는 의도적으로 안 건드림**: 사용자 요청은 이
+  파일의 `MovaChatRecommendationSchema.movie_id`를 required로 바꾸는
+  것이었으나, 이 스키마가 `ChatResponseDto.to_schema()`를 통해 4개 백엔드
+  전부의 최종 응답 조립에 쓰이는 공유 타입임을 확인 — required로 바꾸면
+  movie_id가 None인 케이스(다른 백엔드가 향후 그런 값을 만들 수 있음)에서
+  Pydantic 검증이 깨진다. 대신 **Gemini 파이프라인 전용**
+  `_GeminiPickSchema`를 `chat_reply.py`에 신설해 movie_id 필수 검증은
+  거기서만 하고, 공유 응답 스키마의 `movie_id: int | None = None`은
+  그대로 유지 — 요청받은 파일이 아니라 이 파일에 넣은 이유를 명시.
+
+### 오류·막힌 점(추가⑦)
+- 없음 — 기존 90개 + 신규 8개 = `apps/mova/tests` 98개 중 실제로는
+  `test_chat_reply_service.py` 신규 8건이라 95개 전부 통과(아래 산출물
+  참고), `lint-imports` mova 계약 위반 없음(사전부터 있던 ontology↔mova
+  위반 1건은 무관).
+
+### 데이터(추가⑦)
+- 해당 없음(코드·테스트만, 데이터 검증은 EC2 배포 후 Phase 1 골든셋
+  재실행에서 진행 — 이 항목 갱신 후 별도 기록).
+
+### 산출물(추가⑦)
+- 신규: `apps/mova/tests/test_chat_reply_service.py`(8건 — 파싱 검증 4,
+  enrich_from_db 2, "괴물"·"빽 투 더 퓨쳐" 재현 회귀 2).
+- 수정: `apps/mova/adapter/outbound/llm/{chat_prompt,chat_reply}.py`,
+  `apps/mova/adapter/outbound/pg/movies_pg_repository.py`,
+  `apps/mova/app/ports/output/movies_repository.py`,
+  `apps/mova/domain/value_objects/studio_movies_vo.py`.
+- `apps/mova/tests` 95개 전부 통과, `lint-imports` mova 계약 위반 없음.
+
 ---
 
 ## 2026-08-04
