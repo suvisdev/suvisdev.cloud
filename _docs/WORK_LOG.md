@@ -109,9 +109,9 @@
 
 ### 산출물
 - 커밋: `6935352`(로컬), PR #33 머지 `bf53dda`(main), EC2 `git pull`로
-  반영·`--build backend` 재배포 완료.
+  반영·`--build backend` 재배포 완료. 검증 범위 정정 문서 커밋 `2c76e3a`.
 - 문서: `_docs/WORK_LOG.md`(이 항목), `_docs/SUVIS_ADMIN_MULTIAGENT_
-  PROGRESS.md`(실행 결과 + 부수 관찰 절 + 백로그 보강).
+  PROGRESS.md`(실행 결과 + 부수 관찰 절 + 백로그 보강, 검증 범위 정정).
 
 ---
 
