@@ -75,6 +75,12 @@ async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, ses
         )
     except Exception:
         logger.warning("[bulk_import] upsert_movie 실패 | slug=%s", snap.slug, exc_info=True)
+        # DB 예외(flush 실패 등)는 세션을 pending-rollback 상태로 남긴다 — 롤백
+        # 안 하면 이 세션을 계속 쓰는 이후 모든 영화가 PendingRollbackError로
+        # 도미노 실패한다(실측: characters.character_name VARCHAR(50) 초과 1건이
+        # 세션을 오염시켜 이후 418건이 전부 이 도미노로 실패). 한 영화 실패가
+        # 배치 전체를 막지 않는다는 이 스크립트의 설계 의도를 지키려면 필수.
+        await session.rollback()
         return "failed"
 
     try:
@@ -87,6 +93,7 @@ async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, ses
         logger.warning(
             "[bulk_import] credits 백필 실패(카탈로그는 유지) | slug=%s", snap.slug, exc_info=True
         )
+        await session.rollback()
     await asyncio.sleep(_TMDB_SLEEP_SECONDS)
 
     from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand
@@ -105,6 +112,7 @@ async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, ses
         logger.warning(
             "[bulk_import] hub_knowledge 인제스트 실패 | slug=%s", snap.slug, exc_info=True
         )
+        await session.rollback()
 
     return "succeeded"
 
@@ -145,6 +153,8 @@ async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
         )
     except Exception:
         logger.warning("[bulk_import] upsert_movie 실패 | slug=%s", slug, exc_info=True)
+        # 세션 오염 방지 — _ingest_tmdb_movie와 동일한 근본 원인(도미노 실패) 대응.
+        await session.rollback()
         return "failed"
 
     from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand
@@ -169,6 +179,7 @@ async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
         await session.commit()
     except Exception:
         logger.warning("[bulk_import] hub_knowledge 인제스트 실패 | slug=%s", slug, exc_info=True)
+        await session.rollback()
 
     return "succeeded"
 

@@ -293,6 +293,25 @@
   미적용"으로 남아 있었으나 실제로는 `alembic current`가 이미
   `20260731_0001 (head)`였고 `visitor_activity` 테이블도 실데이터 15행 보유—
   이전 세션 어느 시점에 이미 반영된 상태였음을 확인만 하고 완료 처리.
+- **Neo4j 노드 데이터 재확인(2026-08-04)**: 백로그에 "스키마만 있고 노드는
+  0건"으로 남아 있었으나 실제로는 Movie 40/Person 427/Genre 16/ACTED_IN 396/
+  DIRECTED 44/HAS_GENRE 110이 이미 들어가 있음(EC2 `cypher-shell` 직접 조회로
+  확인, 2026-07-30 스키마만 생성 이후 누군가 채워 넣은 것 — 이 세션 안
+  애플리케이션 코드 경로는 아님, `apps/mova`·`apps/ontology` 전체에 neo4j
+  드라이버 import 자체가 0건이라 어디서 채웠는지는 불명). **다만 "데이터
+  투입" 자체는 완료됐어도 원래 목적(GraphRAG 활용)은 여전히 미완**이다 —
+  이 데이터를 읽는 애플리케이션 코드가 한 줄도 없어서, 지금은 그냥 앱과
+  무관하게 존재하는 그래프일 뿐. 백로그 표현을 "노드 0건"에서 "데이터는
+  있으나 읽는 코드 없음"으로 정정.
+- **mova TMDB credits 백필 EC2 재확인(2026-08-04)**: 백로그에 "EC2 미실행"으로
+  남아 있었으나 실제로는 이미 반영돼 있었음 — `alembic current`가
+  `20260731_0001 (head)`, `actors.tmdb_person_id`/`characters.billing_order`/
+  `movie_directors` 전부 존재, 실데이터 actors 427(tmdb_person_id 427 전부
+  채워짐)/characters 396/movie_directors 44(집 로컬 2026-08-02 시점의 389/
+  371/40보다 많음). 실행할 것 없이 확인만 하고 완료 처리. "어드민 통계
+  방문자"·"S3"에 이어 세 번째로 "미완료"로 적혀 있던 게 실제로는 이미
+  끝나 있던 사례 — 이 문서의 백로그 최신성 자체를 주기적으로 재확인할
+  필요가 있어 보임.
 - **mova 리뷰 watched 게이트(2026-08-04)**: 백로그 항목 구현 완료.
   `ReviewsRepositoryPort.has_watched(user_id, movie_id)` 신설(PG 구현은
   `user_actions`에서 `action_type=watched` EXISTS 조회), `ReviewsInteractor
@@ -323,6 +342,11 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **EC2 hub_knowledge 임베딩 어댑터 부재(2026-08-04 신규)**: `bulk_import_movies.py`
+  가 EC2에서 실행되면 movies/credits는 정상 저장되지만 `HubRagInteractor`가 쓰는
+  `OllamaEmbeddingAdapter`가 EC2엔 없는 Ollama를 호출하려다 매 영화마다
+  "Ollama 서버에 연결할 수 없습니다"로 조용히 실패(movies 저장엔 지장 없음,
+  hub_knowledge만 안 채워짐). Gemini 임베딩 등 EC2 호환 어댑터 필요.
 - **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
   중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
   (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),
@@ -367,14 +391,10 @@
   카카오 로그인을 거쳐야 하는 현재 네비게이션 구조상 데스크톱에선 로그인
   단계가 막힘 — 임시 진입 경로 필요 여부 검토)로 실제 `/mova/chat` 응답·
   포스터 카드 렌더링 확인 필요. 상세: WORK_LOG 2026-08-03.
-- **mova TMDB credits 백필 EC2 실행(2026-07-30 신규, 2026-08-02 집 로컬
-  완료·EC2는 아직)**: 집 로컬 Docker DB는 2026-08-02에 `alembic upgrade
-  head` + `scripts/backfill_credits_cli.py` 전량 실행까지 완료(actors 389/
-  characters 371/movie_directors 40, WORK_LOG 2026-08-02 참고). **EC2 DB는
-  아직 미실행** — 동일하게 `alembic upgrade head` 적용 후
-  `--limit 3 --dry-run`으로 먼저 시험 후 전량 실행 필요.
-- **Neo4j 데이터 투입**: 스키마(제약+벡터 인덱스)만 있고 노드는 0건. TMDB/KOFIC
-  import 파이프라인으로 채워야 함(착수 전).
+- **Neo4j GraphRAG 활용 코드 부재(2026-08-04 재정의 — 예전 "노드 0건"은 stale,
+  위 완료됨 참고)**: 노드 데이터(Movie 40 등)는 이미 있지만 `apps/mova`·
+  `apps/ontology` 어디에도 이걸 읽는 코드가 없음. 어느 앱이 언제 어떻게
+  쓸지(ontology hub_rag 확장? mova 추천 보강?) 설계부터 필요 — 착수 전.
 - **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:
   `ensure_titanic_tables()`의 `create_all()`과 alembic이 테이블 생성을
   이중으로 관리하고 있어, 새 ORM 모델이 추가될 때마다 이번(`hub_knowledge`)과

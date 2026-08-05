@@ -13,6 +13,7 @@ if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
 from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapter  # noqa: E402
+from mova.app.dtos.studio_import_dto import TmdbMovieSnapshotDto  # noqa: E402
 
 
 class TmdbAdapterDiscoverTests(unittest.IsolatedAsyncioTestCase):
@@ -73,6 +74,82 @@ class ParseArgsTests(unittest.TestCase):
     def test_missing_required_args_rejected(self) -> None:
         with self.assertRaises(SystemExit):
             self._parse_args([])
+
+
+class IngestTmdbMovieRollbackTests(unittest.IsolatedAsyncioTestCase):
+    """실측 버그 회귀 테스트 — 영화 1건 실패가 세션을 오염시켜 이후 전 영화가
+    PendingRollbackError로 도미노 실패하던 것(2026-08-04, EC2 실 배치에서
+    418건 연쇄 실패로 발견). 각 except 블록이 session.rollback()을 호출해
+    실패를 그 영화 하나로 격리하는지 검증한다."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from scripts.bulk_import_movies import _ingest_tmdb_movie
+
+        cls._ingest_tmdb_movie = staticmethod(_ingest_tmdb_movie)
+
+    def _snap(self) -> TmdbMovieSnapshotDto:
+        return TmdbMovieSnapshotDto(
+            tmdb_id=1,
+            slug="tmdb-1",
+            title="테스트 영화",
+            release_year=2026,
+            rating=8.0,
+            poster_url="",
+            genres=["드라마"],
+        )
+
+    async def test_upsert_failure_rolls_back_and_returns_failed(self) -> None:
+        movies_repo = AsyncMock()
+        movies_repo.upsert_movie.side_effect = Exception("value too long for type character varying(50)")
+        hub_rag = AsyncMock()
+        credits_interactor = AsyncMock()
+        session = AsyncMock()
+
+        outcome = await self._ingest_tmdb_movie(
+            self._snap(), movies_repo, hub_rag, credits_interactor, session
+        )
+
+        self.assertEqual(outcome, "failed")
+        session.rollback.assert_awaited_once()
+        credits_interactor._backfill_one.assert_not_awaited()
+
+    async def test_credits_failure_rolls_back_but_movie_still_succeeds(self) -> None:
+        movies_repo = AsyncMock()
+        movies_repo.upsert_movie.return_value = 42
+        hub_rag = AsyncMock()
+        credits_interactor = AsyncMock()
+        credits_interactor._backfill_one.side_effect = Exception("credits boom")
+        session = AsyncMock()
+
+        outcome = await self._ingest_tmdb_movie(
+            self._snap(), movies_repo, hub_rag, credits_interactor, session
+        )
+
+        self.assertEqual(outcome, "succeeded")
+        session.rollback.assert_awaited_once()
+        hub_rag.ingest_movie.assert_awaited_once()
+
+    async def test_next_movie_after_a_failure_uses_a_clean_session(self) -> None:
+        """도미노 실패 회귀의 핵심 — 첫 영화가 실패해도 두 번째 영화는 정상 처리돼야 한다."""
+        movies_repo = AsyncMock()
+        movies_repo.upsert_movie.side_effect = [Exception("boom"), 42]
+        hub_rag = AsyncMock()
+        credits_interactor = AsyncMock()
+        session = AsyncMock()
+
+        first = await self._ingest_tmdb_movie(
+            self._snap(), movies_repo, hub_rag, credits_interactor, session
+        )
+        second = await self._ingest_tmdb_movie(
+            self._snap(), movies_repo, hub_rag, credits_interactor, session
+        )
+
+        self.assertEqual(first, "failed")
+        self.assertEqual(second, "succeeded")
+        self.assertEqual(session.rollback.await_count, 1)
 
 
 if __name__ == "__main__":
