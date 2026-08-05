@@ -74,6 +74,22 @@ EC2 `.env`에 추가 + `docker compose up -d backend`로 반영 후 진행(§2).
 - (C3) 카드 3개의 감독이 서로 겹치지 않음(다양성 — 동일 감독 3연작만 긁어오는 것 방지)
 - (C4) 요청한 명시적 조건(장르·배우·연도)은 DB로 검증 가능한 한 반드시 준수
 
+**판정 기준 재확인(2026-08-05 grounded prompting 적용 후 — 다음 재판정 시
+반드시 이 규칙을 따를 것)**: movie_id 기반 grounding 도입 이후 시스템이
+"카탈로그에 없으면 억지로 3개를 채우지 않고 있는 만큼만 반환"하도록
+의도적으로 바뀌었다(§6). 따라서 **카드 개수가 3개 미만이어도 있는 카드가
+전부 정확하면 통과**로 판정한다(C1의 "카드 3개"는 "카드 0~3개, 산문 아닌
+구조화 응답"으로 완화 해석). 세 등급의 정확한 구분:
+- **통과**: 카드가 1~3개 있고, 있는 카드는 전부 grounded(movie_id 有) +
+  요청 조건(C4) 충족. **카드 0개는 원칙적으로 "카드 0개"는 자동 통과가
+  아니라 실패(아래 참고)** — 단 14번처럼 §1.5에서 쿼리별로 명시적으로
+  "되묻기/0개도 통과"를 예외로 정의해둔 경우에 한해서만 그 쿼리의
+  완화된 기준을 따른다(일반화해서 다른 쿼리에 적용하지 말 것).
+- **부분**: 반환된 카드 중 일부는 grounded+정확, 일부는 조건 위반(연도
+  이탈 등) 또는 null(ungrounded)로 섞여 있음.
+- **실패**: 반환된 카드가 0개(커버리지 부족으로 정직하게 못 찾음 포함)
+  이거나, 반환된 카드가 있어도 전부 조건 위반/오귀속.
+
 ### 1.1 순수 장르 (4개)
 
 | # | 쿼리 | 추가 기준 |
@@ -125,10 +141,77 @@ EC2 `.env`에 추가 + `docker compose up -d backend`로 반영 후 진행(§2).
 ## 2. 실행 — `/mova/chat` 실제 호출 결과
 
 **로그인 관련**: §0에서 확인했듯 무인증 엔드포인트라 로그인 절차 자체가
-불필요 — `curl -X POST https://api.suvisdev.cloud/mova/chat -H
-"Content-Type: application/json" -d '{"message":"...","history":[]}'`로
-바로 호출. 15개 전부 IP rate limit(60초당 20회) 안에 들어가도록 4초
-간격으로 순차 실행, 전부 `200 OK`.
+불필요 — 아래 스크립트 그대로 바로 호출 가능. 15개 전부 IP rate
+limit(60초당 20회) 안에 들어가도록 4초 간격으로 순차 실행, 전부 `200 OK`.
+
+**재실행용 스크립트(그대로 복붙 가능)** — 쿼리 순서·번호는 §1과 동일:
+
+```bash
+mkdir -p /tmp/mova_phase1_rerun && cd /tmp/mova_phase1_rerun
+
+declare -a QUERIES=(
+  "액션 영화 추천해줘"                                             # 1
+  "잔잔한 로맨스 영화 뭐 있어"                                     # 2
+  "무서운 공포 영화 추천"                                          # 3
+  "웃긴 코미디 영화 알려줘"                                        # 4
+  "전지현 나오는 코미디"                                           # 5
+  "송강호 출연 스릴러 영화"                                        # 6
+  "키아누 리브스 액션 영화"                                        # 7
+  "80년대 SF 영화"                                                 # 8
+  "2020년대 한국 액션 영화"                                        # 9
+  "90년대 로맨스 영화"                                             # 10
+  "가족과 볼 만한 영화"                                            # 11
+  "혼자 볼 감성적인 영화"                                          # 12
+  "스트레스 풀고 싶을 때 볼 영화"                                  # 13
+  "재밌는 거 뭐 있어"                                              # 14
+  "1편에 상영시간 짧은 SF 드라마이면서 여자 주인공 인생역전 스토리"  # 15
+)
+
+i=1
+for q in "${QUERIES[@]}"; do
+  fname=$(printf "q%02d.json" "$i")
+  payload=$(python3 -c "import json,sys; print(json.dumps({'message': sys.argv[1], 'history': []}))" "$q")
+  http_code=$(curl -s -m 30 -o "$fname" -w "%{http_code}" \
+    -X POST https://api.suvisdev.cloud/mova/chat \
+    -H "Content-Type: application/json" -d "$payload")
+  echo "q$i [$http_code] $q"
+  i=$((i+1))
+  sleep 4
+done
+```
+
+**결과 확인**(각 `qNN.json`에서 `intent_type`·`recommendations[].movie_id`
+읽기):
+
+```bash
+for f in q*.json; do
+  echo "=== $f ==="
+  python3 -c "
+import json
+d = json.load(open('$f'))
+print('intent_type:', d.get('intent_type'))
+print('reply:', d.get('reply')[:100])
+for r in d.get('recommendations', []):
+    print(' -', r.get('movie_id'), r.get('title'), r.get('year'), '| hook:', (r.get('hook') or '')[:50])
+"
+done
+```
+
+**grounding·환각 여부 DB 대조**(`movie_id`가 가리키는 실제 DB 행 확인 —
+EC2 `suvisdevcloud-db-1` 컨테이너에서):
+
+```bash
+docker exec suvisdevcloud-db-1 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+select m.id, m.title, m.release_year,
+  coalesce(string_agg(distinct t.label, ', ') filter (where t.tag_kind='genre'), '') as genres
+from movies m left join tags t on t.movie_id = m.id
+where m.id in (여기에 응답에서 나온 movie_id들 콤마로)
+group by m.id, m.title, m.release_year order by m.id;
+"
+```
+이 결과의 `title`이 응답에 찍힌 `title`과 다르면(또는 `genres`가 쿼리
+의도와 안 맞으면) 오귀속 의심 — §3·§6의 "괴물"/"극한직업" 사례가 바로 이
+대조로 잡혔다.
 
 | # | 쿼리 | intent_type | recommendations (movie_id · title · year) |
 |---|------|-------------|---------------------------------------------|
@@ -297,6 +380,19 @@ CPU에서도 텍스트 1건당 수백 ms대가 보통이지만, 이건 **일반�
 
 `_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`의 진단대로 movie_id
 기반 grounding을 구현·배포한 뒤 골든셋 15개를 다시 실행했다.
+
+**집계 비교표(공식 기록)**:
+
+| 판정 | Phase 1(수정 전) | 재검증(수정 후) |
+|---|---|---|
+| 통과 | 6 | 9 |
+| 부분 | 5 | 0 |
+| 실패 | 4 | 6 |
+| 합계 | 15 | 15 |
+
+> **주의 — 세션 대화 중 "9/2/4"로 잘못 언급된 적이 있음**: 실제 최종
+> 결과는 위 표대로 **9/0/6**(부분 판정이 소멸)이며, "9/2/4"는 오기다.
+> 이 파일이 공식 기록이고, 대화 중 숫자는 신뢰하지 말 것.
 
 **배포 직후 검증 중 세 번째 버그 추가 발견**: DB 존재 여부만 확인하는
 첫 구현은 "Gemini가 title/hook은 실제 의도한 영화(예: 극한직업) 설명

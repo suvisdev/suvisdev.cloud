@@ -521,6 +521,108 @@ Phase 1에서 발견한 두 버그(동명이인 오귀속·제목 포맷 미매�
 - 문서: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §6 신규(재검증 비교표
   + 세 번째 버그 발견 경위 + 한계 + UX 백로그).
 
+### 작업 내용(추가⑨) — 세션 마무리: 골든셋 재사용성 확보 + 다음 세션 후보 정리
+
+사용자 요청으로 코드 변경 없이 문서만 2건 보완. (1) Phase 1 문서가
+"다음 세션에 이 파일만 열면 재실행 가능"한지 (a)쿼리 원문 (b)실행 방법
+(c)판정 기준 (d)비교표 4개 기준으로 점검, (2) PROGRESS.md 백로그에 다음
+세션 후보 4개를 우선순위와 함께 명시.
+
+### 오류·막힌 점(추가⑨)
+- **사용자가 최종 결과를 "9/2/4"로 언급했으나 실제 기록은 "9/0/6"**(부분
+  판정이 소멸)이었음 — Phase 1 문서 §6에 이미 명시된 공식 집계와 대조해
+  확인, 사용자 진술을 그대로 옮기지 않고 문서 자체에 "9/2/4는 오기"라는
+  주의 문구를 남김(대화 중 숫자보다 문서를 신뢰하라는 원칙 재확인).
+
+### 데이터(추가⑨)
+- 해당 없음(문서만).
+
+### 산출물(추가⑨)
+- 수정: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`(재실행용 스크립트
+  §2 추가, 판정 기준 재확인 문단 §1 추가, 집계 비교표+오기 정정 §6 추가),
+  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(백로그에 "다음 세션 후보"
+  하위 섹션 4개 우선순위 신규).
+- 코드 변경 없음.
+
+### 작업 내용(추가⑩) — 루트 `_docs/` 전면 감사·정리(Cursor 시대 잔재 제거)
+
+사용자 요청으로 `_docs/` 전체를 실제 저장소 구조와 대조 — Cursor 하네스
+시절(`backend/`·`frontend/` 경로 전제) 문서가 대거 남아 있었고, 그중
+다수가 `suvisdev/`·`suvis/` 하위에 이미 있는 최신판의 stale 중복이었다.
+
+### 오류·막힌 점(추가⑩)
+- **`DevOps/Backend/TITANIC_ERD.md`**가 `suvisdev/apps/titanic/_docs/
+  titanic-erd.md`와 **byte-identical** — 완전 중복.
+- **`DevOps/Backend/MOVA_ERD.md`**(494줄)가 `suvisdev/apps/mova/_docs/
+  MOVA_ERD.md`(674줄)의 v1 스냅샷 — 2026-06~07 스키마 리비전(v2/v3:
+  `members`/`member_groups` 제거, `viewer` 3테이블 분리, `characters
+  .character_name` 추가, `embedding vector(768)` 확정 등)이 전혀 반영 안
+  된 채 방치돼 있었음. 짝인 `mova-erd.png`도 구버전 이미지(md5 다름,
+  `suvisdev/apps/mova/_docs/`의 것과 별개 파일).
+- **`DevOps/Backend/ENTITY_RULE.md`**가 `suvisdev/_docs/entity-rules.md`
+  로 이미 이관돼 있었음(경로만 `backend/`→`suvisdev/`로 바뀐 버전).
+- **`DevOps/Frontend/REACT_RULES.md`**가 `suvis/_docs/react-rules.md`로
+  이미 이관돼 있었고 `suvis/CLAUDE.md`가 실제로 그쪽을 참조 중이었음.
+- **`타이타닉 개발/james_fastapi_context.md`**는 2026-05-07 시점
+  `james.py`/`walter.py` 단일 파일 프로토타입 기록 — 현재 `suvisdev/
+  apps/titanic/`은 Clean Architecture 전면 재구축(엔티티 12개, 44 테스트)
+  으로 완전히 다른 구조라 참고 가치가 없어짐.
+- **`SUVISDEV_RULES.md`**는 인덱스(루트)와 상세(`DevOps/Frontend/`) 두
+  파일로 쪼개져 있었는데, 상세 쪽 내용("UI 변경 스코프 판별" — 지시 없는
+  위치 이동·구조 개편 금지)은 다른 곳에 이관된 적 없는 **유일한 원본**
+  이라 삭제 대신 두 파일을 하나로 병합(`frontend/`→`suvis/` 경로 수정
+  포함).
+
+### 데이터(추가⑩)
+- 해당 없음(문서만).
+
+### 산출물(추가⑩)
+- 삭제: `_docs/DevOps/Backend/{TITANIC_ERD.md,MOVA_ERD.md,mova-erd.png,
+  ENTITY_RULE.md}`, `_docs/DevOps/Frontend/REACT_RULES.md`,
+  `_docs/DevOps/Frontend/SUVISDEV_RULES.md`(병합 후 삭제), `_docs/타이타닉
+  개발/james_fastapi_context.md`(폴더째 제거) — `DevOps/` 트리 전체 소멸.
+- 병합: `_docs/SUVISDEV_RULES.md`(인덱스+상세 통합, 경로 수정).
+- 재작성: `_docs/README.md`(Cursor 시대 `backend/`·`frontend/` 인덱스를
+  현재 3스택 구조 + 배치 규칙 요약으로 전면 교체, 정리 기록 남김).
+- 유지(내용 이미 정확·최신): `EXAONE_LOCAL_AI_SETUP.md`.
+- 코드 변경 없음.
+
+### 작업 내용(추가⑪) — 루트 `CLAUDE.md` 구조 정합화
+
+`_docs/` 정리에 이어 사용자 요청으로 루트 `CLAUDE.md`도 실제 구조와 대조.
+
+### 오류·막힌 점(추가⑪)
+- 저장소 트리 다이어그램이 `suvisdev/_claude/`·`suvis/_claude/`를 언급하고
+  있었으나 **둘 다 실재하지 않음**(`ls` 확인) — 각 스택 규칙은 스택 루트
+  `CLAUDE.md` + 그 옆 `_docs/`에 있는 게 실제 구조.
+- "작업 영역별 CLAUDE.md" 표에 `susu`(Flutter)가 아예 빠져 있었음 —
+  확인해보니 `susu/CLAUDE.md`가 **파일은 있지만 0바이트(빈 파일)**. 내용을
+  새로 채우는 건 이번 스코프 밖이라, 표에 "비어 있음, `_docs/` 하네스
+  문서로 대신함"으로 사실대로 추가.
+- **부수 발견(이번엔 미조치)**: `suvisdev/_docs/CLAUDE.MD`(431줄)가
+  실제 `suvisdev/CLAUDE.md`와 전혀 다른 내용의 구버전 문서로 남아있음 —
+  2026-08-04에 정리한 `suvis/_docs/CLAUDE.MD`(→ `suvis/CLAUDE.md` 이동
+  + 구버전 삭제)와 정확히 같은 패턴인데 suvisdev 쪽은 그때 같이 안
+  치워졌던 것으로 추정. 이번 요청 범위(`/CLAUDE.md`) 밖이라 손 안 대고
+  사용자에게 별도 보고만 함 — 백로그 후보.
+- 명령어 예시(`docker compose up -d`)에 `--env-file suvisdev/.env`가
+  빠져 있었음 — 이거 누락이 2026-07-30·08-04 두 번의 실제 502 사고
+  원인이었는데 정작 CLAUDE.md 예시 명령어 자체엔 반영이 안 돼 있었음.
+- `RECOMMENDATION_BACKEND`(2026-08-05 사고, 추가⑤ 참고)가 환경 변수
+  섹션에 전혀 언급 없었음 — 필수 확인 항목으로 추가.
+- EC2 디스크 부족(추가⑧, `backend`/`auth` 중복 이미지 태깅)도 주의사항에
+  없었음 — 반복적으로 겪은 인프라 함정이라 추가.
+
+### 데이터(추가⑪)
+- 해당 없음(문서만).
+
+### 산출물(추가⑪)
+- 수정: `/CLAUDE.md`(저장소 트리 `_claude/` 오류 수정, susu 행 추가,
+  PROGRESS.md 역할 설명 보강, `--env-file` 누락 수정, `RECOMMENDATION_
+  BACKEND`·EC2 디스크 주의사항 신규, `.claude/` 메모리 파일 목록에
+  `auto-memory.md` 추가).
+- 코드 변경 없음.
+
 ---
 
 ## 2026-08-04
