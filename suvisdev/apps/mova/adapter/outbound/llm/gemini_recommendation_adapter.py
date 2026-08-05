@@ -57,5 +57,5 @@ class GeminiRecommendationAdapter(RecommendationPort):
         # Gemini SDK는 블로킹 호출 → 스레드 위임
         raw = await asyncio.to_thread(gemini_reply, prompt, model)
         reply, recs = self._reply_svc.parse_gemini_reply(raw)
-        recs = await self._reply_svc.enrich_from_db(recs)
+        recs = await self._reply_svc.enrich_from_db(recs, tag_catalog=tag_catalog)
         return reply, recs

@@ -65,5 +65,5 @@ class LoraRecommendationAdapter(RecommendationPort):
         except LoraOrchestratorError as e:
             raise LLMError(e.detail, status_code=e.status_code) from e
         reply, recs = self._reply_svc.parse_gemini_reply(raw)
-        recs = await self._reply_svc.enrich_from_db(recs)
+        recs = await self._reply_svc.enrich_from_db(recs, tag_catalog=tag_catalog)
         return reply, recs
