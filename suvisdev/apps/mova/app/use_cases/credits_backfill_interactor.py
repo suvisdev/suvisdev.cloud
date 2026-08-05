@@ -5,7 +5,7 @@ import logging
 
 from mova.app.dtos.studio_actors_dto import ActorUpsertCommand
 from mova.app.dtos.studio_characters_dto import CharacterUpsertCommand
-from mova.app.dtos.studio_import_dto import CreditsBackfillResultDto
+from mova.app.dtos.studio_import_dto import BackfillOneResultDto, CreditsBackfillResultDto
 from mova.app.dtos.studio_movie_directors_dto import MovieDirectorUpsertCommand
 from mova.app.ports.input.credits_backfill_use_case import CreditsBackfillUseCase
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
@@ -60,6 +60,8 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
         succeeded = 0
         failed = 0
         skipped = 0
+        skipped_cast = 0
+        skipped_directors = 0
         failed_slugs: list[str] = []
         called_tmdb = False
 
@@ -78,8 +80,10 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
             called_tmdb = True
 
             try:
-                await self._backfill_one(movie_id, tmdb_id, slug, dry_run=dry_run)
+                one_result = await self._backfill_one(movie_id, tmdb_id, slug, dry_run=dry_run)
                 succeeded += 1
+                skipped_cast += one_result.skipped_cast
+                skipped_directors += one_result.skipped_directors
             except Exception:
                 failed += 1
                 failed_slugs.append(slug)
@@ -90,22 +94,27 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
                 )
 
         logger.info(
-            "[CreditsBackfillInteractor] 완료 succeeded=%d failed=%d skipped=%d dry_run=%s",
+            "[CreditsBackfillInteractor] 완료 succeeded=%d failed=%d skipped=%d "
+            "skipped_cast=%d skipped_directors=%d dry_run=%s",
             succeeded,
             failed,
             skipped,
+            skipped_cast,
+            skipped_directors,
             dry_run,
         )
         return CreditsBackfillResultDto(
             succeeded=succeeded,
             failed=failed,
             skipped=skipped,
+            skipped_cast=skipped_cast,
+            skipped_directors=skipped_directors,
             failed_slugs=failed_slugs,
         )
 
     async def _backfill_one(
         self, movie_id: int, tmdb_id: int, slug: str, *, dry_run: bool
-    ) -> None:
+    ) -> BackfillOneResultDto:
         credits = await self._catalog.fetch_credits(tmdb_id)
 
         if dry_run:
@@ -115,35 +124,63 @@ class CreditsBackfillInteractor(CreditsBackfillUseCase):
                 [f"{m.name}({m.character})" for m in credits.cast],
                 [d.name for d in credits.directors],
             )
-            return
+            return BackfillOneResultDto()
 
+        skipped_cast = 0
         for member in credits.cast:
-            actor_id = await self._actors.upsert_actor(
-                ActorUpsertCommand(
-                    tmdb_person_id=member.tmdb_person_id,
-                    name=member.name,
-                    role_type="actor",
-                    profile_photo_url=member.profile_photo_url,
+            try:
+                actor_id = await self._actors.upsert_actor(
+                    ActorUpsertCommand(
+                        tmdb_person_id=member.tmdb_person_id,
+                        name=member.name,
+                        role_type="actor",
+                        profile_photo_url=member.profile_photo_url,
+                    )
                 )
-            )
-            await self._characters.upsert_character(
-                CharacterUpsertCommand(
-                    movie_id=movie_id,
-                    actor_id=actor_id,
-                    character_name=member.character,
-                    billing_order=member.order,
+                await self._characters.upsert_character(
+                    CharacterUpsertCommand(
+                        movie_id=movie_id,
+                        actor_id=actor_id,
+                        character_name=member.character,
+                        billing_order=member.order,
+                    )
                 )
-            )
+            except Exception:
+                skipped_cast += 1
+                logger.warning(
+                    "[CreditsBackfillInteractor] cast 멤버 백필 실패, 나머지 cast/directors는 "
+                    "계속 진행 | slug=%s tmdb_person_id=%s character=%s",
+                    slug,
+                    member.tmdb_person_id,
+                    member.character,
+                    exc_info=True,
+                )
+                await self._actors.rollback()
 
+        skipped_directors = 0
         for director in credits.directors:
-            actor_id = await self._actors.upsert_actor(
-                ActorUpsertCommand(
-                    tmdb_person_id=director.tmdb_person_id,
-                    name=director.name,
-                    role_type="director",
-                    profile_photo_url=director.profile_photo_url,
+            try:
+                actor_id = await self._actors.upsert_actor(
+                    ActorUpsertCommand(
+                        tmdb_person_id=director.tmdb_person_id,
+                        name=director.name,
+                        role_type="director",
+                        profile_photo_url=director.profile_photo_url,
+                    )
                 )
-            )
-            await self._directors.upsert_director(
-                MovieDirectorUpsertCommand(movie_id=movie_id, actor_id=actor_id)
-            )
+                await self._directors.upsert_director(
+                    MovieDirectorUpsertCommand(movie_id=movie_id, actor_id=actor_id)
+                )
+            except Exception:
+                skipped_directors += 1
+                logger.warning(
+                    "[CreditsBackfillInteractor] director 백필 실패, 나머지 directors는 계속 "
+                    "진행 | slug=%s tmdb_person_id=%s name=%s",
+                    slug,
+                    director.tmdb_person_id,
+                    director.name,
+                    exc_info=True,
+                )
+                await self._actors.rollback()
+
+        return BackfillOneResultDto(skipped_cast=skipped_cast, skipped_directors=skipped_directors)

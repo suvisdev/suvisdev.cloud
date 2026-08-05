@@ -108,11 +108,12 @@ class IngestTmdbMovieRollbackTests(unittest.IsolatedAsyncioTestCase):
         credits_interactor = AsyncMock()
         session = AsyncMock()
 
-        outcome = await self._ingest_tmdb_movie(
+        outcome, skipped_cast, skipped_directors = await self._ingest_tmdb_movie(
             self._snap(), movies_repo, hub_rag, credits_interactor, session
         )
 
         self.assertEqual(outcome, "failed")
+        self.assertEqual((skipped_cast, skipped_directors), (0, 0))
         session.rollback.assert_awaited_once()
         credits_interactor._backfill_one.assert_not_awaited()
 
@@ -124,11 +125,12 @@ class IngestTmdbMovieRollbackTests(unittest.IsolatedAsyncioTestCase):
         credits_interactor._backfill_one.side_effect = Exception("credits boom")
         session = AsyncMock()
 
-        outcome = await self._ingest_tmdb_movie(
+        outcome, skipped_cast, skipped_directors = await self._ingest_tmdb_movie(
             self._snap(), movies_repo, hub_rag, credits_interactor, session
         )
 
         self.assertEqual(outcome, "succeeded")
+        self.assertEqual((skipped_cast, skipped_directors), (0, 0))
         session.rollback.assert_awaited_once()
         hub_rag.ingest_movie.assert_awaited_once()
 
@@ -140,16 +142,38 @@ class IngestTmdbMovieRollbackTests(unittest.IsolatedAsyncioTestCase):
         credits_interactor = AsyncMock()
         session = AsyncMock()
 
-        first = await self._ingest_tmdb_movie(
+        first, _, _ = await self._ingest_tmdb_movie(
             self._snap(), movies_repo, hub_rag, credits_interactor, session
         )
-        second = await self._ingest_tmdb_movie(
+        second, _, _ = await self._ingest_tmdb_movie(
             self._snap(), movies_repo, hub_rag, credits_interactor, session
         )
 
         self.assertEqual(first, "failed")
         self.assertEqual(second, "succeeded")
         self.assertEqual(session.rollback.await_count, 1)
+
+    async def test_partial_credits_skip_is_reported_not_hidden(self) -> None:
+        """credits는 부분 성공(일부 cast/director 스킵)해도 영화 자체는 succeeded —
+        그 스킵 건수가 반환값으로 노출되는지 확인(2026-08-05, failed=0에 안 잡히던
+        유실을 배치 리포트에서 볼 수 있게 하는 게 목적)."""
+        from mova.app.dtos.studio_import_dto import BackfillOneResultDto
+
+        movies_repo = AsyncMock()
+        movies_repo.upsert_movie.return_value = 42
+        hub_rag = AsyncMock()
+        credits_interactor = AsyncMock()
+        credits_interactor._backfill_one.return_value = BackfillOneResultDto(
+            skipped_cast=3, skipped_directors=1
+        )
+        session = AsyncMock()
+
+        outcome, skipped_cast, skipped_directors = await self._ingest_tmdb_movie(
+            self._snap(), movies_repo, hub_rag, credits_interactor, session
+        )
+
+        self.assertEqual(outcome, "succeeded")
+        self.assertEqual((skipped_cast, skipped_directors), (3, 1))
 
 
 if __name__ == "__main__":

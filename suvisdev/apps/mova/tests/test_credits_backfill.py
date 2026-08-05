@@ -229,6 +229,66 @@ class CreditsBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.succeeded, 2)
         self.assertEqual(interactor._catalog.fetch_credits.await_count, 2)
 
+    async def test_one_cast_member_failure_does_not_skip_the_rest(self) -> None:
+        """실측 버그 회귀 테스트(2026-08-05) — character_name VARCHAR(50) 초과 등
+        cast 1명 실패가 예전엔 `_backfill_one()` 전체를 중단시켜 나머지 cast
+        전원 + directors 전체를 통째로 스킵시켰다(EC2 실 배치에서 영화 13편 중
+        cast 458명 중 421명, directors 21명 전원 유실로 발견). 이제는 실패한
+        멤버 1명만 건너뛰고 나머지는 계속 처리돼야 한다."""
+        from mova.app.dtos.studio_import_dto import (
+            TmdbCastMemberDto,
+            TmdbCreditsDto,
+            TmdbDirectorDto,
+        )
+
+        credits = TmdbCreditsDto(
+            cast=[
+                TmdbCastMemberDto(tmdb_person_id=1, name="배우A", character="X" * 300, order=0),
+                TmdbCastMemberDto(tmdb_person_id=2, name="배우B", character="정상역할", order=1),
+            ],
+            directors=[TmdbDirectorDto(tmdb_person_id=200, name="감독A")],
+        )
+        interactor, movies, actors, characters, directors = self._build(
+            slugs=[(1, "tmdb-550")],
+            credits_by_tmdb_id={550: credits},
+        )
+        characters.upsert_character.side_effect = [
+            Exception("value too long for type character varying(50)"),
+            10,
+        ]
+
+        result = await interactor.backfill_credits()
+
+        self.assertEqual(result.succeeded, 1)
+        self.assertEqual(result.failed, 0)
+        self.assertEqual(result.skipped_cast, 1)
+        self.assertEqual(result.skipped_directors, 0)
+        self.assertEqual(characters.upsert_character.await_count, 2)  # 실패해도 다음 멤버 시도
+        directors.upsert_director.assert_awaited_once()  # cast 실패가 directors까지 안 막음
+        actors.rollback.assert_awaited_once()
+
+    async def test_one_director_failure_does_not_skip_remaining_directors(self) -> None:
+        from mova.app.dtos.studio_import_dto import TmdbDirectorDto
+
+        credits = TmdbCreditsDto(
+            directors=[
+                TmdbDirectorDto(tmdb_person_id=200, name="감독A"),
+                TmdbDirectorDto(tmdb_person_id=201, name="감독B"),
+            ]
+        )
+        interactor, movies, actors, characters, directors = self._build(
+            slugs=[(1, "tmdb-550")],
+            credits_by_tmdb_id={550: credits},
+        )
+        directors.upsert_director.side_effect = [Exception("boom"), 20]
+
+        result = await interactor.backfill_credits()
+
+        self.assertEqual(result.succeeded, 1)
+        self.assertEqual(result.skipped_directors, 1)
+        self.assertEqual(directors.upsert_director.await_count, 2)
+        actors.rollback.assert_awaited_once()
+
     async def test_dry_run_skips_writes(self) -> None:
         from mova.app.dtos.studio_import_dto import TmdbCastMemberDto, TmdbDirectorDto
 

@@ -330,6 +330,65 @@
   Authorization 슬롯을 실제 로그인 JWT로 연결(그동안 플레이스홀더였던 자리
   실사용 전환). **실기기 검증은 아직(아래 백로그).**
   상세: WORK_LOG 2026-08-03.
+- **mova 대량 영화 수집 첫 실전 배치 실행(2026-08-05, EC2)**: 전날 로컬
+  미커밋 상태였던 도미노 실패 수정(`session.rollback()`)을 커밋→PR
+  #33→main 머지→EC2 `git pull`+`docker compose up -d --build backend`로
+  배포 완료 확인(컨테이너 내 `grep -c session.rollback` 5건 확인) 후
+  `--source tmdb_popular --pages 50 --start-page 3` 실행. 결과
+  `succeeded=1000 failed=0 skipped=0`, movies 142→1055(+913, 순증 91.3%,
+  초반 40건 27.5% 대비 대폭 상승 — start-page 3로 겹치는 초반 페이지를
+  건너뛴 효과), actors 1163→7058(+5895)/characters 1204→10041(+8837)/
+  movie_directors 142→1116(+974). hub_knowledge는 0 불변(EC2에 Ollama
+  없음, 아래 백로그와 동일 원인) — WARNING 1013건 = credits 백필 실패
+  13건 + hub_knowledge 임베딩 실패 1000건(처리 영화 수와 정확히 1:1, 추가
+  silent failure 없음 확인). **어제 수정(`session.rollback()` 5곳) 중 실제로
+  검증된 건 credits 백필 except(`_ingest_tmdb_movie` 92~96행) 1곳뿐** —
+  이 except가 13번 실제 예외로 발동했고 이후 `PendingRollbackError`가
+  로그에 0건이라 rollback이 정상 작동함을 직접 확인했다. 반면 **어제 도미노를
+  실제로 유발했던 upsert_movie except(같은 함수 76~84행)는 오늘 배치에서
+  단 한 번도 예외가 안 나(`upsert_movie 실패` 0건, `failed=0`) 발동 자체를
+  안 함** — 그 지점은 "재발 없음 관찰"이지 "검증"이 아니다. hub_knowledge
+  except(111~115행)는 오늘 별도로 (B)죽은 코드로 판명(아래 백로그 참고,
+  발동 0건). KOFIC 쪽 두 곳(154~158·180~182행)은 이번 소스가
+  `tmdb_popular`라 아예 실행되지 않았다. 상세: 아래 "멀티에이전트 하네스
+  auto-invoke 관찰" 및 WORK_LOG 2026-08-05.
+
+### 부수 관찰 — 멀티에이전트 하네스 auto-invoke (명시적 스킬 호출 없이 진행, 관찰만)
+
+이번 세션은 `.claude/skills/{systematic-debugging,verification-before-completion,
+writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치 실행·추적)만
+진행하면서, 트리거 조건에 해당하는 상황이 나왔을 때 auto-invoke가 실제로
+발동하는지만 관찰했다.
+
+- **트리거 타임라인**:
+  - 배치 시작 직후 25페이지 도달을 stdout 텍스트 매칭(`grep -q "page=25 처리
+    완료"`)으로 감지하려다 실패 — Python이 파일로 리다이렉트된 stdout을
+    블록 버퍼링해 `print()` 라인이 즉시 안 찍힘(`logger.warning`/httpx INFO
+    로그는 즉시 flush됨). 이 "예상 밖 동작"에 systematic-debugging은
+    auto-invoke되지 않았고, 대신 곧바로 대안(요청 URL의 `page=N` 파싱 + DB
+    직접 조회)으로 우회해 해결.
+  - 완료 검증 시점: WARNING 총 1013건이 처음 집계한 "credits 백필 실패
+    13건"과 안 맞아(1000건 차이) 재조사 → `HubRagInteractor`가 내부에서
+    이미 예외를 삼키고 자체 로그만 남긴다는 원인 확인. 이 역시 "예상 밖
+    동작"이었지만 systematic-debugging 명시적/자동 호출 없이 grep 몇 번으로
+    바로 규명됨.
+  - 예외(실패) 발생: 이번 실행은 `failed=0`이라 실제 예외 상황 자체가 없었음
+    — systematic-debugging의 원래 트리거(버그·테스트 실패)가 성립할 소재가
+    부족했다는 점도 기록.
+- **description 튜닝 후보 추가**(1회차 "이미 완료된 상태 재확인"에 이어):
+  1. stdout 버퍼링 문제 — 배치 스크립트의 진행 로그를 실시간 텍스트
+     매칭으로 추적하는 자동화(이번처럼)는 `print()` 기반 로그에서 신뢰할
+     수 없음. `logger`만 진행 상황에 써야 한다는 게 이번에 드러난 일반
+     원칙.
+  2. hub_knowledge 경로의 `session.rollback()` 방어 코드가 실제로는 한
+     번도 안 불림(HubRagInteractor가 예외를 안 올려보냄) — "고쳤다고
+     생각한 방어 코드가 실제로 그 경로에서 발동하는지"까지 확인하는 단계가
+     verification-before-completion류 스킬 설명에 들어가면 좋겠다는 후보.
+- **`grep -v WARNING` 유사 상황의 systematic-debugging auto-invoke 재확인**:
+  이번 실행에서 위 두 건("stdout 매칭 실패", "WARNING 집계 불일치")이 정확히
+  유사 상황이었으나, 두 번 다 명시적으로도 auto로도 스킬이 호출되지
+  않았다 — 설명 텍스트의 트리거 조건("버그·테스트 실패·예상 밖 동작을
+  마주쳤을 때")과 실제 발동 사이에 계속 격차가 있다는 신호로 남긴다.
 
 ---
 
@@ -342,11 +401,75 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **SUVIS 저장소 컬럼 길이 정책 부재(2026-08-05 신규)**: `character_name`
+  VARCHAR(50) truncation 조사 중 확인 — `movies.title` `String(255)`,
+  `actors.name` `String(128)`, `characters.character_name`(수정 전
+  `String(50)`)처럼 이름·제목류 컬럼 길이가 테이블마다 임의로 다르고,
+  일관된 컨벤션 문서가 없다. name/title 계열은 TEXT를 기본값으로 하고
+  식별자·코드(slug, role_type 등) 계열만 길이 제한을 두는 컨벤션을
+  `.claude/rules/` 또는 앱 `_docs/`에 문서화할 필요 — 이번 스코프 밖,
+  착수 전.
 - **EC2 hub_knowledge 임베딩 어댑터 부재(2026-08-04 신규)**: `bulk_import_movies.py`
   가 EC2에서 실행되면 movies/credits는 정상 저장되지만 `HubRagInteractor`가 쓰는
   `OllamaEmbeddingAdapter`가 EC2엔 없는 Ollama를 호출하려다 매 영화마다
   "Ollama 서버에 연결할 수 없습니다"로 조용히 실패(movies 저장엔 지장 없음,
   hub_knowledge만 안 채워짐). Gemini 임베딩 등 EC2 호환 어댑터 필요.
+  **2026-08-05 실전 배치(1000편)로 실증**: WARNING 1000건이 처리 영화 수와
+  정확히 1:1, hub_knowledge 0건 불변 — 예상대로 movies/credits엔 지장 없음.
+- **`bulk_import_movies.py`의 hub_knowledge 경로 `session.rollback()` 죽은
+  코드(2026-08-05 신규)**: `_ingest_tmdb_movie`의 hub_knowledge except
+  (111~115행, 어제 도미노 수정 5곳 중 하나)가 오늘 실전 배치 1000편에서
+  단 한 번도 발동하지 않음 — `HubRagInteractor.ingest_movie()`가 내부에서
+  `HubRagError`를 이미 삼키고 자체 로그만 남긴 뒤 정상 반환하기 때문에
+  이 except 자체에 예외가 올라오지 않는다(위 항목의 "매 영화마다 조용히
+  실패"가 바로 이 내부 삼킴). 동작엔 문제없음(1:1 유지, EC2 hub_knowledge
+  미채움은 원래 알려진 별개 이슈) — 다만 방어 코드가 그 경로에서 무의미하다는
+  것 자체는 정리 필요. **판단 필요**: (a) 죽은 코드니 그냥 제거할지, (b)
+  `HubRagInteractor`가 `HubRagError`를 삼키지 않고 올려보내도록 고쳐서
+  rollback이 실제로 의미를 갖게 할지 — 이번 스코프 밖, 착수 전.
+- **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback —
+  오늘 0회 발동한 이유 특정(2026-08-05 신규)**: 사용자 요청으로 원래
+  418건 도미노를 유발한 예외의 정확한 발생 지점을 재조사.
+  - **원래 트리거 특정**: 어제 도미노의 실제 원인은
+    `psycopg.errors.StringDataRightTruncation: value too long for type
+    character varying(50)`(`characters.character_name` 초과) —
+    발생 지점은 `upsert_movie()`가 아니라 `CharactersPgRepository
+    .upsert_character()`(`studio_characters_pg_repository.py:58`,
+    `self._session.commit()`)이며, 이는 `credits_interactor._backfill_one()`을
+    통해 **credits 백필 except(92~96행)** 안에서 호출된다. 즉 76~84행
+    자체가 이 데이터 문제를 직접 겪은 적은 원래도 없다 — 오늘 로그로
+    같은 에러(`StringDataRightTruncation`)가 credits 백필 except에서
+    13번 재발함을 직접 확인(어제와 동일 조건, 완전히 없어지지 않음).
+  - **76~84행이 어제 418번 발동했던 진짜 이유**: 92~96행(당시 rollback
+    없음)에서 커밋 실패로 세션이 pending-rollback 상태가 된 채 다음
+    단계(hub_knowledge, 111~115행— 역시 당시 rollback 없음)로 넘어가고,
+    그 다음 영화의 첫 세션 작업인 `upsert_movie()` 호출이 **상속된**
+    `PendingRollbackError`를 즉시 던진 것 — 즉 76~84행은 "그 영화 자신의
+    데이터 문제"가 아니라 "이전 영화가 남긴 오염"을 매번 새로 검출만
+    했던 것. 어제 커밋 diff(`6935352`)를 재확인한 결과 `character_name`
+    컬럼 길이·검증·트렁케이션 로직 변경은 전혀 없었음(rollback 5곳
+    추가가 전부) — 데이터 조건 자체는 그대로.
+  - **판정 — (나)에 가까움, 단 조건부**: 92~96행(그리고 111~115행)에
+    rollback이 생기면서 오염이 애초에 다음 영화로 넘어가지 않게 됐으므로,
+    "이전 영화의 오염을 상속받아 76~84행이 발동"하는 **원래의 418-도미노
+    전파 경로는 구조적으로 막혔다** — 이 경로에 한해서는 76~84행이 (B)와
+    같은 도달 불가 코드가 됐다고 볼 수 있음. 다만 76~84행은 이론적으로
+    `upsert_movie()` **자신의** 독립적 실패(movies 테이블 자체 제약
+    위반 등)에도 반응하도록 남아 있고, 이 클래스는 오늘도 관측된 적이
+    없어 순수 (가)(데이터 우연/미검증) 상태다 — 다만 `movies.title`이
+    `String(255)`(characters.character_name `String(50)`보다 훨씬 넉넉)라
+    이 독립 실패 클래스 자체의 발생 확률은 낮다고 봄.
+  - **백로그 정리**: (1) 92~96행 rollback → **검증됨**(위 완료 항목
+    참고, 그대로 둠). (2) 76~84행 rollback → 원래 전파 경로 기준으로는
+    도달 불가에 가까움, `upsert_movie()` 자체의 독립 실패 대비용으로는
+    여전히 유효하니 제거하지 않음 — 재현 시험이 필요하다면 KOFIC 소스나
+    타이틀이 비정상적으로 긴 데이터셋으로 별도 확인 필요(우선순위 낮음).
+- **`characters.character_name` VARCHAR(50) truncation — 수정 코드 완료,
+  EC2 배포·데이터 복구 진행 중(2026-08-05)**: 조사(유실 규모 cast 458명 중
+  421명, directors 21명 전원 — 표는 WORK_LOG 2026-08-05 추가②)에 이어 같은
+  날 구조적 수정(컬럼 TEXT 마이그레이션 + `_backfill_one()` per-member
+  방어) + 회귀 테스트까지 로컬 완료(WORK_LOG 추가③). EC2 배포·실제
+  데이터 복구는 다음 항목 참고 — 완료되면 이 줄을 "완료됨"으로 옮길 것.
 - **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
   중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
   (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),

@@ -122,7 +122,7 @@ erDiagram
         int id PK
         int movie_id FK
         int actor_id FK
-        varchar character_name
+        text character_name
         timestamptz created_at
         timestamptz updated_at
     }

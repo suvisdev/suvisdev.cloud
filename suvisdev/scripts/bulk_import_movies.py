@@ -58,8 +58,19 @@ def _hub_content(overview: str, genres: list[str], cast: list[str]) -> str:
     return "\n".join(line for line in lines if line)
 
 
-async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, session) -> str:
-    """반환값: 'succeeded' | 'failed' — 실패해도 이 영화만 건너뛰고 배치는 계속된다."""
+async def _ingest_tmdb_movie(
+    snap, movies_repo, hub_rag, credits_interactor, session
+) -> tuple[str, int, int]:
+    """반환값: (outcome, skipped_cast, skipped_directors).
+
+    outcome은 'succeeded' | 'failed' — 실패해도 이 영화만 건너뛰고 배치는
+    계속된다. skipped_cast/skipped_directors는 영화 자체는 succeeded여도
+    credits 백필 중 개별 cast/director가 스킵된 건수(`_backfill_one()`이
+    2026-08-05부터 이 카운트를 노출 — VARCHAR(50) truncation 등으로 캐스트
+    1명이 실패해도 나머지가 통째로 스킵되지 않게 된 것과 짝을 이루는 지표).
+    credits 백필 자체가 통째로 실패(fetch_credits 등)하면 0, 0을 반환한다 —
+    그 경우는 아래 credits except에서 별도로 로그된다.
+    """
     from mova.app.dtos.studio_import_dto import MovieUpsertCommand
 
     try:
@@ -81,14 +92,20 @@ async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, ses
         # 세션을 오염시켜 이후 418건이 전부 이 도미노로 실패). 한 영화 실패가
         # 배치 전체를 막지 않는다는 이 스크립트의 설계 의도를 지키려면 필수.
         await session.rollback()
-        return "failed"
+        return "failed", 0, 0
 
+    skipped_cast = 0
+    skipped_directors = 0
     try:
         # CreditsBackfillInteractor의 배치 진입점(backfill_credits)은 매번 전체
         # movies를 재스캔한다 — 방금 upsert한 영화 하나만 채우면 되므로 영화당
         # 처리 메서드(_backfill_one)를 직접 재사용한다(scripts/ 스크립트에서
         # _ingest_to_hub를 직접 부르는 것과 동일한 패턴).
-        await credits_interactor._backfill_one(movie_id, snap.tmdb_id, snap.slug, dry_run=False)
+        one_result = await credits_interactor._backfill_one(
+            movie_id, snap.tmdb_id, snap.slug, dry_run=False
+        )
+        skipped_cast = one_result.skipped_cast
+        skipped_directors = one_result.skipped_directors
     except Exception:
         logger.warning(
             "[bulk_import] credits 백필 실패(카탈로그는 유지) | slug=%s", snap.slug, exc_info=True
@@ -114,7 +131,7 @@ async def _ingest_tmdb_movie(snap, movies_repo, hub_rag, credits_interactor, ses
         )
         await session.rollback()
 
-    return "succeeded"
+    return "succeeded", skipped_cast, skipped_directors
 
 
 async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
@@ -206,7 +223,13 @@ async def _run(args: argparse.Namespace) -> None:
     keymaker = get_keymaker()
     factory = get_mova_session_factory()
 
-    stats = {"succeeded": 0, "failed": 0, "skipped": 0}
+    stats = {
+        "succeeded": 0,
+        "failed": 0,
+        "skipped": 0,
+        "skipped_cast": 0,
+        "skipped_directors": 0,
+    }
     last_page = args.start_page - 1
 
     async with factory() as session:
@@ -244,16 +267,19 @@ async def _run(args: argparse.Namespace) -> None:
                     break
 
                 for snap in snapshots:
-                    outcome = await _ingest_tmdb_movie(
+                    outcome, skipped_cast, skipped_directors = await _ingest_tmdb_movie(
                         snap, movies_repo, hub_rag, credits_interactor, session
                     )
                     stats[outcome] += 1
+                    stats["skipped_cast"] += skipped_cast
+                    stats["skipped_directors"] += skipped_directors
 
                 last_page = page
                 print(
                     f"[bulk_import] page={page} 처리 완료 (누적 "
                     f"succeeded={stats['succeeded']} failed={stats['failed']} "
-                    f"skipped={stats['skipped']})"
+                    f"skipped={stats['skipped']} skipped_cast={stats['skipped_cast']} "
+                    f"skipped_directors={stats['skipped_directors']})"
                 )
                 await asyncio.sleep(_TMDB_SLEEP_SECONDS)
 
@@ -292,6 +318,7 @@ async def _run(args: argparse.Namespace) -> None:
     print(
         f"[bulk_import] 완료 source={args.source} country={args.country} "
         f"succeeded={stats['succeeded']} failed={stats['failed']} skipped={stats['skipped']} "
+        f"skipped_cast={stats['skipped_cast']} skipped_directors={stats['skipped_directors']} "
         f"last_page={last_page}"
     )
     print(f"[bulk_import] 재시작하려면: --start-page {last_page + 1}")

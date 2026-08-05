@@ -71,3 +71,6 @@ class ActorsPgRepository(ActorsRepositoryPort):
             existing.id,
         )
         return int(existing.id)
+
+    async def rollback(self) -> None:
+        await self._session.rollback()
