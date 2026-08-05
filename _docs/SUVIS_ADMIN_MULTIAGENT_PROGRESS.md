@@ -417,20 +417,30 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   hub_knowledge 백필(Phase 2, 집 GPU) 사전 조사도 같은 문서에 포함 —
   `ingest_hub_knowledge.py`의 `limit=100` 하드코딩과 rollback 없는 except를
   Phase 2 착수 전 수정 필요 항목으로 남김(코드 수정은 안 함, 조사만).
-- **mova 추천 오귀속 근본 원인 조사(2026-08-05)**: 위 Phase 1에서 발견한
-  두 버그(동명이인 오귀속·제목 포맷 미매칭)가 `ChatReplyService.
-  enrich_from_db()`(`chat_reply.py`)의 완전일치 3단계 매칭 체인이라는
-  **같은 코드**의 결함임을 확정 — "괴물"은 DB에 동명 영화가 여럿이라
-  tiebreaker가 없어서가 아니라(실제 1건뿐) `find_by_title()`이 매칭 시
-  요청 맥락(배우 등)을 전혀 검증 안 해서 발생. 3가지 해결안(매칭 강화/
-  grounded prompting/hub_knowledge 우선) 비교 후 **grounded prompting
-  권장**(기존 tag_catalog 배관에 id 강제 응답 추가 — 새 인프라 불필요).
-  `RECOMMENDATION_BACKEND` EC2 미설정 경위도 특정: 2026-08-03 커밋에서
-  `.env.example`엔 이미 "EC2는 gemini여야 함"이 주석돼 있었으나 실제
-  `.env`(git 미추적)엔 반영된 적이 없었던 배포 절차 누락 — 다른
-  네트워킹 민감 변수는 `docker-compose.yaml`에 하드코딩돼 안전함을
-  대조 확인. 상세는 `_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`.
-  **착수는 다음 세션, 이번엔 코드 변경 없음.**
+- **mova 추천 오귀속 근본 원인 조사·수정·배포·재검증 완료(2026-08-05)**:
+  Phase 1에서 발견한 두 버그(동명이인 오귀속·제목 포맷 미매칭)가
+  `ChatReplyService.enrich_from_db()`의 완전일치 3단계 매칭 체인이라는
+  **같은 코드**의 결함임을 확정(`_docs/MOVA_RECOMMENDATION_MATCHING_
+  ROOT_CAUSE.md`) — "괴물"은 DB에 동명 영화가 여럿이라 tiebreaker가
+  없어서가 아니라(실제 1건뿐) `find_by_title()`이 매칭 시 요청 맥락(배우
+  등)을 전혀 검증 안 해서 발생. **Grounded prompting 구현**: 프롬프트가
+  카탈로그의 movie_id를 강제 응답하게 하고(`chat_prompt.py`),
+  `_GeminiPickSchema`(pydantic)로 파싱 단계에서 movie_id 필수 검증
+  (`chat_reply.py`), `enrich_from_db()`를 title 매칭에서
+  `find_by_id()` 단일 조회로 교체 — Gemini/LoRA/Qwen/EXAONE 5개 추천
+  어댑터가 전부 공유하는 코드라 한 번에 적용됨. **배포 직후 검증 중
+  세 번째 버그(DB 존재만으론 불충분 — movie_id는 유효해도 카탈로그에
+  없던 엉뚱한 값을 끼워 보내 title/movie_id가 서로 다른 영화를 가리키는
+  패턴) 발견해 같은 사이클 안에서 추가 수정**(`tag_catalog` 후보 id
+  집합 대조 + title 항상 DB 값으로 덮어쓰기). 골든셋 15개 최종 재검증
+  결과 통과 6→9, 애초 목표(동명이인·포맷) + 조사 중 발견된 연도 이탈까지
+  전부 재현 후 수정 확인 — 상세 비교표 `_docs/MOVA_RECOMMENDATION_
+  QUALITY_PHASE1.md` §6. `RECOMMENDATION_BACKEND` EC2 미설정 경위도
+  특정: 2026-08-03 커밋에서 `.env.example`엔 이미 "EC2는 gemini여야
+  함"이 주석돼 있었으나 실제 `.env`(git 미추적)엔 반영된 적이 없었던
+  배포 절차 누락 — 다른 네트워킹 민감 변수는 `docker-compose.yaml`에
+  하드코딩돼 안전함을 대조 확인. 회귀 테스트 10건, `apps/mova/tests`
+  97개 전부 통과.
 
 ---
 
@@ -462,13 +472,11 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   그 의도를 실제로 안 지킨다"는 같은 유형 — 다른 곳에도 있을 가능성이 있어
   별도 감사 사이클(예: 각 인터랙터의 docstring/주석에 적힌 의도와 실제
   동작 대조) 후보로 기록. 착수 전.
-- **mova 추천 — 제목 문자열 매칭 취약성(2026-08-05 신규)**: `/mova/chat`
-  추천이 Gemini가 자유 텍스트로 준 영화 제목을 문자열로 우리 DB와 매칭하는
-  구조라 (a) 동명이인 영화 오귀속(`괴물` — 봉준호 2006 vs 존 카펜터
-  `The Thing` 1982, 실측 사례 있음), (b) 연도 접미사 같은 사소한 포맷
-  차이로도 매칭 실패(실측 사례 있음)가 발생. 근본 해결은 Gemini에게 후보를
-  먼저 DB에서 뽑아 주는 RAG형 구조로 바꾸거나 TMDB id 기반 매칭 도입 —
-  설계 결정 필요, 상세는 `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`.
+- **mova 추천 — reply 텍스트와 picks 개수 불일치(2026-08-05 신규)**:
+  grounded prompting 적용 후 재검증 중 발견 — Gemini가 intro(`reply`)를
+  picks 필터링 **전** 기준으로 작성해서 "두 편을 추천해 드릴게요" 같은
+  문구가 실제 `recommendations: []`와 안 맞는 경우 있음. 데이터 정확성
+  문제는 아니고 카피 어색함(UX 다듬기 대상) — 착수 전.
 - **mova 추천 — TMDB popular 50페이지만으론 카탈로그 커버리지 부족
   (2026-08-05 신규)**: 배우 지정 검색(국내외 유명 배우 다수)과 고전/독립
   영화 감성 무드 쿼리에서 Gemini는 정확한 답을 알지만 DB에 없어 카드가
