@@ -22,6 +22,9 @@ if str(APPS) not in sys.path:
 from mova.adapter.inbound.api.schemas.market_chat_schema import (  # noqa: E402
     MovaChatRecommendationSchema,
 )
+from mova.adapter.inbound.api.schemas.studio_search_schema import (  # noqa: E402
+    MovaSearchItemSchema,
+)
 from mova.adapter.outbound.llm.chat_reply import ChatReplyService  # noqa: E402
 from mova.app.dtos.studio_movies_dto import MovieDetailDto  # noqa: E402
 
@@ -171,6 +174,79 @@ class EnrichFromDbTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(enriched), 1)
         self.assertEqual(enriched[0].movie_id, 1)
         self.assertTrue(any("드롭" in msg for msg in log.output))
+
+    async def test_movie_id_valid_in_db_but_not_offered_is_dropped(self) -> None:
+        """2026-08-05 골든셋 재실행 중 실측 — Gemini가 title/hook은 자신이
+        실제로 의도한 영화(예: 극한직업) 설명 그대로 두고, movie_id만
+        카탈로그에 없는 엉뚱한 값(DB엔 실존하는 다른 영화)을 끼워 보낸
+        사례. DB 존재 여부만 확인하면 이걸 못 잡는다(캡틴 아메리카가 실존
+        하므로 통과해버림) — 반드시 실제로 제시한 카탈로그 id 집합과
+        대조해야 한다."""
+        wrong_movie = _movie(id=101, slug="tmdb-822119", title="캡틴 아메리카: 브레이브 뉴 월드")
+        repo = AsyncMock()
+        repo.find_by_id.return_value = wrong_movie  # DB엔 실존 — 존재 검증만으론 못 잡음
+        factory, _ = _mock_factory(repo)
+
+        # 카탈로그엔 101이 없었다(실제로 제시한 후보는 다른 id들뿐).
+        catalog = [
+            MovaSearchItemSchema(
+                id="200", title="극한직업", year="2019", rating=8.0, poster="", match_type="keyword"
+            ),
+        ]
+        rec = MovaChatRecommendationSchema(
+            id="x", movie_id=101, title="극한직업", hook="쉴 새 없이 터지는 웃음"
+        )
+
+        with (
+            patch(
+                "mova.adapter.outbound.llm.chat_reply.get_mova_session_factory",
+                return_value=factory,
+            ),
+            patch(
+                "mova.adapter.outbound.llm.chat_reply.MoviesPgRepository",
+                return_value=repo,
+            ),
+            self.assertLogs("mova.adapter.outbound.llm.chat_reply", level="WARNING") as log,
+        ):
+            enriched = await ChatReplyService().enrich_from_db([rec], tag_catalog=catalog)
+
+        self.assertEqual(enriched, [])
+        repo.find_by_id.assert_not_awaited()  # 카탈로그 검증에서 이미 걸러져 DB 조회조차 안 감
+        self.assertTrue(any("제시한 적 없는" in msg for msg in log.output))
+
+    async def test_movie_id_offered_and_in_db_survives_with_db_title(self) -> None:
+        """카탈로그에 실제로 제시됐고 DB에도 있으면 정상 grounding — 최종
+        title은 Gemini 텍스트가 아니라 DB 값으로 고정(오귀속 시 제목·실제
+        영화 불일치 방지 안전망)."""
+        movie = _movie(id=200, slug="tmdb-19404", title="극한직업")
+        repo = AsyncMock()
+        repo.find_by_id.return_value = movie
+        factory, _ = _mock_factory(repo)
+
+        catalog = [
+            MovaSearchItemSchema(
+                id="200", title="극한직업", year="2019", rating=8.0, poster="", match_type="keyword"
+            ),
+        ]
+        rec = MovaChatRecommendationSchema(
+            id="x", movie_id=200, title="극한직업(Gemini 표기)", hook="웃음 폭탄"
+        )
+
+        with (
+            patch(
+                "mova.adapter.outbound.llm.chat_reply.get_mova_session_factory",
+                return_value=factory,
+            ),
+            patch(
+                "mova.adapter.outbound.llm.chat_reply.MoviesPgRepository",
+                return_value=repo,
+            ),
+        ):
+            enriched = await ChatReplyService().enrich_from_db([rec], tag_catalog=catalog)
+
+        self.assertEqual(len(enriched), 1)
+        self.assertEqual(enriched[0].movie_id, 200)
+        self.assertEqual(enriched[0].title, "극한직업")  # DB 값으로 덮어써짐
 
 
 class MatchingRootCauseRegressionTests(unittest.IsolatedAsyncioTestCase):

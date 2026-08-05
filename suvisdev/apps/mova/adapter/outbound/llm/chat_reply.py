@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommendationSchema
+from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.http import TmdbAdapter
 from mova.adapter.outbound.orm.studio_movies_orm import slugify_movie
 from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
@@ -116,6 +117,7 @@ class ChatReplyService:
     async def enrich_from_db(
         self,
         recommendations: list[MovaChatRecommendationSchema],
+        tag_catalog: list[MovaSearchItemSchema] | None = None,
     ) -> list[MovaChatRecommendationSchema]:
         """Gemini가 카탈로그에서 고른 movie_id로 직접 조회한다.
 
@@ -123,12 +125,31 @@ class ChatReplyService:
         순으로 사후 재매칭했다 — 이게 동명이인 오귀속·포맷 미매칭 두 버그의
         공통 원인이었다(_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md).
         이제 title 매칭을 하지 않으므로 두 버그 모두 이 경로에서 원천 차단된다.
-        movie_id가 실제 DB에 없으면(Gemini가 카탈로그를 무시한 프롬프트 위반)
-        그 pick만 드롭한다 — 예전처럼 미확인 제목으로 placeholder movie를
-        새로 만들지 않는다(카탈로그 밖 데이터가 DB에 섞이는 것 방지).
+
+        movie_id가 실제 DB에 없으면 그 pick만 드롭한다 — 예전처럼 미확인
+        제목으로 placeholder movie를 새로 만들지 않는다(카탈로그 밖 데이터가
+        DB에 섞이는 것 방지).
+
+        **`tag_catalog`가 주어지면 그 목록의 id 집합에도 속하는지 추가로
+        검증한다.** 같은 날 골든셋 재실행 중 실측 — DB에는 존재하지만
+        프롬프트에 제시한 적 없는 movie_id(예: 다른 요청 문맥에서 봤음직한
+        작은 번호)를 Gemini가 끼워 보내면서, title/hook은 자신이 실제로
+        의도한(카탈로그에 없는) 다른 영화 설명을 그대로 남겨 "제목은 A인데
+        movie_id는 전혀 다른 B"인 카드가 나가는 새로운 오귀속 패턴을
+        발견했다. DB 존재 여부만으로는 이걸 못 막는다 — 반드시 "내가 실제로
+        보여준 후보 목록에 있었는가"까지 확인해야 한다.
         """
         if not recommendations:
             return []
+
+        offered_ids: set[int] | None = None
+        if tag_catalog is not None:
+            offered_ids = set()
+            for item in tag_catalog:
+                try:
+                    offered_ids.add(int(item.id))
+                except (TypeError, ValueError):
+                    continue
 
         factory = get_mova_session_factory()
         enriched: list[MovaChatRecommendationSchema] = []
@@ -136,10 +157,19 @@ class ChatReplyService:
         async with factory() as session:
             repo = MoviesPgRepository(session)
             for rec in recommendations:
+                if offered_ids is not None and rec.movie_id not in offered_ids:
+                    logger.warning(
+                        "[ChatReplyService] 카탈로그에 제시한 적 없는 movie_id 응답 — "
+                        "드롭 | movie_id=%s title=%r",
+                        rec.movie_id,
+                        rec.title,
+                    )
+                    continue
+
                 movie = await repo.find_by_id(rec.movie_id) if rec.movie_id is not None else None
                 if movie is None:
                     logger.warning(
-                        "[ChatReplyService] 카탈로그에 없는 movie_id 응답 — 드롭 | "
+                        "[ChatReplyService] DB에 없는 movie_id 응답 — 드롭 | "
                         "movie_id=%s title=%r",
                         rec.movie_id,
                         rec.title,
@@ -184,6 +214,11 @@ class ChatReplyService:
                         update={
                             "id": movie.slug,
                             "movie_id": movie.id,
+                            # title도 DB 값으로 덮어쓴다 — Gemini가 movie_id는 맞게
+                            # 돌려줘도 title 텍스트 자체가 다른 영화 설명이면(§ 위
+                            # docstring의 새 오귀속 패턴) 최소한 표시되는 제목만은
+                            # 항상 실제로 링크되는 영화와 일치하게 강제한다.
+                            "title": movie.title,
                             "poster": poster,
                             "year": year,
                             "platform": platform,
