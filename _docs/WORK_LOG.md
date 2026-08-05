@@ -625,6 +625,84 @@ Phase 1에서 발견한 두 버그(동명이인 오귀속·제목 포맷 미매�
 
 ---
 
+### 작업 내용(추가⑫) — mova 프론트엔드 UI 완성도 감사 + 저수확 사이클
+
+`_docs/MOVA_UI_AUDIT.md`(코드 변경 없는 5영역 감사: 마이페이지·홈·검색·
+상세 페이지·데이터 활용도)를 먼저 작성한 뒤, 그 §4·§5 근거로 실제 수정
+사이클(`_docs/MOVA_UI_QUICK_WINS.md`) 진행. 오늘 아침 character_name
+TEXT 마이그레이션(추가③)이 "데이터가 안 잘리게"까지만 했던 걸, 이 사이클이
+API 응답→프론트 매핑→화면 표시까지 관통시켜 완결했다.
+
+### 오류·막힌 점(추가⑫)
+
+- **작업 도중 지시서 전제가 깨짐(1차)**: "감독은 이미 role_type='감독'으로
+  표시되고 있으니 character_name null 허용만 하면 된다"는 전제로 시작했으나,
+  코드 추적 중 `get_by_slug()`가 `characters` JOIN `actors`만 조회하고
+  `movie_directors`(감독 크레딧이 저장되는 완전히 별도인 테이블)는 전혀
+  안 읽는다는 걸 발견. EC2 DB로 실측(`tmdb-1368337` 오디세이 — 감독
+  크리스토퍼 놀란이 `movie_directors`엔 있지만 `characters`엔 없음,
+  `also_in_characters=false`)해 확정. 즉 **감독은 실 데이터 기준으로
+  상세 API 응답에 단 한 번도 실린 적이 없었다** — 오늘 낮에 작성한
+  `MOVA_UI_AUDIT.md` §4의 "감독 — 있음"은 프론트 코드가 그 분기를 가지고
+  있다는 것만 확인한 것이었고 백엔드 실제 응답은 검증 안 한 채 쓴 오기였음
+  (`MOVA_UI_QUICK_WINS.md`에서 정정 기록). 사용자에게 스코프 확장 여부를
+  물어 승인받고 같은 사이클에 포함해 수정(`movie_directors LEFT JOIN`
+  추가, `character_id`를 `int | None`으로 완화).
+- **작업 도중 지시서 전제가 깨짐(2차)**: 2a(synopsis 하드코딩 원인 조사)
+  진행 중 `movies` 테이블에 `synopsis` 컬럼 자체가 없음을 발견(EC2
+  `\d movies`로 확인) — "하드코딩 원복"이 아니라 신규 컬럼+마이그레이션+
+  TMDB `overview` 재조회 백필이 필요한, character_name 마이그레이션과
+  같은 급의 작업이었음. git blame은 최초 통짜 업로드 커밋(`251ae61`,
+  2026-07-08)이라 그 이전 이력 추적 불가. 사용자에게 재확인해 이번
+  사이클 범위 밖으로 보류하기로 결정, 백로그로 이관.
+- **PreCompact 훅으로 "토큰 99%에서 자동 커밋/푸시/머지" 요청 — 구현
+  안 함**: 조사 결과 `PreCompact`는 `additionalContext` 주입을 지원하지
+  않고(그건 `UserPromptSubmit` 전용) exit code 2로 압축 자체를 막는 것만
+  가능함을 확인. 압축을 막으면 컨텍스트가 계속 쌓여 진짜 한계 도달 시
+  세션이 끊길 위험이 있어, 이 방식으로 "문서 정리 지시 주입"을 구현하는
+  건 안전하지 않다고 판단해 구현하지 않기로 사용자와 합의(기존
+  `UserPromptSubmit` 커밋 키워드 훅 + 세션 종료 시 WORK_LOG 갱신 관행으로
+  충분하다고 결론).
+- 로컬 샌드박스에 프로젝트 `python`/`pip` 바이너리가 PATH에 없어 처음엔
+  pytest 실행이 막힘 — `/home/a/.venv`(레포 밖 홈 디렉터리)에 이미
+  fastapi/sqlalchemy/pytest가 설치된 가상환경이 있는 걸 찾아 그걸로 실행.
+  프론트 `pnpm lint`는 `eslint` 바이너리 자체가 이 환경에 없어 실행 불가
+  (환경 문제, 이번 변경과 무관 — `pnpm type-check`는 클린 통과).
+
+### 데이터(추가⑫)
+
+- 해당 없음(오늘 아침 배치처럼 대량 DB 쓰기는 없음 — 스키마·코드
+  변경뿐, 마이그레이션 신규 실행도 없었음: character_name/movie_directors
+  둘 다 기존 컬럼·테이블을 다루는 쿼리/DTO 변경이라 alembic 리비전
+  추가가 필요 없었음).
+
+### 산출물(추가⑫)
+
+- 신규: `_docs/MOVA_UI_AUDIT.md`(5영역 감사), `_docs/MOVA_UI_QUICK_WINS.md`
+  (이번 사이클 상세), `suvisdev/apps/mova/tests/test_studio_movies_dto.py`
+  (회귀 테스트 3건).
+- 수정(백엔드): `studio_movies_schema.py`(`ActorInMovieSchema`에
+  `character_name`, `character_id`를 `int | None`으로 완화),
+  `studio_movies_dto.py`(`ActorInMovieDto`에 `character_name` 추가 +
+  `movie_directors` 병합 로직), `movies_pg_repository.py`(`movie_directors
+  LEFT JOIN` 쿼리 추가).
+- 수정(프론트): `lib/mova-api.ts`(`character_name` 매핑, 기존 목업 표기
+  관례 `"출연 | 캐릭터명"`을 그대로 재사용 — `mova-title-view.tsx`는
+  변경 불필요), `app/mova/main/page.tsx`(`MovaHeroBanner` 배선, 이미
+  fetch된 `rankings[0]` 재사용), `lib/mova-mock-data.ts`(`MOVA_QUICK_ACTIONS`
+  죽은 데이터 제거).
+- 삭제: `components/mova/mova-featured-row.tsx`,
+  `components/mova/mova-quick-actions.tsx`(둘 다 생성 이후 어떤 페이지에도
+  import된 적 없음 — git log로 확인).
+- 검증: `pytest apps/mova/tests -m "not gpu"` 100 passed(기존 97+신규 3),
+  `lint-imports` mova 계약 전부 KEPT(기존 ontology↔mova 위반은 무관·유지),
+  `pnpm type-check` 클린.
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신: 완료됨 항목 추가,
+  💤4순위(mova UX 완성) 진행 상황 갱신 + 세분화, 🔥1순위에 `MovaGenreCatalog`
+  배선 연계 메모, 신규 백로그(`movies.synopsis` 컬럼 부재) 추가.
+
+---
+
 ## 2026-08-04
 
 ### 작업 내용

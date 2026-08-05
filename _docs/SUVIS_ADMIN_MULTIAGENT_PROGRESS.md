@@ -441,6 +441,26 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   배포 절차 누락 — 다른 네트워킹 민감 변수는 `docker-compose.yaml`에
   하드코딩돼 안전함을 대조 확인. 회귀 테스트 10건, `apps/mova/tests`
   97개 전부 통과.
+- **mova 프론트엔드 UI 완성도 감사 + 저수확 사이클 완료(2026-08-05)**:
+  코드 변경 없는 5영역 감사(`_docs/MOVA_UI_AUDIT.md`) 후, 그 결과 §4·§5
+  근거로 실제 수정까지 진행(`_docs/MOVA_UI_QUICK_WINS.md`). (1)
+  `character_name`(오늘 아침 VARCHAR(50)→TEXT로 고친 그 컬럼)이 API
+  스키마에 필드 자체가 없어 화면까지 관통 못 하던 것을 스키마·DTO
+  계층에 노출해 연결 완료 — 리포지토리 쿼리는 이미 전체 ORM 객체를
+  SELECT하고 있어 JOIN 추가는 불필요했음. (2) **작업 도중 별도 버그
+  발견**: 감독은 `characters`가 아니라 별도 `movie_directors` 테이블에만
+  저장되는데 `get_by_slug()`가 그 테이블을 전혀 조회하지 않아 실 데이터
+  기준 감독이 상세 API에 단 한 번도 실린 적이 없었음(실측:
+  `tmdb-1368337` 크리스토퍼 놀란 확인) — 사용자 확인 후 같은 사이클에서
+  `movie_directors LEFT JOIN` 추가로 수정. (3) `synopsis`는 `movies`
+  테이블에 컬럼 자체가 없음을 확인(TMDB `overview`는 이미 수집하지만
+  hub_knowledge 텍스트에만 쓰이고 저장 안 됨) — 사용자 확인 후 이번
+  사이클 범위 밖으로 보류, 백로그로 이관(아래). (4) 죽은 컴포넌트 4개
+  전수 판정: `MovaHeroBanner`(a-배선, `/mova/main`에 연결)·
+  `MovaFeaturedRow`/`MovaQuickActions`(b-삭제, 하드코딩 가짜 콘텐츠·
+  onClick 없는 미완성 버튼)·`MovaGenreCatalog`(c-유보, 카탈로그 확장과
+  묶어야 함, 아래). 회귀 테스트 3건 추가(`test_studio_movies_dto.py`),
+  `apps/mova/tests` 100개 전부 통과, `pnpm type-check` 클린.
 
 ---
 
@@ -465,6 +485,9 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   균등?)을 먼저 정할 것.
 - 예상 소요: 데이터 수집 배치 자체는 오늘 아침 credits 백필 사이클처럼
   몇 시간(실측 필요). 골든셋 재검증은 별도 1세션.
+- **묶어서 처리**: `MovaGenreCatalog`(죽은 컴포넌트, 유보 판정) 배선도
+  같이 하면 좋음 — `ApiMovieRow → MovaMovie` 매퍼가 어차피 필요해짐.
+  상세: `_docs/MOVA_UI_QUICK_WINS.md` §3.
 
 🔥 **2순위: hub_knowledge Phase 2(벡터 검색 경로 검증)**
 - 이유: 오늘 매칭 계층(title→movie_id)은 신뢰를 확보했지만 벡터 검색
@@ -493,16 +516,32 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 💤 **4순위: mova UX 완성(방향 B)**
 - 이유: 추천 신뢰도가 확보됐으니 이제 사용자 여정을 다듬을 준비는 됐지만,
   현재 실사용자 유입 계획이 없어 우선순위가 낮음.
-- 실행 환경: 학원(프론트 작업).
-- 시작 조건: 온보딩(`preferred_genres` 선택) / Watchlist 실동작 /
-  Collections 시드 데이터 3~5개 큐레이션 / 마이페이지 활동 요약 — 4개
-  서브태스크 중 어디부터 시작할지 결정 필요.
+- **2026-08-05 진행**: `_docs/MOVA_UI_AUDIT.md`(5영역 전수 감사) +
+  `_docs/MOVA_UI_QUICK_WINS.md`(character_name·감독 표시 관통,
+  `MovaHeroBanner` 배선, 죽은 컴포넌트 2개 삭제)로 일부 선처리됨. Watchlist는
+  담기/보기/삭제 기능 자체는 이미 완전 동작 확인(mypage 화면 안에 삭제
+  버튼만 없음, 상세 페이지에서는 가능) — "실동작" 여부는 이미 해소.
+- 실행 환경: 학원(프론트 작업, 온보딩/재편집은 백엔드 엔드포인트 신설도 필요).
+- 시작 조건: 아래 중 어디부터 시작할지 결정 필요(감사로 세분화됨,
+  `MOVA_UI_AUDIT.md` §6 우선순위 참고) —
+  1. 취향 온보딩/재편집(`PATCH preferred_genres` 엔드포인트 자체가 없음 — 백엔드 선행)
+  2. 마이페이지 "내 리뷰 목록" 관리(리뷰 작성 API는 이미 있음, 목록 조회만 추가)
+  3. 마이페이지 활동 요약(본 영화 수/리뷰 수 — 집계 엔드포인트 필요)
+  4. `/mova/movies` 필터 UI 확장(연도/평점/플랫폼 — API는 이미 지원, UI만 없음)
+  5. Collections 시드 데이터 3~5개 큐레이션
 - 예상 소요: 각 서브태스크 반나절~1일.
 
 **선택은 다음 세션 시작 시 판단.**
 
 ---
 
+- **`movies.synopsis` 컬럼 부재(2026-08-05 신규)**: `movies` 테이블에
+  시놉시스 컬럼 자체가 없음(`lib/mova-api.ts`의 `synopsis: ""`는 하드코딩이
+  아니라 매핑할 대상이 아예 없었던 것). TMDB `overview`는 이미 import
+  시점에 가져오지만 hub_knowledge 텍스트에만 쓰이고 `movies`엔 저장 안
+  됨. 실제로 채우려면 오늘 character_name TEXT 마이그레이션과 같은 급
+  (마이그레이션 + ORM 컬럼 + import 저장 로직 + 기존 1067편 TMDB 재조회
+  백필)의 작업이 필요 — 착수 전. 상세: `_docs/MOVA_UI_QUICK_WINS.md` §2.
 - **`suvisdev/_docs/CLAUDE.MD` 구버전 잔존(2026-08-05 발견)**: 실제
   `suvisdev/CLAUDE.md`와 전혀 다른 내용의 431줄짜리 구버전 문서가
   `suvisdev/_docs/CLAUDE.MD`에 그대로 남아 있음 — 2026-08-04에 처리한
