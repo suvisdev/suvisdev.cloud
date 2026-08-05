@@ -126,7 +126,13 @@ character_name null 허용만 하면 됨")가 실제로는 **성립하지 않는
   위반 1건은 이번 변경과 무관, 그대로 유지).
 - 프론트: `pnpm type-check` 클린. `pnpm lint`는 이 환경에 `eslint` 바이너리가
   없어 실행 불가(사전 환경 문제, 이번 변경과 무관).
-- 배포 후 실 curl 검증: (배포 단계 완료 후 이 절 갱신)
+- PR #40 → `main` 머지(`64a5876`) → EC2 `git pull` + `docker compose up -d
+  --build backend`(디스크 부족 재발 없이 캐시 히트로 빠르게 재빌드 완료)
+  → 실 curl 검증(`https://api.suvisdev.cloud/mova/movies/tmdb-1368337`):
+  - 크리스토퍼 놀란이 `role_type: "director"`, `character_id: null`,
+    `character_name: null`로 목록에 **처음** 등장(수정 전엔 아예 없었음).
+  - 캐스트 항목에 실제 `character_name` 값 확인(예: 샤를리즈 테론 →
+    `"Calypso"`).
 
 ---
 
