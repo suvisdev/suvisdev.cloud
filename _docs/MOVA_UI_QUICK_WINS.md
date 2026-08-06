@@ -138,10 +138,11 @@ character_name null 허용만 하면 됨")가 실제로는 **성립하지 않는
 
 ## 5. 스코프 밖으로 유지된 백로그 (PROGRESS.md 반영)
 
-- 필터 UI 확장(연도·평점·플랫폼) — 데이터 부재로 미룸
-- 마이페이지 리뷰 목록 — 백엔드 집계 엔드포인트 필요
-- 온보딩/취향편집 — `PATCH preferred_genres` 엔드포인트 신설 선행
-- 활동요약 — 백엔드 집계 필요
-- 유사 영화 추천 — `movies.embedding` 활용, 설계 결정 선행
-- **synopsis 실값 backfill**(신규) — 마이그레이션 + TMDB overview 재조회 백필
-- **MovaGenreCatalog 배선**(신규) — 카탈로그 확장 작업과 함께, `ApiMovieRow → MovaMovie` 매퍼 필요
+- ~~synopsis 실값 backfill~~ — **완료(2026-08-06)**, 상세 PROGRESS.md 완료됨.
+- ~~MovaGenreCatalog 배선~~ — **완료(2026-08-06)**, 상세 PROGRESS.md 완료됨.
+- 필터 UI 확장(연도·평점) — **완료(2026-08-06)**. 플랫폼(OTT)·연령등급은
+  데이터 부재로 여전히 비활성 — 현재 상태는 PROGRESS.md 백로그 참고.
+- 마이페이지 리뷰 목록 — 백엔드 집계 엔드포인트 필요, 미착수.
+- 온보딩/취향편집 — `PATCH preferred_genres` 엔드포인트 신설 선행, 미착수.
+- 활동요약 — 백엔드 집계 필요, 미착수.
+- 유사 영화 추천 — `movies.embedding` 활용, 설계 결정 선행, 미착수.
