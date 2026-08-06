@@ -185,6 +185,32 @@ AI 챗바가 502로 응답 없음, (2) 히어로 배너("오늘의 픽" 기생�
 - synopsis 백필: 1991편 대상 중 첫 실행에서 209편 반영 후 중단, 이어받기
   실행 진행 중(완료 결과는 다음 항목 예정).
 
+### 작업 내용(추가③) — synopsis 백필 완료 + 프론트 하드코딩 제거·배포
+
+이어받기 백필 완료 확인 후 프론트(`fetchMovaTitle()`) 하드코딩 제거,
+로컬 실측 검증까지 마치고 main 머지.
+
+### 수정/구현(추가③)
+- 백필 최종 결과: `succeeded=1578 failed=3 skipped=201`(이어받기 실행분).
+  누적 `movies.synopsis IS NOT NULL` = 1787/1991(tmdb 원산 기준) — 나머지
+  204는 skipped 201(TMDB `overview` 자체가 빈 문자열인 정상 케이스) +
+  failed 3(`tmdb-41387`/`tmdb-220289`/`tmdb-13597`, TMDB fetch 실패 —
+  재시도 가능, 이번엔 미처리).
+- 프론트: `lib/mova-api.ts`의 `MovieDetailApiRow`에 `synopsis: string | null`
+  추가, `fetchMovaTitle()`의 `synopsis: ""` 하드코딩을 `row.synopsis ?? ""`
+  로 교체. **목록 매퍼(`apiMovieToMovaMovie()`, 651행)의 `synopsis: ""`는
+  의도적으로 안 건드림** — 목록 응답(`MovieListItemSchema`)엔 애초에
+  synopsis 필드가 없음(상세 전용 스코프로 결정한 대로). `MovaTitleView.tsx`
+  는 이미 `movie.synopsis ? <섹션> : null` 조건부 렌더가 돼 있어 코드
+  변경 불필요 — 빈 문자열이면 섹션 자체가 안 뜨는 기존 동작 그대로 재사용.
+- 검증: 로컬 `pnpm dev`(`NEXT_PUBLIC_API_URL=https://api.suvisdev.cloud`)로
+  `tmdb-1368337`(오디세이) 상세 페이지 SSR HTML에서 "줄거리" 섹션 +
+  실제 시놉시스 텍스트 렌더 확인. `pnpm type-check` 클린.
+
+### 산출물(추가③)
+- 커밋·PR·EC2/main 반영은 다음 문서 갱신 직후 진행(이 항목 갱신 시점
+  기준 아직 미완 — 실제 커밋 해시는 후속 확인).
+
 ---
 
 ## 2026-08-05
