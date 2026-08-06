@@ -35,6 +35,14 @@ class MoviesRepositoryPort(ABC):
         """slug 기준 insert 또는 update — movie.id 반환."""
 
     @abstractmethod
+    async def list_missing_synopsis(self, limit: int | None) -> list[tuple[int, str]]:
+        """synopsis가 비어 있는 TMDB 원산 영화 (movie.id, slug) — synopsis 백필 순회 전용."""
+
+    @abstractmethod
+    async def update_synopsis(self, movie_id: int, synopsis: str) -> None:
+        """movie_id의 synopsis만 갱신."""
+
+    @abstractmethod
     async def list_all_slugs(self) -> list[tuple[int, str]]:
         """(movie.id, slug) 전체 목록 — credits 백필 순회 전용.
 

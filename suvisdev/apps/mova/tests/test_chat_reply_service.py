@@ -50,6 +50,7 @@ def _movie(
         collection_id=None,
         actors=[],
         tags=[],
+        synopsis=None,
     )
 
 

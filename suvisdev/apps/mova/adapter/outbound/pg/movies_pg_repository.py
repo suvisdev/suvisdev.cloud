@@ -181,6 +181,26 @@ class MoviesPgRepository(MoviesRepositoryPort):
         rows = await self._session.execute(select(MovaMovie.id, MovaMovie.slug))
         return [(int(row.id), row.slug) for row in rows]
 
+    async def list_missing_synopsis(self, limit: int | None) -> list[tuple[int, str]]:
+        """synopsis가 비어 있는 TMDB 원산 영화 (movie.id, slug) — synopsis 백필 순회 전용."""
+        stmt = (
+            select(MovaMovie.id, MovaMovie.slug)
+            .where(MovaMovie.synopsis.is_(None), MovaMovie.slug.like("tmdb-%"))
+            .order_by(MovaMovie.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = await self._session.execute(stmt)
+        return [(int(row.id), row.slug) for row in rows]
+
+    async def update_synopsis(self, movie_id: int, synopsis: str) -> None:
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
+        movie = movie_q.scalar_one_or_none()
+        if movie is None:
+            return
+        movie.synopsis = synopsis
+        await self._session.commit()
+
     async def upsert_movie(self, command: MovieUpsertCommand) -> int:
         existing_q = await self._session.execute(
             select(MovaMovie).where(MovaMovie.slug == command.slug)
@@ -195,6 +215,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
                 poster_url=command.poster_url,
                 platforms=list(command.platforms or []),
                 age_rating=command.age_rating,
+                synopsis=command.synopsis,
             )
             self._session.add(movie)
             await self._session.flush()
@@ -214,6 +235,8 @@ class MoviesPgRepository(MoviesRepositoryPort):
             await _replace_genre_tags(self._session, existing.id, list(command.genres))
         if command.age_rating is not None:
             existing.age_rating = command.age_rating
+        if command.synopsis:
+            existing.synopsis = command.synopsis
         await self._session.commit()
         await self._session.refresh(existing)
         logger.debug("[MoviesPgRepository] update slug=%s id=%d", command.slug, existing.id)

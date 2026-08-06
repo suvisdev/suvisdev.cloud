@@ -93,6 +93,54 @@
   `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(백로그 재정렬 + 완료 항목
   추가), `_docs/WORK_LOG.md`(이 항목).
 
+### 작업 내용(추가①) — 죽은 컴포넌트 트랙 종결(MovaGenreCatalog 배선) + synopsis 컬럼 신설 착수
+
+UI 마무리 트랙으로 전환. 죽은 컴포넌트 4개 중 마지막 미판정이던
+`MovaGenreCatalog`를 `/mova/main` 홈 피드에 배선(PR #43 머지 완료).
+이어서 UI 저수확 3건 중 `movies.synopsis` 컬럼 신설을 character_name
+패턴(2026-08-05, `9eb9c2e`/`5e8e022`/`6f594fc`) 그대로 재사용해 착수.
+
+### 수정/구현(추가①)
+- `MovaGenreCatalog` 배선: `fetchMovaMoviesFromApi()`→`apiMovieToMovaMovie()`
+  →`groupMovaMoviesByGenre()` 기존 파이프라인 재사용, 신규 유틸 코드 없음.
+  장르 19종 중 상위 8개만 슬라이스(`HOME_GENRE_ROWS`). `fetchHotRankings`와
+  `Promise.all` 병렬 fetch(서로 다른 백엔드 엔드포인트라 병합 불가 확인).
+  로컬 `pnpm dev`를 `NEXT_PUBLIC_API_URL=https://api.suvisdev.cloud`로
+  프로덕션 API 겨냥해 기동, SSR HTML에서 8개 장르 행·포스터 카드 345개
+  렌더 확인 후 종료.
+- synopsis 컬럼(백엔드, 이번 항목에서 코드까지 완료 — EC2 배포·백필은
+  다음 항목): 마이그레이션 `20260806_0001`(movies.synopsis TEXT NULL),
+  ORM 컬럼, `MovieUpsertCommand`/`MovieDetailDto`/`MovieDetailSchema`에
+  `synopsis` 필드 추가, `bulk_import_movies.py`·`import_interactor.py`
+  양쪽 TMDB upsert 경로에 `synopsis=snap.overview` 배선(`chat_reply.py`의
+  포스터 갱신 전용 upsert는 TMDB 재조회가 없어 미배선 — 의도적).
+  `MoviesRepositoryPort`에 `list_missing_synopsis`/`update_synopsis` 신설
+  (구현체가 `MoviesPgRepository` 하나뿐이라 다른 fake 영향 없음 확인).
+  신규 `scripts/backfill_synopsis_cli.py`(`backfill_credits_cli.py`류
+  이름 관례, `--limit`/`--dry-run`) — 영화 1편 처리 로직을
+  `_backfill_one()`으로 분리해 AsyncMock으로 dry-run 단위 테스트 가능하게
+  구성(`bulk_import_movies.py`식 인라인 오케스트레이션과 달리 테스트
+  가능한 형태 선택).
+- 테스트: `test_studio_movies_dto.py`에 synopsis 관통 2건(from_orm/
+  to_schema) 추가, 신규 `test_backfill_synopsis_cli.py` 6건(인자 파싱 2 +
+  `_backfill_one` 4 — non-tmdb 스킵/dry-run 미기록/실행 시 기록/overview
+  빈 문자열 스킵). `MovieDetailDto`에 `synopsis` 필수 필드 추가로
+  `test_chat_reply_service.py`의 `_movie()` 헬퍼가 깨진 것 발견해
+  `synopsis=None` 추가로 수정(리네임 드리프트, 도메인 재설계 아님).
+  `apps/mova/tests` 108개 전부 통과, import-linter 위반 0건(mova 관련
+  — pre-existing ontology↔mova 위반 1건은 `core/matrix/grid_oracle_
+  database_manager.py`가 원인이라 이번 변경과 무관, 그대로 둠).
+
+### 오류·막힌 점(추가①)
+- `MovieDetailDto`에 `synopsis`를 기본값 없는 필수 필드로 추가하자
+  `test_chat_reply_service.py`가 `MovieDetailDto(...)`를 직접 생성하는
+  헬퍼(`_movie()`)에서 즉시 깨짐 — `from_orm()`을 거치지 않는 테스트
+  전용 생성 경로가 있다는 걸 이번에 발견, `synopsis=None` 추가로 해결.
+
+### 산출물(추가①)
+- 커밋: `7972c53`(MovaGenreCatalog 배선, PR #43 머지) — synopsis 백엔드
+  커밋은 EC2 배포까지 마친 뒤 별도 기록(다음 항목).
+
 ---
 
 ## 2026-08-05
