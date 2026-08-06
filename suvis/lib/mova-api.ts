@@ -183,6 +183,7 @@ type MovieDetailApiRow = {
   platforms: { provider: string }[]
   age_rating: string | null
   genres: string[]
+  synopsis: string | null
   actors: {
     name: string
     role_type: "director" | "actor"
@@ -224,7 +225,7 @@ export async function fetchMovaTitle(slug: string): Promise<MovaMovie | null> {
     rating: row.rating,
     ratingCount: 0,
     rank: 0,
-    synopsis: "",
+    synopsis: row.synopsis ?? "",
     ratingDistribution: Array(10).fill(0),
     cast: row.actors.map((a) => ({
       name: a.name,

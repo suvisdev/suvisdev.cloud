@@ -517,6 +517,27 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   **synopsis 백필 프로세스가 backend 컨테이너 재기동(위 gemini 전환
   작업) 도중 중단된 사고 발생**(WORK_LOG 추가② 참고, 데이터 손상 없이
   이어받기 재실행).
+- **`movies.synopsis` 컬럼 신설 + 백필 + 프론트 연결 완료(2026-08-06)**:
+  character_name TEXT 마이그레이션(2026-08-05) 패턴 재사용 — 마이그레이션
+  `20260806_0001`(TEXT NULL), ORM 컬럼, `MovieUpsertCommand`/
+  `MovieDetailDto`/`MovieDetailSchema`에 필드 배선,
+  `bulk_import_movies.py`·`import_interactor.py`(수동 TMDB import)
+  양쪽 TMDB upsert 경로에 `synopsis=snap.overview` 저장 배선(포스터
+  갱신 전용인 `chat_reply.py` upsert는 TMDB 재조회가 없어 의도적으로
+  미배선). 신규 `scripts/backfill_synopsis_cli.py`(`--limit`/`--dry-run`,
+  영화 1편 처리 로직을 `_backfill_one()`으로 분리해 AsyncMock으로
+  dry-run 단위 테스트 가능하게 구성 — `bulk_import_movies.py`식 인라인
+  오케스트레이션과 차별화). EC2 배포(alembic upgrade) 후 백필 실행 중
+  컨테이너 재기동으로 한 번 중단(1991편 중 209편 시점, idempotent라
+  이어받기로 해결) — 최종 `succeeded=1578 failed=3 skipped=201`,
+  누적 1787/1991 반영(나머지는 TMDB `overview` 자체가 빈 정상 케이스
+  201건 + fetch 실패 3건). 프론트 `fetchMovaTitle()`의
+  `synopsis: ""` 하드코딩을 `row.synopsis ?? ""`로 교체(목록 매퍼는
+  스키마에 필드가 없어 의도적으로 미변경), `MovaTitleView.tsx`는 이미
+  조건부 렌더가 돼 있어 코드 변경 불필요. 로컬 `pnpm dev`(프로덕션 API
+  겨냥)로 SSR HTML에 실제 시놉시스 렌더 확인. `apps/mova/tests` 108개
+  통과(synopsis 관통 회귀 2건 + backfill CLI 6건 신규),
+  `pnpm type-check` 클린.
 
 ---
 
@@ -558,16 +579,6 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   참고) + `MovaGenreCatalog`(배선, 2026-08-06, 유일하게 현재 살아있는
   것). 트랙 자체는 종결이나 "배선 2개"가 아니라 "삭제 3개·배선 1개"로
   최종 결론 정정.
-- **`movies.synopsis` 컬럼 신설 — 백엔드 배포·백필 진행 중(2026-08-06)**:
-  코드(마이그레이션 `20260806_0001`, ORM, `MovieUpsertCommand`/
-  `MovieDetailDto`/Schema, `bulk_import_movies.py`·`import_interactor.py`
-  저장 배선, `scripts/backfill_synopsis_cli.py` 신규, 테스트 6건) +
-  EC2 배포(alembic upgrade 완료, curl로 `synopsis` 필드 노출 확인)까지
-  끝남. 백필 스크립트 실행 중 **컨테이너 재기동으로 한 번 중단**(1991편
-  중 209편 반영 시점, WORK_LOG 추가② 참고) — idempotent라 이어받기
-  재실행 중, 완료 결과는 다음 확인 필요. **남은 것**: 백필 완료 확인 →
-  프론트(`fetchMovaTitle()`의 `synopsis: ""` 하드코딩 제거,
-  `MovaTitleView.tsx` 렌더 확인) → main 머지 → Vercel 배포.
 - **mova 챗 `RECOMMENDATION_BACKEND` 현재 `gemini`로 수동 전환 상태
   (2026-08-06)**: 노트북 GPU `lora-server`/Cloudflare Tunnel
   (`lora.suvisdev.cloud`)이 불통(530)이라 문서화된 절차대로 EC2를
@@ -575,10 +586,13 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   그대로) — **기본값(`lora`)이 아닌 상태로 지금 운영 중이라는 걸 다음
   세션이 알아야 함**. 노트북 GPU·터널이 복구되면 `lora`로 되돌릴지,
   당분간 `gemini`로 유지할지는 판단 필요 — 착수 전.
+- **`movies.synopsis` 컬럼 신설 — 완료(2026-08-06)**: 백엔드·EC2 배포·
+  백필(1787/1991 반영, 실패 3·정상 스킵 201)·프론트
+  (`fetchMovaTitle()` 하드코딩 제거) 전부 끝남. 아래 완료됨 참고.
 - 남은 항목(`MOVA_UI_AUDIT.md` §6 참고) —
   1. `/mova/movies` 필터 UI 확장(연도/평점/플랫폼 — API는 이미 지원,
      UI만 없음).
-- 예상 소요: synopsis 배포+백필+프론트 반나절, 필터 UI 반나절~1일.
+- 예상 소요: 필터 UI 반나절~1일.
 
 🔥 **2순위: `search_tag_catalog()` 개선(신규, 2026-08-06 실증으로 우선순위 상승)**
 - 이유: 골든셋 재검증(카탈로그 1055→2014편, 거의 2배 확장) 결과 기존
