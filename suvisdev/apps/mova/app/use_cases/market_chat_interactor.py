@@ -97,7 +97,12 @@ class ChatInteractor(ChatUseCase):
             ]
         else:
             logger.info("[ChatInteractor] trace=%s fallback search_tag_catalog 사용", trace_id)
-            catalog = await self._repo.search_tag_catalog(intent["keywords"][:6], limit=12)
+            must = intent["search_filters"].get("must") or {}
+            similar = intent["search_filters"].get("similar_to") or {}
+            actor_names = [*must.get("actors", []), *similar.get("actors", [])]
+            catalog = await self._repo.search_tag_catalog(
+                intent["keywords"][:6], limit=16, actor_names=actor_names
+            )
 
         # 3. 추천 생성 (프롬프트·Gemini·파싱·DB 보강은 포트 구현체 내부)
         reply, recs = await self._llm.generate_recommendation(

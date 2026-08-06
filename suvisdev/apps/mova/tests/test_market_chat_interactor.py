@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 ROOT = Path(__file__).resolve().parents[3]
 APPS = ROOT / "apps"
@@ -61,6 +61,67 @@ class ChatInteractorGeneralRoutingTests(unittest.IsolatedAsyncioTestCase):
         general.ask.assert_awaited_once()
         command = general.ask.await_args.args[0]
         self.assertEqual(command.system, _GENERAL_CHAT_SYSTEM_PROMPT)
+
+
+class ChatInteractorSearchTagCatalogTests(unittest.IsolatedAsyncioTestCase):
+    """rag 경로에서 search_filters.must/similar_to의 actors가 search_tag_catalog로
+    전달되는지 확인(2026-08-06 search_tag_catalog 개선 — 배우 매칭 지원)."""
+
+    def _build(
+        self, *, must_actors: list[str], similar_actors: list[str] | None = None
+    ) -> tuple[ChatInteractor, AsyncMock]:
+        repo = AsyncMock()
+        repo.save_chat.return_value = 1
+        repo.search_tag_catalog.return_value = []
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("rag", [])
+        hub_rag = AsyncMock()
+        hub_rag.search_movies.return_value = []
+
+        recommender = AsyncMock()
+        recommender.extract_intent = Mock(
+            return_value={
+                "refined_query": "테스트",
+                "keywords": ["코미디", "전지현"],
+                "intent_type": "filter_and",
+                "search_filters": {
+                    "must": {"actors": must_actors, "genres": ["코미디"], "keywords": []},
+                    "similar_to": {"actors": similar_actors or []},
+                },
+            }
+        )
+        recommender.generate_recommendation.return_value = ("답변입니다.", [])
+
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=recommender,
+            preferences=AsyncMock(),
+            hub_rag=hub_rag,
+            classifier=classifier,
+            general=AsyncMock(),
+        )
+        return interactor, repo
+
+    async def test_must_actors_forwarded_to_search_tag_catalog(self) -> None:
+        interactor, repo = self._build(must_actors=["전지현"])
+        request = MovaChatRequest(message="전지현 나오는 코미디", history=[])
+
+        await interactor.chat(request)
+
+        repo.search_tag_catalog.assert_awaited_once()
+        args, kwargs = repo.search_tag_catalog.await_args
+        self.assertEqual(args[0], ["코미디", "전지현"])
+        self.assertEqual(kwargs["limit"], 16)
+        self.assertEqual(kwargs["actor_names"], ["전지현"])
+
+    async def test_similar_to_actors_also_forwarded(self) -> None:
+        interactor, repo = self._build(must_actors=[], similar_actors=["송강호"])
+        request = MovaChatRequest(message="송강호랑 비슷한 배우 영화", history=[])
+
+        await interactor.chat(request)
+
+        kwargs = repo.search_tag_catalog.await_args.kwargs
+        self.assertEqual(kwargs["actor_names"], ["송강호"])
 
 
 if __name__ == "__main__":

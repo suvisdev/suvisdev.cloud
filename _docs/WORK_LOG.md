@@ -257,6 +257,43 @@ AI 챗바가 502로 응답 없음, (2) 히어로 배너("오늘의 픽" 기생�
   rating은 스케일 불일치. 두 건 다 구현 전 실측(백엔드 코드 읽기 + DB
   쿼리)으로 미리 잡음.
 
+### 작업 내용(추가⑤) — `search_tag_catalog()` 개선(1순위 착수)
+
+필터 UI 완료 후 사용자가 이어서 진행을 요청 — 오늘 골든셋 재검증(§7.3)과
+실사용 재현(추가④)으로 이미 확정된 `search_tag_catalog()` 구조적 결함을
+수정.
+
+### 수정/구현(추가⑤)
+- **배우 이름 매칭 추가**: `ChatRepositoryPort.search_tag_catalog()`에
+  `actor_names: list[str] | None` 키워드 인자 신설.
+  `ChatPgRepository`가 `characters`+`movie_directors`를 `actors`와 JOIN해
+  배우/감독 이름으로도 후보를 찾도록 확장(기존엔 `tags.label` ILIKE만
+  검색해 배우 이름이 애초에 매칭 대상에 없었음).
+- **AND→완화 하이브리드**: 태그 매칭 집합과 배우 매칭 집합이 둘 다 있으면
+  **교집합**(둘 다 만족)을 우선 쓰고, 교집합이 0건이면 **합집합**으로
+  완화 — "전지현 코미디"처럼 배우+장르가 둘 다 있는 카탈로그 항목이
+  있으면 정밀하게, 없으면 최소한 배우 후보나 장르 후보 중 하나라도
+  제공.
+- **인기작 폴백 신설**: 태그·배우 매칭이 전부 0건이면(예: "주말에
+  몰아볼 시리즈"처럼 순수 무드 키워드) 완전히 빈 후보를 주는 대신
+  평점순 인기작을 폴백으로 반환 — Gemini가 카탈로그에 없는 movie_id를
+  스스로 지어내고 enrich 단계에서 전부 드롭돼 "reply는 자신있는데 카드
+  0개"가 되던 패턴(추가④에서 실사용 재현)을 완화.
+- `market_chat_interactor.py`: `intent["search_filters"]`의
+  `must.actors`+`similar_to.actors`를 합쳐 `actor_names`로 전달, 후보
+  개수도 12→16으로 소폭 완화.
+- **의도적으로 안 한 것**: 순수 다중 장르 AND(예: "SF+드라마" 둘 다
+  만족, §7.3 결함 (3))는 이번 스코프 밖 — 배우+장르 조합만 교집합
+  로직을 적용했고, 일반 키워드끼리의 AND 엔진은 별도 설계가 필요해
+  보류.
+- 테스트: `market_chat_interactor.py`의 rag 경로에서 `must.actors`/
+  `similar_to.actors`가 `search_tag_catalog(actor_names=...)`로 정확히
+  전달되는지 검증하는 신규 테스트 2건(`test_market_chat_interactor.py`).
+  리포지토리 SQL 조합 로직(교집합/합집합/폴백) 자체는 이 저장소 관례상
+  실 DB 없이 단위테스트하지 않음(`movies_pg_repository.py`의 다른
+  필터 로직들도 동일 — 기존 테스트 커버리지 패턴을 따름). `apps/mova/tests`
+  110개 전부 통과, import-linter mova 관련 위반 0건.
+
 ---
 
 ## 2026-08-05
