@@ -15,7 +15,12 @@ from mova.app.dtos.market_rankings_dto import (
 class RankingsRepositoryPort(ABC):
     @abstractmethod
     async def get_hot(self, source: str, limit: int) -> RankingListDto:
-        """HOT 랭킹 조회 (rankings → movies LEFT JOIN chat)."""
+        """HOT 랭킹 조회 (rankings → movies LEFT JOIN chat).
+
+        가장 최근 ranked_at 스냅샷 한 건만 반환한다 — save_*_ranking()이
+        매일 새 ranked_at으로 스냅샷을 추가만 하고 이전 날짜 행을 지우지
+        않아, 필터가 없으면 여러 날짜의 rank 1~N이 그대로 섞여 나온다.
+        """
 
     @abstractmethod
     async def aggregate_chat_trend(self, days: int, limit: int) -> list[ChatTrendAggRowDto]:
