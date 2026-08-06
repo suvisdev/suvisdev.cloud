@@ -165,7 +165,7 @@ services:
   # 실행: docker compose --env-file suvisdev/.env up -d cloudflared
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --protocol http2 run --token ${TUNNEL_TOKEN}
+    command: tunnel --protocol http2 --edge-ip-version 4 run --token ${TUNNEL_TOKEN}
     networks: [default]  # 이 compose 파일엔 top-level networks: 블록이 없어 전부 암묵적
     # 기본 네트워크(실제 이름 suvisdev_default)를 공유한다 — backend/auth를 그 이름으로
     # 직접 명시하면 top-level 선언이 없어 별도 네트워크가 생겨 서비스명 DNS가 끊긴다.
