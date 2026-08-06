@@ -1,12 +1,23 @@
 import { MovaAiChatBar } from "@/components/mova/mova-ai-chat-bar"
+import { MovaGenreCatalog } from "@/components/mova/mova-genre-catalog"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaHeroBanner } from "@/components/mova/mova-hero-banner"
 import { MovaPromoBanner } from "@/components/mova/mova-promo-banner"
 import { MovaRankingSection } from "@/components/mova/mova-ranking-section"
-import { fetchHotRankings } from "@/lib/mova-api"
+import { apiMovieToMovaMovie, fetchHotRankings, fetchMovaMoviesFromApi } from "@/lib/mova-api"
+import { groupMovaMoviesByGenre } from "@/lib/mova-movies"
+
+const HOME_GENRE_ROWS = 8
 
 export default async function MovaMainPage() {
-  const rankings = await fetchHotRankings(10)
+  const [rankings, movieRows] = await Promise.all([
+    fetchHotRankings(10),
+    fetchMovaMoviesFromApi(100),
+  ])
+  const genreGroups = groupMovaMoviesByGenre(movieRows.map(apiMovieToMovaMovie)).slice(
+    0,
+    HOME_GENRE_ROWS,
+  )
 
   return (
     <>
@@ -20,6 +31,7 @@ export default async function MovaMainPage() {
           </div>
           <MovaRankingSection variant="sidebar" items={rankings} />
         </div>
+        {genreGroups.length > 0 && <MovaGenreCatalog groups={genreGroups} />}
       </main>
     </>
   )
