@@ -503,7 +503,20 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   노출 시 홈 스크롤이 지나치게 길어짐). 로컬 `pnpm dev`를
   `NEXT_PUBLIC_API_URL=https://api.suvisdev.cloud`로 프로덕션 API를
   겨냥해 기동, SSR HTML에서 8개 장르 행·포스터 카드 렌더 확인.
-  `pnpm type-check` 클린.
+  `pnpm type-check` 클린. **(같은 날 후속: 이 항목의 "히어로·AI챗바 아래"
+  배치 언급 중 히어로 배너는 이후 사용자 요청으로 삭제됨, 아래 참고.)**
+- **mova 챗 502 긴급 수정 + `MovaHeroBanner` 삭제(2026-08-06)**: 실사용
+  중 신고된 두 건 처리 — (1) `/mova/chat`이 502를 반환, 원인은
+  `LoraRecommendationOrchestrator`가 호출하는 `https://lora.suvisdev.cloud
+  /generate`가 Cloudflare 530(터널/오리진 무응답) — 노트북 GPU
+  `lora-server`가 꺼져 있거나 터널이 끊긴 상태로 진단. 문서화된 수동
+  폴백(`RECOMMENDATION_BACKEND=gemini` 전환 + backend 재기동)으로 즉시
+  복구, curl로 200·추천 3건 확인. (2) `MovaHeroBanner`("오늘의 픽" 기생충
+  카드) 섹션을 사용자가 삭제 요청 — 다른 사용처 없음 확인 후 페이지
+  배선 제거 + 컴포넌트 파일 삭제. `pnpm type-check` 클린. 부수적으로
+  **synopsis 백필 프로세스가 backend 컨테이너 재기동(위 gemini 전환
+  작업) 도중 중단된 사고 발생**(WORK_LOG 추가② 참고, 데이터 손상 없이
+  이어받기 재실행).
 
 ---
 
@@ -538,18 +551,30 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   2개 삭제는 이미 완료(2026-08-05, 아래 완료됨 참고 + EC2 curl 검증까지
   끝남). 남은 저수확 항목만 마무리하면 이 트랙은 닫힌다.
 - 실행 환경: 학원(프론트 작업).
-- **죽은 컴포넌트 4개 트랙 완전 종결(2026-08-06)**: `MovaHeroBanner`(배선)·
-  `MovaFeaturedRow`/`MovaQuickActions`(삭제, 2026-08-05) +
-  `MovaGenreCatalog`(배선, 2026-08-06) — 4/4 전부 판정 완료. 아래 완료됨
-  참고.
-- **`movies.synopsis` 컬럼 신설 — 진행 중(2026-08-06)**: 백엔드(마이그레이션
-  `20260806_0001`, ORM, `MovieUpsertCommand`/`MovieDetailDto`/Schema,
-  `bulk_import_movies.py`·`import_interactor.py` 저장 배선,
-  `scripts/backfill_synopsis_cli.py` 신규, 테스트 6건)까지 로컬 완료·
-  `apps/mova/tests` 108개 통과. **남은 것**: EC2 배포(alembic upgrade +
-  backend 재빌드) → curl 검증 → 백필 스크립트 실행(기존 2014편) →
+- **죽은 컴포넌트 4개 트랙 — 최종 3/4 삭제·1/4 배선(2026-08-06)**:
+  `MovaFeaturedRow`/`MovaQuickActions`(삭제, 2026-08-05) + `MovaHeroBanner`
+  (2026-08-05 배선 → **2026-08-06 사용자 요청으로 다시 삭제** — 실사용
+  중 `/mova/main` 노출을 원치 않아 파일까지 완전 제거, WORK_LOG 추가②
+  참고) + `MovaGenreCatalog`(배선, 2026-08-06, 유일하게 현재 살아있는
+  것). 트랙 자체는 종결이나 "배선 2개"가 아니라 "삭제 3개·배선 1개"로
+  최종 결론 정정.
+- **`movies.synopsis` 컬럼 신설 — 백엔드 배포·백필 진행 중(2026-08-06)**:
+  코드(마이그레이션 `20260806_0001`, ORM, `MovieUpsertCommand`/
+  `MovieDetailDto`/Schema, `bulk_import_movies.py`·`import_interactor.py`
+  저장 배선, `scripts/backfill_synopsis_cli.py` 신규, 테스트 6건) +
+  EC2 배포(alembic upgrade 완료, curl로 `synopsis` 필드 노출 확인)까지
+  끝남. 백필 스크립트 실행 중 **컨테이너 재기동으로 한 번 중단**(1991편
+  중 209편 반영 시점, WORK_LOG 추가② 참고) — idempotent라 이어받기
+  재실행 중, 완료 결과는 다음 확인 필요. **남은 것**: 백필 완료 확인 →
   프론트(`fetchMovaTitle()`의 `synopsis: ""` 하드코딩 제거,
   `MovaTitleView.tsx` 렌더 확인) → main 머지 → Vercel 배포.
+- **mova 챗 `RECOMMENDATION_BACKEND` 현재 `gemini`로 수동 전환 상태
+  (2026-08-06)**: 노트북 GPU `lora-server`/Cloudflare Tunnel
+  (`lora.suvisdev.cloud`)이 불통(530)이라 문서화된 절차대로 EC2를
+  `gemini`로 폴백함(`suvisdev/CLAUDE.md` "RECOMMENDATION_BACKEND" 절
+  그대로) — **기본값(`lora`)이 아닌 상태로 지금 운영 중이라는 걸 다음
+  세션이 알아야 함**. 노트북 GPU·터널이 복구되면 `lora`로 되돌릴지,
+  당분간 `gemini`로 유지할지는 판단 필요 — 착수 전.
 - 남은 항목(`MOVA_UI_AUDIT.md` §6 참고) —
   1. `/mova/movies` 필터 UI 확장(연도/평점/플랫폼 — API는 이미 지원,
      UI만 없음).

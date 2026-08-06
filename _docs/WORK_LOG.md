@@ -141,6 +141,50 @@ UI 마무리 트랙으로 전환. 죽은 컴포넌트 4개 중 마지막 미판�
 - 커밋: `7972c53`(MovaGenreCatalog 배선, PR #43 머지) — synopsis 백엔드
   커밋은 EC2 배포까지 마친 뒤 별도 기록(다음 항목).
 
+### 작업 내용(추가②) — synopsis EC2 배포·백필 + mova 챗 502 긴급 수정 + MovaHeroBanner 삭제
+
+synopsis 백엔드(추가①에서 코드 완료)를 PR #44로 머지 후 EC2 배포·백필
+진행 중, 사용자가 실사용 중 `/mova/main`에서 두 가지를 신고 — (1)
+AI 챗바가 502로 응답 없음, (2) 히어로 배너("오늘의 픽" 기생충 카드)
+삭제 요청. 둘 다 이번 항목에서 처리.
+
+### 수정/구현(추가②)
+- synopsis 배포: EC2 `git pull`(안전 병합) → `docker compose up -d --build
+  backend` → `alembic upgrade head`(20260805_0001→20260806_0001) → curl로
+  `GET /mova/movies/tmdb-1368337` 응답에 `synopsis` 필드 존재(백필 전
+  `null`) 확인 → `backfill_synopsis_cli.py --limit 3 --dry-run` 시험
+  성공(실제 한국어 줄거리 확인) → 전체 백필 백그라운드 실행.
+- **사고 — 백필 도중 컨테이너 재기동으로 프로세스 중단**: RECOMMENDATION_
+  BACKEND를 gemini로 전환하려고 `docker compose up -d --force-recreate
+  --no-deps backend`를 실행했는데, 이게 그 안에서 `docker compose exec -d`
+  로 돌고 있던 synopsis 백필 프로세스를 함께 죽였다(컨테이너 재생성 =
+  `/tmp` 로그 파일도 같이 사라짐). 진행 상황을 DB로 직접 확인한 결과
+  1991편 중 209편까지만 채워진 상태로 중단 — 데이터 손상은 없음(스크립트가
+  idempotent라 `list_missing_synopsis()`가 이미 채워진 209편은 자동
+  제외) — 즉시 재실행으로 이어받기.
+- **mova 챗 502 진단**: 백엔드 로그에서 `POST https://lora.suvisdev.cloud
+  /generate "HTTP/1.1 530 <none>"` 확인 — Cloudflare 530(터널/오리진 완전
+  무응답). 이 세션이 도는 호스트엔 `lora-server.service` 자체가 없어(다른
+  물리 노트북) 원격 재기동 불가 — 문서화된 수동 폴백 절차대로
+  `RECOMMENDATION_BACKEND=gemini` 전환 + backend 재기동으로 즉시 정상화
+  (`POST /mova/chat` 200 확인, 실제 추천 3건 응답).
+- **MovaHeroBanner 삭제**: 사용자 확인 결과 섹션 전체 삭제(어제 배선한
+  기능 자체를 되돌리는 것) — `/mova/main`에서 import·사용 제거, 다른
+  사용처 없음 확인 후 `mova-hero-banner.tsx` 파일 삭제. `fetchHotRankings`
+  호출은 `MovaRankingSection`(사이드바)이 여전히 써서 그대로 유지.
+  `pnpm type-check` 클린.
+
+### 오류·막힌 점(추가②)
+- 위 "백필 도중 컨테이너 재기동" 사고 — 원인은 배경 작업(synopsis 백필)이
+  떠 있는 상태에서 그 프로세스가 사는 컨테이너 자체를 재생성하는 명령을
+  실행한 순서 실수. 재발 방지: 컨테이너 내부에서 장시간 백그라운드
+  스크립트가 돌고 있을 땐 그 컨테이너를 `--force-recreate`하기 전에
+  반드시 완료 여부부터 확인할 것.
+
+### 데이터(추가②)
+- synopsis 백필: 1991편 대상 중 첫 실행에서 209편 반영 후 중단, 이어받기
+  실행 진행 중(완료 결과는 다음 항목 예정).
+
 ---
 
 ## 2026-08-05
