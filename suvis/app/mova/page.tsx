@@ -1,7 +1,8 @@
 "use client"
 
-import { Suspense, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { MovaIntro } from "@/components/mova/mova-intro"
 import { MovaLandingChatBar } from "@/components/mova/mova-landing-chat-bar"
 import { MovaLoginButton } from "@/components/mova/mova-login-button"
@@ -9,6 +10,14 @@ import { MovaSuvisHomeLink } from "@/components/mova/mova-suvis-home-link"
 import { MovaLogo } from "@/components/mova/mova-logo"
 import { MovaSearchBar } from "@/components/mova/mova-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { MOVA_NAV } from "@/lib/mova-mock-data"
+import { getSuvisSession } from "@/lib/suvis-session"
+import { cn } from "@/lib/utils"
+
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/mova") return pathname === "/mova" || pathname.startsWith("/mova/main")
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
 
 function MovaLandingSearch() {
   const router = useRouter()
@@ -29,6 +38,14 @@ function MovaLandingSearch() {
 
 export default function MovaPage() {
   const [introDone, setIntroDone] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
+  const pathname = usePathname()
+
+  useEffect(() => {
+    setLoggedIn(getSuvisSession() !== null)
+  }, [pathname])
+
+  const nav = MOVA_NAV.filter((item) => item.href !== "/mova/mypage" || loggedIn)
 
   return (
     <main className="mova-cinema-bg mova-grain relative flex min-h-screen min-w-0 flex-col overflow-x-clip">
@@ -41,6 +58,23 @@ export default function MovaPage() {
         <div className="absolute top-3 left-4 z-10 hidden sm:top-3.5 sm:left-6 sm:block">
           <MovaLogo size="md" />
         </div>
+        <nav className="absolute inset-x-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center gap-5 lg:flex">
+          {nav.map((item) => {
+            const active = isNavActive(pathname, item.href)
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={cn(
+                  "text-sm transition-colors",
+                  active ? "font-semibold text-mova-text" : "text-neutral-300 hover:text-mova-text",
+                )}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
         <div className="absolute top-3 right-4 z-10 flex items-center gap-2 sm:top-3.5 sm:right-6 sm:gap-2.5">
           <Suspense
             fallback={
@@ -54,6 +88,25 @@ export default function MovaPage() {
           <MovaLoginButton />
         </div>
       </header>
+
+      {/* lg 미만: 헤더 아래 가로 스크롤 네비(MovaHeader의 모바일 네비와 동일 패턴) */}
+      <nav className="relative z-20 flex gap-4 overflow-x-auto overscroll-x-contain px-4 pb-2 [-webkit-overflow-scrolling:touch] sm:px-6 lg:hidden">
+        {nav.map((item) => {
+          const active = isNavActive(pathname, item.href)
+          return (
+            <Link
+              key={item.label}
+              href={item.href}
+              className={cn(
+                "shrink-0 text-sm",
+                active ? "font-semibold text-mova-accent-bright" : "text-neutral-300",
+              )}
+            >
+              {item.label}
+            </Link>
+          )
+        })}
+      </nav>
 
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6 sm:py-8 -mt-6 sm:-mt-10">
         <section
