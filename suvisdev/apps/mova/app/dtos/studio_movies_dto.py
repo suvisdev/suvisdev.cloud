@@ -256,7 +256,8 @@ class MovieListDto:
 @dataclass(frozen=True)
 class MovieFilterQuery:
     genre: str | None = None
-    release_year: int | None = None
+    release_year_min: int | None = None
+    release_year_max: int | None = None
     min_rating: float | None = None
     age_rating: str | None = None
     platform: str | None = None

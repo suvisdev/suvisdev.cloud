@@ -354,7 +354,8 @@ export async function fetchMovaMovies(
   offset = 0,
   filters?: {
     genre?: string
-    release_year?: number
+    release_year_min?: number
+    release_year_max?: number
     min_rating?: number
     age_rating?: string
     platform?: string
@@ -366,7 +367,10 @@ export async function fetchMovaMovies(
     offset: String(offset),
   })
   if (filters?.genre) params.set("genre", filters.genre)
-  if (filters?.release_year) params.set("release_year", String(filters.release_year))
+  if (filters?.release_year_min !== undefined)
+    params.set("release_year_min", String(filters.release_year_min))
+  if (filters?.release_year_max !== undefined)
+    params.set("release_year_max", String(filters.release_year_max))
   if (filters?.min_rating !== undefined) params.set("min_rating", String(filters.min_rating))
   if (filters?.age_rating) params.set("age_rating", filters.age_rating)
   if (filters?.platform) params.set("platform", filters.platform)

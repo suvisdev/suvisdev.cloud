@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
-import { Loader2, Star, TrendingUp } from "lucide-react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { Loader2, RotateCcw, Star, TrendingUp } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,50 @@ const GENRES = [
 ] as const
 
 type GenreTab = (typeof GENRES)[number]
+
+const DECADES = [
+  { value: "", label: "전체 연도" },
+  { value: "2020", label: "2020년대" },
+  { value: "2010", label: "2010년대" },
+  { value: "2000", label: "2000년대" },
+  { value: "old", label: "그 이전" },
+] as const
+
+type DecadeValue = (typeof DECADES)[number]["value"]
+
+function decadeToYearRange(decade: DecadeValue): { min?: number; max?: number } {
+  switch (decade) {
+    case "2020":
+      return { min: 2020, max: 2029 }
+    case "2010":
+      return { min: 2010, max: 2019 }
+    case "2000":
+      return { min: 2000, max: 2009 }
+    case "old":
+      return { max: 1999 }
+    default:
+      return {}
+  }
+}
+
+// rating은 0~5 스케일(백엔드 min_rating ge=0.0/le=5.0) — 실측 분포 기준
+// 3.5+/4.0+/4.5+가 각각 절반/상위 12%/상위 0.4% 수준이라 의미 있는 3단계.
+const RATINGS = [
+  { value: "", label: "전체 평점" },
+  { value: "3.5", label: "★ 3.5 이상" },
+  { value: "4.0", label: "★ 4.0 이상" },
+  { value: "4.5", label: "★ 4.5 이상" },
+] as const
+
+type RatingValue = (typeof RATINGS)[number]["value"]
+
+const SORTS = [
+  { value: "latest", label: "최신순" },
+  { value: "popular", label: "인기순" },
+  { value: "rating", label: "평점순" },
+] as const
+
+type SortValue = (typeof SORTS)[number]["value"]
 
 type PageState = {
   items: ApiMovieRow[]
@@ -115,18 +160,78 @@ function TrendingCard({ item, rank }: { item: MovaHotRankingItem; rank: number }
   )
 }
 
-export default function MovaMoviesPage() {
-  const [activeGenre, setActiveGenre] = useState<GenreTab>("전체")
+function isGenreTab(v: string | null): v is GenreTab {
+  return (GENRES as readonly string[]).includes(v ?? "")
+}
+
+function FilterSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: T
+  options: readonly { value: T; label: string }[]
+  onChange: (v: T) => void
+}) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      className="rounded-md border border-mova-border bg-mova-surface px-3 py-1.5 text-sm text-mova-text"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function MovaMoviesPageInner() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const initialGenre = isGenreTab(searchParams.get("genre")) ? (searchParams.get("genre") as GenreTab) : "전체"
+  const initialDecade = (searchParams.get("decade") ?? "") as DecadeValue
+  const initialRating = (searchParams.get("min_rating") ?? "") as RatingValue
+  const initialSort = ((searchParams.get("sort") as SortValue) || "latest") as SortValue
+
+  const [genre, setGenre] = useState<GenreTab>(initialGenre)
+  const [decade, setDecade] = useState<DecadeValue>(initialDecade)
+  const [minRating, setMinRating] = useState<RatingValue>(initialRating)
+  const [sort, setSort] = useState<SortValue>(initialSort)
   const [page, setPage] = useState<PageState>(INITIAL_STATE)
   const [trending, setTrending] = useState<MovaHotRankingItem[]>([])
   const genreRef = useRef<HTMLDivElement>(null)
   const patchPage = (patch: Partial<PageState>) => patchState(setPage, patch)
 
-  const loadMovies = async (genre: GenreTab, offset = 0, append = false) => {
+  const hasActiveFilters = genre !== "전체" || decade !== "" || minRating !== "" || sort !== "latest"
+
+  const syncUrl = (next: { genre: GenreTab; decade: DecadeValue; minRating: RatingValue; sort: SortValue }) => {
+    const params = new URLSearchParams()
+    if (next.genre !== "전체") params.set("genre", next.genre)
+    if (next.decade) params.set("decade", next.decade)
+    if (next.minRating) params.set("min_rating", next.minRating)
+    if (next.sort !== "latest") params.set("sort", next.sort)
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+  }
+
+  const loadMovies = async (offset: number, append: boolean) => {
     patchPage({ loading: !append, loadingMore: append, error: null })
+    const { min, max } = decadeToYearRange(decade)
     try {
       const data = await fetchMovaMovies(INITIAL_STATE.limit, offset, {
         genre: genre === "전체" ? undefined : genre,
+        release_year_min: min,
+        release_year_max: max,
+        min_rating: minRating ? Number(minRating) : undefined,
+        sort,
       })
       if (append) {
         setPage((prev) => ({
@@ -159,13 +264,21 @@ export default function MovaMoviesPage() {
   }, [])
 
   useEffect(() => {
-    void loadMovies(activeGenre, 0, false)
-  }, [activeGenre])
-
-  const handleGenreClick = (genre: GenreTab) => {
-    setActiveGenre(genre)
     setPage(INITIAL_STATE)
+    void loadMovies(0, false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genre, decade, minRating, sort])
+
+  const updateFilters = (patch: Partial<{ genre: GenreTab; decade: DecadeValue; minRating: RatingValue; sort: SortValue }>) => {
+    const next = { genre, decade, minRating, sort, ...patch }
+    if (patch.genre !== undefined) setGenre(patch.genre)
+    if (patch.decade !== undefined) setDecade(patch.decade)
+    if (patch.minRating !== undefined) setMinRating(patch.minRating)
+    if (patch.sort !== undefined) setSort(patch.sort)
+    syncUrl(next)
   }
+
+  const resetFilters = () => updateFilters({ genre: "전체", decade: "", minRating: "", sort: "latest" })
 
   const hasMore = page.items.length < page.total
 
@@ -203,23 +316,52 @@ export default function MovaMoviesPage() {
 
           <div ref={genreRef} className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {GENRES.map((genre) => (
+              {GENRES.map((g) => (
                 <button
-                  key={genre}
+                  key={g}
                   type="button"
-                  onClick={() => handleGenreClick(genre)}
+                  onClick={() => updateFilters({ genre: g })}
                   className={cn(
                     "shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
-                    activeGenre === genre
+                    genre === g
                       ? "border-mova-accent bg-mova-accent text-white"
                       : "border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/40 hover:text-mova-text",
                   )}
                 >
-                  {genre}
+                  {g}
                 </button>
               ))}
             </div>
           </div>
+        </section>
+
+        {/* 필터 바 */}
+        <section className="flex flex-wrap items-center gap-2">
+          <FilterSelect label="연도" value={decade} options={DECADES} onChange={(v) => updateFilters({ decade: v })} />
+          <FilterSelect label="평점" value={minRating} options={RATINGS} onChange={(v) => updateFilters({ minRating: v })} />
+          <FilterSelect label="정렬" value={sort} options={SORTS} onChange={(v) => updateFilters({ sort: v })} />
+          <select
+            aria-label="관람 등급"
+            disabled
+            title="데이터 준비 중입니다"
+            className="cursor-not-allowed rounded-md border border-mova-border bg-mova-surface px-3 py-1.5 text-sm text-mova-muted opacity-50"
+          >
+            <option>관람 등급 (준비 중)</option>
+          </select>
+          <select
+            aria-label="OTT 플랫폼"
+            disabled
+            title="데이터 준비 중입니다"
+            className="cursor-not-allowed rounded-md border border-mova-border bg-mova-surface px-3 py-1.5 text-sm text-mova-muted opacity-50"
+          >
+            <option>OTT 플랫폼 (준비 중)</option>
+          </select>
+          {hasActiveFilters && (
+            <Button type="button" variant="ghost" size="sm" onClick={resetFilters} className="gap-1.5">
+              <RotateCcw className="h-3.5 w-3.5" />
+              필터 초기화
+            </Button>
+          )}
         </section>
 
         {/* 영화 그리드 */}
@@ -231,14 +373,12 @@ export default function MovaMoviesPage() {
         ) : page.error ? (
           <div className="space-y-3">
             <p className="text-sm text-rose-400">{page.error}</p>
-            <Button type="button" variant="outline" onClick={() => void loadMovies(activeGenre, 0, false)}>
+            <Button type="button" variant="outline" onClick={() => void loadMovies(0, false)}>
               다시 시도
             </Button>
           </div>
         ) : page.items.length === 0 ? (
-          <p className="text-sm text-neutral-400">
-            {activeGenre === "전체" ? "등록된 영화가 없습니다." : `${activeGenre} 장르 영화가 없습니다.`}
-          </p>
+          <p className="text-sm text-neutral-400">조건에 맞는 영화가 없습니다.</p>
         ) : (
           <>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 md:gap-4">
@@ -252,7 +392,7 @@ export default function MovaMoviesPage() {
                   type="button"
                   variant="outline"
                   disabled={page.loadingMore}
-                  onClick={() => void loadMovies(activeGenre, page.offset + page.limit, true)}
+                  onClick={() => void loadMovies(page.offset + page.limit, true)}
                 >
                   {page.loadingMore ? (
                     <span className="inline-flex items-center gap-1.5">
@@ -269,5 +409,13 @@ export default function MovaMoviesPage() {
         )}
       </main>
     </>
+  )
+}
+
+export default function MovaMoviesPage() {
+  return (
+    <Suspense fallback={null}>
+      <MovaMoviesPageInner />
+    </Suspense>
   )
 }
