@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { MOVA_NAV } from "@/lib/mova-mock-data"
@@ -9,6 +9,7 @@ import { MovaSuvisHomeLink } from "@/components/mova/mova-suvis-home-link"
 import { MovaLogo } from "@/components/mova/mova-logo"
 import { MovaSearchBar } from "@/components/mova/mova-search-bar"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -18,6 +19,13 @@ function isNavActive(pathname: string, href: string): boolean {
 
 export function MovaHeader() {
   const pathname = usePathname()
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  useEffect(() => {
+    setLoggedIn(getSuvisSession() !== null)
+  }, [pathname])
+
+  const nav = MOVA_NAV.filter((item) => item.href !== "/mova/mypage" || loggedIn)
 
   return (
     <header className="sticky top-0 z-50 shrink-0 overflow-x-clip border-b border-mova-border bg-mova-bg/90 backdrop-blur-xl">
@@ -38,7 +46,7 @@ export function MovaHeader() {
 
       {/* 모바일: 네비 */}
       <nav className="mx-auto flex max-w-[1400px] gap-4 overflow-x-auto overscroll-x-contain border-t border-mova-border px-4 py-2 pb-2 [-webkit-overflow-scrolling:touch] md:hidden">
-        {MOVA_NAV.map((item) => {
+        {nav.map((item) => {
           const active = isNavActive(pathname, item.href)
           return (
             <Link
@@ -61,7 +69,7 @@ export function MovaHeader() {
           <MovaLogo size="sm" />
         </div>
         <nav className="absolute top-1/2 left-28 z-10 hidden -translate-y-1/2 items-center gap-5 lg:flex">
-            {MOVA_NAV.map((item) => {
+            {nav.map((item) => {
               const active = isNavActive(pathname, item.href)
               return (
                 <Link
