@@ -355,6 +355,35 @@ AI 챗바가 502로 응답 없음, (2) 히어로 배너("오늘의 픽" 기생�
   로컬 `pnpm dev`(프로덕션 API)로 목록 페이지 5개 카드 + 놀란 상세
   페이지 영화 목록 SSR 렌더 확인.
 
+### 작업 내용(추가⑧) — `/mova/rankings` 순위 뒤죽박죽 버그 수정
+
+사용자가 "랭킹 순위가 이상하다, 중간에 1위가 또 나온다"고 신고 — 원인
+조사·수정.
+
+### 오류·막힌 점(추가⑧)
+- `GET /mova/rankings/hot?source=chat_trend&limit=20`을 직접 호출해
+  재현: `rank`가 1~10까지 갔다가 **다시 1로 돌아가서** 1~10을 반복.
+  `ranked_at` 필드를 같이 찍어보니 원인이 바로 나옴 — 앞 10개는
+  `ranked_at=2026-08-06`, 뒤 10개는 `ranked_at=2026-08-05`. `limit=30`
+  으로 넓혀보니 `2026-08-04`까지 3일치가 누적돼 있었음.
+- 근본 원인: `save_chat_trend_ranking()`/`save_box_office_ranking()`은
+  스냅샷 저장 시 **그날(`ranked_at`) 행만** 지우고 새로 넣는 구조라
+  이전 날짜 행이 테이블에 계속 쌓이는데, 조회 쪽(`get_hot()`)이
+  `source`로만 필터링하고 `ranked_at`을 걸지 않아서 여러 날짜의
+  `rank 1~10`이 그대로 섞여 나왔다 — `limit`이 하루치(10)보다 크면
+  항상 재현되는 구조적 버그(오늘 `/mova/movies` 페이지가 `limit=20`을
+  쓰니 실사용자가 100% 겪는 상태였음).
+
+### 수정/구현(추가⑧)
+- `RankingsPgRepository.get_hot()`에 `ranked_at == (해당 source의 최신
+  ranked_at 서브쿼리)` 조건 추가 — 항상 가장 최근 스냅샷 한 건만
+  반환하도록 수정. `order_by`도 `ranked_at desc, rank asc`에서
+  `rank asc` 단독으로 단순화(이미 단일 날짜로 좁혔으니 불필요).
+  포트 docstring에 원인 남김.
+- 리포지토리 SQL 로직이라 이 저장소 관례상(다른 mova 리포지토리들도
+  동일) 실 DB 없이 단위테스트 안 함 — EC2 배포 후 실 API 응답으로
+  검증(다음 항목). `apps/mova/tests` 110개 회귀 통과.
+
 ---
 
 ## 2026-08-05

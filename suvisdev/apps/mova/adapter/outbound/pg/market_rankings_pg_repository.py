@@ -32,13 +32,18 @@ class RankingsPgRepository(RankingsRepositoryPort):
         self._session = session
 
     async def get_hot(self, source: str, limit: int) -> RankingListDto:
+        latest_ranked_at = (
+            select(func.max(MovaRanking.ranked_at))
+            .where(MovaRanking.source == source)
+            .scalar_subquery()
+        )
         rows = (
             await self._session.execute(
                 select(MovaRanking, MovaMovie, MovaChat)
                 .join(MovaMovie, MovaRanking.movie_id == MovaMovie.id)
                 .outerjoin(MovaChat, MovaRanking.chat_id == MovaChat.id)
-                .where(MovaRanking.source == source)
-                .order_by(MovaRanking.ranked_at.desc(), MovaRanking.rank.asc())
+                .where(MovaRanking.source == source, MovaRanking.ranked_at == latest_ranked_at)
+                .order_by(MovaRanking.rank.asc())
                 .limit(limit)
             )
         ).all()
