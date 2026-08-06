@@ -43,6 +43,7 @@ class MovieDetailDtoActorsTests(unittest.TestCase):
             platforms=[],
             age_rating=None,
             collection_id=None,
+            synopsis="신들의 시대, 오디세우스가 고향으로 돌아가는 여정.",
         )
         cast_actor = _actor(id=10, name="박은빈", role_type="actor")
         char = SimpleNamespace(id=100, character_name="은채니")
@@ -72,6 +73,13 @@ class MovieDetailDtoActorsTests(unittest.TestCase):
         names = {a.name: a.character_name for a in schema.actors}
         self.assertEqual(names["박은빈"], "은채니")
         self.assertIsNone(names["크리스토퍼 놀란"])
+
+    def test_from_orm_keeps_synopsis(self) -> None:
+        self.assertEqual(self.dto.synopsis, "신들의 시대, 오디세우스가 고향으로 돌아가는 여정.")
+
+    def test_to_schema_carries_synopsis_through(self) -> None:
+        schema = self.dto.to_schema()
+        self.assertEqual(schema.synopsis, "신들의 시대, 오디세우스가 고향으로 돌아가는 여정.")
 
 
 if __name__ == "__main__":

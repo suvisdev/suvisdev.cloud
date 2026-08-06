@@ -32,6 +32,7 @@ class MovaMovie(MovaModel):
     release_year: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     poster_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    synopsis: Mapped[str | None] = mapped_column(Text, nullable=True)
     platforms: Mapped[list] = mapped_column(
         JSONB,
         nullable=False,

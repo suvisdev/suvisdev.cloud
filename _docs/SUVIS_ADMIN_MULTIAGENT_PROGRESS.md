@@ -542,13 +542,18 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   `MovaFeaturedRow`/`MovaQuickActions`(삭제, 2026-08-05) +
   `MovaGenreCatalog`(배선, 2026-08-06) — 4/4 전부 판정 완료. 아래 완료됨
   참고.
+- **`movies.synopsis` 컬럼 신설 — 진행 중(2026-08-06)**: 백엔드(마이그레이션
+  `20260806_0001`, ORM, `MovieUpsertCommand`/`MovieDetailDto`/Schema,
+  `bulk_import_movies.py`·`import_interactor.py` 저장 배선,
+  `scripts/backfill_synopsis_cli.py` 신규, 테스트 6건)까지 로컬 완료·
+  `apps/mova/tests` 108개 통과. **남은 것**: EC2 배포(alembic upgrade +
+  backend 재빌드) → curl 검증 → 백필 스크립트 실행(기존 2014편) →
+  프론트(`fetchMovaTitle()`의 `synopsis: ""` 하드코딩 제거,
+  `MovaTitleView.tsx` 렌더 확인) → main 머지 → Vercel 배포.
 - 남은 항목(`MOVA_UI_AUDIT.md` §6 참고) —
-  1. `movies.synopsis` 컬럼 신설 + TMDB `overview` 저장 로직 + 기존
-     2014편 백필(`fetchMovaTitle()`의 `synopsis: ""` 하드코딩 제거) —
-     마이그레이션 필요한 급의 작업.
-  2. `/mova/movies` 필터 UI 확장(연도/평점/플랫폼 — API는 이미 지원,
+  1. `/mova/movies` 필터 UI 확장(연도/평점/플랫폼 — API는 이미 지원,
      UI만 없음).
-- 예상 소요: 각 서브태스크 반나절~1일.
+- 예상 소요: synopsis 배포+백필+프론트 반나절, 필터 UI 반나절~1일.
 
 🔥 **2순위: `search_tag_catalog()` 개선(신규, 2026-08-06 실증으로 우선순위 상승)**
 - 이유: 골든셋 재검증(카탈로그 1055→2014편, 거의 2배 확장) 결과 기존
