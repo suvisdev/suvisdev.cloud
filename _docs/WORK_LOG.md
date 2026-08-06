@@ -28,6 +28,73 @@
 
 ---
 
+## 2026-08-06
+
+### 작업 내용
+- PROGRESS.md 1순위(mova 카탈로그 커버리지 확장) 착수: `bulk_import_movies.py`로
+  TMDB popular 53~102페이지(960편) 실전 수집 후, Phase 1 골든셋 15개를
+  동일 조건(EC2 Gemini 경로)으로 재검증해 확장 효과를 실측.
+- 세션 시작 시 로컬 `suvisdev` 브랜치가 `origin/main` 대비 4커밋 뒤처져
+  있던 걸 발견(EC2에서 직접 반영된 lora 전환 관련 커밋들) — `git merge
+  origin/main`으로 동기화 후 진행.
+
+### 수정/구현
+- EC2 사전 점검: alembic head `20260805_0001`(character_name TEXT
+  마이그레이션) 확인, `session.rollback()` 5곳·per-member try/except
+  배포 확인, 디스크 여유(12GB/30GB) 확인.
+- 시험 배치(53~54페이지, 40편) 선행 실행 후 이상 없음 확인 → 본배치
+  (55~102페이지, 48페이지)를 `docker compose exec -d`로 EC2 백그라운드
+  실행, 완료까지 SSH 폴링으로 대기.
+- 골든셋 재검증을 위해 EC2 `RECOMMENDATION_BACKEND`을 `lora`(2026-08-05
+  이후 기본값 변경분, 이 세션 시작 시 `git merge`로 처음 인지)에서
+  `gemini`로 임시 전환(`.env` 백업 후 sed, `docker compose up -d
+  --force-recreate --no-deps backend`) → 골든셋 15개 실행 → 검증 완료 후
+  `lora`로 원복.
+- 문서 갱신: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7 신설(집계
+  비교표, #14·#6 재분류/재검토, `search_tag_catalog()` 근본 원인 4가지,
+  레거시 무태그 로우 12편 목록), `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`
+  백로그 재정렬(카탈로그 확장 종결 + 신규 트랙 3개 추가 + 8번째 "구현과
+  의도 갭" 항목).
+
+### 오류·막힌 점
+- **배치 완료 대기 로직이 한 번 오탐**: 완료 마커를 `\[bulk_import\] 완료`
+  (넓은 패턴)로 기다렸는데, 진행 중 캐치된 예외(`HubRagInteractor` Ollama
+  연결 실패 등)의 `logger.warning(..., exc_info=True)` 출력에 포함된
+  "Traceback (most recent call last):" 텍스트가 우연히 매칭돼 배치가 아직
+  75페이지인데 대기가 먼저 끝남 — 완료 마커를 `완료 source=`(스크립트
+  최종 요약 줄에만 나오는 문자열)로 좁혀 재대기해 해결. 스크립트 자체는
+  끝까지 정상 실행 중이었음(중단 아님).
+- **골든셋 재검증 결과가 가설과 반대로 나옴**: 카탈로그를 2배로 늘리면
+  Phase 1의 "커버리지 부족" 실패 4~6건이 풀릴 것으로 예상했으나 실제로는
+  0건 해소 — 코드 조사(`search_tag_catalog()`)로 원인을 배우 필터 부재·
+  top-12 rating 컷·키워드 OR 결합·`origin_country` 부재로 특정. 이
+  발견으로 카탈로그 확장 트랙을 종결하고 다음 세션 우선순위를 전면
+  재배열함(PROGRESS.md).
+- **레거시 무태그 로우 12편 발견**: 골든셋 실패 대상 영화(도둑들·윤희에게
+  등)를 DB에서 직접 조회하다가, TMDB 배치 이전부터 존재했던 것으로 보이는
+  `release_year=0`·비-TMDB slug·태그 0개 로우 12개(id 1056~1067) 발견 —
+  title 매칭 시절 골든셋을 통과시키려 수동으로 끼워 넣은 임시 데이터로
+  추정(확정 근거는 없음). grounded prompting 전환 이후 태그가 없어
+  후보에 못 들어가는 죽은 데이터가 됨.
+
+### 데이터
+- EC2 실 DB, 배치 실행 전/후:
+  - movies: 1067 → 2014 (+947 net, succeeded=960 attempts — 소량 재수집
+    중복 추정)
+  - actors: 7148 → 11945 (+4797)
+  - characters: 10152 → 19348 (+9196)
+  - movie_directors: 1141 → 2193 (+1052)
+  - credits 백필 완전 실패 1건(`tmdb-64682`) — 배치 리포트 `failed=0`에는
+    안 잡힘(백로그 "구현과 의도 갭" 8번째 항목으로 기록).
+- 골든셋 15개 재검증: 통과 8·실패 7(이전 9/0/6 대비 통과 -1, #14 재분류).
+
+### 산출물
+- 문서: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`(§7 신설),
+  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(백로그 재정렬 + 완료 항목
+  추가), `_docs/WORK_LOG.md`(이 항목).
+
+---
+
 ## 2026-08-05
 
 ### 작업 내용
