@@ -490,6 +490,20 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   종결** — 레버리지는 `search_tag_catalog()` 개선·레거시 로우 정리·
   `origin_country` 컬럼 신설로 이동(아래 백로그). 상세:
   `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7, WORK_LOG 2026-08-06.
+- **`MovaGenreCatalog` `/mova/main` 홈 피드 배선(2026-08-06)**: 죽은
+  컴포넌트 4개 중 마지막 미판정 건. 최초 커밋(2026-07-08)부터 한 번도
+  import된 적 없었지만 `groups: MovaGenreGroup[]` 실 데이터 계약을 받는
+  완성도 있는 컴포넌트였고, 필요한 파이프라인(`fetchMovaMoviesFromApi()`→
+  `apiMovieToMovaMovie()`→`groupMovaMoviesByGenre()`)도 이미 전부 존재해
+  신규 코드 없이 페이지 배선만으로 연결. `/mova/movies` "전체" 탭(무필터
+  flat grid)과 기능 중복 없음을 확인 후 `/mova/main` 하단(히어로·AI챗바
+  아래)에 배치, `Promise.all`로 기존 `fetchHotRankings`와 병렬 fetch(두
+  fetch가 서로 다른 백엔드 엔드포인트라 병합 불가 확인). DB 실측
+  (`tags` 장르 라벨 19종, 편중 상위 8개만 노출하도록 슬라이스 — 전부
+  노출 시 홈 스크롤이 지나치게 길어짐). 로컬 `pnpm dev`를
+  `NEXT_PUBLIC_API_URL=https://api.suvisdev.cloud`로 프로덕션 API를
+  겨냥해 기동, SSR HTML에서 8개 장르 행·포스터 카드 렌더 확인.
+  `pnpm type-check` 클린.
 
 ---
 
@@ -524,16 +538,16 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   2개 삭제는 이미 완료(2026-08-05, 아래 완료됨 참고 + EC2 curl 검증까지
   끝남). 남은 저수확 항목만 마무리하면 이 트랙은 닫힌다.
 - 실행 환경: 학원(프론트 작업).
+- **죽은 컴포넌트 4개 트랙 완전 종결(2026-08-06)**: `MovaHeroBanner`(배선)·
+  `MovaFeaturedRow`/`MovaQuickActions`(삭제, 2026-08-05) +
+  `MovaGenreCatalog`(배선, 2026-08-06) — 4/4 전부 판정 완료. 아래 완료됨
+  참고.
 - 남은 항목(`MOVA_UI_AUDIT.md` §6 참고) —
   1. `movies.synopsis` 컬럼 신설 + TMDB `overview` 저장 로직 + 기존
      2014편 백필(`fetchMovaTitle()`의 `synopsis: ""` 하드코딩 제거) —
      마이그레이션 필요한 급의 작업.
   2. `/mova/movies` 필터 UI 확장(연도/평점/플랫폼 — API는 이미 지원,
      UI만 없음).
-  3. `MovaGenreCatalog`(죽은 컴포넌트, 유일하게 남은 미판정) 배선 여부
-     결정 — 원래 "카탈로그 확장과 묶어서" 유보였으나 아래 카탈로그
-     확장 트랙이 종결됐으므로 이 조건은 더 이상 유효하지 않음, 이번
-     판정 필요.
 - 예상 소요: 각 서브태스크 반나절~1일.
 
 🔥 **2순위: `search_tag_catalog()` 개선(신규, 2026-08-06 실증으로 우선순위 상승)**
