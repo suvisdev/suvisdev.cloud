@@ -118,8 +118,13 @@ class MoviesPgRepository(MoviesRepositoryPort):
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
-        if query.release_year:
-            cond = MovaMovie.release_year == query.release_year
+        if query.release_year_min is not None:
+            cond = MovaMovie.release_year >= query.release_year_min
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
+
+        if query.release_year_max is not None:
+            cond = MovaMovie.release_year <= query.release_year_max
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
