@@ -128,7 +128,7 @@ pnpm format          # prettier --write
 # 백엔드 (suvisdev/)
 python main.py                    # uvicorn 127.0.0.1:8000, reload
 pytest                            # pytest.ini의 testpaths 전체
-pytest -m "not gpu"               # GPU·모델 가중치 필요한 테스트 제외
+pytest -m "not gpu and not ollama"  # 외부 자원 필요한 테스트 제외(로컬 표준)
 alembic upgrade head              # 마이그레이션 적용
 alembic history                   # 리비전 체인 확인
 PYTHONPATH="$PWD:$PWD/apps" lint-imports   # 클린 아키텍처 의존 규칙 검사
@@ -151,7 +151,10 @@ docker compose --env-file suvisdev/.env up -d
 - 프레임워크는 **pytest**다(백엔드). 프론트(`suvis/`)에는 현재 테스트 코드·테스트
   의존성이 없다 — 검증은 `pnpm type-check`·`pnpm lint`로 한다.
 - 마커(`suvisdev/pytest.ini`): `gpu`(실제 GPU + 모델 가중치 필요),
-  `ollama`(실제 Ollama 서버 필요). 일반 실행은 `-m "not gpu"`를 붙인다.
+  `ollama`(실제 Ollama 서버 필요). 일반 실행은 **`-m "not gpu and not ollama"`**를
+  붙인다 — `apps/titanic/tests/conftest.py`의 ollama 자동 skip은 `markexpr`이
+  **비어 있을 때만** 걸리므로, `-m "not gpu"`만 주면 자동 skip이 꺼지면서
+  ollama 테스트가 실행돼 로컬에 모델이 없으면 실패한다(2026-08-07 확인).
 - `apps/ontology/test/conftest.py`가 `HF_HUB_OFFLINE`을 켜 둔다. GPU 테스트는
   **로컬에 이미 캐시된** HF 모델만 쓰며, 캐시가 없으면 hang 대신 즉시 실패한다.
 - 학습 산출물(`apps/ontology/runs/`)은 `.gitignore` 대상이라 클론 직후에는 이를

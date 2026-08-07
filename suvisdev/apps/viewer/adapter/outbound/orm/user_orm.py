@@ -107,6 +107,17 @@ async def update_user_nickname(user_id: int, nickname: str) -> bool:
         return True
 
 
+async def update_user_preferred_genres(user_id: int, genres: list[str]) -> bool:
+    factory = get_viewer_session_factory()
+    async with factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            return False
+        user.preferred_genres = genres
+        await session.commit()
+        return True
+
+
 async def seed_viewer_if_empty() -> None:
     """Viewer 시드 — groups + admin."""
     await seed_groups_if_empty()

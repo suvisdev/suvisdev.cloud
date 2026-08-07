@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_viewer_session_factory
 from viewer.adapter.outbound.orm.user_identity_orm import UserIdentity
-from viewer.adapter.outbound.orm.user_orm import get_viewer_user_profile, update_user_nickname
+from viewer.adapter.outbound.orm.user_orm import (
+    get_viewer_user_profile,
+    update_user_nickname,
+    update_user_preferred_genres,
+)
 from viewer.app.dtos.profile_dto import ProfileDto
 from viewer.app.ports.output.profile_repository import ProfileRepository
 
@@ -33,6 +37,14 @@ class ProfilePgRepository(ProfileRepository):
 
     async def update_nickname(self, user_id: int, nickname: str) -> ProfileDto | None:
         updated = await update_user_nickname(user_id, nickname)
+        if not updated:
+            return None
+        return await self.get_profile(user_id)
+
+    async def update_preferred_genres(
+        self, user_id: int, genres: list[str]
+    ) -> ProfileDto | None:
+        updated = await update_user_preferred_genres(user_id, genres)
         if not updated:
             return None
         return await self.get_profile(user_id)

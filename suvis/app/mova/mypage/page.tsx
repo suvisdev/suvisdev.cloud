@@ -2,11 +2,12 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { Bookmark, Clock, Film, Loader2, LogOut, Search, ThumbsDown, ThumbsUp, User } from "lucide-react"
+import { Bookmark, Clock, Eye, Film, Loader2, LogOut, Search, Star, ThumbsDown, ThumbsUp, User } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { fetchMovaMypage, fetchWatchlist, type MypageData, type WatchlistItem } from "@/lib/mova-api"
+import { updatePreferredGenres } from "@/lib/profile-api"
 import { getSuvisSession, clearSuvisSession } from "@/lib/suvis-session"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { coercePosterUrl } from "@/lib/mova-poster"
@@ -14,6 +15,12 @@ import { cn } from "@/lib/utils"
 
 const POSTER_PLACEHOLDER =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&q=80"
+
+/** 실 DB `tags`(tag_kind='genre') 라벨 기준 — 추천 후보와 실제로 매칭되는 값만 둔다. */
+const PREFERRED_GENRE_OPTIONS = [
+  "액션", "드라마", "코미디", "모험", "스릴러", "SF", "판타지", "가족",
+  "로맨스", "공포", "범죄", "애니메이션", "미스터리", "역사", "전쟁", "음악",
+] as const
 
 function FeedbackBadge({ feedback }: { feedback: string | null }) {
   if (!feedback) return null
@@ -28,12 +35,27 @@ function FeedbackBadge({ feedback }: { feedback: string | null }) {
   )
 }
 
+function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex-1 rounded-xl border border-mova-border bg-mova-surface px-4 py-3 text-center">
+      <div className="mb-1 flex items-center justify-center gap-1.5 text-neutral-400">
+        {icon}
+        <span className="text-[11px]">{label}</span>
+      </div>
+      <p className="text-lg font-bold text-mova-text">{value}</p>
+    </div>
+  )
+}
+
 export default function MypagePage() {
   const router = useRouter()
   const [data, setData] = useState<MypageData | null>(null)
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [editingGenres, setEditingGenres] = useState(false)
+  const [genreDraft, setGenreDraft] = useState<string[]>([])
+  const [savingGenres, setSavingGenres] = useState(false)
 
   const session = typeof window !== "undefined" ? getSuvisSession() : null
 
@@ -60,6 +82,21 @@ export default function MypagePage() {
     router.replace("/mova")
   }
 
+  const handleSaveGenres = async () => {
+    const s = getSuvisSession()
+    if (!s) return
+    setSavingGenres(true)
+    try {
+      const updated = await updatePreferredGenres(s.id, genreDraft)
+      setData((prev) => (prev ? { ...prev, preferred_genres: updated.preferred_genres } : prev))
+      setEditingGenres(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "선호 장르를 변경하지 못했습니다.")
+    } finally {
+      setSavingGenres(false)
+    }
+  }
+
   return (
     <>
       <MovaHeader />
@@ -76,8 +113,8 @@ export default function MypagePage() {
                 {data?.nickname ?? session?.username ?? "로딩 중…"}
               </p>
               <p className="text-sm text-neutral-400">@{session?.username}</p>
-              {data && data.preferred_genres.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
+              {data && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
                   {data.preferred_genres.map((g) => (
                     <span
                       key={g}
@@ -86,6 +123,19 @@ export default function MypagePage() {
                       {g}
                     </span>
                   ))}
+                  {data.preferred_genres.length === 0 && (
+                    <span className="text-[11px] text-neutral-500">선호 장르 미설정</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGenreDraft(data.preferred_genres)
+                      setEditingGenres(true)
+                    }}
+                    className="rounded-full border border-mova-border px-2.5 py-0.5 text-[11px] text-neutral-400 transition hover:border-mova-accent/40 hover:text-mova-accent"
+                  >
+                    편집
+                  </button>
                 </div>
               )}
             </div>
@@ -100,6 +150,55 @@ export default function MypagePage() {
           </button>
         </section>
 
+        {editingGenres && (
+          <section className="rounded-2xl border border-mova-border bg-mova-surface p-5">
+            <h2 className="mb-3 text-sm font-semibold text-mova-text">
+              선호 장르 <span className="text-xs text-neutral-500">AI 추천에 반영돼요</span>
+            </h2>
+            <div className="flex flex-wrap gap-1.5">
+              {PREFERRED_GENRE_OPTIONS.map((g) => {
+                const selected = genreDraft.includes(g)
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() =>
+                      setGenreDraft((prev) =>
+                        prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g],
+                      )
+                    }
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs transition",
+                      selected
+                        ? "border-mova-accent bg-mova-accent-soft text-mova-accent"
+                        : "border-mova-border text-neutral-400 hover:border-mova-accent/40",
+                    )}
+                  >
+                    {g}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSaveGenres}
+                disabled={savingGenres}
+                className="rounded-lg bg-mova-accent px-4 py-2 text-xs font-medium text-black transition disabled:opacity-50"
+              >
+                {savingGenres ? "저장 중…" : "저장"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingGenres(false)}
+                className="rounded-lg border border-mova-border px-4 py-2 text-xs text-neutral-400 transition hover:text-mova-text"
+              >
+                취소
+              </button>
+            </div>
+          </section>
+        )}
+
         {loading ? (
           <div className="flex items-center gap-2 py-10 text-sm text-neutral-400">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -109,6 +208,29 @@ export default function MypagePage() {
           <p className="py-10 text-center text-sm text-rose-400">{error}</p>
         ) : data ? (
           <>
+            {/* 활동 요약 */}
+            <section className="flex gap-3">
+              <StatTile
+                icon={<Eye className="h-3.5 w-3.5" />}
+                label="본 영화"
+                value={`${data.activity.watched_count}편`}
+              />
+              <StatTile
+                icon={<Star className="h-3.5 w-3.5" />}
+                label="쓴 리뷰"
+                value={`${data.activity.review_count}개`}
+              />
+              <StatTile
+                icon={<Star className="h-3.5 w-3.5" />}
+                label="평균 별점"
+                value={
+                  data.activity.average_rating === null
+                    ? "—"
+                    : data.activity.average_rating.toFixed(1)
+                }
+              />
+            </section>
+
             {/* AI 픽 기록 */}
             <section>
               <div className="mb-3 flex items-center gap-2">
@@ -206,6 +328,66 @@ export default function MypagePage() {
                     })}
                   </div>
                 </div>
+              )}
+            </section>
+
+            {/* 내 리뷰 */}
+            <section>
+              <div className="mb-3 flex items-center gap-2">
+                <Star className="h-4 w-4 text-mova-accent" />
+                <h2 className="text-sm font-semibold text-mova-text">내 리뷰</h2>
+                <span className="text-xs text-neutral-500">{data.my_reviews.length}개</span>
+              </div>
+
+              {data.my_reviews.length === 0 ? (
+                <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
+                  아직 쓴 리뷰가 없어요. 영화 상세 페이지에서 별점과 감상을 남겨보세요.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {data.my_reviews.map((review) => {
+                    const slug = resolveMovaCatalogSlug(review.slug, review.title)
+                    const poster = coercePosterUrl(review.poster_url) ?? POSTER_PLACEHOLDER
+                    return (
+                      <li key={review.review_id}>
+                        <Link
+                          href={`/mova/title/${slug}`}
+                          className="flex gap-3 rounded-xl border border-mova-border bg-mova-surface p-3 transition hover:border-mova-accent/40"
+                        >
+                          <div className="relative h-[72px] w-12 shrink-0 overflow-hidden rounded bg-neutral-900">
+                            <Image
+                              src={poster}
+                              alt={review.title}
+                              fill
+                              className="object-cover"
+                              sizes="48px"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-mova-text">{review.title}</p>
+                            {review.rating !== null && (
+                              <p className="mt-0.5 flex items-center gap-1 text-xs text-mova-accent">
+                                <Star className="h-3 w-3 fill-current" />
+                                {review.rating.toFixed(1)}
+                              </p>
+                            )}
+                            {review.body && (
+                              <p className="mt-1 line-clamp-2 text-xs text-neutral-400">
+                                {review.body}
+                              </p>
+                            )}
+                          </div>
+                          <span className="shrink-0 text-[11px] text-neutral-500">
+                            {new Date(review.updated_at).toLocaleDateString("ko-KR", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
             </section>
 

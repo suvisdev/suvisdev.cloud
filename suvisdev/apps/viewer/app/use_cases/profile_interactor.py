@@ -14,3 +14,8 @@ class ProfileInteractor(ProfileUseCase):
 
     async def update_nickname(self, user_id: int, nickname: str) -> ProfileDto | None:
         return await self._repository.update_nickname(user_id, nickname)
+
+    async def update_preferred_genres(
+        self, user_id: int, genres: list[str]
+    ) -> ProfileDto | None:
+        return await self._repository.update_preferred_genres(user_id, genres)
