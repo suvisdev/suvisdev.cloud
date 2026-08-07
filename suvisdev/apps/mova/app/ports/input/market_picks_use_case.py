@@ -9,5 +9,7 @@ from mova.app.dtos.market_picks_dto import PickFeedbackDto
 
 class PicksUseCase(ABC):
     @abstractmethod
-    async def update_feedback(self, pick_id: int, feedback: str | None) -> PickFeedbackDto:
+    async def update_feedback(
+        self, pick_id: int, user_id: int, feedback: str | None
+    ) -> PickFeedbackDto:
         pass

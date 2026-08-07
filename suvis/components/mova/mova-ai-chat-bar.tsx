@@ -10,7 +10,7 @@ import {
 } from "@/components/mova/mova-recommendation-cards"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
-import { getSuvisSession } from "@/lib/suvis-session"
+import { authHeader } from "@/lib/suvis-session"
 import { getDailyMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
@@ -213,14 +213,15 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
       }))
 
       try {
+        // 신원은 토큰으로만 전달한다 — 백엔드가 바디의 user_id를 더 이상
+        // 신뢰하지 않는다(2026-08-07). 비로그인이면 헤더 없이 익명으로 간다.
         const res = await fetch("/api/mova/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeader() },
           body: JSON.stringify({
             message: trimmed,
             history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
             model: "flash15",
-            user_id: getSuvisSession()?.id ?? undefined,
           }),
         })
         const data = (await res.json()) as {

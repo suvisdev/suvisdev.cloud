@@ -11,5 +11,7 @@ class PicksInteractor(PicksUseCase):
     def __init__(self, repository: PicksRepositoryPort) -> None:
         self._repository = repository
 
-    async def update_feedback(self, pick_id: int, feedback: str | None) -> PickFeedbackDto:
-        return await self._repository.update_feedback(pick_id, feedback)
+    async def update_feedback(
+        self, pick_id: int, user_id: int, feedback: str | None
+    ) -> PickFeedbackDto:
+        return await self._repository.update_feedback(pick_id, user_id, feedback)
