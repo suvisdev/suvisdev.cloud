@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
-from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
+from mova.adapter.outbound.orm.studio_movies_orm import ALLOWED_ORIGINAL_LANGUAGES, MovaMovie
 from mova.adapter.outbound.orm.studio_tags_orm import TAG_KIND_GENRE, MovaTag, slugify_tag
 from mova.app.dtos.studio_import_dto import MovieUpsertCommand
 from mova.app.dtos.studio_movies_dto import (
@@ -104,6 +104,13 @@ class MoviesPgRepository(MoviesRepositoryPort):
     async def list_movies(self, query: MovieFilterQuery) -> MovieListDto:
         stmt = select(MovaMovie)
         count_stmt = select(func.count(MovaMovie.id))
+
+        language_cond = or_(
+            MovaMovie.original_language.is_(None),
+            MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
+        )
+        stmt = stmt.where(language_cond)
+        count_stmt = count_stmt.where(language_cond)
 
         if query.genre:
             cond = (
@@ -206,6 +213,26 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie.synopsis = synopsis
         await self._session.commit()
 
+    async def list_missing_original_language(self, limit: int | None) -> list[tuple[int, str]]:
+        """original_language가 비어 있는 TMDB 원산 영화 (movie.id, slug) — 백필 순회 전용."""
+        stmt = (
+            select(MovaMovie.id, MovaMovie.slug)
+            .where(MovaMovie.original_language.is_(None), MovaMovie.slug.like("tmdb-%"))
+            .order_by(MovaMovie.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = await self._session.execute(stmt)
+        return [(int(row.id), row.slug) for row in rows]
+
+    async def update_original_language(self, movie_id: int, original_language: str) -> None:
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
+        movie = movie_q.scalar_one_or_none()
+        if movie is None:
+            return
+        movie.original_language = original_language
+        await self._session.commit()
+
     async def upsert_movie(self, command: MovieUpsertCommand) -> int:
         existing_q = await self._session.execute(
             select(MovaMovie).where(MovaMovie.slug == command.slug)
@@ -221,6 +248,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
                 platforms=list(command.platforms or []),
                 age_rating=command.age_rating,
                 synopsis=command.synopsis,
+                original_language=command.original_language or None,
             )
             self._session.add(movie)
             await self._session.flush()
@@ -242,6 +270,8 @@ class MoviesPgRepository(MoviesRepositoryPort):
             existing.age_rating = command.age_rating
         if command.synopsis:
             existing.synopsis = command.synopsis
+        if command.original_language:
+            existing.original_language = command.original_language
         await self._session.commit()
         await self._session.refresh(existing)
         logger.debug("[MoviesPgRepository] update slug=%s id=%d", command.slug, existing.id)

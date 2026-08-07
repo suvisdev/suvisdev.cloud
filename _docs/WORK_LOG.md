@@ -28,6 +28,60 @@
 
 ---
 
+## 2026-08-07
+
+### 작업 내용
+- 502 두 종류 상태 재확인 요청에 답변(어제 mova 챗 502는 gemini 폴백으로
+  해결·유지 중, EC2 Cloudflare Tunnel 간헐적 502는 이번 확인 시점엔 6/6
+  200으로 정상 — 완전 해결 선언은 아님, 백로그 0순위 유지).
+- 사용자가 "DB에 태국어 같은 한국어/영어 아닌 영화는 제외해야 할 것 같다"고
+  제기 — 조사 결과 `movies` 테이블에 TMDB `original_language` 자체가
+  저장된 적이 없어(제목 텍스트로 태국 문자 스크립트만 세면 2014편 중 3편뿐,
+  신뢰 불가) 언어 필터 신호가 DB에 없던 것으로 확인. 사용자 확인 후
+  (1) 카탈로그/추천에서만 제외(행은 유지) (2) 지금 바로 착수, 두 가지로
+  범위 확정 후 구현.
+
+### 수정/구현
+- 마이그레이션 `20260807_0001`(`movies.original_language` String(8) NULL).
+- `tmdb_mapper.map_tmdb_row()`가 TMDB 응답의 `original_language`를 추출
+  (기존엔 안 받아옴, 소문자 정규화), `TmdbCatalogAdapter.fetch_by_id()`의
+  genre 재구성 분기(수동으로 DTO를 다시 만드는 코드)도 함께 수정 — 안 하면
+  이 경로(백필 CLI가 쓰는 경로)에서 값이 유실됨.
+- 저장 배선: `MovieUpsertCommand`/`TmdbMovieSnapshotDto`에 필드 추가,
+  `bulk_import_movies.py`·`import_interactor.py` 양쪽 TMDB upsert 경로,
+  `MoviesPgRepository.upsert_movie()` insert/update 양쪽 — synopsis
+  컬럼(2026-08-06)과 동일 패턴 재사용.
+- 필터링: `ALLOWED_ORIGINAL_LANGUAGES = ("ko", "en")` 상수를
+  `studio_movies_orm.py`에 신설, `MoviesPgRepository.list_movies()`
+  (`/mova/movies` 카탈로그)와 `ChatPgRepository`의 후보 쿼리 2곳
+  (`_movies_by_ids` — 태그/배우 매칭, `search_tag_catalog`의 인기작
+  폴백)에 `original_language IS NULL OR IN ('ko','en')` 조건 추가.
+  **NULL(백필 전 레거시 로우)은 배제 아님으로 취급** — 백필이 끝나기
+  전까지 기존 영화가 갑자기 안 보이는 회귀를 피하기 위한 설계.
+- 신규 `scripts/backfill_original_language_cli.py`(`backfill_synopsis_cli.py`
+  구조 그대로 재사용, `--limit`/`--dry-run`, idempotent — KOFIC 원산은
+  TMDB id가 없어 대상 밖, 애초에 전부 한국 영화라 필터 관심사도 아님).
+- 테스트 9건 신규(`test_tmdb_mapper.py` 3건 — original_language 추출/대소문자
+  정규화/필드 부재 시 빈 문자열, `test_backfill_original_language_cli.py`
+  6건 — 인자 파싱 2 + `_backfill_one` 4). `apps/mova/tests` 119개 전부
+  통과, import-linter mova 관련 위반 0건.
+
+### 오류·막힌 점
+- 없음(마이그레이션 신설 자체는 character_name/synopsis와 동일 패턴이라
+  막힌 지점 없었음).
+
+### 데이터
+- 로컬 실행 전 실측: EC2 `movies` 2014편 중 태국 문자 스크립트 포함 제목
+  3편(참고용 하한선일 뿐, 실제 비한국어/비영어 편수는 백필 후에나 정확히
+  나옴).
+
+### 산출물
+- 커밋 `4231991`(suvisdev) — 마이그레이션/ORM/DTO/필터/백필 CLI/테스트.
+- **EC2 배포·마이그레이션 적용·백필 실행은 이 항목 작성 시점 기준 진행
+  중**(사용자 승인 완료, 다음 항목에서 결과 기록 예정).
+
+---
+
 ## 2026-08-06
 
 ### 작업 내용

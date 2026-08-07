@@ -108,6 +108,7 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
                 genres=map_genre_objects(list(row.get("genres") or [])),
                 overview=mapped.overview,
                 cast=mapped.cast,
+                original_language=mapped.original_language,
             )
         return mapped
 

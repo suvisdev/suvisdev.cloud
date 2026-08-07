@@ -158,4 +158,5 @@ def map_tmdb_row(
         genres=genres,
         overview=str(row.get("overview") or "").strip(),
         cast=map_cast_names(row.get("credits")),
+        original_language=str(row.get("original_language") or "").strip().lower(),
     )
