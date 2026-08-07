@@ -84,6 +84,7 @@ async def _ingest_tmdb_movie(
                 genres=snap.genres,
                 synopsis=snap.overview,
                 original_language=snap.original_language,
+                origin_country=snap.origin_country,
             )
         )
     except Exception:

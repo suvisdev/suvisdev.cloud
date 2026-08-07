@@ -159,4 +159,7 @@ def map_tmdb_row(
         overview=str(row.get("overview") or "").strip(),
         cast=map_cast_names(row.get("credits")),
         original_language=str(row.get("original_language") or "").strip().lower(),
+        origin_country=[
+            str(c).strip().upper() for c in (row.get("origin_country") or []) if str(c).strip()
+        ],
     )

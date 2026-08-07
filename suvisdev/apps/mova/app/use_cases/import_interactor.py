@@ -208,4 +208,5 @@ class ImportInteractor(ImportUseCase):
             genres=snap.genres,
             synopsis=snap.overview,
             original_language=snap.original_language,
+            origin_country=snap.origin_country,
         )

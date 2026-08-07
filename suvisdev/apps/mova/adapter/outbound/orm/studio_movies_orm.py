@@ -58,6 +58,11 @@ class MovaMovie(MovaModel):
         index=True,
         comment="TMDB original_language(ISO 639-1). 카탈로그/추천 언어 필터용",
     )
+    origin_country: Mapped[list | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment='TMDB origin_country(ISO 3166-1 alpha-2 배열). 공동제작이면 ["US","GB"]',
+    )
     embedding: Mapped[list[float] | None] = mapped_column(
         Vector(_EMBEDDING_DIM),
         nullable=True,

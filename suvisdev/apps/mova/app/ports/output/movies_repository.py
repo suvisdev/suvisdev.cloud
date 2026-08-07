@@ -51,6 +51,14 @@ class MoviesRepositoryPort(ABC):
         """movie_id의 original_language만 갱신."""
 
     @abstractmethod
+    async def list_missing_origin_country(self, limit: int | None) -> list[tuple[int, str]]:
+        """origin_country가 비어 있는 TMDB 원산 영화 (movie.id, slug) — 백필 순회 전용."""
+
+    @abstractmethod
+    async def update_origin_country(self, movie_id: int, origin_country: list[str]) -> None:
+        """movie_id의 origin_country만 갱신."""
+
+    @abstractmethod
     async def list_all_slugs(self) -> list[tuple[int, str]]:
         """(movie.id, slug) 전체 목록 — credits 백필 순회 전용.
 

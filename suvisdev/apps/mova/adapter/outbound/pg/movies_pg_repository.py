@@ -233,6 +233,26 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie.original_language = original_language
         await self._session.commit()
 
+    async def list_missing_origin_country(self, limit: int | None) -> list[tuple[int, str]]:
+        """origin_country가 비어 있는 TMDB 원산 영화 (movie.id, slug) — 백필 순회 전용."""
+        stmt = (
+            select(MovaMovie.id, MovaMovie.slug)
+            .where(MovaMovie.origin_country.is_(None), MovaMovie.slug.like("tmdb-%"))
+            .order_by(MovaMovie.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = await self._session.execute(stmt)
+        return [(int(row.id), row.slug) for row in rows]
+
+    async def update_origin_country(self, movie_id: int, origin_country: list[str]) -> None:
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
+        movie = movie_q.scalar_one_or_none()
+        if movie is None:
+            return
+        movie.origin_country = origin_country
+        await self._session.commit()
+
     async def upsert_movie(self, command: MovieUpsertCommand) -> int:
         existing_q = await self._session.execute(
             select(MovaMovie).where(MovaMovie.slug == command.slug)
@@ -249,6 +269,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
                 age_rating=command.age_rating,
                 synopsis=command.synopsis,
                 original_language=command.original_language or None,
+                origin_country=command.origin_country,
             )
             self._session.add(movie)
             await self._session.flush()
@@ -272,6 +293,8 @@ class MoviesPgRepository(MoviesRepositoryPort):
             existing.synopsis = command.synopsis
         if command.original_language:
             existing.original_language = command.original_language
+        if command.origin_country is not None:
+            existing.origin_country = command.origin_country
         await self._session.commit()
         await self._session.refresh(existing)
         logger.debug("[MoviesPgRepository] update slug=%s id=%d", command.slug, existing.id)
