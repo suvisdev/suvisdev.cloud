@@ -14,7 +14,10 @@ export type ProfileResult = {
 type ProfileErrorBody = { detail?: string | unknown }
 
 export async function fetchProfile(userId: number): Promise<ProfileResult> {
-  const res = await fetch(`/api/viewer/profile?id=${userId}`, { cache: "no-store" })
+  const res = await fetch(`/api/viewer/profile?id=${userId}`, {
+    cache: "no-store",
+    headers: { ...authHeader() },
+  })
   const data = (await res.json()) as ProfileResult & ProfileErrorBody
   if (!res.ok) {
     throw new Error(

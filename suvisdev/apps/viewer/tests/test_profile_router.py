@@ -113,6 +113,36 @@ class ProfilePatchTests(unittest.TestCase):
         self.assertEqual(self.use_case.genre_calls, [])
 
 
+class ProfileGetAuthTests(unittest.TestCase):
+    """응답에 email이 들어간다 — 2026-08-07 이전엔 가드가 없어 무인증 조회가 됐다."""
+
+    def test_without_token_returns_401(self) -> None:
+        client = _build_client(_FakeProfileUseCase(), principal=None)
+
+        resp = client.get("/profile/7")
+
+        self.assertEqual(resp.status_code, 401)
+
+    def test_other_user_returns_403(self) -> None:
+        client = _build_client(
+            _FakeProfileUseCase(), principal=UserPrincipal(user_id=7, username="tester")
+        )
+
+        resp = client.get("/profile/1")
+
+        self.assertEqual(resp.status_code, 403)
+
+    def test_own_profile_returns_200(self) -> None:
+        client = _build_client(
+            _FakeProfileUseCase(), principal=UserPrincipal(user_id=7, username="tester")
+        )
+
+        resp = client.get("/profile/7")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["id"], 7)
+
+
 class ProfilePatchAuthTests(unittest.TestCase):
     def test_other_user_returns_403(self) -> None:
         use_case = _FakeProfileUseCase()

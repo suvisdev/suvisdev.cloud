@@ -8,6 +8,7 @@ import { Bookmark, Clock, Eye, Film, Loader2, LogOut, Search, Star, ThumbsDown, 
 import { MovaHeader } from "@/components/mova/mova-header"
 import { fetchMovaMypage, fetchWatchlist, type MypageData, type WatchlistItem } from "@/lib/mova-api"
 import { updatePreferredGenres } from "@/lib/profile-api"
+import { MovaGenrePicker } from "@/components/mova/mova-genre-picker"
 import { getSuvisSession, clearSuvisSession } from "@/lib/suvis-session"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { coercePosterUrl } from "@/lib/mova-poster"
@@ -16,11 +17,6 @@ import { cn } from "@/lib/utils"
 const POSTER_PLACEHOLDER =
   "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&q=80"
 
-/** 실 DB `tags`(tag_kind='genre') 라벨 기준 — 추천 후보와 실제로 매칭되는 값만 둔다. */
-const PREFERRED_GENRE_OPTIONS = [
-  "액션", "드라마", "코미디", "모험", "스릴러", "SF", "판타지", "가족",
-  "로맨스", "공포", "범죄", "애니메이션", "미스터리", "역사", "전쟁", "음악",
-] as const
 
 function FeedbackBadge({ feedback }: { feedback: string | null }) {
   if (!feedback) return null
@@ -155,30 +151,7 @@ export default function MypagePage() {
             <h2 className="mb-3 text-sm font-semibold text-mova-text">
               선호 장르 <span className="text-xs text-neutral-500">AI 추천에 반영돼요</span>
             </h2>
-            <div className="flex flex-wrap gap-1.5">
-              {PREFERRED_GENRE_OPTIONS.map((g) => {
-                const selected = genreDraft.includes(g)
-                return (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() =>
-                      setGenreDraft((prev) =>
-                        prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g],
-                      )
-                    }
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition",
-                      selected
-                        ? "border-mova-accent bg-mova-accent-soft text-mova-accent"
-                        : "border-mova-border text-neutral-400 hover:border-mova-accent/40",
-                    )}
-                  >
-                    {g}
-                  </button>
-                )
-              })}
-            </div>
+            <MovaGenrePicker value={genreDraft} onChange={setGenreDraft} />
             <div className="mt-4 flex gap-2">
               <button
                 type="button"

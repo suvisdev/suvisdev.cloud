@@ -34,8 +34,13 @@ class UpdateProfileRequest(BaseModel):
 @profile_router.get("/{user_id}", response_model=ProfileResponse)
 async def get_profile(
     user_id: int,
+    principal: UserPrincipal = Depends(require_user),
     profile: ProfileUseCase = Depends(get_profile_use_case),
 ) -> ProfileResponse:
+    # 응답에 email·nickname·gender가 들어간다 — 예전엔 가드가 없어 user_id만 알면
+    # 남의 이메일을 그대로 읽을 수 있었다(2026-08-07 수정, mypage와 같은 유형).
+    if principal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="본인 정보만 조회할 수 있습니다.")
     result = await profile.get_profile(user_id)
     if result is None:
         raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
