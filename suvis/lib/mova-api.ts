@@ -571,13 +571,19 @@ export type WatchlistData = {
 }
 
 export async function fetchWatchlist(userId: number): Promise<WatchlistData> {
-  const res = await fetch(`/api/mova/watchlist/${userId}`, { cache: "no-store" })
+  const res = await fetch(`/api/mova/watchlist/${userId}`, {
+    cache: "no-store",
+    headers: { ...authHeader() },
+  })
   if (!res.ok) throw new Error(`찜 목록 조회 실패 (${res.status})`)
   return (await res.json()) as WatchlistData
 }
 
 export async function checkWatchlist(userId: number, movieId: number): Promise<boolean> {
-  const res = await fetch(`/api/mova/watchlist/${userId}/check/${movieId}`, { cache: "no-store" })
+  const res = await fetch(`/api/mova/watchlist/${userId}/check/${movieId}`, {
+    cache: "no-store",
+    headers: { ...authHeader() },
+  })
   if (!res.ok) return false
   const data = (await res.json()) as { in_watchlist: boolean }
   return data.in_watchlist
@@ -586,14 +592,17 @@ export async function checkWatchlist(userId: number, movieId: number): Promise<b
 export async function addToWatchlist(userId: number, movieId: number): Promise<void> {
   const res = await fetch("/api/mova/watchlist", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeader() },
     body: JSON.stringify({ user_id: userId, movie_id: movieId }),
   })
   if (!res.ok) throw new Error(`찜 추가 실패 (${res.status})`)
 }
 
 export async function removeFromWatchlist(userId: number, movieId: number): Promise<void> {
-  const res = await fetch(`/api/mova/watchlist/${userId}/${movieId}`, { method: "DELETE" })
+  const res = await fetch(`/api/mova/watchlist/${userId}/${movieId}`, {
+    method: "DELETE",
+    headers: { ...authHeader() },
+  })
   if (!res.ok) throw new Error(`찜 삭제 실패 (${res.status})`)
 }
 
