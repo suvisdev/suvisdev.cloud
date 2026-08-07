@@ -68,9 +68,22 @@ await backendFetch(path, { headers: auth ? { Authorization: auth } : {} })
 ### 5. 소유권 검증 (IDOR)
 
 - 리소스 ID만으로 갱신·삭제하지 않는다. 요청자와 리소스 소유자가 같은지 확인한다.
-- 미해결 사례: `mova/.../market_picks_router.py`의 `PATCH /{pick_id}/feedback`은
-  `pick_id`만으로 갱신한다(코드에 TODO 주석 있음). **이 패턴을 새 코드에 복사하지
-  않는다.**
+- **`user_id`를 경로·바디로 받는 엔드포인트는 그 값을 신뢰하지 않는다.** 신원은
+  토큰에서만 온다. 2026-08-07 전수 조사에서 이 한 가지 패턴으로 5건이 나왔다 —
+  `/mova/mypage/{user_id}`, `/viewer/profile/{user_id}`(이메일 노출),
+  `/mova/watchlist/*`(읽기+**쓰기**), `/mova/picks/{pick_id}/feedback`,
+  `/mova/chat`(바디 `user_id`). 전부 수정됐다.
+- 참고 구현 두 가지:
+  - **라우터에서 대조**(리소스 조회가 이미 있을 때) — `market_reviews_router.py`
+    `PATCH /{review_id}`: `get_by_id` → 404 → 소유자 불일치면 403.
+  - **쿼리에 소유권을 함께 거는 방식**(조회를 한 번으로 줄일 때) —
+    `market_picks_pg_repository.update_feedback()`: `WHERE id=? AND user_id=?`.
+    이때 "없음"과 "남의 것"을 **구분해 알려주지 않는다**(id를 훑어 존재를
+    캐내는 것 방지).
+- 로그인이 선택인 엔드포인트는 `shared/security/require_user.py`의
+  `optional_user`를 쓴다 — 토큰이 있으면 신원을 주고 없으면 `None`(익명).
+  **토큰이 붙었는데 무효면 익명으로 강등하지 말고 401**을 낸다(개인화가 왜
+  끊겼는지 사용자가 알 수 있어야 한다). `/mova/chat`이 이 패턴이다.
 
 ### 6. 민감 정보 노출
 
