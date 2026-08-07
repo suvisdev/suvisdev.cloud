@@ -101,7 +101,12 @@ class ChatInteractor(ChatUseCase):
             similar = intent["search_filters"].get("similar_to") or {}
             actor_names = [*must.get("actors", []), *similar.get("actors", [])]
             catalog = await self._repo.search_tag_catalog(
-                intent["keywords"][:6], limit=16, actor_names=actor_names
+                intent["keywords"][:6],
+                limit=16,
+                actor_names=actor_names,
+                countries=must.get("countries") or [],
+                year_min=intent["search_filters"].get("year_min"),
+                year_max=intent["search_filters"].get("year_max"),
             )
 
         # 3. 추천 생성 (프롬프트·Gemini·파싱·DB 보강은 포트 구현체 내부)

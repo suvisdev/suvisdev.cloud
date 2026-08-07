@@ -67,26 +67,55 @@ class ChatPgRepository(ChatRepositoryPort):
         )
         return {r[0] for r in cast_rows} | {r[0] for r in director_rows}
 
-    async def _movies_by_ids(self, movie_ids: set[int], limit: int) -> list[MovaMovie]:
+    def _language_cond(self):
+        return or_(
+            MovaMovie.original_language.is_(None),
+            MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
+        )
+
+    def _hard_conds(
+        self, countries: list[str] | None, year_min: int | None, year_max: int | None
+    ) -> list:
+        """국가·연도 하드 조건 — 태그 매칭 결과와 인기작 폴백 양쪽에 똑같이 건다."""
+        conds = [self._language_cond()]
+        if countries:
+            # origin_country는 JSONB 배열(공동제작이면 ["US","GB"]) — 하나라도
+            # 겹치면 통과. 아직 백필 안 된 로우(NULL)는 국가를 증명할 수 없어 제외한다.
+            conds.append(
+                or_(*[MovaMovie.origin_country.contains([c]) for c in countries])
+            )
+        if year_min is not None:
+            conds.append(MovaMovie.release_year >= year_min)
+        if year_max is not None:
+            conds.append(MovaMovie.release_year <= year_max)
+        return conds
+
+    async def _movies_by_ids(
+        self, movie_ids: set[int], limit: int, conds: list
+    ) -> list[MovaMovie]:
         rows = await self._session.execute(
             select(MovaMovie)
-            .where(
-                MovaMovie.id.in_(movie_ids),
-                or_(
-                    MovaMovie.original_language.is_(None),
-                    MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
-                ),
-            )
+            .where(MovaMovie.id.in_(movie_ids), *conds)
             .order_by(MovaMovie.rating.desc())
             .limit(limit)
         )
         return list(rows.scalars().all())
 
     async def search_tag_catalog(
-        self, keywords: list[str], limit: int, *, actor_names: list[str] | None = None
+        self,
+        keywords: list[str],
+        limit: int,
+        *,
+        actor_names: list[str] | None = None,
+        countries: list[str] | None = None,
+        year_min: int | None = None,
+        year_max: int | None = None,
     ) -> list[MovaSearchItemSchema]:
-        if not keywords and not actor_names:
+        has_hard_filter = bool(countries) or year_min is not None or year_max is not None
+        if not keywords and not actor_names and not has_hard_filter:
             return []
+
+        conds = self._hard_conds(countries, year_min, year_max)
 
         tag_ids = await self._movie_ids_by_tags(keywords)
         actor_ids = await self._movie_ids_by_actors(actor_names or [])
@@ -101,26 +130,22 @@ class ChatPgRepository(ChatRepositoryPort):
         else:
             ids, match_type = set(), "keyword"
 
-        if not ids:
-            # 아무 조건도 안 맞으면 완전히 빈 후보 대신 인기작으로 폴백한다 —
-            # 빈 후보를 주면 LLM이 카탈로그에 없는 movie_id를 스스로 지어내고
-            # enrich 단계에서 전부 드롭돼 "reply는 자신있는데 카드 0개"가 된다
-            # (2026-08-06 실사용 재현: "주말에 몰아볼 시리즈 느낌 영화").
-            rows = await self._session.execute(
-                select(MovaMovie)
-                .where(
-                    or_(
-                        MovaMovie.original_language.is_(None),
-                        MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
-                    )
-                )
-                .order_by(MovaMovie.rating.desc())
-                .limit(limit)
-            )
-            return _to_search_items(list(rows.scalars().all()), "popular_fallback")
+        # 태그/배우로 좁힌 결과에 하드 조건을 걸었을 때 0건이면, 조건을 푸는 대신
+        # 하드 조건만 만족하는 인기작으로 간다 — "2020년대 한국 액션"에서 액션
+        # 태그가 헐리우드만 물어와도 한국 2020년대 인기작이 후보로 남는다.
+        if ids:
+            rows = await self._movies_by_ids(ids, limit, conds)
+            if rows:
+                return _to_search_items(rows, match_type)
 
-        rows = await self._movies_by_ids(ids, limit)
-        return _to_search_items(rows, match_type)
+        # 아무 조건도 안 맞으면 완전히 빈 후보 대신 인기작으로 폴백한다 —
+        # 빈 후보를 주면 LLM이 카탈로그에 없는 movie_id를 스스로 지어내고
+        # enrich 단계에서 전부 드롭돼 "reply는 자신있는데 카드 0개"가 된다
+        # (2026-08-06 실사용 재현: "주말에 몰아볼 시리즈 느낌 영화").
+        fallback_rows = await self._session.execute(
+            select(MovaMovie).where(*conds).order_by(MovaMovie.rating.desc()).limit(limit)
+        )
+        return _to_search_items(list(fallback_rows.scalars().all()), "popular_fallback")
 
     async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list[MovaChat]:
         rows = (
