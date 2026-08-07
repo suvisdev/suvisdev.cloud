@@ -1,7 +1,7 @@
 # 엔티티·테이블 규칙 (Cursor)
 
 > **용도:** `suvisdev/` 에서 ORM 모델·테이블·마이그레이션을 추가·수정할 때 참조한다.  
-> 레이어·API 규칙은 `suvisdev/_docs/CLAUDE.MD` §D–H 를 함께 본다.
+> 레이어·API 규칙은 `suvisdev/CLAUDE.md` §D–H 를 함께 본다.
 
 ---
 

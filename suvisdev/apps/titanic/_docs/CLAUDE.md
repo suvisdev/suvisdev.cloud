@@ -1,7 +1,7 @@
 # Titanic 앱 — 헥사고날 기준선
 
 > **역할:** CSV 업로드(James)·조회(Walter) — 전체 백엔드 앱의 **레이어 기준선**.  
-> **상위 문서:** [[suvisdev/_docs/CLAUDE]] — 아키텍처 전체 규칙
+> **상위 문서:** [[suvisdev/CLAUDE]] — 아키텍처 전체 규칙
 
 새 앱(mova, viewer 등)을 만들 때 이 앱의 레이어 구조를 그대로 복사한다.
 
