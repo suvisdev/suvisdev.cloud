@@ -6,12 +6,24 @@ seed_catalog_if_sparse는 movies >= 5편이면 스킵되므로, 이미 채워진
 Usage (suvisdev 폴더에서):
   docker compose exec backend python scripts/ingest_hub_knowledge.py
   (로컬 실행 시) python scripts/ingest_hub_knowledge.py
+
+  --embedding-backend {ollama,gemini}
+      임베딩 백엔드. 미지정 시 `EMBEDDING_BACKEND` 환경변수(기본 ollama)를 따른다.
+  --reset
+      시작 전에 기존 `source='mova_movie'` 로우를 전부 삭제한다.
+      **백엔드를 바꿀 땐 필수** — Ollama(nomic-embed-text)와 Gemini는 의미
+      공간이 달라, 두 벡터가 한 테이블에 섞이면 코사인 거리 비교가 무의미해져
+      검색 결과가 조용히 망가진다(차원은 768로 같아서 에러도 안 난다).
+  --limit N
+      앞 N편만 처리(시험 실행용).
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -23,7 +35,7 @@ for _p in (_BACKEND, _APPS):
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:\t%(message)s")
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import delete, select  # noqa: E402
 
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory  # noqa: E402
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor  # noqa: E402
@@ -33,14 +45,36 @@ from mova.adapter.outbound.pg.studio_characters_pg_repository import (  # noqa: 
     CharactersPgRepository,
 )
 from mova.app.dtos.studio_movies_dto import MovieFilterQuery  # noqa: E402
+from ontology.adapter.outbound.llm.gemini_embedding_adapter import (  # noqa: E402
+    GeminiEmbeddingAdapter,
+)
 from ontology.adapter.outbound.llm.ollama_embedding_adapter import (  # noqa: E402
     OllamaEmbeddingAdapter,
 )
+from ontology.adapter.outbound.orm.hub_knowledge_orm import HubKnowledgeOrm  # noqa: E402
 from ontology.adapter.outbound.repositories.hub_knowledge_repository import (  # noqa: E402
     HubKnowledgeRepository,
 )
 from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand  # noqa: E402
 from ontology.app.use_cases.hub_rag_interactor import HubRagInteractor  # noqa: E402
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--embedding-backend",
+        choices=("ollama", "gemini"),
+        default=os.getenv("EMBEDDING_BACKEND", "ollama").strip().lower(),
+    )
+    parser.add_argument(
+        "--reset", action="store_true", help="기존 mova_movie 로우 전량 삭제 후 인제스트"
+    )
+    parser.add_argument("--limit", type=int, default=None, help="앞 N편만 처리(시험 실행용)")
+    return parser.parse_args(argv)
+
+
+def _build_embedding(backend: str):
+    return GeminiEmbeddingAdapter() if backend == "gemini" else OllamaEmbeddingAdapter()
 
 
 async def _director_names(session, movie_id: int) -> list[str]:
@@ -52,15 +86,22 @@ async def _director_names(session, movie_id: int) -> list[str]:
     return [name for (name,) in rows.all()]
 
 
-async def main() -> None:
+async def main(args: argparse.Namespace) -> None:
     factory = get_mova_session_factory()
     async with factory() as session:
         movies_repo = MoviesPgRepository(session)
         chars_repo = CharactersPgRepository(session)
         hub = HubRagInteractor(
             repository=HubKnowledgeRepository(session),
-            embedding=OllamaEmbeddingAdapter(),
+            embedding=_build_embedding(args.embedding_backend),
         )
+
+        if args.reset:
+            result = await session.execute(
+                delete(HubKnowledgeOrm).where(HubKnowledgeOrm.source == "mova_movie")
+            )
+            await session.commit()
+            print(f"[reset] 기존 mova_movie 로우 {result.rowcount}건 삭제")
 
         movies = []
         page_size = 200
@@ -73,7 +114,9 @@ async def main() -> None:
             if len(listing.items) < page_size:
                 break
             offset += page_size
-        print(f"총 {len(movies)}편 인제스트 시작")
+        if args.limit is not None:
+            movies = movies[: args.limit]
+        print(f"백엔드={args.embedding_backend} 총 {len(movies)}편 인제스트 시작")
 
         succeeded = 0
         for movie in movies:
@@ -110,4 +153,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(_parse_args()))
