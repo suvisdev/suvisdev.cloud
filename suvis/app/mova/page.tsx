@@ -58,7 +58,10 @@ export default function MovaPage() {
         <div className="absolute top-3 left-4 z-10 hidden sm:top-3.5 sm:left-6 sm:block">
           <MovaLogo size="md" />
         </div>
-        <nav className="absolute inset-x-0 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center gap-5 lg:flex">
+        {/* 로고 바로 옆 좌측 정렬 — MovaHeader(공통 헤더)와 같은 배치.
+            left-32는 이 페이지 데스크톱 로고가 size="md"(공통 헤더는 "sm")라
+            MovaHeader의 left-28보다 한 단계 넓게 잡은 것. */}
+        <nav className="absolute top-1/2 left-32 z-10 hidden -translate-y-1/2 items-center gap-5 lg:flex">
           {nav.map((item) => {
             const active = isNavActive(pathname, item.href)
             return (
@@ -67,7 +70,9 @@ export default function MovaPage() {
                 href={item.href}
                 className={cn(
                   "text-sm transition-colors",
-                  active ? "font-semibold text-mova-text" : "text-neutral-300 hover:text-mova-text",
+                  active
+                    ? "mova-nav-active font-semibold text-mova-text"
+                    : "text-neutral-300 hover:text-mova-text",
                 )}
               >
                 {item.label}

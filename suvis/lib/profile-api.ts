@@ -24,17 +24,34 @@ export async function fetchProfile(userId: number): Promise<ProfileResult> {
   return data
 }
 
-export async function updateNickname(userId: number, nickname: string): Promise<ProfileResult> {
+async function patchProfile(
+  userId: number,
+  body: { nickname: string } | { preferred_genres: string[] },
+  fallbackMessage: string,
+): Promise<ProfileResult> {
   const res = await fetch(`/api/viewer/profile?id=${userId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeader() },
-    body: JSON.stringify({ nickname }),
+    body: JSON.stringify(body),
   })
   const data = (await res.json()) as ProfileResult & ProfileErrorBody
   if (!res.ok) {
-    throw new Error(
-      safeApiErrorMessage(data.detail, "닉네임을 변경하지 못했습니다.", res.status),
-    )
+    throw new Error(safeApiErrorMessage(data.detail, fallbackMessage, res.status))
   }
   return data
+}
+
+export function updateNickname(userId: number, nickname: string): Promise<ProfileResult> {
+  return patchProfile(userId, { nickname }, "닉네임을 변경하지 못했습니다.")
+}
+
+export function updatePreferredGenres(
+  userId: number,
+  preferredGenres: string[],
+): Promise<ProfileResult> {
+  return patchProfile(
+    userId,
+    { preferred_genres: preferredGenres },
+    "선호 장르를 변경하지 못했습니다.",
+  )
 }

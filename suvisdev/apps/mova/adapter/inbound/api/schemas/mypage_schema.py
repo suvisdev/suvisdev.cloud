@@ -20,8 +20,27 @@ class SearchHistorySchema(BaseModel):
     searched_at: datetime
 
 
+class MyReviewSchema(BaseModel):
+    review_id: int
+    movie_id: int
+    title: str
+    slug: str
+    poster_url: str | None
+    rating: float | None
+    body: str | None
+    updated_at: datetime
+
+
+class ActivitySummarySchema(BaseModel):
+    watched_count: int
+    review_count: int
+    average_rating: float | None
+
+
 class MypageSchema(BaseModel):
     nickname: str | None
     preferred_genres: list[str]
     recent_picks: list[PickHistorySchema]
     recent_searches: list[SearchHistorySchema]
+    my_reviews: list[MyReviewSchema]
+    activity: ActivitySummarySchema

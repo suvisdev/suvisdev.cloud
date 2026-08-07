@@ -612,15 +612,37 @@ export type MypageSearchItem = {
   searched_at: string
 }
 
+export type MypageReviewItem = {
+  review_id: number
+  movie_id: number
+  title: string
+  slug: string
+  poster_url: string | null
+  rating: number | null
+  body: string | null
+  updated_at: string
+}
+
+export type MypageActivity = {
+  watched_count: number
+  review_count: number
+  average_rating: number | null
+}
+
 export type MypageData = {
   nickname: string | null
   preferred_genres: string[]
   recent_picks: MypagePickItem[]
   recent_searches: MypageSearchItem[]
+  my_reviews: MypageReviewItem[]
+  activity: MypageActivity
 }
 
 export async function fetchMovaMypage(userId: number): Promise<MypageData> {
-  const res = await fetch(`/api/mova/mypage/${userId}`, { cache: "no-store" })
+  const res = await fetch(`/api/mova/mypage/${userId}`, {
+    cache: "no-store",
+    headers: { ...authHeader() },
+  })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     const detail =
