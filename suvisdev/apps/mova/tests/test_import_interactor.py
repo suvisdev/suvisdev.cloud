@@ -79,6 +79,38 @@ class ImportInteractorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.movie_ids, [42])
         movies.upsert_movie.assert_awaited_once()
 
+    async def test_hub_ingest_uses_movie_id_not_slug_as_source_ref(self) -> None:
+        """hub_knowledge.source_ref는 movie.id여야 한다.
+
+        채팅이 이 값을 movie_id로 int() 파싱해 후보 집합을 만든다
+        (chat_reply.enrich_from_db) — slug("tmdb-1")를 넣으면 파싱이 조용히
+        실패해 추천이 전부 드롭된다.
+        """
+        from mova.app.dtos.studio_import_dto import TmdbMovieSnapshotDto
+
+        snap = TmdbMovieSnapshotDto(
+            tmdb_id=1,
+            slug="tmdb-1",
+            title="Test",
+            release_year=2020,
+            rating=4.0,
+            poster_url="",
+            genres=["SF"],
+        )
+        catalog = AsyncMock()
+        catalog.fetch_by_id.return_value = snap
+        movies = AsyncMock()
+        movies.upsert_movie.return_value = 42
+        hub_rag = AsyncMock()
+        interactor = ImportInteractor(movies, catalog, AsyncMock(), AsyncMock(), hub_rag)
+
+        await interactor.import_tmdb(TmdbImportCommand(tmdb_id=1))
+
+        command = hub_rag.ingest_movie.await_args.args[0]
+        self.assertEqual(command.source_ref, "42")
+        self.assertNotEqual(command.source_ref, snap.slug)
+        self.assertTrue(command.source_ref.isdigit())
+
 
 if __name__ == "__main__":
     unittest.main()

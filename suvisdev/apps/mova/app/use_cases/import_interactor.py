@@ -100,7 +100,7 @@ class ImportInteractor(ImportUseCase):
             return None
         snap = snapshots[0]
         movie_id = await self._movies.upsert_movie(self._to_upsert(snap))
-        await self._ingest_to_hub(snap)
+        await self._ingest_to_hub(snap, movie_id)
         return movie_id
 
     async def _persist_snapshots(
@@ -116,7 +116,7 @@ class ImportInteractor(ImportUseCase):
         for snap in snapshots:
             movie_id = await self._movies.upsert_movie(self._to_upsert(snap))
             pairs.append((movie_id, snap))
-            await self._ingest_to_hub(snap)
+            await self._ingest_to_hub(snap, movie_id)
 
         rankings_updated = False
         if update_rankings and pairs:
@@ -166,10 +166,14 @@ class ImportInteractor(ImportUseCase):
 
         return []
 
-    async def _ingest_to_hub(self, snap: TmdbMovieSnapshotDto) -> None:
+    async def _ingest_to_hub(self, snap: TmdbMovieSnapshotDto, movie_id: int) -> None:
         """TMDB/KOFIC로 확보한 영화 정보를 ontology Hub의 RAG 지식 저장소에 반영한다.
 
         임베딩·색인 실패가 임포트 자체를 막지 않도록 격리한다(원본 카탈로그 upsert는 이미 완료됨).
+
+        `source_ref`는 반드시 `movie.id` — 채팅이 이 값을 movie_id로 int() 파싱해
+        후보 집합을 만든다(chat_reply.enrich_from_db). slug를 넣으면 파싱이 조용히
+        실패해 추천이 전부 드롭된다.
         """
         content_lines = [snap.overview]
         if snap.genres:
@@ -181,7 +185,7 @@ class ImportInteractor(ImportUseCase):
             await self._hub_rag.ingest_movie(
                 HubKnowledgeUpsertCommand(
                     source="mova_movie",
-                    source_ref=snap.slug,
+                    source_ref=str(movie_id),
                     title=snap.title,
                     content=content,
                 )

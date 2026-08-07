@@ -1,7 +1,7 @@
 # Mova 앱 — 영화·채팅·랭킹·리뷰 도메인
 
 > **역할:** 영화 저장·조회·채팅·리뷰·랭킹·TMDB 수입 등 Mova 백엔드 API.  
-> **상위 문서:** [[suvisdev/_docs/CLAUDE]]  
+> **상위 문서:** [[suvisdev/CLAUDE]]  
 > **프론트:** `suvis/app/mova` · 채팅 UX `MOVA_CHAT_UX.md`  
 > **스키마:** `MOVA_ERD.md`
 

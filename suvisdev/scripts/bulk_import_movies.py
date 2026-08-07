@@ -121,7 +121,10 @@ async def _ingest_tmdb_movie(
         await hub_rag.ingest_movie(
             HubKnowledgeUpsertCommand(
                 source="mova_movie",
-                source_ref=snap.slug,
+                # source_ref는 반드시 movie.id — 채팅이 이 값을 movie_id로 int() 파싱해
+                # 후보 집합을 만든다(chat_reply.enrich_from_db). slug를 넣으면 파싱이
+                # 조용히 실패해 추천이 전부 드롭된다.
+                source_ref=str(movie_id),
                 title=snap.title,
                 content=_hub_content(snap.overview, snap.genres, snap.cast),
             )
@@ -160,7 +163,7 @@ async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
     ]
 
     try:
-        await movies_repo.upsert_movie(
+        movie_id = await movies_repo.upsert_movie(
             MovieUpsertCommand(
                 slug=slug,
                 title=title,
@@ -190,7 +193,7 @@ async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
         await hub_rag.ingest_movie(
             HubKnowledgeUpsertCommand(
                 source="mova_movie",
-                source_ref=slug,
+                source_ref=str(movie_id),  # movie.id 고정 — 위 TMDB 경로와 같은 이유
                 title=title,
                 content="\n".join(content_lines),
             )

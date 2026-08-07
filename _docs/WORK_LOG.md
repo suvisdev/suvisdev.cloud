@@ -91,6 +91,110 @@
   동일 그룹) — 백필 대상 자체가 아니었고 설계대로 노출 유지. 프로덕션
   API로 확인(`GET /mova/movies` 총계 2014→1735) — 필터 정상 작동.
 
+### 작업 내용(추가①) — PROGRESS.md 백로그 일괄 처리(노트북 필요 항목 제외)
+
+사용자 지시로 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`의 백로그 중 집
+노트북이 필요한 것(5순위 lora-server 복구 등)을 빼고 전부 착수. 순서는
+"빠른 것(문서·감사) 먼저", 제품 결정이 필요한 항목은 마주칠 때마다 질문.
+
+### 수정/구현(추가①)
+
+**1) 1순위 hub_knowledge 벡터 검색 — 조사 결과 백로그 가정이 틀림**
+- 백로그는 "데이터는 채워졌으니 품질 비교만 남았다"고 봤으나, 프로덕션
+  로그 실측 결과 **EC2에서 벡터 검색이 한 번도 작동한 적 없음**을 확인.
+  `/mova/chat`은 `search_movies()`를 실제로 호출하지만 쿼리 임베딩에
+  Ollama가 필요하고 EC2엔 Ollama가 없다 → 매 요청
+  `[HubRagInteractor] embed 실패, 검색 생략` → `fallback search_tag_catalog
+  사용`. 노트북에서 백필한 2014편이 전혀 안 읽히고 있었음.
+- 덤으로 `QwenIntentClassifier`도 같은 원인으로 죽어 destination이 항상
+  `rag`로 폴백되는 것도 로그에서 확인.
+- 컨테이너 안에서 `OllamaEmbeddingAdapter().embed()` 직접 호출로 재확인
+  (`HubRagError: Ollama 서버에 연결할 수 없습니다`).
+
+**2) GeminiEmbeddingAdapter 신설(위 1의 해결책, PR #55)**
+- `gemini-embedding-001`은 기본 3072차원인데 `hub_knowledge.embedding`이
+  `Vector(768)`이라 `output_dimensionality=768`로 맞춤. MRL 절단이라 L2
+  norm이 1이 아니지만(실측 0.586) 검색이 `cosine_distance`(스케일 불변)만
+  써서 순위에 영향 없음을 확인하고 재정규화는 넣지 않음.
+- `EMBEDDING_BACKEND` 스위치(기본 `ollama` — 하위호환), EC2 `.env`에 `gemini`
+  설정 + 배포 후 컨테이너에서 어댑터 교체·768차원 반환 확인.
+- **재임베딩은 사용자 판단으로 보류** — Ollama(nomic)와 Gemini는 의미
+  공간이 달라 벡터가 호환되지 않아(차원은 768로 같아서 에러도 안 남)
+  전량 재임베딩이 필요한데, 프로덕션 2014행 삭제가 걸려 있어 멈춤.
+  `ingest_hub_knowledge.py`에 `--embedding-backend`/`--reset`/`--limit`를
+  추가해 실행 준비만 해둠. 벡터 경로는 현행(폴백) 유지 — 회귀 없음.
+- 테스트 8건(백엔드 스위치 4 + 어댑터 계약 4). 작성 중 `patch.dict(sys.modules)`가
+  `import x.y as z`를 가로채지 못해 테스트 2건이 실제 Gemini API를 때리고
+  있던 것을 발견 → `patch("google.generativeai.embed_content")`로 교체.
+
+**3) 백엔드 `CLAUDE.md` 깨진 Windows 심볼릭 링크 복구**
+- 백로그엔 "`_docs/CLAUDE.MD` 구버전 잔존"으로 적혀 있었으나 실제는 정반대 —
+  `suvisdev/CLAUDE.md`가 문서가 아니라 `C:/Users/hi/Documents/...` 경로
+  문자열만 든 **61바이트 텍스트 파일**이었다(Windows 심볼릭 링크가 일반
+  파일로 커밋됨). 즉 백엔드 레이어·SOLID·스타-토폴로지 규칙이 에이전트
+  컨텍스트에 **한 번도 로드된 적이 없었음**(이 세션 시작 시 시스템이 그
+  경로 문자열을 그대로 읽어온 것으로도 확인).
+- 저장소 전체를 훑어 같은 패턴이 이 1건뿐임을 확인. 2026-08-04 `suvis/`
+  선례대로 본문(431줄)을 `suvisdev/CLAUDE.md`로 이동, 옛 경로 참조 6곳
+  (README 4·entity-rules 1·앱 문서 3) 정정. 참조된 앱 문서·entity-rules가
+  실재하는지 먼저 확인 후 수정.
+
+**4) `.claude/rules/orm-columns.md` 신설**
+- `character_name` VARCHAR(50) 사고의 재발 방지. 외부 API·LLM·사용자 입력은
+  `Text`, 우리가 형식을 정하는 식별자·코드만 `String(N)`.
+- 규칙에 쓸 사실을 전부 실측: 저장소 전체 컬럼 타입 분포, 현행 `Text` 컬럼
+  목록, 프로덕션 최대 길이 대비 여유(`movies.title` 77/255, `actors.name`
+  31/128 등) → **기존 컬럼은 여유 3배 이상이라 당장 옮길 필요 없고 신규
+  컬럼에만 적용**이라는 결론까지 근거와 함께 기록. 초안에 `tag_kind` 크기를
+  확인 안 하고 썼다가 실제 값(`String(16)`)으로 정정.
+
+**5) `scripts/check_env_drift.py` 신설**
+- `.env.example` 키가 실제 `.env`에 있는지 비교(값은 비교 안 함 — 비밀 유출
+  방지). 누락 시 exit 1이라 CI·배포 게이트로 쓸 수 있음.
+- 즉시 유용성 확인: 로컬 13개·EC2 9개 누락 키 탐지. EC2 배포 스크립트
+  (`auto-deploy.sh`)는 저장소에 없고 EC2에만 있어 자동 배선은 스코프 밖.
+
+**6) 4순위 "구현과 의도 갭" 감사 — 가설 반증 + 신규 2건**
+- 백로그 가설("다른 앱에도 퍼져 있을 통계적 근거")은 **반증**. gildle·
+  contents·auth·analytics·media를 훑은 결과 배치 루프·외부 API 호출 지점
+  자체가 없어 패턴이 성립하지 않음 — mova/ontology 배치 파이프라인에 집중.
+- **신규 #9(심각)**: `hub_knowledge.source_ref`를 `source="mova_movie"`로
+  쓰는 5곳 중 **4곳이 slug, 1곳만 `movie.id`**. 읽는 쪽
+  (`chat_reply.enrich_from_db`)은 후보 id 집합을 `int(item.id)`로 만들고
+  파싱 실패 시 조용히 `continue`하므로, slug 색인이 벡터 검색에 걸리면
+  후보가 빈 셋 → **추천 전부 드롭("카드 0개")**. 실사용자가 신고했던 증상과
+  동일. 지금은 (a) 벡터 경로가 죽어 있고 (b) 현재 2014행이 마침 `movie.id`
+  키라 가려져 있을 뿐, **오늘 배포한 Gemini 스위치를 켜고 bulk_import를
+  돌리면 바로 재현**되는 상태였음. `source_ref`가 전역 UNIQUE라 중복 색인
+  문제도 있었음.
+- **신규 #10(경미)**: `backfill_hub_movies_rag.py`의 `ingested` 카운터가
+  시도 횟수를 셈 — `HubRagInteractor`가 임베딩 실패를 삼켜서 0건 성공해도
+  "N편 색인 완료"로 보고.
+- 사용자 확인 후 #9·#10 둘 다 수정(구버전 스크립트는 삭제 대신 "고쳐서
+  유지" 선택). `backfill_hub_movies_rag.py`는 JSONL에 slug만 있어
+  `list_all_slugs()`로 slug→movie.id 조회 후 색인(미등록 slug는 스킵).
+- 회귀 테스트 1건 추가 후 **일부러 slug로 되돌려 실제로 실패하는지 확인**
+  (통과만 확인하면 무의미한 테스트가 되므로) → 확인 후 원복.
+
+### 오류·막힌 점(추가①)
+- 테스트가 실제 외부 API를 때리고 있던 것(위 2 참고) — `import x.y as z`는
+  `sys.modules` 패치를 우회하고 실제 모듈을 바인딩한다. 모듈 속성을 직접
+  패치해야 함.
+- EC2 `git pull`이 divergent branches로 실패(로컬에 미푸시 `.gitignore`
+  커밋 1개 존재) → 내용 확인 후 `git merge origin/main`으로 병합.
+
+### 데이터(추가①)
+- EC2 `hub_knowledge`: 2014행 전부 `movie.id` 키(slug형 0건) — 수정 전
+  데이터는 오염되지 않은 상태임을 확인.
+- 프로덕션 컬럼 길이 실측: `movies.title` max 77/255, `actors.name` 31/128,
+  `tags.label` 5/255, `picks.hook` 40/120.
+
+### 산출물(추가①)
+- PR #55(Gemini 임베딩 어댑터, 머지·EC2 배포 완료), 커밋 `17400b2`(CLAUDE.md
+  복구)·`4c15087`(ORM 규칙)·`56f1d94`(env drift)·`8ca0e3c`(source_ref 통일).
+- `apps/mova/tests` + `apps/ontology/test` 182개 통과, import-linter 위반
+  baseline(4건, 전부 기존 `core.matrix` 경유)과 동일.
+
 ### 부수 발견 — `origin/main`이 로컬 세션 인지보다 앞서 있던 사고
 - 이 세션 시작 시 안내한 백로그 우선순위(1순위 hub_knowledge Phase 2 "착수
   전", 0순위 Cloudflare Tunnel 502 "미해결")가 **실제로는 이미 다른

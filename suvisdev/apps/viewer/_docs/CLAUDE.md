@@ -1,7 +1,7 @@
 # Viewer 앱 — 인증 (Login · Signup)
 
 > **역할:** `groups`, `admins`, `users` 테이블 기반 인증 API.  
-> **상위 문서:** [[suvisdev/_docs/CLAUDE]] — 아키텍처 전체 규칙
+> **상위 문서:** [[suvisdev/CLAUDE]] — 아키텍처 전체 규칙
 
 Titanic(James)과 **동일한 레이어 규칙**을 따른다. 아래는 Viewer만의 특이점만 기록한다.
 
