@@ -595,6 +595,17 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   임베딩·SSH 터널로 EC2 DB에 직접 백필 — `hub_knowledge` 0→2014(전량,
   embedding non-null), `succeeded=2014/2014 failed=0`. 상세: WORK_LOG
   2026-08-06(추가⑪).
+- **`movies.original_language` 컬럼 신설 + 카탈로그/추천 언어 필터
+  (2026-08-07)**: 사용자가 "태국어 같은 한국어/영어 아닌 영화는 제외해야
+  할 것 같다"고 제기 — TMDB `original_language`가 지금까지 저장된 적
+  없었음을 확인 후 마이그레이션 `20260807_0001` + synopsis와 동일 패턴의
+  백필 CLI(`backfill_original_language_cli.py`) 신설, `list_movies()`·
+  `search_tag_catalog()` 후보 쿼리에 `ko`/`en` 외 제외 필터 적용(백필 전
+  NULL은 노출 유지). EC2 배포 후 2014편 전량 백필 완료 — 최종 en 1677/
+  ja 56/ko 35/fr 33/es 31/zh 28/it 26/기타, **279편 제외**. NULL 23편은
+  전부 `tmdb-` 슬러그가 아닌 레거시 수동 등록 영화(아래 3순위와 동일
+  그룹, 백필 대상 자체가 아니었음)로 노출 유지 확인. `GET /mova/movies`
+  총계 2014→1735 프로덕션 반영 확인. 상세: WORK_LOG 2026-08-07.
 
 ---
 
@@ -609,26 +620,14 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 
-🔥 **0순위: EC2 기존 Cloudflare Tunnel(api.suvisdev.cloud) 502 — 부분 원인
-규명(2026-08-06), 완전 해소는 못 함**
-- **찾아서 고친 것**: AWS 보안 그룹 아웃바운드 UDP 7844(QUIC)가 TCP로
-  잘못 설정돼 있던 걸 발견·정정(+TCP 7844도 별도로 열어 둘 다 확보),
-  `docker-compose.yaml`의 `--protocol http2` 강제 제거 → QUIC 자동
-  협상 정상 확인(`readyConnections 4/4`, `protocol=quic`).
-- **그런데도 안 풀림**: 이 조치 이후에도 외부 요청은 그대로 100% 502 —
-  `auth.suvisdev.cloud`(같은 터널, 다른 서비스로 직결)는 항상 성공,
-  `api.suvisdev.cloud`(`nginx:80` 경유)만 항상 실패. origin(nginx·
-  cloudflared→nginx 네트워크 경로)은 nsenter로 실제 헤더까지 재현해
-  무죄 확인, DNS 중복·Access 정책·라우트 재등록·lora 터널 간섭도 전부
-  배제.
-- **잠정 결론(미확정)**: Cloudflare 상태 페이지의 SJC(산호세) PoP 예정
-  유지보수(2026-08-06 UTC 08~16시)와 조사 시각이 겹침 — 사용자 스크린샷
-  진단 패널도 "Los Angeles" PoP를 지목. 미국 서부 PoP 경유 트래픽이
-  한국(icn) 커넥터로 가는 구간 문제로 추정되나 확정 못 함.
-- **다음 세션 시작 시 먼저 할 일**: UTC 16시 이후(한국시간 새벽) 재검증
-  해서 자연 해소됐는지 확인. 여전히 실패하면 남은 후보는 **터널 자체를
-  대시보드에서 새로 생성**(새 ID로 라우팅 상태를 완전히 새로 시작 —
-  DNS 3개 재등록 필요)뿐. 상세: WORK_LOG 2026-08-06(추가⑩).
+**종결됨 — EC2 Cloudflare Tunnel(api.suvisdev.cloud) 502(구 0순위,
+2026-08-07 재검증으로 확정)**: 2026-08-06 세션 종료 시점엔 보안그룹
+수정(UDP 7844 TCP 오설정) 이후에도 100% 502가 계속돼 "잠정 결론(SJC PoP
+유지보수 추정), 다음 세션 시작 시 UTC 16시 이후 재검증 필요"로 미해결
+남겨뒀던 항목. 2026-08-07 세션에서 `api.suvisdev.cloud`에 6회 연속 curl
+결과 6/6 200(0.6~0.9초)으로 재검증해 실제로 자연 해소됐음을 확인 —
+당시 추정대로 PoP 유지보수 시간대와 겹쳤던 것으로 최종 판정. 보안그룹
+수정 자체는 여전히 유효한 근본 조치로 유지.
 
 **종결됨 — mova UX 완성 저수확 3건 트랙(구 1순위, 2026-08-06)**:
 `character_name`/감독 노출 + 죽은 컴포넌트 4개(`MovaFeaturedRow`/
