@@ -6,8 +6,12 @@ export async function GET(request: Request) {
   if (!id) {
     return NextResponse.json({ detail: "id가 필요합니다." }, { status: 400 })
   }
+  const auth = request.headers.get("authorization")
   try {
-    const res = await backendFetch(`/viewer/profile/${id}`, { cache: "no-store" })
+    const res = await backendFetch(`/viewer/profile/${id}`, {
+      cache: "no-store",
+      headers: auth ? { Authorization: auth } : {},
+    })
     let data: unknown
     try {
       data = await res.json()
