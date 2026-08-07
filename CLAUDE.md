@@ -132,6 +132,7 @@ pytest -m "not gpu"               # GPU·모델 가중치 필요한 테스트 �
 alembic upgrade head              # 마이그레이션 적용
 alembic history                   # 리비전 체인 확인
 PYTHONPATH="$PWD:$PWD/apps" lint-imports   # 클린 아키텍처 의존 규칙 검사
+python scripts/check_env_drift.py # .env.example 키가 .env에 다 있는지(값 비교 안 함)
 
 # 모바일 (susu/)
 flutter run
