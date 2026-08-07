@@ -12,6 +12,13 @@ from mova.adapter.outbound.orm.base_orm import MovaModel
 
 AGE_RATINGS = ("전체", "12세", "15세", "청불")
 
+# 카탈로그/추천 노출 허용 언어(TMDB original_language, ISO 639-1) — 태국어 등
+# 한국어 서비스 이용자에게 맥락 없는 외국어 영화 노출 방지(2026-08-07).
+# original_language가 아직 채워지지 않은(None) 레거시 로우는 백필 전까지
+# 노출 유지(미확인을 배제로 취급하지 않음) — movies_pg_repository.list_movies(),
+# market_chat_pg_repository.py 후보 쿼리에서 함께 참조한다.
+ALLOWED_ORIGINAL_LANGUAGES = ("ko", "en")
+
 # Gemini text-embedding-004 기준 차원 (mova가 이미 Gemini 어댑터 사용 중, MOVA_ERD.md v3 확정).
 _EMBEDDING_DIM = 768
 
@@ -44,6 +51,12 @@ class MovaMovie(MovaModel):
         nullable=True,
         index=True,
         comment="전체|12세|15세|청불",
+    )
+    original_language: Mapped[str | None] = mapped_column(
+        String(8),
+        nullable=True,
+        index=True,
+        comment="TMDB original_language(ISO 639-1). 카탈로그/추천 언어 필터용",
     )
     embedding: Mapped[list[float] | None] = mapped_column(
         Vector(_EMBEDDING_DIM),

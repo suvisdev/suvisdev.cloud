@@ -203,4 +203,5 @@ class ImportInteractor(ImportUseCase):
             poster_url=snap.poster_url,
             genres=snap.genres,
             synopsis=snap.overview,
+            original_language=snap.original_language,
         )

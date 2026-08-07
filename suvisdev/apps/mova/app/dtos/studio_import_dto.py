@@ -29,6 +29,7 @@ class TmdbMovieSnapshotDto:
     # Hub(ontology) RAG 색인(hub_rag.ingest_movie)과 movies.synopsis 양쪽에 쓰인다.
     overview: str = ""
     cast: list[str] = field(default_factory=list)
+    original_language: str = ""
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,7 @@ class MovieUpsertCommand:
     age_rating: str | None = None
     platforms: list[dict[str, str | None]] = field(default_factory=list)
     synopsis: str | None = None
+    original_language: str | None = None
 
 
 @dataclass(frozen=True)

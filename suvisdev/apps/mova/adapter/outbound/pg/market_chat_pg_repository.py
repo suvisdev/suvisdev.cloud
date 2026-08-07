@@ -15,7 +15,7 @@ from mova.adapter.outbound.orm.market_picks_orm import MovaPick
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
-from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
+from mova.adapter.outbound.orm.studio_movies_orm import ALLOWED_ORIGINAL_LANGUAGES, MovaMovie
 from mova.adapter.outbound.orm.studio_tags_orm import MovaTag
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 
@@ -70,7 +70,13 @@ class ChatPgRepository(ChatRepositoryPort):
     async def _movies_by_ids(self, movie_ids: set[int], limit: int) -> list[MovaMovie]:
         rows = await self._session.execute(
             select(MovaMovie)
-            .where(MovaMovie.id.in_(movie_ids))
+            .where(
+                MovaMovie.id.in_(movie_ids),
+                or_(
+                    MovaMovie.original_language.is_(None),
+                    MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
+                ),
+            )
             .order_by(MovaMovie.rating.desc())
             .limit(limit)
         )
@@ -101,7 +107,15 @@ class ChatPgRepository(ChatRepositoryPort):
             # enrich 단계에서 전부 드롭돼 "reply는 자신있는데 카드 0개"가 된다
             # (2026-08-06 실사용 재현: "주말에 몰아볼 시리즈 느낌 영화").
             rows = await self._session.execute(
-                select(MovaMovie).order_by(MovaMovie.rating.desc()).limit(limit)
+                select(MovaMovie)
+                .where(
+                    or_(
+                        MovaMovie.original_language.is_(None),
+                        MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
+                    )
+                )
+                .order_by(MovaMovie.rating.desc())
+                .limit(limit)
             )
             return _to_search_items(list(rows.scalars().all()), "popular_fallback")
 
