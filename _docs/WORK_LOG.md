@@ -195,6 +195,65 @@
 - `apps/mova/tests` + `apps/ontology/test` 182개 통과, import-linter 위반
   baseline(4건, 전부 기존 `core.matrix` 경유)과 동일.
 
+### 작업 내용(추가②) — UI 감사 §6 잔여 3건 + 마이페이지 무인증 노출 수정
+
+사용자 지시로 `_docs/MOVA_UI_AUDIT.md`(2026-08-05 작성) 실행. 착수 전 실측
+검증 결과 **§6 여섯 항목 중 3건은 이미 완료**돼 있었다(§6-1 `/mova/movies`
+필터 UI, §6-2 죽은 컴포넌트 4개, §6-3 `ActorInMovieSchema.character_name` —
+문서가 지적한 synopsis 하드코딩도 해결됨). 남은 마이페이지 3건을 구현.
+
+### 수정/구현(추가②)
+
+**0) 보안 — `GET /mova/mypage/{user_id}` 무인증 노출(작업 중 발견)**
+- 가드가 전혀 없어 **user_id만 알면 남의 닉네임·AI 추천 기록·검색 기록을
+  조회 가능**했다. 프로덕션에서 `curl .../mova/mypage/1` → 200 + 실제 개인
+  데이터로 재현 확인. 2026-07-28 `adress` 건과 같은 유형.
+- 이번 작업이 여기에 리뷰·시청 통계를 **더 얹는 것**이라 유출 범위를
+  넓히게 되므로 사용자 확인 후 함께 수정 — `require_user` + 본인 확인(403),
+  프론트 3계층 토큰 배선(`authHeader()` → `route.ts` → 백엔드).
+  `.claude/rules/security/auth.md` 절차 그대로.
+
+**1) 활동 요약(§6-6)**: `watched_count`/`review_count`/`average_rating`.
+`user_actions`는 행동 로그라 같은 영화가 여러 번 쌓이므로(UNIQUE 없음)
+`count(distinct movie_id)`로 집계. 별점 없이 본문만 쓴 리뷰가 허용되므로
+(2026-07-31) 개수는 전체, 평균은 `AVG`가 NULL을 자동 제외.
+
+**2) 내 리뷰 목록(§6-4)**: 최근 20건, `movies` JOIN으로 제목·포스터 동반.
+별점/본문 각각 nullable이라 조건부 렌더.
+
+**3) 취향 편집(§6-5)**: 백엔드에 `preferred_genres` 수정 경로가 아예 없던
+항목. **별도 엔드포인트 대신 기존 `PATCH /viewer/profile/{id}`를 부분 수정
+으로 확장** — 프록시(`app/api/viewer/profile/route.ts`)가 이미 바디를 그대로
+넘겨주고 있어 새 프록시·클라이언트 경로가 불필요했다(처음엔
+`/{user_id}/preferred-genres`로 만들었다가 이 사실을 확인하고 되돌림).
+둘 다 생략 시 400. 장르 선택지는 프론트 하드코딩 12종이 아니라 **실 DB
+`tags` 라벨 기준 16종**(실측: 액션 691·드라마 652…, 프론트 상수엔 DB에 없는
+"뮤지컬"이 있고 모험·판타지·가족 등 큰 장르가 빠져 있었음).
+
+**4) `/mova` 랜딩 헤더 정렬**: 사용자 스크린샷 지적 — 랜딩만 네비가
+`inset-x-0 justify-center`라 우측으로 밀려 보이고 활성 밑줄도 없었다.
+공통 `MovaHeader`와 같은 좌측 정렬(`left-32` — 랜딩 로고가 `size="md"`라
+공통 헤더 `left-28`보다 한 단계 넓게) + `mova-nav-active` 밑줄로 통일.
+
+**5) 부수 — `CLAUDE.md` 테스트 명령 정정**: 전체 스위트 실행 시
+`test_korean_ai.py`가 실패해 조사한 결과, 내 변경과 무관한 사전 존재 문제
+였다(stash 후 재현 확인). 원인은 `apps/titanic/tests/conftest.py`의 ollama
+자동 skip이 `markexpr`이 **비어 있을 때만** 걸리는데, `CLAUDE.md`가 표준
+명령으로 안내하는 `-m "not gpu"`가 markexpr을 채워 자동 skip을 꺼버리는 것.
+문서를 `-m "not gpu and not ollama"`로 정정(테스트 코드는 마커가 이미
+올바르게 붙어 있어 안 건드림).
+
+### 오류·막힌 점(추가②)
+- `UserPrincipal`에 `role` 필드가 있는 줄 알고 테스트를 썼다가 `TypeError` —
+  실제 필드는 `user_id`/`username`뿐이었다.
+- `apps/viewer`엔 테스트 디렉터리 자체가 없어 신설 + `pytest.ini` `testpaths`
+  등록 필요했다.
+
+### 산출물(추가②)
+- 커밋 `742ff81`. 테스트 428개 전부 통과(신규 12건: mypage 라우터 4 +
+  profile 라우터 8), import-linter 위반 baseline(4건)과 동일,
+  `pnpm type-check` 클린. (`pnpm lint`는 eslint 미설치로 실행 불가 — 기존 상태)
+
 ### 부수 발견 — `origin/main`이 로컬 세션 인지보다 앞서 있던 사고
 - 이 세션 시작 시 안내한 백로그 우선순위(1순위 hub_knowledge Phase 2 "착수
   전", 0순위 Cloudflare Tunnel 502 "미해결")가 **실제로는 이미 다른
