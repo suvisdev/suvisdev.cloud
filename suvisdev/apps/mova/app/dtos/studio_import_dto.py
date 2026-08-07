@@ -30,6 +30,7 @@ class TmdbMovieSnapshotDto:
     overview: str = ""
     cast: list[str] = field(default_factory=list)
     original_language: str = ""
+    origin_country: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,7 @@ class MovieUpsertCommand:
     platforms: list[dict[str, str | None]] = field(default_factory=list)
     synopsis: str | None = None
     original_language: str | None = None
+    origin_country: list[str] | None = None
 
 
 @dataclass(frozen=True)
