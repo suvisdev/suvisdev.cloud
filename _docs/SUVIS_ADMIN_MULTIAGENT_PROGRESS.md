@@ -586,6 +586,15 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   TMDB 한글 타이틀 미확보작(한자 원제 노출)도 정찰 중 발견해 제외.
   실행 직후 count 검증(12/8/8/8/8 정확 일치) + 로컬 SSR 렌더 확인까지
   완료. 상세: WORK_LOG 추가⑦.
+- **hub_knowledge Phase 2 데이터 백필 — 구 1순위 완료(2026-08-06)**:
+  `scripts/ingest_hub_knowledge.py`의 `limit=100` 하드코딩을 페이지네이션
+  루프로 교체, `HubKnowledgeRepository.upsert()`가 flush만 하고 commit을
+  안 하는 구조라 원래 코드가 전체를 한 트랜잭션에 넣고 있었던 걸 발견해
+  영화 1편 성공마다 개별 커밋(+실패 시 그 1건만 rollback)으로 격리.
+  이 세션이 실제로 노트북(GPU) 위에서 돌고 있던 걸 확인해 로컬 Ollama로
+  임베딩·SSH 터널로 EC2 DB에 직접 백필 — `hub_knowledge` 0→2014(전량,
+  embedding non-null), `succeeded=2014/2014 failed=0`. 상세: WORK_LOG
+  2026-08-06(추가⑪).
 
 ---
 
@@ -600,20 +609,26 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 
-🔥 **0순위: EC2 기존 Cloudflare Tunnel(api/ssh/auth) 절반 확률 502**
-- 증상: `api.suvisdev.cloud`(GET `/`, `GET /mova/rankings/hot`, `POST
-  /mova/chat` 등 라우트 무관 전부)가 약 50% 확률로 502. 실패 시 항상
-  ~8.5초 걸린 뒤 502, 성공 시 0.5~3.7초 — `suvisdevcloud-cloudflared-1`이
-  등록한 4개 커넥션 중 일부가 죽어 있다가 타임아웃되는 패턴으로 추정.
-- **오늘 작업(lora 전환)과 무관** — nginx+backend를 EC2 로컬에서 직접
-  호출하면 항상 200/정상. `docker compose --env-file suvisdev/.env
-  restart cloudflared`로 한 번 재기동해 완전 불통(0%)에서 50%로는
-  개선됐으나 완전히 해소되진 않음. 2026-08-02 이력에도 이 터널의 QUIC
-  연결 실패 로그가 있어(`--protocol http2`로 이미 전환된 상태에서도)
-  간헐적 네트워크 이슈로 보임 — EC2 쪽에서 계속 재발할 가능성.
-- 다음 시도 후보(미실행): `docker-compose.yaml`의 `cloudflared.command`에
-  `--edge-ip-version 4` 추가, 또는 `--ha-connections` 축소, 또는 대시보드
-  에서 터널 자체를 재생성. 상세: WORK_LOG 2026-08-05(추가⑭).
+🔥 **0순위: EC2 기존 Cloudflare Tunnel(api.suvisdev.cloud) 502 — 부분 원인
+규명(2026-08-06), 완전 해소는 못 함**
+- **찾아서 고친 것**: AWS 보안 그룹 아웃바운드 UDP 7844(QUIC)가 TCP로
+  잘못 설정돼 있던 걸 발견·정정(+TCP 7844도 별도로 열어 둘 다 확보),
+  `docker-compose.yaml`의 `--protocol http2` 강제 제거 → QUIC 자동
+  협상 정상 확인(`readyConnections 4/4`, `protocol=quic`).
+- **그런데도 안 풀림**: 이 조치 이후에도 외부 요청은 그대로 100% 502 —
+  `auth.suvisdev.cloud`(같은 터널, 다른 서비스로 직결)는 항상 성공,
+  `api.suvisdev.cloud`(`nginx:80` 경유)만 항상 실패. origin(nginx·
+  cloudflared→nginx 네트워크 경로)은 nsenter로 실제 헤더까지 재현해
+  무죄 확인, DNS 중복·Access 정책·라우트 재등록·lora 터널 간섭도 전부
+  배제.
+- **잠정 결론(미확정)**: Cloudflare 상태 페이지의 SJC(산호세) PoP 예정
+  유지보수(2026-08-06 UTC 08~16시)와 조사 시각이 겹침 — 사용자 스크린샷
+  진단 패널도 "Los Angeles" PoP를 지목. 미국 서부 PoP 경유 트래픽이
+  한국(icn) 커넥터로 가는 구간 문제로 추정되나 확정 못 함.
+- **다음 세션 시작 시 먼저 할 일**: UTC 16시 이후(한국시간 새벽) 재검증
+  해서 자연 해소됐는지 확인. 여전히 실패하면 남은 후보는 **터널 자체를
+  대시보드에서 새로 생성**(새 ID로 라우팅 상태를 완전히 새로 시작 —
+  DNS 3개 재등록 필요)뿐. 상세: WORK_LOG 2026-08-06(추가⑩).
 
 **종결됨 — mova UX 완성 저수확 3건 트랙(구 1순위, 2026-08-06)**:
 `character_name`/감독 노출 + 죽은 컴포넌트 4개(`MovaFeaturedRow`/
@@ -630,16 +645,21 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 결함 4가지 중 (1) 배우 미지원·(2) top-12 컷은 해결, (3) 순수 다중 장르
 AND와 (4) `origin_country`(아래 2순위)는 스코프 밖으로 남음.
 
-⚡ **1순위: hub_knowledge Phase 2(벡터 검색 경로 검증)**
-- 이유: 매칭 계층(title→movie_id)은 신뢰를 확보했지만 벡터 검색 경로는
-  데이터 자체가 아직 비어 있음(0건) — 채워야 3파이프라인(카탈로그
-  키워드/벡터 검색/LLM 자체 지식) 최종 비교가 가능해짐.
-- 실행 환경: 집 노트북 GPU 필수(nomic-embed-text 로컬 임베딩, EC2엔
-  Ollama 없음).
-- 시작 조건: `scripts/ingest_hub_knowledge.py` 사전 수정 3건 — (i)
-  `limit=100` 하드코딩 제거(카탈로그가 2014편으로 더 늘어 이제 1914편이
-  스킵됨), (ii) rollback 없는 except 방어, (iii) 5편 시험 실행 후 소요시간
-  역산해 전체 실행 여부 판단.
+**종결됨 — hub_knowledge Phase 2 데이터 백필(구 1순위, 2026-08-06)**:
+`scripts/ingest_hub_knowledge.py` 페이지네이션·per-item commit/rollback
+수정 + EC2 프로덕션 2014편 전량 백필 완료(`hub_knowledge` 0→2014,
+embedding 전량 non-null). 상세: WORK_LOG 2026-08-06(추가⑪). **남은 일**:
+3파이프라인(카탈로그 키워드/벡터 검색/LLM 자체 지식) 비교 실측은 아직
+안 함 — 다음 세션 후보로 아래에 신규 등록.
+
+⚡ **1순위: hub_knowledge 벡터 검색 경로 실측 비교(신규, 2026-08-06)**
+- 이유: 데이터는 채워졌지만(구 1순위 완료) 실제로 `/mova/chat`이 벡터
+  검색 경로를 유의미하게 활용하는지, 카탈로그 키워드 검색 대비 품질
+  차이가 있는지는 아직 검증 전.
+- 시작 조건: `HubRagInteractor.search_movies()`가 실제 채팅 파이프라인
+  어디서 호출되는지 확인(현재 호출부 존재 여부부터 재확인 필요) → 골든셋
+  재실행으로 벡터 검색 사용 전/후 비교.
+- 예상 소요: 반나절 이내(코드 조사 + 골든셋 재실행).
 - 예상 소요: 사전 수정 1~2시간 + 실제 백필은 실측 필요.
 
 ⚡ **2순위: `origin_country` 컬럼 신설 + TMDB 백필**
@@ -730,13 +750,6 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
 
 ---
 
-- **`movies.synopsis` 컬럼 부재(2026-08-05 신규)**: `movies` 테이블에
-  시놉시스 컬럼 자체가 없음(`lib/mova-api.ts`의 `synopsis: ""`는 하드코딩이
-  아니라 매핑할 대상이 아예 없었던 것). TMDB `overview`는 이미 import
-  시점에 가져오지만 hub_knowledge 텍스트에만 쓰이고 `movies`엔 저장 안
-  됨. 실제로 채우려면 오늘 character_name TEXT 마이그레이션과 같은 급
-  (마이그레이션 + ORM 컬럼 + import 저장 로직 + 기존 1067편 TMDB 재조회
-  백필)의 작업이 필요 — 착수 전. 상세: `_docs/MOVA_UI_QUICK_WINS.md` §2.
 - **`suvisdev/_docs/CLAUDE.MD` 구버전 잔존(2026-08-05 발견)**: 실제
   `suvisdev/CLAUDE.md`와 전혀 다른 내용의 431줄짜리 구버전 문서가
   `suvisdev/_docs/CLAUDE.MD`에 그대로 남아 있음 — 2026-08-04에 처리한
@@ -780,15 +793,10 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   문제는 아니고 카피 어색함이지만 골든셋 판정에 실제 영향을 준다는 게
   이번에 확인됨, 우선순위 재검토 여지 — 착수 전.
 - ~~**mova 추천 — TMDB popular 50페이지만으론 카탈로그 커버리지 부족**~~
-  — **종결(2026-08-06)**: 53~102페이지 추가 수집(카탈로그 1067→2014편)으로
-  실증 검증한 결과 골든셋 실패 6건이 하나도 안 풀림 — 병목은 카탈로그
-  크기가 아니라 `search_tag_catalog()`의 구조적 한계(위 2순위)로 판명.
-  상세: `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.
+  — **종결(2026-08-06)**: 위 "종결됨" 참고(722행), 상세는
+  `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.
 - **hub_knowledge 백필 스크립트 정비 필요(Phase 2 착수 전, 2026-08-05
-  신규)**: `scripts/ingest_hub_knowledge.py`가 `limit=100` 하드코딩(현재
-  카탈로그 1055편 기준 955편 스킵)과 루프 끝 단일 커밋+rollback 없는
-  except(오늘 고친 도미노 패턴과 동일 위험)를 갖고 있음 — 집 GPU에서
-  Phase 2(hub_knowledge 채우기) 착수 전 두 가지 다 수정 필요. 상세 체크리스트
+  신규)**: 시작 조건은 위 1순위 참고. 상세 체크리스트
   `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §4.
 - **EC2 `backend`/`auth` 이미지 중복 태깅으로 디스크 낭비(2026-08-05
   신규)**: `docker-compose.yaml`에서 두 서비스가 완전히 동일한
@@ -828,43 +836,13 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   것 자체는 정리 필요. **판단 필요**: (a) 죽은 코드니 그냥 제거할지, (b)
   `HubRagInteractor`가 `HubRagError`를 삼키지 않고 올려보내도록 고쳐서
   rollback이 실제로 의미를 갖게 할지 — 이번 스코프 밖, 착수 전.
-- **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback —
-  오늘 0회 발동한 이유 특정(2026-08-05 신규)**: 사용자 요청으로 원래
-  418건 도미노를 유발한 예외의 정확한 발생 지점을 재조사.
-  - **원래 트리거 특정**: 어제 도미노의 실제 원인은
-    `psycopg.errors.StringDataRightTruncation: value too long for type
-    character varying(50)`(`characters.character_name` 초과) —
-    발생 지점은 `upsert_movie()`가 아니라 `CharactersPgRepository
-    .upsert_character()`(`studio_characters_pg_repository.py:58`,
-    `self._session.commit()`)이며, 이는 `credits_interactor._backfill_one()`을
-    통해 **credits 백필 except(92~96행)** 안에서 호출된다. 즉 76~84행
-    자체가 이 데이터 문제를 직접 겪은 적은 원래도 없다 — 오늘 로그로
-    같은 에러(`StringDataRightTruncation`)가 credits 백필 except에서
-    13번 재발함을 직접 확인(어제와 동일 조건, 완전히 없어지지 않음).
-  - **76~84행이 어제 418번 발동했던 진짜 이유**: 92~96행(당시 rollback
-    없음)에서 커밋 실패로 세션이 pending-rollback 상태가 된 채 다음
-    단계(hub_knowledge, 111~115행— 역시 당시 rollback 없음)로 넘어가고,
-    그 다음 영화의 첫 세션 작업인 `upsert_movie()` 호출이 **상속된**
-    `PendingRollbackError`를 즉시 던진 것 — 즉 76~84행은 "그 영화 자신의
-    데이터 문제"가 아니라 "이전 영화가 남긴 오염"을 매번 새로 검출만
-    했던 것. 어제 커밋 diff(`6935352`)를 재확인한 결과 `character_name`
-    컬럼 길이·검증·트렁케이션 로직 변경은 전혀 없었음(rollback 5곳
-    추가가 전부) — 데이터 조건 자체는 그대로.
-  - **판정 — (나)에 가까움, 단 조건부**: 92~96행(그리고 111~115행)에
-    rollback이 생기면서 오염이 애초에 다음 영화로 넘어가지 않게 됐으므로,
-    "이전 영화의 오염을 상속받아 76~84행이 발동"하는 **원래의 418-도미노
-    전파 경로는 구조적으로 막혔다** — 이 경로에 한해서는 76~84행이 (B)와
-    같은 도달 불가 코드가 됐다고 볼 수 있음. 다만 76~84행은 이론적으로
-    `upsert_movie()` **자신의** 독립적 실패(movies 테이블 자체 제약
-    위반 등)에도 반응하도록 남아 있고, 이 클래스는 오늘도 관측된 적이
-    없어 순수 (가)(데이터 우연/미검증) 상태다 — 다만 `movies.title`이
-    `String(255)`(characters.character_name `String(50)`보다 훨씬 넉넉)라
-    이 독립 실패 클래스 자체의 발생 확률은 낮다고 봄.
-  - **백로그 정리**: (1) 92~96행 rollback → **검증됨**(위 완료 항목
-    참고, 그대로 둠). (2) 76~84행 rollback → 원래 전파 경로 기준으로는
-    도달 불가에 가까움, `upsert_movie()` 자체의 독립 실패 대비용으로는
-    여전히 유효하니 제거하지 않음 — 재현 시험이 필요하다면 KOFIC 소스나
-    타이틀이 비정상적으로 긴 데이터셋으로 별도 확인 필요(우선순위 낮음).
+- **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback — 조사
+  종결(2026-08-05)**: 원래 418건 도미노는 76~84행 자체가 아니라 credits
+  백필 except(92~96행, `characters.character_name` truncation)에서 시작돼
+  다음 영화로 오염이 상속되던 것 — 92~96행에 rollback이 생기면서 이
+  전파 경로는 구조적으로 막힘(그대로 둠). 76~84행은 `upsert_movie()`
+  자신의 독립적 실패 대비용으로 유효하니 제거하지 않음, 재현 시험은
+  우선순위 낮음. 상세: WORK_LOG 2026-08-05(추가①).
 - **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
   중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
   (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),
@@ -917,14 +895,12 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   같은 `DuplicateTable`/`stamp` 우회가 반복될 수 있다. 근본 해결은
   `create_all()` 경로를 제거하고 alembic을 단일 소스로 삼는 것. 상세:
   WORK_LOG 2026-07-30.
-- **mova 대량 영화 수집 실제 실행(2026-08-02 신규, 코드는 완성)**:
-  `scripts/bulk_import_movies.py`를 아직 한 번도 실행하지 않음 — 목표는
-  TMDB(해외)+KOFIC(한국) 합산 수만 편, 하루 배치(예: `--pages` 조절해 1000편
-  안팎)로 점진 적재. 실행 전 TMDB API 요청량(수만 편×credits 1회씩)이
-  일일 쿼터에 걸리는지 확인 필요. `scripts/backfill_hub_movies_rag.py`(정적
-  JSONL 기반 구버전 hub_knowledge 백필)와 목적이 겹치므로, 대량 수집이
-  안정화되면 이 구버전 스크립트를 정리(삭제 또는 문서화)할지도 함께 결정
-  필요. 상세: WORK_LOG 2026-08-02.
+- **구버전 `scripts/backfill_hub_movies_rag.py` 정리 여부 미결(2026-08-02
+  신규)**: `bulk_import_movies.py`가 2026-08-05·08-06 두 차례 실전 배치로
+  안정화됨(카탈로그 142→2014편) — 애초에 걸려 있던 "실행 전 확인" 조건은
+  해소됐지만, 정적 JSONL 기반 구버전 hub_knowledge 백필 스크립트인
+  `backfill_hub_movies_rag.py`와 목적이 겹치는 문제는 그대로 남음. 삭제할지
+  문서화만 할지 결정 필요 — 착수 전. 상세: WORK_LOG 2026-08-02.
 - **`get_mova_session_factory()` 직접 사용 시 commit 누락 함정(2026-08-02
   신규, 경미)**: `HubKnowledgeRepository.upsert()`처럼 `flush()`만 하고
   `commit()`을 안 하는 레포지토리가 있음 — `get_mova_db()`(FastAPI
@@ -947,14 +923,8 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
 - **`suvis/app/mail/contacts` 공개 레슨 데모 처리(2026-07-28 신규)**: adress
   엔드포인트에 `require_admin`을 걸면서 이 페이지는 이제 업로드 시도 시 401만
   받는다. 페이지 자체를 지울지, 로그인 요구 안내로 바꿀지, 별도 더미 데이터로
-  분리할지 제품 결정 필요.
-- **어드민 백엔드 인증 공백**: (2026-07-27 대응) 가드를 `shared/security/require_admin.py`로
-  이동 후 dispatch `email/telegram/discord` POST·`receive` GET/DELETE, harvester
-  `scrape/crawl/sites`에 `require_admin` 추가 + 프론트 프록시/클라가 세션 Bearer를
-  백엔드까지 전달(3계층). 상세 WORK_LOG 2026-07-27 [2]. **2026-07-28 추가**:
-  `watcher/judge/spam/adress` 전수 감사 완료 — watcher/judge는 위험 없는 스텁,
-  spam은 미사용 코드, **adress는 실제 무인증 쓰기/조회 취약점이라 수정 완료**
-  (위 "완료됨" 참고). `receive` POST는 외부 인입이라 의도적으로 무인증 유지.
+  분리할지 제품 결정 필요. (어드민 백엔드 인증 공백 감사 자체는 완료됨 —
+  위 "완료됨" 2026-07-28 항목 참고.)
 
 ---
 

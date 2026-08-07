@@ -62,8 +62,17 @@ async def main() -> None:
             embedding=OllamaEmbeddingAdapter(),
         )
 
-        listing = await movies_repo.list_movies(MovieFilterQuery(limit=100))
-        movies = listing.items
+        movies = []
+        page_size = 200
+        offset = 0
+        while True:
+            listing = await movies_repo.list_movies(
+                MovieFilterQuery(limit=page_size, offset=offset)
+            )
+            movies.extend(listing.items)
+            if len(listing.items) < page_size:
+                break
+            offset += page_size
         print(f"총 {len(movies)}편 인제스트 시작")
 
         succeeded = 0
@@ -90,12 +99,13 @@ async def main() -> None:
                         content=content,
                     )
                 )
+                await session.commit()
                 succeeded += 1
                 print(f"  완료: {movie.title}")
             except Exception as e:  # noqa: BLE001
+                await session.rollback()
                 print(f"  실패: {movie.title} — {e}")
 
-        await session.commit()
         print(f"전체 완료 succeeded={succeeded}/{len(movies)}")
 
 
