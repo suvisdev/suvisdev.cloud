@@ -68,7 +68,12 @@ class ChatInteractorSearchTagCatalogTests(unittest.IsolatedAsyncioTestCase):
     전달되는지 확인(2026-08-06 search_tag_catalog 개선 — 배우 매칭 지원)."""
 
     def _build(
-        self, *, must_actors: list[str], similar_actors: list[str] | None = None
+        self,
+        *,
+        must_actors: list[str],
+        similar_actors: list[str] | None = None,
+        countries: list[str] | None = None,
+        years: tuple[int | None, int | None] = (None, None),
     ) -> tuple[ChatInteractor, AsyncMock]:
         repo = AsyncMock()
         repo.save_chat.return_value = 1
@@ -85,8 +90,15 @@ class ChatInteractorSearchTagCatalogTests(unittest.IsolatedAsyncioTestCase):
                 "keywords": ["코미디", "전지현"],
                 "intent_type": "filter_and",
                 "search_filters": {
-                    "must": {"actors": must_actors, "genres": ["코미디"], "keywords": []},
+                    "must": {
+                        "actors": must_actors,
+                        "genres": ["코미디"],
+                        "keywords": [],
+                        "countries": countries or [],
+                    },
                     "similar_to": {"actors": similar_actors or []},
+                    "year_min": years[0],
+                    "year_max": years[1],
                 },
             }
         )
@@ -122,6 +134,18 @@ class ChatInteractorSearchTagCatalogTests(unittest.IsolatedAsyncioTestCase):
 
         kwargs = repo.search_tag_catalog.await_args.kwargs
         self.assertEqual(kwargs["actor_names"], ["송강호"])
+
+    async def test_countries_and_year_range_forwarded(self) -> None:
+        """골든셋 #9 — 국가·연도가 후보 쿼리까지 전달돼야 한다(2026-08-07)."""
+        interactor, repo = self._build(must_actors=[], countries=["KR"], years=(2020, 2029))
+        request = MovaChatRequest(message="2020년대 한국 액션", history=[])
+
+        await interactor.chat(request)
+
+        kwargs = repo.search_tag_catalog.await_args.kwargs
+        self.assertEqual(kwargs["countries"], ["KR"])
+        self.assertEqual(kwargs["year_min"], 2020)
+        self.assertEqual(kwargs["year_max"], 2029)
 
 
 if __name__ == "__main__":
