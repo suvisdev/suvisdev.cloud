@@ -38,6 +38,19 @@ async def get_movie_detail(
     return dto.to_schema()
 
 
+@studio_movies_router.get("/{slug}/similar", response_model=MovieListSchema)
+async def get_similar_movies(
+    slug: str,
+    limit: int = Query(12, ge=1, le=30),
+    movies: MoviesUseCase = Depends(get_movies_use_case),
+) -> MovieListSchema:
+    """유사 영화 — embedding 코사인 유사도. 영화 없음/embedding 미백필이면 빈 목록(에러 아님)."""
+    dto = await movies.get_similar_movies(slug, limit)
+    if dto is None:
+        return MovieListSchema(items=[], total=0, limit=limit, offset=0)
+    return dto.to_schema()
+
+
 @studio_movies_router.get("", response_model=MovieListSchema)
 async def list_movies(
     genre: str | None = Query(None, description="장르 필터 (예: SF, 코미디)"),

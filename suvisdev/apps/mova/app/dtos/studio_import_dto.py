@@ -31,6 +31,11 @@ class TmdbMovieSnapshotDto:
     cast: list[str] = field(default_factory=list)
     original_language: str = ""
     origin_country: list[str] = field(default_factory=list)
+    # release_dates/watch-providers는 영화 상세(append_to_response) 응답에만 있다 —
+    # popular/discover 같은 목록 엔드포인트에서 온 row는 이 키 자체가 없어 기본값(None/[])으로 남는다.
+    age_rating: str | None = None
+    platforms: list[dict[str, str | None]] = field(default_factory=list)
+    trailer_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +79,7 @@ class MovieUpsertCommand:
     synopsis: str | None = None
     original_language: str | None = None
     origin_country: list[str] | None = None
+    trailer_key: str | None = None
 
 
 @dataclass(frozen=True)

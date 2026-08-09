@@ -31,8 +31,52 @@
 ## 2026-08-09
 
 ### 작업 내용
-- `_docs/MOVA_UI_AUDIT.md` 잔여 10건 중 6건 착수(1-c·1-d·1-e·3-a·3-c·2-a 완료,
-  3-b·4-c·4-b·4-a는 다음 세션으로 이월).
+- `_docs/MOVA_UI_AUDIT.md` 잔여 10건 전부 착수·완료(1-c·1-d·1-e·3-a·3-c·2-a는
+  세션 전반부, 3-b·4-c·4-b·4-a는 세션 후반부 "위 내용 이어서 하자" 요청으로 이어감).
+
+### 추가 구현(세션 후반부 — 3-b·4-c·4-b·4-a)
+- **3-b·4-c 연령등급/플랫폼**: TMDB `release_dates`/`watch/providers`를
+  `append_to_response`로 한 번에 받아옴(추가 API 호출 없음). `map_kr_certification`
+  ("ALL/12/15/19"→"전체/12세/15세/청불")·`map_kr_watch_providers`(provider_name
+  정규화, TMDB엔 provider별 개별 딥링크가 없어 국가 단위 링크 하나 공유) 신설.
+  `list_missing_age_rating_or_platforms`/`update_age_rating_and_platforms`
+  리포지토리 메서드 + `scripts/backfill_age_rating_platforms_cli.py`. 프론트:
+  `platforms[].url` 매핑 누락 수정(§4-c 원인), `/mova/movies` 관람등급·플랫폼
+  select 활성화(§3-b).
+- **4-b 트레일러**: TMDB `videos`(`include_video_language=ko,en,null`로 한국어
+  없어도 폴백) 연동, `map_youtube_trailer`(Trailer·official·ko 우선순위) 신설.
+  **신규 컬럼** `movies.trailer_key` TEXT(마이그레이션 `20260809_0001`) +
+  `scripts/backfill_trailer_cli.py`. 상세 페이지에 유튜브 iframe 임베드 추가.
+- **4-a 유사 영화**: `movies.embedding`(768차원, 지금까지 한 번도 안 채워짐 —
+  hub_knowledge 재임베딩 이슈와 무관한 별개 컬럼)을 `ontology` Hub의
+  `GeminiEmbeddingAdapter` 재사용(Spoke→Hub 임포트, 허용됨)으로 백필.
+  `title/genres/cast(5명)/synopsis` 텍스트로 임베딩 생성.
+  `find_similar_movies()`(pgvector `cosine_distance`, 자기 자신 제외) +
+  `GET /mova/movies/{slug}/similar` 신설. 상세 페이지에 "비슷한 영화" 가로 스크롤
+  섹션 추가.
+- 공통: `age_rating`/`platforms`/`trailer_key` 전부 **인터랙티브 단건 임포트
+  경로**(`_to_upsert`)에도 연결 — 다음부터 신규 임포트 시 자동으로 채워짐(대량
+  카탈로그 확장은 PROGRESS.md 방침대로 안 함).
+
+### 검증(세션 후반부)
+- 백엔드: 경량 venv로 `apps/mova/tests`·`apps/viewer/tests`·`shared/tests`·
+  ontology 임베딩 관련 2개 파일 194개 전부 통과(신규 mapper/DTO 테스트 포함).
+  기존 `MovieDetailDto(...)` 직접 생성 테스트 2곳이 새 필수 필드로 깨져서 같이 고침.
+  `pnpm type-check` 매 단계 클린.
+- 실제 TMDB API로 로컬 dev DB(39편, `suvisdev-db-1`) 전량 백필 실행 확인:
+  age_rating 27편·platforms 12편·trailer_key 36편·embedding 39편 채워짐.
+  `find_by_slug`→DTO→schema 경로도 실측(`trailer_key` 끝까지 보존 확인).
+
+### 오류·막힌 점(세션 후반부)
+- `backfill_movie_embeddings_cli.py` 첫 실행이 "Mova URL이 설정되지 않았습니다"로
+  실패 — 원인은 `.env` 로드가 `core.matrix.grid_oracle_database_manager`가 아니라
+  `core.matrix.vauly_keymaker_secret_manager`(모듈 import 시점 `Keymaker()` 싱글턴
+  생성)의 부작용이었는데, 이 스크립트만 `get_keymaker()` 워밍업 호출을 빠뜨렸음
+  (다른 backfill_*_cli.py는 우연히 먼저 호출하고 있었음). `get_keymaker()`를
+  `get_mova_session_factory()`보다 먼저 호출하도록 추가해 해결.
+
+### 산출물
+- 커밋 해시는 다음 항목에 추가 예정(이 세션 종료 직후 커밋·푸시).
 
 ### 수정·구현
 - **1-c 찜 삭제**: mypage 찜 카드에 삭제 버튼 배선(`removeFromWatchlist` 재사용).

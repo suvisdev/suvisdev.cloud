@@ -26,6 +26,10 @@ export type MovaMovie = {
   ageRating: string
   rankBadge?: string
   platform?: "netflix" | "disney"
+  /** 실 API 전용 — 링크가 있는 모든 플랫폼(복수). 목업 데이터는 채우지 않는다. */
+  platforms?: { provider: string; url: string | null }[]
+  /** 실 API 전용 — YouTube video key. 목업 데이터는 채우지 않는다. */
+  trailerKey?: string | null
   poster: string
   backdrop: string
   rating: number

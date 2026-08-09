@@ -209,4 +209,7 @@ class ImportInteractor(ImportUseCase):
             synopsis=snap.overview,
             original_language=snap.original_language,
             origin_country=snap.origin_country,
+            age_rating=snap.age_rating,
+            platforms=snap.platforms,
+            trailer_key=snap.trailer_key,
         )

@@ -180,10 +180,11 @@ type MovieDetailApiRow = {
   release_year: number
   rating: number
   poster_url: string
-  platforms: { provider: string }[]
+  platforms: { provider: string; url: string | null }[]
   age_rating: string | null
   genres: string[]
   synopsis: string | null
+  trailer_key: string | null
   actors: {
     name: string
     role_type: "director" | "actor"
@@ -220,6 +221,8 @@ export async function fetchMovaTitle(slug: string): Promise<MovaMovie | null> {
       platformProvider === "netflix" || platformProvider === "disney"
         ? platformProvider
         : undefined,
+    platforms: row.platforms,
+    trailerKey: row.trailer_key,
     poster,
     backdrop: poster,
     rating: row.rating,
@@ -390,6 +393,15 @@ export async function fetchMovaMovies(
     throw new Error(safeApiErrorMessage(detail, `영화 목록 조회 실패 (${res.status})`, res.status))
   }
   return (await res.json()) as MovaMovieList
+}
+
+export async function fetchSimilarMovies(slug: string, limit = 12): Promise<ApiMovieRow[]> {
+  const res = await fetch(moviesFetchUrl(`/${encodeURIComponent(slug)}/similar?limit=${limit}`), {
+    cache: "no-store",
+  })
+  if (!res.ok) return []
+  const data = (await res.json()) as MovaMovieList
+  return data.items
 }
 
 /** @deprecated use fetchMovaMovies */

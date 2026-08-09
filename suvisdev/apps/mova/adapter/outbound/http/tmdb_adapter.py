@@ -130,5 +130,10 @@ class TmdbAdapter:
     async def fetch_movie_detail(self, tmdb_id: int) -> dict:
         return await self._get(
             f"/movie/{int(tmdb_id)}",
-            params={"append_to_response": "credits"},
+            params={
+                "append_to_response": "credits,release_dates,watch/providers,videos",
+                # 기본 language(ko-KR)만 걸면 한국어 트레일러가 없는 영화는 videos가
+                # 통째로 빈다 — en/영상-언어-없음까지 넓혀 폴백을 확보한다.
+                "include_video_language": "ko,en,null",
+            },
         )

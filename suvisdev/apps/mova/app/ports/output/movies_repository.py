@@ -5,7 +5,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from mova.app.dtos.studio_import_dto import MovieUpsertCommand
-from mova.app.dtos.studio_movies_dto import MovieDetailDto, MovieFilterQuery, MovieListDto
+from mova.app.dtos.studio_movies_dto import (
+    MovieDetailDto,
+    MovieFilterQuery,
+    MovieListDto,
+    MovieListItemDto,
+)
 
 
 class MoviesRepositoryPort(ABC):
@@ -57,6 +62,40 @@ class MoviesRepositoryPort(ABC):
     @abstractmethod
     async def update_origin_country(self, movie_id: int, origin_country: list[str]) -> None:
         """movie_id의 origin_country만 갱신."""
+
+    @abstractmethod
+    async def list_missing_age_rating_or_platforms(self, limit: int | None) -> list[tuple[int, str]]:
+        """age_rating·platforms가 둘 다 미백필(NULL/[])인 TMDB 원산 영화 — 백필 순회 전용."""
+
+    @abstractmethod
+    async def update_age_rating_and_platforms(
+        self, movie_id: int, age_rating: str | None, platforms: list[dict[str, str | None]]
+    ) -> None:
+        """movie_id의 age_rating·platforms만 갱신."""
+
+    @abstractmethod
+    async def list_missing_trailer(self, limit: int | None) -> list[tuple[int, str]]:
+        """trailer_key가 NULL인 TMDB 원산 영화 (movie.id, slug) — 백필 순회 전용."""
+
+    @abstractmethod
+    async def update_trailer_key(self, movie_id: int, trailer_key: str | None) -> None:
+        """movie_id의 trailer_key만 갱신."""
+
+    @abstractmethod
+    async def list_missing_embedding(self, limit: int | None) -> list[tuple[int, str]]:
+        """embedding이 NULL인 영화 (movie.id, slug) — 유사도 임베딩 백필 순회 전용."""
+
+    @abstractmethod
+    async def update_embedding(self, movie_id: int, embedding: list[float]) -> None:
+        """movie_id의 embedding만 갱신."""
+
+    @abstractmethod
+    async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
+        """slug 영화의 embedding과 코사인 거리가 가까운 순 — 자기 자신은 제외.
+
+        영화가 없거나 embedding이 아직 없으면 None(0건 리스트와 구분 — 전자는
+        "말할 수 없음", 후자는 "물어봤지만 비슷한 게 없음").
+        """
 
     @abstractmethod
     async def list_all_slugs(self) -> list[tuple[int, str]]:

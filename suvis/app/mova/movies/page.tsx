@@ -78,6 +78,33 @@ const SORTS = [
 
 type SortValue = (typeof SORTS)[number]["value"]
 
+// scripts/backfill_age_rating_platforms_cli.py — TMDB KR release_dates.certification 매핑값과 동일.
+const AGE_RATINGS = [
+  { value: "", label: "전체 등급" },
+  { value: "전체", label: "전체 관람가" },
+  { value: "12세", label: "12세 이상" },
+  { value: "15세", label: "15세 이상" },
+  { value: "청불", label: "청소년 관람불가" },
+] as const
+
+type AgeRatingValue = (typeof AGE_RATINGS)[number]["value"]
+
+// scripts/backfill_age_rating_platforms_cli.py — TMDB provider_name을 소문자·공백
+// 제거로 정규화한 값과 동일해야 매칭된다(tmdb_mapper.py _normalize_provider_key).
+const PLATFORMS = [
+  { value: "", label: "전체 플랫폼" },
+  { value: "netflix", label: "Netflix" },
+  { value: "disneyplus", label: "Disney+" },
+  { value: "wavve", label: "Wavve" },
+  { value: "tving", label: "Tving" },
+  { value: "watcha", label: "Watcha" },
+  { value: "coupangplay", label: "Coupang Play" },
+  { value: "amazonprimevideo", label: "Prime Video" },
+  { value: "appletvplus", label: "Apple TV+" },
+] as const
+
+type PlatformValue = (typeof PLATFORMS)[number]["value"]
+
 type PageState = {
   items: ApiMovieRow[]
   total: number
@@ -201,6 +228,8 @@ function MovaMoviesPageInner() {
   const initialRating = (searchParams.get("min_rating") ?? "") as RatingValue
   const initialSort = ((searchParams.get("sort") as SortValue) || "latest") as SortValue
   const initialActor = searchParams.get("actor") ?? ""
+  const initialAgeRating = (searchParams.get("age_rating") ?? "") as AgeRatingValue
+  const initialPlatform = (searchParams.get("platform") ?? "") as PlatformValue
 
   const [genre, setGenre] = useState<GenreTab>(initialGenre)
   const [decade, setDecade] = useState<DecadeValue>(initialDecade)
@@ -208,13 +237,21 @@ function MovaMoviesPageInner() {
   const [sort, setSort] = useState<SortValue>(initialSort)
   const [actorInput, setActorInput] = useState(initialActor)
   const [actor, setActor] = useState(initialActor)
+  const [ageRating, setAgeRating] = useState<AgeRatingValue>(initialAgeRating)
+  const [platform, setPlatform] = useState<PlatformValue>(initialPlatform)
   const [page, setPage] = useState<PageState>(INITIAL_STATE)
   const [trending, setTrending] = useState<MovaHotRankingItem[]>([])
   const genreRef = useRef<HTMLDivElement>(null)
   const patchPage = (patch: Partial<PageState>) => patchState(setPage, patch)
 
   const hasActiveFilters =
-    genre !== "전체" || decade !== "" || minRating !== "" || sort !== "latest" || actor !== ""
+    genre !== "전체" ||
+    decade !== "" ||
+    minRating !== "" ||
+    sort !== "latest" ||
+    actor !== "" ||
+    ageRating !== "" ||
+    platform !== ""
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -229,6 +266,8 @@ function MovaMoviesPageInner() {
     minRating: RatingValue
     sort: SortValue
     actor: string
+    ageRating: AgeRatingValue
+    platform: PlatformValue
   }) => {
     const params = new URLSearchParams()
     if (next.genre !== "전체") params.set("genre", next.genre)
@@ -236,6 +275,8 @@ function MovaMoviesPageInner() {
     if (next.minRating) params.set("min_rating", next.minRating)
     if (next.sort !== "latest") params.set("sort", next.sort)
     if (next.actor) params.set("actor", next.actor)
+    if (next.ageRating) params.set("age_rating", next.ageRating)
+    if (next.platform) params.set("platform", next.platform)
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
@@ -250,6 +291,8 @@ function MovaMoviesPageInner() {
         release_year_min: min,
         release_year_max: max,
         min_rating: minRating ? Number(minRating) : undefined,
+        age_rating: ageRating || undefined,
+        platform: platform || undefined,
         sort,
       })
       if (append) {
@@ -285,23 +328,41 @@ function MovaMoviesPageInner() {
   useEffect(() => {
     setPage(INITIAL_STATE)
     void loadMovies(0, false)
-    syncUrl({ genre, decade, minRating, sort, actor })
+    syncUrl({ genre, decade, minRating, sort, actor, ageRating, platform })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genre, decade, minRating, sort, actor])
+  }, [genre, decade, minRating, sort, actor, ageRating, platform])
 
   const updateFilters = (
-    patch: Partial<{ genre: GenreTab; decade: DecadeValue; minRating: RatingValue; sort: SortValue; actor: string }>,
+    patch: Partial<{
+      genre: GenreTab
+      decade: DecadeValue
+      minRating: RatingValue
+      sort: SortValue
+      actor: string
+      ageRating: AgeRatingValue
+      platform: PlatformValue
+    }>,
   ) => {
     if (patch.genre !== undefined) setGenre(patch.genre)
     if (patch.decade !== undefined) setDecade(patch.decade)
     if (patch.minRating !== undefined) setMinRating(patch.minRating)
     if (patch.sort !== undefined) setSort(patch.sort)
     if (patch.actor !== undefined) setActor(patch.actor)
+    if (patch.ageRating !== undefined) setAgeRating(patch.ageRating)
+    if (patch.platform !== undefined) setPlatform(patch.platform)
   }
 
   const resetFilters = () => {
     setActorInput("")
-    updateFilters({ genre: "전체", decade: "", minRating: "", sort: "latest", actor: "" })
+    updateFilters({
+      genre: "전체",
+      decade: "",
+      minRating: "",
+      sort: "latest",
+      actor: "",
+      ageRating: "",
+      platform: "",
+    })
   }
 
   const hasMore = page.items.length < page.total
@@ -372,22 +433,18 @@ function MovaMoviesPageInner() {
           <FilterSelect label="연도" value={decade} options={DECADES} onChange={(v) => updateFilters({ decade: v })} />
           <FilterSelect label="평점" value={minRating} options={RATINGS} onChange={(v) => updateFilters({ minRating: v })} />
           <FilterSelect label="정렬" value={sort} options={SORTS} onChange={(v) => updateFilters({ sort: v })} />
-          <select
-            aria-label="관람 등급"
-            disabled
-            title="데이터 준비 중입니다"
-            className="cursor-not-allowed rounded-md border border-mova-border bg-mova-surface px-3 py-1.5 text-sm text-mova-muted opacity-50"
-          >
-            <option>관람 등급 (준비 중)</option>
-          </select>
-          <select
-            aria-label="OTT 플랫폼"
-            disabled
-            title="데이터 준비 중입니다"
-            className="cursor-not-allowed rounded-md border border-mova-border bg-mova-surface px-3 py-1.5 text-sm text-mova-muted opacity-50"
-          >
-            <option>OTT 플랫폼 (준비 중)</option>
-          </select>
+          <FilterSelect
+            label="관람 등급"
+            value={ageRating}
+            options={AGE_RATINGS}
+            onChange={(v) => updateFilters({ ageRating: v })}
+          />
+          <FilterSelect
+            label="OTT 플랫폼"
+            value={platform}
+            options={PLATFORMS}
+            onChange={(v) => updateFilters({ platform: v })}
+          />
           {hasActiveFilters && (
             <Button type="button" variant="ghost" size="sm" onClick={resetFilters} className="gap-1.5">
               <RotateCcw className="h-3.5 w-3.5" />

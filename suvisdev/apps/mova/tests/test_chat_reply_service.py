@@ -51,6 +51,7 @@ def _movie(
         actors=[],
         tags=[],
         synopsis=None,
+        trailer_key=None,
     )
 
 

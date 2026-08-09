@@ -17,8 +17,10 @@ import {
   fetchMovaReviewsByMovie,
   movaReviewToComment,
   removeFromWatchlist,
+  type ApiMovieRow,
   type MovaReviewRow,
 } from "@/lib/mova-api"
+import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import type { MovaComment, MovaMovie } from "@/lib/mova-movies"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { getSuvisSession, type SuvisSession } from "@/lib/suvis-session"
@@ -28,6 +30,7 @@ type MovaTitleViewProps = {
   movie: MovaMovie
   initialAverageRating: number | null
   initialReviewCount: number | null
+  similarMovies?: ApiMovieRow[]
 }
 
 const CAST_PLACEHOLDER =
@@ -55,6 +58,7 @@ export function MovaTitleView({
   movie,
   initialAverageRating,
   initialReviewCount,
+  similarMovies = [],
 }: MovaTitleViewProps) {
   const [comments, setComments] = useState<MovaComment[]>(movie.comments)
   const [averageRating, setAverageRating] = useState<number | null>(initialAverageRating)
@@ -277,7 +281,28 @@ export function MovaTitleView({
                 ) : movie.ratingCount > 0 ? (
                   <span className="text-xs text-neutral-500">{movie.ratingCount.toLocaleString()}명 평가</span>
                 ) : null}
-                {movie.platform ? (
+                {movie.platforms && movie.platforms.length > 0 ? (
+                  movie.platforms.map((p) =>
+                    p.url ? (
+                      <a
+                        key={p.provider}
+                        href={p.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300 transition hover:border-mova-accent/40 hover:text-mova-accent"
+                      >
+                        {p.provider}
+                      </a>
+                    ) : (
+                      <span
+                        key={p.provider}
+                        className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300"
+                      >
+                        {p.provider}
+                      </span>
+                    ),
+                  )
+                ) : movie.platform ? (
                   <span className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300">
                     {movie.platform}
                   </span>
@@ -297,6 +322,21 @@ export function MovaTitleView({
             <section className="rounded-xl border border-mova-border bg-mova-surface p-4 md:p-5">
               <h2 className="text-base font-semibold text-mova-text">줄거리</h2>
               <p className="mt-3 text-sm leading-relaxed text-neutral-300">{movie.synopsis}</p>
+            </section>
+          ) : null}
+
+          {movie.trailerKey ? (
+            <section>
+              <h2 className="mb-3 text-base font-semibold text-mova-text">예고편</h2>
+              <div className="aspect-video w-full overflow-hidden rounded-xl border border-mova-border bg-black">
+                <iframe
+                  src={`https://www.youtube.com/embed/${movie.trailerKey}`}
+                  title={`${movie.title} 예고편`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="h-full w-full"
+                />
+              </div>
             </section>
           ) : null}
 
@@ -325,6 +365,31 @@ export function MovaTitleView({
                     className="relative h-28 w-44 shrink-0 overflow-hidden rounded-lg border border-mova-border md:h-36 md:w-56"
                   >
                     <MovaRankingPoster src={src} alt="" sizes="224px" className="object-cover" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {similarMovies.length > 0 ? (
+            <section>
+              <h2 className="mb-3 text-base font-semibold text-mova-text">비슷한 영화</h2>
+              <ul className="mova-row-scroll flex gap-3 overflow-x-auto pb-2">
+                {similarMovies.map((m) => (
+                  <li key={m.id} className="w-28 shrink-0 md:w-32">
+                    <Link href={`/mova/title/${resolveMovaCatalogSlug(m.slug, m.title)}`} className="group block">
+                      <div className="relative aspect-[2/3] overflow-hidden rounded-lg border border-mova-border bg-neutral-900">
+                        <MovaRankingPoster
+                          src={m.poster_url}
+                          alt={m.title}
+                          sizes="128px"
+                          className="object-cover transition duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                      <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
+                        {m.title}
+                      </p>
+                    </Link>
                   </li>
                 ))}
               </ul>

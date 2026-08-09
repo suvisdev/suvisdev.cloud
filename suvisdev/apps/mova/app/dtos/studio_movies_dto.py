@@ -64,6 +64,7 @@ class MovieDetailDto:
     actors: list[ActorInMovieDto]
     tags: list[TagInMovieDto]
     synopsis: str | None
+    trailer_key: str | None
 
     @classmethod
     def from_orm(
@@ -127,6 +128,7 @@ class MovieDetailDto:
             actors=actors,
             tags=tags,
             synopsis=movie.synopsis,
+            trailer_key=movie.trailer_key,
         )
 
     def to_schema(self) -> object:
@@ -173,6 +175,7 @@ class MovieDetailDto:
                 for t in self.tags
             ],
             synopsis=self.synopsis,
+            trailer_key=self.trailer_key,
         )
 
 

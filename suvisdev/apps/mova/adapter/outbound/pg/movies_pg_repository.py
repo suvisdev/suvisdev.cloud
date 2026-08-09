@@ -266,6 +266,114 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie.origin_country = origin_country
         await self._session.commit()
 
+    async def list_missing_age_rating_or_platforms(self, limit: int | None) -> list[tuple[int, str]]:
+        """age_rating·platforms 둘 다 미백필(NULL/[])인 TMDB 원산 영화 (movie.id, slug).
+
+        platforms는 NOT NULL default `[]`라 origin_country처럼 "NULL=미백필"로
+        구분할 수 없다 — age_rating IS NULL AND platforms가 빈 배열, 둘 다일 때만
+        미백필로 본다. TMDB에 실제로 등급·플랫폼 정보가 둘 다 없는 영화는 재실행마다
+        다시 조회 대상에 걸리는 한계가 있다(일회성 수동 스크립트라 감내).
+        """
+        stmt = (
+            select(MovaMovie.id, MovaMovie.slug)
+            .where(
+                MovaMovie.age_rating.is_(None),
+                MovaMovie.platforms == [],
+                MovaMovie.slug.like("tmdb-%"),
+            )
+            .order_by(MovaMovie.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = await self._session.execute(stmt)
+        return [(int(row.id), row.slug) for row in rows]
+
+    async def update_age_rating_and_platforms(
+        self, movie_id: int, age_rating: str | None, platforms: list[dict[str, str | None]]
+    ) -> None:
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
+        movie = movie_q.scalar_one_or_none()
+        if movie is None:
+            return
+        movie.age_rating = age_rating
+        movie.platforms = platforms
+        await self._session.commit()
+
+    async def list_missing_embedding(self, limit: int | None) -> list[tuple[int, str]]:
+        """embedding이 NULL인 영화 (movie.id, slug) — 유사도 임베딩 백필 순회 전용.
+
+        KOFIC 원산도 대상(origin_country 등과 달리 slug tmdb-* 제한 없음) —
+        임베딩은 title/synopsis/genres/cast로 만들어 TMDB API 재조회가 필요
+        없다(scripts/backfill_movie_embeddings_cli.py).
+        """
+        stmt = (
+            select(MovaMovie.id, MovaMovie.slug)
+            .where(MovaMovie.embedding.is_(None))
+            .order_by(MovaMovie.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = await self._session.execute(stmt)
+        return [(int(row.id), row.slug) for row in rows]
+
+    async def update_embedding(self, movie_id: int, embedding: list[float]) -> None:
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
+        movie = movie_q.scalar_one_or_none()
+        if movie is None:
+            return
+        movie.embedding = embedding
+        await self._session.commit()
+
+    async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
+        movie_q = await self._session.execute(
+            select(MovaMovie).where(MovaMovie.slug == slug)
+        )
+        movie = movie_q.scalar_one_or_none()
+        if movie is None or movie.embedding is None:
+            return None
+
+        distance = MovaMovie.embedding.cosine_distance(movie.embedding)
+        stmt = (
+            select(MovaMovie)
+            .where(MovaMovie.id != movie.id, MovaMovie.embedding.is_not(None))
+            .order_by(distance)
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+
+        genres_by_movie: dict[int, list[str]] = {}
+        if rows:
+            movie_ids = [m.id for m in rows]
+            genre_tags_r = await self._session.execute(
+                select(MovaTag.movie_id, MovaTag.label).where(
+                    MovaTag.movie_id.in_(movie_ids), MovaTag.tag_kind == TAG_KIND_GENRE
+                )
+            )
+            for movie_id, label in genre_tags_r.all():
+                genres_by_movie.setdefault(movie_id, []).append(label)
+
+        return [MovieListItemDto.from_orm(m, genres_by_movie.get(m.id, [])) for m in rows]
+
+    async def list_missing_trailer(self, limit: int | None) -> list[tuple[int, str]]:
+        """trailer_key가 NULL인 TMDB 원산 영화 (movie.id, slug) — 백필 순회 전용."""
+        stmt = (
+            select(MovaMovie.id, MovaMovie.slug)
+            .where(MovaMovie.trailer_key.is_(None), MovaMovie.slug.like("tmdb-%"))
+            .order_by(MovaMovie.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = await self._session.execute(stmt)
+        return [(int(row.id), row.slug) for row in rows]
+
+    async def update_trailer_key(self, movie_id: int, trailer_key: str | None) -> None:
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
+        movie = movie_q.scalar_one_or_none()
+        if movie is None:
+            return
+        movie.trailer_key = trailer_key
+        await self._session.commit()
+
     async def upsert_movie(self, command: MovieUpsertCommand) -> int:
         existing_q = await self._session.execute(
             select(MovaMovie).where(MovaMovie.slug == command.slug)
@@ -283,6 +391,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
                 synopsis=command.synopsis,
                 original_language=command.original_language or None,
                 origin_country=command.origin_country,
+                trailer_key=command.trailer_key,
             )
             self._session.add(movie)
             await self._session.flush()
@@ -302,12 +411,16 @@ class MoviesPgRepository(MoviesRepositoryPort):
             await _replace_genre_tags(self._session, existing.id, list(command.genres))
         if command.age_rating is not None:
             existing.age_rating = command.age_rating
+        if command.platforms:
+            existing.platforms = list(command.platforms)
         if command.synopsis:
             existing.synopsis = command.synopsis
         if command.original_language:
             existing.original_language = command.original_language
         if command.origin_country is not None:
             existing.origin_country = command.origin_country
+        if command.trailer_key:
+            existing.trailer_key = command.trailer_key
         await self._session.commit()
         await self._session.refresh(existing)
         logger.debug("[MoviesPgRepository] update slug=%s id=%d", command.slug, existing.id)

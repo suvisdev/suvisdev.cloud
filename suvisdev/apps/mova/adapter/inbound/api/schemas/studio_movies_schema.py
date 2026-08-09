@@ -50,6 +50,7 @@ class MovieDetailSchema(BaseModel):
     actors: list[ActorInMovieSchema]
     tags: list[TagInMovieSchema]
     synopsis: str | None = None
+    trailer_key: str | None = None
 
 
 # ── 목록 응답 (GET /movies) ──────────────────────────────────────────────────

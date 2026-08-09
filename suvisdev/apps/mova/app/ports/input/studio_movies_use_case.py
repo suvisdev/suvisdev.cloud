@@ -15,3 +15,7 @@ class MoviesUseCase(ABC):
     @abstractmethod
     async def list_movies(self, query: MovieFilterQuery) -> MovieListDto:
         """탐색형 필터 목록 조회."""
+
+    @abstractmethod
+    async def get_similar_movies(self, slug: str, limit: int) -> MovieListDto | None:
+        """embedding 코사인 유사도 기준 비슷한 영화. 영화 없음/embedding 없음 → None."""

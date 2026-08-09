@@ -110,6 +110,9 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
                 cast=mapped.cast,
                 original_language=mapped.original_language,
                 origin_country=mapped.origin_country,
+                age_rating=mapped.age_rating,
+                platforms=mapped.platforms,
+                trailer_key=mapped.trailer_key,
             )
         return mapped
 

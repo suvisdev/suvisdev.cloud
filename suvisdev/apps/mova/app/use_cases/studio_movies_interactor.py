@@ -16,3 +16,9 @@ class MoviesInteractor(MoviesUseCase):
 
     async def list_movies(self, query: MovieFilterQuery) -> MovieListDto:
         return await self._repository.list_movies(query)
+
+    async def get_similar_movies(self, slug: str, limit: int) -> MovieListDto | None:
+        items = await self._repository.find_similar_movies(slug, limit)
+        if items is None:
+            return None
+        return MovieListDto(items=items, total=len(items), limit=limit, offset=0)
