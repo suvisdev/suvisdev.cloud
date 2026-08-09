@@ -125,6 +125,19 @@ class MoviesPgRepository(MoviesRepositoryPort):
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
+        if query.actor:
+            cond = (
+                select(MovaCharacter.id)
+                .join(MovaActor, MovaCharacter.actor_id == MovaActor.id)
+                .where(
+                    MovaCharacter.movie_id == MovaMovie.id,
+                    MovaActor.name.ilike(f"%{query.actor}%"),
+                )
+                .exists()
+            )
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
+
         if query.release_year_min is not None:
             cond = MovaMovie.release_year >= query.release_year_min
             stmt = stmt.where(cond)

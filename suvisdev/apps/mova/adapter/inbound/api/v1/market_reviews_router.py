@@ -96,3 +96,19 @@ async def update_review(
     if dto is None:
         raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
     return dto.to_schema()
+
+
+@market_reviews_router.delete("/{review_id}", status_code=200)
+async def delete_review(
+    review_id: int,
+    principal: UserPrincipal = Depends(require_user),
+    use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+) -> dict[str, str]:
+    """리뷰 삭제 — 작성자 본인 또는 관리자만 가능(IDOR 방지)."""
+    existing = await use_case.get_by_id(review_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
+    if existing.user_id != principal.user_id and principal.role != "admin":
+        raise HTTPException(status_code=403, detail="본인 리뷰만 삭제할 수 있습니다.")
+    await use_case.delete_review(review_id)
+    return {"status": "deleted"}

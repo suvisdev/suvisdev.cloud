@@ -55,3 +55,6 @@ class ReviewsInteractor(ReviewsUseCase):
 
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:
         return await self._repository.get_rating_summary(movie_id)
+
+    async def delete_review(self, review_id: int) -> bool:
+        return await self._repository.delete_review(review_id)

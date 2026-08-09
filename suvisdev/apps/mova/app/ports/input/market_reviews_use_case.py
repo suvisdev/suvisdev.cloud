@@ -42,3 +42,7 @@ class ReviewsUseCase(ABC):
     @abstractmethod
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:
         pass
+
+    @abstractmethod
+    async def delete_review(self, review_id: int) -> bool:
+        pass

@@ -20,6 +20,7 @@ _JWT_SECRET = os.getenv("JWT_SECRET", "")
 class UserPrincipal:
     user_id: int
     username: str
+    role: str = "user"
 
 
 def require_user(authorization: str | None = Header(default=None)) -> UserPrincipal:
@@ -32,7 +33,11 @@ def require_user(authorization: str | None = Header(default=None)) -> UserPrinci
     except jwt.PyJWTError as e:
         raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다.") from e
 
-    return UserPrincipal(user_id=int(claims["sub"]), username=claims["username"])
+    return UserPrincipal(
+        user_id=int(claims["sub"]),
+        username=claims["username"],
+        role=claims.get("role", "user"),
+    )
 
 
 def optional_user(authorization: str | None = Header(default=None)) -> UserPrincipal | None:

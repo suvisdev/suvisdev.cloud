@@ -3,6 +3,7 @@ import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
 
 const FORWARD_PARAMS = [
   "genre",
+  "actor",
   "release_year",
   "min_rating",
   "age_rating",

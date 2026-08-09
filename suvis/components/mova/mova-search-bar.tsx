@@ -165,7 +165,23 @@ export function MovaSearchBar({
               </li>
             ))}
           {!search.loading && !search.error && search.results.length === 0 && (
-            <li className="px-3 py-2.5 text-sm text-neutral-500">검색 결과가 없습니다.</li>
+            <li className="px-3 py-2.5 text-sm text-neutral-500">
+              검색 결과가 없습니다.
+              {onEmptySubmit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = search.query.trim()
+                    if (!q) return
+                    onEmptySubmit(q)
+                    patchSearch({ open: false })
+                  }}
+                  className="mt-1 block text-left text-mova-accent hover:underline"
+                >
+                  &ldquo;{search.query.trim()}&rdquo;로 AI에게 물어보기 →
+                </button>
+              )}
+            </li>
           )}
         </ul>
       )}

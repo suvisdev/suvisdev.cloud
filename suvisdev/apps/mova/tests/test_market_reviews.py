@@ -38,6 +38,7 @@ class _FakeReviewsUseCase:
     def __init__(self, *, existing_review: ReviewDto | None = None) -> None:
         self.existing_review = existing_review
         self.update_review_calls: list[tuple[int, float | None, str | None]] = []
+        self.delete_review_calls: list[int] = []
 
     async def add_activity(self, user_id: int, movie_id: int, action_type: str) -> ReviewActivityDto:
         return ReviewActivityDto(
@@ -77,6 +78,10 @@ class _FakeReviewsUseCase:
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:
         return MovieRatingSummaryDto(movie_id=movie_id, average_rating=0.0, review_count=0)
 
+    async def delete_review(self, review_id: int) -> bool:
+        self.delete_review_calls.append(review_id)
+        return self.existing_review is not None
+
 
 def _build_client(use_case: _FakeReviewsUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
@@ -106,6 +111,13 @@ class ReviewsRouterAuthTests(unittest.TestCase):
         client = _build_client(_FakeReviewsUseCase(), principal=None)
 
         resp = client.patch("/reviews/1", json={"rating": 5.0})
+
+        self.assertEqual(resp.status_code, 401)
+
+    def test_delete_without_token_returns_401(self) -> None:
+        client = _build_client(_FakeReviewsUseCase(), principal=None)
+
+        resp = client.delete("/reviews/1")
 
         self.assertEqual(resp.status_code, 401)
 
@@ -202,6 +214,50 @@ class ReviewsRouterOwnershipTests(unittest.TestCase):
 
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(use_case.update_review_calls, [(1, 5.0, "수정")])
+
+
+class ReviewsRouterDeleteTests(unittest.TestCase):
+    def test_delete_other_users_review_returns_403(self) -> None:
+        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        use_case = _FakeReviewsUseCase(existing_review=owner_review)
+        attacker = UserPrincipal(user_id=2, username="attacker")
+        client = _build_client(use_case, principal=attacker)
+
+        resp = client.delete("/reviews/1")
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(use_case.delete_review_calls, [])
+
+    def test_delete_missing_review_returns_404(self) -> None:
+        use_case = _FakeReviewsUseCase(existing_review=None)
+        principal = UserPrincipal(user_id=1, username="tester")
+        client = _build_client(use_case, principal=principal)
+
+        resp = client.delete("/reviews/999")
+
+        self.assertEqual(resp.status_code, 404)
+
+    def test_delete_own_review_succeeds(self) -> None:
+        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        use_case = _FakeReviewsUseCase(existing_review=owner_review)
+        principal = UserPrincipal(user_id=1, username="tester")
+        client = _build_client(use_case, principal=principal)
+
+        resp = client.delete("/reviews/1")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(use_case.delete_review_calls, [1])
+
+    def test_admin_can_delete_other_users_review(self) -> None:
+        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        use_case = _FakeReviewsUseCase(existing_review=owner_review)
+        admin = UserPrincipal(user_id=99, username="admin", role="admin")
+        client = _build_client(use_case, principal=admin)
+
+        resp = client.delete("/reviews/1")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(use_case.delete_review_calls, [1])
 
 
 class ReviewsInteractorUpsertTests(unittest.IsolatedAsyncioTestCase):

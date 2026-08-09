@@ -99,6 +99,23 @@ class WatchlistAuthTests(unittest.TestCase):
         self.assertEqual(uc.added, [(7, 2)])
         self.assertEqual(uc.removed, [(7, 2)])
 
+    def test_admin_can_delete_other_users_item(self) -> None:
+        uc = _FakeWatchlistUseCase()
+        c = _client(uc, principal=UserPrincipal(user_id=99, username="admin", role="admin"))
+
+        self.assertEqual(c.delete("/watchlist/1/2").status_code, 200)
+        self.assertEqual(uc.removed, [(1, 2)])
+
+    def test_admin_cannot_read_other_users_list(self) -> None:
+        """관리자 우회는 삭제 한정 — 조회·추가는 여전히 본인만."""
+        uc = _FakeWatchlistUseCase()
+        c = _client(uc, principal=UserPrincipal(user_id=99, username="admin", role="admin"))
+
+        self.assertEqual(c.get("/watchlist/1").status_code, 403)
+        self.assertEqual(
+            c.post("/watchlist", json={"user_id": 1, "movie_id": 2}).status_code, 403
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

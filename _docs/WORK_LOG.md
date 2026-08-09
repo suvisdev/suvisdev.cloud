@@ -28,6 +28,61 @@
 
 ---
 
+## 2026-08-09
+
+### 작업 내용
+- `_docs/MOVA_UI_AUDIT.md` 잔여 10건 중 6건 착수(1-c·1-d·1-e·3-a·3-c·2-a 완료,
+  3-b·4-c·4-b·4-a는 다음 세션으로 이월).
+
+### 수정·구현
+- **1-c 찜 삭제**: mypage 찜 카드에 삭제 버튼 배선(`removeFromWatchlist` 재사용).
+- **1-d 닉네임 편집**: mova mypage에 편집 UI 추가(`updateNickname` 재사용, 아바타
+  업로드는 S3 미설정으로 보류).
+- **1-e 리뷰 삭제**: `DELETE /mova/reviews/{review_id}` 신설(포트·인터랙터·
+  리포지토리·라우터 전 레이어 + IDOR 소유권 검증) + 프론트 프록시·API·mypage
+  배선. 리뷰 전량 삭제 시 `movies.rating`이 stale하게 남던 기존 버그도 같이 수정
+  (`_update_movie_rating`이 결과 0건일 때 0.0으로 리셋하도록).
+- **사용자 요청 추가**: 찜/리뷰 삭제를 작성자 본인 또는 관리자만 가능하도록.
+  `UserPrincipal`에 `role` 필드 추가(JWT `role` claim, 기본값 `"user"`로 기존
+  테스트 호환). 찜 삭제·리뷰 삭제 라우터에 소유자-또는-관리자 가드 적용(찜의
+  조회·추가는 여전히 본인 전용, 우회는 삭제로 한정).
+- **3-a 배우 필터**: `/mova/movies`에 `actor` 쿼리 파라미터 신설(백엔드
+  `MovieFilterQuery`+EXISTS 서브쿼리, 프론트 디바운스 입력 필드). 겸사겸사
+  프론트 프록시(`app/api/mova/movies/route.ts`)가 `release_year_min`/
+  `release_year_max`는 안 잊고 forward하되 실제로는 `release_year`(단수)만
+  허용리스트에 있어 **연도 필터가 조용히 드롭되고 있던 기존 버그**를 발견함
+  (수정은 안 함 — 별도 이슈로 남김).
+- **3-c 0건 대안 제안**: 헤더/랜딩 검색바 0건 드롭다운에 "AI에게 물어보기" 버튼
+  추가(`onEmptySubmit` 전파, `/mova/main?q=`로 이동). `/mova/movies` 필터 0건
+  화면에 "필터 초기화" 버튼 + 인기 검색 영화 대체 제안 추가.
+- **2-a 홈 개인화**: `MovaPreferredGenresBadge` 신규 — 선호 장르가 채워진
+  로그인 사용자에게 홈에 배지+편집 링크 노출(온보딩 카드와 상호 배타적).
+
+### 검증
+- 백엔드: 이 노트북에 없던 pytest 환경을 경량 venv(uv, torch 제외)로 임시
+  구성 — `apps/mova/tests`·`apps/viewer/tests`·`shared/tests` 171→179개 전부
+  통과(신규 delete 테스트 8건 포함).
+- 로컬 dev DB(`suvisdev-db-1`, 39편)가 `20260731_0001`에 멈춰 있어
+  `alembic upgrade head`로 `20260807_0002`까지 올리고 배우 필터를 실 쿼리로
+  검증(`톰 홀랜드`→4편, `젠데이아`→3편, 존재하지 않는 이름→0편).
+- 프론트: `pnpm type-check` 매 단계 클린 통과. `pnpm lint`는 저장소에 `eslint`
+  패키지 자체가 없어(기존 환경 문제) 여전히 실행 불가.
+
+### 오류·막힌 점
+- `.env`의 `TMDB_API_KEY`에 CRLF 개행이 섞여 있어(`\r\n`) 쉘 변수로 그대로
+  치환하면 curl이 "Malformed input to a URL function"으로 실패 — `tr -d
+  '\r\n'`으로 제거해야 함. `.env` 파일 자체는 건드리지 않음.
+- 3-b·4-c(연령등급·플랫폼)용 TMDB API 조사만 마침: `append_to_response=
+  credits,release_dates,watch/providers`로 상세 조회 1번에 다 가져올 수 있음.
+  KR `certification`은 `"ALL"/"12"/"15"/"19"` 형태(청불 확정 사례는 못 봄),
+  `watch/providers`엔 provider별 URL이 없고 국가 단위 링크 하나뿐(JustWatch
+  경유). 코드 작성은 토큰 예산상 다음 세션으로 이월.
+
+### 산출물
+- 커밋 전 상태(이 항목 작성 시점) — 커밋 해시는 다음 항목에 추가 예정.
+
+---
+
 ## 2026-08-07
 
 ### 작업 내용

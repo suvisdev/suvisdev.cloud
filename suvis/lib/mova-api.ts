@@ -354,6 +354,7 @@ export async function fetchMovaMovies(
   offset = 0,
   filters?: {
     genre?: string
+    actor?: string
     release_year_min?: number
     release_year_max?: number
     min_rating?: number
@@ -367,6 +368,7 @@ export async function fetchMovaMovies(
     offset: String(offset),
   })
   if (filters?.genre) params.set("genre", filters.genre)
+  if (filters?.actor) params.set("actor", filters.actor)
   if (filters?.release_year_min !== undefined)
     params.set("release_year_min", String(filters.release_year_min))
   if (filters?.release_year_max !== undefined)
@@ -552,6 +554,21 @@ export async function createMovaReview(input: {
         ? (data as { detail: unknown }).detail
         : undefined
     throw new Error(safeApiErrorMessage(detail, `리뷰 등록 실패 (${res.status})`, res.status))
+  }
+}
+
+export async function deleteMovaReview(reviewId: number): Promise<void> {
+  const res = await fetch(reviewsFetchUrl(`/${reviewId}`), {
+    method: "DELETE",
+    headers: { ...authHeader() },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const detail =
+      typeof data === "object" && data && "detail" in data
+        ? (data as { detail: unknown }).detail
+        : undefined
+    throw new Error(safeApiErrorMessage(detail, `리뷰 삭제 실패 (${res.status})`, res.status))
   }
 }
 

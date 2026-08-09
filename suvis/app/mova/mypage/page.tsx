@@ -4,10 +4,31 @@ import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { Bookmark, Clock, Eye, Film, Loader2, LogOut, Search, Star, ThumbsDown, ThumbsUp, User } from "lucide-react"
+import {
+  Bookmark,
+  Clock,
+  Eye,
+  Film,
+  Loader2,
+  LogOut,
+  Pencil,
+  Search,
+  Star,
+  ThumbsDown,
+  ThumbsUp,
+  User,
+  X,
+} from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
-import { fetchMovaMypage, fetchWatchlist, type MypageData, type WatchlistItem } from "@/lib/mova-api"
-import { updatePreferredGenres } from "@/lib/profile-api"
+import {
+  deleteMovaReview,
+  fetchMovaMypage,
+  fetchWatchlist,
+  removeFromWatchlist,
+  type MypageData,
+  type WatchlistItem,
+} from "@/lib/mova-api"
+import { updateNickname, updatePreferredGenres } from "@/lib/profile-api"
 import { MovaGenrePicker } from "@/components/mova/mova-genre-picker"
 import { getSuvisSession, clearSuvisSession } from "@/lib/suvis-session"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
@@ -52,6 +73,11 @@ export default function MypagePage() {
   const [editingGenres, setEditingGenres] = useState(false)
   const [genreDraft, setGenreDraft] = useState<string[]>([])
   const [savingGenres, setSavingGenres] = useState(false)
+  const [editingNickname, setEditingNickname] = useState(false)
+  const [nicknameDraft, setNicknameDraft] = useState("")
+  const [savingNickname, setSavingNickname] = useState(false)
+  const [removingMovieId, setRemovingMovieId] = useState<number | null>(null)
+  const [removingReviewId, setRemovingReviewId] = useState<number | null>(null)
 
   const session = typeof window !== "undefined" ? getSuvisSession() : null
 
@@ -93,6 +119,56 @@ export default function MypagePage() {
     }
   }
 
+  const handleSaveNickname = async () => {
+    const s = getSuvisSession()
+    const trimmed = nicknameDraft.trim()
+    if (!s || !trimmed) return
+    setSavingNickname(true)
+    try {
+      const updated = await updateNickname(s.id, trimmed)
+      setData((prev) => (prev ? { ...prev, nickname: updated.nickname } : prev))
+      setEditingNickname(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "닉네임을 변경하지 못했습니다.")
+    } finally {
+      setSavingNickname(false)
+    }
+  }
+
+  const handleRemoveFromWatchlist = async (movieId: number) => {
+    const s = getSuvisSession()
+    if (!s) return
+    setRemovingMovieId(movieId)
+    try {
+      await removeFromWatchlist(s.id, movieId)
+      setWatchlist((prev) => prev.filter((item) => item.movie_id !== movieId))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "찜을 삭제하지 못했습니다.")
+    } finally {
+      setRemovingMovieId(null)
+    }
+  }
+
+  const handleDeleteReview = async (reviewId: number) => {
+    setRemovingReviewId(reviewId)
+    try {
+      await deleteMovaReview(reviewId)
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              my_reviews: prev.my_reviews.filter((r) => r.review_id !== reviewId),
+              activity: { ...prev.activity, review_count: prev.activity.review_count - 1 },
+            }
+          : prev,
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "리뷰를 삭제하지 못했습니다.")
+    } finally {
+      setRemovingReviewId(null)
+    }
+  }
+
   return (
     <>
       <MovaHeader />
@@ -105,9 +181,24 @@ export default function MypagePage() {
               <User className="h-7 w-7 text-mova-accent" />
             </div>
             <div>
-              <p className="text-lg font-bold text-mova-text">
-                {data?.nickname ?? session?.username ?? "로딩 중…"}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-lg font-bold text-mova-text">
+                  {data?.nickname ?? session?.username ?? "로딩 중…"}
+                </p>
+                {data && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNicknameDraft(data.nickname ?? "")
+                      setEditingNickname(true)
+                    }}
+                    className="text-neutral-500 transition hover:text-mova-accent"
+                    aria-label="닉네임 편집"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-neutral-400">@{session?.username}</p>
               {data && (
                 <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -164,6 +255,36 @@ export default function MypagePage() {
               <button
                 type="button"
                 onClick={() => setEditingGenres(false)}
+                className="rounded-lg border border-mova-border px-4 py-2 text-xs text-neutral-400 transition hover:text-mova-text"
+              >
+                취소
+              </button>
+            </div>
+          </section>
+        )}
+
+        {editingNickname && (
+          <section className="rounded-2xl border border-mova-border bg-mova-surface p-5">
+            <h2 className="mb-3 text-sm font-semibold text-mova-text">닉네임 편집</h2>
+            <input
+              type="text"
+              value={nicknameDraft}
+              onChange={(e) => setNicknameDraft(e.target.value)}
+              maxLength={30}
+              className="w-full rounded-lg border border-mova-border bg-mova-bg px-3 py-2 text-sm text-mova-text outline-none focus:border-mova-accent/60"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSaveNickname}
+                disabled={savingNickname || nicknameDraft.trim().length === 0}
+                className="rounded-lg bg-mova-accent px-4 py-2 text-xs font-medium text-black transition disabled:opacity-50"
+              >
+                {savingNickname ? "저장 중…" : "저장"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingNickname(false)}
                 className="rounded-lg border border-mova-border px-4 py-2 text-xs text-neutral-400 transition hover:text-mova-text"
               >
                 취소
@@ -278,25 +399,39 @@ export default function MypagePage() {
                       const slug = resolveMovaCatalogSlug(item.slug, item.title)
                       const poster = coercePosterUrl(item.poster_url) ?? POSTER_PLACEHOLDER
                       return (
-                        <Link
-                          key={item.movie_id}
-                          href={`/mova/title/${slug}`}
-                          className="group w-[100px] shrink-0 md:w-[112px]"
-                        >
-                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
-                            <Image
-                              src={poster}
-                              alt={item.title}
-                              fill
-                              className="object-cover transition duration-300 group-hover:scale-105"
-                              sizes="112px"
-                            />
-                          </div>
-                          <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
-                            {item.title}
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-neutral-500">{item.release_year}</p>
-                        </Link>
+                        <div key={item.movie_id} className="group w-[100px] shrink-0 md:w-[112px]">
+                          <Link href={`/mova/title/${slug}`}>
+                            <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
+                              <Image
+                                src={poster}
+                                alt={item.title}
+                                fill
+                                className="object-cover transition duration-300 group-hover:scale-105"
+                                sizes="112px"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  handleRemoveFromWatchlist(item.movie_id)
+                                }}
+                                disabled={removingMovieId === item.movie_id}
+                                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition hover:bg-black/80 group-hover:opacity-100 disabled:opacity-50"
+                                aria-label={`${item.title} 찜 삭제`}
+                              >
+                                {removingMovieId === item.movie_id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <X className="h-3 w-3" />
+                                )}
+                              </button>
+                            </div>
+                            <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
+                              {item.title}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-neutral-500">{item.release_year}</p>
+                          </Link>
+                        </div>
                       )
                     })}
                   </div>
@@ -322,11 +457,11 @@ export default function MypagePage() {
                     const slug = resolveMovaCatalogSlug(review.slug, review.title)
                     const poster = coercePosterUrl(review.poster_url) ?? POSTER_PLACEHOLDER
                     return (
-                      <li key={review.review_id}>
-                        <Link
-                          href={`/mova/title/${slug}`}
-                          className="flex gap-3 rounded-xl border border-mova-border bg-mova-surface p-3 transition hover:border-mova-accent/40"
-                        >
+                      <li
+                        key={review.review_id}
+                        className="flex gap-3 rounded-xl border border-mova-border bg-mova-surface p-3 transition hover:border-mova-accent/40"
+                      >
+                        <Link href={`/mova/title/${slug}`} className="flex min-w-0 flex-1 gap-3">
                           <div className="relative h-[72px] w-12 shrink-0 overflow-hidden rounded bg-neutral-900">
                             <Image
                               src={poster}
@@ -350,13 +485,28 @@ export default function MypagePage() {
                               </p>
                             )}
                           </div>
-                          <span className="shrink-0 text-[11px] text-neutral-500">
+                        </Link>
+                        <div className="flex shrink-0 flex-col items-end justify-between">
+                          <span className="text-[11px] text-neutral-500">
                             {new Date(review.updated_at).toLocaleDateString("ko-KR", {
                               month: "short",
                               day: "numeric",
                             })}
                           </span>
-                        </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReview(review.review_id)}
+                            disabled={removingReviewId === review.review_id}
+                            className="text-neutral-500 transition hover:text-rose-400 disabled:opacity-50"
+                            aria-label="리뷰 삭제"
+                          >
+                            {removingReviewId === review.review_id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <X className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </li>
                     )
                   })}

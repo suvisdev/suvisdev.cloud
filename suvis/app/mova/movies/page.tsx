@@ -200,24 +200,42 @@ function MovaMoviesPageInner() {
   const initialDecade = (searchParams.get("decade") ?? "") as DecadeValue
   const initialRating = (searchParams.get("min_rating") ?? "") as RatingValue
   const initialSort = ((searchParams.get("sort") as SortValue) || "latest") as SortValue
+  const initialActor = searchParams.get("actor") ?? ""
 
   const [genre, setGenre] = useState<GenreTab>(initialGenre)
   const [decade, setDecade] = useState<DecadeValue>(initialDecade)
   const [minRating, setMinRating] = useState<RatingValue>(initialRating)
   const [sort, setSort] = useState<SortValue>(initialSort)
+  const [actorInput, setActorInput] = useState(initialActor)
+  const [actor, setActor] = useState(initialActor)
   const [page, setPage] = useState<PageState>(INITIAL_STATE)
   const [trending, setTrending] = useState<MovaHotRankingItem[]>([])
   const genreRef = useRef<HTMLDivElement>(null)
   const patchPage = (patch: Partial<PageState>) => patchState(setPage, patch)
 
-  const hasActiveFilters = genre !== "전체" || decade !== "" || minRating !== "" || sort !== "latest"
+  const hasActiveFilters =
+    genre !== "전체" || decade !== "" || minRating !== "" || sort !== "latest" || actor !== ""
 
-  const syncUrl = (next: { genre: GenreTab; decade: DecadeValue; minRating: RatingValue; sort: SortValue }) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setActor(actorInput.trim())
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [actorInput])
+
+  const syncUrl = (next: {
+    genre: GenreTab
+    decade: DecadeValue
+    minRating: RatingValue
+    sort: SortValue
+    actor: string
+  }) => {
     const params = new URLSearchParams()
     if (next.genre !== "전체") params.set("genre", next.genre)
     if (next.decade) params.set("decade", next.decade)
     if (next.minRating) params.set("min_rating", next.minRating)
     if (next.sort !== "latest") params.set("sort", next.sort)
+    if (next.actor) params.set("actor", next.actor)
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
@@ -228,6 +246,7 @@ function MovaMoviesPageInner() {
     try {
       const data = await fetchMovaMovies(INITIAL_STATE.limit, offset, {
         genre: genre === "전체" ? undefined : genre,
+        actor: actor || undefined,
         release_year_min: min,
         release_year_max: max,
         min_rating: minRating ? Number(minRating) : undefined,
@@ -266,19 +285,24 @@ function MovaMoviesPageInner() {
   useEffect(() => {
     setPage(INITIAL_STATE)
     void loadMovies(0, false)
+    syncUrl({ genre, decade, minRating, sort, actor })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genre, decade, minRating, sort])
+  }, [genre, decade, minRating, sort, actor])
 
-  const updateFilters = (patch: Partial<{ genre: GenreTab; decade: DecadeValue; minRating: RatingValue; sort: SortValue }>) => {
-    const next = { genre, decade, minRating, sort, ...patch }
+  const updateFilters = (
+    patch: Partial<{ genre: GenreTab; decade: DecadeValue; minRating: RatingValue; sort: SortValue; actor: string }>,
+  ) => {
     if (patch.genre !== undefined) setGenre(patch.genre)
     if (patch.decade !== undefined) setDecade(patch.decade)
     if (patch.minRating !== undefined) setMinRating(patch.minRating)
     if (patch.sort !== undefined) setSort(patch.sort)
-    syncUrl(next)
+    if (patch.actor !== undefined) setActor(patch.actor)
   }
 
-  const resetFilters = () => updateFilters({ genre: "전체", decade: "", minRating: "", sort: "latest" })
+  const resetFilters = () => {
+    setActorInput("")
+    updateFilters({ genre: "전체", decade: "", minRating: "", sort: "latest", actor: "" })
+  }
 
   const hasMore = page.items.length < page.total
 
@@ -337,6 +361,14 @@ function MovaMoviesPageInner() {
 
         {/* 필터 바 */}
         <section className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            aria-label="배우 이름"
+            placeholder="배우 이름"
+            value={actorInput}
+            onChange={(e) => setActorInput(e.target.value)}
+            className="w-32 rounded-md border border-mova-border bg-mova-surface px-3 py-1.5 text-sm text-mova-text placeholder:text-mova-muted"
+          />
           <FilterSelect label="연도" value={decade} options={DECADES} onChange={(v) => updateFilters({ decade: v })} />
           <FilterSelect label="평점" value={minRating} options={RATINGS} onChange={(v) => updateFilters({ minRating: v })} />
           <FilterSelect label="정렬" value={sort} options={SORTS} onChange={(v) => updateFilters({ sort: v })} />
@@ -378,7 +410,29 @@ function MovaMoviesPageInner() {
             </Button>
           </div>
         ) : page.items.length === 0 ? (
-          <p className="text-sm text-neutral-400">조건에 맞는 영화가 없습니다.</p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm text-neutral-400">조건에 맞는 영화가 없습니다.</p>
+              {hasActiveFilters && (
+                <Button type="button" variant="outline" size="sm" onClick={resetFilters} className="gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  필터 초기화하고 다시 보기
+                </Button>
+              )}
+            </div>
+            {trending.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs text-neutral-500">대신 이런 영화는 어때요?</p>
+                <div className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
+                  <div className="flex gap-3 overflow-x-auto pb-2 md:gap-4">
+                    {trending.slice(0, 8).map((item, i) => (
+                      <TrendingCard key={item.id} item={item} rank={i + 1} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 md:gap-4">

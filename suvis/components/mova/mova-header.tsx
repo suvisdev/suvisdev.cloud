@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { MOVA_NAV } from "@/lib/mova-mock-data"
 import { MovaLoginButton } from "@/components/mova/mova-login-button"
 import { MovaSuvisHomeLink } from "@/components/mova/mova-suvis-home-link"
@@ -19,6 +19,7 @@ function isNavActive(pathname: string, href: string): boolean {
 
 export function MovaHeader() {
   const pathname = usePathname()
+  const router = useRouter()
   const [loggedIn, setLoggedIn] = useState(false)
 
   useEffect(() => {
@@ -26,6 +27,10 @@ export function MovaHeader() {
   }, [pathname])
 
   const nav = MOVA_NAV.filter((item) => item.href !== "/mova/mypage" || loggedIn)
+
+  const goToChatSearch = (q: string) => {
+    if (q.trim()) router.push(`/mova/main?q=${encodeURIComponent(q.trim())}`)
+  }
 
   return (
     <header className="sticky top-0 z-50 shrink-0 overflow-x-clip border-b border-mova-border bg-mova-bg/90 backdrop-blur-xl">
@@ -36,7 +41,7 @@ export function MovaHeader() {
         </div>
         <div className="absolute top-1/2 right-4 z-10 flex -translate-y-1/2 items-center gap-2">
           <Suspense fallback={<div className="h-8 w-36 animate-pulse rounded-md bg-mova-surface-2" />}>
-            <MovaSearchBar className="relative w-36 shrink-0" />
+            <MovaSearchBar className="relative w-36 shrink-0" onEmptySubmit={goToChatSearch} />
           </Suspense>
           <ThemeToggle />
           <MovaSuvisHomeLink />
@@ -94,7 +99,10 @@ export function MovaHeader() {
               <div className="h-8 w-40 animate-pulse rounded-md bg-mova-surface-2 sm:w-44" />
             }
           >
-            <MovaSearchBar className="relative w-40 shrink-0 sm:w-44 md:w-48" />
+            <MovaSearchBar
+              className="relative w-40 shrink-0 sm:w-44 md:w-48"
+              onEmptySubmit={goToChatSearch}
+            />
           </Suspense>
           <ThemeToggle />
           <MovaSuvisHomeLink />

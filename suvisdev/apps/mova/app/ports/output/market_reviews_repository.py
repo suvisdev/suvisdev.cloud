@@ -50,3 +50,7 @@ class ReviewsRepositoryPort(ABC):
     @abstractmethod
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:
         """영화 평균 별점·리뷰 수."""
+
+    @abstractmethod
+    async def delete_review(self, review_id: int) -> bool:
+        """리뷰 삭제. 존재하지 않으면 False."""

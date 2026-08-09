@@ -187,6 +187,18 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             review_count=int(result.cnt or 0),
         )
 
+    async def delete_review(self, review_id: int) -> bool:
+        row = (
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        movie_id = row.movie_id
+        await self._session.delete(row)
+        await self._session.commit()
+        await self._update_movie_rating(movie_id)
+        return True
+
     async def _update_movie_rating(self, movie_id: int) -> None:
         """reviews upsert 후 movies.rating 갱신."""
         result = (
@@ -197,11 +209,9 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 )
             )
         ).scalar_one_or_none()
-        if result is None:
-            return
         movie = (
             await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
         ).scalar_one_or_none()
         if movie:
-            movie.rating = round(float(result), 2)
+            movie.rating = round(float(result), 2) if result is not None else 0.0
             await self._session.commit()

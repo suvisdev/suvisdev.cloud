@@ -41,6 +41,7 @@ async def get_movie_detail(
 @studio_movies_router.get("", response_model=MovieListSchema)
 async def list_movies(
     genre: str | None = Query(None, description="장르 필터 (예: SF, 코미디)"),
+    actor: str | None = Query(None, description="배우 이름 (부분 일치)"),
     release_year_min: int | None = Query(None, description="개봉 연도 하한 (예: 2020)"),
     release_year_max: int | None = Query(None, description="개봉 연도 상한 (예: 2029)"),
     min_rating: float | None = Query(None, ge=0.0, le=5.0, description="최소 평점"),
@@ -51,9 +52,10 @@ async def list_movies(
     offset: int = Query(0, ge=0),
     movies: MoviesUseCase = Depends(get_movies_use_case),
 ) -> MovieListSchema:
-    """영화 탐색 — 장르·연도·평점·등급·플랫폼 필터 + 페이지네이션."""
+    """영화 탐색 — 장르·배우·연도·평점·등급·플랫폼 필터 + 페이지네이션."""
     query = MovieFilterQuery(
         genre=genre,
+        actor=actor,
         release_year_min=release_year_min,
         release_year_max=release_year_max,
         min_rating=min_rating,

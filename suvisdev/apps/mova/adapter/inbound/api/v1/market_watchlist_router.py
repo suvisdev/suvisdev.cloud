@@ -25,6 +25,12 @@ def _assert_self(principal: UserPrincipal, user_id: int) -> None:
         raise HTTPException(status_code=403, detail="본인 찜 목록만 다룰 수 있습니다.")
 
 
+def _assert_self_or_admin(principal: UserPrincipal, user_id: int) -> None:
+    """삭제는 본인 또는 관리자만 — role claim은 서버가 산출한 JWT만 신뢰한다."""
+    if principal.user_id != user_id and principal.role != "admin":
+        raise HTTPException(status_code=403, detail="본인 찜 목록만 삭제할 수 있습니다.")
+
+
 @market_watchlist_router.get("/{user_id}", response_model=WatchlistSchema)
 async def get_watchlist(
     user_id: int,
@@ -65,6 +71,6 @@ async def remove_from_watchlist(
     principal: UserPrincipal = Depends(require_user),
     use_case: WatchlistUseCase = Depends(get_watchlist_use_case),
 ) -> dict[str, str]:
-    _assert_self(principal, user_id)
+    _assert_self_or_admin(principal, user_id)
     await use_case.remove(user_id, movie_id)
     return {"status": "removed"}
