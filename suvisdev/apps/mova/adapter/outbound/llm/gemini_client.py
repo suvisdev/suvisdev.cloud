@@ -1,9 +1,24 @@
 from __future__ import annotations
 
+import logging
+import time
 from typing import Literal
 
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from mova.app.ports.output.llm_errors import LLMError, LLMUnavailableError
+
+logger = logging.getLogger(__name__)
+
+# 분당 한도(무료 티어 15요청)는 고정 윈도우라, 창이 막 넘어가는 순간에 걸린
+# 요청은 짧게 기다렸다 다시 쏘면 통과한다. 하루 한도(임베딩 1000건 등)에
+# 걸린 경우엔 몇 초 기다려도 소용없으므로 재시도는 1회로 끝낸다 —
+# 사용자를 40초씩 붙잡아 두지 않기 위해서다.
+_RETRY_SLEEP_SECONDS = 2.0
+
+
+def _is_quota_error(err: str) -> bool:
+    low = err.lower()
+    return "429" in err or "quota" in low or "resource_exhausted" in low
 
 
 def gemini_reply(prompt: str, model_key: Literal["flash", "flash15", "pro"] | None) -> str:
@@ -19,12 +34,17 @@ def gemini_reply(prompt: str, model_key: Literal["flash", "flash15", "pro"] | No
         response = gemini.generate_content(prompt)
     except Exception as e:
         err = str(e)
-        if "429" in err or "quota" in err.lower() or "resource_exhausted" in err.lower():
+        if not _is_quota_error(err):
+            raise LLMError(f"Gemini 호출 실패: {e!s}", status_code=502) from e
+        logger.warning("[gemini] 할당량 초과, %.1f초 후 1회 재시도", _RETRY_SLEEP_SECONDS)
+        time.sleep(_RETRY_SLEEP_SECONDS)
+        try:
+            response = gemini.generate_content(prompt)
+        except Exception as retry_error:
             raise LLMError(
                 "Gemini 할당량이 초과되었습니다. 잠시 후 다시 시도하세요.",
                 status_code=429,
-            ) from e
-        raise LLMError(f"Gemini 호출 실패: {e!s}", status_code=502) from e
+            ) from retry_error
     try:
         text = (response.text or "").strip()
     except ValueError as e:
