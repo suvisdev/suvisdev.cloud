@@ -21,3 +21,9 @@ class ProfileUseCase(ABC):
         self, user_id: int, genres: list[str]
     ) -> ProfileDto | None:
         pass
+
+    @abstractmethod
+    async def upload_avatar(
+        self, user_id: int, data: bytes, *, content_type: str, ext: str
+    ) -> ProfileDto | None:
+        pass

@@ -18,6 +18,8 @@ class ProfileResponse(BaseModel):
     gender: str
     preferred_genres: list[str]
     providers: list[str]
+    # 아바타를 안 올린 회원은 null. URL은 presigned(1시간)라 응답마다 새로 발급된다.
+    avatar_url: str | None = None
 
 
 class UpdateProfileRequest(BaseModel):
@@ -52,6 +54,7 @@ async def get_profile(
         gender=result.gender,
         preferred_genres=result.preferred_genres,
         providers=result.providers,
+        avatar_url=result.avatar_url,
     )
 
 
@@ -84,4 +87,5 @@ async def update_profile(
         gender=result.gender,
         preferred_genres=result.preferred_genres,
         providers=result.providers,
+        avatar_url=result.avatar_url,
     )

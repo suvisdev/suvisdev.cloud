@@ -14,6 +14,7 @@ def __getattr__(name: str) -> APIRouter:
 
         from viewer.adapter.inbound.api.v1.admin_agents_router import admin_agents_router
         from viewer.adapter.inbound.api.v1.admin_users_router import admin_users_router
+        from viewer.adapter.inbound.api.v1.avatar_router import avatar_router
         from viewer.adapter.inbound.api.v1.login_router import login_router
         from viewer.adapter.inbound.api.v1.oauth_router import oauth_router
         from viewer.adapter.inbound.api.v1.profile_router import profile_router
@@ -24,6 +25,7 @@ def __getattr__(name: str) -> APIRouter:
         router.include_router(signup_router)
         router.include_router(oauth_router)
         router.include_router(profile_router)
+        router.include_router(avatar_router)
         router.include_router(admin_agents_router)
         router.include_router(admin_users_router)
         return router

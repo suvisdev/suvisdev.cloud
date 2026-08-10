@@ -16,7 +16,6 @@ import {
   Star,
   ThumbsDown,
   ThumbsUp,
-  User,
   X,
 } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
@@ -30,6 +29,7 @@ import {
 } from "@/lib/mova-api"
 import { updateNickname, updatePreferredGenres } from "@/lib/profile-api"
 import { MovaGenrePicker } from "@/components/mova/mova-genre-picker"
+import { MovaAvatarUploader } from "@/components/mova/mova-avatar-uploader"
 import { getSuvisSession, clearSuvisSession } from "@/lib/suvis-session"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { coercePosterUrl } from "@/lib/mova-poster"
@@ -177,9 +177,7 @@ export default function MypagePage() {
         {/* 프로필 헤더 */}
         <section className="flex items-center justify-between gap-4 rounded-2xl border border-mova-border bg-mova-surface p-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-mova-accent-soft">
-              <User className="h-7 w-7 text-mova-accent" />
-            </div>
+            {session && <MovaAvatarUploader userId={session.id} />}
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-lg font-bold text-mova-text">

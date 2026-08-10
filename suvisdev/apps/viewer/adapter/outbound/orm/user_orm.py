@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func, select
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,6 +39,9 @@ class User(ViewerModel):
     birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     preferred_genres: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     bio: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    # S3 객체 key만 담는다(URL 아님) — 버킷이 비공개라 표시용 URL은 1시간짜리
+    # presigned라 저장해 두면 낡는다. 조회할 때마다 key로 새로 발급한다.
+    avatar_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -93,6 +96,7 @@ async def get_viewer_user_profile(user_id: int) -> dict:
             "group": group_code,
             "preferred_genres": list(user.preferred_genres or []),
             "gender": user.gender,
+            "avatar_key": user.avatar_key,
         }
 
 
@@ -103,6 +107,17 @@ async def update_user_nickname(user_id: int, nickname: str) -> bool:
         if user is None:
             return False
         user.nickname = nickname
+        await session.commit()
+        return True
+
+
+async def update_user_avatar_key(user_id: int, avatar_key: str) -> bool:
+    factory = get_viewer_session_factory()
+    async with factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            return False
+        user.avatar_key = avatar_key
         await session.commit()
         return True
 

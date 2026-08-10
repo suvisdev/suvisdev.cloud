@@ -167,8 +167,14 @@ docker compose --env-file suvisdev/.env up -d
 - 필수: `DATABASE_URL`, `MOVA_DATABASE_URL`, `JWT_SECRET`
 - 외부 API: `GEMINI_API_KEY`, `TMDB_API_KEY`, `KOFIC_API_KEY`, `OPENWEATHERMAP_API_KEY`
 - OAuth: `{GOOGLE,KAKAO,NAVER}_CLIENT_ID` / `_CLIENT_SECRET` / `_REDIRECT_URI`
-- **미설정 상태**: `AWS_ACCESS_KEY_ID`·`VISION_S3_BUCKET` — S3가 아직 연결되지
-  않았다. S3 경로를 타는 코드는 호출 시 실패한다는 전제로 작업할 것.
+- **S3는 연결돼 있다(2026-08-10 실측 정정)**: `AWS_ACCESS_KEY_ID`·
+  `AWS_SECRET_ACCESS_KEY`·`AWS_REGION`·`VISION_S3_BUCKET` 네 키가 로컬·EC2 `.env`에
+  모두 채워져 있고, EC2 컨테이너에서 `Tank.list_buckets()`가
+  `suvisdev-s3-584569945696-ap-northeast-2-an`을 반환한다(susu 업로드 객체
+  `media/{user_id}/...` 존재). **이 문서에 오래 남아 있던 "미설정" 기술은 틀린
+  것이었다** — S3 경로를 타는 코드는 정상 동작한다는 전제로 작업할 것.
+  버킷은 **비공개**라 객체 공개 URL은 403이다. 표시에는
+  `Tank.generate_presigned_url()`(기본 1시간)을 쓴다.
 - **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: EC2는 기본
   `lora`를 쓴다 — 노트북 GPU의 `lora-server`(systemd, `:8200`)를 Cloudflare
   Tunnel로 노출한 `LORA_SERVER_URL=https://lora.suvisdev.cloud`를 호출한다
