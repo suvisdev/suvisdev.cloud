@@ -168,6 +168,25 @@
   (전체는 5 kept / 1 broken이며, broken은 기존 baseline인
   `ontology → core.matrix → titanic/viewer ORM` 경유 건으로 이번 변경과 무관).
 
+### 배포·프로덕션 실측(추가②)
+
+- EC2 배포 + `alembic upgrade head`(`20260809_0001` → `20260810_0001`).
+- 프로덕션 실 업로드 왕복(임시 토큰을 컨테이너 안에서 `JWT_SECRET`으로 10분짜리
+  발급, 대상은 `users.id=3 suvisdev`):
+  - 무인증 `POST /viewer/avatar/upload` → **401**
+  - 업로드 → **200**, `avatar_key=avatars/3/85a060cf....png`
+  - `Tank.list_objects("avatars/")`에 객체 실재 확인
+  - `GET /viewer/profile/3` → `avatar_url`(presigned) → 그 URL로 **GET 200**
+  - PDF → **415**, 6MB → **413**(nginx `client_max_body_size`가 10M이라
+    5MB 초과분이 앱까지 도달해 앱 가드가 낸 응답이 맞다)
+- 프론트(Vercel `main` 자동 배포): `/mova/mypage` 200,
+  프록시 `POST /api/viewer/avatar` 무인증 **401**(3계층 토큰 경로 연결 확인).
+- **검증 후 흔적 제거**: S3 테스트 객체 삭제(`avatars/` 0건),
+  `users.id=3`의 `avatar_key`를 NULL로 되돌림.
+- **못 한 검증**: 실제 브라우저로 파일 선택 → 미리보기 → 업로드 → 갱신 렌더까지
+  클릭해 본 것은 아니다(이 세션에 브라우저 구동 수단 없음). 프론트 근거는
+  `pnpm type-check`와 위 프록시 401 실측까지다.
+
 ### 산출물
 - 커밋 `1bde7e8` → PR #66 → `main` 머지(`5dd0b49`). EC2 머지 커밋 `b69255c`.
 - 프론트(Vercel)는 `main` 자동 배포 — 배포 후 실측으로 연도 필터 수정 확인
