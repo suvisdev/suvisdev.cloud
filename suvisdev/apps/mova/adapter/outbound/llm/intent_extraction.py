@@ -200,6 +200,26 @@ def _empty_filters() -> dict[str, Any]:
     }
 
 
+def _has_hard_signal(parsed: dict[str, Any]) -> bool:
+    """결정론적 추출만으로 후보 쿼리를 만들 수 있는가.
+
+    후보 검색(`search_tag_catalog`)이 **하드 조건**으로 쓰는 신호 — 장르·배우·
+    국가·연도 — 중 하나라도 잡혔으면 참이다. 이때는 Gemini 의도 추출을 건너뛴다.
+    **키워드만 나온 경우는 거짓**이다: 그건 토큰을 자른 것뿐이라 "비 오는 날
+    볼만한" 같은 무드 질의를 Gemini 없이 처리하면 품질이 떨어진다.
+
+    `_fallback_raw()`가 돌려준 `search_filters`를 그대로 본다.
+    """
+    filters = parsed.get("search_filters") or {}
+    must = filters.get("must") or {}
+    similar = filters.get("similar_to") or {}
+    if filters.get("year_min") is not None or filters.get("year_max") is not None:
+        return True
+    return any(must.get(k) for k in ("actors", "genres", "countries")) or bool(
+        similar.get("actors")
+    )
+
+
 def _coerce_str_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [v.strip() for v in value.split(",") if v.strip()]
@@ -364,8 +384,15 @@ class IntentExtractionService:
 
         parsed: dict[str, Any] = {}
 
+        # 결정론적 추출로 먼저 훑는다. 장르·배우·국가·연도 중 하나라도 잡히면
+        # 그것만으로 후보 쿼리가 성립하므로 Gemini 호출을 건너뛴다 —
+        # `/mova/chat` 1건이 Gemini를 2회(의도 추출 + 추천 생성) 쓰던 것을
+        # 이런 질의에선 1회로 줄인다(분당 15요청 한도 → 수용 인원 2배).
+        deterministic = self._fallback_raw(text)
         keymaker = get_keymaker()
-        if keymaker.is_gemini_ready():
+        if _has_hard_signal(deterministic):
+            parsed = deterministic
+        elif keymaker.is_gemini_ready():
             try:
                 gemini = keymaker.get_gemini_model("flash")
                 if gemini is not None:
@@ -447,4 +474,7 @@ class IntentExtractionService:
             "intent_type": intent_type,
             "must": search_filters.get("must"),
             "similar_to": search_filters.get("similar_to"),
+            # 연도까지 담아 둔다 — `_has_hard_signal()`이 같은 산출물을 보고
+            # 판단하도록(원문에서 다시 유도하면 정규화 기준이 갈릴 수 있다).
+            "search_filters": search_filters,
         }
