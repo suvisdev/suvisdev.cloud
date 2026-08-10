@@ -690,10 +690,17 @@ embedding 전량 non-null). 상세: WORK_LOG 2026-08-06(추가⑪). **남은 일
   `fallback search_tag_catalog 사용`). 노트북에서 백필한 2014편은 전혀
   안 읽히고 있었다. 상세: WORK_LOG 2026-08-07(추가① 1).
 - **이미 끝난 것**: `GeminiEmbeddingAdapter` + `EMBEDDING_BACKEND` 스위치
-  구현·머지·EC2 배포 완료(PR #55), EC2 `.env`에 `EMBEDDING_BACKEND=gemini`
-  설정, 컨테이너에서 어댑터 교체·768차원 반환 확인. `source_ref` 불일치
-  (아래 완료됨)도 이 작업의 선행조건이라 함께 해결됨.
-- **남은 것**: 재임베딩 실행뿐. Ollama(nomic)와 Gemini는 의미 공간이 달라
+  구현·머지·EC2 배포 완료(PR #55). `source_ref` 불일치(아래 완료됨)도 이
+  작업의 선행조건이라 함께 해결됨.
+- ⚠️ **전제 정정(2026-08-10 실측)**: 이 항목은 "EC2 `.env`에
+  `EMBEDDING_BACKEND=gemini` 설정 완료"라고 적고 있었으나 **실제 값은
+  `ollama`다**(compose 오버라이드 없음). 프로덕션 로그에 지금도
+  `embed 실패, 검색 생략` → `fallback search_tag_catalog 사용`이 찍힌다 —
+  즉 **벡터 검색은 여전히 한 번도 돌지 않았다**. 재임베딩보다
+  **스위치를 켜는 게 먼저**다(`.env` 한 줄 + 백엔드 재기동).
+- **남은 것 ①**: `EMBEDDING_BACKEND=gemini`로 바꾸고 백엔드 재기동
+  (위 정정 참고 — 이게 선행이다).
+- **남은 것 ②**: 재임베딩 실행. Ollama(nomic)와 Gemini는 의미 공간이 달라
   벡터가 호환되지 않으므로(차원은 768로 같아 에러도 안 남) 기존 2014행을
   지우고 다시 채워야 한다 — **프로덕션 데이터 삭제가 걸려 사용자 판단으로
   보류 중**. 실행 명령은 준비돼 있음:
@@ -854,33 +861,14 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   키 존재 여부만, 누락 시 exit 1). 배포 스크립트(`auto-deploy.sh`)는
   저장소에 없고 EC2에만 있어 **CI·배포 자동 배선은 아직 안 됨** — 현재는
   수동 실행. WORK_LOG 2026-08-07.
-- **"구현과 의도 갭" 감사 사이클 후보(2026-08-05 신규, 2026-08-06 8번째
-  항목 추가)**: 같은 패턴(코드는 있는데 실제로 작동 안 함/의도대로 안 씀)이
-  누적 8건 발견됨 — (1) `CreditsBackfillInteractor._backfill_one()`이 원래
-  "실패해도 배치는 계속"이 의도였는데 실제로는 루프 전체가 중단(수정됨),
-  (2) `HubRagInteractor`가 임베딩 실패를 내부에서 삼켜서
-  `bulk_import_movies.py`의 rollback 방어 코드가 그 경로에서 한 번도 안
-  불림, (3) `tag_catalog`가 이미 movie_id를 갖고 있었는데 프롬프트가
-  "가능하면" 수준으로만 지시하고 `enrich_from_db()`는 그 id를 안 쓰고
-  title로 재매칭(수정됨), (4)~(7)은 2026-08-06 골든셋 재검증에서 확정된
-  `search_tag_catalog()`의 4가지 구조적 결함(위 2순위 참고 — 배우 미지원/
-  top-12 컷/키워드 OR/origin_country 부재), **(8) `bulk_import_movies.py`의
-  credits 백필이 통째로 실패해도(`tmdb-64682`, 2026-08-06 배치에서 실제
-  관측) 배치 리포트의 `failed=0`엔 안 잡힘** — PR #34의
-  `skipped_cast`/`skipped_directors`는 개별 cast/director 스킵만 카운트할
-  뿐, credits 백필 자체가 통째로 실패하는 경우는 배치 리포트 어느 지표에도
-  안 잡히는 사각지대. **(9) `hub_knowledge.source_ref`를 쓰는 5곳 중 4곳이
-  slug, 1곳만 `movie.id`** — 읽는 쪽이 `int(item.id)`로 파싱하고 실패 시
-  조용히 건너뛰어, 벡터 검색이 켜지면 후보가 빈 셋이 되어 추천이 전부
-  드롭됨(수정됨, 2026-08-07). **(10) `backfill_hub_movies_rag.py`의 완료
-  카운터가 시도 횟수** — `HubRagInteractor`가 임베딩 실패를 삼켜 0건
-  성공해도 "N편 색인 완료"로 보고(수정됨, 2026-08-07). 10건 모두 "코드는
-  존재·의도는 문서화돼 있지만 실행 경로가 그 의도를 실제로 안 지킨다"는
-  같은 유형. **감사 사이클 자체는 2026-08-07 종결** — 다른 앱으로 퍼져
-  있을 거라는 가설은 반증됐고(그 앱들엔 배치 루프·외부 API 호출이 없음)
-  패턴은 mova/ontology 파이프라인에 집중돼 있다. 이후 새 배치·파이프라인을
-  추가할 때 같은 관점("의도된 실패 격리가 실제로 발동하는가", "성공
-  카운터가 실제 정합성을 반영하는가")으로 자체 점검할 것.
+- ~~**"구현과 의도 갭" 감사 사이클 후보(2026-08-05 신규)**~~ —
+  **종결(2026-08-07)**: 누적 10건을 찾아 전부 처리했고, "다른 앱에도 퍼져
+  있다"는 가설은 반증됐다(그 앱들엔 배치 루프·외부 API 호출 자체가 없음).
+  10건 목록과 경위는 위 "종결됨 — 구현과 의도 갭 감사 사이클" 절과
+  WORK_LOG 2026-08-05·06·07 참고.
+  **남는 것은 작업이 아니라 습관** — 새 배치·파이프라인을 추가할 때
+  "의도된 실패 격리가 실제로 발동하는가", "성공 카운터가 실제 정합성을
+  반영하는가" 두 관점으로 자체 점검할 것.
 - **mova 추천 — reply 텍스트와 picks 개수 불일치(2026-08-05 신규, 2026-08-06
   실제 발현 확인)**: grounded prompting 적용 후 재검증 중 발견 — Gemini가
   intro(`reply`)를 picks 필터링 **전** 기준으로 작성해서 "두 편을 추천해
@@ -915,21 +903,25 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   형식이 고정된 식별자·코드만 `String(N)`). 프로덕션 실측 결과 기존 컬럼은
   여유가 3배 이상(`movies.title` 77/255 등)이라 **신규 컬럼에만 적용**하고
   기존 마이그레이션은 안 하기로 근거와 함께 기록. 아래는 당시 원문:
-- **SUVIS 저장소 컬럼 길이 정책 부재(2026-08-05 신규)**: `character_name`
-  VARCHAR(50) truncation 조사 중 확인 — `movies.title` `String(255)`,
-  `actors.name` `String(128)`, `characters.character_name`(수정 전
-  `String(50)`)처럼 이름·제목류 컬럼 길이가 테이블마다 임의로 다르고,
-  일관된 컨벤션 문서가 없다. name/title 계열은 TEXT를 기본값으로 하고
-  식별자·코드(slug, role_type 등) 계열만 길이 제한을 두는 컨벤션을
-  `.claude/rules/` 또는 앱 `_docs/`에 문서화할 필요 — 이번 스코프 밖,
-  착수 전.
-- **EC2 hub_knowledge 임베딩 어댑터 부재(2026-08-04 신규)**: `bulk_import_movies.py`
-  가 EC2에서 실행되면 movies/credits는 정상 저장되지만 `HubRagInteractor`가 쓰는
-  `OllamaEmbeddingAdapter`가 EC2엔 없는 Ollama를 호출하려다 매 영화마다
-  "Ollama 서버에 연결할 수 없습니다"로 조용히 실패(movies 저장엔 지장 없음,
-  hub_knowledge만 안 채워짐). Gemini 임베딩 등 EC2 호환 어댑터 필요.
-  **2026-08-05 실전 배치(1000편)로 실증**: WARNING 1000건이 처리 영화 수와
-  정확히 1:1, hub_knowledge 0건 불변 — 예상대로 movies/credits엔 지장 없음.
+- ~~**SUVIS 저장소 컬럼 길이 정책 부재(2026-08-05 신규)**~~ —
+  **종결(2026-08-07)**: `.claude/rules/orm-columns.md` 신설(파일 존재 확인,
+  2026-08-10). 외부 API·LLM·사용자 입력은 `Text`, 우리가 형식을 정하는
+  식별자·코드만 `String(N)`. 기존 컬럼은 여유 3배 이상이라 신규 컬럼에만
+  적용하기로 근거와 함께 결론. **바로 위에 같은 내용이 이미 종결로 적혀
+  있었는데 이 항목만 남아 있었다**(2026-08-10 정리).
+- **EC2 hub_knowledge 임베딩 어댑터 — 코드는 있고 스위치가 꺼져 있음
+  (2026-08-04 신규 → 2026-08-10 실측 재정의)**: 원래 문제("EC2엔 Ollama가
+  없는데 `OllamaEmbeddingAdapter`를 호출해 매 영화마다 조용히 실패";
+  2026-08-05 배치 1000편에서 WARNING 1000건 1:1로 실증)는
+  `GeminiEmbeddingAdapter` + `EMBEDDING_BACKEND` 스위치(PR #55, 2026-08-07)로
+  **코드 레벨에선 해결됐다**. 그런데 **2026-08-10 실측 결과 EC2 `.env`가
+  `EMBEDDING_BACKEND=ollama`였다**(compose 오버라이드 없음). WORK_LOG
+  2026-08-07은 "EC2 `.env`에 gemini 설정 완료"라고 적었지만 현재 값은
+  ollama다 — 되돌아간 것인지 애초에 반영이 안 된 것인지는 확인 불가.
+  프로덕션 로그에 지금도 `[HubRagInteractor] embed 실패, 검색 생략` →
+  `fallback search_tag_catalog 사용`, `[QwenIntentClassifier] 라우팅 호출
+  실패, rag로 폴백`이 찍힌다. **남은 일은 어댑터 구현이 아니라 `.env`
+  한 줄 변경 + 재기동**이며, 이게 아래 1순위(재임베딩)의 실질 선행조건이다.
 - **`bulk_import_movies.py`의 hub_knowledge 경로 `session.rollback()` 죽은
   코드(2026-08-05 신규)**: `_ingest_tmdb_movie`의 hub_knowledge except
   (111~115행, 어제 도미노 수정 5곳 중 하나)가 오늘 실전 배치 1000편에서
