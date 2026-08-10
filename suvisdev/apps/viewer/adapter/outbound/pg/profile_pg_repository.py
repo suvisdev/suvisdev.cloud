@@ -7,6 +7,7 @@ from core.matrix.grid_oracle_database_manager import get_viewer_session_factory
 from viewer.adapter.outbound.orm.user_identity_orm import UserIdentity
 from viewer.adapter.outbound.orm.user_orm import (
     get_viewer_user_profile,
+    update_user_avatar_key,
     update_user_nickname,
     update_user_preferred_genres,
 )
@@ -33,6 +34,7 @@ class ProfilePgRepository(ProfileRepository):
             gender=raw["gender"],
             preferred_genres=raw["preferred_genres"],
             providers=providers,
+            avatar_key=raw["avatar_key"],
         )
 
     async def update_nickname(self, user_id: int, nickname: str) -> ProfileDto | None:
@@ -45,6 +47,12 @@ class ProfilePgRepository(ProfileRepository):
         self, user_id: int, genres: list[str]
     ) -> ProfileDto | None:
         updated = await update_user_preferred_genres(user_id, genres)
+        if not updated:
+            return None
+        return await self.get_profile(user_id)
+
+    async def update_avatar_key(self, user_id: int, avatar_key: str) -> ProfileDto | None:
+        updated = await update_user_avatar_key(user_id, avatar_key)
         if not updated:
             return None
         return await self.get_profile(user_id)

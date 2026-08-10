@@ -21,3 +21,7 @@ class ProfileRepository(ABC):
         self, user_id: int, genres: list[str]
     ) -> ProfileDto | None:
         pass
+
+    @abstractmethod
+    async def update_avatar_key(self, user_id: int, avatar_key: str) -> ProfileDto | None:
+        pass

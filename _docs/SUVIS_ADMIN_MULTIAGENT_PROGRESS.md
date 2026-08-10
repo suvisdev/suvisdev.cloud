@@ -759,16 +759,13 @@ contents·auth·analytics·media를 훑은 결과 배치 루프·외부 API 호�
 - 예상 소요: 원인이 단순 종료라면 재기동 5분 이내, 터널 설정 문제면
   `_docs/lora-remote-gpu-ops.md` 절차 재확인 필요.
 
-💤 **6순위: `age_rating`/`platform` 데이터 백필(신규, 2026-08-06)**
-- 이유: `/mova/movies` 필터 UI에서 방침 (i)(비활성 select + 툴팁)로
-  흔적만 남겨둔 두 필터 — 실측 재확인 결과 여전히 0/2014. 데이터가
-  채워지면 UI는 자동으로 활성화되게 이미 배선돼 있음(select 옵션만
-  실제 값으로 교체하면 됨).
-- 시작 조건: TMDB가 `certification`(연령등급, 국가별)·`watch/providers`
-  (OTT 플랫폼) 엔드포인트를 이미 제공하는지 확인 → 마이그레이션 불필요
-  (컬럼은 이미 있음, 값만 안 채워짐) → import 저장 로직 + 기존 2014편
-  백필.
-- 예상 소요: API 조사 1시간 + 백필 스크립트는 synopsis 패턴 재사용 가능.
+**종결됨 — `age_rating`/`platform` 데이터 백필(구 6순위, 2026-08-09 구현 /
+2026-08-10 프로덕션 백필)**: TMDB `release_dates`·`watch/providers`를
+`append_to_response`로 상세 조회 1번에 함께 받아오도록 연동(추가 API 호출
+없음) + `scripts/backfill_age_rating_platforms_cli.py` 신설, 2026-08-10에
+EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필요했고(컬럼은
+이미 있었음), 데이터가 차면서 `/mova/movies`의 관람등급·플랫폼 select
+비활성(방침 (i))도 함께 풀렸다. 최종 수치: WORK_LOG 2026-08-10.
 
 💤 **7순위: 영화-컬렉션 배정 API/CLI 신설(신규, 2026-08-06)**
 - 이유: 오늘 컬렉션 5개는 SQL 직접 UPDATE로 시드했지만(`scripts/
@@ -790,6 +787,21 @@ contents·auth·analytics·media를 훑은 결과 배치 루프·외부 API 호�
   권장.
 - 예상 소요: 컨셉당 반나절 이내(오늘 사이클과 동일 패턴).
 
+🔥 **신규 1-b순위: `movies.embedding` 백필 이어서 실행(2026-08-10)**
+- 상태: 962/2014. `backfill_movie_embeddings_cli.py`가 Gemini **무료 티어
+  일일 한도**(`EmbedContentRequestsPerDayPerProjectPerModel-FreeTier`,
+  limit 1000, `gemini-embedding-1.0`)에 걸려 `succeeded=959 failed=1052`로
+  중단됐다. 아래 9순위(분당 15요청)와는 **다른 제한**이다 — 간격을 늘려도
+  하루 한도는 못 넘는다.
+- 남은 것: 날짜가 바뀐 뒤 EC2에서 재실행만 하면 된다(`embedding IS NULL`만
+  대상이라 idempotent). 약 1052편 → 하루 1000건이라 **이틀** 소요.
+  `docker compose --env-file suvisdev/.env exec backend python
+  scripts/backfill_movie_embeddings_cli.py`
+- 영향: 그때까지 영화 상세의 "비슷한 영화" 섹션은 임베딩이 있는 962편에서만
+  뜬다(회귀 아님, 데이터 미완).
+- **주의**: 이 쿼터는 프로젝트 단위라 위 1순위(hub_knowledge 재임베딩)와
+  같은 날 돌리면 서로 잡아먹는다. 순서를 정해서 실행할 것.
+
 ⚡ **9순위: Gemini 무료 티어 레이트 리밋(신규, 2026-08-07)**
 - 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,
   model: gemini-3.1-flash-lite`(분당 15요청). **`/mova/chat` 1건이 Gemini를
@@ -804,17 +816,21 @@ contents·auth·analytics·media를 훑은 결과 배치 루프·외부 API 호�
   사용자에게 "일시적 혼잡"으로 구분해 안내하기.
 - 예상 소요: (b)만 하면 반나절 이내.
 
-💤 **10순위: mova UI 감사 잔여 10건(신규, 2026-08-07)**
-- 이유: `_docs/MOVA_UI_AUDIT.md`를 "남은 작업만" 남기도록 정리하면서 백로그에
-  없던 신규 건이 드러남. 문서에 실측 근거와 착수 순서 제안이 정리돼 있다.
-- 묶음: 마이페이지 3건(찜 삭제·리뷰 삭제 API·프로필 이미지/닉네임 통합),
-  검색 4건(배우 필터·플랫폼 필터 활성화·0건 대안 제안·페이지네이션),
-  상세 3건(유사 영화·트레일러·플랫폼 링크), 홈 개인화 섹션 1건.
-- **`platforms`/`age_rating` 백필(위 6순위)이 선행되면 3건이 코드 변경 거의
-  없이 함께 풀린다**(UI가 이미 배선돼 있고 데이터가 없어 잠가둔 상태).
-- 주의: 유사 영화는 `movies.embedding`이 **0/2014**라 임베딩 백필이 선행이다
-  (감사 원본이 "채워짐"이라 적었던 건 오기 — 2026-08-07 실측으로 정정).
-- 상세·우선순위 제안: `_docs/MOVA_UI_AUDIT.md`.
+**종결됨 — mova UI 감사 잔여 10건(구 10순위, 2026-08-09 구현 / 2026-08-10
+배포)**: 1-c 찜 삭제·1-d 닉네임 편집·1-e 리뷰 삭제(DELETE 엔드포인트 신설
++ 작성자-또는-관리자 가드)·2-a 홈 선호 장르 배지·3-a 배우 필터·3-b 플랫폼
+필터 활성화·3-c 0건 대안 제안·4-a 유사 영화·4-b 트레일러·4-c 플랫폼 링크
+**10건 전부 완료**, 2026-08-10에 EC2 배포 + 마이그레이션(`20260809_0001`
+`movies.trailer_key`) + 데이터 백필까지 끝냈다. `_docs/MOVA_UI_AUDIT.md`는
+종결 문서로 정리됨.
+- **1-d 프로필 이미지 업로드도 2026-08-10에 종결** — "S3 미연결" 전제가
+  실측으로 뒤집혔다(키 4개가 이미 다 설정돼 있었고 EC2에서 버킷 접근 성공).
+  `users.avatar_key` 컬럼(`20260810_0001`) + viewer 자체 아바타 라우터
+  (`POST /viewer/avatar/upload`, presigned URL 표시) + mova mypage 업로더.
+- **남긴 것 1가지**: 번호 페이지네이션(3-d — 결함이 아닌 UX 선택지).
+- 부산물: 08-09에 발견만 하고 미뤘던 **연도 필터 드롭 버그**(프론트 프록시
+  허용목록에 `release_year_min`/`_max`가 없어 조용히 버려짐)를 2026-08-10에
+  수정(PR #66).
 
 **종결됨 — mova 카탈로그 커버리지 확장(구 1순위, 2026-08-06)**: TMDB
 popular 53~102페이지(960편) 실행으로 카탈로그를 1067→2014편까지 늘렸으나

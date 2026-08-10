@@ -28,6 +28,157 @@
 
 ---
 
+## 2026-08-10
+
+### 작업 내용
+- "어제 한 작업 이어서 해줘" 요청. 실측해 보니 2026-08-09 세션은 **코드는
+  전부 끝났지만 프로덕션에 배포되지 않은 상태**였다 — `ec2/main`이 08-09
+  커밋 2개(`023d40a`·`9a0c521`)만큼 뒤처져 있었고, 마이그레이션
+  `20260809_0001`도 미적용, 백필은 로컬 dev DB 39편에만 돌아 있었다.
+- 사용자 확인 후 범위를 "전부(배포 + 프로덕션 백필까지)"로 확정하고 진행.
+
+### 수정/구현
+- **연도 필터 드롭 버그 수정(08-09 이월분)**: `suvis/app/api/mova/movies/route.ts`의
+  `FORWARD_PARAMS`에 백엔드가 받지 않는 `release_year`(단수)만 있고, 클라이언트
+  (`lib/mova-api.ts`)가 실제로 보내는 `release_year_min`/`release_year_max`가
+  빠져 있어 `/mova/movies`의 연대 필터가 프록시에서 조용히 버려지고 있었다.
+  `release_year` 단수는 저장소 전체에서 이 허용목록 1곳에만 있던 죽은
+  이름이라 함께 제거. PR #66.
+- 문서 정리: `_docs/MOVA_UI_AUDIT.md`를 **종결 문서**로 전환(10건 종결 내역 +
+  의도적으로 남긴 2건: 프로필 이미지 업로드는 S3 미연결, 번호 페이지네이션은
+  UX 선택지), PROGRESS.md의 구 6순위(age_rating/platform 백필)·구 10순위
+  (UI 감사 잔여 10건)를 "종결됨"으로 이동, 08-09 항목의 미기입 커밋 해시
+  2곳 채움.
+
+### 배포·백필(EC2)
+- `git merge origin/main` → `docker compose --env-file suvisdev/.env up -d
+  --build backend`(캐시 히트, COPY 레이어만 재생성) → `alembic upgrade head`
+  (`20260807_0002` → `20260809_0001`).
+- 마이그레이션 전 백엔드 로그에 `movies.trailer_key` 미존재 에러가 실제로
+  찍혔다(KOFIC 박스오피스 스케줄러가 부팅 직후 `movies`를 조회) — 코드가
+  먼저 올라가고 컬럼이 나중에 생기는 순서라 예상된 창(window)이었고
+  마이그레이션 직후 해소.
+- 백필 3종을 컨테이너 안에서 **병렬** 실행(`docker compose exec -d`).
+  병렬로 돌려도 안전한 근거: 세 `update_*` 메서드가 전부 ORM 객체의 단일
+  속성만 바꾸고 커밋해 SQLAlchemy가 **변경된 컬럼만** UPDATE하므로
+  같은 행을 동시에 건드려도 다른 컬럼을 덮어쓰지 않는다. 순차로 돌리면
+  2배 이상 걸릴 상황이었다(TMDB 재조회가 분당 20~50편).
+
+### 오류·막힌 점
+- 없음. (백필 로그에서 `print` 출력이 파일 리다이렉트 시 블록 버퍼링돼
+  "대상 N편" 줄이 늦게 보이는 점만 확인 — 진행률은 로깅(stderr)의 HTTP
+  요청 수와 DB 카운트로 추적했다.)
+- **관찰(수정 안 함)**: `backfill_age_rating_platforms_cli.py`가 이미
+  `append_to_response=...,videos`로 트레일러 정보까지 받아오는데
+  `trailer_key`는 안 쓴다 — `backfill_trailer_cli.py`가 같은 TMDB 상세
+  엔드포인트를 한 번 더 호출한다. 일회성 스크립트라 이번엔 병렬 실행으로
+  덮었고, 통합은 하지 않았다.
+
+### 데이터
+- 백필 전 프로덕션(`movies` 2014편): age_rating 38 / platforms 13 /
+  trailer_key 3 / embedding 3 (전부 이 세션의 `--limit` 시험 실행분 포함).
+- 백필 후: **age_rating 1538 / platforms 1510 / trailer_key 1877 /
+  embedding 962** (모수 2014).
+  - age·platforms가 100%가 아닌 건 정상 — 스크립트 리포트가
+    `succeeded=1697 empty=289`로, TMDB에 **KR 등급·플랫폼 정보가 아예 없는**
+    영화가 289편이다(`empty`는 실패가 아니라 "찾아봤지만 없음").
+    trailer도 같은 이유로 `empty=113`.
+  - **embedding만 미완(962/2014)** — 아래 참고.
+
+### 오류·막힌 점(추가①) — Gemini 임베딩 일일 쿼터
+
+- `backfill_movie_embeddings_cli.py`가 **429 `EmbedContentRequestsPerDayPerProject
+  PerModel-FreeTier`, limit: 1000, model: `gemini-embedding-1.0`**으로 중단됐다.
+  리포트: `대상 2011편 → succeeded=959 failed=1052`.
+- 기존 백로그 9순위(Gemini 레이트 리밋)는 **분당 15요청**(생성 모델) 얘기였는데,
+  이건 **임베딩 모델의 하루 1000건** 제한이라 성격이 다르다. 분당 간격을 늘려도
+  오늘 안에는 못 채운다.
+- 스크립트가 `embedding IS NULL`만 대상으로 잡아 **idempotent**하므로 다음 날
+  그대로 재실행하면 이어서 채워진다(남은 약 1052편 → 하루 1000건 한도라 이틀치).
+- 이 쿼터는 **프로젝트 단위**라, 같은 날 `hub_knowledge` 재임베딩(PROGRESS 1순위)을
+  돌리려 했다면 그것도 함께 막혔을 것이다.
+- 영향: "비슷한 영화" 섹션은 **임베딩이 있는 962편에서만** 뜬다(원본 영화에
+  임베딩이 없으면 `find_similar_movies`가 None을 반환해 섹션이 안 보인다).
+  회귀가 아니라 데이터 미완 상태다.
+
+### 작업 내용(추가②) — 아바타 업로드 구현 + "S3 미설정" 전제 정정
+
+`MOVA_UI_AUDIT.md`에 마지막으로 남아 있던 §1-d(프로필 이미지 업로드)를 두고
+"무엇을 설정해야 하냐"는 질문이 나와 실측했더니, **전제 자체가 틀렸다**.
+
+- 루트 `CLAUDE.md`는 "`AWS_ACCESS_KEY_ID`·`VISION_S3_BUCKET` 미설정"이라고
+  적어 뒀고 08-09 세션도 그걸 믿고 "S3 미설정으로 보류"했지만, 실제로는
+  네 키(`AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`·`AWS_REGION`·
+  `VISION_S3_BUCKET`)가 **로컬·EC2 양쪽 `.env`에 다 채워져 있었다**.
+- EC2 컨테이너에서 `Tank.list_buckets()` 호출 →
+  `suvisdev-s3-584569945696-ap-northeast-2-an` 반환, `list_objects("")`에
+  susu가 올린 `media/4/20260804_*.jpg`가 이미 들어 있었다. 즉 S3는 **쓰이고
+  있는 중**이었다.
+- 진짜 막고 있던 건 설정이 아니라 코드였다 — `users`에 아바타 컬럼 없음,
+  업로드 엔드포인트 없음, 프론트 UI 없음.
+- 버킷은 비공개다(객체 공개 URL 직접 호출 → 403). 그래서 표시는 presigned URL로
+  간다.
+
+### 수정/구현(추가②)
+
+- **마이그레이션 `20260810_0001`**: `users.avatar_key TEXT NULL`. **URL이 아니라
+  S3 객체 key만** 저장한다 — presigned URL은 1시간 만료값이라 DB에 넣으면 즉시
+  낡는다.
+- **viewer 자체 아바타 라우터**(`avatar_router.py`, `POST /viewer/avatar/upload`):
+  media 앱의 `POST /media/photos`를 재사용하지 않았다 — 그쪽은 susu(Flutter)의
+  RS256 `aud=suvis-susu` 토큰 전용이고, media·viewer 둘 다 Spoke라 직접 import가
+  금지돼 있다(`suvisdev/CLAUDE.md` O.4). 공용 자원인
+  `core.matrix.aws_tank_s3_manager`만 함께 쓴다.
+  - 인증은 `require_user`(HS256). **대상 user_id를 경로·바디로 받지 않고 토큰에서만
+    뽑는다** — 남의 아바타를 바꿀 경로 자체가 없어 IDOR 표면이 없다.
+  - MIME 화이트리스트(jpeg/png/webp) → 415. **확장자는 파일명이 아니라 MIME에서
+    유도**한다(`evil.php.jpg` 같은 이중 확장자 방지).
+  - 5MB 상한을 **청크 누적 검사**로 건다 → 초과 즉시 413.
+    `UploadFile.spool_max_size`는 메모리→디스크 스풀 전환 임계값이지 업로드
+    상한이 아니라 검증에 못 쓴다. media 선례(전부 읽고 `len()`)는 상한 초과
+    요청도 통째로 메모리에 올리는 문제가 있어 따르지 않았다.
+  - S3 key는 `avatars/{user_id}/{uuid}.{ext}` — susu의 `media/` 아래와 분리.
+- **레이어**: `AvatarStorage` 출력 포트 + `TankAvatarStorageAdapter`
+  (`adapter/outbound/s3/`) 신설, `ProfileInteractor`가 둘(프로필 repo + 스토리지)을
+  받아 조립. `GET /viewer/profile/{user_id}` 응답에 `avatar_url`(presigned) 추가 —
+  DTO는 `avatar_key`(저장값)와 `avatar_url`(조회 시 파생값)을 둘 다 들고 있는다.
+  presigned URL 발급이 실패해도 `None`으로 두고 프로필 조회 자체는 막지 않는다.
+- **프론트**: `MovaAvatarUploader`(신규 컴포넌트) + `lib/profile-api.ts`의
+  `uploadAvatar()` + 프록시 `app/api/viewer/avatar/route.ts`(multipart는 FormData를
+  그대로 재전송 — `Content-Type`을 직접 넣으면 boundary가 깨진다).
+  `URL.createObjectURL`로 즉시 미리보기하고 `revokeObjectURL`로 해제한다.
+  mova mypage의 정적 아바타 원을 이 컴포넌트로 교체(그 자리에서만 쓰이던
+  `User` 아이콘 import 제거).
+  - mova mypage 응답(`MypageData`)엔 아바타가 없어 업로더가 `fetchProfile()`로
+    초기값을 따로 읽는다 — mova mypage DTO에 아바타를 끼워 넣으면 mova가
+    viewer 소유 데이터와 S3까지 알아야 해서 그쪽이 더 나쁘다.
+
+### 검증(추가②)
+
+- **마이그레이션 up→down→up 왕복**: 이 노트북엔 docker도 Postgres도 없어
+  EC2 Postgres에 **일회용 DB `avatar_roundtrip`**을 만들어 검증했다(프로덕션
+  무접촉). base부터 전체 체인 실행 → `20260810_0001 (head)` 도달 →
+  `avatar_key text YES` 확인 → `downgrade -1` → 컬럼 0건 확인 → 재 upgrade →
+  1건 확인 → 스크래치 DB 삭제.
+- **테스트**: `apps/viewer/tests` **18개 통과**(기존 11 + 신규 7 — 200/415/413/
+  400(빈 파일)/401/경계값 정확히 5MB/확장자를 MIME에서 유도하는지).
+  로컬에 파이썬 환경이 없어 uv로 경량 venv를 새로 만들었다(torch 제외).
+- `pnpm type-check` 클린. `lint-imports`: **"Spokes must not import each other
+  directly" KEPT** — 아바타 어댑터가 스타-토폴로지를 깨지 않음을 확인
+  (전체는 5 kept / 1 broken이며, broken은 기존 baseline인
+  `ontology → core.matrix → titanic/viewer ORM` 경유 건으로 이번 변경과 무관).
+
+### 산출물
+- 커밋 `1bde7e8` → PR #66 → `main` 머지(`5dd0b49`). EC2 머지 커밋 `b69255c`.
+- 프론트(Vercel)는 `main` 자동 배포 — 배포 후 실측으로 연도 필터 수정 확인
+  (`release_year_min=2020&release_year_max=2029` → 550편,
+  `1990~1999` → 169편. 수정 전이라면 둘 다 전체 1735편이 나왔을 것).
+- 프로덕션 신규 엔드포인트 스모크 테스트: `GET /mova/movies/{slug}/similar`
+  200, `DELETE /mova/reviews/{id}` 무인증 401(엔드포인트 존재 확인),
+  배우 필터·관람등급 필터 정상 응답.
+
+---
+
 ## 2026-08-09
 
 ### 작업 내용
@@ -76,12 +227,17 @@
   `get_mova_session_factory()`보다 먼저 호출하도록 추가해 해결.
 
 ### 산출물
-- 커밋 해시는 다음 항목에 추가 예정(이 세션 종료 직후 커밋·푸시).
+- 커밋 `9a0c521`(세션 후반부 4건 — 연령등급/플랫폼·트레일러·유사 영화).
+  `origin/main`에 직접 푸시. **EC2 배포·프로덕션 백필은 이 세션에서 안 함 —
+  2026-08-10 항목 참고.**
 
 ### 수정·구현
 - **1-c 찜 삭제**: mypage 찜 카드에 삭제 버튼 배선(`removeFromWatchlist` 재사용).
 - **1-d 닉네임 편집**: mova mypage에 편집 UI 추가(`updateNickname` 재사용, 아바타
-  업로드는 S3 미설정으로 보류).
+  업로드는 S3 미설정으로 보류). — **정정(2026-08-10)**: "S3 미설정"은 사실이
+  아니었다. 네 키가 로컬·EC2 `.env`에 이미 다 채워져 있었고 EC2에서
+  `Tank.list_buckets()`가 실제 버킷을 반환한다(루트 `CLAUDE.md`의 "미설정" 기술을
+  검증 없이 믿은 것). 아바타 업로드는 2026-08-10에 구현됐다.
 - **1-e 리뷰 삭제**: `DELETE /mova/reviews/{review_id}` 신설(포트·인터랙터·
   리포지토리·라우터 전 레이어 + IDOR 소유권 검증) + 프론트 프록시·API·mypage
   배선. 리뷰 전량 삭제 시 `movies.rating`이 stale하게 남던 기존 버그도 같이 수정
@@ -123,7 +279,8 @@
   경유). 코드 작성은 토큰 예산상 다음 세션으로 이월.
 
 ### 산출물
-- 커밋 전 상태(이 항목 작성 시점) — 커밋 해시는 다음 항목에 추가 예정.
+- 커밋 `023d40a`(세션 전반부 6건 — 찜/리뷰 삭제·배우 필터·0건 대안·홈 개인화).
+  `origin/main`에 직접 푸시.
 
 ---
 
