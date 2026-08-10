@@ -327,6 +327,37 @@
   200, `DELETE /mova/reviews/{id}` 무인증 401(엔드포인트 존재 확인),
   배우 필터·관람등급 필터 정상 응답.
 
+### 추가⑥: MOVA 리뷰 이해 파이프라인 현황 진단 (읽기 전용)
+
+- 계기: "리뷰가 추천의 핵심 입력"이라는 전제가 실제 코드에서 어디까지
+  구현돼 있는지 확인 요청. **코드 수정 없이 조사만** 했다.
+- **결론: A — 별점만 추천에 (간접) 반영, 리뷰 텍스트는 UI 표시 전용.**
+  - `reviews.body`를 읽는 곳은 마이페이지 조회와 영화별 리뷰 목록 둘뿐이고
+    둘 다 화면 표시로 끝난다. 임베딩·감정 분석·검색 인덱스 어디에도 없다.
+  - 별점은 `_update_movie_rating()`
+    (`market_reviews_pg_repository.py:202-216`)이 `movies.rating`을 리뷰
+    평균으로 덮어쓰고, 추천 후보 조회가 전부 `ORDER BY movies.rating DESC`라
+    **후보 순위에만 간접 반영**된다. 사용자별 취향 벡터는 없다 — 프롬프트에
+    붙는 개인화 신호는 `users.preferred_genres`와 최근 질의 3건뿐이다.
+  - 임베딩 입력 텍스트(`movies.embedding`·`hub_knowledge`) 셋 다
+    title/장르/출연/synopsis 구성이고 리뷰가 안 들어간다. LoRA 재학습
+    데이터(`export_chat_training_dataset.py`)도 chat+picks만 쓴다.
+- 조사 중 부수 발견 2건:
+  - **HNSW/IVFFlat 인덱스가 저장소 전체에 하나도 없다.** 유일한 언급이
+    `studio_movies_orm.py:74`의 "인덱스는 별도 리비전" 주석인데 그 리비전이
+    존재하지 않는다 — 지금은 전부 순차 스캔이다. 리뷰 임베딩을 추가하면
+    행 수가 자릿수로 늘어나므로 인덱스 리비전이 선행돼야 한다.
+  - 감정 분석은 **ontology에 완결된 구현이 이미 있다**
+    (`sentiment_analysis_interactor.py`, `echo_sentiment_adapter.py`,
+    `train_echo_sentiment.py`). mova에서 import하는 곳은 0건 — 새로 만들
+    게 아니라 Hub 경유로 연결하면 되는 항목이다.
+- 한계(명시): **DB 실측은 못 했다.** 이 WSL 배포판에 `docker` CLI가 없고
+  (Docker Desktop WSL 통합 비활성) `psql`도 없어, 스키마 기술은 ORM +
+  마이그레이션 기준이다. `movies.embedding` 백필 962/2014도 PROGRESS.md
+  기재값이지 실측값이 아니다.
+- 산출물: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md` 신설
+  (레이어별 진단 + 갭 분석 + 다음 스텝 3순위).
+
 ---
 
 ## 2026-08-09

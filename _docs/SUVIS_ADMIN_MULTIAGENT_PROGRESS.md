@@ -809,6 +809,28 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
 - **주의**: 이 쿼터는 프로젝트 단위라 위 1순위(hub_knowledge 재임베딩)와
   같은 날 돌리면 서로 잡아먹는다. 순서를 정해서 실행할 것.
 
+📋 **신규 1-c순위: MOVA 리뷰 이해 파이프라인(2026-08-10 진단 완료, 구현 미착수)**
+- 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
+  전용**이다. 상세: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md`
+  (레이어별 근거 + 파일:라인).
+- 지금 동작하는 유일한 리뷰 소비 경로: `reviews.rating` 평균 →
+  `movies.rating` → 추천 후보 `ORDER BY rating DESC`. 사용자 취향 벡터는
+  없고, 개인화 신호는 `users.preferred_genres` + 최근 질의 3건뿐.
+- 남은 것(순서 있음):
+  1. `reviews.embedding Vector(768)` + 저장 시 생성. **선행 결정 1건** —
+     저장소에 작업 큐가 없어 동기 호출/BackgroundTasks/주기 백필 중 택일이
+     설계 결정이다.
+  2. 사용자 취향 벡터 = 본인 리뷰 임베딩의 별점 가중 평균. **위 1-b(
+     `movies.embedding` 962/2014) 완료가 전제** — 아니면 후보 절반이 조용히
+     빠진다.
+  3. 감정 축은 ontology에 이미 구현이 있다(`sentiment_analysis_interactor.py`,
+     `echo_sentiment_adapter.py`). 새로 만들지 말고 Spoke→Hub 포트로 연결.
+- 부수 발견: **HNSW/IVFFlat 인덱스가 저장소 전체에 0건**(`studio_movies_orm.py:74`
+  "별도 리비전" 주석만 있고 리비전 부재). 리뷰 임베딩을 넣기 전에 인덱스
+  리비전이 선행돼야 한다.
+- ⚠️ 진단은 **ORM+마이그레이션 기준**이고 DB 실측이 아니다(조사 환경에
+  docker CLI·psql 없음). 착수 전 실제 스키마 대조할 것.
+
 ⚡ **9순위: Gemini 무료 티어 레이트 리밋(2026-08-07 → 2026-08-10 (b) 완료)**
 - 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,
   model: gemini-3.1-flash-lite`(분당 15요청). **`/mova/chat` 1건이 Gemini를
