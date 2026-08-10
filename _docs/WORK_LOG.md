@@ -259,6 +259,62 @@
 - `apps/mova/tests` + `apps/viewer/tests` **197개 전부 통과**.
 - `lint-imports` 5 kept / 1 broken(기존 baseline과 동일).
 
+### 작업 내용(추가⑤) — 잡다한 미결 6건 처리
+
+사용자 지시로 "지금 할 수 있는 6건"을 착수. 결과는 **처리 4건 + 전제 정정 1건 +
+착수 불가 1건**이다.
+
+**1) 단독 `1` 문자 — 추정이 아니라 실제로 살아 있었다**
+- 로컬·EC2 **양쪽** `suvisdev/.env` 29번째 줄(`GEMINI_API_KEY` 바로 다음)에
+  단독 `1`이 그대로 있었다. 백로그는 "재발하면 확인 필요"로 관망 상태였는데
+  이미 재발해 있었던 것.
+- 양쪽 백업(`.env.bak-20260810`) 후 그 줄만 삭제 → `docker compose config` 정상,
+  컨테이너 키 주입 3개 확인. (변수를 정의하는 줄이 아니라 런타임 영향은 없었다.)
+- **재발 탐지 자동화**: `scripts/check_env_drift.py`에 "`KEY=`도 주석도 아닌 줄"
+  검출을 추가(줄번호와 함께 출력, exit 1). 백업본으로 실제 탐지되는지 확인.
+
+**2) `bulk_import_movies.py` rollback — "죽은 코드"가 아니었다**
+- `HubRagInteractor.ingest_movie()`가 삼키는 건 임베딩 실패(`HubRagError`)뿐이고,
+  그 뒤 `repository.upsert()`(INSERT ... ON CONFLICT, `source_ref` UNIQUE)는
+  try **밖**이라 DB 오류는 그대로 올라온다. 2026-08-05 배치 1000편에서 한 번도
+  안 걸린 건 임베딩이 매번 먼저 실패해 upsert까지 간 적이 없어서다.
+- 즉 **아직 도달 못 한 코드**이고, 임베딩이 도는 순간 살아난다. 지우면 세션이
+  pending-rollback으로 남아 도미노가 재현된다. 제거하지 않고 **호출부에 근거
+  주석**을 남겨 다음 사람이 지우지 않게 했다. 백로그의 (a)/(b) 판단은 소멸.
+
+**3) `get_mova_session_factory()` commit 누락 함정**
+- 레포지토리 commit 정책 통일(트랜잭션 경계 변경)은 여전히 안 한다. 대신 함정이
+  있는 자리인 `HubKnowledgeRepository.upsert()` docstring에 "flush만 하고 commit은
+  호출자 몫", 대조군(`MoviesPgRepository.update_*`는 내부 커밋), 올바른 예
+  (`scripts/ingest_hub_knowledge.py`)를 적었다. 백로그에 묻어 두는 것보다
+  코드에서 마주치게 하는 편이 낫다.
+
+**4) EC2 `backend`/`auth` 이미지 중복 태깅**
+- `docker-compose.yaml`의 두 서비스에 같은 `image: suvisdev-app:latest`를 부여.
+  빌드는 한 번만 일어나고 디스크엔 한 벌만 남는다(차이는 `command:`뿐).
+  8.84GB짜리 pip 레이어 중복 보유가 해소된다.
+
+**5) `create_all()`/alembic 이중 관리 — 실측으로 안전 확인 후 제거**
+- 착수 전 검증: EC2에 일회용 DB를 만들어 **빈 DB에 `alembic upgrade head`만**
+  돌린 결과가 **프로덕션과 정확히 같은 36개 테이블(차집합 0)**. 즉 create_all은
+  완전히 중복이었다.
+- 도중에 내가 두 번 헛짚었다 — 처음엔 ORM 테이블명을 `passengers`/`bookings`로
+  잘못 알고 "alembic이 못 만든다"고 봤고(실제는 `titanic_passengers`/
+  `titanic_bookings`), 프로덕션 조회 IN 목록에도 `titanic_passengers`를 빠뜨려
+  "프로덕션에 없다"고 잘못 읽었다. 테이블 집합 전체를 diff해서 확정.
+- `ensure_titanic_tables()`에서 `create_all()`과 그것 때문에만 있던 ORM import·
+  `Base` import를 제거하고, DB 준비 확인만 남겼다(docstring에 근거 기록).
+
+**6) pydantic-settings 이관 — 착수 불가(설계상)**
+- 백로그에 "단독 실행 금지"라 적혀 있고, 근거인 2026-07-24 조사 결론이
+  "mova·ontology가 같은 env 이름을 읽어 값 divergence 없음(상태 중복이 아니라
+  코드 중복), 현재는 무해. 지금 accessor를 신설하면 이관 때 또 뜯게 됨"이다.
+  **app별 Settings 도입 여부가 먼저 결정돼야 열리는 항목**이라 손대지 않았다.
+
+### 검증(추가⑤)
+- `apps/mova/tests` + `apps/viewer/tests` **197개 통과**(create_all 제거 후 재실행).
+- 스크래치 DB(`alembic_only_test`)는 비교 후 DROP.
+
 ### 산출물
 - 커밋 `1bde7e8` → PR #66 → `main` 머지(`5dd0b49`). EC2 머지 커밋 `b69255c`.
 - 아바타: 커밋 `386462b` → PR #67 → `main` 머지(`81ee6ff`).

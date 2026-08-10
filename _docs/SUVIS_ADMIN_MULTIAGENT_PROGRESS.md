@@ -899,18 +899,11 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   **종결**: `limit=100` 하드코딩 제거·per-item commit/rollback은 2026-08-06에,
   `--embedding-backend`/`--reset`/`--limit` 추가와 `source_ref` 수정은
   2026-08-07에 완료. 남은 건 실행뿐(위 1순위).
-- **EC2 `backend`/`auth` 이미지 중복 태깅으로 디스크 낭비(2026-08-05
-  신규)**: `docker-compose.yaml`에서 두 서비스가 완전히 동일한
-  Dockerfile·빌드 컨텍스트(`./suvisdev`)를 쓰는데 이미지가 `suvisdevcloud-
-  backend`/`suvisdevcloud-auth`로 따로 태깅돼, 8.84GB짜리 pip 설치 레이어를
-  중복으로 디스크에 물고 있다(하나만 지워도 다른 쪽이 참조 중이라 공간이
-  안 풀림 — 2026-08-05 배포 중 디스크 부족 재발의 근본 원인, 상세 WORK_LOG
-  추가④). 근본 해결은 두 서비스가 같은 `image:` 태그를 공유하도록
-  compose를 재구성하거나(빌드는 한 번만, `command:`만 서비스별로 override),
-  최소한 배포 스크립트에서 "둘 다 재빌드 필요할 땐 순서·캐시 재사용"을
-  명시하는 것. 이번엔 임시 조치(임시로 `auth` 내려서 중복 레이어 해제 →
-  `backend` 재빌드 → `auth`는 캐시 히트로 재빌드)로만 우회, 구조 변경은
-  안 함 — 착수 전.
+- ~~**EC2 `backend`/`auth` 이미지 중복 태깅으로 디스크 낭비(2026-08-05
+  신규)**~~ — **종결(2026-08-10)**: 두 서비스에 같은 `image: suvisdev-app:latest`
+  태그를 줬다. 빌드는 한 번만 일어나고(두 번째는 캐시 히트로 같은 태그를 가리킴)
+  디스크엔 한 벌만 남는다 — 차이는 `command:`뿐이다. 배포 후 구 이미지
+  (`suvisdevcloud-backend`/`-auth`)는 dangling이 되므로 prune으로 회수한다.
 - ~~**SUVIS 저장소 컬럼 길이 정책 부재**~~ — **종결(2026-08-07)**:
   `.claude/rules/orm-columns.md` 신설(외부 API·LLM·사용자 입력은 `Text`,
   형식이 고정된 식별자·코드만 `String(N)`). 프로덕션 실측 결과 기존 컬럼은
@@ -935,17 +928,16 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   `fallback search_tag_catalog 사용`, `[QwenIntentClassifier] 라우팅 호출
   실패, rag로 폴백`이 찍힌다. **남은 일은 어댑터 구현이 아니라 `.env`
   한 줄 변경 + 재기동**이며, 이게 아래 1순위(재임베딩)의 실질 선행조건이다.
-- **`bulk_import_movies.py`의 hub_knowledge 경로 `session.rollback()` 죽은
-  코드(2026-08-05 신규)**: `_ingest_tmdb_movie`의 hub_knowledge except
-  (111~115행, 어제 도미노 수정 5곳 중 하나)가 오늘 실전 배치 1000편에서
-  단 한 번도 발동하지 않음 — `HubRagInteractor.ingest_movie()`가 내부에서
-  `HubRagError`를 이미 삼키고 자체 로그만 남긴 뒤 정상 반환하기 때문에
-  이 except 자체에 예외가 올라오지 않는다(위 항목의 "매 영화마다 조용히
-  실패"가 바로 이 내부 삼킴). 동작엔 문제없음(1:1 유지, EC2 hub_knowledge
-  미채움은 원래 알려진 별개 이슈) — 다만 방어 코드가 그 경로에서 무의미하다는
-  것 자체는 정리 필요. **판단 필요**: (a) 죽은 코드니 그냥 제거할지, (b)
-  `HubRagInteractor`가 `HubRagError`를 삼키지 않고 올려보내도록 고쳐서
-  rollback이 실제로 의미를 갖게 할지 — 이번 스코프 밖, 착수 전.
+- ~~**`bulk_import_movies.py`의 hub_knowledge 경로 `session.rollback()` 죽은
+  코드(2026-08-05 신규)**~~ — **종결(2026-08-10): 죽은 코드가 아니었다.**
+  `HubRagInteractor.ingest_movie()`가 삼키는 건 임베딩 실패(`HubRagError`)뿐이고,
+  그 뒤 `repository.upsert()`(INSERT ... ON CONFLICT, `source_ref` UNIQUE)는
+  try **밖**이라 DB 오류는 그대로 올라온다. 2026-08-05 배치에서 한 번도 안 걸린
+  건 EC2에서 임베딩이 매번 먼저 실패해 upsert까지 도달한 적이 없어서다 —
+  즉 "죽은 코드"가 아니라 **아직 도달 못 한 코드**. 임베딩이 실제로 도는 순간
+  살아나며, 없으면 세션이 pending-rollback으로 남아 이후 전 항목이 도미노로
+  실패한다(1건이 418건을 죽인 선례). 제거하지 않고 **호출부에 근거 주석을 남겨
+  다음 사람이 지우지 않게** 했다. (a)/(b) 판단 항목은 이로써 소멸.
 - **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback — 조사
   종결(2026-08-05)**: 원래 418건 도미노는 76~84행 자체가 아니라 credits
   백필 except(92~96행, `characters.character_name` truncation)에서 시작돼
@@ -999,36 +991,42 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   위 완료됨 참고)**: 노드 데이터(Movie 40 등)는 이미 있지만 `apps/mova`·
   `apps/ontology` 어디에도 이걸 읽는 코드가 없음. 어느 앱이 언제 어떻게
   쓸지(ontology hub_rag 확장? mova 추천 보강?) 설계부터 필요 — 착수 전.
-- **`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**:
-  `ensure_titanic_tables()`의 `create_all()`과 alembic이 테이블 생성을
-  이중으로 관리하고 있어, 새 ORM 모델이 추가될 때마다 이번(`hub_knowledge`)과
-  같은 `DuplicateTable`/`stamp` 우회가 반복될 수 있다. 근본 해결은
-  `create_all()` 경로를 제거하고 alembic을 단일 소스로 삼는 것. 상세:
-  WORK_LOG 2026-07-30.
+- ~~**`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**~~ —
+  **종결(2026-08-10)**: `ensure_titanic_tables()`의 `create_all()` 경로를
+  제거하고 alembic을 단일 소스로 삼았다. 착수 전 실측으로 안전성을 확인했다 —
+  **빈 DB에 `alembic upgrade head`만 돌린 결과가 프로덕션과 정확히 같은 36개
+  테이블(차집합 0)**이었다(EC2에 일회용 DB를 만들어 비교 후 삭제). 즉 create_all은
+  완전히 중복이었고, 새 ORM 모델마다 반복되던 `DuplicateTable`/`stamp` 우회의
+  원인이었다. 함수는 DB 연결 준비 확인용으로 남기고 docstring에 근거를 적었다.
 - ~~**구버전 `scripts/backfill_hub_movies_rag.py` 정리 여부 미결**~~ —
   **종결(2026-08-07)**: 사용자 판단으로 **삭제 대신 "고쳐서 유지"**. 감사에서
   드러난 결함 2건을 수정 — `source_ref`에 slug를 쓰던 것을 `list_all_slugs()`로
   slug→`movie.id` 조회 후 색인(미등록 slug는 스킵), 임베딩 실패를 삼켜
   허위였던 완료 카운터를 "시도/스킵"으로 정정. WORK_LOG 2026-08-07.
-- **`get_mova_session_factory()` 직접 사용 시 commit 누락 함정(2026-08-02
-  신규, 경미)**: `HubKnowledgeRepository.upsert()`처럼 `flush()`만 하고
-  `commit()`을 안 하는 레포지토리가 있음 — `get_mova_db()`(FastAPI
-  의존성)는 응답 종료 시 자동 commit하지만, `get_mova_session_factory()`를
-  일회성 스크립트에서 직접 쓸 땐 호출자가 명시적으로 `session.commit()`을
-  해야 함(`scripts/ingest_hub_knowledge.py` 참고). 근본 해결(레포지토리
-  commit 정책 통일)은 안 함 — 향후 유사 스크립트 작성 시 주의만 필요.
-- **단독 `1` 문자 삽입 재발(2026-07-30, 2026-08-04) — `.env` 한정 문제 아님**:
-  `suvisdev/.env` 29번째 줄(`GEMINI_API_KEY` 바로 다음)에서 2건(2026-07-29,
-  2026-07-30) 발견된 것과 같은 종류의 단독 `1` 문자가, 2026-08-04엔
-  `suvis/_docs/CLAUDE.MD`(IDE에서 열려 있던 상태)의 `---`와 `## C. 핵심 규칙`
-  사이에서도 발견됨(git diff로 확인, 해당 파일은 이번 작업으로 삭제돼 자연
-  소멸). `.env`(플레인 텍스트, 자동저장 없음)와 마크다운(IDE에서 열림) 둘 다
-  나타나 파일 타입이 원인이 아님 — **IDE 확장이나 포맷터가 열린 파일에
-  주기적으로 개입하는 쪽에 무게가 실림**. 재발하면 어떤 익스텐션이 활성인지
-  확인 필요.
+- ~~**`get_mova_session_factory()` 직접 사용 시 commit 누락 함정(2026-08-02
+  신규, 경미)**~~ — **종결(2026-08-10)**: 레포지토리 commit 정책 통일(트랜잭션
+  경계를 바꾸는 변경)은 여전히 안 한다. 대신 함정이 있는 자리 —
+  `HubKnowledgeRepository.upsert()` — 의 docstring에 "flush만 하고 commit은
+  호출자 몫"이라는 경고와 대조군(`MoviesPgRepository.update_*`는 내부 커밋),
+  올바른 예(`scripts/ingest_hub_knowledge.py`)를 명시했다. 백로그에 묻어 두는
+  것보다 코드에서 마주치게 하는 편이 낫다.
+- **단독 `1` 문자 삽입 — 2026-08-10 실제로 살아 있는 것을 발견·제거**:
+  로컬·EC2 **양쪽** `suvisdev/.env` 29번째 줄(`GEMINI_API_KEY` 바로 다음)에
+  단독 `1`이 그대로 남아 있었다(2026-07-29·07-30 발견분과 같은 자리). 양쪽 다
+  백업(`.env.bak-20260810`) 후 그 줄만 제거, `docker compose config`·컨테이너
+  키 주입 정상 확인. 편집기 확장이 원인이라는 추정은 그대로다(플레인 `.env`와
+  마크다운 양쪽에서 나왔으므로 파일 타입 문제가 아님).
+  **재발 탐지를 자동화**: `scripts/check_env_drift.py`가 이제 `KEY=`도 주석도
+  아닌 줄을 잡아 줄번호와 함께 출력하고 exit 1을 낸다(백업본으로 실제 탐지 확인).
+  근본 원인(어떤 익스텐션인지)은 여전히 미확인 — 재발하면 그때 확인.
 - **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
 - **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
   (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
+  **2026-08-10 확인**: 이건 착수할 작업이 아니라 **다른 결정에 붙은 조건**이다.
+  2026-07-24 조사 결론이 "두 곳이 같은 env 이름을 읽어 값 divergence 없음(상태
+  중복이 아니라 코드 중복), 현재는 무해"였고, 지금 accessor를 신설하면
+  pydantic-settings 이관 때 또 뜯게 된다. **app별 Settings 도입 여부가 먼저
+  결정돼야 열리는 항목.**
 - **`suvis/app/mail/contacts` 공개 레슨 데모 처리(2026-07-28 신규)**: adress
   엔드포인트에 `require_admin`을 걸면서 이 페이지는 이제 업로드 시도 시 401만
   받는다. 페이지 자체를 지울지, 로그인 요구 안내로 바꿀지, 별도 더미 데이터로

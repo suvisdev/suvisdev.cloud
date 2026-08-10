@@ -8,6 +8,12 @@ EC2 `.env`엔 반영된 적이 없어, 배포 환경이 의도와 다른 백엔�
 **값은 비교하지 않는다** — 비밀번호·API 키가 로그·CI 출력에 새면 안 되므로
 키 이름의 존재 여부만 본다.
 
+`KEY=` 형태도 주석도 아닌 **깨진 줄**도 함께 잡는다(2026-08-10 신설). 편집기
+확장이 열린 파일에 단독 `1` 문자를 끼워 넣는 사고가 세 번 반복됐고
+(2026-07-29·07-30·08-04), 2026-08-10엔 로컬·EC2 `.env` 29번째 줄
+(`GEMINI_API_KEY` 바로 다음)에 실제로 남아 있는 것을 발견했다. 조용히
+방치되는 게 문제라 탐지 대상에 넣는다.
+
 Usage (suvisdev 폴더에서):
   python scripts/check_env_drift.py
   python scripts/check_env_drift.py --env .env --example .env.example
@@ -36,6 +42,22 @@ def _keys(path: Path, pattern: re.Pattern[str]) -> set[str]:
     }
 
 
+def _malformed_lines(path: Path) -> list[tuple[int, str]]:
+    """`KEY=`도 주석도 빈 줄도 아닌 줄 → (줄번호, 내용).
+
+    `export FOO=bar`처럼 정당하지만 `_ENV_KEY`에 안 걸리는 형태가 있어 그건 통과시킨다.
+    """
+    out: list[tuple[int, str]] = []
+    for no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if _ENV_KEY.match(line) or _ENV_KEY.match(stripped.removeprefix("export ")):
+            continue
+        out.append((no, stripped))
+    return out
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env", default=".env")
@@ -55,6 +77,14 @@ def main(argv: list[str] | None = None) -> int:
     documented = _keys(example_path, _EXAMPLE_KEY)
     actual = _keys(env_path, _ENV_KEY)
 
+    malformed = _malformed_lines(env_path)
+    if malformed:
+        print(f"[env-drift] {env_path}에 KEY=VALUE도 주석도 아닌 줄 {len(malformed)}개:")
+        for no, text in malformed:
+            # 값이 아니라 깨진 줄 자체라 그대로 보여준다(비밀이 들어갈 자리가 아니다).
+            print(f"  - {no}행: {text!r}")
+        print("[env-drift] 편집기 확장이 끼워 넣은 문자일 수 있다(WORK_LOG 2026-07-29·07-30·08-04·08-10).")
+
     missing = sorted(documented - actual)
     undocumented = sorted(actual - documented)
 
@@ -68,6 +98,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  - {key}")
         print("[env-drift] 값이 필요 없는 키면 무시해도 되지만, 배포 환경이 기본값으로")
         print("            도는 걸 의도했는지 확인할 것(RECOMMENDATION_BACKEND 사고 참고).")
+        return 1
+
+    if malformed:
         return 1
 
     print(f"[env-drift] 누락 없음 (문서화 {len(documented)}개 전부 존재)")
