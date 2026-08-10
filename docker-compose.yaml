@@ -28,6 +28,11 @@ services:
     build:
       context: ./suvisdev      # suvisdev 폴더 안에 있는 Dockerfile을 읽어라
       dockerfile: Dockerfile
+    # auth와 **같은 태그**를 공유한다. 예전엔 태그를 안 줘서 compose가
+    # suvisdevcloud-backend / suvisdevcloud-auth 로 따로 태깅했고, 완전히 동일한
+    # 8.84GB짜리 pip 레이어를 두 벌 물고 있어 EC2 30GB 디스크가 배포 중 자주
+    # 터졌다(하나를 지워도 다른 쪽이 참조 중이라 공간이 안 풀림, 2026-08-05).
+    image: suvisdev-app:latest
     restart: unless-stopped
     # .dockerignore가 .env를 이미지에서 제외하므로(비밀번호 커밋 방지),
     # 컨테이너 실행 시점에 호스트의 .env를 env_file로 주입한다.
@@ -86,6 +91,9 @@ services:
     build:
       context: ./suvisdev
       dockerfile: Dockerfile
+    # backend와 동일한 이미지 — 빌드는 한 번만 일어나고(두 번째는 캐시 히트로
+    # 같은 태그를 가리킬 뿐) 디스크엔 한 벌만 남는다. 차이는 아래 command뿐이다.
+    image: suvisdev-app:latest
     command: uvicorn auth_main:app --host 0.0.0.0 --port 9000
     restart: unless-stopped
     env_file:

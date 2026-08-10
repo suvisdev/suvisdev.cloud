@@ -14,6 +14,15 @@ class HubKnowledgeRepository(HubKnowledgePort):
         self._session = session
 
     async def upsert(self, command: HubKnowledgeUpsertCommand, embedding: list[float]) -> int:
+        """**flush만 하고 commit은 하지 않는다 — 호출자가 커밋해야 한다.**
+
+        FastAPI 경로에선 `get_mova_db()` 의존성이 응답 종료 시 커밋해 주지만,
+        일회성 스크립트가 `get_mova_session_factory()`로 세션을 직접 열면
+        아무도 커밋하지 않아 **작업이 통째로 사라진다**(2026-08-02 발견).
+        같은 저장소의 `MoviesPgRepository.update_*`는 메서드 안에서 커밋하므로
+        레포지토리마다 정책이 다르다 — 스크립트를 새로 쓸 땐 쓰는 레포지토리가
+        어느 쪽인지 확인할 것. 커밋하는 예: `scripts/ingest_hub_knowledge.py`.
+        """
         stmt = (
             insert(HubKnowledgeOrm)
             .values(

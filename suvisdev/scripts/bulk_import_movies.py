@@ -132,6 +132,15 @@ async def _ingest_tmdb_movie(
         )
         await session.commit()
     except Exception:
+        # **지우지 말 것.** 2026-08-05 배치 1000편에서 한 번도 안 걸려 "죽은 코드"로
+        # 백로그에 올랐지만, 2026-08-10 재조사 결과 죽은 게 아니라 **아직 도달을
+        # 못 한** 코드다 — `HubRagInteractor.ingest_movie()`가 삼키는 건 임베딩
+        # 실패(`HubRagError`)뿐이고, 그 뒤 `repository.upsert()`
+        # (INSERT ... ON CONFLICT, `source_ref` UNIQUE)는 try 밖이라 DB 오류는
+        # 그대로 올라온다. EC2에서 임베딩이 매번 먼저 실패해 upsert까지 간 적이
+        # 없었을 뿐이다. 임베딩이 실제로 도는 순간 이 rollback이 살아나며,
+        # 없으면 세션이 pending-rollback으로 남아 이후 전 항목이 도미노로
+        # 실패한다(1건이 418건을 죽인 선례 — .claude/rules/orm-columns.md §5).
         logger.warning(
             "[bulk_import] hub_knowledge 인제스트 실패 | slug=%s", snap.slug, exc_info=True
         )

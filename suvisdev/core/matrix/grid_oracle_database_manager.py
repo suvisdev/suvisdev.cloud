@@ -295,28 +295,24 @@ async def create_tables() -> None:
 
 
 async def ensure_titanic_tables() -> None:
-    """passengers·bookings·dispatch_adress 없으면 생성 (삭제 후 업로드 복구용)."""
-    import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401
-    import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401
+    """DB 연결 준비 상태만 확인한다. **테이블 생성은 alembic이 단독으로 맡는다.**
 
-    try:
-        import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401
-    except ModuleNotFoundError:
-        pass
-    import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401
-    import ontology.adapter.outbound.orm.hub_knowledge_orm  # noqa: F401
-    from core.matrix.grid_neo_theone_base import Base
+    예전엔 여기서 `grid_neo_theone_base.Base.metadata.create_all()`을 돌려
+    titanic_passengers·titanic_bookings·dispatch_adress·vision_uploads·
+    hub_knowledge를 만들었는데, alembic도 같은 테이블을 관리해 **이중 관리**가
+    됐다 — 새 ORM 모델을 추가할 때마다 autogenerate가 "이미 있는 테이블"을 보고
+    `DuplicateTable`/`stamp` 우회를 반복하게 만든 원인이다(WORK_LOG 2026-07-30).
 
+    2026-08-10에 실측으로 정리했다: 빈 DB에 `alembic upgrade head`만 돌린 결과가
+    **프로덕션과 정확히 같은 36개 테이블**(차집합 0)이었다. 즉 create_all은 완전히
+    중복이었다. 스키마 변경은 이제 마이그레이션으로만 한다.
+    """
     ok, err = ensure_mova_database()
     if not ok:
         raise RuntimeError(err or "Mova database not initialized")
 
-    engine = get_mova_engine()
-    if engine is None:
+    if get_mova_engine() is None:
         raise RuntimeError("Mova engine not initialized")
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 
 async def dispose_engine() -> None:
