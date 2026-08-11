@@ -433,6 +433,58 @@ cosine 스케일 불변).
   PROGRESS.md 1-c순위의 "다음 순서" 2번(추천 후보 정렬에 취향-영화 코사인
   결합)부터.
 
+### 배포 사이클(같은 날) — suvisdev → main 병합 + EC2 정식 이미지 재빌드
+
+사용자 요청으로 로컬 커밋을 `suvisdev` 브랜치에 푸시한 뒤 이어서 main 병합과
+EC2 정식 배포까지 진행.
+
+**병합**
+- `gh` CLI가 이 환경에 없어 PR 대신 로컬 `git merge --no-ff suvisdev`로
+  main에 병합(`08f1a17`) → `git push origin main`. 커밋 전 신규 유닛테스트
+  6/6 재확인 + `ruff check`/`ruff format` 정리(단, `platform_user_taste_
+  vector_router.py`의 `shared.security` import 순서는 ruff 제안 대신
+  `whoami_router.py`/`market_reviews_router.py`와 같은 기존 관례를 그대로
+  따름 — `known-first-party`에 `shared`가 빠져 있어 ruff가 서드파티로 오인,
+  이건 저장소 전역의 기존 상태라 이번 변경 범위 밖).
+
+**EC2 배포 — 예상 밖 이슈 2건**
+1. **로컬 main이 origin과 41 커밋 어긋나 있었음**: 과거 여러 세션의
+   `git pull`이 fast-forward 대신 빈 머지 커밋을 반복 생성해 온 것으로 확인
+   (`git log --oneline <ec2-head> --not <merge-base>`로 전부
+   "Merge remote-tracking branch 'origin/main'" 류의 내용 없는 머지임을
+   실측 확인 후 `git reset --hard origin/main`으로 정리 — 고유 콘텐츠 손실
+   없음 확인 후 진행).
+2. **`docker compose up -d --build` 1차 시도가 디스크 부족으로 실패**
+   (`No space left on device`, pip install 중 torch/CUDA 대량 설치 단계).
+   원인: `suvisdev-app:latest`(9.2GB, backend·auth 공유)가 컨테이너에
+   물려 있는 채로 새 이미지를 빌드하면서 신구 이미지가 동시에 디스크를
+   차지 — 30GB 중 12GB 여유로는 부족. CLAUDE.md에 이미 기록된 고질
+   문제(2026-08-05)와 같은 원인, 이번엔 실제로 재현·해결.
+   - 조치: `docker compose stop/rm backend auth` → `docker rmi
+     suvisdev-app:latest`(9.2GB 회수, 21GB 여유 확보) → 재빌드 → 성공(exit
+     0, 약 5분). 이 과정에서 backend/auth **일시 다운타임 발생**(nginx·DB·
+     기타 서비스는 무영향).
+
+**결과**
+- `docker compose ps` 전체 스택 정상(nginx·backend·auth·db·redis·neo4j·
+  cloudflared·pgadmin·certbot 전부 Up). `backend`/`auth` 로그에
+  `Application startup complete` 확인.
+- 컨테이너 내부 `GET /mova/movies` 200, `GET /mova/taste/me`(무인증) 401 —
+  재빌드 후에도 정상.
+- **이번 재빌드가 main의 전체 누적분을 반영**하므로, β(리뷰 임베딩)·γ(취향
+  벡터)뿐 아니라 이전 HNSW 힌트 사이클(0.5순위)의 "docker cp 임시 반영 →
+  정식 이미지는 다음 배포 사이클 몫" 백로그도 한 번에 해소됨.
+- dangling 이미지(빌드 중 backend/auth가 각각 별도 이미지 ID로 만들어졌다가
+  하나로 태깅되며 남은 미태그 레이어) `docker image prune -f`로 정리 —
+  레이어 공유로 실 회수는 0B(중복 낭비 아니었음, 정상).
+
+**산출물**
+- `origin/main` → `08f1a17`(머지 커밋), `origin/suvisdev` → `f817ad6`.
+- EC2 `~/suvisdev.cloud`: `git reset --hard origin/main`, backend/auth
+  이미지 재빌드·재기동.
+- PROGRESS.md 0.5순위 "EC2 이미지 상태" 항목을 "정식 이미지 재빌드로 해소"로
+  갱신, 1-c순위 γ 문단에 배포 완료 문구 추가.
+
 ---
 
 ## 2026-08-10
