@@ -28,6 +28,193 @@
 
 ---
 
+## 2026-08-11
+
+### 작업 내용
+- 0순위 착수 전 사전 진단 요청. 어제(08-10) 백필 중단이 문서엔 "Gemini
+  1일 1000건 한도"로 기록돼 있지만 **사용자가 "혹시 코드/데이터 에러
+  아니냐"**고 확인 요청 — 자동화 등록 전 실 원인을 실측으로 재검증.
+- 원인 확정 후 사용자 지시로 즉시 대량 실행(오늘 쿼터 창) + crontab
+  자동화 등록 + 로그 리다이렉트 인프라 정비까지 한 사이클로 완료.
+
+### 진단 (문서 재검증)
+- EC2 prod 실측 초기값: `total=2014 with_embedding=962 remaining=1052`
+  — 08-10 WORK_LOG 값과 정확히 일치.
+- `--limit 10` 재현: `succeeded=10 failed=0 skipped=0` → 962→972 반영
+  확인. **코드/데이터 문제 아님**, 스크립트 idempotent 재확인.
+- 원인은 문서 기록 그대로 **Gemini 무료 티어 EmbedContent 일일 쿼터**
+  (`EmbedContentRequestsPerDayPerProjectPerModel-FreeTier`, limit 1000,
+  `gemini-embedding-1.0`). 어제 창은 이미 소진, 지금은 다음 창이라 재현
+  시점 성공. 스크립트 `HubRagError`를 catch해서 continue하므로(74~78행)
+  개별 movie 데이터로 죽는 경로 자체가 코드상 없음.
+
+### 로그 인프라 부재 발견
+- **이전 실행 stderr/stdout이 EC2 어디에도 남아 있지 않다** — `~/*.log`
+  없음, `docker logs suvisdevcloud-backend-1`에도 `backfill_movie_embeddings`
+  흔적 0. `docker compose exec`가 컨테이너 stdout에 안 붙는 구조라 세션
+  콘솔이 흐르면 조용히 사라진다. 자동화 등록 시 **로그 리다이렉트 없이는
+  silent 실패를 감지할 방법이 없음**을 확인 — 이번 crontab에는 필수로 포함.
+
+### 수정/구현 — 이번 사이클 실행
+
+- **즉시 수동 실행(오늘 쿼터 창 최대 활용)**: EC2에서 nohup+background로
+  `--limit 950` 실행. `>> ~/backfill_embeddings.log 2>&1`로 리다이렉트.
+  ```bash
+  cd ~/suvisdev.cloud && nohup docker compose --env-file suvisdev/.env \
+    exec -T backend python scripts/backfill_movie_embeddings_cli.py \
+    --limit 950 >> ~/backfill_embeddings.log 2>&1 &
+  ```
+  - SSH 세션 timeout에도 nohup으로 컨테이너 안 python 프로세스 정상 생존
+    (PID 확인). ssh session 종료 후에도 진행됨.
+
+- **crontab 등록(매일 KST 03:00 = PDT 자정 직후 신규 쿼터 창)**: EC2
+  `ec2-user` crontab에 추가.
+  ```cron
+  0 3 * * * cd ~/suvisdev.cloud && docker compose exec -T backend \
+    python scripts/backfill_movie_embeddings_cli.py --limit 950 \
+    >> ~/backfill_embeddings.log 2>&1
+  ```
+  - `-T`(TTY 없음)로 cron 환경에서도 exec 가능.
+  - `>>` + `2>&1`은 옵션 아니라 필수(위 진단 근거).
+  - 확인: `ssh aws crontab -l`.
+
+### 데이터
+- 진단 후: `total=2014 with_embedding=972 remaining=1042` (--limit 10 반영).
+- 오늘 대량 실행 리포트: `대상 950편 → succeeded=950 failed=0 skipped=0`.
+  실행 시간 약 16분(00:32~00:48 UTC).
+- 최종: **`total=2014 with_embedding=1922 remaining=92`**. 남은 92편은
+  익일 03:00 KST 자동화가 처리(오늘 쿼터는 950건 사용 + 이전 10건 =
+  총 960건으로 한도 근접, 나머지는 새 창).
+
+### 오류·막힌 점
+- (없음. 진단 → 실행 → 등록 순으로 막힘 없이 진행)
+
+### 산출물
+- EC2 `~/backfill_embeddings.log` 신규 생성.
+- EC2 `ec2-user` crontab에 백필 라인 추가(기존 `auto-deploy.sh`는 주석
+  처리 상태 유지, 이번엔 건드리지 않음).
+- 문서 갱신: `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 1-b순위 항목을
+  "자동화 등록 완료" 취지로 갱신 + 재확인 결과 반영.
+- **후속 티켓 분리**: 로그 인프라 부재는 embedding 스크립트에 국한된
+  문제 아님(다른 `scripts/backfill_*_cli.py`도 같은 패턴일 가능성).
+  이번 사이클은 embedding만 처리하고, 전면 정비는 PROGRESS.md에 별건으로.
+
+### 작업 내용(추가) — 0.5순위: HNSW 벡터 인덱스 도입
+
+- 위 1-b 완결 사이클에 이어, 리뷰 임베딩(1순위) 진입 전 선행 조건인 벡터
+  인덱스 부재(진단 세션의 부수 발견) 처리.
+- Part A(remaining=0 통과) 원칙은 사용자 결정으로 완화 — 남은 92편은 익일
+  자동화가 처리, 지금은 1922편 실측을 Before 기준선으로 활용.
+
+### 수정/구현 — Part B
+
+- **pgvector 버전 확인**: EC2 prod `0.8.5` — HNSW 완전 지원(0.5.0+).
+- **Alembic 리비전 `20260811_0001`** 신설:
+  `suvisdev/alembic/versions/20260811_0001_add_hnsw_indexes_on_embedding_columns.py`.
+  `movies.embedding`·`hub_knowledge.embedding` 각각 `USING hnsw (embedding
+  vector_cosine_ops) WITH (m=16, ef_construction=64)`. downgrade에서 인덱스
+  drop. `CREATE INDEX CONCURRENTLY`는 alembic 트랜잭션과 충돌해 미사용
+  (지금 규모는 락 몇 초로 무시 가능).
+- **로컬 검증 불가 → EC2 컨테이너 직접 반영**: 로컬은 WSL Docker Desktop
+  미통합 상태라 alembic 실행 불가. scp로 EC2 `/tmp/` 이동 → `docker cp`로
+  `suvisdevcloud-backend-1:/suvisdev/alembic/versions/`에 넣고 `alembic
+  upgrade head` 실행. 정식 이미지 통합은 다음 배포 사이클 몫.
+- **downgrade→upgrade 왕복 검증**: 인덱스 2건 삭제 확인 → 다시 upgrade해
+  2건 재생성 확인. 리비전 파일 안전성 확인.
+
+### 벤치마크 — 실 라우터 경로 20회 (`curl` `real` time)
+
+| 지표 | Before(seq scan) | After(planner default) |
+|------|------------------|------------------------|
+| median | 37.5ms | 30ms |
+| p95 | 269ms | 73ms |
+| max | 842ms | 117ms |
+
+- **정직한 해석**: After 개선이 인덱스 직접 효과인지 캐시/워밍인지 애매.
+  EXPLAIN을 뜯어 보니 planner가 2014행 규모에선 cost 오판(HNSW cost=860 >
+  Seq cost=416)으로 인덱스 스캔을 **자동 선택하지 않는다** — Before/After
+  둘 다 실제로는 seq scan. 표의 개선폭은 이번 사이클의 핵심 성과가 아님.
+- **잠재력 별도 실측(EXPLAIN 강제)**:
+  - 순수 seq scan: **10.178 ms** (`WHERE embedding IS NOT NULL AND id!=1
+    ORDER BY embedding <=> ... LIMIT 10`)
+  - `SET LOCAL enable_seqscan = off` 강제 시 HNSW 사용: **1.482 ms** —
+    **약 6.8배**. 실제 EXPLAIN 계획에 `Index Scan using
+    idx_movies_embedding_hnsw` 확인.
+
+### 오류·막힌 점
+
+- 없음. 다만 planner가 인덱스를 자동 선택 안 하는 pgvector의 알려진 특성
+  탓에 이번 사이클의 취업 어필용 벤치마크가 애매해짐 → 아래 "다음 단계"에
+  후속 티켓으로 분리했다.
+
+### 데이터
+- movies 인덱스 크기: 7.7 MB (HNSW m=16, ef_construction=64, 1922 벡터).
+- hub_knowledge 인덱스 크기: 8.0 MB (HNSW 같은 파라미터, 2014 벡터).
+- 카운트 변화 없음(2014/1922). 인덱스는 순전히 조회 경로 개선용.
+
+### 산출물(추가)
+- 리비전 파일: `suvisdev/alembic/versions/20260811_0001_add_hnsw_indexes_on_embedding_columns.py`
+- PROGRESS.md 1-c순위 아래에 "0.5순위 완료 / 코드 힌트 후속" 블록 추가.
+- 삭제: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md` (사용자
+  판단으로 정리, 결론은 PROGRESS 1-c순위 본문에 이미 요약돼 있음).
+
+### 후속 사이클(같은 날) — A·B·C 세 항목 즉시 처리
+
+사용자 요청으로 남아 있던 후속 티켓 두 건(HNSW 힌트, 로그 인프라 문서화)
++ 문서 수치 갱신 1건을 같은 세션에서 마무리.
+
+**A. MOVA_UI_AUDIT.md §5 embedding 수치 갱신**
+- `embedding 962/2014 미완` → `1922/2014 거의 완료, 잔여 92는 자동화`.
+- 각주도 "962편에서만 뜬다" → "잔여 92편만 임베딩 없음"으로 정합.
+
+**B. HNSW planner 힌트 코드 추가 + 실 API 벤치마크 재측정**
+- 어제 남긴 정직한 미해결 — planner cost 오판(HNSW 860 > Seq 416)으로
+  실 라우터가 여전히 seq scan이던 것 — 해결.
+- 수정: `movies_pg_repository.find_similar_movies` 시작부에
+  `await self._session.execute(text("SET LOCAL enable_seqscan = off"))`
+  한 줄. `SET LOCAL`이라 트랜잭션 종료 시 자동 원복(다른 세션 무영향).
+- EC2 반영: 로컬 → `scp` → `docker cp` → `docker restart suvisdevcloud-
+  backend-1`. 재기동 후 헬스체크(`GET /mova/movies` 200) 확인.
+- EXPLAIN 재확인: `Index Scan using idx_movies_embedding_hnsw`, Execution
+  Time **1.214 ms**(seq scan 시 10.2 ms).
+- 벤치마크(실 API 20회):
+  | 지표 | Before(인덱스 없음) | After(인덱스, seq scan) | **After+Hint(HNSW)** |
+  |---|---|---|---|
+  | median | 37.5 ms | 30 ms | **30 ms** |
+  | p95 | 269 ms | 73 ms | **33 ms** |
+  | max | 842 ms | 117 ms | 134 ms |
+- **정직한 해석**: median은 힌트 유무 차이 미미 — 네트워크 RTT가 응답
+  시간의 대부분을 차지해 DB 개선이 묻힌다. **tail latency(p95)가 확실히
+  안정** — 인덱스 없음 대비 269 → 33 ms(약 87% 개선). EXPLAIN의 6.8배는
+  순수 DB 이야기고, curl로 재는 실 API에는 nginx+FastAPI+psycopg+왕복
+  오버헤드가 실려 그대로 재현되지 않는다.
+
+**C. `_docs/SCRIPTS_EXECUTION_GUIDE.md` 신설**
+- 표준 실행 형태(`docker compose exec -T backend python ... >> ~/*.log
+  2>&1`) + 현재 자동화 대상 + 왜 이 문서가 필요한지(이번 사이클에서 발견한
+  로그 인프라 부재 사고). CLI별 `--log-file` 옵션은 문서 강제로 충분해
+  별건 티켓으로 승격하지 않는다.
+
+### 산출물(A·B·C)
+- `_docs/MOVA_UI_AUDIT.md` §5 갱신
+- `suvisdev/apps/mova/adapter/outbound/pg/movies_pg_repository.py` +5줄
+  (import `text`, 힌트 4줄 + 주석)
+- `_docs/SCRIPTS_EXECUTION_GUIDE.md` 신설
+- PROGRESS.md 0.5순위 항목 "힌트 적용 완료" 갱신, 로그 인프라 티켓 종결
+- **남은 후속 일**: 리비전 + 힌트 코드 모두 아직 `docker cp` 임시 반영
+  상태. 정식 배포는 다음 사이클(main 병합 → backend 재빌드).
+
+### 정리(추가) — PROGRESS.md 종결 항목 전면 삭제
+
+CLAUDE.md 원칙("완료된 항목은 상세 대신 WORK_LOG 날짜만 남기고")과
+사용자 요청("종결된건 어차피 worklog에 기록될텐데 그냥 삭제해줘")에 따라
+PROGRESS.md의 "종결됨 —" 대형 블록 8건 + "~~취소선~~ — **종결(...)**"
+개별 항목 10건 전부 삭제(168줄 축소). 각 항목의 경위·상세는 원래도
+WORK_LOG의 해당 날짜에 남아 있어서 정보 손실은 없음. 이후 종결되는
+항목은 이 사이클 이후 규칙대로 상세 대신 WORK_LOG 날짜만 남길 것.
+
+---
+
 ## 2026-08-10
 
 ### 작업 내용

@@ -651,37 +651,6 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 
-**종결됨 — EC2 Cloudflare Tunnel(api.suvisdev.cloud) 502(구 0순위,
-2026-08-07 재검증으로 확정)**: 2026-08-06 세션 종료 시점엔 보안그룹
-수정(UDP 7844 TCP 오설정) 이후에도 100% 502가 계속돼 "잠정 결론(SJC PoP
-유지보수 추정), 다음 세션 시작 시 UTC 16시 이후 재검증 필요"로 미해결
-남겨뒀던 항목. 2026-08-07 세션에서 `api.suvisdev.cloud`에 6회 연속 curl
-결과 6/6 200(0.6~0.9초)으로 재검증해 실제로 자연 해소됐음을 확인 —
-당시 추정대로 PoP 유지보수 시간대와 겹쳤던 것으로 최종 판정. 보안그룹
-수정 자체는 여전히 유효한 근본 조치로 유지.
-
-**종결됨 — mova UX 완성 저수확 3건 트랙(구 1순위, 2026-08-06)**:
-`character_name`/감독 노출 + 죽은 컴포넌트 4개(`MovaFeaturedRow`/
-`MovaQuickActions` 삭제, `MovaHeroBanner` 배선→**사용자 요청으로 재삭제**
-[WORK_LOG 추가② 참고], `MovaGenreCatalog` 배선 — 최종 "삭제 3·배선 1")
-+ `movies.synopsis` 컬럼 신설·백필(1787/1991)·프론트 연결 +
-`/mova/movies` 필터 UI 확장(연도 구간·평점·정렬, 아래 완료됨 참고) —
-전부 완료. 이 트랙은 여기서 닫는다.
-
-
-**종결됨 — `search_tag_catalog()` 개선(구 1순위, 2026-08-06)**: 배우 이름
-매칭 신설 + 태그/배우 교집합 우선(0건이면 합집합 완화) + 인기작 폴백으로
-구현 완료·EC2 배포·실 쿼리 재검증까지 끝남(아래 완료됨 참고). 확인된
-결함 4가지 중 (1) 배우 미지원·(2) top-12 컷은 해결, (3) 순수 다중 장르
-AND와 (4) `origin_country`(아래 2순위)는 스코프 밖으로 남음.
-
-**종결됨 — hub_knowledge Phase 2 데이터 백필(구 1순위, 2026-08-06)**:
-`scripts/ingest_hub_knowledge.py` 페이지네이션·per-item commit/rollback
-수정 + EC2 프로덕션 2014편 전량 백필 완료(`hub_knowledge` 0→2014,
-embedding 전량 non-null). 상세: WORK_LOG 2026-08-06(추가⑪). **남은 일**:
-3파이프라인(카탈로그 키워드/벡터 검색/LLM 자체 지식) 비교 실측은 아직
-안 함 — 다음 세션 후보로 아래에 신규 등록.
-
 🔥 **1순위: hub_knowledge 재임베딩 실행(2026-08-07 재정의 — 조사로 전제가
 뒤집힘)**
 - **2026-08-07 조사 결과**: "품질 비교만 남았다"는 기존 전제가 틀렸다.
@@ -710,24 +679,6 @@ embedding 전량 non-null). 상세: WORK_LOG 2026-08-06(추가⑪). **남은 일
   검색/LLM 자체 지식) 품질 비교가 가능해진다.
 - 실행 환경: EC2에서 전부 가능(노트북 불필요 — Gemini API 사용).
 
-**종결됨 — `origin_country` 컬럼 + 국가·연도 필터(구 2순위, 2026-08-07)**:
-착수 전 검증에서 **백로그 전제가 틀렸음**을 확인했다 — "제작국 컬럼이 없어
-한국 조건을 검증할 수단이 없다"고 봤지만, 같은 날 추가한 `original_language`
-로 이미 검증 가능했고(#9 정답 후보 7편이 그대로 쿼리됨), 표본 40편 대조에서
-`origin_country`(KR) vs `original_language`('ko') **불일치 0건**이었다.
-**진짜 막힌 곳은 읽는 경로**였다 — 인텐트 스키마에 국가·연도 필드가 없고
-`search_tag_catalog`이 `keywords`/`actor_names`만 받았다.
-사용자 선택으로 컬럼(PR #58)과 읽는 경로(PR #59)를 둘 다 진행:
-- `movies.origin_country` JSONB(공동제작 배열) + 1991편 전량 백필
-- 인텐트에 `must.countries`·`year_min`/`year_max` 추가(**결정론적 정규식
-  추출**도 넣어 LLM 응답이 비어도 동작), `search_tag_catalog`이 이를
-  완화되지 않는 하드 조건으로 태그 결과·인기작 폴백 **양쪽에** 적용
-- **#9 해결 확인**: "2020년대 한국 액션" → 마녀 2·오케이 마담·반도(전부 조건
-  충족). 배포 전엔 0카드였다.
-- **`origin_country`의 실익 실증**: GB 142편 — `original_language`로는 전부
-  `en`이라 미국과 구분 불가였다. "영국 영화" → 해리 포터·트레인스포팅 확인.
-상세: WORK_LOG 2026-08-07(추가③).
-
 💤 **3순위: 레거시 무태그 로우 12편 정리(짜투리)**
 - 이유: 골든셋 실패 대상 영화를 조회하다 발견 — id 1056~1067 12편이
   `release_year=0`·비-TMDB slug·**장르 태그 0개**로 존재. Phase 1 골든셋
@@ -743,18 +694,6 @@ embedding 전량 non-null). 상세: WORK_LOG 2026-08-06(추가⑪). **남은 일
   건짐. 이 항목이 그 근본 해결책.
 - 예상 소요: 12편 규모라 반나절 이내.
 
-**종결됨 — "구현과 의도 갭" 감사 사이클(구 4순위, 2026-08-07)**: 가설
-("다른 앱에도 퍼져 있을 통계적 근거가 쌓였다")은 **반증**됐다 — gildle·
-contents·auth·analytics·media를 훑은 결과 배치 루프·외부 API 호출 지점
-자체가 없어 패턴이 성립하지 않고, 이 패턴은 mova/ontology 배치
-파이프라인에 집중돼 있다(그곳에만 외부 API + 대량 루프가 있으므로).
-감사에서 신규 2건을 찾아 둘 다 수정: **#9 `hub_knowledge.source_ref`
-불일치(심각)** — 5곳 중 4곳이 slug, 1곳만 `movie.id`를 써서, 벡터 검색이
-켜지면 후보 id 파싱이 조용히 실패해 추천이 전부 드롭되는 상태였음(위
-1순위의 선행조건이라 함께 해결). **#10 `backfill_hub_movies_rag.py`의
-완료 카운터 허위** — 임베딩 실패를 삼켜 0건 성공해도 "N편 색인"으로 보고.
-상세: WORK_LOG 2026-08-07(추가① 6).
-
 💤 **5순위: 노트북 GPU/Cloudflare Tunnel 복구 + `RECOMMENDATION_BACKEND` 원복 판단**
 - 이유: 2026-08-06 현재 EC2가 `gemini`로 수동 폴백된 상태(기본값은
   `lora`) — 노트북 GPU `lora-server`/터널(`lora.suvisdev.cloud`)이
@@ -765,14 +704,6 @@ contents·auth·analytics·media를 훑은 결과 배치 루프·외부 API 호�
   자체가 없어 원격 조치 불가 — 노트북에 직접 접근 필요).
 - 예상 소요: 원인이 단순 종료라면 재기동 5분 이내, 터널 설정 문제면
   `_docs/lora-remote-gpu-ops.md` 절차 재확인 필요.
-
-**종결됨 — `age_rating`/`platform` 데이터 백필(구 6순위, 2026-08-09 구현 /
-2026-08-10 프로덕션 백필)**: TMDB `release_dates`·`watch/providers`를
-`append_to_response`로 상세 조회 1번에 함께 받아오도록 연동(추가 API 호출
-없음) + `scripts/backfill_age_rating_platforms_cli.py` 신설, 2026-08-10에
-EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필요했고(컬럼은
-이미 있었음), 데이터가 차면서 `/mova/movies`의 관람등급·플랫폼 select
-비활성(방침 (i))도 함께 풀렸다. 최종 수치: WORK_LOG 2026-08-10.
 
 💤 **7순위: 영화-컬렉션 배정 API/CLI 신설(신규, 2026-08-06)**
 - 이유: 오늘 컬렉션 5개는 SQL 직접 UPDATE로 시드했지만(`scripts/
@@ -794,25 +725,32 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
   권장.
 - 예상 소요: 컨셉당 반나절 이내(오늘 사이클과 동일 패턴).
 
-🔥 **신규 1-b순위: `movies.embedding` 백필 이어서 실행(2026-08-10)**
-- 상태: 962/2014. `backfill_movie_embeddings_cli.py`가 Gemini **무료 티어
-  일일 한도**(`EmbedContentRequestsPerDayPerProjectPerModel-FreeTier`,
-  limit 1000, `gemini-embedding-1.0`)에 걸려 `succeeded=959 failed=1052`로
-  중단됐다. 아래 9순위(분당 15요청)와는 **다른 제한**이다 — 간격을 늘려도
-  하루 한도는 못 넘는다.
-- 남은 것: 날짜가 바뀐 뒤 EC2에서 재실행만 하면 된다(`embedding IS NULL`만
-  대상이라 idempotent). 약 1052편 → 하루 1000건이라 **이틀** 소요.
-  `docker compose --env-file suvisdev/.env exec backend python
-  scripts/backfill_movie_embeddings_cli.py`
-- 영향: 그때까지 영화 상세의 "비슷한 영화" 섹션은 임베딩이 있는 962편에서만
-  뜬다(회귀 아님, 데이터 미완).
-- **주의**: 이 쿼터는 프로젝트 단위라 위 1순위(hub_knowledge 재임베딩)와
-  같은 날 돌리면 서로 잡아먹는다. 순서를 정해서 실행할 것.
+🔥 **신규 1-b순위: `movies.embedding` 백필 완결(2026-08-11 자동화 등록)**
+- 08-10 중단 원인 **재검증 완료(2026-08-11)** — 문서 기록 그대로 Gemini
+  무료 티어 EmbedContent 일일 쿼터 소진. 코드/데이터 문제 아님, 스크립트
+  `HubRagError` catch로 idempotent(개별 movie로 죽는 경로 코드상 없음).
+  근거: WORK_LOG 2026-08-11.
+- **로그 인프라 부재 발견**: 이전 실행 stderr/stdout이 EC2 어디에도 안
+  남음(`docker compose exec`가 컨테이너 stdout에 안 붙는 구조). 이번
+  자동화에서 `>> ~/backfill_embeddings.log 2>&1` 리다이렉트 필수 포함.
+- **이번 사이클 조치**:
+  1. 08-11 즉시 대량 실행(`--limit 950`, 오늘 쿼터 창 활용) —
+     결과·최종 카운트는 WORK_LOG 2026-08-11 참조.
+  2. EC2 `ec2-user` crontab에 매일 KST 03:00(= PDT 자정 이후 새 쿼터)
+     실행 등록: `0 3 * * * cd ~/suvisdev.cloud && docker compose exec -T
+     backend python scripts/backfill_movie_embeddings_cli.py --limit 950
+     >> ~/backfill_embeddings.log 2>&1`. 신규 영화가 들어와도 자동 커버.
+- 남은 확인: 익일 첫 자동화 로그 성공 확인, remaining=0 도달, 랜덤 movie
+  `GET /mova/movies/{slug}/similar` 실측(회귀 없는지). 여기까진 사람이
+  로그만 한 번 보면 되는 사후 확인이라 백로그에서 뺀다.
+- **주의(변함없음)**: 이 쿼터는 프로젝트 단위라 1순위(hub_knowledge
+  재임베딩)와 같은 날 돌리면 서로 잡아먹는다. hub_knowledge 재임베딩을
+  실행할 때는 crontab 라인을 하루 임시 비활성화할 것.
 
 📋 **신규 1-c순위: MOVA 리뷰 이해 파이프라인(2026-08-10 진단 완료, 구현 미착수)**
 - 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
-  전용**이다. 상세: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md`
-  (레이어별 근거 + 파일:라인).
+  전용**이다(진단 문서는 이번 세션에서 정리·삭제, 결론은 아래 요약으로
+  이관).
 - 지금 동작하는 유일한 리뷰 소비 경로: `reviews.rating` 평균 →
   `movies.rating` → 추천 후보 `ORDER BY rating DESC`. 사용자 취향 벡터는
   없고, 개인화 신호는 `users.preferred_genres` + 최근 질의 3건뿐.
@@ -825,11 +763,36 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
      빠진다.
   3. 감정 축은 ontology에 이미 구현이 있다(`sentiment_analysis_interactor.py`,
      `echo_sentiment_adapter.py`). 새로 만들지 말고 Spoke→Hub 포트로 연결.
-- 부수 발견: **HNSW/IVFFlat 인덱스가 저장소 전체에 0건**(`studio_movies_orm.py:74`
-  "별도 리비전" 주석만 있고 리비전 부재). 리뷰 임베딩을 넣기 전에 인덱스
-  리비전이 선행돼야 한다.
+- 부수 발견(**2026-08-11 처리 완료** — 아래 0.5순위 참조): HNSW/IVFFlat
+  벡터 인덱스가 저장소 전체에 0건이었음. `movies.embedding`·
+  `hub_knowledge.embedding` 둘 다 HNSW 리비전 신설 + EC2 반영 완료.
 - ⚠️ 진단은 **ORM+마이그레이션 기준**이고 DB 실측이 아니다(조사 환경에
   docker CLI·psql 없음). 착수 전 실제 스키마 대조할 것.
+
+📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
+- 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`
+  둘 다 `USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)`.
+  로컬 docker 미가용이라 EC2 backend 컨테이너에 직접 반영 → upgrade →
+  downgrade → upgrade 왕복 검증까지 완료. 인덱스 크기: movies 7.7MB,
+  hub_knowledge 8.0MB.
+- **정직한 벤치마크**(실 라우터 경로 `GET /mova/movies/{slug}/similar` × 20회):
+  | 지표 | Before(seq scan) | After(planner default) |
+  |---|---|---|
+  | median | 37.5ms | 30ms |
+  | p95 | 269ms | 73ms |
+  | max | 842ms | 117ms |
+- **Planner 힌트 적용 완료(2026-08-11 후속 사이클)**: planner가 2014행
+  규모에선 cost 오판(HNSW cost=860 > Seq cost=416)으로 인덱스 스캔 자동
+  선택을 안 하는 문제를 `movies_pg_repository.find_similar_movies`에서
+  `SET LOCAL enable_seqscan = off` 세션 힌트로 해결. EXPLAIN 재확인:
+  `Index Scan using idx_movies_embedding_hnsw` + Execution Time 1.214ms.
+  실 API 20회 재측정: **p95 73ms → 33ms(약 55% 개선)**, median 30ms(변화
+  미미 — 네트워크 RTT dominant). Before(인덱스 없음)와 비교: **p95 269ms
+  → 33ms(약 87% 개선)**.
+- **EC2 이미지 상태**: 이번 두 사이클은 컨테이너에 `docker cp`로 리비전
+  파일 + 코드 파일 임시 반영. main 브랜치 병합·backend 이미지 재빌드는
+  다음 배포 사이클에 포함되면 됨(alembic head는 이미 20260811_0001, DB
+  상태는 정합, 힌트 코드는 컨테이너에만 반영).
 
 ⚡ **9순위: Gemini 무료 티어 레이트 리밋(2026-08-07 → 2026-08-10 (b) 완료)**
 - 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,
@@ -858,52 +821,10 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
 - **남은 것 (a)**: 유료 티어 전환 여부 — **제품·비용 결정이라 사용자 판단 필요**.
   무료 티어인 한 임베딩 하루 1000건(위 1-b) 제약도 그대로다.
 
-**종결됨 — mova UI 감사 잔여 10건(구 10순위, 2026-08-09 구현 / 2026-08-10
-배포)**: 1-c 찜 삭제·1-d 닉네임 편집·1-e 리뷰 삭제(DELETE 엔드포인트 신설
-+ 작성자-또는-관리자 가드)·2-a 홈 선호 장르 배지·3-a 배우 필터·3-b 플랫폼
-필터 활성화·3-c 0건 대안 제안·4-a 유사 영화·4-b 트레일러·4-c 플랫폼 링크
-**10건 전부 완료**, 2026-08-10에 EC2 배포 + 마이그레이션(`20260809_0001`
-`movies.trailer_key`) + 데이터 백필까지 끝냈다. `_docs/MOVA_UI_AUDIT.md`는
-종결 문서로 정리됨.
-- **1-d 프로필 이미지 업로드도 2026-08-10에 종결** — "S3 미연결" 전제가
-  실측으로 뒤집혔다(키 4개가 이미 다 설정돼 있었고 EC2에서 버킷 접근 성공).
-  `users.avatar_key` 컬럼(`20260810_0001`) + viewer 자체 아바타 라우터
-  (`POST /viewer/avatar/upload`, presigned URL 표시) + mova mypage 업로더.
-- **남긴 것 1가지**: 번호 페이지네이션(3-d — 결함이 아닌 UX 선택지).
-- 부산물: 08-09에 발견만 하고 미뤘던 **연도 필터 드롭 버그**(프론트 프록시
-  허용목록에 `release_year_min`/`_max`가 없어 조용히 버려짐)를 2026-08-10에
-  수정(PR #66).
-
-**종결됨 — mova 카탈로그 커버리지 확장(구 1순위, 2026-08-06)**: TMDB
-popular 53~102페이지(960편) 실행으로 카탈로그를 1067→2014편까지 늘렸으나
-골든셋 실패 6건이 하나도 안 풀림 — 병목이 카탈로그 크기가 아니라 위
-2순위(`search_tag_catalog()`)임을 실증. **더 이상 페이지 수집을 늘리는
-방향의 작업은 하지 않는다.** 상세: `_docs/MOVA_RECOMMENDATION_QUALITY_
-PHASE1.md` §7, WORK_LOG 2026-08-06.
-
 **선택은 다음 세션 시작 시 판단.**
 
 ---
 
-- ~~**`suvisdev/_docs/CLAUDE.MD` 구버전 잔존**~~ — **종결(2026-08-07)**:
-  실제로는 구버전 잔존이 아니라 **`suvisdev/CLAUDE.md`가 깨진 Windows
-  심볼릭 링크**(경로 문자열만 든 61바이트 파일)였고, 그 탓에 백엔드
-  아키텍처 규칙이 에이전트 컨텍스트에 한 번도 로드된 적이 없었다.
-  본문을 `suvisdev/CLAUDE.md`로 이동 + 옛 경로 참조 6곳 정정.
-  저장소 전체 스캔으로 같은 패턴이 이 1건뿐임도 확인. WORK_LOG 2026-08-07.
-- ~~**`.env.example` vs 실제 `.env` drift 자동 감지 부재**~~ —
-  **종결(2026-08-07)**: `scripts/check_env_drift.py` 신설(값은 비교 안 하고
-  키 존재 여부만, 누락 시 exit 1). 배포 스크립트(`auto-deploy.sh`)는
-  저장소에 없고 EC2에만 있어 **CI·배포 자동 배선은 아직 안 됨** — 현재는
-  수동 실행. WORK_LOG 2026-08-07.
-- ~~**"구현과 의도 갭" 감사 사이클 후보(2026-08-05 신규)**~~ —
-  **종결(2026-08-07)**: 누적 10건을 찾아 전부 처리했고, "다른 앱에도 퍼져
-  있다"는 가설은 반증됐다(그 앱들엔 배치 루프·외부 API 호출 자체가 없음).
-  10건 목록과 경위는 위 "종결됨 — 구현과 의도 갭 감사 사이클" 절과
-  WORK_LOG 2026-08-05·06·07 참고.
-  **남는 것은 작업이 아니라 습관** — 새 배치·파이프라인을 추가할 때
-  "의도된 실패 격리가 실제로 발동하는가", "성공 카운터가 실제 정합성을
-  반영하는가" 두 관점으로 자체 점검할 것.
 - **mova 추천 — reply 텍스트와 picks 개수 불일치(2026-08-05 신규, 2026-08-06
   실제 발현 확인)**: grounded prompting 적용 후 재검증 중 발견 — Gemini가
   intro(`reply`)를 picks 필터링 **전** 기준으로 작성해서 "두 편을 추천해
@@ -914,29 +835,6 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.2) — 데이터 정확성
   문제는 아니고 카피 어색함이지만 골든셋 판정에 실제 영향을 준다는 게
   이번에 확인됨, 우선순위 재검토 여지 — 착수 전.
-- ~~**mova 추천 — TMDB popular 50페이지만으론 카탈로그 커버리지 부족**~~
-  — **종결(2026-08-06)**: 위 "종결됨" 참고(722행), 상세는
-  `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.
-- ~~**hub_knowledge 백필 스크립트 정비 필요(Phase 2 착수 전)**~~ —
-  **종결**: `limit=100` 하드코딩 제거·per-item commit/rollback은 2026-08-06에,
-  `--embedding-backend`/`--reset`/`--limit` 추가와 `source_ref` 수정은
-  2026-08-07에 완료. 남은 건 실행뿐(위 1순위).
-- ~~**EC2 `backend`/`auth` 이미지 중복 태깅으로 디스크 낭비(2026-08-05
-  신규)**~~ — **종결(2026-08-10)**: 두 서비스에 같은 `image: suvisdev-app:latest`
-  태그를 줬다. 빌드는 한 번만 일어나고(두 번째는 캐시 히트로 같은 태그를 가리킴)
-  디스크엔 한 벌만 남는다 — 차이는 `command:`뿐이다. 배포 후 구 이미지
-  (`suvisdevcloud-backend`/`-auth`)는 dangling이 되므로 prune으로 회수한다.
-- ~~**SUVIS 저장소 컬럼 길이 정책 부재**~~ — **종결(2026-08-07)**:
-  `.claude/rules/orm-columns.md` 신설(외부 API·LLM·사용자 입력은 `Text`,
-  형식이 고정된 식별자·코드만 `String(N)`). 프로덕션 실측 결과 기존 컬럼은
-  여유가 3배 이상(`movies.title` 77/255 등)이라 **신규 컬럼에만 적용**하고
-  기존 마이그레이션은 안 하기로 근거와 함께 기록. 아래는 당시 원문:
-- ~~**SUVIS 저장소 컬럼 길이 정책 부재(2026-08-05 신규)**~~ —
-  **종결(2026-08-07)**: `.claude/rules/orm-columns.md` 신설(파일 존재 확인,
-  2026-08-10). 외부 API·LLM·사용자 입력은 `Text`, 우리가 형식을 정하는
-  식별자·코드만 `String(N)`. 기존 컬럼은 여유 3배 이상이라 신규 컬럼에만
-  적용하기로 근거와 함께 결론. **바로 위에 같은 내용이 이미 종결로 적혀
-  있었는데 이 항목만 남아 있었다**(2026-08-10 정리).
 - **EC2 hub_knowledge 임베딩 어댑터 — 코드는 있고 스위치가 꺼져 있음
   (2026-08-04 신규 → 2026-08-10 실측 재정의)**: 원래 문제("EC2엔 Ollama가
   없는데 `OllamaEmbeddingAdapter`를 호출해 매 영화마다 조용히 실패";
@@ -950,16 +848,6 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   `fallback search_tag_catalog 사용`, `[QwenIntentClassifier] 라우팅 호출
   실패, rag로 폴백`이 찍힌다. **남은 일은 어댑터 구현이 아니라 `.env`
   한 줄 변경 + 재기동**이며, 이게 아래 1순위(재임베딩)의 실질 선행조건이다.
-- ~~**`bulk_import_movies.py`의 hub_knowledge 경로 `session.rollback()` 죽은
-  코드(2026-08-05 신규)**~~ — **종결(2026-08-10): 죽은 코드가 아니었다.**
-  `HubRagInteractor.ingest_movie()`가 삼키는 건 임베딩 실패(`HubRagError`)뿐이고,
-  그 뒤 `repository.upsert()`(INSERT ... ON CONFLICT, `source_ref` UNIQUE)는
-  try **밖**이라 DB 오류는 그대로 올라온다. 2026-08-05 배치에서 한 번도 안 걸린
-  건 EC2에서 임베딩이 매번 먼저 실패해 upsert까지 도달한 적이 없어서다 —
-  즉 "죽은 코드"가 아니라 **아직 도달 못 한 코드**. 임베딩이 실제로 도는 순간
-  살아나며, 없으면 세션이 pending-rollback으로 남아 이후 전 항목이 도미노로
-  실패한다(1건이 418건을 죽인 선례). 제거하지 않고 **호출부에 근거 주석을 남겨
-  다음 사람이 지우지 않게** 했다. (a)/(b) 판단 항목은 이로써 소멸.
 - **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback — 조사
   종결(2026-08-05)**: 원래 418건 도미노는 76~84행 자체가 아니라 credits
   백필 except(92~96행, `characters.character_name` truncation)에서 시작돼
@@ -1013,25 +901,6 @@ PHASE1.md` §7, WORK_LOG 2026-08-06.
   위 완료됨 참고)**: 노드 데이터(Movie 40 등)는 이미 있지만 `apps/mova`·
   `apps/ontology` 어디에도 이걸 읽는 코드가 없음. 어느 앱이 언제 어떻게
   쓸지(ontology hub_rag 확장? mova 추천 보강?) 설계부터 필요 — 착수 전.
-- ~~**`create_all()`/alembic 테이블 생성 이중 관리(2026-07-30 신규)**~~ —
-  **종결(2026-08-10)**: `ensure_titanic_tables()`의 `create_all()` 경로를
-  제거하고 alembic을 단일 소스로 삼았다. 착수 전 실측으로 안전성을 확인했다 —
-  **빈 DB에 `alembic upgrade head`만 돌린 결과가 프로덕션과 정확히 같은 36개
-  테이블(차집합 0)**이었다(EC2에 일회용 DB를 만들어 비교 후 삭제). 즉 create_all은
-  완전히 중복이었고, 새 ORM 모델마다 반복되던 `DuplicateTable`/`stamp` 우회의
-  원인이었다. 함수는 DB 연결 준비 확인용으로 남기고 docstring에 근거를 적었다.
-- ~~**구버전 `scripts/backfill_hub_movies_rag.py` 정리 여부 미결**~~ —
-  **종결(2026-08-07)**: 사용자 판단으로 **삭제 대신 "고쳐서 유지"**. 감사에서
-  드러난 결함 2건을 수정 — `source_ref`에 slug를 쓰던 것을 `list_all_slugs()`로
-  slug→`movie.id` 조회 후 색인(미등록 slug는 스킵), 임베딩 실패를 삼켜
-  허위였던 완료 카운터를 "시도/스킵"으로 정정. WORK_LOG 2026-08-07.
-- ~~**`get_mova_session_factory()` 직접 사용 시 commit 누락 함정(2026-08-02
-  신규, 경미)**~~ — **종결(2026-08-10)**: 레포지토리 commit 정책 통일(트랜잭션
-  경계를 바꾸는 변경)은 여전히 안 한다. 대신 함정이 있는 자리 —
-  `HubKnowledgeRepository.upsert()` — 의 docstring에 "flush만 하고 commit은
-  호출자 몫"이라는 경고와 대조군(`MoviesPgRepository.update_*`는 내부 커밋),
-  올바른 예(`scripts/ingest_hub_knowledge.py`)를 명시했다. 백로그에 묻어 두는
-  것보다 코드에서 마주치게 하는 편이 낫다.
 - **단독 `1` 문자 삽입 — 2026-08-10 실제로 살아 있는 것을 발견·제거**:
   로컬·EC2 **양쪽** `suvisdev/.env` 29번째 줄(`GEMINI_API_KEY` 바로 다음)에
   단독 `1`이 그대로 남아 있었다(2026-07-29·07-30 발견분과 같은 자리). 양쪽 다

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
@@ -331,6 +331,12 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie = movie_q.scalar_one_or_none()
         if movie is None or movie.embedding is None:
             return None
+
+        # pgvector HNSW planner cost 오판 회피: 2014행 규모에선 planner가
+        # HNSW cost(~860) > Seq cost(~416)로 잘못 계산해 seq scan을 선택한다.
+        # 실측으론 HNSW가 6.8배 빠름(10.2ms → 1.5ms, 2026-08-11). SET LOCAL은
+        # 트랜잭션 종료 시 자동 원복이라 다른 세션엔 영향 없음.
+        await self._session.execute(text("SET LOCAL enable_seqscan = off"))
 
         distance = MovaMovie.embedding.cosine_distance(movie.embedding)
         stmt = (
