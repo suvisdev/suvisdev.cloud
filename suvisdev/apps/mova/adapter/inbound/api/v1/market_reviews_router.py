@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from mova.adapter.inbound.api.schemas.market_reviews_schema import (
@@ -16,8 +16,34 @@ from mova.adapter.inbound.api.schemas.market_reviews_schema import (
 )
 from mova.app.ports.input.market_reviews_use_case import ReviewsUseCase
 from mova.app.ports.output.market_reviews_errors import ReviewNotWatchedError, ReviewValidationError
+from mova.app.use_cases.platform_user_taste_vector_interactor import (
+    UserTasteVectorRecomputeInteractor,
+)
+from mova.app.use_cases.review_embedding_backfill_interactor import (
+    ReviewEmbeddingBackfillInteractor,
+)
 from mova.dependencies.market_reviews_provider import get_reviews_use_case
+from mova.dependencies.platform_user_taste_vector_provider import (
+    get_user_taste_vector_recompute_use_case,
+)
+from mova.dependencies.review_embedding_provider import get_review_embedding_backfill_use_case
 from shared.security.require_user import UserPrincipal, require_user
+
+
+async def _embed_review_then_recompute_taste(
+    embedding_backfill: ReviewEmbeddingBackfillInteractor,
+    taste_recompute: UserTasteVectorRecomputeInteractor,
+    review_id: int,
+    user_id: int,
+) -> None:
+    """BG task 하나로 두 단계 체이닝 — 리뷰 임베딩 저장 성공 시에만 취향 벡터 재계산.
+
+    임베딩 실패면 취향 벡터는 그대로 두고 다음 크론 안전망이 처리한다.
+    두 단계 다 실패해도 리뷰 자체는 이미 저장돼 있으니 요청은 성공 응답.
+    """
+    outcome = await embedding_backfill.embed_one(review_id)
+    if outcome == "succeeded":
+        await taste_recompute.recompute_for_user(user_id)
 
 market_reviews_router = APIRouter(prefix="/reviews", tags=["mova-reviews"])
 
@@ -46,14 +72,37 @@ async def add_activity(
 @market_reviews_router.post("", response_model=ReviewSchema, status_code=201)
 async def add_review(
     body: ReviewCreateSchema,
+    background_tasks: BackgroundTasks,
     principal: UserPrincipal = Depends(require_user),
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+    embedding_backfill: ReviewEmbeddingBackfillInteractor = Depends(
+        get_review_embedding_backfill_use_case
+    ),
+    taste_recompute: UserTasteVectorRecomputeInteractor = Depends(
+        get_user_taste_vector_recompute_use_case
+    ),
 ) -> ReviewSchema:
-    """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert). 별점만/본문만/둘 다 허용."""
+    """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert). 별점만/본문만/둘 다 허용.
+
+    body가 있으면 응답 후 background에서 임베딩 생성 + 성공 시 취향 벡터
+    재계산(체이닝). 실패해도 리뷰는 남고 크론이 안전망으로 나중에 잡음.
+    body가 없으면 임베딩은 스킵하지만 rating 변경으로도 취향 벡터 후보가 달라질
+    수 있으니 recompute만 걸어둔다.
+    """
     try:
         dto = await use_case.add_review(principal.user_id, body.movie_id, body.rating, body.body)
     except (ReviewValidationError, ReviewNotWatchedError) as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+    if body.body and body.body.strip():
+        background_tasks.add_task(
+            _embed_review_then_recompute_taste,
+            embedding_backfill,
+            taste_recompute,
+            dto.id,
+            principal.user_id,
+        )
+    else:
+        background_tasks.add_task(taste_recompute.recompute_for_user, principal.user_id)
     return dto.to_schema()
 
 
@@ -83,10 +132,22 @@ async def get_rating_summary(
 async def update_review(
     review_id: int,
     body: ReviewUpdateSchema,
+    background_tasks: BackgroundTasks,
     principal: UserPrincipal = Depends(require_user),
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+    embedding_backfill: ReviewEmbeddingBackfillInteractor = Depends(
+        get_review_embedding_backfill_use_case
+    ),
+    taste_recompute: UserTasteVectorRecomputeInteractor = Depends(
+        get_user_taste_vector_recompute_use_case
+    ),
 ) -> ReviewSchema:
-    """리뷰 수정 — 본인 리뷰만 가능(IDOR 방지)."""
+    """리뷰 수정 — 본인 리뷰만 가능(IDOR 방지).
+
+    body/rating이 바뀌었을 가능성이 있으면 background에서 임베딩 재생성 +
+    성공 시 취향 벡터 재계산(체이닝). update가 부분 갱신이라 body 유무를
+    여기서 못 가려 항상 체인을 건다(embed_one이 body 없으면 자체 스킵).
+    """
     existing = await use_case.get_by_id(review_id)
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
@@ -95,6 +156,13 @@ async def update_review(
     dto = await use_case.update_review(review_id, body.rating, body.body)
     if dto is None:
         raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
+    background_tasks.add_task(
+        _embed_review_then_recompute_taste,
+        embedding_backfill,
+        taste_recompute,
+        review_id,
+        existing.user_id,
+    )
     return dto.to_schema()
 
 

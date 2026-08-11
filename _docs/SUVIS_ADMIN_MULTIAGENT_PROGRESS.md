@@ -747,27 +747,25 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   재임베딩)와 같은 날 돌리면 서로 잡아먹는다. hub_knowledge 재임베딩을
   실행할 때는 crontab 라인을 하루 임시 비활성화할 것.
 
-📋 **신규 1-c순위: MOVA 리뷰 이해 파이프라인(2026-08-10 진단 완료, 구현 미착수)**
+📋 **1-c순위: MOVA 리뷰 이해 파이프라인 — 인프라 완료(2026-08-11), 추천 반영 남음**
 - 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
-  전용**이다(진단 문서는 이번 세션에서 정리·삭제, 결론은 아래 요약으로
-  이관).
-- 지금 동작하는 유일한 리뷰 소비 경로: `reviews.rating` 평균 →
-  `movies.rating` → 추천 후보 `ORDER BY rating DESC`. 사용자 취향 벡터는
+  전용**이다. 지금 동작하는 유일한 리뷰 소비 경로: `reviews.rating` 평균
+  → `movies.rating` → 추천 후보 `ORDER BY rating DESC`. 사용자 취향 벡터는
   없고, 개인화 신호는 `users.preferred_genres` + 최근 질의 3건뿐.
-- 남은 것(순서 있음):
-  1. `reviews.embedding Vector(768)` + 저장 시 생성. **선행 결정 1건** —
-     저장소에 작업 큐가 없어 동기 호출/BackgroundTasks/주기 백필 중 택일이
-     설계 결정이다.
-  2. 사용자 취향 벡터 = 본인 리뷰 임베딩의 별점 가중 평균. **위 1-b(
-     `movies.embedding` 962/2014) 완료가 전제** — 아니면 후보 절반이 조용히
-     빠진다.
-  3. 감정 축은 ontology에 이미 구현이 있다(`sentiment_analysis_interactor.py`,
-     `echo_sentiment_adapter.py`). 새로 만들지 말고 Spoke→Hub 포트로 연결.
-- 부수 발견(**2026-08-11 처리 완료** — 아래 0.5순위 참조): HNSW/IVFFlat
-  벡터 인덱스가 저장소 전체에 0건이었음. `movies.embedding`·
-  `hub_knowledge.embedding` 둘 다 HNSW 리비전 신설 + EC2 반영 완료.
-- ⚠️ 진단은 **ORM+마이그레이션 기준**이고 DB 실측이 아니다(조사 환경에
-  docker CLI·psql 없음). 착수 전 실제 스키마 대조할 것.
+- ✅ **완료(2026-08-11)** — `reviews.embedding Vector(768)` + HNSW 리비전
+  `20260811_0002`, 저장 시 BackgroundTasks + 크론 백필 안전망(`30 3 * * *`).
+  세부: WORK_LOG 2026-08-11 β 사이클.
+- 진행 중(γ 사이클, 2026-08-11 착수 코어만 커밋, 남은 것 오늘 밤/내일):
+  - ✅ **취향 벡터 코어**: `mova.user_taste_vectors` 테이블 + Repository +
+    `UserTasteVectorRecomputeInteractor` + POST/PATCH 리뷰 BG task 체이닝.
+    라우터 회귀 29/29 통과. 세부: WORK_LOG 2026-08-11 γ 사이클.
+  - ⏳ **남은 것(다음 세션)**: `backfill_taste_vectors_cli.py` + crontab
+    (45 3 * * *), `GET /mova/taste/me` 조회 API, 인터랙터 단위 테스트,
+    EC2 반영(alembic + docker cp), BackgroundTasks 실 API 검증.
+- 다음 순서:
+  1. 위 γ 잔여 마무리(오늘 밤/내일).
+  2. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
+  3. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`

@@ -27,6 +27,12 @@ docker compose exec -T backend \
 | 스크립트 | 크론 (EC2 `ec2-user` crontab) | 로그 |
 |---------|-------------------------------|------|
 | `backfill_movie_embeddings_cli.py --limit 950` | `0 3 * * *` (KST) | `~/backfill_embeddings.log` |
+| `backfill_review_embeddings_cli.py` | `30 3 * * *` (KST) | `~/backfill_review_embeddings.log` |
+
+- movies와 reviews 백필은 **30분 시차**로 배치 — 같은 Gemini 무료 티어
+  쿼터(임베딩 하루 1000건, 프로젝트 단위)를 공유하니 순차 진행.
+- reviews는 신규 저장 시 BackgroundTasks가 이미 잡음 → 크론은 **안전망**
+  (BG 실패·서버 재시작 유실 잡기)이라 `--limit` 없이 잔여 전량 시도.
 
 `ssh aws crontab -l` 로 확인. 자동화 라인을 편집할 때도 위 표준 형태를
 유지할 것(로그 리다이렉트 빼면 조용한 실패가 감지 안 됨).
