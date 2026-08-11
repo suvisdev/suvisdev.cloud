@@ -762,8 +762,9 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   `backfill_taste_vectors_cli.py` + crontab(`45 3 * * *`) + 인터랙터
   단위테스트 6건 + EC2 반영(alembic `20260811_0003` head, docker cp) +
   BackgroundTasks 실 API 왕복 검증(리뷰 작성 → embed → recompute →
-  `GET /mova/taste/me` 반영, DB 768차원 확인, 흔적 정리 완료). 세부:
-  WORK_LOG 2026-08-11 γ 사이클 + 후속 사이클.
+  `GET /mova/taste/me` 반영, DB 768차원 확인, 흔적 정리 완료) + **main 병합
+  후 EC2 backend/auth 정식 이미지 재빌드까지 완료**(docker cp 임시 반영
+  아님). 세부: WORK_LOG 2026-08-11 γ 사이클 + 후속 사이클 + 배포 사이클.
 - 다음 순서:
   1. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
   2. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
@@ -788,10 +789,11 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   실 API 20회 재측정: **p95 73ms → 33ms(약 55% 개선)**, median 30ms(변화
   미미 — 네트워크 RTT dominant). Before(인덱스 없음)와 비교: **p95 269ms
   → 33ms(약 87% 개선)**.
-- **EC2 이미지 상태**: 이번 두 사이클은 컨테이너에 `docker cp`로 리비전
-  파일 + 코드 파일 임시 반영. main 브랜치 병합·backend 이미지 재빌드는
-  다음 배포 사이클에 포함되면 됨(alembic head는 이미 20260811_0001, DB
-  상태는 정합, 힌트 코드는 컨테이너에만 반영).
+- **EC2 이미지 상태**: ✅ **2026-08-11 정식 이미지 재빌드로 해소** — main
+  병합(`08f1a17`) 후 EC2에서 `git reset --hard origin/main` +
+  `docker compose up -d --build backend auth`로 전체 재빌드. 이 HNSW 힌트
+  코드뿐 아니라 β(리뷰 임베딩)·γ(취향 벡터) `docker cp` 임시 반영분도 전부
+  이 재빌드로 정식 이미지에 포함됨. 세부: WORK_LOG 2026-08-11.
 
 ⚡ **9순위: Gemini 무료 티어 레이트 리밋(2026-08-07 → 2026-08-10 (b) 완료)**
 - 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,
