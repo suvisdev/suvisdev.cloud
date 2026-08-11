@@ -9,6 +9,14 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova 로그인 완전 장애 수정(2026-08-11)**: `beec23e`가 연결해뒀던
+  미완성 auth 게이트웨이(`auth.suvisdev.cloud`, redirect_uri env var
+  자체가 없어 항상 503) 의존을 제거하고 기존 검증된 viewer OAuth/이메일
+  로그인(`AuthDialog`)으로 되돌림. 배포 후 백엔드 로그로 실제 Google
+  로그인 왕복 성공 확인. 상세: `WORK_LOG.md` 2026-08-11(추가⑫).
+- **nginx stale DNS 502(2026-08-11)**: backend/auth 재시작으로 IP가
+  바뀌었는데 nginx가 옛 IP를 캐시한 채 프록시하던 문제 — `nginx -s
+  reload`로 해결. 상세: `WORK_LOG.md` 2026-08-11(추가⑫).
 - **어드민 대시보드**: 홈/사용자/앱관리/통계/캘린더/설정 전 화면 구현 + 실 연동
   (`suvis/app/admin/*`, `suvis/lib/admin-*-api.ts`). RBAC 가드(`require_admin`,
   `AdminAuthGate`)까지 포함.
@@ -642,7 +650,26 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ## 진행 중 (현재 액티브)
 
-없음. (03 제외 확정으로 이번 트랙의 액티브 조사 종료. 착수 대기 항목은
+🔥 **cloudflared `api.suvisdev.cloud` 전용 장애 — 24h 관찰 중(2026-08-11
+시작)**
+- 증상: EC2 자신이 보내는 `api.suvisdev.cloud` 아웃바운드 요청만 100%
+  실패(대부분 8초 타임아웃)하는데, 같은 터널의 `auth.suvisdev.cloud`·
+  `suvisdev.cloud`(Vercel)·외부 사이트·**로컬/실사용자 경로는 전부
+  정상** — 2026-08-06에 이미 한 번 겪었던 것과 동일 패턴("hostname 하나만
+  문제", 그때는 Cloudflare PoP 유지보수로 추정, 자연 해소).
+- 후보 A(EC2 conntrack UDP 타임아웃, `nf_conntrack_udp_timeout_stream`
+  120→600 런타임 상향) 적용했으나 반증 데이터 누적 중(FAIL 시점마다
+  conntrack은 매번 건강, 다른 hostname은 EC2에서도 전부 정상이라 conntrack
+  단독 원인이면 설명 안 됨) — **가설 기각 쪽에 가까움**.
+- 실사용자 영향 없음(로컬/Vercel 계속 200) — 급하지 않아 백그라운드
+  관찰만 지속. EC2 `~/cf_monitor.sh`가 60초 간격으로 기록 중
+  (`~/cf_monitor.log`/`~/cf_monitor_detail.log`, git 미추적).
+- **다음 세션 시작 시**: 24h 관찰 결론 내기 — "0건=sysctl 영구화
+  (`/etc/sysctl.d/`)", "빈도감소하나 잔존=부분 유효+다른 축(VPC egress·
+  엣지 PoP) 병행 조사", "무변화=sysctl 되돌리고 처음으로". 상세:
+  `WORK_LOG.md` 2026-08-11(추가⑫).
+
+(03 제외 확정으로 이번 트랙의 액티브 조사 종료. 착수 대기 항목은
 아래 "다음 / 남은 작업" 참고.)
 
 ---
