@@ -99,6 +99,72 @@
   문제 아님(다른 `scripts/backfill_*_cli.py`도 같은 패턴일 가능성).
   이번 사이클은 embedding만 처리하고, 전면 정비는 PROGRESS.md에 별건으로.
 
+### 작업 내용(추가) — 0.5순위: HNSW 벡터 인덱스 도입
+
+- 위 1-b 완결 사이클에 이어, 리뷰 임베딩(1순위) 진입 전 선행 조건인 벡터
+  인덱스 부재(진단 세션의 부수 발견) 처리.
+- Part A(remaining=0 통과) 원칙은 사용자 결정으로 완화 — 남은 92편은 익일
+  자동화가 처리, 지금은 1922편 실측을 Before 기준선으로 활용.
+
+### 수정/구현 — Part B
+
+- **pgvector 버전 확인**: EC2 prod `0.8.5` — HNSW 완전 지원(0.5.0+).
+- **Alembic 리비전 `20260811_0001`** 신설:
+  `suvisdev/alembic/versions/20260811_0001_add_hnsw_indexes_on_embedding_columns.py`.
+  `movies.embedding`·`hub_knowledge.embedding` 각각 `USING hnsw (embedding
+  vector_cosine_ops) WITH (m=16, ef_construction=64)`. downgrade에서 인덱스
+  drop. `CREATE INDEX CONCURRENTLY`는 alembic 트랜잭션과 충돌해 미사용
+  (지금 규모는 락 몇 초로 무시 가능).
+- **로컬 검증 불가 → EC2 컨테이너 직접 반영**: 로컬은 WSL Docker Desktop
+  미통합 상태라 alembic 실행 불가. scp로 EC2 `/tmp/` 이동 → `docker cp`로
+  `suvisdevcloud-backend-1:/suvisdev/alembic/versions/`에 넣고 `alembic
+  upgrade head` 실행. 정식 이미지 통합은 다음 배포 사이클 몫.
+- **downgrade→upgrade 왕복 검증**: 인덱스 2건 삭제 확인 → 다시 upgrade해
+  2건 재생성 확인. 리비전 파일 안전성 확인.
+
+### 벤치마크 — 실 라우터 경로 20회 (`curl` `real` time)
+
+| 지표 | Before(seq scan) | After(planner default) |
+|------|------------------|------------------------|
+| median | 37.5ms | 30ms |
+| p95 | 269ms | 73ms |
+| max | 842ms | 117ms |
+
+- **정직한 해석**: After 개선이 인덱스 직접 효과인지 캐시/워밍인지 애매.
+  EXPLAIN을 뜯어 보니 planner가 2014행 규모에선 cost 오판(HNSW cost=860 >
+  Seq cost=416)으로 인덱스 스캔을 **자동 선택하지 않는다** — Before/After
+  둘 다 실제로는 seq scan. 표의 개선폭은 이번 사이클의 핵심 성과가 아님.
+- **잠재력 별도 실측(EXPLAIN 강제)**:
+  - 순수 seq scan: **10.178 ms** (`WHERE embedding IS NOT NULL AND id!=1
+    ORDER BY embedding <=> ... LIMIT 10`)
+  - `SET LOCAL enable_seqscan = off` 강제 시 HNSW 사용: **1.482 ms** —
+    **약 6.8배**. 실제 EXPLAIN 계획에 `Index Scan using
+    idx_movies_embedding_hnsw` 확인.
+
+### 오류·막힌 점
+
+- 없음. 다만 planner가 인덱스를 자동 선택 안 하는 pgvector의 알려진 특성
+  탓에 이번 사이클의 취업 어필용 벤치마크가 애매해짐 → 아래 "다음 단계"에
+  후속 티켓으로 분리했다.
+
+### 데이터
+- movies 인덱스 크기: 7.7 MB (HNSW m=16, ef_construction=64, 1922 벡터).
+- hub_knowledge 인덱스 크기: 8.0 MB (HNSW 같은 파라미터, 2014 벡터).
+- 카운트 변화 없음(2014/1922). 인덱스는 순전히 조회 경로 개선용.
+
+### 산출물(추가)
+- 리비전 파일: `suvisdev/alembic/versions/20260811_0001_add_hnsw_indexes_on_embedding_columns.py`
+- PROGRESS.md 1-c순위 아래에 "0.5순위 완료 / 코드 힌트 후속" 블록 추가.
+- 삭제: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md` (사용자
+  판단으로 정리, 결론은 PROGRESS 1-c순위 본문에 이미 요약돼 있음).
+- **다음 단계(후속 티켓)**:
+  1. `movies_pg_repository.find_similar_movies`에서 `SET LOCAL
+     enable_seqscan = off` 세션 힌트 추가 or pgvector `hnsw.iterative_scan`
+     튜닝 — 이걸 넣어야 실 API 응답에서 HNSW 효과가 보인다.
+  2. 리비전 파일을 커밋·main 병합 후 정식 backend 이미지에 통합(현재는
+     `docker cp` 임시 반영만). alembic head는 이미 20260811_0001이라 DB
+     상태는 정합, 이미지 재빌드는 다음 배포 사이클에 함께.
+
 ---
 
 ## 2026-08-10

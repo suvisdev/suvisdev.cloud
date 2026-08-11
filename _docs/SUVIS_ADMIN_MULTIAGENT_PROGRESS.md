@@ -828,8 +828,8 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
 
 📋 **신규 1-c순위: MOVA 리뷰 이해 파이프라인(2026-08-10 진단 완료, 구현 미착수)**
 - 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
-  전용**이다. 상세: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md`
-  (레이어별 근거 + 파일:라인).
+  전용**이다(진단 문서는 이번 세션에서 정리·삭제, 결론은 아래 요약으로
+  이관).
 - 지금 동작하는 유일한 리뷰 소비 경로: `reviews.rating` 평균 →
   `movies.rating` → 추천 후보 `ORDER BY rating DESC`. 사용자 취향 벡터는
   없고, 개인화 신호는 `users.preferred_genres` + 최근 질의 3건뿐.
@@ -842,11 +842,35 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
      빠진다.
   3. 감정 축은 ontology에 이미 구현이 있다(`sentiment_analysis_interactor.py`,
      `echo_sentiment_adapter.py`). 새로 만들지 말고 Spoke→Hub 포트로 연결.
-- 부수 발견: **HNSW/IVFFlat 인덱스가 저장소 전체에 0건**(`studio_movies_orm.py:74`
-  "별도 리비전" 주석만 있고 리비전 부재). 리뷰 임베딩을 넣기 전에 인덱스
-  리비전이 선행돼야 한다.
+- 부수 발견(**2026-08-11 처리 완료** — 아래 0.5순위 참조): HNSW/IVFFlat
+  벡터 인덱스가 저장소 전체에 0건이었음. `movies.embedding`·
+  `hub_knowledge.embedding` 둘 다 HNSW 리비전 신설 + EC2 반영 완료.
 - ⚠️ 진단은 **ORM+마이그레이션 기준**이고 DB 실측이 아니다(조사 환경에
   docker CLI·psql 없음). 착수 전 실제 스키마 대조할 것.
+
+📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
+- 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`
+  둘 다 `USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)`.
+  로컬 docker 미가용이라 EC2 backend 컨테이너에 직접 반영 → upgrade →
+  downgrade → upgrade 왕복 검증까지 완료. 인덱스 크기: movies 7.7MB,
+  hub_knowledge 8.0MB.
+- **정직한 벤치마크**(실 라우터 경로 `GET /mova/movies/{slug}/similar` × 20회):
+  | 지표 | Before(seq scan) | After(planner default) |
+  |---|---|---|
+  | median | 37.5ms | 30ms |
+  | p95 | 269ms | 73ms |
+  | max | 842ms | 117ms |
+- **미해결(후속 티켓)**: planner가 2014행 규모에선 cost 오판(HNSW cost=860
+  > Seq cost=416)으로 인덱스 스캔 자동 선택을 안 함. 위 After 개선은
+  인덱스 직접 효과가 아니라 캐시/워밍 요인일 가능성. HNSW의 실제 잠재력은
+  EXPLAIN `SET enable_seqscan=off` 강제로 별도 확인 — **10.2ms → 1.5ms
+  (약 6.8배)**. 리뷰 임베딩(1순위) 진입 후 데이터 자릿수 늘어나면 planner가
+  자연스럽게 인덱스 쓸 가능성 큼. 그전에 이 개선을 코드에 반영하려면
+  `movies_pg_repository.find_similar_movies`에서 `SET LOCAL enable_seqscan
+  = off` 또는 pgvector `hnsw.iterative_scan` 힌트가 필요 — 별건 티켓.
+- **EC2 이미지 상태**: 이번 사이클은 컨테이너에 `docker cp`로 리비전
+  파일만 임시 반영. main 브랜치 병합·backend 이미지 재빌드는 다음 배포
+  사이클에 포함되면 됨(alembic head는 이미 20260811_0001, DB 상태는 정합).
 
 ⚡ **9순위: Gemini 무료 티어 레이트 리밋(2026-08-07 → 2026-08-10 (b) 완료)**
 - 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,
