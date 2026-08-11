@@ -816,15 +816,10 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
   재임베딩)와 같은 날 돌리면 서로 잡아먹는다. hub_knowledge 재임베딩을
   실행할 때는 crontab 라인을 하루 임시 비활성화할 것.
 
-📋 **후속 티켓: 다른 `scripts/backfill_*_cli.py` 로그 인프라 정비**
-- 위 embedding에서 발견한 "docker compose exec 실행분은 로그가 어디에도
-  안 남음"은 embedding 스크립트에 국한된 문제가 아니다. `backfill_synopsis`
-  · `backfill_credits` · `backfill_age_rating_platforms` · `backfill_trailer`
-  · `backfill_original_language` · `backfill_origin_country` 등도 같은
-  패턴으로 실행돼 왔다(WORK_LOG 여러 날짜에 콘솔 스크롤에서 옮긴 리포트
-  라인만 남아 있음). 재실행할 일이 생기기 전에 실행 가이드 통일 필요.
-- 스코프: (a) `_docs/`에 표준 실행 커맨드 스니펫(`>> ~/backfill_*.log
-  2>&1` 포함) 문서화, (b) 각 CLI에 `--log-file` 옵션 추가 검토.
+**종결됨 — backfill 스크립트 로그 인프라 정비(2026-08-11 문서화 완료)**:
+표준 실행 형태를 `_docs/SCRIPTS_EXECUTION_GUIDE.md`에 신설(핵심: `-T` +
+`>> ~/*.log 2>&1`). CLI별 `--log-file` 옵션 추가는 문서 강제만으로도
+충분해 별도 티켓으로 승격하지 않는다(현재 자동화 대상은 embedding 하나뿐).
 
 📋 **신규 1-c순위: MOVA 리뷰 이해 파이프라인(2026-08-10 진단 완료, 구현 미착수)**
 - 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
@@ -860,17 +855,18 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
   | median | 37.5ms | 30ms |
   | p95 | 269ms | 73ms |
   | max | 842ms | 117ms |
-- **미해결(후속 티켓)**: planner가 2014행 규모에선 cost 오판(HNSW cost=860
-  > Seq cost=416)으로 인덱스 스캔 자동 선택을 안 함. 위 After 개선은
-  인덱스 직접 효과가 아니라 캐시/워밍 요인일 가능성. HNSW의 실제 잠재력은
-  EXPLAIN `SET enable_seqscan=off` 강제로 별도 확인 — **10.2ms → 1.5ms
-  (약 6.8배)**. 리뷰 임베딩(1순위) 진입 후 데이터 자릿수 늘어나면 planner가
-  자연스럽게 인덱스 쓸 가능성 큼. 그전에 이 개선을 코드에 반영하려면
-  `movies_pg_repository.find_similar_movies`에서 `SET LOCAL enable_seqscan
-  = off` 또는 pgvector `hnsw.iterative_scan` 힌트가 필요 — 별건 티켓.
-- **EC2 이미지 상태**: 이번 사이클은 컨테이너에 `docker cp`로 리비전
-  파일만 임시 반영. main 브랜치 병합·backend 이미지 재빌드는 다음 배포
-  사이클에 포함되면 됨(alembic head는 이미 20260811_0001, DB 상태는 정합).
+- **Planner 힌트 적용 완료(2026-08-11 후속 사이클)**: planner가 2014행
+  규모에선 cost 오판(HNSW cost=860 > Seq cost=416)으로 인덱스 스캔 자동
+  선택을 안 하는 문제를 `movies_pg_repository.find_similar_movies`에서
+  `SET LOCAL enable_seqscan = off` 세션 힌트로 해결. EXPLAIN 재확인:
+  `Index Scan using idx_movies_embedding_hnsw` + Execution Time 1.214ms.
+  실 API 20회 재측정: **p95 73ms → 33ms(약 55% 개선)**, median 30ms(변화
+  미미 — 네트워크 RTT dominant). Before(인덱스 없음)와 비교: **p95 269ms
+  → 33ms(약 87% 개선)**.
+- **EC2 이미지 상태**: 이번 두 사이클은 컨테이너에 `docker cp`로 리비전
+  파일 + 코드 파일 임시 반영. main 브랜치 병합·backend 이미지 재빌드는
+  다음 배포 사이클에 포함되면 됨(alembic head는 이미 20260811_0001, DB
+  상태는 정합, 힌트 코드는 컨테이너에만 반영).
 
 ⚡ **9순위: Gemini 무료 티어 레이트 리밋(2026-08-07 → 2026-08-10 (b) 완료)**
 - 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,

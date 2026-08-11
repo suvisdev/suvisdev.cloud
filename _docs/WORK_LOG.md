@@ -157,13 +157,52 @@
 - PROGRESS.md 1-c순위 아래에 "0.5순위 완료 / 코드 힌트 후속" 블록 추가.
 - 삭제: `suvisdev/apps/mova/_docs/MOVA_REVIEW_PIPELINE_AUDIT.md` (사용자
   판단으로 정리, 결론은 PROGRESS 1-c순위 본문에 이미 요약돼 있음).
-- **다음 단계(후속 티켓)**:
-  1. `movies_pg_repository.find_similar_movies`에서 `SET LOCAL
-     enable_seqscan = off` 세션 힌트 추가 or pgvector `hnsw.iterative_scan`
-     튜닝 — 이걸 넣어야 실 API 응답에서 HNSW 효과가 보인다.
-  2. 리비전 파일을 커밋·main 병합 후 정식 backend 이미지에 통합(현재는
-     `docker cp` 임시 반영만). alembic head는 이미 20260811_0001이라 DB
-     상태는 정합, 이미지 재빌드는 다음 배포 사이클에 함께.
+
+### 후속 사이클(같은 날) — A·B·C 세 항목 즉시 처리
+
+사용자 요청으로 남아 있던 후속 티켓 두 건(HNSW 힌트, 로그 인프라 문서화)
++ 문서 수치 갱신 1건을 같은 세션에서 마무리.
+
+**A. MOVA_UI_AUDIT.md §5 embedding 수치 갱신**
+- `embedding 962/2014 미완` → `1922/2014 거의 완료, 잔여 92는 자동화`.
+- 각주도 "962편에서만 뜬다" → "잔여 92편만 임베딩 없음"으로 정합.
+
+**B. HNSW planner 힌트 코드 추가 + 실 API 벤치마크 재측정**
+- 어제 남긴 정직한 미해결 — planner cost 오판(HNSW 860 > Seq 416)으로
+  실 라우터가 여전히 seq scan이던 것 — 해결.
+- 수정: `movies_pg_repository.find_similar_movies` 시작부에
+  `await self._session.execute(text("SET LOCAL enable_seqscan = off"))`
+  한 줄. `SET LOCAL`이라 트랜잭션 종료 시 자동 원복(다른 세션 무영향).
+- EC2 반영: 로컬 → `scp` → `docker cp` → `docker restart suvisdevcloud-
+  backend-1`. 재기동 후 헬스체크(`GET /mova/movies` 200) 확인.
+- EXPLAIN 재확인: `Index Scan using idx_movies_embedding_hnsw`, Execution
+  Time **1.214 ms**(seq scan 시 10.2 ms).
+- 벤치마크(실 API 20회):
+  | 지표 | Before(인덱스 없음) | After(인덱스, seq scan) | **After+Hint(HNSW)** |
+  |---|---|---|---|
+  | median | 37.5 ms | 30 ms | **30 ms** |
+  | p95 | 269 ms | 73 ms | **33 ms** |
+  | max | 842 ms | 117 ms | 134 ms |
+- **정직한 해석**: median은 힌트 유무 차이 미미 — 네트워크 RTT가 응답
+  시간의 대부분을 차지해 DB 개선이 묻힌다. **tail latency(p95)가 확실히
+  안정** — 인덱스 없음 대비 269 → 33 ms(약 87% 개선). EXPLAIN의 6.8배는
+  순수 DB 이야기고, curl로 재는 실 API에는 nginx+FastAPI+psycopg+왕복
+  오버헤드가 실려 그대로 재현되지 않는다.
+
+**C. `_docs/SCRIPTS_EXECUTION_GUIDE.md` 신설**
+- 표준 실행 형태(`docker compose exec -T backend python ... >> ~/*.log
+  2>&1`) + 현재 자동화 대상 + 왜 이 문서가 필요한지(이번 사이클에서 발견한
+  로그 인프라 부재 사고). CLI별 `--log-file` 옵션은 문서 강제로 충분해
+  별건 티켓으로 승격하지 않는다.
+
+### 산출물(A·B·C)
+- `_docs/MOVA_UI_AUDIT.md` §5 갱신
+- `suvisdev/apps/mova/adapter/outbound/pg/movies_pg_repository.py` +5줄
+  (import `text`, 힌트 4줄 + 주석)
+- `_docs/SCRIPTS_EXECUTION_GUIDE.md` 신설
+- PROGRESS.md 0.5순위 항목 "힌트 적용 완료" 갱신, 로그 인프라 티켓 종결
+- **남은 후속 일**: 리비전 + 힌트 코드 모두 아직 `docker cp` 임시 반영
+  상태. 정식 배포는 다음 사이클(main 병합 → backend 재빌드).
 
 ---
 
