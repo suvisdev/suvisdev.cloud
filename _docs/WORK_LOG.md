@@ -279,11 +279,62 @@ WORK_LOG의 해당 날짜에 남아 있어서 정보 손실은 없음. 이후 �
 로그 `~/backfill_review_embeddings.log`.
 
 ### 다음 사이클(β 후속) 후보
-- **취향 벡터 계산**: 유저별 본인 리뷰 임베딩의 별점 가중 평균 API.
 - **추천 반영**: mova 후보 정렬에 취향-영화 코사인 거리 결합.
 - **감정 축**: ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
 - **BackgroundTasks 실 API 검증**: 로그인·watched 흐름 필요해 이번 세션에서
   스킵. 다음 세션에서 실 리뷰 하나 생성 → embedding 자동 채워지는지 실측.
+
+### γ 사이클 착수 — 취향 벡터 계산(코드만, EC2/CLI/조회 API는 다음 세션)
+
+세션 시간이 짧아 **10분 스코프**로 축소. 코어 파이프라인(테이블·저장·재계산
+체이닝)까지만 만들고 커밋, 나머지(CLI·crontab·EC2 반영·조회 API·상세 테스트)는
+오늘 밤/내일 이어서 진행.
+
+**결정**: 저장 위치 = `mova.user_taste_vectors` 신규 테이블(users에 컬럼
+붙이지 않고 스타-토폴로지 유지). 갱신 = BackgroundTasks + 크론 안전망.
+가중 공식 = `sum(rating_i * embedding_i) / sum(rating_i)`(정규화 생략,
+cosine 스케일 불변).
+
+**신규 파일**:
+- `suvisdev/alembic/versions/20260811_0003_add_user_taste_vectors.py` — 테이블
+  신설(user_id UNIQUE FK, vector(768), review_count, updated_at). HNSW는 다음
+  사이클(유사 유저 탐색 필요 시).
+- `apps/mova/adapter/outbound/orm/platform_user_taste_vectors_orm.py` — ORM.
+- `apps/mova/app/dtos/platform_user_taste_vector_dto.py`
+- `apps/mova/app/ports/output/platform_user_taste_vector_repository.py` —
+  upsert / get_by_user_id / list_user_ids_with_rated_reviews.
+- `apps/mova/adapter/outbound/pg/platform_user_taste_vectors_pg_repository.py`
+  — `ON CONFLICT (user_id) DO UPDATE ... updated_at = now()` upsert.
+- `apps/mova/app/use_cases/platform_user_taste_vector_interactor.py` —
+  `UserTasteVectorRecomputeInteractor` (embed_backfill과 같은 세션 팩토리
+  주입 패턴). `recompute_for_user` / `recompute_missing`.
+- `apps/mova/dependencies/platform_user_taste_vector_provider.py`.
+
+**수정**:
+- `apps/mova/app/ports/output/market_reviews_repository.py` +
+  `apps/mova/adapter/outbound/pg/market_reviews_pg_repository.py` —
+  `list_embedded_reviews_by_user(user_id) -> list[(id, rating, embedding)]`.
+- `apps/mova/adapter/inbound/api/v1/market_reviews_router.py` — POST/PATCH에
+  `taste_recompute` DI 추가 + `_embed_review_then_recompute_taste` 래퍼로
+  BG task 체이닝(embed 성공 시에만 recompute). body 없는 add_review는
+  recompute만 걸어둠(rating 변경이 취향 후보를 바꿀 수 있음).
+- `apps/mova/tests/test_market_reviews.py` — 새 DI 오버라이드 fake 추가.
+  회귀 확인: **mova reviews 관련 29/29 통과**.
+
+**남은 것(다음 세션 몫)**:
+1. `scripts/backfill_taste_vectors_cli.py` + crontab `45 3 * * *`(reviews 뒤
+   15분) — 안전망.
+2. `GET /mova/taste/me` 조회 API + require_user 가드.
+3. 인터랙터 단위 테스트(가중 평균 정확성 / 리뷰 0건 → cleared / rating=0 →
+   cleared) — 이번엔 라우터 회귀만 확인, 계산 로직 격리 테스트는 미작성.
+4. EC2 반영(docker cp + alembic upgrade + restart) + 유일 rated-reviews
+   유저에 대해 recompute 실증.
+5. WORK_LOG·PROGRESS 갱신은 이 커밋 시점의 결과만 반영, 다음 세션에서 나머지
+   완료분 이관.
+
+**주의(다음 세션 착수 전)**: alembic 리비전 `20260811_0003`은 아직 EC2에
+반영 안 됨. 로컬 커밋만 존재 → main 병합 후 EC2에서 `docker cp` +
+`alembic upgrade head` 필요. β 사이클과 같은 임시 반영 패턴.
 
 ---
 

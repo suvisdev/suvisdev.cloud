@@ -231,6 +231,20 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         row.embedding = embedding
         await self._session.commit()
 
+    async def list_embedded_reviews_by_user(
+        self, user_id: int
+    ) -> list[tuple[int, float, list[float]]]:
+        rows = (
+            await self._session.execute(
+                select(MovaReview.id, MovaReview.rating, MovaReview.embedding).where(
+                    MovaReview.user_id == user_id,
+                    MovaReview.embedding.is_not(None),
+                    MovaReview.rating.is_not(None),
+                )
+            )
+        ).all()
+        return [(rid, float(rating), list(embedding)) for rid, rating, embedding in rows]
+
     async def _update_movie_rating(self, movie_id: int) -> None:
         """reviews upsert 후 movies.rating 갱신."""
         result = (

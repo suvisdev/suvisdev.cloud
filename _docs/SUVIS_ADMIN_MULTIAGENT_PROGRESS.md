@@ -755,14 +755,17 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 - ✅ **완료(2026-08-11)** — `reviews.embedding Vector(768)` + HNSW 리비전
   `20260811_0002`, 저장 시 BackgroundTasks + 크론 백필 안전망(`30 3 * * *`).
   세부: WORK_LOG 2026-08-11 β 사이클.
-- 남은 것(다음 사이클):
-  1. **사용자 취향 벡터 계산 API** — 본인 리뷰 임베딩의 별점 가중 평균.
-     (movies.embedding 잔여 92편은 crontab 자동화가 곧 소화 → 후보 누락
-     걱정 소멸)
+- 진행 중(γ 사이클, 2026-08-11 착수 코어만 커밋, 남은 것 오늘 밤/내일):
+  - ✅ **취향 벡터 코어**: `mova.user_taste_vectors` 테이블 + Repository +
+    `UserTasteVectorRecomputeInteractor` + POST/PATCH 리뷰 BG task 체이닝.
+    라우터 회귀 29/29 통과. 세부: WORK_LOG 2026-08-11 γ 사이클.
+  - ⏳ **남은 것(다음 세션)**: `backfill_taste_vectors_cli.py` + crontab
+    (45 3 * * *), `GET /mova/taste/me` 조회 API, 인터랙터 단위 테스트,
+    EC2 반영(alembic + docker cp), BackgroundTasks 실 API 검증.
+- 다음 순서:
+  1. 위 γ 잔여 마무리(오늘 밤/내일).
   2. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
   3. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
-- ⚠️ 착수 전 확인: BackgroundTasks 실 API 검증(로그인·watched 흐름 필요).
-  이번 세션은 파이프라인만 CLI로 실증(기존 3건 백필 성공).
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`

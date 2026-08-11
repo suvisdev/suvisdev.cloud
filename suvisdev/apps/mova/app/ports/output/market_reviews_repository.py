@@ -66,3 +66,12 @@ class ReviewsRepositoryPort(ABC):
     @abstractmethod
     async def update_embedding(self, review_id: int, embedding: list[float]) -> None:
         """리뷰 임베딩 저장. 존재하지 않으면 조용히 스킵."""
+
+    @abstractmethod
+    async def list_embedded_reviews_by_user(
+        self, user_id: int
+    ) -> list[tuple[int, float, list[float]]]:
+        """embedding·rating이 모두 있는 유저 리뷰 — 취향 벡터 계산용.
+
+        반환: [(review_id, rating, embedding), ...]. body는 필요 없어서 뺐다.
+        """

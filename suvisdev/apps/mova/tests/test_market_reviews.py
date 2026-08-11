@@ -27,6 +27,9 @@ from mova.app.ports.output.market_reviews_errors import (  # noqa: E402
 )
 from mova.app.use_cases.market_reviews_interactor import ReviewsInteractor  # noqa: E402
 from mova.dependencies.market_reviews_provider import get_reviews_use_case  # noqa: E402
+from mova.dependencies.platform_user_taste_vector_provider import (  # noqa: E402
+    get_user_taste_vector_recompute_use_case,
+)
 from mova.dependencies.review_embedding_provider import (  # noqa: E402
     get_review_embedding_backfill_use_case,
 )
@@ -102,11 +105,23 @@ class _FakeEmbeddingBackfill:
         return "skipped"
 
 
+class _FakeTasteRecompute:
+    """add_review/update_review가 BG에 넘기는 취향 벡터 재계산 인터랙터의 fake."""
+
+    def __init__(self) -> None:
+        self.recompute_calls: list[int] = []
+
+    async def recompute_for_user(self, user_id: int) -> str:
+        self.recompute_calls.append(user_id)
+        return "updated"
+
+
 def _build_client(use_case: _FakeReviewsUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
     app.include_router(market_reviews_router)
     app.dependency_overrides[get_reviews_use_case] = lambda: use_case
     app.dependency_overrides[get_review_embedding_backfill_use_case] = _FakeEmbeddingBackfill
+    app.dependency_overrides[get_user_taste_vector_recompute_use_case] = _FakeTasteRecompute
     if principal is not None:
         app.dependency_overrides[require_user] = lambda: principal
     return TestClient(app)
