@@ -28,6 +28,79 @@
 
 ---
 
+## 2026-08-11
+
+### 작업 내용
+- 0순위 착수 전 사전 진단 요청. 어제(08-10) 백필 중단이 문서엔 "Gemini
+  1일 1000건 한도"로 기록돼 있지만 **사용자가 "혹시 코드/데이터 에러
+  아니냐"**고 확인 요청 — 자동화 등록 전 실 원인을 실측으로 재검증.
+- 원인 확정 후 사용자 지시로 즉시 대량 실행(오늘 쿼터 창) + crontab
+  자동화 등록 + 로그 리다이렉트 인프라 정비까지 한 사이클로 완료.
+
+### 진단 (문서 재검증)
+- EC2 prod 실측 초기값: `total=2014 with_embedding=962 remaining=1052`
+  — 08-10 WORK_LOG 값과 정확히 일치.
+- `--limit 10` 재현: `succeeded=10 failed=0 skipped=0` → 962→972 반영
+  확인. **코드/데이터 문제 아님**, 스크립트 idempotent 재확인.
+- 원인은 문서 기록 그대로 **Gemini 무료 티어 EmbedContent 일일 쿼터**
+  (`EmbedContentRequestsPerDayPerProjectPerModel-FreeTier`, limit 1000,
+  `gemini-embedding-1.0`). 어제 창은 이미 소진, 지금은 다음 창이라 재현
+  시점 성공. 스크립트 `HubRagError`를 catch해서 continue하므로(74~78행)
+  개별 movie 데이터로 죽는 경로 자체가 코드상 없음.
+
+### 로그 인프라 부재 발견
+- **이전 실행 stderr/stdout이 EC2 어디에도 남아 있지 않다** — `~/*.log`
+  없음, `docker logs suvisdevcloud-backend-1`에도 `backfill_movie_embeddings`
+  흔적 0. `docker compose exec`가 컨테이너 stdout에 안 붙는 구조라 세션
+  콘솔이 흐르면 조용히 사라진다. 자동화 등록 시 **로그 리다이렉트 없이는
+  silent 실패를 감지할 방법이 없음**을 확인 — 이번 crontab에는 필수로 포함.
+
+### 수정/구현 — 이번 사이클 실행
+
+- **즉시 수동 실행(오늘 쿼터 창 최대 활용)**: EC2에서 nohup+background로
+  `--limit 950` 실행. `>> ~/backfill_embeddings.log 2>&1`로 리다이렉트.
+  ```bash
+  cd ~/suvisdev.cloud && nohup docker compose --env-file suvisdev/.env \
+    exec -T backend python scripts/backfill_movie_embeddings_cli.py \
+    --limit 950 >> ~/backfill_embeddings.log 2>&1 &
+  ```
+  - SSH 세션 timeout에도 nohup으로 컨테이너 안 python 프로세스 정상 생존
+    (PID 확인). ssh session 종료 후에도 진행됨.
+
+- **crontab 등록(매일 KST 03:00 = PDT 자정 직후 신규 쿼터 창)**: EC2
+  `ec2-user` crontab에 추가.
+  ```cron
+  0 3 * * * cd ~/suvisdev.cloud && docker compose exec -T backend \
+    python scripts/backfill_movie_embeddings_cli.py --limit 950 \
+    >> ~/backfill_embeddings.log 2>&1
+  ```
+  - `-T`(TTY 없음)로 cron 환경에서도 exec 가능.
+  - `>>` + `2>&1`은 옵션 아니라 필수(위 진단 근거).
+  - 확인: `ssh aws crontab -l`.
+
+### 데이터
+- 진단 후: `total=2014 with_embedding=972 remaining=1042` (--limit 10 반영).
+- 오늘 대량 실행 리포트: `대상 950편 → succeeded=950 failed=0 skipped=0`.
+  실행 시간 약 16분(00:32~00:48 UTC).
+- 최종: **`total=2014 with_embedding=1922 remaining=92`**. 남은 92편은
+  익일 03:00 KST 자동화가 처리(오늘 쿼터는 950건 사용 + 이전 10건 =
+  총 960건으로 한도 근접, 나머지는 새 창).
+
+### 오류·막힌 점
+- (없음. 진단 → 실행 → 등록 순으로 막힘 없이 진행)
+
+### 산출물
+- EC2 `~/backfill_embeddings.log` 신규 생성.
+- EC2 `ec2-user` crontab에 백필 라인 추가(기존 `auto-deploy.sh`는 주석
+  처리 상태 유지, 이번엔 건드리지 않음).
+- 문서 갱신: `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 1-b순위 항목을
+  "자동화 등록 완료" 취지로 갱신 + 재확인 결과 반영.
+- **후속 티켓 분리**: 로그 인프라 부재는 embedding 스크립트에 국한된
+  문제 아님(다른 `scripts/backfill_*_cli.py`도 같은 패턴일 가능성).
+  이번 사이클은 embedding만 처리하고, 전면 정비는 PROGRESS.md에 별건으로.
+
+---
+
 ## 2026-08-10
 
 ### 작업 내용

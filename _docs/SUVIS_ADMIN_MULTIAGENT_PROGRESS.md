@@ -794,20 +794,37 @@ EC2 프로덕션 전량 백필 실행. 예상대로 마이그레이션은 불필
   권장.
 - 예상 소요: 컨셉당 반나절 이내(오늘 사이클과 동일 패턴).
 
-🔥 **신규 1-b순위: `movies.embedding` 백필 이어서 실행(2026-08-10)**
-- 상태: 962/2014. `backfill_movie_embeddings_cli.py`가 Gemini **무료 티어
-  일일 한도**(`EmbedContentRequestsPerDayPerProjectPerModel-FreeTier`,
-  limit 1000, `gemini-embedding-1.0`)에 걸려 `succeeded=959 failed=1052`로
-  중단됐다. 아래 9순위(분당 15요청)와는 **다른 제한**이다 — 간격을 늘려도
-  하루 한도는 못 넘는다.
-- 남은 것: 날짜가 바뀐 뒤 EC2에서 재실행만 하면 된다(`embedding IS NULL`만
-  대상이라 idempotent). 약 1052편 → 하루 1000건이라 **이틀** 소요.
-  `docker compose --env-file suvisdev/.env exec backend python
-  scripts/backfill_movie_embeddings_cli.py`
-- 영향: 그때까지 영화 상세의 "비슷한 영화" 섹션은 임베딩이 있는 962편에서만
-  뜬다(회귀 아님, 데이터 미완).
-- **주의**: 이 쿼터는 프로젝트 단위라 위 1순위(hub_knowledge 재임베딩)와
-  같은 날 돌리면 서로 잡아먹는다. 순서를 정해서 실행할 것.
+🔥 **신규 1-b순위: `movies.embedding` 백필 완결(2026-08-11 자동화 등록)**
+- 08-10 중단 원인 **재검증 완료(2026-08-11)** — 문서 기록 그대로 Gemini
+  무료 티어 EmbedContent 일일 쿼터 소진. 코드/데이터 문제 아님, 스크립트
+  `HubRagError` catch로 idempotent(개별 movie로 죽는 경로 코드상 없음).
+  근거: WORK_LOG 2026-08-11.
+- **로그 인프라 부재 발견**: 이전 실행 stderr/stdout이 EC2 어디에도 안
+  남음(`docker compose exec`가 컨테이너 stdout에 안 붙는 구조). 이번
+  자동화에서 `>> ~/backfill_embeddings.log 2>&1` 리다이렉트 필수 포함.
+- **이번 사이클 조치**:
+  1. 08-11 즉시 대량 실행(`--limit 950`, 오늘 쿼터 창 활용) —
+     결과·최종 카운트는 WORK_LOG 2026-08-11 참조.
+  2. EC2 `ec2-user` crontab에 매일 KST 03:00(= PDT 자정 이후 새 쿼터)
+     실행 등록: `0 3 * * * cd ~/suvisdev.cloud && docker compose exec -T
+     backend python scripts/backfill_movie_embeddings_cli.py --limit 950
+     >> ~/backfill_embeddings.log 2>&1`. 신규 영화가 들어와도 자동 커버.
+- 남은 확인: 익일 첫 자동화 로그 성공 확인, remaining=0 도달, 랜덤 movie
+  `GET /mova/movies/{slug}/similar` 실측(회귀 없는지). 여기까진 사람이
+  로그만 한 번 보면 되는 사후 확인이라 백로그에서 뺀다.
+- **주의(변함없음)**: 이 쿼터는 프로젝트 단위라 1순위(hub_knowledge
+  재임베딩)와 같은 날 돌리면 서로 잡아먹는다. hub_knowledge 재임베딩을
+  실행할 때는 crontab 라인을 하루 임시 비활성화할 것.
+
+📋 **후속 티켓: 다른 `scripts/backfill_*_cli.py` 로그 인프라 정비**
+- 위 embedding에서 발견한 "docker compose exec 실행분은 로그가 어디에도
+  안 남음"은 embedding 스크립트에 국한된 문제가 아니다. `backfill_synopsis`
+  · `backfill_credits` · `backfill_age_rating_platforms` · `backfill_trailer`
+  · `backfill_original_language` · `backfill_origin_country` 등도 같은
+  패턴으로 실행돼 왔다(WORK_LOG 여러 날짜에 콘솔 스크롤에서 옮긴 리포트
+  라인만 남아 있음). 재실행할 일이 생기기 전에 실행 가이드 통일 필요.
+- 스코프: (a) `_docs/`에 표준 실행 커맨드 스니펫(`>> ~/backfill_*.log
+  2>&1` 포함) 문서화, (b) 각 CLI에 `--log-file` 옵션 추가 검토.
 
 📋 **신규 1-c순위: MOVA 리뷰 이해 파이프라인(2026-08-10 진단 완료, 구현 미착수)**
 - 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
