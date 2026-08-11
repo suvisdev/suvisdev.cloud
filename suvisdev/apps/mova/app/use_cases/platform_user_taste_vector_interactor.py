@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from mova.app.dtos.platform_user_taste_vector_dto import UserTasteVectorDto
+
 logger = logging.getLogger(__name__)
 
 SessionFactory = Callable[[], "AsyncSession"]
@@ -59,6 +61,16 @@ class UserTasteVectorRecomputeInteractor:
 
             await taste_repo.upsert(user_id, avg, len(reviews))
             return "updated"
+
+    async def get_for_user(self, user_id: int) -> UserTasteVectorDto | None:
+        """유저 취향 벡터 조회 — 행이 없으면(리뷰를 한 번도 안 남긴 유저) None."""
+        from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
+            UserTasteVectorsPgRepository,
+        )
+
+        async with self._session_factory() as session:
+            repo = UserTasteVectorsPgRepository(session=session)
+            return await repo.get_by_user_id(user_id)
 
     async def recompute_missing(self, limit: int | None) -> dict[str, int]:
         """embedding+rating 있는 유저 전원 재계산 — CLI 백필용."""

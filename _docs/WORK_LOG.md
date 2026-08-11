@@ -336,6 +336,103 @@ cosine 스케일 불변).
 반영 안 됨. 로컬 커밋만 존재 → main 병합 후 EC2에서 `docker cp` +
 `alembic upgrade head` 필요. β 사이클과 같은 임시 반영 패턴.
 
+### 후속 사이클(같은 날) — γ 잔여 5건 전부 마무리
+
+새 세션 시작 시 origin/main이 이미 fast-forward pull된 상태(γ 코어 커밋
+`79fdb5c` 포함)로 시작 — 위에서 "다음 세션 몫"으로 남긴 5개 항목을 이어서
+전부 처리.
+
+**1. `GET /mova/taste/me` API**
+- `adapter/inbound/api/schemas/platform_user_taste_vector_schema.py` 신설 —
+  `UserTasteVectorSchema(has_vector, review_count, updated_at)`. **원본
+  768차원 벡터는 응답에 안 넣는다** — 내부 코사인 계산 전용이고 소비할
+  프론트 화면이 아직 없어서, 표시 가치 없는 raw float 배열을 그대로 노출할
+  이유가 없다는 판단(사용자 확인 없이 진행, 후속 세션에서 필요해지면 스키마
+  확장은 쉬움).
+- `UserTasteVectorDto.to_schema()` 추가(기존 Dto 컨벤션 그대로).
+- `UserTasteVectorRecomputeInteractor.get_for_user()` 추가 — 단순 조회
+  위임(순수 SQL, embedder 불필요라 기존 인터랙터 그대로 재사용).
+- `adapter/inbound/api/v1/platform_user_taste_vector_router.py` 신설,
+  `require_user` 가드. 행이 없으면(리뷰 0건 유저) `has_vector=False`로
+  기본값 응답.
+- `mova/adapter/inbound/api/__init__.py`에 라우터 등록.
+
+**2. 인터랙터 단위 테스트**
+- `apps/mova/tests/test_platform_user_taste_vector.py` 신설 — 6건: 리뷰
+  0건→cleared, 가중합 0(rating=0만 있음)→cleared, 별점 가중 평균 계산 정확성
+  (`[10/6, 16/6]` 직접 검증), `recompute_missing` 집계, `get_for_user`
+  None/passthrough. `test_review_embedding_backfill.py`의 세션 팩토리 mock
+  패턴 재사용.
+
+**3. `backfill_taste_vectors_cli.py` + 문서**
+- `scripts/backfill_taste_vectors_cli.py` 신설 —
+  `backfill_review_embeddings_cli.py`와 같은 구조, `recompute_missing` 호출.
+  embedder 의존이 없어 `get_keymaker()` 호출 없음(DB 연결은
+  `ensure_mova_database()`가 내부에서 `reload_env()` 처리).
+- `_docs/SCRIPTS_EXECUTION_GUIDE.md` 표에 3번째 행 추가 + "왜 45분 시차인지"
+  각주(쿼터 경합 아니라 순서 종속 — reviews 크론이 채운 신규 embedding을
+  바로 반영하려는 목적).
+
+**4. 로컬 테스트 실행**
+- 로컬에 프로젝트 파이썬 환경이 없어(시스템 python3엔 sqlalchemy 없음) `uv`로
+  스크래치 venv 생성, `fastapi`·`sqlalchemy[asyncio]`·`psycopg`·`pgvector`·
+  `python-dotenv`·`PyJWT[crypto]` 최소 설치(torch 등 무거운 의존 제외).
+- 신규 유닛테스트 **6/6 통과**. `platform_user_taste_vector_router`·
+  `market_reviews_router` 단독 임포트로 회귀 확인(문법·의존성 오류 없음).
+
+**5. EC2 반영 + BackgroundTasks 실 API 검증**
+- 반영 전 실측: EC2 alembic은 `20260811_0002`(head)까지만 — γ 전혀 미반영
+  확인.
+- γ 코어 10개 파일(79fdb5c) + 이번 세션 신규/수정 4개 파일, 총 14개를
+  로컬에서 tar로 묶어 scp → EC2 `/tmp/`에서 압축 해제 → 파일별 `docker cp`로
+  `suvisdevcloud-backend-1` 컨테이너 반영. `alembic upgrade head` →
+  `20260811_0002 → 20260811_0003`(user_taste_vectors 테이블 생성) 확인.
+- `docker restart suvisdevcloud-backend-1` → 로그에서 `Application startup
+  complete` 확인(임포트 에러 없음). backend는 호스트 포트가 열려 있지 않아
+  (nginx가 프록시) 컨테이너 안에서 `python -c "urllib.request..."`로 검증
+  (컨테이너에 curl 자체가 없음 — 발견).
+- **BackgroundTasks 실 API 왕복 검증**(대상 `users.id=3 suvisdev`, 컨테이너
+  안에서 `JWT_SECRET`으로 10분짜리 임시 토큰 발급, β 사이클과 같은 패턴):
+  1. `GET /mova/taste/me` (사전) → `has_vector=false, review_count=0` 확인.
+  2. `POST /mova/reviews/activity` `{movie_id:1, action_type:"watched"}` →
+     201(리뷰 작성 전제조건 `has_watched` 충족용).
+  3. `POST /mova/reviews` `{movie_id:1, rating:4.5, body:"자동검증용..."}` →
+     201, review id=4.
+  4. 8초 대기 후 `GET /mova/taste/me` → `has_vector=true, review_count=1,
+     updated_at` 리뷰 작성 시각 직후로 갱신 — **BG task 체이닝(embed →
+     recompute) 실증 확인**.
+  5. DB 직접 확인: `reviews.id=4`의 `embedding` 768차원 채워짐,
+     `user_taste_vectors.user_id=3`의 `vector` 768차원 — API 응답과 DB
+     상태 일치.
+- **뒷정리**: `DELETE /mova/reviews/4`(API 경유, 200) → `delete_review`는
+  취향 벡터를 자동 재계산하지 않으므로(설계상 미연결) `user_actions`의
+  watched 행(id=5)과 `user_taste_vectors`의 user_id=3 행을 DB에서 직접
+  `DELETE`로 제거 — 정리 후 `reviews`/`user_actions`/`user_taste_vectors`
+  전부 user_id=3 기준 0건 재확인. 임시 토큰 파일도 삭제.
+- **crontab 등록**: `45 3 * * * ... backfill_taste_vectors_cli.py >>
+  ~/backfill_taste_vectors.log 2>&1` 추가, `crontab -l`로 확인.
+
+**오류·막힌 점**
+- EC2 backend 컨테이너에 `curl`이 없다(이미지에 미포함) — 이후 EC2 컨테이너
+  내부 API 검증은 `docker exec ... python -c "urllib.request..."` 방식을
+  표준으로 쓸 것(이번에 새로 확인된 제약, 문서화 가치 있음).
+- 그 외 막힌 점 없음 — alembic·docker cp·재기동·API 왕복 전부 한 번에 성공.
+
+**산출물**
+- 신규: `platform_user_taste_vector_schema.py`,
+  `platform_user_taste_vector_router.py`,
+  `test_platform_user_taste_vector.py`, `backfill_taste_vectors_cli.py`.
+- 수정: `platform_user_taste_vector_dto.py`(`to_schema`),
+  `platform_user_taste_vector_interactor.py`(`get_for_user`),
+  `adapter/inbound/api/__init__.py`(라우터 등록),
+  `_docs/SCRIPTS_EXECUTION_GUIDE.md`.
+- EC2: alembic head `20260811_0003`, crontab에 취향 벡터 백필 라인,
+  `suvisdevcloud-backend-1`에 14개 파일 `docker cp` 반영(git 커밋과는 별개
+  — 정식 이미지 재빌드는 다음 배포 사이클 몫, HNSW 사이클과 같은 패턴).
+- **γ 사이클(리뷰 이해 파이프라인 1-c순위) 잔여 5건 전부 완료.** 다음 순서는
+  PROGRESS.md 1-c순위의 "다음 순서" 2번(추천 후보 정렬에 취향-영화 코사인
+  결합)부터.
+
 ---
 
 ## 2026-08-10

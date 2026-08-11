@@ -755,17 +755,18 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 - ✅ **완료(2026-08-11)** — `reviews.embedding Vector(768)` + HNSW 리비전
   `20260811_0002`, 저장 시 BackgroundTasks + 크론 백필 안전망(`30 3 * * *`).
   세부: WORK_LOG 2026-08-11 β 사이클.
-- 진행 중(γ 사이클, 2026-08-11 착수 코어만 커밋, 남은 것 오늘 밤/내일):
-  - ✅ **취향 벡터 코어**: `mova.user_taste_vectors` 테이블 + Repository +
-    `UserTasteVectorRecomputeInteractor` + POST/PATCH 리뷰 BG task 체이닝.
-    라우터 회귀 29/29 통과. 세부: WORK_LOG 2026-08-11 γ 사이클.
-  - ⏳ **남은 것(다음 세션)**: `backfill_taste_vectors_cli.py` + crontab
-    (45 3 * * *), `GET /mova/taste/me` 조회 API, 인터랙터 단위 테스트,
-    EC2 반영(alembic + docker cp), BackgroundTasks 실 API 검증.
+- ✅ **γ 사이클 완료(2026-08-11)**: `mova.user_taste_vectors` 테이블 +
+  Repository + `UserTasteVectorRecomputeInteractor`(`recompute_for_user`/
+  `recompute_missing`/`get_for_user`) + POST/PATCH 리뷰 BG task 체이닝 +
+  `GET /mova/taste/me` 조회 API(원본 벡터 비노출, 메타데이터만) +
+  `backfill_taste_vectors_cli.py` + crontab(`45 3 * * *`) + 인터랙터
+  단위테스트 6건 + EC2 반영(alembic `20260811_0003` head, docker cp) +
+  BackgroundTasks 실 API 왕복 검증(리뷰 작성 → embed → recompute →
+  `GET /mova/taste/me` 반영, DB 768차원 확인, 흔적 정리 완료). 세부:
+  WORK_LOG 2026-08-11 γ 사이클 + 후속 사이클.
 - 다음 순서:
-  1. 위 γ 잔여 마무리(오늘 밤/내일).
-  2. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
-  3. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
+  1. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
+  2. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`

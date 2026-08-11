@@ -20,6 +20,9 @@ def __getattr__(name: str) -> APIRouter:
         from mova.adapter.inbound.api.v1.platform_assistants_router import (
             platform_assistants_router,
         )
+        from mova.adapter.inbound.api.v1.platform_user_taste_vector_router import (
+            platform_user_taste_vector_router,
+        )
         from mova.adapter.inbound.api.v1.studio_actors_router import studio_actors_router
         from mova.adapter.inbound.api.v1.studio_characters_router import studio_characters_router
         from mova.adapter.inbound.api.v1.studio_movies_router import studio_movies_router
@@ -39,6 +42,7 @@ def __getattr__(name: str) -> APIRouter:
         router.include_router(market_picks_router)
         router.include_router(market_reviews_router)
         router.include_router(platform_assistants_router)
+        router.include_router(platform_user_taste_vector_router)
         router.include_router(collections_router)
         router.include_router(market_watchlist_router)
         router.include_router(mypage_router)
