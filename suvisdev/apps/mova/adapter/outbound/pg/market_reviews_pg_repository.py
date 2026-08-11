@@ -199,6 +199,38 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         await self._update_movie_rating(movie_id)
         return True
 
+    async def get_body_for_embedding(self, review_id: int) -> str | None:
+        row = (
+            await self._session.execute(
+                select(MovaReview.body).where(MovaReview.id == review_id)
+            )
+        ).scalar_one_or_none()
+        if row is None or not row.strip():
+            return None
+        return row
+
+    async def list_missing_embedding(self, limit: int | None) -> list[tuple[int, str]]:
+        stmt = (
+            select(MovaReview.id, MovaReview.body)
+            .where(MovaReview.embedding.is_(None), MovaReview.body.is_not(None))
+            .order_by(MovaReview.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = (await self._session.execute(stmt)).all()
+        return [(rid, body) for rid, body in rows if body and body.strip()]
+
+    async def update_embedding(self, review_id: int, embedding: list[float]) -> None:
+        row = (
+            await self._session.execute(
+                select(MovaReview).where(MovaReview.id == review_id)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        row.embedding = embedding
+        await self._session.commit()
+
     async def _update_movie_rating(self, movie_id: int) -> None:
         """reviews upsert 후 movies.rating 갱신."""
         result = (

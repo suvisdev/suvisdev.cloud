@@ -27,6 +27,9 @@ from mova.app.ports.output.market_reviews_errors import (  # noqa: E402
 )
 from mova.app.use_cases.market_reviews_interactor import ReviewsInteractor  # noqa: E402
 from mova.dependencies.market_reviews_provider import get_reviews_use_case  # noqa: E402
+from mova.dependencies.review_embedding_provider import (  # noqa: E402
+    get_review_embedding_backfill_use_case,
+)
 from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
 
 _NOW = datetime(2026, 7, 31, tzinfo=UTC)
@@ -83,10 +86,27 @@ class _FakeReviewsUseCase:
         return self.existing_review is not None
 
 
+class _FakeEmbeddingBackfill:
+    """add_review/update_review가 BackgroundTasks에 add_task로 넘기는 인터랙터의 fake.
+
+    테스트 스코프에서는 실제 세션 팩토리·Gemini를 부르지 않는 게 목적이다 —
+    호출 여부만 여기서 확인하지 않는다(백그라운드 임베딩 트리거 검증은 별도
+    파일 `test_review_embedding_backfill.py`에서 인터랙터 단위로 다룬다).
+    """
+
+    def __init__(self) -> None:
+        self.embed_one_calls: list[int] = []
+
+    async def embed_one(self, review_id: int) -> str:
+        self.embed_one_calls.append(review_id)
+        return "skipped"
+
+
 def _build_client(use_case: _FakeReviewsUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
     app.include_router(market_reviews_router)
     app.dependency_overrides[get_reviews_use_case] = lambda: use_case
+    app.dependency_overrides[get_review_embedding_backfill_use_case] = _FakeEmbeddingBackfill
     if principal is not None:
         app.dependency_overrides[require_user] = lambda: principal
     return TestClient(app)

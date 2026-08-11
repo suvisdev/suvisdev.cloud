@@ -54,3 +54,15 @@ class ReviewsRepositoryPort(ABC):
     @abstractmethod
     async def delete_review(self, review_id: int) -> bool:
         """리뷰 삭제. 존재하지 않으면 False."""
+
+    @abstractmethod
+    async def get_body_for_embedding(self, review_id: int) -> str | None:
+        """임베딩 대상 body 조회. 리뷰가 없거나 body가 비면 None(→ 스킵)."""
+
+    @abstractmethod
+    async def list_missing_embedding(self, limit: int | None) -> list[tuple[int, str]]:
+        """embedding IS NULL AND body IS NOT NULL인 (id, body) 순회 — CLI 백필용."""
+
+    @abstractmethod
+    async def update_embedding(self, review_id: int, embedding: list[float]) -> None:
+        """리뷰 임베딩 저장. 존재하지 않으면 조용히 스킵."""
