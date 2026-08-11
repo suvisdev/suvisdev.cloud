@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { LogIn, LogOut } from "lucide-react"
 import {
   getSuvisSession,
@@ -11,14 +11,16 @@ import {
 } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
-/** mova 전용 로그인 버튼 — auth 게이트웨이(auth.suvisdev.cloud)로 직접 연결.
- * 기존에 viewer 로그인 API(공용 AuthDialog)를 열던 로직을 대체한다.
- * components/auth/auth-login-button.tsx, oauth-buttons.tsx, /mova/login
- * 페이지(및 /api/auth/login, /api/auth/signup)는 무관 — 이 파일 하나만 바뀐다.
+/** mova 전용 로그인 버튼.
  *
- * code 파라미터는 useSearchParams()가 아니라 window.location.search로 직접
- * 읽는다 — useSearchParams()는 Suspense 경계를 강제해서, 정적 셸에서는
- * fallback만 보이고 실제 버튼은 하이드레이션 후에야 나타나는 회귀가 있었다. */
+ * OAuth(Google/Kakao/Naver)는 apps/viewer의 기존 로그인 플로우
+ * (`components/auth/oauth-buttons.tsx`와 동일)를 그대로 쓴다 — auth
+ * 게이트웨이(auth.suvisdev.cloud)로 연결했던 이전 버전은 EC2 `.env`에
+ * `AUTH_GOOGLE_REDIRECT_URI` 등이 설정된 적이 없어 503을 내며 실제로는
+ * 한 번도 동작하지 않았다(2026-08-11 확인, apps/auth/_docs/auth_gateway_harness.md
+ * §5 "viewer→auth 실전환은 범위 밖"과 일치). 이메일 로그인/회원가입만 계속
+ * auth 게이트웨이(`/auth/login`, `/auth/signup`, 비밀번호 방식)를 쓴다 —
+ * 이쪽은 redirect_uri와 무관하게 별도로 동작 확인됨. */
 
 type MovaLoginButtonProps = {
   className?: string
@@ -30,7 +32,6 @@ type EmailFormMode = "login" | "signup"
 
 const AUTH_BASE = "https://auth.suvisdev.cloud"
 const MOVA_AUD = "suvis-mova"
-const MOVA_RETURN_TO = "/mova"
 const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
   "http://127.0.0.1:8000"
@@ -57,8 +58,7 @@ const inputClass =
   "h-9 w-full rounded-md border border-mova-border bg-mova-surface-2 px-2.5 text-xs text-mova-text placeholder:text-neutral-500 outline-none transition focus:border-mova-accent/50"
 
 function startOAuthLogin(provider: OAuthProvider) {
-  const params = new URLSearchParams({ aud: MOVA_AUD, return_to: MOVA_RETURN_TO })
-  window.location.href = `${AUTH_BASE}/auth/login/${provider}?${params.toString()}`
+  window.location.href = `${API_BASE}/viewer/oauth/${provider}/login`
 }
 
 async function fetchWhoamiUsername(accessToken: string): Promise<{ sub: string; username: string }> {
@@ -69,13 +69,8 @@ async function fetchWhoamiUsername(accessToken: string): Promise<{ sub: string; 
   return (await res.json()) as { sub: string; username: string }
 }
 
-// 헤더가 MovaLoginButton을 두 번(모바일/데스크톱) 렌더링하므로, 같은 handoff
-// code를 두 인스턴스가 동시에 소비 시도하지 않도록 모듈 스코프에서 한 번만 처리.
-let _processedHandoffCode: string | null = null
-
 export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState<SuvisSession | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -92,50 +87,6 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
   useEffect(() => {
     refreshSession()
   }, [pathname, refreshSession])
-
-  useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code")
-    if (!code || code === _processedHandoffCode) return
-    _processedHandoffCode = code
-
-    let cancelled = false
-
-    async function completeOAuthLogin() {
-      try {
-        const exchangeRes = await fetch(`${AUTH_BASE}/auth/exchange`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code }),
-        })
-        if (!exchangeRes.ok) return
-        const { access_token: accessToken } = (await exchangeRes.json()) as {
-          access_token: string
-        }
-        if (cancelled) return
-
-        const whoami = await fetchWhoamiUsername(accessToken)
-        if (cancelled) return
-
-        saveSuvisSession({
-          id: Number(whoami.sub),
-          username: whoami.username || `user-${whoami.sub}`,
-        })
-        refreshSession()
-      } catch {
-        // OAuth 리다이렉트 흐름은 조용히 무시 — 실패해도 로그인 안 된 상태로 남을 뿐
-      } finally {
-        if (!cancelled) {
-          // handoff code는 1회용이라 재사용 불가 — 주소창에서도 정리
-          router.replace(pathname)
-        }
-      }
-    }
-
-    void completeOAuthLogin()
-    return () => {
-      cancelled = true
-    }
-  }, [pathname, router, refreshSession])
 
   useEffect(() => {
     if (!menuOpen) return
