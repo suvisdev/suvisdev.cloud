@@ -45,7 +45,12 @@ class ReviewsRepositoryPort(ABC):
     async def update_review(
         self, review_id: int, rating: float | None, body: str | None
     ) -> ReviewDto | None:
-        """리뷰 수정."""
+        """리뷰 수정. body가 변경되면 spoiler_spans는 자동으로 []로 초기화된다
+        (백그라운드 재감지 전까지 이전 스팬을 그대로 두면 텍스트와 안 맞을 수 있어서)."""
+
+    @abstractmethod
+    async def update_spoiler_spans(self, review_id: int, spans: list[dict]) -> None:
+        """AI 감지 결과 반영(백그라운드 태스크에서 호출). 없으면 조용히 스킵."""
 
     @abstractmethod
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:

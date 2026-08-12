@@ -22,11 +22,15 @@ from mova.app.use_cases.platform_user_taste_vector_interactor import (
 from mova.app.use_cases.review_embedding_backfill_interactor import (
     ReviewEmbeddingBackfillInteractor,
 )
+from mova.app.use_cases.review_spoiler_backfill_interactor import (
+    ReviewSpoilerBackfillInteractor,
+)
 from mova.dependencies.market_reviews_provider import get_reviews_use_case
 from mova.dependencies.platform_user_taste_vector_provider import (
     get_user_taste_vector_recompute_use_case,
 )
 from mova.dependencies.review_embedding_provider import get_review_embedding_backfill_use_case
+from mova.dependencies.review_spoiler_provider import get_review_spoiler_backfill_use_case
 from shared.security.require_user import UserPrincipal, require_user
 
 
@@ -81,6 +85,9 @@ async def add_review(
     taste_recompute: UserTasteVectorRecomputeInteractor = Depends(
         get_user_taste_vector_recompute_use_case
     ),
+    spoiler_backfill: ReviewSpoilerBackfillInteractor = Depends(
+        get_review_spoiler_backfill_use_case
+    ),
 ) -> ReviewSchema:
     """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert). 별점만/본문만/둘 다 허용.
 
@@ -101,6 +108,8 @@ async def add_review(
             dto.id,
             principal.user_id,
         )
+        # 스포일러 감지도 병렬 백그라운드 — 임베딩/취향 벡터와 서로 독립.
+        background_tasks.add_task(spoiler_backfill.detect_one, dto.id)
     else:
         background_tasks.add_task(taste_recompute.recompute_for_user, principal.user_id)
     return dto.to_schema()
@@ -141,6 +150,9 @@ async def update_review(
     taste_recompute: UserTasteVectorRecomputeInteractor = Depends(
         get_user_taste_vector_recompute_use_case
     ),
+    spoiler_backfill: ReviewSpoilerBackfillInteractor = Depends(
+        get_review_spoiler_backfill_use_case
+    ),
 ) -> ReviewSchema:
     """리뷰 수정 — 본인 리뷰만 가능(IDOR 방지).
 
@@ -163,6 +175,10 @@ async def update_review(
         review_id,
         existing.user_id,
     )
+    # 본문이 바뀌었으면 스포일러 감지도 재실행. update_review가 body 변경 시
+    # spoiler_spans를 []로 초기화하므로 재감지가 필요하다.
+    if body.body is not None:
+        background_tasks.add_task(spoiler_backfill.detect_one, review_id)
     return dto.to_schema()
 
 

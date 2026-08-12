@@ -7,6 +7,7 @@ import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaOttBadge } from "@/components/mova/mova-ott-badge"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
+import { MovaSpoilerBody } from "@/components/mova/mova-spoiler-body"
 import { Button } from "@/components/ui/button"
 import { normalizeOttPlatforms } from "@/lib/mova-ott"
 import { initialFormStatus, patchState, type FormStatus } from "@/lib/form-status"
@@ -405,7 +406,9 @@ export function MovaTitleView({
                         ) : null}
                       </div>
                       {comment.text ? (
-                        <p className="mt-2 text-sm leading-relaxed text-neutral-300">{comment.text}</p>
+                        <p className="mt-2 text-sm leading-relaxed text-neutral-300">
+                          <MovaSpoilerBody body={comment.text} spans={comment.spoilerSpans} />
+                        </p>
                       ) : null}
                       <p className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-500">
                         <ThumbsUp className="h-3 w-3" />

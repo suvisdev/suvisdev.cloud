@@ -13,6 +13,7 @@ export type MovaComment = {
   text: string
   likes: number
   commentCount: number
+  spoilerSpans?: { start: number; end: number; text: string }[]
 }
 
 export type MovaMovie = {

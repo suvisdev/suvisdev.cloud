@@ -88,6 +88,7 @@ class MypagePgRepository(MypageRepository):
                 rating=row.MovaReview.rating,
                 body=row.MovaReview.body,
                 updated_at=row.MovaReview.updated_at,
+                spoiler_spans=list(row.MovaReview.spoiler_spans or []),
             )
             for row in review_rows
         ]

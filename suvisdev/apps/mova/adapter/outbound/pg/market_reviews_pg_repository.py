@@ -85,6 +85,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             rating=float(row.rating or 0),
             body=row.body or "",
             action_at=row.created_at,
+            spoiler_spans=list(row.spoiler_spans or []),
         )
 
     async def find_by_user_and_movie(self, user_id: int, movie_id: int) -> ReviewDto | None:
@@ -105,6 +106,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             rating=float(row.rating or 0),
             body=row.body or "",
             action_at=row.created_at,
+            spoiler_spans=list(row.spoiler_spans or []),
         )
 
     async def get_by_id(self, review_id: int) -> ReviewDto | None:
@@ -120,6 +122,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             rating=float(row.rating or 0),
             body=row.body or "",
             action_at=row.created_at,
+            spoiler_spans=list(row.spoiler_spans or []),
         )
 
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
@@ -142,6 +145,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 rating=float(r.rating or 0),
                 body=r.body or "",
                 created_at=r.created_at,
+                spoiler_spans=list(r.spoiler_spans or []),
             )
             for r, nickname in rows
         ]
@@ -158,6 +162,8 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             row.rating = max(0.5, min(5.0, float(rating)))
         if body is not None:
             row.body = body
+            # body가 바뀌면 이전 스포일러 스팬은 무효 — 백그라운드 재감지 전까지 초기화.
+            row.spoiler_spans = []
         await self._session.commit()
         await self._update_movie_rating(row.movie_id)
         return ReviewDto(
@@ -167,7 +173,18 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             rating=float(row.rating or 0),
             body=row.body or "",
             action_at=row.created_at,
+            spoiler_spans=list(row.spoiler_spans or []),
         )
+
+    async def update_spoiler_spans(self, review_id: int, spans: list[dict]) -> None:
+        """백그라운드 감지 결과 반영 — 실패해도 리뷰 저장 자체는 이미 성공."""
+        row = (
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        row.spoiler_spans = spans
+        await self._session.commit()
 
     async def get_rating_summary(self, movie_id: int) -> MovieRatingSummaryDto:
         result = (

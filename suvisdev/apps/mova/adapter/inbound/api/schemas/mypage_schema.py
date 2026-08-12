@@ -29,6 +29,7 @@ class MyReviewSchema(BaseModel):
     rating: float | None
     body: str | None
     updated_at: datetime
+    spoiler_spans: list[dict] = []
 
 
 class ActivitySummarySchema(BaseModel):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -34,6 +34,7 @@ class ReviewDto:
     rating: float
     body: str
     action_at: datetime
+    spoiler_spans: list[dict] = field(default_factory=list)
 
     def to_schema(self) -> object:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewSchema
@@ -45,6 +46,7 @@ class ReviewDto:
             rating=self.rating,
             body=self.body,
             action_at=self.action_at,
+            spoiler_spans=self.spoiler_spans,  # type: ignore[arg-type]
         )
 
 
@@ -57,6 +59,7 @@ class ReviewWithUserDto:
     rating: float
     body: str
     created_at: datetime
+    spoiler_spans: list[dict] = field(default_factory=list)
 
     def to_schema(self) -> object:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewWithUserSchema
@@ -69,6 +72,7 @@ class ReviewWithUserDto:
             rating=self.rating,
             body=self.body,
             created_at=self.created_at,
+            spoiler_spans=self.spoiler_spans,  # type: ignore[arg-type]
         )
 
 
