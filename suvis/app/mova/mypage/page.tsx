@@ -103,7 +103,18 @@ export default function MypagePage() {
         setData(mypage)
         setWatchlist(wl.items)
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "불러오기 실패"))
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : "불러오기 실패"
+        // 백엔드가 토큰을 거절한 경우(만료·알고리즘 불일치 등) 세션을 조용히
+        // 정리하고 로그인 재유도. 에러 문구만 노출하면 사용자가 왜 안 되는지
+        // 감을 못 잡는다.
+        if (/유효하지 않은 세션|인증이 필요/.test(msg)) {
+          clearSuvisSession()
+          router.replace("/mova/login?redirect=/mova/mypage")
+          return
+        }
+        setError(msg)
+      })
       .finally(() => setLoading(false))
   }, [router])
 
