@@ -24,6 +24,29 @@ export async function GET(request: Request) {
   }
 }
 
+export async function DELETE(request: Request) {
+  const id = new URL(request.url).searchParams.get("id")
+  if (!id) {
+    return NextResponse.json({ detail: "id가 필요합니다." }, { status: 400 })
+  }
+  const auth = request.headers.get("authorization")
+  try {
+    const res = await backendFetch(`/viewer/profile/${id}`, {
+      method: "DELETE",
+      headers: auth ? { Authorization: auth } : {},
+    })
+    let data: unknown
+    try {
+      data = await res.json()
+    } catch {
+      data = { detail: `Backend response error (${res.status})` }
+    }
+    return NextResponse.json(data, { status: res.status })
+  } catch {
+    return NextResponse.json({ detail: BACKEND_DOWN }, { status: 502 })
+  }
+}
+
 export async function PATCH(request: Request) {
   const id = new URL(request.url).searchParams.get("id")
   if (!id) {

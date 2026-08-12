@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import {
+  deleteMovaAccount,
   deleteMovaReview,
   fetchMovaMypage,
   fetchWatchlist,
@@ -87,6 +88,13 @@ export default function MypagePage() {
       router.replace("/mova/login?redirect=/mova/mypage")
       return
     }
+    // 토큰 없는 오래된 세션(2026-08-12 auth fix 이전에 저장된 것)은 인증 API에서
+    // 401을 받아 "인증이 필요합니다" 오류가 나므로, 여기서 감지해서 정리 + 재로그인 안내.
+    if (!s.token) {
+      clearSuvisSession()
+      router.replace("/mova/login?redirect=/mova/mypage")
+      return
+    }
     Promise.all([
       fetchMovaMypage(s.id),
       fetchWatchlist(s.id).catch(() => ({ items: [], total: 0 })),
@@ -102,6 +110,33 @@ export default function MypagePage() {
   const handleLogout = () => {
     clearSuvisSession()
     router.replace("/mova")
+  }
+
+  const [deleting, setDeleting] = useState(false)
+  const handleDeleteAccount = async () => {
+    const s = getSuvisSession()
+    if (!s) return
+    // 2단 확인 — 프롬프트에 정확한 사용자명 재입력 요구.
+    const first = window.confirm(
+      "정말 계정을 탈퇴하시겠습니까?\n\n" +
+        "찜한 영화·리뷰·대화 기록·취향 데이터가 모두 영구 삭제되며 복구할 수 없습니다.",
+    )
+    if (!first) return
+    const typed = window.prompt(`계속하려면 아이디 "${s.username}"을(를) 입력해 주세요.`)
+    if (typed?.trim() !== s.username) {
+      if (typed !== null) window.alert("아이디가 일치하지 않아 탈퇴가 취소되었습니다.")
+      return
+    }
+    setDeleting(true)
+    try {
+      await deleteMovaAccount(s.id)
+      clearSuvisSession()
+      window.alert("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.")
+      router.replace("/mova")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "탈퇴에 실패했습니다.")
+      setDeleting(false)
+    }
   }
 
   const handleSaveGenres = async () => {
@@ -553,6 +588,22 @@ export default function MypagePage() {
                   ))}
                 </ul>
               )}
+            </section>
+
+            {/* 위험 영역 — 회원 탈퇴 */}
+            <section className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 md:p-5">
+              <h2 className="text-base font-semibold text-red-400">회원 탈퇴</h2>
+              <p className="mt-1 text-xs text-mova-muted">
+                탈퇴 시 찜한 영화·리뷰·대화 기록·취향 데이터가 모두 영구 삭제되며 복구할 수 없습니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleDeleteAccount()}
+                disabled={deleting}
+                className="mt-3 rounded-md border border-red-500/50 bg-transparent px-3 py-1.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {deleting ? "탈퇴 처리 중…" : "계정 탈퇴"}
+              </button>
             </section>
           </>
         ) : null}
