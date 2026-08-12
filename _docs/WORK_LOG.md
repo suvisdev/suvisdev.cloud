@@ -108,6 +108,78 @@
 - Vercel `main` 자동 배포로 프론트 반영. EC2 backend/auth 재빌드 불필요
   (순수 프론트 변경).
 
+### 후속 사이클 A — 만료 세션·프록시 Basic 무차별 주입 fix
+- 스크린샷 오류 "유효하지 않은 세션입니다." 신고 → 사용자 브라우저의 만료
+  JWT + `/mova/chat`의 `optional_user` 정책("Bearer인데 무효면 401 명시")
+  조합에서 발생. **더 깊은 원인**: `suvis/lib/backend-client.ts`가 초기
+  커밋부터 `BACKEND_CREDENTIALS` env가 있을 때 **모든 백엔드 요청에
+  `Authorization: Basic ...`을 무차별 주입**하고 있었음. 백엔드 Basic
+  게이팅은 `main.py::_ApiAuthMiddleware`가 `/docs`·`/redoc`·`/openapi.json`
+  세 경로에만 걸어 놓은 것인데, 프록시가 API 요청에도 Basic을 붙여서
+  `optional_user`가 "Bearer 아님 → 401"로 튕겨냄. 로그인 사용자는 브라우저
+  Bearer가 Basic을 override해서 우연히 동작했고, 익명·만료는 완전 차단
+  상태였음(오늘 UI 개편으로 처음 노출).
+- 수정 2건(PR #78·#79):
+  - `mova-ai-chat-bar.tsx`: 첫 시도 401 + 로컬 세션 존재 시 `clearSuvisSession`
+    호출 + 익명으로 1회 재시도. 만료 로그인이 조용히 익명 모드로 전환.
+  - `backend-client.ts`: Basic 무차별 주입 로직 제거. `/docs` 보호는 백엔드
+    미들웨어가 그대로 담당. 로그인 사용자 흐름 무변화(Bearer 그대로 전달),
+    익명·만료 사용자 흐름 정상화.
+- 실측 검증: 익명 `POST suvisdev.cloud/api/mova/chat` → HTTP 200(Gemini
+  응답 정상), 무효 Bearer → 401 "유효하지 않은 세션입니다."(retry 트리거),
+  JS 번들에서 `clearSuvisSession`·`getSuvisSession` 검출됨.
+
+### 후속 사이클 B — 대화 스레드 저장 v1(Claude/Gemini 스타일 사이드바)
+- 요구: "채팅창 밋밋함 우선 대화 저장(클로드/제미나이처럼)". 스코프 확정
+  질의 2회로 (1) 백엔드 DB 정식 구현, (2) 로그인 사용자만 저장·익명은
+  기존 방식 유지로 결정.
+
+**백엔드**
+- 새 테이블 2개 + 마이그레이션 `20260812_0001_add_chat_conversations.py`:
+  - `chat_conversations` (id, user_id NOT NULL CASCADE, title VARCHAR(80),
+    created_at, updated_at) + updated_at DESC 인덱스
+  - `chat_messages` (id, conversation_id CASCADE, role VARCHAR(16),
+    content TEXT, meta JSONB, created_at)
+  - 기존 `mova.chat`(검색·의도 로그)은 손대지 않음.
+- 헥사고날 신설: `ConversationsUseCase`/`ConversationsRepository` 포트 →
+  `ConversationsInteractor`(list_mine/get_mine/delete_mine, IDOR 검증) →
+  `ConversationsPgRepository`(list=`updated_at DESC + message_count`
+  outer join, get_detail, create, append_message에서 부모 updated_at 갱신,
+  delete=CASCADE) → DI provider.
+- 도메인 예외 `ConversationForbiddenError(403)`·`NotFoundError(404)` → 라우터
+  변환. 라우터 `/mova/conversations`: `GET /`·`GET /{id}`·`DELETE /{id}`,
+  전부 `require_user`.
+- `/mova/chat` 확장: 요청에 `conversation_id?`, 응답에 `conversation_id`
+  에코. 로그인+id 없음 → 새 대화 생성(title = 첫 user 메시지 앞 40자).
+  로그인+id 있음 → user+assistant 두 메시지 append. **LLM 호출 전 소유권
+  사전 검증**(쿼터 소모 방지). 비로그인은 저장 없음.
+- 테스트 신규 6건(list_mine, get/delete ownership 4가지). 전체
+  `pytest apps/mova/tests` 195 passed.
+
+**프론트**
+- `lib/mova-conversations-api.ts`: list/get/delete 3개 + 프록시 2개
+  (`app/api/mova/conversations/route.ts`·`[id]/route.ts`).
+- `components/mova/mova-chat-sidebar.tsx`: 목록·"새 대화"·삭제 UI(hover 시
+  삭제 아이콘, confirm), 모바일 close 버튼.
+- `components/mova/mova-chat-shell.tsx`: 로그인 상태(`SUVIS_SESSION_CHANGED_EVENT`
+  구독) 감지 후 사이드바 표시/숨김, `conversationId` 공유, 데스크톱
+  상시·모바일 오버레이(hamburger PanelLeft 아이콘).
+- `mova-ai-chat-bar.tsx` 리와이어링: `conversationId` prop 지원(DB 모드
+  자동 전환), 변경 시 서버에서 대화 로드해 messages 복원, 응답의
+  `conversation_id`를 상위에 콜백으로 전달 → 사이드바 refreshKey 증가 →
+  목록·순서 갱신. 비로그인은 prop 미전달로 기존 sessionStorage 경로 유지.
+- `/mova/main/page.tsx`: `MovaHeader` + `MovaChatShell`만.
+
+**검증**
+- `pnpm type-check` 클린, dev 서버 부팅 성공, `GET /mova/main` HTTP 200.
+- 백엔드 부팅 검증: `mova_router.routes` 47개 등록, `/mova/conversations`
+  3개 엔드포인트 노출 확인.
+
+**배포**
+- 커밋 3건(백엔드 / 프론트 / WORK_LOG). Vercel `main` 자동 배포 + EC2
+  `git pull` + `alembic upgrade head`(20260811_0003 → 20260812_0001) +
+  `docker compose up -d --build backend auth` 필요.
+
 ---
 
 ## 2026-08-11
