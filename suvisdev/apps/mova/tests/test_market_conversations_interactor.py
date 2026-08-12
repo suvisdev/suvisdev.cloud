@@ -4,7 +4,7 @@ import sys
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 ROOT = Path(__file__).resolve().parents[3]
 APPS = ROOT / "apps"
@@ -23,6 +23,9 @@ from mova.app.ports.output.market_conversations_errors import (  # noqa: E402
 from mova.app.use_cases.market_conversations_interactor import (  # noqa: E402
     ConversationsInteractor,
 )
+from mova.app.use_cases.market_chat_interactor import ChatInteractor  # noqa: E402
+from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest  # noqa: E402
+from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema  # noqa: E402
 
 
 class ConversationsInteractorTests(unittest.IsolatedAsyncioTestCase):
@@ -94,6 +97,86 @@ class ConversationsInteractorTests(unittest.IsolatedAsyncioTestCase):
             await self.interactor.delete_mine(conversation_id=99, user_id=42)
 
         self.repo.delete.assert_not_called()
+
+
+class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
+    """대화 스레드의 이전 추천을 제외하는 필터 검증."""
+
+    async def _run_chat(self, *, already_shown: set[str]) -> tuple[list, list]:
+        """catalog에 tmdb-1,2,3, LLM은 catalog 전체를 그대로 픽. 이미 소개한 슬러그는
+        후보에서 제거돼야 하고, LLM이 실수로 되돌려줘도 최종 응답에서 필터돼야 한다."""
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("rag", [])
+        chat_repo = AsyncMock()
+        chat_repo.save_chat.return_value = 42
+        chat_repo.get_recent_intents_by_user.return_value = []
+        chat_repo.search_tag_catalog.return_value = [
+            MovaSearchItemSchema(id=f"tmdb-{i}", title=f"영화 {i}", year="", rating=0.0, poster="", match_type="tag")
+            for i in (1, 2, 3)
+        ]
+        preferences = AsyncMock()
+        preferences.get_preferences.return_value = type("P", (), {"nickname": "u", "preferred_genres": []})()
+        hub_rag = AsyncMock()
+        hub_rag.search_movies.return_value = []  # 태그 폴백 경로로
+
+        # LLM은 받은 catalog(필터 후)를 그대로 돌려주도록 mock
+        captured: dict = {}
+
+        async def gen_rec(*, tag_catalog, **_kwargs):
+            captured["catalog_seen"] = list(tag_catalog)
+            from mova.adapter.inbound.api.schemas.market_chat_schema import (
+                MovaChatRecommendationSchema,
+            )
+            recs = [
+                MovaChatRecommendationSchema(id=c.id, movie_id=None, title=c.title, year="", poster="", synopsis="", platform=None, hook="")
+                for c in tag_catalog
+            ]
+            return ("추천합니다.", recs)
+
+        llm = Mock()  # extract_intent가 sync라 AsyncMock 대신 Mock
+        llm.extract_intent.return_value = {
+            "refined_query": "다른 것도",
+            "keywords": [],
+            "intent_type": "mood",
+            "search_filters": {},
+        }
+        llm.generate_recommendation = AsyncMock(side_effect=gen_rec)
+
+        conversations = AsyncMock()
+        conversations.get_recent_recommendation_slugs.return_value = already_shown
+        conversations.get_owner_id.return_value = 7  # 소유 통과
+
+        interactor = ChatInteractor(
+            repository=chat_repo,
+            recommender=llm,
+            preferences=preferences,
+            hub_rag=hub_rag,
+            classifier=classifier,
+            general=AsyncMock(),
+            conversations=conversations,
+        )
+        req = MovaChatRequest(message="다른 것도", history=[], user_id=7, conversation_id=99)
+        dto = await interactor.chat(req)
+        return captured["catalog_seen"], dto.recommendations
+
+    async def test_previously_shown_movies_are_excluded_from_llm_and_response(self) -> None:
+        catalog_seen, final = await self._run_chat(already_shown={"tmdb-1", "tmdb-2"})
+        seen_ids = [c.id for c in catalog_seen]
+        final_ids = [r.id for r in final]
+        self.assertEqual(seen_ids, ["tmdb-3"], "LLM 후보에서 이미 소개한 영화가 빠져야 함")
+        self.assertEqual(final_ids, ["tmdb-3"], "최종 응답에도 이미 소개한 영화가 없어야 함")
+
+    async def test_empty_already_shown_keeps_all_candidates(self) -> None:
+        catalog_seen, final = await self._run_chat(already_shown=set())
+        self.assertEqual([c.id for c in catalog_seen], ["tmdb-1", "tmdb-2", "tmdb-3"])
+        self.assertEqual([r.id for r in final], ["tmdb-1", "tmdb-2", "tmdb-3"])
+
+    async def test_all_candidates_shown_falls_back_to_full_catalog(self) -> None:
+        """필터 후 후보가 0이면 원본 유지(사용자에게 빈 응답 대신 뭔가라도 주기 위함).
+        최종 응답에서만 완전 제거되어 실제론 0카드가 나감."""
+        catalog_seen, final = await self._run_chat(already_shown={"tmdb-1", "tmdb-2", "tmdb-3"})
+        self.assertEqual([c.id for c in catalog_seen], ["tmdb-1", "tmdb-2", "tmdb-3"])
+        self.assertEqual(final, [])
 
 
 if __name__ == "__main__":

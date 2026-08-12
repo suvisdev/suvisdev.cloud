@@ -41,3 +41,15 @@ class ConversationsRepository(ABC):
     @abstractmethod
     async def delete(self, conversation_id: int) -> None:
         """CASCADE로 메시지도 함께 지워진다."""
+
+    @abstractmethod
+    async def get_recent_recommendation_slugs(
+        self, conversation_id: int, limit: int = 30
+    ) -> set[str]:
+        """대화 스레드의 이전 assistant 메시지 meta.recommendations에서
+        영화 슬러그(id 필드) 집합을 뽑아 온다.
+
+        "다른 것 추천해줘" 같은 후속 질의에서 이미 소개한 영화를 다시 추천하지
+        않도록 후보 필터링에 쓴다. 30건 정도면 실사용 대화에서 충분(한 대화당
+        평균 3~5턴 × 3편 ≈ 15편).
+        """
