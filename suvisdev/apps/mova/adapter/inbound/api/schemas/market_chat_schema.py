@@ -10,6 +10,12 @@ class MovaChatRequest(BaseModel):
     history: list[dict[str, Any]] = Field(default_factory=list)
     model: Literal["flash", "flash15", "pro"] | None = None
     user_id: int | None = None
+    conversation_id: int | None = Field(
+        default=None,
+        description="로그인 사용자의 기존 대화 스레드에 이어 붙일 때 지정. "
+        "미지정이고 로그인 상태면 서버가 새 스레드를 생성해 응답에 id를 담아 돌려준다. "
+        "비로그인은 이 값과 무관하게 저장하지 않는다.",
+    )
 
     def history_dicts(self) -> list[dict[str, str]]:
         return [
@@ -36,6 +42,11 @@ class MovaChatResponseSchema(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     intent_type: str | None = None
     search_filters: dict[str, Any] = Field(default_factory=dict)
+    conversation_id: int | None = Field(
+        default=None,
+        description="로그인 사용자에 한해 이 응답이 append된 대화 스레드 id. "
+        "요청에 없어서 새로 만든 경우 생성된 id가 여기 담긴다. 비로그인은 항상 null.",
+    )
 
 
 class MarketChatSchema(BaseModel):

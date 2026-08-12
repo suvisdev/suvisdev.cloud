@@ -19,8 +19,10 @@ from mova.adapter.outbound.pg.user_preference_pg_repository import (
 from mova.app.ports.input.market_chat_use_case import ChatUseCase
 from mova.app.ports.output.llm_output_port import RecommendationPort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
+from mova.app.ports.output.market_conversations_repository import ConversationsRepository
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
 from mova.app.use_cases.market_chat_interactor import ChatInteractor
+from mova.dependencies.market_conversations_provider import get_conversations_repository
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
 from ontology.app.ports.output.intent_classifier_port import IntentClassifierPort
@@ -57,6 +59,7 @@ def get_chat_use_case(
     hub_rag: HubRagUseCase = Depends(get_hub_rag_use_case),
     classifier: IntentClassifierPort = Depends(get_intent_classifier),
     general: MycroftUseCase = Depends(get_semantic_mycroft_use_case),
+    conversations: ConversationsRepository = Depends(get_conversations_repository),
 ) -> ChatUseCase:
     return ChatInteractor(
         repository=repository,
@@ -65,6 +68,7 @@ def get_chat_use_case(
         hub_rag=hub_rag,
         classifier=classifier,
         general=general,
+        conversations=conversations,
     )
 
 

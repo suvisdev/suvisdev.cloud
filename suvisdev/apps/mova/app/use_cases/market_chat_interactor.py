@@ -13,6 +13,11 @@ from mova.app.dtos.market_chat_dto import ChatRecommendationDto, ChatResponseDto
 from mova.app.ports.input.market_chat_use_case import ChatUseCase
 from mova.app.ports.output.llm_output_port import RecommendationPort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
+from mova.app.ports.output.market_conversations_errors import (
+    ConversationForbiddenError,
+    ConversationNotFoundError,
+)
+from mova.app.ports.output.market_conversations_repository import ConversationsRepository
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
@@ -38,6 +43,7 @@ class ChatInteractor(ChatUseCase):
         hub_rag: HubRagUseCase,
         classifier: IntentClassifierPort,
         general: MycroftUseCase,
+        conversations: ConversationsRepository | None = None,
     ) -> None:
         self._repo = repository
         self._llm = recommender
@@ -45,12 +51,19 @@ class ChatInteractor(ChatUseCase):
         self._hub_rag = hub_rag
         self._classifier = classifier
         self._general = general
+        # 대화 스레드는 로그인 사용자 한정 저장. 없어도 챗 자체는 동작해야 하므로
+        # optional 주입 — 테스트나 초기 부팅 경로에서 미주입이어도 크래시 안 남.
+        self._conversations = conversations
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
         logger.info(
             "[ChatInteractor] trace=%s question 수신 len=%d", trace_id, len(request.message)
         )
+
+        # -1. 대화 스레드 소유권 사전 검증(LLM 쿼터 소모 전에). 로그인 + 기존 id
+        #     지정 시에만 조회. 없거나 남의 것이면 여기서 즉시 raise.
+        await self._verify_conversation_ownership(request)
 
         # 0. 시맨틱 인텐트 분류 — 영화와 무관한 잡담/일반 질문(general)은 RAG·추천
         #    파이프라인을 타지 않고 Gemini(Mycroft)로 바로 위임한다. mova/chat엔 실제
@@ -147,6 +160,45 @@ class ChatInteractor(ChatUseCase):
             len(reply),
             len(recs),
         )
+
+        recommendation_dtos = [
+            ChatRecommendationDto(
+                id=r.id,
+                movie_id=r.movie_id,
+                title=r.title,
+                year=r.year,
+                poster=r.poster,
+                synopsis=r.synopsis,
+                platform=r.platform,
+                hook=r.hook,
+            )
+            for r in recs
+        ]
+        conversation_id = await self._persist_conversation_turn(
+            request=request,
+            user_content=request.message,
+            user_meta={
+                "intent_type": intent["intent_type"],
+                "refined_query": intent["refined_query"],
+                "keywords": intent["keywords"],
+            },
+            assistant_content=reply,
+            assistant_meta={
+                "recommendations": [
+                    {
+                        "id": r.id,
+                        "movie_id": r.movie_id,
+                        "title": r.title,
+                        "year": r.year,
+                        "poster": r.poster,
+                        "synopsis": r.synopsis,
+                        "platform": r.platform,
+                        "hook": r.hook,
+                    }
+                    for r in recommendation_dtos
+                ],
+            },
+        )
         return ChatResponseDto(
             chat_id=chat_id,
             reply=reply,
@@ -154,19 +206,8 @@ class ChatInteractor(ChatUseCase):
             keywords=intent["keywords"],
             intent_type=intent["intent_type"],
             search_filters=intent["search_filters"],
-            recommendations=[
-                ChatRecommendationDto(
-                    id=r.id,
-                    movie_id=r.movie_id,
-                    title=r.title,
-                    year=r.year,
-                    poster=r.poster,
-                    synopsis=r.synopsis,
-                    platform=r.platform,
-                    hook=r.hook,
-                )
-                for r in recs
-            ],
+            recommendations=recommendation_dtos,
+            conversation_id=conversation_id,
         )
 
     async def _reply_general(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
@@ -189,6 +230,13 @@ class ChatInteractor(ChatUseCase):
             chat_id,
             len(answer.text),
         )
+        conversation_id = await self._persist_conversation_turn(
+            request=request,
+            user_content=request.message,
+            user_meta={"intent_type": "general", "refined_query": request.message, "keywords": []},
+            assistant_content=answer.text,
+            assistant_meta={"recommendations": []},
+        )
         return ChatResponseDto(
             chat_id=chat_id,
             reply=answer.text,
@@ -197,4 +245,41 @@ class ChatInteractor(ChatUseCase):
             intent_type="general",
             search_filters={},
             recommendations=[],
+            conversation_id=conversation_id,
         )
+
+    async def _verify_conversation_ownership(self, request: MovaChatRequest) -> None:
+        """LLM 호출 전에 대화 소유권 확인. 로그인+id 지정 케이스에만 검사."""
+        if not (request.user_id and request.conversation_id and self._conversations):
+            return
+        owner_id = await self._conversations.get_owner_id(request.conversation_id)
+        if owner_id is None:
+            raise ConversationNotFoundError()
+        if owner_id != request.user_id:
+            raise ConversationForbiddenError()
+
+    async def _persist_conversation_turn(
+        self,
+        *,
+        request: MovaChatRequest,
+        user_content: str,
+        user_meta: dict,
+        assistant_content: str,
+        assistant_meta: dict,
+    ) -> int | None:
+        """로그인 사용자에 한해 대화 스레드에 user+assistant 두 메시지 append.
+        conversation_id가 없으면 새 스레드 생성(title = 첫 user 메시지 앞 40자).
+        conversations 포트 미주입이거나 비로그인이면 None."""
+        if not (request.user_id and self._conversations):
+            return None
+        conversation_id = request.conversation_id
+        if conversation_id is None:
+            title = user_content.strip().splitlines()[0][:40] if user_content.strip() else "새 대화"
+            conversation_id = await self._conversations.create(request.user_id, title)
+        await self._conversations.append_message(
+            conversation_id, "user", user_content, user_meta
+        )
+        await self._conversations.append_message(
+            conversation_id, "assistant", assistant_content, assistant_meta
+        )
+        return conversation_id

@@ -26,6 +26,7 @@ class ChatResponseDto:
     intent_type: str
     search_filters: dict
     recommendations: list[ChatRecommendationDto]
+    conversation_id: int | None = None
 
     def to_schema(self) -> object:
         from mova.adapter.inbound.api.schemas.market_chat_schema import (
@@ -52,4 +53,5 @@ class ChatResponseDto:
             keywords=self.keywords,
             intent_type=self.intent_type,
             search_filters=self.search_filters,
+            conversation_id=self.conversation_id,
         )
