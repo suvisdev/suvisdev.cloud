@@ -426,7 +426,10 @@ export function MovaTitleView({
                 </p>
               ) : !session ? (
                 <p className="mt-3 text-xs text-neutral-500">
-                  <Link href="/login" className="text-mova-accent-bright hover:underline">
+                  <Link
+                    href={`/mova/login?redirect=${encodeURIComponent(`/mova/title/${resolveMovaCatalogSlug(movie.id, movie.title)}`)}`}
+                    className="text-mova-accent-bright hover:underline"
+                  >
                     로그인
                   </Link>
                   후 리뷰를 남길 수 있습니다.
