@@ -150,6 +150,7 @@ export default function MypagePage() {
   }
 
   const handleDeleteReview = async (reviewId: number) => {
+    if (!window.confirm("이 리뷰를 삭제할까요? 되돌릴 수 없습니다.")) return
     setRemovingReviewId(reviewId)
     try {
       await deleteMovaReview(reviewId)
