@@ -9,7 +9,7 @@ import {
 } from "@/components/mova/mova-recommendation-cards"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
-import { authHeader } from "@/lib/suvis-session"
+import { authHeader, clearSuvisSession, getSuvisSession } from "@/lib/suvis-session"
 import { getDailyMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
@@ -205,16 +205,30 @@ export function MovaAiChatBar() {
       }))
       setInputValue("")
 
-      try {
-        const res = await fetch("/api/mova/chat", {
+      const body = JSON.stringify({
+        message: trimmed,
+        history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+        model: "flash15",
+      })
+      const doFetch = (withAuth: boolean) =>
+        fetch("/api/mova/chat", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeader() },
-          body: JSON.stringify({
-            message: trimmed,
-            history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-            model: "flash15",
-          }),
+          headers: {
+            "Content-Type": "application/json",
+            ...(withAuth ? authHeader() : {}),
+          },
+          body,
         })
+
+      try {
+        let res = await doFetch(true)
+        // 만료·손상된 JWT면 백엔드가 익명 강등 대신 401을 낸다(설계 의도).
+        // 프론트에선 세션을 조용히 정리하고 익명으로 1회 재시도해 채팅 자체는
+        // 끊기지 않게 한다.
+        if (res.status === 401 && getSuvisSession()) {
+          clearSuvisSession()
+          res = await doFetch(false)
+        }
         const data = (await res.json()) as {
           reply?: string
           refined_query?: string
