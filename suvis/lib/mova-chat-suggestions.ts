@@ -1,4 +1,4 @@
-/** Mova AI 채팅 빠른 추천 문구 풀 — 날짜별로 3개씩 로테이션 */
+/** Mova AI 채팅 빠른 추천 문구 풀 — 3시간 단위로 로테이션(하루 8번) */
 const SUGGESTION_POOL = [
   "오늘 밤 가볍게 볼 한국 영화",
   "SF 영화 추천해줘",
@@ -20,11 +20,15 @@ const SUGGESTION_POOL = [
   "클래식 명작 처음 보는 사람용",
 ] as const
 
-function localDateKey(date = new Date()): string {
+/** 3시간 단위 버킷 키 — 같은 버킷 안에서는 항상 같은 3개(SSR·CSR 일관성). */
+const ROTATION_HOURS = 3
+
+function bucketKey(date = new Date()): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, "0")
   const d = String(date.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
+  const bucket = Math.floor(date.getHours() / ROTATION_HOURS)
+  return `${y}-${m}-${d}-${bucket}`
 }
 
 function hashString(value: string): number {
@@ -36,14 +40,15 @@ function hashString(value: string): number {
   return hash >>> 0
 }
 
-/** 로컬 날짜 기준으로 풀에서 count개를 결정적으로 선택 */
-export function getDailyMovaChatSuggestions(count = 3, date = new Date()): string[] {
-  const dayKey = localDateKey(date)
+/** 3시간 로테이션으로 풀에서 count개를 결정적으로 선택(하루 8번 갱신). */
+export function getRotatingMovaChatSuggestions(count = 3, date = new Date()): string[] {
+  const key = bucketKey(date)
   const limit = Math.min(count, SUGGESTION_POOL.length)
   const ranked = SUGGESTION_POOL.map((text, index) => ({
     text,
-    rank: hashString(`${dayKey}:${index}:${text}`),
+    rank: hashString(`${key}:${index}:${text}`),
   }))
   ranked.sort((a, b) => a.rank - b.rank)
   return ranked.slice(0, limit).map((item) => item.text)
 }
+

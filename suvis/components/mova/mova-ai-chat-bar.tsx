@@ -12,7 +12,7 @@ import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
 import { authHeader, clearSuvisSession, getSuvisSession } from "@/lib/suvis-session"
 import { getConversation, type ConversationMessage } from "@/lib/mova-conversations-api"
-import { getDailyMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
+import { getRotatingMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 type ChatMessage = {
@@ -176,7 +176,7 @@ export function MovaAiChatBar({
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
   const hydratedRef = useRef(false)
-  const dailySuggestions = useMemo(() => getDailyMovaChatSuggestions(3), [])
+  const dailySuggestions = useMemo(() => getRotatingMovaChatSuggestions(3), [])
   const isInitial = chat.messages.length === 0
 
   // 로딩 중 순환 문구 — Gemini 호출이 3~10초 걸릴 수 있어 정적 텍스트면 사용자가

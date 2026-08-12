@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowUp, Loader2 } from "lucide-react"
-import { getDailyMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
+import { getRotatingMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { cn } from "@/lib/utils"
 
 type ChatFormProps = { message: string }
@@ -15,7 +15,7 @@ export function MovaLandingChatBar() {
   const [value, setValue] = useState("")
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const seededRef = useRef(false)
-  const dailyHints = useMemo(() => getDailyMovaChatSuggestions(3), [])
+  const dailyHints = useMemo(() => getRotatingMovaChatSuggestions(3), [])
 
   const goMain = useCallback(
     (text: string) => {
