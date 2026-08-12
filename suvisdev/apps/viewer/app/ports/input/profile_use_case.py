@@ -27,3 +27,8 @@ class ProfileUseCase(ABC):
         self, user_id: int, data: bytes, *, content_type: str, ext: str
     ) -> ProfileDto | None:
         pass
+
+    @abstractmethod
+    async def delete_account(self, user_id: int) -> bool:
+        """회원 탈퇴 — 계정과 CASCADE 데이터 전부 삭제."""
+        pass

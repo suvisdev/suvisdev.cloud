@@ -32,6 +32,9 @@ class ProfileInteractor(ProfileUseCase):
         )
         return self._with_avatar_url(await self._repository.update_avatar_key(user_id, key))
 
+    async def delete_account(self, user_id: int) -> bool:
+        return await self._repository.delete_user(user_id)
+
     def _with_avatar_url(self, dto: ProfileDto | None) -> ProfileDto | None:
         """저장된 key로 표시용 URL을 채운다 — presigned URL은 만료값이라 DB에
         두지 않고 응답을 만들 때마다 발급한다."""

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_viewer_session_factory
 from viewer.adapter.outbound.orm.user_identity_orm import UserIdentity
 from viewer.adapter.outbound.orm.user_orm import (
+    User,
     get_viewer_user_profile,
     update_user_avatar_key,
     update_user_nickname,
@@ -56,6 +57,27 @@ class ProfilePgRepository(ProfileRepository):
         if not updated:
             return None
         return await self.get_profile(user_id)
+
+    async def delete_user(self, user_id: int) -> bool:
+        """users row 삭제 → 연관 테이블(리뷰·와치리스트·대화·취향 벡터·OAuth
+        identities 등) 전부 CASCADE로 함께 삭제.
+
+        요청 스코프 세션(있으면 그것)을 우선 사용하고, 없으면 자체 세션 팩토리로
+        폴백. 세션 사용 후엔 반드시 commit — 삭제가 실제 DB에 반영돼야 다음
+        로그인 시도에서 없어졌음이 관측된다.
+        """
+        if self._session is not None:
+            return await self._delete_in_session(self._session, user_id)
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            deleted = await self._delete_in_session(session, user_id)
+            await session.commit()
+            return deleted
+
+    async def _delete_in_session(self, session: AsyncSession, user_id: int) -> bool:
+        result = await session.execute(delete(User).where(User.id == user_id))
+        await session.commit()
+        return (result.rowcount or 0) > 0
 
     async def _get_linked_providers(self, user_id: int) -> list[str]:
         if self._session is not None:

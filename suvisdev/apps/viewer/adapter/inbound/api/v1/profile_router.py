@@ -58,6 +58,22 @@ async def get_profile(
     )
 
 
+@profile_router.delete("/{user_id}", status_code=200)
+async def delete_profile(
+    user_id: int,
+    principal: UserPrincipal = Depends(require_user),
+    profile: ProfileUseCase = Depends(get_profile_use_case),
+) -> dict[str, str]:
+    """회원 탈퇴 — 본인 계정만 가능. FK CASCADE로 대화·리뷰·와치리스트 등
+    관련 데이터 전부 함께 삭제된다(복구 불가)."""
+    if principal.user_id != user_id:
+        raise HTTPException(status_code=403, detail="본인 계정만 탈퇴할 수 있습니다.")
+    deleted = await profile.delete_account(user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="회원 정보를 찾을 수 없습니다.")
+    return {"status": "deleted"}
+
+
 @profile_router.patch("/{user_id}", response_model=ProfileResponse)
 async def update_profile(
     user_id: int,

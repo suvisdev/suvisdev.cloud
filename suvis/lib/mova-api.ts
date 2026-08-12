@@ -676,6 +676,21 @@ export type MypageData = {
   activity: MypageActivity
 }
 
+export async function deleteMovaAccount(userId: number): Promise<void> {
+  const res = await fetch(`/api/viewer/profile?id=${userId}`, {
+    method: "DELETE",
+    headers: { ...authHeader() },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const detail =
+      typeof data === "object" && data && "detail" in data
+        ? (data as { detail: unknown }).detail
+        : undefined
+    throw new Error(safeApiErrorMessage(detail, `회원 탈퇴에 실패했습니다. (${res.status})`, res.status))
+  }
+}
+
 export async function fetchMovaMypage(userId: number): Promise<MypageData> {
   const res = await fetch(`/api/mova/mypage/${userId}`, {
     cache: "no-store",
