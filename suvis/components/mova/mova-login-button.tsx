@@ -119,6 +119,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
         saveSuvisSession({
           id: Number(whoami.sub),
           username: whoami.username || `user-${whoami.sub}`,
+          token: accessToken,
         })
         refreshSession()
       } catch {
@@ -196,6 +197,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
       saveSuvisSession({
         id: Number(whoami.sub),
         username: whoami.username || `user-${whoami.sub}`,
+        token: body.access_token as string,
       })
       refreshSession()
       closeMenu()
