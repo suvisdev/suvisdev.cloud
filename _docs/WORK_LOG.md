@@ -341,6 +341,42 @@
 
 **오늘 총 PR 17개**(#80~#97). 프론트+백엔드 대규모 릴레이 완료.
 
+**R. 스포일러 UX 보완**(PR #99, `8cdb29b`)
+- 증상: 스포일러 블록에 마우스만 올리면 텍스트 노출(스크린샷 "왕이 죽습니다"),
+  스포일러 안내 표시가 없음.
+- 원인: 이전 은닉이 `bg-neutral-700 text-neutral-700`(같은 색) + `hover:bg-neutral-600`.
+  호버 시 배경 색만 바뀌고 텍스트 색은 그대로라 대비 생겨 노출.
+- fix: 텍스트를 `text-transparent`로 완전 투명(호버·컬러 스와이프 무력화),
+  `select-none`으로 드래그 복사 차단. `showBadge` prop 신설(기본 true) —
+  스팬 있으면 본문 앞에 amber "⊘ 스포일러 포함" 배지 자동 렌더.
+
+**S. 추천 문구 로테이션 주기 1일→3시간**(PR #100, `340c6e0`)
+- 사용자: "같은 3개만 계속 보임". 하루 1버킷은 갱신이 너무 느림.
+- fix: `getRotatingMovaChatSuggestions`로 rename(기존 daily는 오해 소지),
+  bucket key를 `YYYY-MM-DD-{hour÷3}`으로 변경 → 하루 8번 갱신. 두 호출처
+  (mova-ai-chat-bar, mova-landing-chat-bar) 함께 갱신.
+
+**T. 헤더 검색 완전 복구 + 배우/감독 확장**(PR #101, `03916bd`)
+- 증상: 상단 검색창에 뭘 쳐도 결과 안 나옴(스크린샷 "왕과 사는" 입력).
+- 원인 2가지:
+  1. 프론트 `fetchMovaSearch`가 응답을 배열로 파싱(`rows.map`)했지만 백엔드는
+     `{query, items, total, ...}` 객체 → `rows.map` 실패 → catch 블록의
+     로컬 목업만 표시(실질적으로 안 됨).
+  2. 백엔드 `search_by_label`이 태그 label + 영화 제목만 매칭. 배우·감독
+     이름 못 잡음.
+- fix:
+  - 백엔드 `search_by_label`에 `characters JOIN actors`(배우) +
+    `movie_directors JOIN actors`(감독) OR 브랜치 추가. actor.name ILIKE로
+    하나라도 걸리면 그 영화 포함.
+  - 프론트 `fetchMovaSearch`를 `data.items` 파싱으로 교정. slug·poster_url·
+    release_year 필드 매핑.
+  - `/api/mova/search` 프록시 limit 12 → 5(자동완성 5건 이하 요청).
+- 실측: "놀란" 검색 → 다크 나이트·인셉션·인터스텔라·프레스티지·메멘토 5편 확인.
+- 배포: main 머지 + EC2 backend 재빌드 + nginx reload.
+
+**오늘 총 PR 21개**(#80~#101). 프론트·백엔드·auth·마이그레이션 2건까지 전
+계층 전면 개편·복구 릴레이 완료.
+
 ---
 
 ## 2026-08-11
