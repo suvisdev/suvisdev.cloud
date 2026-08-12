@@ -14,10 +14,24 @@ type LoginFormProps = { username: string; password: string }
 type SignupFormProps = { username: string; password: string; nickname: string; email: string }
 
 type AuthApiBody = {
-  message?: string
-  id?: number
-  username?: string
+  access_token?: string
   detail?: unknown
+}
+
+// 실동작하는 auth 경로(MovaLoginButton 헤더 드롭다운과 동일)로 통일.
+// /api/auth/login 프록시는 aud 없이 호출되던 잘못된 경로였음.
+const AUTH_BASE = "https://auth.suvisdev.cloud"
+const API_BASE =
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
+  "https://api.suvisdev.cloud"
+const MOVA_AUD = "suvis-mova"
+
+async function fetchWhoami(accessToken: string): Promise<{ sub: string; username: string }> {
+  const res = await fetch(`${API_BASE}/mova/whoami`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error("사용자 정보를 불러오지 못했습니다.")
+  return (await res.json()) as { sub: string; username: string }
 }
 
 const inputClass =
@@ -51,10 +65,14 @@ export function MovaAuthForms() {
 
     patchLogin({ errors: {}, submitting: true })
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(`${AUTH_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: formProps.username.trim(), password: formProps.password }),
+        body: JSON.stringify({
+          username: formProps.username.trim(),
+          password: formProps.password,
+          aud: MOVA_AUD,
+        }),
       })
       let body: AuthApiBody
       try {
@@ -63,22 +81,27 @@ export function MovaAuthForms() {
         patchLogin({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok) {
+      if (!res.ok || !body.access_token) {
         patchLogin({
           message: safeApiErrorMessage(
             body.detail,
-            res.status === 404 ? "로그인 API를 찾을 수 없습니다." : "로그인에 실패했습니다.",
+            res.status === 401
+              ? "아이디 또는 비밀번호가 올바르지 않습니다."
+              : "로그인에 실패했습니다.",
             res.status,
           ),
         })
         return
       }
-      if (typeof body.id === "number" && body.username) {
-        saveSuvisSession({ id: body.id, username: body.username })
-      }
+      const whoami = await fetchWhoami(body.access_token)
+      saveSuvisSession({
+        id: Number(whoami.sub),
+        username: whoami.username || `user-${whoami.sub}`,
+        token: body.access_token,
+      })
       router.replace(redirect.startsWith("/mova") ? redirect : "/mova/main")
     } catch {
-      patchLogin({ message: "백엔드에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요." })
+      patchLogin({ message: "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요." })
     } finally {
       patchLogin({ submitting: false })
     }
@@ -102,14 +125,14 @@ export function MovaAuthForms() {
 
     patchSignup({ errors: {}, submitting: true })
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(`${AUTH_BASE}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: formProps.username.trim(),
-          password: formProps.password,
-          nickname: formProps.nickname.trim(),
           email: formProps.email.trim(),
+          password: formProps.password,
+          username: formProps.username.trim() || undefined,
+          aud: MOVA_AUD,
         }),
       })
       let body: AuthApiBody
@@ -119,16 +142,26 @@ export function MovaAuthForms() {
         patchSignup({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok) {
+      if (!res.ok || !body.access_token) {
         patchSignup({
-          message: safeApiErrorMessage(body.detail, "회원가입에 실패했습니다.", res.status),
+          message: safeApiErrorMessage(
+            body.detail,
+            res.status === 409 ? "이미 가입된 이메일입니다." : "회원가입에 실패했습니다.",
+            res.status,
+          ),
         })
         return
       }
-      patchSignup({ message: "✓ 가입 완료! 로그인해주세요." })
-      setTab("login")
+      // 회원가입 = 세션 발급 완료. 별도 로그인 불필요, 바로 진입.
+      const whoami = await fetchWhoami(body.access_token)
+      saveSuvisSession({
+        id: Number(whoami.sub),
+        username: whoami.username || formProps.nickname.trim() || `user-${whoami.sub}`,
+        token: body.access_token,
+      })
+      router.replace(redirect.startsWith("/mova") ? redirect : "/mova/main")
     } catch {
-      patchSignup({ message: "백엔드에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요." })
+      patchSignup({ message: "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요." })
     } finally {
       patchSignup({ submitting: false })
     }
