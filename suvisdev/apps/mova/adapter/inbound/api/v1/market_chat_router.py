@@ -12,6 +12,10 @@ from mova.adapter.inbound.api.schemas.market_chat_schema import (
 )
 from mova.app.ports.input.market_chat_use_case import ChatUseCase
 from mova.app.ports.output.llm_errors import LLMError
+from mova.app.ports.output.market_conversations_errors import (
+    ConversationForbiddenError,
+    ConversationNotFoundError,
+)
 from mova.dependencies.market_chat_provider import get_chat_use_case
 from shared.security.require_user import UserPrincipal, optional_user
 
@@ -46,5 +50,7 @@ async def chat(
     try:
         dto = await use_case.chat(req)
     except LLMError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+    except (ConversationNotFoundError, ConversationForbiddenError) as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     return dto.to_schema()
