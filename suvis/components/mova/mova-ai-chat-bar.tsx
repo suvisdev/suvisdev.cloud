@@ -179,6 +179,27 @@ export function MovaAiChatBar({
   const dailySuggestions = useMemo(() => getDailyMovaChatSuggestions(3), [])
   const isInitial = chat.messages.length === 0
 
+  // 로딩 중 순환 문구 — Gemini 호출이 3~10초 걸릴 수 있어 정적 텍스트면 사용자가
+  // 멈춘 것처럼 느낀다. 3초마다 문구를 갈아 끼워 "일하는 중" 느낌을 준다.
+  const LOADING_HINTS = useMemo(
+    () => [
+      "요청하신 취향을 살펴보고 있어요…",
+      "카탈로그에서 어울리는 작품을 찾는 중…",
+      "AI가 최고의 조합을 골라보는 중…",
+      "곧 추천해 드릴게요, 잠시만요…",
+    ],
+    [],
+  )
+  const [loadingHintIdx, setLoadingHintIdx] = useState(0)
+  useEffect(() => {
+    if (!chat.loading) return
+    setLoadingHintIdx(0)
+    const id = window.setInterval(() => {
+      setLoadingHintIdx((i) => (i + 1) % LOADING_HINTS.length)
+    }, 3000)
+    return () => window.clearInterval(id)
+  }, [chat.loading, LOADING_HINTS.length])
+
   // DB 모드(로그인 + 상위에서 prop 지정) vs sessionStorage 모드(비로그인)
   const dbMode = conversationIdProp !== undefined
 
@@ -522,8 +543,10 @@ export function MovaAiChatBar({
               <Sparkles className="h-3.5 w-3.5 animate-pulse text-mova-accent" />
             </span>
             <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-2.5 text-sm text-mova-muted">
-              <Loader2 className="h-4 w-4 animate-spin text-mova-accent" />
-              추천 큐레이션 중…
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-mova-accent" />
+              <span key={loadingHintIdx} className="animate-in fade-in duration-300">
+                {LOADING_HINTS[loadingHintIdx]}
+              </span>
             </div>
           </div>
         )}

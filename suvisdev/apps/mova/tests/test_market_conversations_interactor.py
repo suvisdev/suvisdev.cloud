@@ -178,6 +178,52 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([c.id for c in catalog_seen], ["tmdb-1", "tmdb-2", "tmdb-3"])
         self.assertEqual(final, [])
 
+    async def test_zero_recs_replaces_reply_with_honest_message(self) -> None:
+        """recs가 0건이 되면 reply를 '추천할 영화가 없어요' 계열로 대체.
+        LLM이 '추천해 드릴게요' 같은 문구를 남겼는데 카드가 없으면 사용자가
+        혼란을 느끼므로 정직하게 안내."""
+        # 이미 소개한 케이스: '이 대화에서'가 문구에 포함
+        _catalog, final = await self._run_chat(already_shown={"tmdb-1", "tmdb-2", "tmdb-3"})
+        self.assertEqual(final, [])
+        # dto의 reply는 self._run_chat이 노출 안 하니 별도 검증 필요 —
+        # 여기선 recs=0인 시나리오가 예외 없이 통과하는지만 확인(문구는 아래 별도 테스트).
+
+    async def test_zero_recs_reply_content_when_already_shown_all(self) -> None:
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("rag", [])
+        chat_repo = AsyncMock()
+        chat_repo.save_chat.return_value = 42
+        chat_repo.get_recent_intents_by_user.return_value = []
+        chat_repo.search_tag_catalog.return_value = [
+            MovaSearchItemSchema(id="tmdb-1", title="a", year="", rating=0.0, poster="", match_type="tag")
+        ]
+        preferences = AsyncMock()
+        preferences.get_preferences.return_value = type("P", (), {"nickname": "u", "preferred_genres": []})()
+        hub_rag = AsyncMock()
+        hub_rag.search_movies.return_value = []
+        llm = Mock()
+        llm.extract_intent.return_value = {"refined_query": "다른것", "keywords": [], "intent_type": "mood", "search_filters": {}}
+        # LLM은 소개한 것을 그대로 다시 돌려주는 시나리오(전량 필터 예정)
+        from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommendationSchema
+        llm.generate_recommendation = AsyncMock(return_value=(
+            "취향에 맞춰 엄선한 명작 영화들을 추천해 드릴게요.",
+            [MovaChatRecommendationSchema(id="tmdb-1", movie_id=None, title="a", year="", poster="", synopsis="", platform=None, hook="")],
+        ))
+        conversations = AsyncMock()
+        conversations.get_recent_recommendation_slugs.return_value = {"tmdb-1"}
+        conversations.get_owner_id.return_value = 7
+
+        interactor = ChatInteractor(
+            repository=chat_repo, recommender=llm, preferences=preferences,
+            hub_rag=hub_rag, classifier=classifier, general=AsyncMock(), conversations=conversations,
+        )
+        req = MovaChatRequest(message="다른것도", history=[], user_id=7, conversation_id=99)
+        dto = await interactor.chat(req)
+
+        self.assertEqual(dto.recommendations, [])
+        self.assertIn("찾지 못했어요", dto.reply)
+        self.assertIn("이 대화에서 아직 소개하지 않은", dto.reply)
+
 
 if __name__ == "__main__":
     unittest.main()
