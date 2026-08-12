@@ -59,14 +59,14 @@ export function MovaChatSidebar({
   }
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-mova-border bg-mova-surface/95 backdrop-blur-md md:w-64">
-      <div className="flex items-center justify-between border-b border-mova-border px-3 py-3">
+    <aside className="flex h-full w-full flex-col border-r border-mova-border bg-mova-surface/95 backdrop-blur-md md:w-60">
+      <div className="flex items-center gap-2 border-b border-mova-border px-2.5 py-2.5">
         <button
           type="button"
           onClick={onNewChat}
-          className="flex flex-1 items-center gap-2 rounded-lg border border-mova-border bg-mova-surface-2 px-3 py-2 text-sm text-mova-text transition-colors hover:border-mova-accent/40 hover:bg-mova-accent-soft"
+          className="flex flex-1 items-center gap-2 rounded-lg border border-mova-border bg-mova-surface-2 px-2.5 py-1.5 text-sm font-medium text-mova-text transition-colors hover:border-mova-accent/40 hover:bg-mova-accent-soft"
         >
-          <MessageSquarePlus className="h-4 w-4" />
+          <MessageSquarePlus className="h-4 w-4 shrink-0" />
           <span>새 대화</span>
         </button>
         {onClose && (
@@ -74,14 +74,14 @@ export function MovaChatSidebar({
             type="button"
             onClick={onClose}
             aria-label="사이드바 닫기"
-            className="ml-2 flex h-9 w-9 items-center justify-center rounded-lg text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text md:hidden"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text md:hidden"
           >
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto py-1.5">
         {loading && (
           <p className="px-3 py-2 text-xs text-mova-muted">불러오는 중…</p>
         )}
@@ -93,7 +93,7 @@ export function MovaChatSidebar({
             아직 저장된 대화가 없어요. 첫 메시지를 보내면 여기에 쌓입니다.
           </p>
         )}
-        <ul className="space-y-0.5 px-2">
+        <ul className="space-y-0.5 px-1.5">
           {conversations.map((c) => {
             const active = c.id === activeId
             return (
@@ -102,7 +102,7 @@ export function MovaChatSidebar({
                   type="button"
                   onClick={() => onSelect(c.id)}
                   className={cn(
-                    "group flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                    "group flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors",
                     active
                       ? "bg-mova-accent-soft text-mova-text"
                       : "text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text",
@@ -113,9 +113,9 @@ export function MovaChatSidebar({
                     type="button"
                     onClick={(e) => void handleDelete(c.id, e)}
                     aria-label="대화 삭제"
-                    className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+                    className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-mova-muted hover:text-red-500" />
+                    <Trash2 className="h-3.5 w-3.5 text-mova-muted hover:text-red-400" />
                   </button>
                 </button>
               </li>
