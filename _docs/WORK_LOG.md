@@ -304,6 +304,43 @@
 필요 시 EC2 재빌드 진행. 최종 상태: 로그인 사용자 전 계층(사이드바·대화 저장·
 중복 방지·마이페이지·회원 탈퇴·리뷰) 정상 동작 실측 확인.
 
+### 후속 사이클 O~R — 추가 사용자 리포트
+
+**O. 마이페이지 세션 거절 시 재로그인 유도**(PR #95, `078922c`)
+- 이전 fix는 `s.token` 자체가 없을 때만 자동 정리. 토큰이 있어도 백엔드가
+  거절하는 경우(만료·algorithm 불일치)는 그냥 빨간 에러 문구만 노출.
+- fix: 에러 메시지에 "유효하지 않은 세션"·"인증이 필요"가 포함되면
+  clearSuvisSession + `/mova/login` 재유도.
+
+**P. 헤더 네비에 채팅 탭 추가**(PR #96, `a2d3f16`)
+- 요청: "홈 영화 사이에 채팅 탭 하나". MOVA_NAV에 `{ label: "채팅", href: "/mova/main" }`
+  삽입. isNavActive에서 `/mova`(홈)는 정확 매칭만 하도록 좁혀 새 채팅 탭과
+  중복 활성 안 되게 정리(mova-header.tsx + mova/page.tsx 인라인 둘 다).
+
+**Q. AI 스포일러 감지 + 프론트 블러·확인 다이얼로그**(PR #97, `29a7b6f`)
+- 요청: 리뷰에 스포일러가 있으면 그 단어만 가려주고, 클릭 시 "스포일러일
+  수 있습니다. 보시겠습니까?" 확인 후 노출. 판단은 AI.
+- 백엔드(마이그레이션 `20260812_0002`):
+  - `reviews.spoiler_spans JSONB DEFAULT '[]'` 신설 — {start,end,text} 리스트.
+  - `spoiler_detection.py`: Gemini에 리뷰 본문 넣고 후보 문구 리스트만 받아
+    body에서 find()로 스팬화. 결말·반전·정체 공개 등만, 일반 감상은 제외.
+    실패·쿼터·네트워크 예외 다 삼켜 [] 반환(리뷰 저장 자체는 절대 안 막힘).
+  - `ReviewSpoilerBackfillInteractor.detect_one(review_id)`: 자체 세션 팩토리
+    로 BG 태스크에서 호출, Gemini 동기 SDK를 asyncio.to_thread 위임.
+  - `/mova/reviews` POST/PATCH가 응답 후 BG 발화 — 임베딩·취향 벡터와 독립
+    병렬. update 시 body 변경 감지되면 spoiler_spans를 []로 초기화 → 재감지.
+  - DTO/스키마(ReviewSchema·ReviewWithUserSchema·MyReviewSchema·MyReviewItem)에
+    spoiler_spans 필드 관통. 기존 리뷰 테스트 218 통과(_FakeSpoilerBackfill 추가).
+- 프론트:
+  - `MovaSpoilerBody` 컴포넌트: 스팬을 순차 잘라 스포일러 부분만 블러 버튼
+    (배경·글자 같은 색). 클릭 → window.confirm → 그 스팬만 노출(전체 아님).
+  - MovaReviewRow·MypageReviewItem·MovaComment 타입에 spoiler_spans 관통.
+  - `/mova/mypage` 내 리뷰 · `/mova/title/[slug]` 리뷰 리스트에 적용.
+- 배포: PR #97 → main 머지 → EC2 backend 재빌드 + `alembic upgrade head`
+  (`20260812_0001 → 20260812_0002`) + nginx reload. API 응답 200 실측 확인.
+
+**오늘 총 PR 17개**(#80~#97). 프론트+백엔드 대규모 릴레이 완료.
+
 ---
 
 ## 2026-08-11
