@@ -182,6 +182,22 @@ class ChatInteractor(ChatUseCase):
         # slug 오해 등) 최종 반환에서 한 번 더 이미 소개한 영화를 제거.
         if already_shown_slugs:
             recs = [r for r in recs if r.id not in already_shown_slugs]
+
+        # 추천할 영화가 실제로 0건이면 reply 텍스트도 그에 맞춰 정직하게 안내.
+        # LLM이 "추천해 드릴게요"라고 말해놓고 카드가 안 뜨는 어긋남 방지.
+        if not recs:
+            already_len = len(already_shown_slugs) if already_shown_slugs else 0
+            if already_len > 0:
+                reply = (
+                    "죄송해요, 이 대화에서 아직 소개하지 않은 새 작품 중에는 조건에 "
+                    "맞는 영화를 찾지 못했어요. 다른 장르·분위기로 요청해 보시겠어요?"
+                )
+            else:
+                reply = (
+                    "죄송해요, 지금 카탈로그에서 조건에 맞는 영화를 찾지 못했어요. "
+                    "조금 다르게 요청해 보시거나 장르·배우·연도를 바꿔 주시면 다시 찾아볼게요."
+                )
+
         recommendation_dtos = [
             ChatRecommendationDto(
                 id=r.id,
