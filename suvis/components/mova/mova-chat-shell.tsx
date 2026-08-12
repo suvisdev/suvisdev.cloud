@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { PanelLeft, PanelLeftClose } from "lucide-react"
 import { MovaAiChatBar } from "@/components/mova/mova-ai-chat-bar"
+import { MovaChatRail } from "@/components/mova/mova-chat-rail"
 import { MovaChatSidebar } from "@/components/mova/mova-chat-sidebar"
 import {
   getSuvisSession,
@@ -208,6 +209,9 @@ export function MovaChatShell() {
           onConversationChanged={handleConversationChanged}
         />
       </div>
+
+      {/* 우측 랭킹 레일 — 데스크톱(lg+)만. 사이드바 접힘 여부와 무관하게 노출. */}
+      <MovaChatRail />
     </div>
   )
 }
