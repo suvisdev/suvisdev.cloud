@@ -639,6 +639,112 @@ EC2 정식 배포까지 진행.
 - PROGRESS.md 0.5순위 "EC2 이미지 상태" 항목을 "정식 이미지 재빌드로 해소"로
   갱신, 1-c순위 γ 문단에 배포 완료 문구 추가.
 
+### 작업 내용(추가⑫) — 프로덕션 장애 대응: nginx stale DNS 502 + mova 로그인 완전 장애(auth 게이트웨이 미완성) + cloudflared api.suvisdev.cloud 전용 장애 조사
+
+사용자가 "배포된 백엔드가 안 돈다"고 신고 → 연쇄적으로 서로 다른 원인의
+장애 3건이 나와 순서대로 처리. 세 번째(cloudflared)는 세션 종료 시점
+기준 미해결(24h 관찰 진행 중).
+
+**1) nginx stale DNS 502(즉시 해결)**
+- `docker logs nginx`에 `connect() failed (111: Connection refused)`
+  반복, upstream이 backend의 옛 IP(172.20.0.9)를 가리킴 — backend/auth가
+  38분 전 재시작하며 새 IP(172.20.0.7)를 받았는데 nginx(31시간째 기동,
+  `proxy_pass http://backend:8000` 정적 호스트명, resolver 지시자 없음)가
+  DNS를 재해석 안 함. `docker exec nginx nginx -s reload`로 즉시 해결.
+- 이후 mova 챗 401("유효하지 않은 세션")은 별개 — 해당 계정의 7일 만료
+  JWT 세션이 그냥 만료된 것으로 확인(서버 문제 아님, 재로그인 안내).
+
+**2) mova Google/Kakao/Naver 로그인 완전 장애 — 근본 원인 규명 + 되돌림**
+- `auth.suvisdev.cloud/auth/login/google?...` → 503
+  `"GOOGLE_CLIENT_ID/AUTH_GOOGLE_REDIRECT_URI가 설정되지 않았습니다."`
+- 원인: 커밋 `beec23e`(2026-07-22)가 mova 로그인 버튼을
+  `apps/auth`(auth.suvisdev.cloud, 병렬 구축 중인 미완성 SSO 게이트웨이)로
+  연결했는데, `apps/auth/_docs/auth_gateway_harness.md` §5에 "Google/Kakao/
+  Naver 콘솔에 `AUTH_*_REDIRECT_URI` 신규 등록 안 함", "viewer→auth 실전환은
+  범위 밖"이라고 이미 명시돼 있던 미완성 상태였음. EC2 `.env`에
+  `AUTH_GOOGLE_REDIRECT_URI` 등 3종이 애초에 없어 항상 503 — 배포 이후
+  한 번도 정상 동작한 적 없었던 것으로 추정. env var를 채워도 `apps/auth`는
+  `viewer.users`를 read-only로만 봐서 신규 가입자는 여전히 409(별도 미해결
+  한계).
+- **1차 임시 패치(커밋 `7e90c93`)**: OAuth 리다이렉트 대상만 `viewer/oauth`로
+  교체(드롭다운 UI·이메일 로그인 폼은 유지).
+- **사용자 지시로 정식 revert(커밋 `65be261`)**: `beec23e` diff 확인 후
+  `mova-login-button.tsx`를 그 이전 상태(공용 `AuthDialog` 모달)로 완전히
+  되돌림 — `AuthDialog`(`app/login/auth-forms.tsx`)가 OAuth(`viewer/oauth`
+  경유)와 이메일 로그인/회원가입(`viewer/login`,`viewer/signup`)을 이미
+  전부 제공해 기능 손실 없음. `apps/auth`의 `return_to`/`whoami username`
+  등 게이트웨이 자체 개선분은 손대지 않고 보존(추후 게이트웨이 완성
+  사이클 재사용 대상). `tsc --noEmit`·`next build` 로컬 통과 확인 후 push.
+- **배포 후 검증**: Vercel 재배포 번들에서 옛 게이트웨이 흔적(`auth.suvisdev.cloud
+  /auth/login`, `/auth/exchange`) 없음, `viewer/oauth` 경로만 존재 확인.
+  **백엔드 로그로 실제 Google OAuth 왕복 성공 2건 확인**(`POST
+  oauth2.googleapis.com/token 200` → `기존 계정 로그인` → `콜백 완료
+  kind=session`) — 코드 자체는 정상 동작 증명됨. 다만 그 직후 프론트의
+  세션 교환 단계(`/api/auth/oauth-exchange`)에서 아래 3번 장애(cloudflared)
+  때문에 사용자가 실제로는 "Backend response error (502)"를 두 번 봤음.
+
+**3) cloudflared `api.suvisdev.cloud` 전용 장애 — 미해결, 24h 관찰 중**
+- 2번 검증 도중 `api.suvisdev.cloud` 전체가 간헐 502/타임아웃으로 흔들림
+  발견. `cloudflared` 컨테이너가 30분 넘게 로그 없이 조용히 멈춘 상태를
+  1차 발견해 `docker compose restart cloudflared`로 복구했으나 수 분 뒤
+  재발.
+- **후보 A(conntrack UDP 타임아웃) 가설 수립**: EC2 호스트 커널
+  `nf_conntrack_udp_timeout_stream`이 Linux 기본값 120초 — QUIC 흐름이
+  120초 이상 조용하면 로컬 netfilter가 NAT 매핑을 지워 엣지 응답을
+  드롭할 수 있다는 이론. 사용자 확인 후 `sysctl -w
+  net.netfilter.nf_conntrack_udp_timeout_stream=600`(런타임만, `/etc/sysctl.d/`
+  영구화는 24h 관찰 후 판단 조건으로 보류) 적용, 4개 QUIC 흐름 TTL이
+  즉시 599로 리필되는 것과 cloudflared 재기동 없이 반영되는 것 확인.
+- **후보 A 반증 데이터 누적**: 적용 직후에도 EC2 자신이 보내는 요청은
+  계속 실패. FAIL 시점마다 conntrack 4흐름이 매번 `[ASSURED]`+TTL 599로
+  건강했고 cloudflared 로그도 조용함(재연결 시도 자체가 없음) — conntrack
+  만료가 아니라는 직접 증거. 결정적으로 **EC2에서 `google.com`·
+  `cloudflare.com`·`suvisdev.cloud`(Vercel)·`auth.suvisdev.cloud`(같은
+  터널의 다른 hostname!)는 전부 즉시 200인데 `api.suvisdev.cloud`만
+  100% 실패** — 2026-08-06 WORK_LOG에 이미 기록된 것과 정확히 같은
+  패턴("터널 전체가 아니라 이 hostname 하나만" 문제, 그때는 Cloudflare
+  SJC PoP 유지보수 추정으로 잠정 결론, 자연 해소).
+- **봇 차단 가설도 기각**: 관찰 스크립트(60초 간격 curl) 자체가
+  Cloudflare 봇 방어를 유발했을 가능성을 의심해 스크립트를 멈추고
+  재시도했으나 EC2發 요청은 그대로 실패 — 관찰 자체가 원인은 아님.
+- **실사용자 영향은 현재 없음**: 로컬 환경·Vercel 프론트에서는 계속 200
+  정상 — 문제가 EC2 자신이 보내는 아웃바운드 경로에만 국한됨(비대칭).
+  사용자가 취침에 들어가 자정 무렵부터는 조용히 백그라운드 관찰만
+  지속(noop 체크 반복), 사용자를 깨울 조건은 "외부(로컬/Vercel)까지
+  실패 시작"으로 명확히 정해둠.
+
+### 오류·막힌 점(추가⑫)
+- `ssh aws "pkill -f cf_monitor.sh; ..."` 실행 시 SSH 세션 자체가 255로
+  죽는 현상 재발 — `pkill -f`가 패턴 매칭 시 원격 셸 자신의 커맨드라인
+  (전달한 명령 문자열 자체에 `cf_monitor.sh`가 포함됨)까지 잡아 죽이는
+  self-match 함정. 이후 알고 있는 PID로 직접 `kill <pid>`하는 방식으로
+  전환.
+- 관찰 스크립트 1차 버전이 curl 실패 시 `2>&1`로 stderr를 캡처해
+  `code=`/`time=` 파싱이 깨짐(에러 메시지가 값처럼 찍힘) — `2>/dev/null`로
+  교체 후 재기동.
+
+### 데이터(추가⑫)
+- `~/cf_monitor.log`(EC2, 60초 간격): 09-11 23:29 기준 OK 1건 / FAIL
+  523건(대부분 정확히 8.00초 타임아웃 — 응답 자체가 없음, 재기동
+  13:39:22 이후 거의 연속).
+- `~/cf_monitor_detail.log`: FAIL 시점 conntrack 스냅샷 다수 — 전부
+  `[ASSURED]`+TTL 근접 최대치로 건강, 후보 A 반증 근거로 축적 중.
+
+### 산출물(추가⑫)
+- 커밋 `7e90c93`(1차 임시 패치), `65be261`(정식 revert, `main` push·Vercel
+  배포 완료) — `suvis/components/mova/mova-login-button.tsx`.
+- EC2: `docker exec nginx nginx -s reload`(nginx stale DNS 해결),
+  `docker compose restart cloudflared`(1차 재기동), `sysctl -w
+  net.netfilter.nf_conntrack_udp_timeout_stream=600`(런타임, 미영구화).
+- 신규 파일(저장소 밖, EC2 로컬): `~/cf_monitor.sh`(24h 관찰 스크립트),
+  `~/cf_monitor.log`, `~/cf_monitor_detail.log` — git 미추적.
+- **다음 세션 시작 시 먼저 할 일**: cf_monitor 로그로 24h 관찰 결론 내기
+  (판단 기준 3가지 — "0건=확신상승·영구화", "빈도감소하나 잔존=부분
+  유효+다른 축", "무변화=가설 기각). 현재 데이터는 "무변화"에 가까움 —
+  sysctl 되돌리고 처음(엣지/PoP 축)으로 돌아갈 확률이 높아 보임. `apps/auth`
+  게이트웨이 완성은 이번 세션 범위 밖으로 유지(백로그, 리뷰 파이프라인
+  트랙 우선).
+
 ---
 
 ## 2026-08-10
