@@ -10,6 +10,7 @@ import {
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
 import { authHeader, clearSuvisSession, getSuvisSession } from "@/lib/suvis-session"
+import { getConversation, type ConversationMessage } from "@/lib/mova-conversations-api"
 import { getDailyMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
@@ -27,6 +28,13 @@ type ChatState = {
 }
 
 const CHAT_STORAGE_KEY = "mova-ai-chat-history-v2"
+
+type MovaAiChatBarProps = {
+  /** 로그인 사용자 한정. null이면 새 대화(전송 시 서버가 생성). */
+  conversationId?: number | null
+  /** 서버 응답으로 conversation_id가 변한 뒤 호출(부모가 사이드바 갱신). */
+  onConversationChanged?: (id: number | null) => void
+}
 
 function normalizeRecommendation(raw: unknown): MovaRecommendation | null {
   if (!raw || typeof raw !== "object") return null
@@ -124,13 +132,40 @@ function normalizeAssistantReply(
   return { content, recommendations: merged }
 }
 
-export function MovaAiChatBar() {
+function messagesFromConversation(msgs: ConversationMessage[]): ChatMessage[] {
+  return msgs.map((m) => {
+    const meta = m.meta ?? {}
+    if (m.role === "user") {
+      const refined = typeof meta.refined_query === "string" ? meta.refined_query : undefined
+      return refined
+        ? { role: "user", content: m.content, intentLabel: refined }
+        : { role: "user", content: m.content }
+    }
+    const rawRecs = Array.isArray(meta.recommendations) ? meta.recommendations : []
+    const recs: MovaRecommendation[] = []
+    for (const raw of rawRecs) {
+      const norm = normalizeRecommendation(raw)
+      if (norm) recs.push(norm)
+    }
+    return recs.length > 0
+      ? { role: "assistant", content: m.content, recommendations: recs }
+      : { role: "assistant", content: m.content }
+  })
+}
+
+export function MovaAiChatBar({
+  conversationId: conversationIdProp,
+  onConversationChanged,
+}: MovaAiChatBarProps = {}) {
   const [chat, setChat] = useState<ChatState>({
     messages: [],
     loading: false,
     error: null,
   })
   const [inputValue, setInputValue] = useState("")
+  const [conversationId, setConversationId] = useState<number | null>(
+    conversationIdProp ?? null,
+  )
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
 
   const listRef = useRef<HTMLDivElement>(null)
@@ -141,7 +176,14 @@ export function MovaAiChatBar() {
   const dailySuggestions = useMemo(() => getDailyMovaChatSuggestions(3), [])
   const isInitial = chat.messages.length === 0
 
+  // DB 모드(로그인 + 상위에서 prop 지정) vs sessionStorage 모드(비로그인)
+  const dbMode = conversationIdProp !== undefined
+
   useEffect(() => {
+    if (dbMode) {
+      hydratedRef.current = true
+      return
+    }
     if (typeof window === "undefined") return
     try {
       const hasQ = new URLSearchParams(window.location.search).get("q")
@@ -165,9 +207,10 @@ export function MovaAiChatBar() {
     } finally {
       hydratedRef.current = true
     }
-  }, [])
+  }, [dbMode])
 
   useEffect(() => {
+    if (dbMode) return
     if (typeof window === "undefined" || !hydratedRef.current) return
     try {
       window.sessionStorage.setItem(
@@ -177,7 +220,44 @@ export function MovaAiChatBar() {
     } catch {
       // ignore quota/storage errors
     }
-  }, [chat.messages])
+  }, [chat.messages, dbMode])
+
+  // DB 모드: 상위에서 conversationIdProp이 바뀔 때(사이드바 클릭·새 대화 버튼)
+  // 해당 대화를 서버에서 로드하거나 상태를 비운다.
+  useEffect(() => {
+    if (!dbMode) return
+    setConversationId(conversationIdProp ?? null)
+    if (conversationIdProp === null) {
+      setChat({ messages: [], loading: false, error: null })
+      setInputValue("")
+      // URL ?q= 자동 전송은 계속 유효 — autoSentRef 건드리지 않는다.
+      return
+    }
+    if (conversationIdProp === undefined) return
+    let cancelled = false
+    setChat((prev) => ({ ...prev, loading: true, error: null }))
+    void getConversation(conversationIdProp)
+      .then((detail) => {
+        if (cancelled) return
+        setChat({
+          messages: messagesFromConversation(detail.messages),
+          loading: false,
+          error: null,
+        })
+        autoSentRef.current = true
+      })
+      .catch((e) => {
+        if (cancelled) return
+        setChat({
+          messages: [],
+          loading: false,
+          error: e instanceof Error ? e.message : "대화를 불러오지 못했습니다.",
+        })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [conversationIdProp, dbMode])
 
   useEffect(() => {
     if (isInitial) return
@@ -209,6 +289,7 @@ export function MovaAiChatBar() {
         message: trimmed,
         history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
         model: "flash15",
+        conversation_id: conversationId,
       })
       const doFetch = (withAuth: boolean) =>
         fetch("/api/mova/chat", {
@@ -233,6 +314,7 @@ export function MovaAiChatBar() {
           reply?: string
           refined_query?: string
           recommendations?: MovaRecommendation[]
+          conversation_id?: number | null
           detail?: unknown
         }
         if (!res.ok) throw new Error(parseError(data, res.status))
@@ -260,6 +342,12 @@ export function MovaAiChatBar() {
           })
           return { ...prev, messages, loading: false }
         })
+        // 로그인 사용자: 서버가 준 conversation_id를 상위에 반영(사이드바 목록 갱신)
+        if (dbMode) {
+          const nextConvId = typeof data.conversation_id === "number" ? data.conversation_id : null
+          setConversationId(nextConvId)
+          onConversationChanged?.(nextConvId)
+        }
         return true
       } catch (e) {
         const msg = e instanceof Error ? e.message : "알 수 없는 오류입니다."
