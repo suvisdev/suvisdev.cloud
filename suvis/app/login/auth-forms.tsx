@@ -64,6 +64,21 @@ const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
   "http://127.0.0.1:8000"
 
+// auth 게이트웨이 — RS256 access_token을 발급. require_user·require_admin이
+// 이 토큰만 검증하므로 로그인/회원가입은 반드시 여기로 나가야 한다.
+const AUTH_BASE = "https://auth.suvisdev.cloud"
+const AUTH_AUD = "suvis-mova"
+
+async function fetchWhoamiUsername(
+  accessToken: string,
+): Promise<{ sub: string; username: string }> {
+  const res = await fetch(`${API_BASE}/mova/whoami`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error("사용자 정보를 불러오지 못했습니다.")
+  return (await res.json()) as { sub: string; username: string }
+}
+
 const tabListClass =
   "grid h-10 w-full grid-cols-2 rounded-xl border border-neutral-300 bg-neutral-100/80 p-1"
 // 이 카드는 다크 모드에서도 항상 라이트로 고정 렌더링된다(auth-dialog.tsx가 bg-white
@@ -135,43 +150,48 @@ export function AuthForms({
 
     patchLogin({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${API_BASE}/viewer/login/login`, {
+      const res = await fetch(`${AUTH_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: formProps.username.trim(),
           password: formProps.password,
+          aud: AUTH_AUD,
         }),
       })
-      let body: AuthApiResponse & AuthApiErrorBody
+      let body: { access_token?: string; detail?: unknown }
       try {
-        body = (await res.json()) as AuthApiResponse & AuthApiErrorBody
+        body = (await res.json()) as { access_token?: string; detail?: unknown }
       } catch {
         patchLogin({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok) {
+      if (!res.ok || !body.access_token) {
         patchLogin({
-          message: parseApiDetail(
-            body,
+          message: safeApiErrorMessage(
+            body.detail,
+            res.status === 401
+              ? "아이디 또는 비밀번호가 올바르지 않습니다."
+              : "로그인에 실패했습니다.",
             res.status,
-            "로그인 API를 찾을 수 없습니다. 백엔드 경로를 확인해 주세요.",
-            "로그인에 실패했습니다.",
           ),
         })
         return
       }
-      if (typeof body.id === "number" && body.username) {
-        saveSuvisSession({ id: body.id, username: body.username, nickname: body.nickname })
-      }
-      patchLogin({ message: body.message ?? "로그인에 성공했습니다." })
+      const whoami = await fetchWhoamiUsername(body.access_token)
+      saveSuvisSession({
+        id: Number(whoami.sub),
+        username: whoami.username || `user-${whoami.sub}`,
+        token: body.access_token,
+      })
+      patchLogin({ message: "로그인에 성공했습니다." })
       onAuthSuccess?.()
       if (variant === "page") {
         router.refresh()
       }
     } catch {
       patchLogin({
-        message: "백엔드에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요.",
+        message: "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       })
     } finally {
       patchLogin({ submitting: false })
@@ -192,44 +212,48 @@ export function AuthForms({
 
     patchSignup({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${API_BASE}/viewer/signup/signup`, {
+      const res = await fetch(`${AUTH_BASE}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: formProps.username.trim(),
-          password: formProps.password,
-          nickname: formProps.nickname.trim(),
           email: formProps.email.trim(),
-          gender: formProps.gender || "undisclosed",
-          age_group: formProps.age_group || "undisclosed",
-          birth_year: formProps.birth_year
-            ? Number.parseInt(formProps.birth_year, 10)
-            : null,
+          password: formProps.password,
+          username: formProps.username.trim() || undefined,
+          aud: AUTH_AUD,
         }),
       })
-      let body: AuthApiResponse & AuthApiErrorBody
+      let body: { access_token?: string; detail?: unknown }
       try {
-        body = (await res.json()) as AuthApiResponse & AuthApiErrorBody
+        body = (await res.json()) as { access_token?: string; detail?: unknown }
       } catch {
         patchSignup({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok) {
+      if (!res.ok || !body.access_token) {
         patchSignup({
-          message: parseApiDetail(
-            body,
+          message: safeApiErrorMessage(
+            body.detail,
+            res.status === 409 ? "이미 가입된 이메일입니다." : "회원가입에 실패했습니다.",
             res.status,
-            "회원가입 API를 찾을 수 없습니다. 백엔드 경로를 확인해 주세요.",
-            "회원가입에 실패했습니다.",
           ),
         })
         return
       }
-      patchSignup({ message: body.message ?? "회원가입이 완료되었습니다. 로그인해 주세요." })
-      setUi((prev) => ({ ...prev, tab: "login" }))
+      // 회원가입 즉시 auto-login — access_token으로 whoami → 세션 저장.
+      const whoami = await fetchWhoamiUsername(body.access_token)
+      saveSuvisSession({
+        id: Number(whoami.sub),
+        username: whoami.username || formProps.nickname.trim() || `user-${whoami.sub}`,
+        token: body.access_token,
+      })
+      patchSignup({ message: "회원가입이 완료되었습니다." })
+      onAuthSuccess?.()
+      if (variant === "page") {
+        router.refresh()
+      }
     } catch {
       patchSignup({
-        message: "백엔드에 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요.",
+        message: "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       })
     } finally {
       patchSignup({ submitting: false })
