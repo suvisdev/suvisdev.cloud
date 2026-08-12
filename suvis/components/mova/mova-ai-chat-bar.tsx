@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { ArrowUp, Loader2, Sparkles } from "lucide-react"
 import { patchState } from "@/lib/form-status"
 import {
@@ -157,6 +158,8 @@ export function MovaAiChatBar({
   conversationId: conversationIdProp,
   onConversationChanged,
 }: MovaAiChatBarProps = {}) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [chat, setChat] = useState<ChatState>({
     messages: [],
     loading: false,
@@ -373,8 +376,11 @@ export function MovaAiChatBar({
     const initial = (raw || "").trim()
     if (!initial) return
     autoSentRef.current = true
-    void sendMessage(initial)
-  }, [sendMessage])
+    void sendMessage(initial).finally(() => {
+      // 뒤로 가기로 재진입해도 auto-send가 다시 발화하지 않도록 URL에서 q 제거.
+      router.replace(pathname, { scroll: false })
+    })
+  }, [sendMessage, router, pathname])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -393,15 +399,10 @@ export function MovaAiChatBar({
   if (isInitial) {
     return (
       <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-8 md:px-6 md:py-12">
-        <div className="mb-6 w-full text-center sm:mb-8">
-          <p className="mb-2 text-[10px] font-medium tracking-[0.18em] text-mova-muted uppercase sm:mb-3 sm:text-xs sm:tracking-[0.2em]">
-            AI movie concierge
+        <div className="mb-5 w-full text-center sm:mb-6">
+          <p className="text-base font-medium text-mova-muted sm:text-lg">
+            무엇이 궁금하세요?
           </p>
-          <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-mova-text sm:text-3xl md:text-5xl">
-            지금 볼 영화,
-            <br />
-            Mova가 찾아줄게.
-          </h1>
         </div>
 
         <form
