@@ -73,7 +73,7 @@ export function MovaHeader() {
         <div className="absolute top-1/2 left-6 z-10 -translate-y-1/2">
           <MovaLogo size="sm" />
         </div>
-        <nav className="absolute top-1/2 left-28 z-10 hidden -translate-y-1/2 items-center gap-5 lg:flex">
+        <nav className="absolute top-1/2 left-28 z-10 hidden -translate-y-1/2 items-center gap-4 md:flex lg:gap-5">
             {nav.map((item) => {
               const active = isNavActive(pathname, item.href)
               return (
@@ -81,7 +81,7 @@ export function MovaHeader() {
                   key={item.label}
                   href={item.href}
                   className={cn(
-                    "text-sm transition-colors",
+                    "text-sm transition-colors whitespace-nowrap",
                     active
                       ? "mova-nav-active font-semibold text-mova-text"
                       : "text-neutral-400 hover:text-mova-text",
