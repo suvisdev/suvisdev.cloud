@@ -5,8 +5,10 @@ import Image from "next/image"
 import { useEffect, useState } from "react"
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
+import { MovaOttBadge } from "@/components/mova/mova-ott-badge"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { Button } from "@/components/ui/button"
+import { normalizeOttPlatforms } from "@/lib/mova-ott"
 import { initialFormStatus, patchState, type FormStatus } from "@/lib/form-status"
 import {
   addReviewActivity,
@@ -230,6 +232,11 @@ export function MovaTitleView({
                   {movie.rankBadge}
                 </p>
               ) : null}
+              {movie.synopsis ? (
+                <p className="mb-3 max-w-2xl text-sm leading-relaxed text-neutral-300 md:mb-4 md:text-[15px]">
+                  {movie.synopsis}
+                </p>
+              ) : null}
               <h1 className="font-display text-2xl font-bold text-mova-text md:text-4xl">
                 {movie.title}
               </h1>
@@ -281,32 +288,20 @@ export function MovaTitleView({
                 ) : movie.ratingCount > 0 ? (
                   <span className="text-xs text-neutral-500">{movie.ratingCount.toLocaleString()}명 평가</span>
                 ) : null}
-                {movie.platforms && movie.platforms.length > 0 ? (
-                  movie.platforms.map((p) =>
-                    p.url ? (
-                      <a
-                        key={p.provider}
-                        href={p.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300 transition hover:border-mova-accent/40 hover:text-mova-accent"
-                      >
-                        {p.provider}
-                      </a>
-                    ) : (
-                      <span
-                        key={p.provider}
-                        className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300"
-                      >
-                        {p.provider}
+                {(() => {
+                  const badges = normalizeOttPlatforms(movie.platforms, movie.title)
+                  if (badges.length > 0) {
+                    return badges.map((b) => <MovaOttBadge key={b.provider} badge={b} />)
+                  }
+                  if (movie.platform) {
+                    return (
+                      <span className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300">
+                        {movie.platform}
                       </span>
-                    ),
-                  )
-                ) : movie.platform ? (
-                  <span className="rounded-full border border-mova-border bg-mova-surface px-2.5 py-0.5 text-xs capitalize text-neutral-300">
-                    {movie.platform}
-                  </span>
-                ) : null}
+                    )
+                  }
+                  return null
+                })()}
                 {movie.badge ? (
                   <span className="rounded bg-mova-accent px-2 py-0.5 text-[10px] font-bold text-white">
                     {movie.badge}
@@ -318,12 +313,7 @@ export function MovaTitleView({
         </section>
 
         <div className="mx-auto max-w-[1400px] space-y-8 px-4 py-6 md:px-6 md:py-8">
-          {movie.synopsis ? (
-            <section className="rounded-xl border border-mova-border bg-mova-surface p-4 md:p-5">
-              <h2 className="text-base font-semibold text-mova-text">줄거리</h2>
-              <p className="mt-3 text-sm leading-relaxed text-neutral-300">{movie.synopsis}</p>
-            </section>
-          ) : null}
+          {/* 줄거리는 히어로 제목 위로 이동됨(2026-08-12). 별도 카드 유지 안 함. */}
 
           {movie.trailerKey ? (
             <section>
