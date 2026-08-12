@@ -15,7 +15,7 @@ import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 function isNavActive(pathname: string, href: string): boolean {
-  if (href === "/mova") return pathname === "/mova" || pathname.startsWith("/mova/main")
+  if (href === "/mova") return pathname === "/mova"
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 

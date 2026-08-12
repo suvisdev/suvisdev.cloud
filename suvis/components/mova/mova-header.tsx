@@ -13,7 +13,8 @@ import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 function isNavActive(pathname: string, href: string): boolean {
-  if (href === "/mova") return pathname === "/mova" || pathname.startsWith("/mova/main")
+  // /mova(홈)는 정확히 랜딩 경로만. /mova/main은 "채팅" 탭 소관이라 홈과 겹치지 않게.
+  if (href === "/mova") return pathname === "/mova"
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
