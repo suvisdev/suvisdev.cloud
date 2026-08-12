@@ -237,6 +237,9 @@ export function MovaAiChatBar({
       return
     }
     if (conversationIdProp === undefined) return
+    // ★ 동기적으로 autoSentRef를 잠근다 — 같은 tick의 auto-send effect가
+    // async 로드보다 먼저 발화해 URL ?q=로 새 대화를 또 만드는 사고 방지.
+    autoSentRef.current = true
     let cancelled = false
     setChat((prev) => ({ ...prev, loading: true, error: null }))
     void getConversation(conversationIdProp)
@@ -247,7 +250,6 @@ export function MovaAiChatBar({
           loading: false,
           error: null,
         })
-        autoSentRef.current = true
       })
       .catch((e) => {
         if (cancelled) return

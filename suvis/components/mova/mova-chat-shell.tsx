@@ -77,6 +77,24 @@ export function MovaChatShell() {
     }
   }, [desktopCollapsed, hydrated])
 
+  // 하이드 + 활성 대화 복원 확정된 뒤엔 URL의 ?q=를 정리해서, 뒤로 가기·새로고침에서
+  // auto-send가 재발화하지 않도록 한다. 챗바 쪽의 스트립은 첫 send 성공 후에만
+  // 작동하므로 이 안전망이 필요하다(활성 대화가 로드돼 챗바가 send를 안 하는 케이스).
+  useEffect(() => {
+    if (!hydrated) return
+    if (conversationId === null) return
+    try {
+      const u = new URL(window.location.href)
+      if (u.searchParams.has("q")) {
+        u.searchParams.delete("q")
+        const qs = u.searchParams.toString()
+        window.history.replaceState({}, "", u.pathname + (qs ? `?${qs}` : ""))
+      }
+    } catch {
+      // ignore
+    }
+  }, [hydrated, conversationId])
+
   const handleSelect = useCallback((id: number) => {
     setConversationId(id)
     setMobileOpen(false)
