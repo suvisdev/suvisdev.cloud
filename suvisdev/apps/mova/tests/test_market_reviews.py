@@ -33,6 +33,9 @@ from mova.dependencies.platform_user_taste_vector_provider import (  # noqa: E40
 from mova.dependencies.review_embedding_provider import (  # noqa: E402
     get_review_embedding_backfill_use_case,
 )
+from mova.dependencies.review_spoiler_provider import (  # noqa: E402
+    get_review_spoiler_backfill_use_case,
+)
 from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
 
 _NOW = datetime(2026, 7, 31, tzinfo=UTC)
@@ -116,12 +119,24 @@ class _FakeTasteRecompute:
         return "updated"
 
 
+class _FakeSpoilerBackfill:
+    """add_review/update_review가 BG에 넘기는 스포일러 감지 인터랙터의 fake."""
+
+    def __init__(self) -> None:
+        self.detect_calls: list[int] = []
+
+    async def detect_one(self, review_id: int) -> str:
+        self.detect_calls.append(review_id)
+        return "skipped"
+
+
 def _build_client(use_case: _FakeReviewsUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
     app.include_router(market_reviews_router)
     app.dependency_overrides[get_reviews_use_case] = lambda: use_case
     app.dependency_overrides[get_review_embedding_backfill_use_case] = _FakeEmbeddingBackfill
     app.dependency_overrides[get_user_taste_vector_recompute_use_case] = _FakeTasteRecompute
+    app.dependency_overrides[get_review_spoiler_backfill_use_case] = _FakeSpoilerBackfill
     if principal is not None:
         app.dependency_overrides[require_user] = lambda: principal
     return TestClient(app)

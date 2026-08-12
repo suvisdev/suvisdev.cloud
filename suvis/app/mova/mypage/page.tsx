@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
+import { MovaSpoilerBody } from "@/components/mova/mova-spoiler-body"
 import {
   deleteMovaAccount,
   deleteMovaReview,
@@ -526,7 +527,10 @@ export default function MypagePage() {
                             )}
                             {review.body && (
                               <p className="mt-1 line-clamp-2 text-xs text-neutral-400">
-                                {review.body}
+                                <MovaSpoilerBody
+                                  body={review.body}
+                                  spans={review.spoiler_spans}
+                                />
                               </p>
                             )}
                           </div>

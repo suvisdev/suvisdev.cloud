@@ -87,6 +87,8 @@ export type MovaCollectionDetail = {
   movie_count: number
 }
 
+export type MovaSpoilerSpan = { start: number; end: number; text: string }
+
 export type MovaReviewRow = {
   id: number
   user_id: number
@@ -95,6 +97,7 @@ export type MovaReviewRow = {
   rating: number
   body: string
   created_at: string
+  spoiler_spans?: MovaSpoilerSpan[]
 }
 
 export type MovaRatingSummary = {
@@ -498,6 +501,7 @@ export function movaReviewToComment(row: MovaReviewRow): MovaComment {
     text: row.body,
     likes: 0,
     commentCount: 0,
+    spoilerSpans: row.spoiler_spans,
   }
 }
 
@@ -659,6 +663,7 @@ export type MypageReviewItem = {
   rating: number | null
   body: string | null
   updated_at: string
+  spoiler_spans?: MovaSpoilerSpan[]
 }
 
 export type MypageActivity = {

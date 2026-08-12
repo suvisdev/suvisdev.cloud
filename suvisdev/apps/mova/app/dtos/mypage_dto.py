@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -40,6 +40,7 @@ class MyReviewItem:
     rating: float | None
     body: str | None
     updated_at: datetime
+    spoiler_spans: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -82,6 +83,7 @@ class MypageDto:
                     rating=r.rating,
                     body=r.body,
                     updated_at=r.updated_at,
+                    spoiler_spans=r.spoiler_spans,
                 )
                 for r in self.my_reviews
             ],

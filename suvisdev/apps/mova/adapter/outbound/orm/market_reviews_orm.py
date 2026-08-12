@@ -4,6 +4,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mova.adapter.outbound.orm.base_orm import MovaModel
@@ -48,4 +49,14 @@ class MovaReview(MovaModel):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+    spoiler_spans: Mapped[list] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
+        comment=(
+            "AI가 판단한 스포일러 문구 스팬 리스트. 각 항목은 "
+            "{start:int, end:int, text:str}. body 문자열 인덱스(파이썬 슬라이스 규칙)."
+        ),
     )

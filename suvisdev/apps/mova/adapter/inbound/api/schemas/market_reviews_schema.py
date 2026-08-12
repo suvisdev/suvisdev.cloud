@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+class SpoilerSpanSchema(BaseModel):
+    """리뷰 본문 안 스포일러 스팬(파이썬 슬라이스 인덱스 규칙)."""
+
+    start: int
+    end: int
+    text: str
 
 
 class ReviewActivityCreateSchema(BaseModel):
@@ -51,6 +60,7 @@ class ReviewSchema(BaseModel):
     rating: float
     body: str
     action_at: datetime
+    spoiler_spans: list[SpoilerSpanSchema] = Field(default_factory=list)
 
 
 class ReviewUpdateSchema(BaseModel):
@@ -66,6 +76,7 @@ class ReviewWithUserSchema(BaseModel):
     rating: float
     body: str
     created_at: datetime
+    spoiler_spans: list[SpoilerSpanSchema] = Field(default_factory=list)
 
 
 class MovieRatingSummarySchema(BaseModel):
