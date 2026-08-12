@@ -180,6 +180,130 @@
   `git pull` + `alembic upgrade head`(20260811_0003 → 20260812_0001) +
   `docker compose up -d --build backend auth` 필요.
 
+### 후속 사이클 C~N — 사용자 리포트 대응 릴레이
+
+대화 저장 v1 배포 후 사용자 실사용 리포트가 연이어 들어와 정정·개선을
+릴레이로 진행. 각 사이클마다 스크린샷 신고 → 원인 특정 → 수정 → 배포.
+
+**C. 채팅 UX 4가지 통합**(PR #82, `f7d68c5`)
+- auto-send 재발화(뒤로 가기 시 같은 쿼리 재전송) → 성공 후 `router.replace(pathname)`로 URL `?q=` 스트립.
+- 활성 대화 유실(remount로 chat-shell state 초기화) → `sessionStorage`로
+  `conversationId` 보존·복원.
+- 태블릿에서 헤더 네비(홈·영화·컬렉션·랭킹·마이) 사라짐 → `lg:flex`→`md:flex`, gap·nowrap 조정.
+- 데스크톱 사이드바 접기 불가 → PanelLeft/PanelLeftClose 토글 + localStorage 유지.
+- 부수: `/mova` 랜딩과 `/mova/main` 빈 상태 히어로 카피 중복 →
+  main 빈 상태를 "무엇이 궁금하세요?" 한 줄로 축소.
+- 하이드레이션 게이트: 세션·conv 복원 완료 전 flash·잘못된 auto-send 방지.
+
+**D. auto-send 재발화 근본 원인 + 입력창 밀림**(PR #83, `e2ff550`)
+- 사용자 재신고(스크린샷: 사용자 메시지 1건 + assistant 응답 2건).
+- 원인: DB 로드 effect가 `autoSentRef=true`를 `async .then` 안에서 설정 →
+  같은 tick의 auto-send effect가 아직 false인 flag를 보고 URL `?q=`로 재전송.
+- fix: DB 로드 effect 첫 라인에서 **동기적으로** `autoSentRef.current=true`
+  설정. Shell에도 하이드 완료 후 URL `?q=` 정리 안전망.
+- 부수: 입력창이 뷰포트 밖으로 밀림 → outer `min-h-screen` → `h-screen + overflow-hidden`.
+
+**E. 대화 리스트 스크롤 안 걸림**(PR #84, `884c9d9`)
+- 위 D의 h-screen 배포 후 다음 신고: "스크롤바가 사라짐, 대화가 안 내려짐"
+  (스크린샷).
+- 원인: flex-col + flex-1 자식의 min-height 기본값이 auto라 콘텐츠 높이가
+  부모에 강제되어 `overflow-y-auto`가 걸릴 자리 없음(flexbox 관용 함정).
+- fix: `overflow-y-auto`가 걸리는 곳까지 이어지는 체인 전체에 `min-h-0`
+  (Shell right col, ChatBar section, chat list, sidebar list).
+
+**F. 우측 랭킹 레일 + 사이드바 폴리싱**(PR #85, `d7466c4`)
+- 사용자 요청 "전체모드일 때 오른쪽에 짧게 랭킹".
+- `MovaChatRail` 신설: `lg:` 노출, `fetchHotRankings(8)` 클라이언트 fetch,
+  기존 `MovaRankingSection sidebar variant` 재활용.
+- 사이드바 폭 `md:w-64` → `md:w-60`, "새 대화" 버튼 padding·gap 축소,
+  대화 항목 밀도(text-13px, py-1.5, rounded-md), 삭제 hover red-500→400.
+
+**G. 리뷰 삭제 confirm**(PR #86, `8a78a05`)
+- `/mova/mypage` 리뷰 삭제 전에도 사이드바 대화 삭제와 동일 관례
+  ("...삭제할까요? 되돌릴 수 없습니다.") confirm 추가.
+
+**H. 리뷰 로그인 링크 suvisdev 이탈**(PR #87, `92c2983`)
+- 사용자: "mova에서 로그인/회원가입하면 (suvisdev) 메인 페이지로 넘어감".
+- 원인: 영화 상세 리뷰 섹션의 "로그인" 링크가 `/login`(suvisdev 루트) →
+  로그인 성공 시 `router.replace("/")`로 suvisdev 홈으로 튀어나감.
+- fix: `/mova/login?redirect=/mova/title/{slug}`로 변경.
+
+**I. 로그인·회원가입 토큰 미저장(1차)**(PR #88, `c93f0a9`)
+- 사용자: "회원가입했는데 사이드바 인증이 필요합니다 계속 뜸"(스크린샷).
+- 원인: `mova-auth-forms.tsx` 로그인이 `/api/auth/login` 프록시(aud 없이)
+  호출 → 응답에서 `id`/`username`만 파싱, `access_token`은 파싱 안 함 →
+  세션에 token 필드 없음 → `authHeader()` 빈 헤더 → API 401.
+- fix: `${AUTH_BASE}/auth/login`·`/auth/signup` 직접 호출(aud="suvis-mova"),
+  `access_token` 파싱 → `mova/whoami`로 신원 확보 → `saveSuvisSession({id, username, token})`.
+- 회원가입 auto-login으로 개선(기존 "로그인해주세요" tab 전환 제거).
+
+**J. 회원 탈퇴 API + UI + 오래된 세션 자동 정리**(PR #89, `fdf33f9`)
+- 사용자: "회원탈퇴가 없어… 할 수 있는 방법도 없고"(스크린샷).
+- 백엔드 신설: `ProfileUseCase.delete_account`·`ProfileRepository.delete_user`
+  포트 → Interactor·PgRepository 구현(`DELETE FROM users WHERE id=?`, FK
+  CASCADE로 리뷰·와치리스트·대화·취향 벡터·OAuth identities 전부 자동 삭제).
+- 라우터: `DELETE /viewer/profile/{user_id}` (require_user + IDOR).
+- 프록시 route.ts에 DELETE 메서드, `deleteMovaAccount(userId)` 클라이언트.
+- `/mova/mypage` 하단 위험 존 섹션 + 2단 확인(경고 confirm + 사용자명 재입력 prompt).
+- 부수: mypage에 오래된 토큰 없는 세션 자동 감지·정리 → 로그인 재유도.
+
+**K. 🔥 require_user·require_admin RS256 통일(핵심 원인)**(PR #90, `392deae`)
+- 위 I·J를 배포했는데도 여전히 "인증이 필요합니다"·"유효하지 않은 세션입니다"
+  가 안 사라짐(스크린샷). 사이드바 통째로 사라짐도 같은 원인.
+- 근본 원인: auth 게이트웨이(`auth.suvisdev.cloud`)는 **RS256** 토큰 발급인데
+  `shared/security/require_user.py`·`require_admin.py`는 **HS256 + JWT_SECRET**로
+  검증. 알고리즘 자체가 달라 decode 즉시 `PyJWTError` → 401. 새 로그인 사용자가
+  RS256 토큰을 잘 저장해도 백엔드가 그 토큰을 못 알아먹음.
+- `mova/dependencies/require_auth.py::get_current_user`는 이미 올바른 RS256 검증
+  구현(`shared.security.token_verifier`)이 있었음 — 두 시스템이 병존한 채 다른
+  라우터가 잘못된 쪽을 쓰고 있었을 뿐.
+- fix: `require_user`·`require_admin`을 `token_verifier`(RS256, aud="suvis-mova")로
+  통일. `UserPrincipal`/`AdminPrincipal` 인터페이스 유지. `principal.username`
+  사용처 grep 결과 0건 확인 후 빈 문자열로.
+- 전체 pytest 213 passed. EC2 backend/auth 재빌드 + nginx reload → 새 로그인
+  후 사이드바·마이페이지 정상 로드 실측.
+
+**L. 대화 중복 추천 방지**(PR #91, `fab99d1`)
+- 사용자: "다른 것도 소개해줘"·"다른건??" 요청에 이전에 이미 소개한 영화가
+  또 나옴(스크린샷: 미아즈마 캠프·뒤바뀐 친구들 재등장).
+- 원인: `history` 텍스트는 프롬프트에 붙지만 assistant 응답의 `recommendations`
+  목록은 LLM이 못 봄 → 후보 카탈로그가 매 턴 사실상 동일한 top-N이라 같은
+  slug 재선택.
+- fix:
+  - `ConversationsRepository.get_recent_recommendation_slugs(conversation_id, limit=30)` 신설 —
+    chat_messages `meta.recommendations[].id` 집합 추출.
+  - `ChatInteractor.chat`이 LLM 호출 직전에 이미 소개한 슬러그를 `catalog`에서
+    제거. 전부 필터되면 원본 유지(사용자에게 빈 응답 대신 뭐라도).
+  - 최종 `recs`에도 한 번 더 필터(2차 안전망 — LLM 자유 응답 대비).
+- 단위 테스트 3건 추가.
+
+**M. MovaLoginButton→AuthDialog fallout + auth-forms RS256**(PR #92, `f1acffa`)
+- 사용자: "새로 탈퇴하고 가입했는데 아직 인증 오류가 계속 떠"(스크린샷).
+- main이 `MovaLoginButton`을 `AuthDialog`(공용 auth-forms.tsx)로 리팩터링해
+  놓았는데, 그 새 경로도 `/viewer/login/login`(id/username/nickname, token 없음)을
+  사용 중이었음. 즉 어떤 경로로 로그인해도 세션에 token 저장 못 하던 문제가
+  여전히 남아 있었음(I는 mova-auth-forms만 고쳤음).
+- fix: `app/login/auth-forms.tsx`도 `${AUTH_BASE}/auth/login`·`/auth/signup`으로
+  통일(aud="suvis-mova" + access_token + whoami + token 세션 저장).
+- 회원가입 auto-login으로 개선.
+
+**N. 0카드일 때 정직한 안내 + 로딩 문구 순환**(PR #93, `38dbe2c`)
+- 사용자: "추천해줄 게 없으면 없다고 돌려서 말해줘"(스크린샷: 카드 0인데
+  "취향에 맞춰 엄선한 명작 영화들을 추천해 드릴게요…"로 응답).
+- 원인: `recs`가 0으로 확정된 뒤에도 LLM이 뱉은 "추천해 드릴게요" 텍스트가
+  그대로 표시됨(사용자에게 어긋난 응답).
+- fix: `ChatInteractor`에서 recs=0 확정 시 reply를 정직한 문구로 대체 —
+  이미 소개해서 필터로 빠진 경우와 카탈로그에 원래 없는 경우를 구분 안내.
+- 추가: 로딩 UI가 "추천 큐레이션 중…" 정적 텍스트라 3~10초 대기 시 사용자가
+  멈춘 것처럼 느낌. 3초마다 4문구가 fade로 순환(요청 취향 살펴보는 중 →
+  카탈로그 검색 → AI 조합 → 곧 추천). Gemini 응답 지연을 시각적으로 살아있음
+  으로 커버.
+- 단위 테스트 2건 추가, 전체 pytest 200 passed.
+
+**오늘 총 PR 14개**(#80~#93) 머지 완료. 프론트는 Vercel 자동 배포, 백엔드는
+필요 시 EC2 재빌드 진행. 최종 상태: 로그인 사용자 전 계층(사이드바·대화 저장·
+중복 방지·마이페이지·회원 탈퇴·리뷰) 정상 동작 실측 확인.
+
 ---
 
 ## 2026-08-11
