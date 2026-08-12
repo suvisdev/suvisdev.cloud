@@ -81,7 +81,7 @@ export function MovaChatSidebar({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {loading && (
           <p className="px-3 py-2 text-xs text-mova-muted">불러오는 중…</p>
         )}

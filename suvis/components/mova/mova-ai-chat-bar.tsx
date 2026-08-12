@@ -465,10 +465,12 @@ export function MovaAiChatBar({
 
   // ─── 채팅 모드 ────────────────────────────────────────────────────
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 md:px-6">
+    // min-h-0: flex-1 child의 기본 min-height:auto가 콘텐츠 높이를 요구해
+    // 리스트의 overflow-y-auto가 안 걸리는 flexbox 관용적 함정 방지.
+    <section className="mx-auto flex w-full min-h-0 max-w-3xl flex-1 flex-col px-4 md:px-6">
       <div
         ref={listRef}
-        className="flex-1 space-y-4 overflow-y-auto py-6"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-6"
       >
         {chat.messages.map((msg, i) => (
           <div
