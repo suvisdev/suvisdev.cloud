@@ -1,8 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import Link from "next/link"
-import { Clapperboard, Loader2, Send, Sparkles } from "lucide-react"
+import { ArrowUp, Loader2, Sparkles } from "lucide-react"
 import { patchState } from "@/lib/form-status"
 import {
   MovaRecommendationCards,
@@ -27,16 +26,7 @@ type ChatState = {
   error: string | null
 }
 
-type MessageFormProps = { message: string }
-const CHAT_STORAGE_KEY = "mova-ai-chat-history-v1"
-
-const INITIAL_MESSAGES: ChatMessage[] = [
-  {
-    role: "assistant",
-    content:
-      "안녕하세요! Mova AI예요. 장르·분위기·OTT를 말씀해 주시면 짧은 소개와 함께 영화 3편을 추천해 드릴게요.",
-  },
-]
+const CHAT_STORAGE_KEY = "mova-ai-chat-history-v2"
 
 function normalizeRecommendation(raw: unknown): MovaRecommendation | null {
   if (!raw || typeof raw !== "object") return null
@@ -71,7 +61,6 @@ function parseError(body: unknown, status: number): string {
   return safeApiErrorMessage(detail, `요청에 실패했습니다. (${status})`, status)
 }
 
-/** Gemini JSON이 reply에 그대로 올 때 intro·picks 분리 */
 function parseJsonReply(raw: string): { intro: string; picks: MovaRecommendation[] } {
   let text = raw.trim()
   if (!text) return { intro: "", picks: [] }
@@ -135,26 +124,22 @@ function normalizeAssistantReply(
   return { content, recommendations: merged }
 }
 
-type MovaAiChatBarProps = {
-  /** 랜딩(`/mova`) 하단 고정용 — 높이 축소 */
-  compact?: boolean
-  className?: string
-}
-
-export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps = {}) {
+export function MovaAiChatBar() {
   const [chat, setChat] = useState<ChatState>({
-    messages: INITIAL_MESSAGES,
+    messages: [],
     loading: false,
     error: null,
   })
+  const [inputValue, setInputValue] = useState("")
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
 
   const listRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const heroInputRef = useRef<HTMLTextAreaElement>(null)
+  const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
   const hydratedRef = useRef(false)
   const dailySuggestions = useMemo(() => getDailyMovaChatSuggestions(3), [])
-  const showSuggestions = !chat.messages.some((m) => m.role === "user")
+  const isInitial = chat.messages.length === 0
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -195,8 +180,15 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
   }, [chat.messages])
 
   useEffect(() => {
+    if (isInitial) return
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" })
-  }, [chat.messages, chat.loading])
+  }, [chat.messages, chat.loading, isInitial])
+
+  // 히어로 → 채팅 모드 전환 후 채팅 입력창에 자동 포커스
+  useEffect(() => {
+    if (isInitial || chat.loading) return
+    chatInputRef.current?.focus({ preventScroll: true })
+  }, [isInitial, chat.loading])
 
   const sendMessage = useCallback(
     async (text: string): Promise<boolean> => {
@@ -204,17 +196,16 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
       if (!trimmed || chat.loading) return false
 
       patchChat({ error: null })
-      const history = chat.messages.filter((m) => m.role === "user" || m.role === "assistant")
+      const history = chat.messages
       const userMsg: ChatMessage = { role: "user", content: trimmed }
       setChat((prev) => ({
         ...prev,
         messages: [...prev.messages, userMsg],
         loading: true,
       }))
+      setInputValue("")
 
       try {
-        // 신원은 토큰으로만 전달한다 — 백엔드가 바디의 user_id를 더 이상
-        // 신뢰하지 않는다(2026-08-07). 비로그인이면 헤더 없이 익명으로 간다.
         const res = await fetch("/api/mova/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeader() },
@@ -264,10 +255,8 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
           messages: prev.messages.slice(0, -1),
           loading: false,
         }))
-        if (inputRef.current) inputRef.current.value = trimmed
+        setInputValue(trimmed)
         return false
-      } finally {
-        inputRef.current?.focus()
       }
     },
     [chat.loading, chat.messages],
@@ -276,23 +265,18 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
   useEffect(() => {
     if (!hydratedRef.current) return
     if (autoSentRef.current) return
-    const raw = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("q") : null
+    const raw = typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("q")
+      : null
     const initial = (raw || "").trim()
     if (!initial) return
-    if (inputRef.current) inputRef.current.value = initial
     autoSentRef.current = true
-    void sendMessage(initial).then((ok) => {
-      if (ok && inputRef.current) inputRef.current.value = ""
-    })
+    void sendMessage(initial)
   }, [sendMessage])
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const form = e.currentTarget
-    const formData = new FormData(form)
-    const formProps = Object.fromEntries(formData.entries()) as MessageFormProps
-    const ok = await sendMessage(formProps.message)
-    if (ok) form.reset()
+    void sendMessage(inputValue)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -301,48 +285,85 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
     e.currentTarget.form?.requestSubmit()
   }
 
-  return (
-    <section
-      className={cn(
-        "relative flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-mova-border bg-mova-surface shadow-[0_2px_12px_rgba(0,0,0,0.07)] dark:shadow-[0_12px_48px_rgba(0,0,0,0.45)]",
-        compact
-          ? "min-h-[min(360px,42vh)] max-h-[min(480px,52vh)]"
-          : "min-h-[min(420px,65vh)] sm:min-h-[480px] lg:min-h-[640px]",
-        className,
-      )}
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--mova-accent-soft)_0%,_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(139,127,212,0.08)_0%,_transparent_50%)]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 hidden opacity-[0.03] dark:block"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.15) 2px, rgba(255,255,255,0.15) 4px)",
-        }}
-      />
+  const canSubmit = inputValue.trim().length > 0 && !chat.loading
 
-      <header className="relative z-10 flex items-center gap-3 border-b border-mova-border bg-mova-surface/90 px-4 py-3 backdrop-blur-md">
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-mova-accent to-[#6b2d4a] shadow-lg shadow-mova-accent-soft">
-          <Clapperboard className="h-5 w-5 text-white" />
-          <span className="absolute -right-0.5 -bottom-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-mova-bg ring-2 ring-mova-surface">
-            <Sparkles className="h-2.5 w-2.5 text-mova-accent-bright" />
-          </span>
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold tracking-wide text-mova-text">Mova AI 컨시어지</h2>
-          <p className="text-[11px] text-neutral-500">맞춤 영화 · 드라마 추천</p>
+  // ─── 히어로 모드 ──────────────────────────────────────────────────
+  if (isInitial) {
+    return (
+      <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-8 md:px-6 md:py-12">
+        <div className="mb-6 w-full text-center sm:mb-8">
+          <p className="mb-2 text-[10px] font-medium tracking-[0.18em] text-mova-muted uppercase sm:mb-3 sm:text-xs sm:tracking-[0.2em]">
+            AI movie concierge
+          </p>
+          <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-mova-text sm:text-3xl md:text-5xl">
+            지금 볼 영화,
+            <br />
+            Mova가 찾아줄게.
+          </h1>
         </div>
-        <span className="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 sm:inline">
-          LIVE
-        </span>
-      </header>
 
+        <form
+          onSubmit={handleSubmit}
+          className="relative w-full rounded-2xl border border-mova-border bg-mova-surface shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.45)]"
+        >
+          <textarea
+            ref={heroInputRef}
+            name="message"
+            rows={1}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={chat.loading}
+            placeholder="장르, 분위기, 배우를 알려주세요…"
+            className="max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
+          />
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            aria-label="AI 추천 받기"
+            className={cn(
+              "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-lg transition-all",
+              canSubmit
+                ? "bg-mova-accent text-white shadow-md hover:brightness-110"
+                : "bg-mova-surface-2 text-mova-muted",
+              "disabled:opacity-40",
+            )}
+          >
+            {chat.loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+            )}
+          </button>
+        </form>
+
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 px-1 sm:mt-4 sm:gap-2">
+          {dailySuggestions.map((hint) => (
+            <button
+              key={hint}
+              type="button"
+              disabled={chat.loading}
+              onClick={() => void sendMessage(hint)}
+              className="rounded-full border border-mova-border bg-mova-surface px-3 py-1.5 text-xs text-mova-muted transition-colors hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
+            >
+              {hint}
+            </button>
+          ))}
+        </div>
+
+        {chat.error && (
+          <p className="mt-4 text-xs text-red-500 dark:text-red-400">{chat.error}</p>
+        )}
+      </section>
+    )
+  }
+
+  // ─── 채팅 모드 ────────────────────────────────────────────────────
+  return (
+    <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 md:px-6">
       <div
         ref={listRef}
-        className="relative z-10 flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-3 py-4 md:px-4"
+        className="flex-1 space-y-4 overflow-y-auto py-6"
       >
         {chat.messages.map((msg, i) => (
           <div
@@ -367,7 +388,7 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
             >
               <div
                 className={cn(
-                  "max-w-full rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed break-words [overflow-wrap:anywhere]",
+                  "max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words [overflow-wrap:anywhere]",
                   msg.role === "user"
                     ? "rounded-tr-md bg-gradient-to-br from-mova-accent to-[#b84a72] text-white shadow-md shadow-mova-accent-soft"
                     : "rounded-tl-md border border-mova-border bg-mova-surface-2 text-mova-text",
@@ -393,7 +414,7 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2">
               <Sparkles className="h-3.5 w-3.5 animate-pulse text-mova-accent" />
             </span>
-            <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-3.5 py-2.5 text-sm text-mova-muted">
+            <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-2.5 text-sm text-mova-muted">
               <Loader2 className="h-4 w-4 animate-spin text-mova-accent" />
               추천 큐레이션 중…
             </div>
@@ -402,62 +423,47 @@ export function MovaAiChatBar({ compact = false, className }: MovaAiChatBarProps
       </div>
 
       {chat.error && (
-        <p className="relative z-10 border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600 dark:border-red-500/20 dark:bg-red-950/40 dark:text-red-300">
+        <p className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600 dark:border-red-500/20 dark:bg-red-950/40 dark:text-red-300">
           {chat.error}
         </p>
       )}
 
-      {showSuggestions && (
-        <div className="relative z-10 flex max-w-full flex-wrap gap-2 border-t border-mova-border bg-mova-surface-2 px-3 py-2.5 md:px-4">
-          {dailySuggestions.map((s) => (
-            <button
-              key={s}
-              type="button"
-              disabled={chat.loading}
-              onClick={() => void sendMessage(s)}
-              className="rounded-full border border-mova-border bg-mova-surface px-3 py-1 text-xs text-mova-muted transition-colors hover:border-mova-accent/40 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
-
       <form
-        onSubmit={(e) => void handleSubmit(e)}
-        className="relative z-10 flex items-end gap-2 border-t border-mova-border bg-mova-bg px-3 py-3 md:px-4"
+        onSubmit={handleSubmit}
+        className="sticky bottom-0 z-10 border-t border-mova-border bg-mova-bg/95 py-3 backdrop-blur-md"
       >
-        <textarea
-          ref={inputRef}
-          name="message"
-          onKeyDown={onKeyDown}
-          rows={1}
-          placeholder="장르, 분위기, 배우를 알려주세요…"
-          disabled={chat.loading}
-          className="max-h-24 min-h-[44px] flex-1 resize-none rounded-lg border border-mova-border bg-mova-surface-2 px-4 py-3 text-sm text-mova-text placeholder:text-neutral-500 outline-none transition-colors focus:border-mova-accent/50 focus:ring-1 focus:ring-mova-accent-soft disabled:opacity-60"
-        />
-        <button
-          type="submit"
-          disabled={chat.loading}
-          aria-label="전송"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-mova-accent text-white shadow-lg shadow-mova-accent-soft transition-all hover:brightness-110 disabled:opacity-40 disabled:shadow-none"
-        >
-          {chat.loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-        </button>
-      </form>
-
-      {!compact && (
-        <p className="relative z-10 border-t border-mova-border bg-mova-bg px-4 py-2 text-center text-[10px] text-neutral-500">
-          AI 추천은 참고용입니다. 작품 상세는{" "}
-          <Link
-            href="/mova/main"
-            className="text-neutral-400 underline-offset-2 hover:text-mova-accent-bright hover:underline"
+        <div className="relative rounded-2xl border border-mova-border bg-mova-surface shadow-sm transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_4px_24px_rgba(190,24,93,0.12)]">
+          <textarea
+            ref={chatInputRef}
+            name="message"
+            rows={1}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={chat.loading}
+            placeholder="장르, 분위기, 배우를 알려주세요…"
+            className="max-h-32 min-h-[3rem] w-full resize-none bg-transparent px-4 py-3 pr-12 text-sm leading-relaxed text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60"
+          />
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            aria-label="전송"
+            className={cn(
+              "absolute right-2.5 bottom-2.5 flex h-8 w-8 items-center justify-center rounded-lg transition-all",
+              canSubmit
+                ? "bg-mova-accent text-white shadow-md hover:brightness-110"
+                : "bg-mova-surface-2 text-mova-muted",
+              "disabled:opacity-40",
+            )}
           >
-            메인 HOT 랭킹
-          </Link>
-          에서 확인하세요.
-        </p>
-      )}
+            {chat.loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
+      </form>
     </section>
   )
 }

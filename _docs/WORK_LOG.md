@@ -28,6 +28,88 @@
 
 ---
 
+## 2026-08-12
+
+### 작업 내용
+- 문서 정리 사이클 — 사용자가 여러 문서를 순회하면서 종결된 것/잘못 위치한
+  것/중복된 것을 하나씩 점검·정리.
+- 프론트 정비 — 메인 히어로 이미지 이질감 제거(포스터→영상 첫 프레임), mova
+  채팅 UI를 Gemini/Claude 스타일 2단 모드로 개편.
+
+### 수정/구현
+
+**문서 정리**
+- 삭제(회고 문서·잔여 능동 항목 0건 확인):
+  - `_docs/MOVA_UI_AUDIT.md` — 2026-08-05 5영역 감사 사이클 종결본.
+  - `_docs/MOVA_UI_QUICK_WINS.md` — character_name 관통·죽은 컴포넌트 정리
+    저수확 사이클 종결본.
+- 이동(mova 앱 전용 문서라 루트 `_docs/` 배치 규칙 위반) — `git mv`로 이력 보존:
+  - `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`
+    → `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`
+  - `_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`
+    → `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`
+  - 두 파일의 상호 참조는 mova `_docs/` 관례(bare 파일명)로 정리.
+- 통합(스코프 규칙을 실 SSOT에 병합):
+  - `_docs/SUVISDEV_RULES.md`(프론트 UI 변경 스코프 규칙 4절) → `suvis/CLAUDE.md`
+    의 새 섹션 F로 이관. 기존 F(관련 문서)는 G로 재배번.
+- 참조 갱신:
+  - `_docs/README.md` — 삭제/이동된 4개 행 정리, "mova 심층 조사는
+    `suvisdev/apps/mova/_docs/`에 있다" 안내 추가.
+  - `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` — mova 문서 경로 6곳 갱신
+    (줄바꿈으로 잘려 있던 2곳 포함).
+  - `WORK_LOG.md`의 과거 로그 항목들은 히스토리라 손대지 않음.
+
+**로컬 정리**
+- `.idea/`(JetBrains 메타) 제거. `.gitignore`에 이미 있어 트래킹된 적 없음.
+
+**히어로 이미지 스왑 이질감 제거** (`suvis/components/home/hero-image-panel.tsx`)
+- 사용자가 메인 진입 시 "1초 예전 사진 → 영상" 튐 지적. 원인 특정: HTML5
+  `<video>`의 `poster` 표준 동작이며 `hero-ai.jpg`(1.7MB, AI 얼굴)와
+  `hero-holographic-mask.mp4`(2MB, 컨트롤룸) 장면이 완전히 달라 스왑이 튐.
+- 조치: `ffmpeg -vf "select=eq(n\,0)" -q:v 2 -frames:v 1`로 영상 첫 프레임을
+  62KB JPG로 뽑아 `public/hero-holographic-mask-poster.jpg` 신설, `HERO_POSTER`
+  참조 갱신, 고아 `hero-ai.jpg` 제거. 시각적 이음매 소멸 + 포스터 용량
+  1.7MB → 62KB(약 27배 감소).
+
+**mova 채팅 UI 개편 — Gemini/Claude 스타일 2단 모드**
+- 요구(사용자 확인 2회): `/mova/main`을 채팅 중심으로 개편, 상단 헤더·일간
+  힌트 칩·"지금 볼 영화, Mova가 찾아줄게" 히어로 카피 유지, 사이드 요소(랭킹
+  사이드바·장르 카탈로그·프로모·온보딩·선호 장르 배지)는 전부 제거 — 전용
+  `/mova/rankings`·`/mova/movies` 라우트가 이미 있어 중복.
+- 재작성 `suvis/components/mova/mova-ai-chat-bar.tsx`:
+  - 2단 모드 — user 메시지 0건일 때 히어로(중앙 큰 입력창+힌트 칩), 첫 메시지
+    전송 즉시 채팅 모드(대화 리스트+하단 sticky 입력창)로 자동 전환. 같은
+    `chat.messages` 상태를 공유해 모핑처럼 느껴짐.
+  - 입력을 controlled(`inputValue`) 전환 — 모드 전환 시 값 유지·오류 시
+    복구가 깔끔.
+  - 히어로 → 채팅 전환 후 채팅 입력창 자동 포커스(useEffect).
+  - `sessionStorage` 키 `mova-ai-chat-history-v1` → `v2` 승격(스키마 변경 반영,
+    기존 히스토리 리셋).
+  - 죽어 있던 `compact` 프롭 제거.
+  - 기존 URL `?q=` 자동 전송·추천 카드 렌더링·오류 UI는 그대로 보존.
+- 재작성 `suvis/app/mova/main/page.tsx`: `MovaHeader` + `MovaAiChatBar`만.
+  `fetchHotRankings`·`fetchMovaMoviesFromApi`·`groupMovaMoviesByGenre` 등
+  서버 fetch·5개 사이드 컴포넌트 import 전부 제거.
+- 랜딩(`/mova`)의 `MovaLandingChatBar`는 손대지 않음 — `/mova/main?q=...`
+  이동 → 자동 전송 → 즉시 채팅 모드 진입, 기존 동선 유지.
+- **부수 발견 — 고아 컴포넌트 5개**: 이번 개편으로 아래 5개가 어디에도
+  import 안 되는 상태(`grep -rln`으로 확인). 이번 스코프가 "제거"였고 "삭제"는
+  아니라 남겨둠(사용자 판단 대기):
+  - `mova-genre-catalog.tsx`, `mova-genre-onboarding.tsx`,
+    `mova-preferred-genres-badge.tsx`, `mova-promo-banner.tsx`,
+    `mova-ranking-section.tsx`
+
+### 오류·막힌 점
+- 없음. `pnpm type-check` 클린, dev 서버 부팅 성공(`Ready in 311ms`),
+  `GET /mova/main` HTTP 200 확인. UI 시각 동작은 사용자 브라우저 확인.
+
+### 산출물
+- 커밋 3건(문서 정리 / 히어로 포스터 / mova 채팅 UI 개편 + WORK_LOG).
+- Vercel `main` 자동 배포로 프론트 반영. EC2 backend/auth 재빌드 불필요
+  (순수 프론트 변경).
+
+---
+
 ## 2026-08-11
 
 ### 작업 내용
