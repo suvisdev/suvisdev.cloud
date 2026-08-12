@@ -130,10 +130,25 @@ export async function fetchMovaSearch(query: string): Promise<MovaSearchResult[]
         : undefined
     throw new Error(safeApiErrorMessage(detail, `검색 실패 (${res.status})`, res.status))
   }
-  const rows = (await res.json()) as MovaSearchResult[]
-  return rows.map((row) => ({
-    ...row,
-    id: resolveMovaCatalogSlug(row.id, row.title),
+  // 백엔드는 {query, items:[...], total, limit, offset} 형태. items에서만 뽑는다.
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: number
+      slug: string
+      title: string
+      release_year: number
+      rating: number
+      poster_url: string
+    }>
+  }
+  const items = Array.isArray(data.items) ? data.items : []
+  return items.map((row) => ({
+    id: resolveMovaCatalogSlug(row.slug, row.title),
+    title: row.title,
+    year: String(row.release_year || ""),
+    rating: row.rating || 0,
+    poster: coercePosterUrl(row.poster_url) ?? "",
+    match_type: "title" as const,
   }))
 }
 

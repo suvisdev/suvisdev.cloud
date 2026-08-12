@@ -6,8 +6,9 @@ export async function GET(request: Request) {
   const q = searchParams.get("q") ?? ""
 
   try {
+    // 자동완성용이라 5건 이하로 제한(사용자 요청).
     const res = await backendFetch(
-      `/mova/search?q=${encodeURIComponent(q)}&limit=12`,
+      `/mova/search?q=${encodeURIComponent(q)}&limit=5`,
       { cache: "no-store" },
     )
     let data: unknown
