@@ -116,3 +116,30 @@ class ConversationsPgRepository(ConversationsRepository):
         if conv is not None:
             await self._session.delete(conv)
             await self._session.commit()
+
+    async def get_recent_recommendation_slugs(
+        self, conversation_id: int, limit: int = 30
+    ) -> set[str]:
+        stmt = (
+            select(MovaConversationMessage.meta)
+            .where(
+                MovaConversationMessage.conversation_id == conversation_id,
+                MovaConversationMessage.role == "assistant",
+            )
+            .order_by(MovaConversationMessage.id.desc())
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        slugs: set[str] = set()
+        for meta in rows:
+            if not isinstance(meta, dict):
+                continue
+            recs = meta.get("recommendations")
+            if not isinstance(recs, list):
+                continue
+            for r in recs:
+                if isinstance(r, dict):
+                    slug = r.get("id")
+                    if isinstance(slug, str) and slug:
+                        slugs.add(slug)
+        return slugs

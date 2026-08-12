@@ -122,6 +122,23 @@ class ChatInteractor(ChatUseCase):
                 year_max=intent["search_filters"].get("year_max"),
             )
 
+        # 2.5. 대화 스레드에서 이미 추천한 영화 슬러그를 뽑아 후보에서 제거한다.
+        #      "다른 것도 추천해줘" 같은 후속 질의에서 같은 영화 재소개 방지.
+        already_shown_slugs = await self._recently_recommended_slugs(request)
+        if already_shown_slugs:
+            filtered = [c for c in catalog if c.id not in already_shown_slugs]
+            if filtered:  # 전부 필터되면(후보 부족) 원본 유지 — LLM이 정직하게 0카드 응답
+                dropped = len(catalog) - len(filtered)
+                if dropped > 0:
+                    logger.info(
+                        "[ChatInteractor] trace=%s 중복 제거 후 후보 %d→%d (이미 소개 %d편)",
+                        trace_id,
+                        len(catalog),
+                        len(filtered),
+                        len(already_shown_slugs),
+                    )
+                catalog = filtered
+
         # 3. 추천 생성 (프롬프트·Gemini·파싱·DB 보강은 포트 구현체 내부)
         reply, recs = await self._llm.generate_recommendation(
             history=request.history_dicts(),
@@ -161,6 +178,10 @@ class ChatInteractor(ChatUseCase):
             len(recs),
         )
 
+        # 2차 안전망 — 후보 필터가 완벽하지 않아도(LLM이 카탈로그 밖 자유 응답,
+        # slug 오해 등) 최종 반환에서 한 번 더 이미 소개한 영화를 제거.
+        if already_shown_slugs:
+            recs = [r for r in recs if r.id not in already_shown_slugs]
         recommendation_dtos = [
             ChatRecommendationDto(
                 id=r.id,
@@ -247,6 +268,19 @@ class ChatInteractor(ChatUseCase):
             recommendations=[],
             conversation_id=conversation_id,
         )
+
+    async def _recently_recommended_slugs(self, request: MovaChatRequest) -> set[str]:
+        """대화 스레드에서 이전에 소개한 영화 슬러그 집합. 스레드 없거나 conversations
+        포트 미주입이면 빈 집합."""
+        if not (request.user_id and request.conversation_id and self._conversations):
+            return set()
+        try:
+            return await self._conversations.get_recent_recommendation_slugs(
+                request.conversation_id, limit=30
+            )
+        except Exception:
+            # 필터 조회 실패는 조용히 스킵 — 채팅 자체는 계속 동작해야 함.
+            return set()
 
     async def _verify_conversation_ownership(self, request: MovaChatRequest) -> None:
         """LLM 호출 전에 대화 소유권 확인. 로그인+id 지정 케이스에만 검사."""
