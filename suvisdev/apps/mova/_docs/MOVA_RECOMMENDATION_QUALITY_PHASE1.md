@@ -356,7 +356,7 @@ CPU에서도 텍스트 1건당 수백 ms대가 보통이지만, 이건 **일반�
   다시 빠지면 mova chat이 조용히 lora 경로로 돌아가 실패한다 — 배포
   체크리스트에 "`RECOMMENDATION_BACKEND=gemini` 확인"을 항목으로 넣을 것.
 - ~~제목 매칭을 title 문자열 대신 id 기반으로 바꾸기~~ — **완료(2026-08-05)**.
-  근본 원인 조사(`_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`) →
+  근본 원인 조사(`MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`) →
   grounded prompting 구현·배포·재검증까지 끝남. §6 참고.
 - **reply 텍스트와 picks 개수 불일치(2026-08-05 신규, §6에서 발견)**:
   Gemini가 intro(`reply`)를 picks 필터링 **전** 기준으로 작성해서 "두 편을
@@ -378,7 +378,7 @@ CPU에서도 텍스트 1건당 수백 ms대가 보통이지만, 이건 **일반�
 
 ## 6. 재검증 — Grounded Prompting 적용 후(2026-08-05)
 
-`_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`의 진단대로 movie_id
+`MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`의 진단대로 movie_id
 기반 grounding을 구현·배포한 뒤 골든셋 15개를 다시 실행했다.
 
 **집계 비교표(공식 기록)**:

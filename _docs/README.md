@@ -12,12 +12,11 @@
 | 문서 | 내용 |
 |------|------|
 | [`EXAONE_LOCAL_AI_SETUP.md`](EXAONE_LOCAL_AI_SETUP.md) | 로컬 GPU에 EXAONE Router/Worker(Ollama) + AWQ 직접 서빙 + mova 채팅용 QLoRA 재학습 파이프라인을 새 PC에서 그대로 재현하는 운영 문서 |
-| [`SUVISDEV_RULES.md`](SUVISDEV_RULES.md) | `suvis/` UI 작업 시 변경 범위(스코프) 판별 규칙 — "지시 안 받은 위치 이동·구조 개편 금지" |
 | [`SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`](SUVIS_ADMIN_MULTIAGENT_PROGRESS.md) | 어드민 대시보드 + 멀티에이전트(비전 02~08) 트랙 진행 상황 — 완료됨/백로그, 세션 재개용 |
 | [`WORK_LOG.md`](WORK_LOG.md) | 날짜별 작업 일지(무엇을 왜 했는지, 어디서 막혔는지, 데이터 변화) |
-| [`MOVA_RECOMMENDATION_QUALITY_PHASE1.md`](MOVA_RECOMMENDATION_QUALITY_PHASE1.md) | mova 추천 품질 골든셋(15개) — 재실행 스크립트·판정 기준·결과 비교 |
-| [`MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`](MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md) | mova 추천 오귀속 버그 근본 원인 조사(동명이인·포맷 미매칭) |
 | `.obsidian/` | 이 워크스페이스를 Obsidian 볼트로 열 때의 로컬 설정(심볼릭 링크 등) — 커밋되지만 개인 IDE 상태에 가까움 |
+
+> mova 앱 관련 심층 조사(추천 품질 골든셋 · 오귀속 근본 원인 등)는 성격상 앱별 문서라 [`../suvisdev/apps/mova/_docs/`](../suvisdev/apps/mova/_docs/) 아래에 있다.
 
 ---
 
