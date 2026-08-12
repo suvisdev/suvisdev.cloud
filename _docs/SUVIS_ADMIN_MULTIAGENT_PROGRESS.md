@@ -425,7 +425,7 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   (directors는 상한 없어 21명 전원 유실은 그대로 정확).
 - **mova 추천 품질 검증 Phase 1(EC2 Gemini 경로, 2026-08-05)**: 골든셋
   15개로 `/mova/chat` 실제 호출·판정 완료(통과 6·부분 5·실패 4) —
-  상세는 `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`, WORK_LOG 추가⑤
+  상세는 `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`, WORK_LOG 추가⑤
   참고. 실행 전 `RECOMMENDATION_BACKEND`가 EC2에 아예 미설정(기본값
   `lora`)이던 걸 발견해 `gemini`로 설정 + backend 재시작. 핵심 발견은
   "환각"(존재하지 않는 영화 지어내기)이 아니라 (a) 카탈로그 커버리지
@@ -437,8 +437,8 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 - **mova 추천 오귀속 근본 원인 조사·수정·배포·재검증 완료(2026-08-05)**:
   Phase 1에서 발견한 두 버그(동명이인 오귀속·제목 포맷 미매칭)가
   `ChatReplyService.enrich_from_db()`의 완전일치 3단계 매칭 체인이라는
-  **같은 코드**의 결함임을 확정(`_docs/MOVA_RECOMMENDATION_MATCHING_
-  ROOT_CAUSE.md`) — "괴물"은 DB에 동명 영화가 여럿이라 tiebreaker가
+  **같은 코드**의 결함임을 확정(`suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`)
+  — "괴물"은 DB에 동명 영화가 여럿이라 tiebreaker가
   없어서가 아니라(실제 1건뿐) `find_by_title()`이 매칭 시 요청 맥락(배우
   등)을 전혀 검증 안 해서 발생. **Grounded prompting 구현**: 프롬프트가
   카탈로그의 movie_id를 강제 응답하게 하고(`chat_prompt.py`),
@@ -451,8 +451,8 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   패턴) 발견해 같은 사이클 안에서 추가 수정**(`tag_catalog` 후보 id
   집합 대조 + title 항상 DB 값으로 덮어쓰기). 골든셋 15개 최종 재검증
   결과 통과 6→9, 애초 목표(동명이인·포맷) + 조사 중 발견된 연도 이탈까지
-  전부 재현 후 수정 확인 — 상세 비교표 `_docs/MOVA_RECOMMENDATION_
-  QUALITY_PHASE1.md` §6. `RECOMMENDATION_BACKEND` EC2 미설정 경위도
+  전부 재현 후 수정 확인 — 상세 비교표 `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §6.
+  `RECOMMENDATION_BACKEND` EC2 미설정 경위도
   특정: 2026-08-03 커밋에서 `.env.example`엔 이미 "EC2는 gemini여야
   함"이 주석돼 있었으나 실제 `.env`(git 미추적)엔 반영된 적이 없었던
   배포 절차 누락 — 다른 네트워킹 민감 변수는 `docker-compose.yaml`에
@@ -497,7 +497,7 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   없어 후보에서 배제되고 있었음. **카탈로그 확장 트랙은 이 실증으로
   종결** — 레버리지는 `search_tag_catalog()` 개선·레거시 로우 정리·
   `origin_country` 컬럼 신설로 이동(아래 백로그). 상세:
-  `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7, WORK_LOG 2026-08-06.
+  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7, WORK_LOG 2026-08-06.
 - **`MovaGenreCatalog` `/mova/main` 홈 피드 배선(2026-08-06)**: 죽은
   컴포넌트 4개 중 마지막 미판정 건. 최초 커밋(2026-07-08)부터 한 번도
   import된 적 없었지만 `groups: MovaGenreGroup[]` 실 데이터 계약을 받는
@@ -713,7 +713,7 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   포함 제목 등), title 매칭 시절 골든셋을 통과시키려 수동으로 끼워
   넣은 임시 데이터로 추정(확정 근거는 없음). grounded prompting 전환
   이후 태그가 없어 후보에 못 들어가는 죽은 데이터가 됨. 상세 목록:
-  `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.4.
+  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.4.
 - 시작 조건: 정식 TMDB 재조회로 대체할지, 장르 태그만 수동 백필할지 결정.
 - **2026-08-06 재확인**: `search_tag_catalog()` 배우 매칭을 추가한 뒤에도
   "전지현 코미디"가 여전히 실패 — 이 12편엔 장르 태그뿐 아니라 배우
@@ -860,7 +860,7 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   **2026-08-06 골든셋 재검증에서 실제로 판정을 뒤집은 사례 확인**(#14
   "재밌는 거 뭐 있어" — "재밌는 영화들을 모아봤습니다"라고 답하고 카드
   0개, §1.5 완화 기준 미충족으로 실패 재분류. 상세:
-  `_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.2) — 데이터 정확성
+  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.2) — 데이터 정확성
   문제는 아니고 카피 어색함이지만 골든셋 판정에 실제 영향을 준다는 게
   이번에 확인됨, 우선순위 재검토 여지 — 착수 전.
 - **EC2 hub_knowledge 임베딩 어댑터 — 코드는 있고 스위치가 꺼져 있음

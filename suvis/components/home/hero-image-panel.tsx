@@ -1,6 +1,6 @@
 /** 로컬 히어로 영상 — 외부 URL 없이 항상 표시 */
 const HERO_VIDEO = "/hero-holographic-mask.mp4"
-const HERO_POSTER = "/hero-ai.jpg"
+const HERO_POSTER = "/hero-holographic-mask-poster.jpg"
 
 export function HeroImagePanel({ compact = false }: { compact?: boolean }) {
   return (

@@ -1,6 +1,6 @@
 # mova 추천 오귀속 근본 원인 조사
 
-`_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`에서 발견된 두 버그("동명이인
+`MOVA_RECOMMENDATION_QUALITY_PHASE1.md`에서 발견된 두 버그("동명이인
 오귀속 — 괴물→The Thing", "제목 포맷 취약성 — 빽 투 더 퓨쳐")가 같은 결함인지
 특정하고 근본 해결안을 비교한다. **코드 변경 없음 — 조사만.**
 
