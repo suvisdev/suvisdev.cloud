@@ -15,7 +15,11 @@ from jwt.algorithms import RSAAlgorithm
 
 from auth.schemas import TokenPayload
 
-_ACCESS_TTL_DEFAULT_MIN = 10
+# viewer HS256 세션 TTL(7일)과 일치. 2026-08-13까지 10분이었는데 프론트가
+# refresh_token 흐름을 안 태워서 10분마다 mypage 진입·게임 스코어 저장 등
+# 모든 mova 인증 API가 401 → 재로그인 유도되던 이슈의 즉시 fix.
+# refresh 흐름 도입 시 다시 짧게 되돌릴 것.
+_ACCESS_TTL_DEFAULT_MIN = 60 * 24 * 7
 
 
 def _load_private_key() -> str:
