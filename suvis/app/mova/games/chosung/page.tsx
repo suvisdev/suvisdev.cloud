@@ -48,12 +48,15 @@ export default function ChosungGamePage() {
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [savingScore, setSavingScore] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  // 이번 게임 세션 중 이미 나온 movie_id — 재출제 방지. useRef라 re-render 없이 축적.
+  const seenIdsRef = useRef<Set<number>>(new Set())
 
   const loadNext = useCallback(async (cat: ChosungCategory) => {
     setLoadingQ(true)
     setErrorMsg(null)
     try {
-      const q = await fetchNextChosungQuestion(cat)
+      const q = await fetchNextChosungQuestion(cat, [...seenIdsRef.current])
+      seenIdsRef.current.add(q.movie_id)
       setQuestion(q)
       setAnswer("")
       setHintLevel(0)
@@ -109,6 +112,7 @@ export default function ChosungGamePage() {
     setTotalHintsUsed(0)
     setSecondsLeft(GAME_SECONDS)
     setLeaderboard(null)
+    seenIdsRef.current = new Set()  // 새 게임 시작 시 중복 방지 리스트 초기화
     setPhase("playing")
     await loadNext(category)
   }
