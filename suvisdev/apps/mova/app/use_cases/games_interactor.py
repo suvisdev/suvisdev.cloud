@@ -14,7 +14,7 @@ from mova.app.dtos.games_dto import (
 from mova.app.ports.input.games_use_case import GamesUseCase
 from mova.app.ports.output.games_repository import GamesRepositoryPort
 
-_MIN_RATING = 2.5  # 사용자 지정 — 게임에 나오는 영화 풀 하한(마이너 영화도 포함)
+_MIN_RATING = 3.0  # 2026-08-13: 2.5 → 3.0 상향. 마이너 외국영화(태국·인도 등) 배제 강화.
 _STAGE_MIN = 1
 _STAGE_MAX = 10
 
