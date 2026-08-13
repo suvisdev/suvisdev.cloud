@@ -116,7 +116,7 @@ export function MovaAuthForms() {
     patchSignup({ message: null })
     const errors: Record<string, string> = {}
     if (!formProps.username.trim()) errors.username = "아이디를 입력해주세요"
-    if (!formProps.password || formProps.password.length < 4) errors.password = "비밀번호를 4자 이상 입력해주세요"
+    if (!formProps.password || formProps.password.length < 8) errors.password = "비밀번호는 8자 이상이어야 합니다"
     if (!formProps.nickname.trim()) errors.nickname = "닉네임을 입력해주세요"
     if (!formProps.email.trim()) errors.email = "이메일을 입력해주세요"
     if (Object.keys(errors).length) {
@@ -242,7 +242,7 @@ export function MovaAuthForms() {
               <div className="space-y-2">
                 <label htmlFor="mova-signup-password" className="text-sm text-neutral-400">비밀번호</label>
                 <div className="relative">
-                  <input id="mova-signup-password" name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="비밀번호 (4자 이상)" className={cn(inputClass, "pr-11")} />
+                  <input id="mova-signup-password" name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="비밀번호 (8자 이상)" className={cn(inputClass, "pr-11")} />
                   <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute top-1/2 right-3 -translate-y-1/2 text-neutral-500 hover:text-neutral-300" aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}>
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>

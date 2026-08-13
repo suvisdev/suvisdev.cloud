@@ -14,8 +14,14 @@ from mova.app.dtos.games_dto import (
 
 class GamesRepositoryPort(ABC):
     @abstractmethod
-    async def sample_chosung_question(self, min_rating: float) -> ChosungQuestionDto | None:
-        """rating >= min_rating인 영화 중 한 편을 무작위로 뽑아 초성 문제 구성."""
+    async def sample_chosung_question(
+        self, min_rating: float, *, category: str = "all"
+    ) -> ChosungQuestionDto | None:
+        """rating >= min_rating인 영화 중 한 편을 무작위로 뽑아 초성 문제 구성.
+
+        category: 'all' | 'kr' | 'foreign'. kr=original_language=='ko',
+        foreign=그 외. 'all'은 필터 없음.
+        """
 
     @abstractmethod
     async def sample_memory_deck(self, stage: int, min_rating: float) -> MemoryDeckDto:

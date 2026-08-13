@@ -124,7 +124,7 @@ export function AuthForms({
     if (!formProps.username.trim()) errors.username = "아이디를 입력해주세요"
     else if (formProps.username.length < 4) errors.username = "아이디는 4자 이상이어야 합니다"
     if (!formProps.password) errors.password = "비밀번호를 입력해주세요"
-    else if (formProps.password.length < 6) errors.password = "비밀번호는 6자 이상이어야 합니다"
+    else if (formProps.password.length < 8) errors.password = "비밀번호는 8자 이상이어야 합니다"
     if (formProps.password !== formProps.confirmPassword) {
       errors.confirmPassword = "비밀번호가 일치하지 않습니다"
     }
@@ -402,7 +402,7 @@ export function AuthForms({
                       name="password"
                       type={ui.showPassword ? "text" : "password"}
                       autoComplete="new-password"
-                      placeholder="6자 이상"
+                      placeholder="8자 이상"
                       className={cn(inputClass, "pr-10")}
                     />
                     {passwordToggle}
