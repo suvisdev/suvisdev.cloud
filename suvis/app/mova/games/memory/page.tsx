@@ -298,30 +298,46 @@ function FlipCard({
   isMatched: boolean
   onClick: () => void
 }) {
+  // Tailwind arbitrary `[backface-visibility:hidden]`/`[transform-style:preserve-3d]`
+  // 가 일부 브라우저·빌드 환경에서 CSS로 안 emit되는 케이스를 확인(2026-08-13,
+  // 프로덕션에서 카드가 뒤집혀도 뒷면 ? 만 계속 노출). 인라인 style로 3D 처리하면
+  // 브라우저가 style attribute를 그대로 파싱해 확실히 동작.
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={isMatched}
-      className="relative aspect-[2/3] w-full [perspective:900px]"
+      className="relative aspect-[2/3] w-full"
+      style={{ perspective: "900px" }}
     >
       <div
         className={cn(
-          "relative h-full w-full rounded-lg shadow-lg transition-transform duration-500 ease-out [transform-style:preserve-3d]",
-          isOpen && "[transform:rotateY(180deg)]",
+          "relative h-full w-full rounded-lg shadow-lg transition-transform duration-500 ease-out",
           isMatched && "opacity-70",
         )}
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isOpen ? "rotateY(180deg)" : "rotateY(0deg)",
+        }}
       >
         {/* 뒷면 */}
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-lg bg-mova-surface-2 text-2xl font-bold text-mova-muted ring-1 ring-mova-border [backface-visibility:hidden] [-webkit-backface-visibility:hidden]">
+        <div
+          className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-lg bg-mova-surface-2 text-2xl font-bold text-mova-muted ring-1 ring-mova-border"
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+          }}
+        >
           ?
         </div>
         {/* 앞면 */}
         <div
-          className={cn(
-            "absolute inset-0 overflow-hidden rounded-lg ring-1 ring-mova-accent/50 [backface-visibility:hidden] [-webkit-backface-visibility:hidden]",
-            "[transform:rotateY(180deg)]",
-          )}
+          className="absolute inset-0 overflow-hidden rounded-lg ring-1 ring-mova-accent/50"
+          style={{
+            backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden",
+            transform: "rotateY(180deg)",
+          }}
         >
           {card.kind === "poster" ? (
             <MovaRankingPoster

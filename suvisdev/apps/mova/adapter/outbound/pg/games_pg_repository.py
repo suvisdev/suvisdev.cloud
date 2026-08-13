@@ -87,6 +87,10 @@ def _pool_conditions(min_rating: float):
         MovaMovie.title.op("~")("[가-힣]"),
         MovaMovie.title.op("!~")(" [0-9]+$"),
         MovaMovie.age_rating.isnot(None),
+        # KR OTT 플랫폼(넷플릭스/티빙/왓챠 등) 하나 이상 있음 = 실제 국내 접근
+        # 가능한 영화. age_rating만으론 심의만 받고 실제 상영 없는 마이너 외국영화
+        # (태국·인도 등)가 통과함(2026-08-13 사용자 재지적).
+        func.jsonb_array_length(MovaMovie.platforms) > 0,
     ]
 
 
