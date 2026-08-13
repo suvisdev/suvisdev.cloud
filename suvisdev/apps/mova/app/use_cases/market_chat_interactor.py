@@ -113,8 +113,13 @@ class ChatInteractor(ChatUseCase):
             must = intent["search_filters"].get("must") or {}
             similar = intent["search_filters"].get("similar_to") or {}
             actor_names = [*must.get("actors", []), *similar.get("actors", [])]
+            # mood 자연어("오싹오싹한" 등)를 대중 장르 태그로 확장 (2026-08-13).
+            # Ollama 임베딩이 안 붙는 환경에서 tag catalog 폴백이 mood를 이해하도록.
+            from mova.domain.value_objects.mood_expansion import expand_mood_keywords
+
+            expanded_keywords = expand_mood_keywords(intent["keywords"])[:12]
             catalog = await self._repo.search_tag_catalog(
-                intent["keywords"][:6],
+                expanded_keywords,
                 limit=16,
                 actor_names=actor_names,
                 countries=must.get("countries") or [],
