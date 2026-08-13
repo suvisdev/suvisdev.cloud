@@ -98,11 +98,24 @@ class GamesPgRepository(GamesRepositoryPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def sample_chosung_question(self, min_rating: float) -> ChosungQuestionDto | None:
+    async def sample_chosung_question(
+        self, min_rating: float, *, category: str = "all"
+    ) -> ChosungQuestionDto | None:
+        conditions = list(_pool_conditions(min_rating))
+        # category: 'kr' = original_language == 'ko', 'foreign' = 그 외, 'all' = 필터 없음.
+        # original_language를 판정 기준으로 삼는 이유는 origin_country가 jsonb라
+        # 서브쿼리·인덱스 부담이 있고, 실측상 대부분 영화가 이 필드로 판별 가능.
+        if category == "kr":
+            conditions.append(MovaMovie.original_language == "ko")
+        elif category == "foreign":
+            conditions.append(
+                (MovaMovie.original_language != "ko")
+                | (MovaMovie.original_language.is_(None))
+            )
         row = (
             await self._session.execute(
                 select(MovaMovie)
-                .where(*_pool_conditions(min_rating))
+                .where(*conditions)
                 .order_by(func.random())
                 .limit(1)
             )

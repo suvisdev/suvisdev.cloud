@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, TrendingUp } from "lucide-react"
+import { Crown, Medal, Star, TrendingUp } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { fetchMovaRankings } from "@/lib/mova-api"
 import { cn } from "@/lib/utils"
@@ -66,8 +66,10 @@ export default async function MovaRankingsPage({
             아직 랭킹 데이터가 없습니다.
           </p>
         ) : (
-          <ol className="space-y-2">
-            {items.map((item) => (
+          <>
+            <Podium top3={items.slice(0, 3)} />
+            <ol className="space-y-2">
+              {items.slice(3).map((item) => (
               <li key={item.id}>
                 <Link
                   href={`/mova/title/${item.id}`}
@@ -122,9 +124,100 @@ export default async function MovaRankingsPage({
                 </Link>
               </li>
             ))}
-          </ol>
+            </ol>
+          </>
         )}
       </main>
     </>
+  )
+}
+
+type RankingItem = Awaited<ReturnType<typeof fetchMovaRankings>>[number]
+
+// 시상식 podium — 2·1·3 배치, 1위 가운데 크게, 왕관/메달 아이콘.
+function Podium({ top3 }: { top3: RankingItem[] }) {
+  if (top3.length === 0) return null
+  const [first, second, third] = top3
+  // 화면상 순서: 2위(좌) · 1위(중) · 3위(우). top3에 없으면 자리 비움.
+  const slots: { item: RankingItem | undefined; rank: 1 | 2 | 3 }[] = [
+    { item: second, rank: 2 },
+    { item: first, rank: 1 },
+    { item: third, rank: 3 },
+  ]
+  return (
+    <section className="mb-6 rounded-2xl border border-mova-border bg-gradient-to-b from-amber-500/10 via-mova-surface to-transparent p-4 md:p-6">
+      <div className="grid grid-cols-3 items-end gap-3 md:gap-6">
+        {slots.map(({ item, rank }) =>
+          item ? (
+            <PodiumCard key={rank} item={item} rank={rank} />
+          ) : (
+            <div key={rank} />
+          ),
+        )}
+      </div>
+    </section>
+  )
+}
+
+function PodiumCard({ item, rank }: { item: RankingItem; rank: 1 | 2 | 3 }) {
+  const meta: Record<
+    1 | 2 | 3,
+    { badgeColor: string; ringColor: string; heightAspect: string; icon: React.ReactNode; label: string }
+  > = {
+    1: {
+      badgeColor: "bg-amber-400 text-black",
+      ringColor: "ring-amber-400/60",
+      heightAspect: "aspect-[2/3]",
+      icon: <Crown className="h-5 w-5 md:h-6 md:w-6" />,
+      label: "1위",
+    },
+    2: {
+      badgeColor: "bg-neutral-300 text-black",
+      ringColor: "ring-neutral-300/50",
+      heightAspect: "aspect-[2/3] mt-6 md:mt-10",
+      icon: <Medal className="h-4 w-4 md:h-5 md:w-5" />,
+      label: "2위",
+    },
+    3: {
+      badgeColor: "bg-amber-700 text-white",
+      ringColor: "ring-amber-700/50",
+      heightAspect: "aspect-[2/3] mt-10 md:mt-16",
+      icon: <Medal className="h-4 w-4 md:h-5 md:w-5" />,
+      label: "3위",
+    },
+  }
+  const m = meta[rank]
+  return (
+    <Link
+      href={`/mova/title/${item.id}`}
+      className="group flex flex-col items-center"
+    >
+      <span
+        className={cn(
+          "mb-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow md:text-xs",
+          m.badgeColor,
+        )}
+      >
+        {m.icon}
+        {m.label}
+      </span>
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-lg bg-neutral-900 ring-2 shadow-lg transition group-hover:brightness-110",
+          m.heightAspect,
+          m.ringColor,
+        )}
+      >
+        {item.poster ? (
+          <Image src={item.poster} alt={item.title} fill className="object-cover" sizes="(max-width: 768px) 33vw, 260px" />
+        ) : null}
+      </div>
+      <p className="mt-2 line-clamp-2 text-center text-xs font-semibold text-mova-text group-hover:text-mova-accent md:text-sm">
+        {item.title}
+      </p>
+      <p className="text-[10px] text-mova-muted">
+        {item.year} · ★ {item.rating.toFixed(1)}
+      </p>
+    </Link>
   )
 }

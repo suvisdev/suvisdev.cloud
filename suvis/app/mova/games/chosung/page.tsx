@@ -10,6 +10,7 @@ import {
   fetchNextChosungQuestion,
   normalizeAnswer,
   saveGameScore,
+  type ChosungCategory,
   type ChosungQuestion,
   type Leaderboard,
 } from "@/lib/mova-games-api"
@@ -26,8 +27,15 @@ type HintLevel = 0 | 1 | 2 | 3
 // 2: 출연진 5명
 // 3: 포스터 1/4
 
+const CATEGORY_LABELS: Record<ChosungCategory, string> = {
+  all: "전체",
+  kr: "한국 영화",
+  foreign: "외국 영화",
+}
+
 export default function ChosungGamePage() {
   const [phase, setPhase] = useState<Phase>("idle")
+  const [category, setCategory] = useState<ChosungCategory>("all")
   const [question, setQuestion] = useState<ChosungQuestion | null>(null)
   const [answer, setAnswer] = useState("")
   const [hintLevel, setHintLevel] = useState<HintLevel>(0)
@@ -41,11 +49,11 @@ export default function ChosungGamePage() {
   const [savingScore, setSavingScore] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const loadNext = useCallback(async () => {
+  const loadNext = useCallback(async (cat: ChosungCategory) => {
     setLoadingQ(true)
     setErrorMsg(null)
     try {
-      const q = await fetchNextChosungQuestion()
+      const q = await fetchNextChosungQuestion(cat)
       setQuestion(q)
       setAnswer("")
       setHintLevel(0)
@@ -102,11 +110,11 @@ export default function ChosungGamePage() {
     setSecondsLeft(GAME_SECONDS)
     setLeaderboard(null)
     setPhase("playing")
-    await loadNext()
+    await loadNext(category)
   }
 
   const skipCurrent = async () => {
-    await loadNext()
+    await loadNext(category)
   }
 
   const submitAnswer = async () => {
@@ -115,7 +123,7 @@ export default function ChosungGamePage() {
     if (normalizeAnswer(answer) === normalizeAnswer(question.title)) {
       setCorrectCount((c) => c + 1)
       setFeedback("correct")
-      setTimeout(() => void loadNext(), 400)
+      setTimeout(() => void loadNext(category), 400)
     } else {
       setFeedback("wrong")
       setTimeout(() => setFeedback(null), 500)
@@ -142,8 +150,15 @@ export default function ChosungGamePage() {
           <ArrowLeft className="h-3.5 w-3.5" /> 미니게임
         </Link>
 
-        <header className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-mova-text md:text-xl">영화 초성 게임</h1>
+        <header className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold text-mova-text md:text-xl">영화 초성 게임</h1>
+            {phase !== "idle" && (
+              <span className="rounded-full bg-mova-accent-soft px-2 py-0.5 text-[10px] font-medium text-mova-accent-bright">
+                {CATEGORY_LABELS[category]}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-1 rounded-md bg-mova-surface px-2 py-1 text-mova-text ring-1 ring-mova-border">
               <Timer className="h-3.5 w-3.5" /> {secondsLeft}s
@@ -161,6 +176,26 @@ export default function ChosungGamePage() {
               <br />
               힌트 순서: 띄어쓰기·한/외 표기 → 출연진 → 포스터 1/4.
             </p>
+            <div>
+              <p className="mb-2 text-xs font-medium text-mova-muted">카테고리</p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(CATEGORY_LABELS) as ChosungCategory[]).map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCategory(c)}
+                    className={cn(
+                      "rounded-full border px-4 py-1.5 text-sm font-medium transition",
+                      category === c
+                        ? "border-mova-accent bg-mova-accent text-white"
+                        : "border-mova-border bg-mova-surface-2 text-mova-muted hover:text-mova-text",
+                    )}
+                  >
+                    {CATEGORY_LABELS[c]}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => void startGame()}

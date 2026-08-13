@@ -542,11 +542,27 @@ export function MovaAiChatBar({
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2">
               <Sparkles className="h-3.5 w-3.5 animate-pulse text-mova-accent" />
             </span>
-            <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-2.5 text-sm text-mova-muted">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-mova-accent" />
-              <span key={loadingHintIdx} className="animate-in fade-in duration-300">
-                {LOADING_HINTS[loadingHintIdx]}
-              </span>
+            <div className="flex flex-col gap-2">
+              {/* 3D 클래퍼보드 감성 로딩 — 채팅 대기 시간(3~10초)이 브랜드 순간이
+                  되도록 인라인 재생. muted+playsInline+loop로 자동 재생 정책 회피. */}
+              <div className="overflow-hidden rounded-2xl border border-mova-border bg-black shadow-sm">
+                <video
+                  src="/mova-clapperboard-loading.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="auto"
+                  aria-hidden
+                  className="block h-32 w-40 object-cover md:h-36 md:w-48"
+                />
+              </div>
+              <div className="flex items-center gap-2 text-xs text-mova-muted">
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-mova-accent" />
+                <span key={loadingHintIdx} className="animate-in fade-in duration-300">
+                  {LOADING_HINTS[loadingHintIdx]}
+                </span>
+              </div>
             </div>
           </div>
         )}

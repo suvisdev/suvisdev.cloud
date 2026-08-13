@@ -8,11 +8,14 @@ from datetime import date
 
 @dataclass(frozen=True)
 class ChatTrendAggRowDto:
-    """picks×chat 윈도우 집계 1행 (movie 단위 raw 수치)."""
+    """user_actions.click 윈도우 집계 1행 (movie 단위).
+
+    2026-08-13: pick_count/hit_sum(=노출·hit 신호) → click_count(=실제 사용자
+    클릭)로 대체. AI 검색 TOP은 노출이 아니라 클릭이 유일한 신호.
+    """
 
     movie_id: int
-    pick_count: int
-    hit_sum: int
+    click_count: int
 
 
 @dataclass(frozen=True)

@@ -25,9 +25,10 @@ games_router = APIRouter(prefix="/games", tags=["mova-games"])
 
 @games_router.get("/chosung/next", response_model=ChosungQuestionSchema)
 async def next_chosung_question(
+    category: str = Query("all", pattern="^(all|kr|foreign)$"),
     use_case: GamesUseCase = Depends(get_games_use_case),
 ) -> ChosungQuestionSchema:
-    return (await use_case.next_chosung_question()).to_schema()
+    return (await use_case.next_chosung_question(category)).to_schema()
 
 
 @games_router.get("/memory/deck", response_model=MemoryDeckSchema)

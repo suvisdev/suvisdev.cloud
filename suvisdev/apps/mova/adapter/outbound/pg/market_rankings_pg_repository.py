@@ -9,8 +9,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
-from mova.adapter.outbound.orm.market_picks_orm import MovaPick
 from mova.adapter.outbound.orm.market_rankings_orm import MovaRanking
+from mova.adapter.outbound.orm.market_user_actions_orm import ACTION_CLICK, MovaUserAction
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_rankings_dto import (
     ChatTrendAggRowDto,
@@ -74,21 +74,25 @@ class RankingsPgRepository(RankingsRepositoryPort):
         return RankingListDto(items=items, source=source)
 
     async def aggregate_chat_trend(self, days: int, limit: int) -> list[ChatTrendAggRowDto]:
+        """AI 검색 TOP 집계 — 2026-08-13: pick/hit(노출·응답) → user_actions.click.
+
+        사용자가 채팅 결과 카드를 실제로 클릭한 경우만 신호로 카운트. 노출
+        (picks) 신호는 완전히 제외 — "검색만 하고 순위에 반영되는 건 이상,
+        클릭했을 때만 반영해야" 지침 반영.
+        """
         since = datetime.now(UTC) - timedelta(days=days)
-        pick_count = func.count(MovaPick.id)
-        hit_sum = func.coalesce(func.sum(MovaChat.hit_count), 0)
+        click_count = func.count(MovaUserAction.id)
 
         rows = (
             await self._session.execute(
                 select(
-                    MovaPick.movie_id.label("movie_id"),
-                    pick_count.label("pick_count"),
-                    hit_sum.label("hit_sum"),
+                    MovaUserAction.movie_id.label("movie_id"),
+                    click_count.label("click_count"),
                 )
-                .join(MovaChat, MovaPick.chat_id == MovaChat.id)
-                .where(MovaPick.batch_at >= since)
-                .group_by(MovaPick.movie_id)
-                .order_by((pick_count + hit_sum).desc())
+                .where(MovaUserAction.action_type == ACTION_CLICK)
+                .where(MovaUserAction.action_at >= since)
+                .group_by(MovaUserAction.movie_id)
+                .order_by(click_count.desc())
                 .limit(limit)
             )
         ).all()
@@ -96,8 +100,7 @@ class RankingsPgRepository(RankingsRepositoryPort):
         result = [
             ChatTrendAggRowDto(
                 movie_id=r.movie_id,
-                pick_count=int(r.pick_count or 0),
-                hit_sum=int(r.hit_sum or 0),
+                click_count=int(r.click_count or 0),
             )
             for r in rows
         ]
