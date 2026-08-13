@@ -38,10 +38,11 @@ class GenerateChatTrendRankingInteractor(GenerateChatTrendRankingUseCase):
         if not aggregates:
             return 0
 
-        # 가중 점수 내림차순으로 최종 랭크 부여.
+        # 클릭 카운트 내림차순으로 최종 랭크. Repository가 이미 정렬해서 주지만
+        # 방어적으로 한 번 더.
         ranked = sorted(
             aggregates,
-            key=lambda a: chat_trend_score(a.pick_count, a.hit_sum),
+            key=lambda a: chat_trend_score(a.click_count),
             reverse=True,
         )
         rows = [
@@ -49,7 +50,7 @@ class GenerateChatTrendRankingInteractor(GenerateChatTrendRankingUseCase):
                 rank=position,
                 movie_id=agg.movie_id,
                 chat_id=None,  # 대표 chat 매핑은 현재 미사용 (rankings.chat_id nullable)
-                score=chat_trend_score(agg.pick_count, agg.hit_sum),
+                score=chat_trend_score(agg.click_count),
                 badge=None,
             )
             for position, agg in enumerate(ranked, start=1)

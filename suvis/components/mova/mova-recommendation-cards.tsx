@@ -5,7 +5,12 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Bookmark, BookmarkCheck, Clapperboard } from "lucide-react"
 import { MovaPlatformBadge } from "@/components/mova/mova-platform-badge"
-import { addToWatchlist, removeFromWatchlist, checkWatchlist } from "@/lib/mova-api"
+import {
+  addReviewActivity,
+  addToWatchlist,
+  checkWatchlist,
+  removeFromWatchlist,
+} from "@/lib/mova-api"
 import { getSuvisSession } from "@/lib/suvis-session"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
@@ -139,6 +144,16 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
           <Link
             key={item.id}
             href={`/mova/title/${item.id}`}
+            onClick={() => {
+              // AI 검색 TOP 랭킹은 "노출(pick)"이 아닌 "클릭"만 신호로 삼음
+              // (2026-08-13). 비로그인은 트래킹 안 됨 — 백엔드가 401을 조용히 삼킴.
+              if (item.movieDbId && getSuvisSession()) {
+                void addReviewActivity({
+                  movie_id: item.movieDbId,
+                  action_type: "click",
+                }).catch(() => {})
+              }
+            }}
             className={cn(cardClass, "transition hover:border-mova-accent/40 hover:bg-mova-surface-2")}
           >
             {cardContent}
