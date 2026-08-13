@@ -26,7 +26,7 @@ type Card = {
 }
 
 const STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
-const PREVIEW_STAGE_THRESHOLD = 5
+const PREVIEW_STAGE_THRESHOLD = 3
 const PREVIEW_SECONDS = 3
 
 function shuffle<T>(arr: T[]): T[] {
@@ -222,7 +222,7 @@ export default function MemoryGamePage() {
               단계를 선택하세요. 포스터 카드와 제목 카드를 짝지어 뒤집으면 됩니다.
               점수 = 단계×1000 + max(0, 500-완료초). 1단계가 아무리 빨라도 10단계는 못 이깁니다.
               {" "}
-              <span className="text-amber-400">5단계부터는 시작 전 3초간 카드를 미리 보여드려요.</span>
+              <span className="text-amber-400">3단계부터는 시작 전 3초간 카드를 미리 보여드려요.</span>
             </p>
             <div className="grid grid-cols-5 gap-2 md:grid-cols-10">
               {STAGES.map((n) => (

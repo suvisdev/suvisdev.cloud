@@ -70,16 +70,22 @@ def _pool_conditions(min_rating: float):
     - 한글 문자 최소 1자 포함(라틴 전용 제목 배제: "VIZIOEPROVOCAZIONE" 등)
     - age_rating 있음(TMDB KR release_dates.certification 백필 대상 = 한국 상영이력)
     - poster/title 비어있지 않음
+    - 시리즈 후속편(제목 끝이 " 숫자") 배제: "슈렉 2/3/5", "존 윅 4", "토이 스토리 3" 등
+      → 시리즈는 원작(숫자 없는 편)만 문제로 남는다. TMDB collection_id는 실측
+      결과 0.3%만 채워져 있어(2026-08-13) 컬렉션 기반 필터는 무용지물.
+      정규식 " [0-9]+$" — 원작 부제(007 스카이폴, 쓰리 빌보드 등)는 오탐 없음.
 
     2026-08-13 사용자 피드백: 완전 라틴 제목·미상영 마이너 외국영화가 노출돼
-    난이도가 비합리적으로 높다는 지적. 한국 상영작으로 좁혀 실전 난이도로 맞춤.
-    실측(EC2): 필터 통과 편수 1517편.
+    난이도가 비합리적으로 높고, "슈렉 3 → ㅅㄹ3"처럼 후속편 번호가 초성게임
+    본질을 해치는 문제. 한국 상영작 + 원작만 남기게 좁힘.
+    실측(EC2): 필터 통과 편수 1517 → 1383편.
     """
     return [
         MovaMovie.rating >= min_rating,
         MovaMovie.poster_url != "",
         MovaMovie.title != "",
         MovaMovie.title.op("~")("[가-힣]"),
+        MovaMovie.title.op("!~")(" [0-9]+$"),
         MovaMovie.age_rating.isnot(None),
     ]
 
