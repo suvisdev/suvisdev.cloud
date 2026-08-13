@@ -63,6 +63,27 @@ def _is_korean_movie(movie: MovaMovie) -> bool:
     return False
 
 
+def _pool_conditions(min_rating: float):
+    """미니게임 영화 풀 필터.
+
+    - rating >= min_rating (2.5 기본)
+    - 한글 문자 최소 1자 포함(라틴 전용 제목 배제: "VIZIOEPROVOCAZIONE" 등)
+    - age_rating 있음(TMDB KR release_dates.certification 백필 대상 = 한국 상영이력)
+    - poster/title 비어있지 않음
+
+    2026-08-13 사용자 피드백: 완전 라틴 제목·미상영 마이너 외국영화가 노출돼
+    난이도가 비합리적으로 높다는 지적. 한국 상영작으로 좁혀 실전 난이도로 맞춤.
+    실측(EC2): 필터 통과 편수 1517편.
+    """
+    return [
+        MovaMovie.rating >= min_rating,
+        MovaMovie.poster_url != "",
+        MovaMovie.title != "",
+        MovaMovie.title.op("~")("[가-힣]"),
+        MovaMovie.age_rating.isnot(None),
+    ]
+
+
 class GamesPgRepository(GamesRepositoryPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -71,9 +92,7 @@ class GamesPgRepository(GamesRepositoryPort):
         row = (
             await self._session.execute(
                 select(MovaMovie)
-                .where(MovaMovie.rating >= min_rating)
-                .where(MovaMovie.poster_url != "")
-                .where(MovaMovie.title != "")
+                .where(*_pool_conditions(min_rating))
                 .order_by(func.random())
                 .limit(1)
             )
@@ -106,9 +125,7 @@ class GamesPgRepository(GamesRepositoryPort):
         rows = (
             await self._session.execute(
                 select(MovaMovie)
-                .where(MovaMovie.rating >= min_rating)
-                .where(MovaMovie.poster_url != "")
-                .where(MovaMovie.title != "")
+                .where(*_pool_conditions(min_rating))
                 .order_by(func.random())
                 .limit(pairs_needed)
             )

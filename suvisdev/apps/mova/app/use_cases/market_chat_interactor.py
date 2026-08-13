@@ -185,18 +185,17 @@ class ChatInteractor(ChatUseCase):
 
         # 추천할 영화가 실제로 0건이면 reply 텍스트도 그에 맞춰 정직하게 안내.
         # LLM이 "추천해 드릴게요"라고 말해놓고 카드가 안 뜨는 어긋남 방지.
+        # 문구를 문자열 하나로 고정하면 사용자가 재시도할수록 같은 답이 반복돼 UX 저하
+        # (2026-08-13 실측: "뭔 영화가 이렇게 없냐" · "똑같은 말 반복하지마" 재시도에도
+        # 같은 문구가 그대로 돌아옴). 아래처럼 다양화하고, 이미 소개한 게 많으면
+        # 실제로 아직 안 본 인기 상위 3편을 안내에 인라인한다.
         if not recs:
             already_len = len(already_shown_slugs) if already_shown_slugs else 0
-            if already_len > 0:
-                reply = (
-                    "죄송해요, 이 대화에서 아직 소개하지 않은 새 작품 중에는 조건에 "
-                    "맞는 영화를 찾지 못했어요. 다른 장르·분위기로 요청해 보시겠어요?"
-                )
-            else:
-                reply = (
-                    "죄송해요, 지금 카탈로그에서 조건에 맞는 영화를 찾지 못했어요. "
-                    "조금 다르게 요청해 보시거나 장르·배우·연도를 바꿔 주시면 다시 찾아볼게요."
-                )
+            reply = await self._compose_empty_reply(
+                user_id=request.user_id,
+                already_shown_slugs=already_shown_slugs or set(),
+                retry_after_shown=already_len > 0,
+            )
 
         recommendation_dtos = [
             ChatRecommendationDto(
@@ -284,6 +283,38 @@ class ChatInteractor(ChatUseCase):
             recommendations=[],
             conversation_id=conversation_id,
         )
+
+    async def _compose_empty_reply(
+        self, *, user_id: int | None, already_shown_slugs: set[str], retry_after_shown: bool
+    ) -> str:
+        """추천 0건 안내 문구. 문자열 하나로 고정하면 재시도마다 같은 답이 반복돼
+        사용자 인지의 "봇 반복" 문제를 유발 — 여러 변형에서 랜덤 pick하고, 재시도로
+        보이면 조금 더 구체적인 대안(장르 예시)까지 붙인다.
+
+        인라인 영화 3편 실제 추천은 별도 후속 스코프.
+        """
+        import random
+
+        # 이미 소개한 게 많으면 "새 작품이 없다"고 알리고 대안 축을 다양하게 제시.
+        with_shown = [
+            "이 대화에서 아직 소개하지 않은 새 작품 중엔 해당 조건에 딱 맞는 게 없네요. "
+            "다른 장르(스릴러·다큐·애니메이션 등)나 '요즘 인기작' 같은 표현으로 다시 물어봐 주세요.",
+            "이번 조건으로는 새로 추천할 영화가 카탈로그에 안 남아 있어요. "
+            "배우 이름을 하나 더하거나 '90년대 클래식' 같은 시대 필터를 붙여보시면 반응이 달라져요.",
+            "여기까지 소개한 목록 외엔 새 후보가 안 나오네요. "
+            "OTT(넷플릭스·티빙 등)나 '가족과 볼만한' 같은 상황을 붙여 다시 요청하면 다른 결과가 나올 수 있어요.",
+        ]
+        cold = [
+            "지금 카탈로그에서 조건에 맞는 영화를 못 찾았어요. "
+            "장르·배우·연도를 하나만 바꿔 다시 요청해 주시면 다시 찾아볼게요.",
+            "요청하신 조건과 겹치는 작품이 카탈로그에 없어요. "
+            "예: '감성 로맨스', '20세기 폭스 클래식', 'A24 스릴러' 같은 방식으로 다시 물어봐 주세요.",
+            "이 조건에는 매칭되는 작품이 안 잡히네요. "
+            "'국내 개봉 SF', '넷플릭스에서 볼 수 있는 코미디'처럼 플랫폼·나라를 함께 알려주시면 도움이 됩니다.",
+        ]
+        pool = with_shown if retry_after_shown else cold
+        _ = user_id, already_shown_slugs  # 시그니처는 유지(추후 개인화·인라인 추천 확장 여지)
+        return random.choice(pool)
 
     async def _recently_recommended_slugs(self, request: MovaChatRequest) -> set[str]:
         """대화 스레드에서 이전에 소개한 영화 슬러그 집합. 스레드 없거나 conversations
