@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from fastapi import Depends, HTTPException, Request
 
-from shared.security.token_verifier import TokenPayload, verify_token
+from shared.security.token_verifier import (
+    TokenPayload,
+    verify_token,
+    verify_viewer_session_token,
+)
 
 _SERVICE_AUD = "suvis-mova"
 
@@ -18,8 +22,14 @@ async def get_current_user(request: Request) -> TokenPayload:
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authorization 헤더가 없습니다.")
     token = auth_header.removeprefix("Bearer ")
+    # 두 발급 경로를 모두 수용: (1) auth 게이트웨이 RS256+aud, (2) viewer 세션 HS256.
+    # OAuth/이메일 로그인은 (2)로만 발급되므로 fallback 없으면 mova 인증 API가 전부 401.
     try:
         return verify_token(token, aud=_SERVICE_AUD)
+    except Exception:
+        pass
+    try:
+        return verify_viewer_session_token(token)
     except Exception as e:
         raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다.") from e
 
