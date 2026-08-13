@@ -143,6 +143,73 @@
 - 프론트 `/mova/upcoming` 신설(그리드), MOVA_NAV에 "개봉예정" 탭 추가.
 - 커밋: `86ad096`.
 
+### 후속 사이클 C — 미니게임 허브 리디자인 + 카드뒤집기 통합 랭킹
+- 사용자 안: 이미지 스타일 카드 + 오른쪽 옆으로 넘기는 랭킹 사이드바.
+  `suvis/app/mova/games/page.tsx`를 3:4 세로 카드(초성=대형 자음, 카드뒤집기=
+  겹친 카드) + `md:grid-cols-[1fr_320px]` 우측 랭킹 사이드바(탭+화살표)로
+  재작성. 커밋 `8be22e5`.
+- 카드뒤집기 랭킹 통합 formula: `stage*1000 + max(0,500-완료초)`. 제약 1)
+  1단계 최대(1500) < 10단계 최소(10000), 2) 같은 단계 20초 차이 = 20점 차이.
+  memory 리더보드 stage 필터 제거, `game_scores.metric` 서브쿼리로 정렬.
+  스키마/DTO에 `stage`·`computed_score` 필드 추가. 프론트 사이드바·게임
+  종료 화면 표기 통일. 커밋 `c4c1bce`.
+
+### 후속 사이클 D — 게임 풀 필터·flip 매끄럽게·프리뷰 앞당김
+- "슈렉 3 → ㅅㄹ3" 지적 → 제목 끝 " 숫자" 배제 정규식(원작만 유지). 카드
+  프리뷰 threshold 5→3단계. 커밋 `58bd10b`.
+- "여전히 태국어 배우 나옴" 재지적 → `_MIN_RATING` 2.5→3.0 + KR OTT
+  플랫폼 필수(`jsonb_array_length(platforms)>0`). 게임 풀 1517→1163편.
+  카드가 뒷면(?) 그대로 남는 이슈 원인 = Tailwind arbitrary
+  `[backface-visibility:hidden]`이 프로덕션 빌드에서 CSS로 안 emit → 인라인
+  style(backfaceVisibility/WebkitBackfaceVisibility/transformStyle/transform)로
+  대체해 브라우저가 직접 파싱. 커밋 `cd1fc5d`.
+
+### 후속 사이클 E — auth TTL fix (마이페이지 재로그인 근본 원인)
+- 사용자 지적: "마이페이지 재로그인 걸리는 게 설정이야? 버그면 고쳐줘"
+  · "카드뒤집기 랭킹 저장 안 됨"도 동일 원인(모든 mova 인증 API 401).
+- `shared/security/require_user.py`에 진단 로그 추가(`897f67c`) → docker cp
+  hotfix로 즉시 반영 → test 계정으로 재현했더니 실측:
+  `RS256=ExpiredSignatureError('Signature has expired')`
+  → 토큰 exp - iat = **600초(10분)**. 프론트가 `refresh_token` 저장·사용 안
+  하므로 10분 지나면 무조건 401.
+- `apps/auth/security.py`·`apps/auth/services.py`의 `_ACCESS_TTL_DEFAULT_MIN`·
+  `_ACCESS_TTL_MIN` 10 → `60*24*7`(7일)로 확장. viewer HS256 세션 TTL과 동일.
+  refresh 흐름 도입 시 다시 짧게 되돌릴 것. 커밋 `b2aa2bc`.
+
+### 후속 사이클 F — 개봉예정 날짜별 정리 + 채팅 반복 완화
+- 개봉예정: `TmdbAdapter.fetch_upcoming(page, region)`·`fetch_upcoming_dated`
+  신설, `UpcomingMovieSchema.release_date`, 라우터에서 오름차순 정렬. 프론트
+  YYYY-MM 월별 섹션 + M/D 배지. 커밋 `86ad096`, `aefab64`.
+- 추천 0건 안내 문구를 재시도 여부별 3개 변형 랜덤 pick + 대안 축 예시
+  ('A24 스릴러', 'OTT 필터' 등) 인라인. 커밋 `0b6c3df`.
+
+### 후속 사이클 G — 회원가입 8자 통일 + 랭킹 podium + 클릭 기반 랭킹
+- 회원가입 시 백엔드 `min_length=8` vs 프론트(<6/<4) 불일치 → 프론트 검증·
+  placeholder 8자로 통일(`92fcdfb`).
+- 랭킹 상단 1·2·3위 시상식 podium(2-1-3 배치, 왕관·메달, mt-{6/10/16}
+  계단). 4위~는 기존 리스트. 커밋 `9333fd3`.
+- **AI 검색 TOP 재작성**: pick_count(노출)+hit_sum → user_actions.click.
+  프론트 `MovaRecommendationCards` Link onClick에 `addReviewActivity`
+  ('click'). `chat_trend_score(click_count)` 단일 인자로 축소. DTO/테스트
+  전체 정합. 커밋 `925917c`.
+- 초성 게임 카테고리 필터(전체·한국·외국) — `original_language=='ko'` 판정.
+  `GET /mova/games/chosung/next?category=all|kr|foreign`. idle 화면 3버튼,
+  진행 중 헤더 배지. 커밋 `d6c59ba`.
+- 채팅 로딩 UI에 3D 클래퍼보드 mp4(978KB) 인라인 재생 — Sparkles 자리에
+  h-32/w-40 영상 + spinner + 순환 문구. 커밋 `99759bf`.
+- **mood 자연어 → 대중 장르 확장**: "오싹오싹한 영화" recs=0 이슈. EC2에
+  Ollama 없어서 tag catalog 폴백만 도는데 자연어 mood를 태그로 못 잡음.
+  `domain/value_objects/mood_expansion.py` 신설 — 매핑 40여 개(오싹→공포·
+  스릴러, 재밌→코미디, 눈물→드라마 등), `_POPULAR_GENRES` 화이트리스트
+  12개("다큐"·"뮤지컬" 등 마이너 제외). `search_tag_catalog` 호출 전
+  `expand_mood_keywords`로 전처리. 커밋 `f977ff2`.
+
+### 후속 사이클 H — TMDB KR 배치 이어받기
+- `--source tmdb_discover --country KR --pages 50 --start-page 51` (백그라운드
+  `docker exec -d`). succeeded=1000/failed=0/last_page=100. 이어받으려면
+  `--start-page 101`. 실측: movies 3965 → 3978(+13 순증 — 대부분 슬러그
+  중복이라 upsert만).
+
 ### 후속 사이클 B — KOFIC 전량 삭제 (거짓 DB 이슈)
 - 사용자: 헤더 검색 "왕과" 입력 시 "왕과 사는 남자" 2026/2025 중복 + "의자왕과
   삼천연구원" 등 미공개작 상단 노출. "거짓 DB 들어간 것 같아" 지적.
