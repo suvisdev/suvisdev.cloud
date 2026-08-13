@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { LogIn, LogOut } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
+import { fetchProfile } from "@/lib/profile-api"
 import {
   clearSuvisSession,
   getSuvisSession,
@@ -32,6 +33,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<SuvisSession | null>(null)
+  const [nickname, setNickname] = useState<string | null>(null)
 
   const refreshSession = useCallback(() => {
     setSession(getSuvisSession())
@@ -40,6 +42,24 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
   useEffect(() => {
     refreshSession()
   }, [pathname, refreshSession, open])
+
+  useEffect(() => {
+    if (!session) {
+      setNickname(null)
+      return
+    }
+    let cancelled = false
+    fetchProfile(session.id)
+      .then((p) => {
+        if (!cancelled) setNickname(p.nickname)
+      })
+      .catch(() => {
+        if (!cancelled) setNickname(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session])
 
   const onAuthSuccess = useCallback(() => {
     setOpen(false)
@@ -55,9 +75,9 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
             "hidden max-w-[6rem] truncate text-neutral-300 sm:inline sm:max-w-[9rem]",
             size === "sm" ? "text-xs sm:text-sm" : "text-sm",
           )}
-          title={session.username}
+          title={nickname ?? session.username}
         >
-          {session.username}
+          {nickname ?? session.username}
         </span>
         <button
           type="button"

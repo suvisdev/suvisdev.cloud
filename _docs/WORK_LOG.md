@@ -230,6 +230,39 @@
 - 카탈로그: 3965 → 2979(=TMDB 2956 + seed 23) 복귀.
 - 커밋: `f4176aa`.
 
+### 후속 사이클 I — 초성 게임 무제한 모드 + 헤더 닉네임 + 랭킹 빈/에러 상태 구분
+- **초성 게임 시간 무제한 모드**: 사용자 요청 "각각의 전체/한국영화/외국영화에
+  시간 무제한 모드, 랭킹엔 안 들어감". `suvis/app/mova/games/chosung/page.tsx`에
+  카테고리와 별개로 모드 선택(1분 타임어택/시간 무제한) 추가. 무제한 모드는
+  카운트다운 타이머를 안 돌리고(`useEffect` 가드에 `mode !== "timed"` 추가)
+  "무제한" 배지 + 수동 "게임 종료" 버튼으로 종료. 종료 시 `saveGameScore` 호출을
+  `mode === "timed"`일 때만 실행해 랭킹 미반영.
+- **mova 헤더 사용자 표시를 닉네임으로**: 사용자가 스크린샷으로 지적("아이디
+  `ssuvisdev_google`이 그대로 보임") — `SuvisSession`엔 로그인 아이디만 있고
+  닉네임이 없어서 `components/mova/mova-login-button.tsx`에 `fetchProfile`
+  (`lib/profile-api.ts`, 이미 있던 함수) 호출을 추가해 닉네임을 가져와 있으면
+  닉네임, 없으면(로딩 중·실패) 기존 아이디로 폴백.
+- **`/mova/rankings` 빈 상태/에러 상태 구분**: 사용자가 "박스오피스·AI 검색
+  TOP 둘 다 1초쯤 '아직 랭킹 데이터가 없습니다'가 보였다 사라졌다" 보고.
+  원인은 `lib/mova-api.ts`의 `fetchMovaRankings()`가 `!res.ok`(502 등)일 때도
+  `[]`을 반환해 "진짜 빈 데이터"와 "일시적 요청 실패"를 UI가 구분 못 했던 것.
+  실패 시 `null`을 반환하도록 반환 타입을 `MovaHotRankingItem[] | null`로
+  바꾸고, `app/mova/rankings/page.tsx`에서 `items === null`이면 "일시적으로
+  랭킹을 불러오지 못했습니다. 새로고침해 주세요."를 별도로 보여주도록 분기
+  추가(`RankingItem` 타입도 `ReturnType` 유도 대신 `MovaHotRankingItem` 직접
+  참조로 정리 — 반환 타입에 `null`이 섞이면서 `[number]` 인덱싱이 깨짐).
+- **502 원인 조사(코드 변경 없음)**: 위 502가 "집에서만 나고 학원에선 안 난다"는
+  사용자 보고 → 로라서버(`lora.suvisdev.cloud`, 별도 터널·별도 라우트)와는
+  무관함을 확인(`/mova/rankings/hot`은 로라 미호출, 8/4 조사 기록도 로라 무관
+  라우트까지 동일 패턴이었음을 재확인). 사용자 홈 PC에서 직접
+  `curl -sD - api.suvisdev.cloud/...`로 `cf-ray`를 떠 보니 `-LAX`(로스앤젤레스)
+  PoP로 라우팅되고 있었음. PowerShell로 DNS(`Get-DnsClientServerAddress`)·
+  어댑터(`Get-NetAdapter`) 확인 결과 VPN 없음, DNS는 KT 자체(168.126.63.1/2)
+  정상 사용 중 — 결론: **KT 회선이 이 IP 대역에서 Cloudflare와 국내(ICN) 피어링이
+  안 돼 있어 미국 PoP로 우회하는 것으로 추정**, 앱 코드로 고칠 수 있는 범위
+  밖(WARP 사용이나 ISP 문의가 유일한 완화책). PROGRESS.md 백로그에 참고용으로
+  남김.
+
 ---
 
 ## 2026-08-12

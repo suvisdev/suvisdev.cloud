@@ -332,16 +332,19 @@ export async function fetchHotRankings(limit = 10): Promise<MovaHotRankingItem[]
   }
 }
 
+/** 랭킹 목록. 백엔드가 정상 응답했지만 데이터가 없으면 `[]`, 요청 자체가
+ * 실패(네트워크·5xx 등 일시적 오류)하면 `null` — 호출부가 "데이터 없음"과
+ * "일시적 오류"를 구분해서 보여줄 수 있도록 반환값을 분리한다. */
 export async function fetchMovaRankings(
   source = "chat_trend",
   limit = 10,
-): Promise<MovaHotRankingItem[]> {
+): Promise<MovaHotRankingItem[] | null> {
   try {
     const res = await fetch(
       `${rankingsFetchUrl()}?source=${encodeURIComponent(source)}&limit=${encodeURIComponent(String(limit))}`,
       { cache: "no-store" },
     )
-    if (!res.ok) return []
+    if (!res.ok) return null
     const data = await res.json()
     const rows: HotRankingApiRow[] = Array.isArray(data)
       ? (data as HotRankingApiRow[])
@@ -360,7 +363,7 @@ export async function fetchMovaRankings(
       badge: row.badge === "NEW" || row.badge === "AD" ? row.badge : undefined,
     }))
   } catch {
-    return []
+    return null
   }
 }
 
