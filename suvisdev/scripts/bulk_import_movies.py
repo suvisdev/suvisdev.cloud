@@ -37,7 +37,10 @@ logger = logging.getLogger("bulk_import_movies")
 
 _SOURCES = ("tmdb_popular", "tmdb_discover", "kofic")
 _TMDB_SLEEP_SECONDS = 0.25
-_KOFIC_NATION_CD = {"KR": "K", "US": "F"}
+# KOFIC repNationCd — 8자리 공통코드(comCode 220310). "K"/"F" 같은 1글자는 API가
+# 320221 "국적구분 조건은 공통코드220310으로 조회된 8자리 코드를 입력하십시요"로 거부한다
+# (2026-08-13 실측). searchCodeList로 확인: 한국=22041011, 미국=22042002.
+_KOFIC_NATION_CD = {"KR": "22041011", "US": "22042002"}
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -155,6 +158,9 @@ async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
 
     반환값: 'succeeded' | 'failed' | 'skipped'.
     """
+    from sqlalchemy import select
+
+    from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
     from mova.app.dtos.studio_import_dto import MovieUpsertCommand
 
     movie_cd = str(row.get("movieCd") or "").strip()
@@ -171,6 +177,22 @@ async def _ingest_kofic_movie(row: dict, movies_repo, hub_rag, session) -> str:
         for d in (row.get("directors") or [])
         if d.get("peopleNm")
     ]
+
+    # 사전 중복 가드 — 같은 title+release_year이 이미 카탈로그(주로 TMDB)에 있으면 skip.
+    # 슬러그 접두사(`tmdb-` / `kofic-`)가 다르면 upsert가 idempotent라도 별개 레코드로
+    # 남기 때문에, KOFIC이 열등(포스터·개요·credits 없음)인 사본을 만들지 않도록 여기서
+    # 미리 걸러낸다. release_year=0(연도 미상)은 오탐 위험이 커서 가드 대상에서 제외.
+    if release_year > 0:
+        existing = (
+            await session.execute(
+                select(MovaMovie.id)
+                .where(MovaMovie.title == title)
+                .where(MovaMovie.release_year == release_year)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return "skipped"
 
     try:
         movie_id = await movies_repo.upsert_movie(
