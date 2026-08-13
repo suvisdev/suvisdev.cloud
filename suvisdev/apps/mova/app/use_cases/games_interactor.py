@@ -23,8 +23,10 @@ class GamesInteractor(GamesUseCase):
     def __init__(self, repository: GamesRepositoryPort) -> None:
         self._repository = repository
 
-    async def next_chosung_question(self) -> ChosungQuestionDto:
-        q = await self._repository.sample_chosung_question(_MIN_RATING)
+    async def next_chosung_question(self, category: str = "all") -> ChosungQuestionDto:
+        if category not in ("all", "kr", "foreign"):
+            raise HTTPException(status_code=400, detail="알 수 없는 category입니다.")
+        q = await self._repository.sample_chosung_question(_MIN_RATING, category=category)
         if q is None:
             raise HTTPException(status_code=503, detail="문제를 만들 영화가 부족합니다.")
         return q

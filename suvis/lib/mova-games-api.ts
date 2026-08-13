@@ -68,8 +68,14 @@ async function gamesFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data
 }
 
-export function fetchNextChosungQuestion(): Promise<ChosungQuestion> {
-  return gamesFetch<ChosungQuestion>("/chosung/next", { cache: "no-store" })
+export type ChosungCategory = "all" | "kr" | "foreign"
+
+export function fetchNextChosungQuestion(
+  category: ChosungCategory = "all",
+): Promise<ChosungQuestion> {
+  return gamesFetch<ChosungQuestion>(`/chosung/next?category=${category}`, {
+    cache: "no-store",
+  })
 }
 
 export function fetchMemoryDeck(stage: number): Promise<MemoryDeck> {

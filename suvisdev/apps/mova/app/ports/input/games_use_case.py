@@ -10,8 +10,8 @@ from mova.app.dtos.games_dto import ChosungQuestionDto, LeaderboardDto, MemoryDe
 
 class GamesUseCase(ABC):
     @abstractmethod
-    async def next_chosung_question(self) -> ChosungQuestionDto:
-        """다음 초성 문제. 반복 호출로 새 문제를 계속 뽑는다."""
+    async def next_chosung_question(self, category: str = "all") -> ChosungQuestionDto:
+        """다음 초성 문제. category: 'all' | 'kr' | 'foreign'."""
 
     @abstractmethod
     async def memory_deck(self, stage: int) -> MemoryDeckDto:
