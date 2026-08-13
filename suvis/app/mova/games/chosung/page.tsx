@@ -50,6 +50,7 @@ export default function ChosungGamePage() {
   const [correctCount, setCorrectCount] = useState(0)
   const [totalHintsUsed, setTotalHintsUsed] = useState(0)
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null)
+  const [revealed, setRevealed] = useState(false)
   const [loadingQ, setLoadingQ] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
@@ -68,6 +69,7 @@ export default function ChosungGamePage() {
       setAnswer("")
       setHintLevel(0)
       setFeedback(null)
+      setRevealed(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "문제를 불러오지 못했습니다.")
@@ -320,6 +322,12 @@ export default function ChosungGamePage() {
                   </button>
                 </div>
 
+                {revealed && question && (
+                  <p className="rounded-lg bg-mova-accent-soft px-4 py-2 text-center text-sm font-semibold text-mova-accent-bright">
+                    정답: {question.title}
+                  </p>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -333,6 +341,15 @@ export default function ChosungGamePage() {
                   <span className="text-xs text-mova-muted">
                     사용한 힌트 {totalHintsUsed}
                   </span>
+                  {mode === "unlimited" && !revealed && (
+                    <button
+                      type="button"
+                      onClick={() => setRevealed(true)}
+                      className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
+                    >
+                      정답 보기
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => void skipCurrent()}
