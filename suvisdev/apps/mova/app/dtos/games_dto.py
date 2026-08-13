@@ -74,6 +74,11 @@ class LeaderboardEntryDto:
     score: int
     hints_used: int
     played_at: datetime
+    # memory 통합 formula(2026-08-13) 노출용. chosung은 stage 없어서 None.
+    # computed_score는 실제 정렬 기준: chosung은 맞춘 개수 그대로, memory는
+    # stage*1000 + max(0, 500-elapsed).
+    stage: int | None = None
+    computed_score: int = 0
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,8 @@ class LeaderboardDto:
                 score=e.score,
                 hints_used=e.hints_used,
                 played_at=e.played_at,
+                stage=e.stage,
+                computed_score=e.computed_score,
             )
 
         return LeaderboardSchema(

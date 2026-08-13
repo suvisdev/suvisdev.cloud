@@ -35,6 +35,10 @@ export type LeaderboardEntry = {
   score: number
   hints_used: number
   played_at: string
+  // memory 통합 리더보드용. chosung은 stage=null.
+  // computed_score = 정렬 기준(memory: stage*1000+max(0,500-elapsed), chosung: score 그대로).
+  stage: number | null
+  computed_score: number
 }
 
 export type Leaderboard = {

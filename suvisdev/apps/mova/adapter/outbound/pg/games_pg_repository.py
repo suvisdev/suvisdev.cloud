@@ -155,58 +155,60 @@ class GamesPgRepository(GamesRepositoryPort):
         self, *, game_type: str, stage: int | None, limit: int, me_user_id: int | None
     ) -> LeaderboardDto:
         # 각 유저의 "최고 기록"만 뽑는다 — 같은 유저의 여러 시도 중 상위 1건.
-        # chosung: score DESC, hints_used ASC, played_at ASC (=먼저 낸 사람 우선)
-        # memory : score ASC (=빠를수록 좋음), played_at ASC
+        # chosung: score DESC(맞춘 개수), hints_used ASC, played_at ASC
+        # memory : 통합 formula = stage * 1000 + GREATEST(0, 500 - elapsed_seconds)
+        #          제약 1) 1단계 최대(1500) < 10단계 최소(10000) — 단계 대역 분리
+        #          제약 2) 같은 단계 20초 차이 = 20점 차이 — 앞선 사람 무조건 상위
+        #   stage 파라미터는 memory에서도 무시(통합 리더보드, 2026-08-13).
         if game_type == "chosung":
-            order_partition = (
-                MovaGameScore.score.desc(),
+            metric = MovaGameScore.score
+            metric_order = metric.desc()
+            best_row_order = (
+                metric.desc(),
                 MovaGameScore.hints_used.asc(),
                 MovaGameScore.played_at.asc(),
             )
-        else:  # memory
-            order_partition = (
-                MovaGameScore.score.asc(),
-                MovaGameScore.played_at.asc(),
+        else:  # memory 통합
+            metric = (
+                MovaGameScore.stage * 1000
+                + func.greatest(0, 500 - MovaGameScore.score)
             )
+            metric_order = metric.desc()
+            best_row_order = (metric_order, MovaGameScore.played_at.asc())
 
         row_number = (
             func.row_number()
             .over(
                 partition_by=MovaGameScore.user_id,
-                order_by=order_partition,
+                order_by=best_row_order,
             )
             .label("rn")
         )
-
-        base_where = [MovaGameScore.game_type == game_type]
-        if game_type == "memory":
-            base_where.append(MovaGameScore.stage == stage)
 
         best_subq = (
             select(
                 MovaGameScore.id,
                 MovaGameScore.user_id,
+                MovaGameScore.stage,
                 MovaGameScore.score,
                 MovaGameScore.hints_used,
                 MovaGameScore.played_at,
+                metric.label("metric"),
                 row_number,
             )
-            .where(and_(*base_where))
+            .where(MovaGameScore.game_type == game_type)
             .subquery()
         )
 
         # 전체 랭킹 매기기 — 유저 최고 기록만(rn=1) 대상으로 다시 order.
         if game_type == "chosung":
             overall_order = (
-                desc(best_subq.c.score),
+                desc(best_subq.c.metric),
                 best_subq.c.hints_used.asc(),
                 best_subq.c.played_at.asc(),
             )
         else:
-            overall_order = (
-                best_subq.c.score.asc(),
-                best_subq.c.played_at.asc(),
-            )
+            overall_order = (desc(best_subq.c.metric), best_subq.c.played_at.asc())
 
         overall_rank = (
             func.row_number().over(order_by=overall_order).label("overall_rank")
@@ -214,9 +216,11 @@ class GamesPgRepository(GamesRepositoryPort):
         ranked = (
             select(
                 best_subq.c.user_id,
+                best_subq.c.stage,
                 best_subq.c.score,
                 best_subq.c.hints_used,
                 best_subq.c.played_at,
+                best_subq.c.metric,
                 overall_rank,
             )
             .where(best_subq.c.rn == 1)
@@ -227,9 +231,11 @@ class GamesPgRepository(GamesRepositoryPort):
             await self._session.execute(
                 select(
                     ranked.c.user_id,
+                    ranked.c.stage,
                     ranked.c.score,
                     ranked.c.hints_used,
                     ranked.c.played_at,
+                    ranked.c.metric,
                     ranked.c.overall_rank,
                 )
                 .order_by(ranked.c.overall_rank.asc())
@@ -243,9 +249,11 @@ class GamesPgRepository(GamesRepositoryPort):
                 await self._session.execute(
                     select(
                         ranked.c.user_id,
+                        ranked.c.stage,
                         ranked.c.score,
                         ranked.c.hints_used,
                         ranked.c.played_at,
+                        ranked.c.metric,
                         ranked.c.overall_rank,
                     )
                     .where(ranked.c.user_id == me_user_id)
@@ -266,11 +274,13 @@ class GamesPgRepository(GamesRepositoryPort):
                 score=int(r.score),
                 hints_used=int(r.hints_used),
                 played_at=r.played_at,
+                stage=int(r.stage) if r.stage is not None else None,
+                computed_score=int(r.metric),
             )
 
         return LeaderboardDto(
             game_type=game_type,
-            stage=stage,
+            stage=None,  # 통합 리더보드 — memory도 stage 별도 필터 안 함
             top=[_mk(r) for r in top_rows],
             me=_mk(me_row) if me_row is not None else None,
         )

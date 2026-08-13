@@ -49,6 +49,10 @@ class LeaderboardEntrySchema(BaseModel):
     score: int
     hints_used: int
     played_at: datetime
+    # memory 통합 리더보드용. chosung은 stage=None.
+    # computed_score = 실제 정렬 기준(memory: stage*1000+GREATEST(0,500-elapsed), chosung: score 그대로)
+    stage: int | None = None
+    computed_score: int = 0
 
 
 class LeaderboardSchema(BaseModel):

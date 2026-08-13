@@ -59,8 +59,6 @@ const GAMES = [
   },
 ] as const
 
-const MEMORY_STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
-
 export default function GamesHubPage() {
   return (
     <>
@@ -118,7 +116,6 @@ const TABS: { key: GameType; label: string }[] = [
 
 function LeaderboardSidebar() {
   const [tabIdx, setTabIdx] = useState(0)
-  const [memoryStage, setMemoryStage] = useState<number>(1)
   const [board, setBoard] = useState<Leaderboard | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -127,8 +124,7 @@ function LeaderboardSidebar() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    const opts = activeTab.key === "memory" ? { stage: memoryStage, limit: 10 } : { limit: 10 }
-    fetchLeaderboard(activeTab.key, opts)
+    fetchLeaderboard(activeTab.key, { limit: 10 })
       .then((b) => {
         if (!cancelled) setBoard(b)
       })
@@ -141,12 +137,23 @@ function LeaderboardSidebar() {
     return () => {
       cancelled = true
     }
-  }, [activeTab.key, memoryStage])
+  }, [activeTab.key])
 
-  const scoreLabel = useMemo(
-    () => (activeTab.key === "memory" ? (n: number) => `${n}s` : (n: number) => `${n}개`),
-    [activeTab.key],
-  )
+  // memory 통합 리더보드: computed_score 노출, 상세는 (S{n}·{초}s).
+  // chosung: 맞춘 개수(그대로 score) 노출.
+  const renderScore = useMemo(() => {
+    if (activeTab.key === "memory") {
+      return (e: Leaderboard["top"][number]) => (
+        <>
+          {e.computed_score.toLocaleString()}점
+          {e.stage !== null && (
+            <span className="ml-1 text-[10px] text-mova-muted">(S{e.stage}·{e.score}s)</span>
+          )}
+        </>
+      )
+    }
+    return (e: Leaderboard["top"][number]) => <>{e.score}개 · 힌트 {e.hints_used}</>
+  }, [activeTab.key])
 
   const shift = (d: 1 | -1) =>
     setTabIdx((i) => (i + d + TABS.length) % TABS.length)
@@ -192,23 +199,6 @@ function LeaderboardSidebar() {
         ))}
       </div>
 
-      {activeTab.key === "memory" && (
-        <div className="mb-3 flex items-center gap-2 text-xs text-mova-muted">
-          <span>단계</span>
-          <select
-            value={memoryStage}
-            onChange={(e) => setMemoryStage(Number(e.target.value))}
-            className="rounded-md border border-mova-border bg-mova-surface-2 px-2 py-1 text-mova-text"
-          >
-            {MEMORY_STAGES.map((n) => (
-              <option key={n} value={n}>
-                {n}단계
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {loading ? (
         <p className="flex items-center gap-2 py-4 text-sm text-mova-muted">
           <Loader2 className="h-4 w-4 animate-spin" /> 불러오는 중…
@@ -241,7 +231,7 @@ function LeaderboardSidebar() {
                 </span>
                 <span className="truncate">{e.nickname || `유저 ${e.user_id}`}</span>
               </span>
-              <span className="shrink-0 tabular-nums">{scoreLabel(e.score)}</span>
+              <span className="shrink-0 tabular-nums">{renderScore(e)}</span>
             </li>
           ))}
         </ol>
@@ -253,7 +243,7 @@ function LeaderboardSidebar() {
             <span className="w-5 text-right font-semibold tabular-nums">{board.me.rank}</span>
             <span>내 최고</span>
           </span>
-          <span className="tabular-nums">{scoreLabel(board.me.score)}</span>
+          <span className="tabular-nums">{renderScore(board.me)}</span>
         </div>
       )}
     </aside>

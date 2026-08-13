@@ -63,8 +63,8 @@ class GamesInteractor(GamesUseCase):
     ) -> LeaderboardDto:
         if game_type not in ("chosung", "memory"):
             raise HTTPException(status_code=400, detail="알 수 없는 게임입니다.")
-        if game_type == "memory" and (stage is None or not _STAGE_MIN <= stage <= _STAGE_MAX):
-            raise HTTPException(status_code=400, detail="memory 리더보드엔 stage가 필요합니다.")
+        # 2026-08-13: memory 리더보드는 stage 무시 → 통합. stage 파라미터가 와도
+        # 그냥 넘김(하위 호환).
         return await self._repository.leaderboard(
             game_type=game_type, stage=stage, limit=limit, me_user_id=me_user_id
         )
