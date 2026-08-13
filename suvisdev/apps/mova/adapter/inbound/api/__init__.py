@@ -32,6 +32,7 @@ def __getattr__(name: str) -> APIRouter:
         from mova.adapter.inbound.api.v1.studio_movies_router import studio_movies_router
         from mova.adapter.inbound.api.v1.studio_search_router import studio_search_router
         from mova.adapter.inbound.api.v1.studio_tags_router import studio_tags_router
+        from mova.adapter.inbound.api.v1.upcoming_router import upcoming_router
         from mova.adapter.inbound.api.v1.whoami_router import whoami_router
 
         router = APIRouter(prefix="/mova", tags=["mova"])
@@ -50,6 +51,7 @@ def __getattr__(name: str) -> APIRouter:
         router.include_router(platform_user_taste_vector_router)
         router.include_router(collections_router)
         router.include_router(games_router)
+        router.include_router(upcoming_router)
         router.include_router(market_watchlist_router)
         router.include_router(mypage_router)
         router.include_router(whoami_router)

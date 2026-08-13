@@ -46,6 +46,26 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
         logger.debug("[TmdbCatalogAdapter] fetch_top_rated page=%d count=%d", page, len(snapshots))
         return snapshots
 
+    async def fetch_upcoming(
+        self, *, page: int = 1, region: str | None = None
+    ) -> list[TmdbMovieSnapshotDto]:
+        """TMDB /movie/upcoming — region 지정 시 그 나라 개봉 예정작."""
+        genre_map = await self._genres()
+        rows = await self._client.fetch_upcoming(page=page, region=region)
+        snapshots: list[TmdbMovieSnapshotDto] = []
+        for row in rows:
+            poster = self._client.poster_url(str(row.get("poster_path") or ""))
+            mapped = map_tmdb_row(row, genre_map=genre_map, poster_url=poster)
+            if mapped:
+                snapshots.append(mapped)
+        logger.debug(
+            "[TmdbCatalogAdapter] fetch_upcoming page=%d region=%s count=%d",
+            page,
+            region,
+            len(snapshots),
+        )
+        return snapshots
+
     async def fetch_discover(
         self,
         *,

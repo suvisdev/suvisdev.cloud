@@ -132,6 +132,37 @@
 - 이 세션 시작 시 이미 있던 배치 스크립트에도 KOFIC 사전 매칭 스킵 가드를
   추가(`_ingest_kofic_movie` 상단).
 
+### 후속 사이클 A — 한국 개봉 예정작 페이지
+- 사용자: "개봉 예정작도 넣고 싶은데 어디서 db 가져와야 할지 모르겠어" →
+  네이버 종료·KOFIC은 개봉 이후 데이터만 → TMDB `/movie/upcoming?region=KR`
+  이 유일한 공신력 소스로 정리.
+- `TmdbAdapter.fetch_upcoming(page, region)` 신설. `TmdbCatalogAdapter.fetch_upcoming`
+  래핑. 얇은 프록시 라우터 `GET /mova/upcoming`(region=KR 고정, DB 저장 안
+  하고 매 요청 시 TMDB 호출). 프론트에서 `next: { revalidate: 1800 }`(30분
+  캐시)로 rate limit 완화.
+- 프론트 `/mova/upcoming` 신설(그리드), MOVA_NAV에 "개봉예정" 탭 추가.
+- 커밋: `86ad096`.
+
+### 후속 사이클 B — KOFIC 전량 삭제 (거짓 DB 이슈)
+- 사용자: 헤더 검색 "왕과" 입력 시 "왕과 사는 남자" 2026/2025 중복 + "의자왕과
+  삼천연구원" 등 미공개작 상단 노출. "거짓 DB 들어간 것 같아" 지적.
+- 실측: KOFIC 986편 **전부** poster/rating/synopsis 없음(rating=0.0 100%,
+  poster 100% 빈문자열). 어제 KOFIC 목록 API가 이 필드를 아예 안 준다는 걸
+  놓치고 대량 저장한 결과. 게임 풀엔 `rating >= 2.5`로 자동 제외돼 안 뜨지만
+  검색·목록에 그대로 노출돼 UX 오염. title+year 사전 가드는 정확 매치만
+  잡아 "왕과 사는 남자 2025 vs 2026" 같은 연도 다른 사실상 동일작을 못
+  걸러냈음.
+- 처방(사용자 승인 후): EC2에서 `DELETE FROM movies WHERE slug LIKE 'kofic-%'`
+  실행. 986편 삭제, FK ON DELETE CASCADE로 tags 1486건 자동 정리. 사용자
+  데이터(watchlist/picks/reviews/rankings/user_actions)에 KOFIC 참조 0건
+  실측 확인 후 실행 — 무영향. hub_knowledge도 0건(어제 임베딩 실패로
+  실제 저장 안 됐음이 이번에 드러남).
+- 스크립트: `_SOURCES`에서 "kofic" 제거해 CLI가 재실행을 거부. 어댑터·
+  인제스터 함수는 도서관 성격으로 남김(poster 보강 경로 마련 전까지 CLI
+  금지 근거 주석).
+- 카탈로그: 3965 → 2979(=TMDB 2956 + seed 23) 복귀.
+- 커밋: `f4176aa`.
+
 ---
 
 ## 2026-08-12
