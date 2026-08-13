@@ -28,6 +28,112 @@
 
 ---
 
+## 2026-08-13
+
+### 작업 내용
+- 사용자 요청 5건을 한 세션에서 처리 후 일괄 배포.
+  ① 헤더 검색 "아" 오매칭 해결 ② 영화 탭 기본 정렬을 인기순으로
+  ③ OAuth 사용자가 마이페이지 진입 시마다 재로그인되던 이슈 + `/mova/login`에
+  OAuth 버튼 부재 ④ 컬렉션 탭 자리에 미니게임(초성·카드뒤집기) 신설
+  ⑤ 카탈로그 확장 — TMDB discover KR 1000편 + KOFIC 986편.
+
+### 수정/구현
+
+**mova 검색 관련성 정렬(`2c4e2f7` 후속)**
+- `suvisdev/apps/mova/adapter/outbound/pg/studio_search_pg_repository.py` —
+  배우/감독 이름 `ILIKE %q%` 확장을 **2글자 이상일 때만** 걸도록 가드. 정렬을
+  `rating desc`에서 `title 시작일치 → title 포함 → 그 외(배우/감독/태그), 그
+  다음 rating`으로 변경. "아" 한 글자 검색 시 배우 이름에 "아"가 든 사람이
+  워낙 많아 title 매칭이 밀리던 문제 해결.
+
+**영화 탭 기본 정렬 = 인기순**
+- `suvisdev/apps/mova/adapter/outbound/pg/movies_pg_repository.py` — `sort=popular`
+  가 `rating desc`와 사실상 동일했던 것을 **picks 카운트(AI 채팅 픽 횟수) desc
+  → rating desc → id desc**로 개선. picks 서브쿼리를 outerjoin.
+- `suvis/app/mova/movies/page.tsx` — SORTS 첫 항목·initialSort·hasActiveFilters·
+  syncUrl·resetFilters의 기본값을 `latest`→`popular`로 통일.
+
+**OAuth 사용자 mova 인증 통과 + 로그인 페이지 OAuth 버튼**
+- 근본 원인: mova 인증(RS256+aud=suvis-mova)과 viewer OAuth 세션(HS256, aud
+  없음) 두 발급 경로가 완전히 다른데, mova 라우터가 RS256만 검증해 OAuth
+  로그인 사용자가 마이페이지·watchlist·리뷰 등 인증 API 전체에서 401.
+- `suvisdev/shared/security/token_verifier.py` — `verify_viewer_session_token()`
+  신설(HS256+JWT_SECRET, `role: str` → `roles=[role]` 어댑팅, aud 없어서
+  표시용 "viewer-session"으로 채움).
+- `suvisdev/shared/security/require_user.py`·`apps/mova/dependencies/require_auth.py` —
+  RS256 실패 시 viewer HS256 fallback 추가. 두 계층 모두 fix해야 mypage/
+  watchlist/reviews 라우터가 통과됨(전자만 고치면 `whoami`만 통과).
+- `suvis/components/mova/mova-auth-forms.tsx` — 로그인/회원가입 폼 위에
+  Google/네이버/카카오 OAuth 버튼 3개 추가(`OAuthButtons` 재사용). 헤더
+  드롭다운의 `AuthDialog`엔 있었지만 마이페이지에서 튕겨진 후 랜딩되는
+  `/mova/login`엔 없어 재로그인 자체가 불가능했던 UI 공백 메움.
+
+**미니게임 신설(`/mova/games`) + 컬렉션 탭 숨김**
+- `suvis/lib/mova-mock-data.ts` — MOVA_NAV의 "컬렉션" → "미니게임"으로 교체
+  (컬렉션 페이지·백엔드는 그대로 유지, 헤더에서만 숨김).
+- 신규 백엔드(클린 아키텍처 8 파일):
+  `apps/mova/adapter/inbound/api/schemas/games_schema.py`,
+  `apps/mova/app/dtos/games_dto.py`,
+  `apps/mova/app/ports/input/games_use_case.py`,
+  `apps/mova/app/ports/output/games_repository.py`,
+  `apps/mova/app/use_cases/games_interactor.py`,
+  `apps/mova/adapter/outbound/pg/games_pg_repository.py`,
+  `apps/mova/dependencies/games_provider.py`,
+  `apps/mova/adapter/inbound/api/v1/games_router.py`. 라우터 4엔드포인트:
+  `GET /mova/games/chosung/next`(랜덤 문제, 정답 응답 포함 — 게임 몰입
+  이슈 정도라 감수), `GET /mova/games/memory/deck?stage=N`(2N쌍),
+  `POST /mova/games/scores`(로그인 필수), `GET /mova/games/leaderboard`
+  (익명 조회 가능, `me`는 로그인 시에만).
+- 신규 DB: `game_scores` 테이블 (마이그레이션 `20260813_0001_add_game_scores`,
+  ORM `market_game_scores_orm.py`, `MovaGameScore`). 컬럼: user_id/game_type/
+  stage(memory만)/score/hints_used/played_at. 인덱스 2개(리더보드 정렬용,
+  개인 최고 조회용).
+- 신규 프론트: `suvis/lib/mova-games-api.ts` +
+  `suvis/app/mova/games/{page,chosung/page,memory/page}.tsx`. 초성 게임은
+  1분 타이머 + 힌트 3단계(1: 원문 초성+한/외 태그, 2: 출연진 5명, 3: 포스터
+  1/4). 카드 뒤집기는 1~10단계(4→40장), 포스터↔제목 매칭, 완료 초를
+  score로 저장(빠를수록 상위). 리더보드는 게임별(카드뒤집기는 단계별로)
+  TOP 10 + 내 최고를 게임 종료 화면에 표시.
+- 초성 계산: `_to_chosung_condensed`(공백·구두점 제거, 한글은 초성만,
+  영숫자 대문자 유지) / `_to_chosung_spaced`(원래 형태 유지, 한글만 초성).
+  예: "듄: 파트3" → condensed "ㄷㅍㅌ3", spaced "ㄷ: ㅍㅌ3".
+- 게임 영화 풀 하한 `rating >= 2.5`(사용자 지정, 2560편). `rating`은 사용자
+  리뷰가 아니라 TMDB `vote_average`를 0~5 스케일로 저장한 값이라는 점
+  사용자에게 확인·설명.
+
+**카탈로그 대량 확장**
+- **tmdb_discover KR 50페이지 배치(EC2)**: `docker exec -d`로 백그라운드
+  실행, succeeded=1000/failed=0. movies 2014 → 3014(≈+947 순증, credits
+  백필 포함).
+- **KOFIC KR 10페이지 배치(EC2)**: `--source kofic --country KR --pages 10`,
+  succeeded=986/skipped=14/failed=0 → movies 3014 → 3965(+986 순증).
+  스킵된 14편만 title+year가 TMDB에 이미 있던 케이스 — KOFIC이 옛날/독립
+  한국영화 커버리지를 실제로 크게 넓혀줬음을 확인.
+
+### 오류·막힌 점
+- **KOFIC `repNationCd` 320221 에러(2026-08-13)**: `_KOFIC_NATION_CD`가
+  `{"KR": "K", "US": "F"}` 1글자 매핑이었는데 KOFIC API는 8자리 공통코드
+  (comCode 220310)를 요구. `searchCodeList.json?comCode=220310`으로 실측해
+  `KR=22041011`(South Korea)·`US=22042002`(U.S.) 확인 후 매핑 정정.
+- **컨테이너 WORKDIR 착오**: 처음에 배치 스크립트 실행할 때 `cd /app`으로
+  래핑했는데 컨테이너 WORKDIR는 `/suvisdev`였음(exec에서 `cd: can't cd to
+  /app`). cd 없이 실행하면 되는 걸 확인해서 재시작. 백그라운드 exec는
+  실패해도 조용해서 로그 파일이 안 만들어진 것으로만 티가 났음.
+- **mova 인증 fix 범위 착오**: 처음 `apps/mova/dependencies/require_auth.py`
+  하나만 고쳤는데 실사용은 `shared/security/require_user.py`쪽 — grep으로
+  실제 라우터 import 확인 후 양쪽 다 fix.
+
+### 데이터
+- movies: 2014 → 3965 (+1951 순증, TMDB+KOFIC 합산).
+- game_scores: 마이그레이션 적용 대기(EC2 `alembic upgrade head`).
+
+### 산출물
+- 커밋 5건(예정) — 검색·정렬·인증·게임·bulk_import 스크립트 정정.
+- 이 세션 시작 시 이미 있던 배치 스크립트에도 KOFIC 사전 매칭 스킵 가드를
+  추가(`_ingest_kofic_movie` 상단).
+
+---
+
 ## 2026-08-12
 
 ### 작업 내용
