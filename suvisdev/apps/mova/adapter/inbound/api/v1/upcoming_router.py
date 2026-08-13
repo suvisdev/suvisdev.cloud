@@ -30,7 +30,7 @@ async def list_upcoming(
     catalog: TmdbCatalogAdapter = Depends(_get_catalog),
 ) -> UpcomingListSchema:
     try:
-        snapshots = await catalog.fetch_upcoming(page=page, region="KR")
+        pairs = await catalog.fetch_upcoming_dated(page=page, region="KR")
     except TmdbAdapterError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
     items = [
@@ -39,11 +39,14 @@ async def list_upcoming(
             slug=s.slug,
             title=s.title,
             release_year=s.release_year,
+            release_date=release_date,
             rating=s.rating,
             poster_url=s.poster_url,
             genres=list(s.genres),
             overview=s.overview or "",
         )
-        for s in snapshots
+        for s, release_date in pairs
     ]
+    # 개봉일 오름차순(=먼저 개봉하는 것부터). 빈 문자열(=미정)은 뒤로.
+    items.sort(key=lambda m: (m.release_date == "", m.release_date))
     return UpcomingListSchema(region="KR", items=items)

@@ -122,6 +122,7 @@ export type UpcomingMovie = {
   slug: string
   title: string
   release_year: number
+  release_date: string // YYYY-MM-DD, 미정이면 빈 문자열
   rating: number
   poster_url: string
   genres: string[]

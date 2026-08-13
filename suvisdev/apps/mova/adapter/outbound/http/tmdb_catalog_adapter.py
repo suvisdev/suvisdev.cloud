@@ -50,21 +50,32 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
         self, *, page: int = 1, region: str | None = None
     ) -> list[TmdbMovieSnapshotDto]:
         """TMDB /movie/upcoming — region 지정 시 그 나라 개봉 예정작."""
+        pairs = await self.fetch_upcoming_dated(page=page, region=region)
+        return [snap for snap, _ in pairs]
+
+    async def fetch_upcoming_dated(
+        self, *, page: int = 1, region: str | None = None
+    ) -> list[tuple[TmdbMovieSnapshotDto, str]]:
+        """fetch_upcoming과 같지만 release_date(YYYY-MM-DD)도 함께 반환.
+
+        `TmdbMovieSnapshotDto`엔 year만 있는데, 개봉 예정작 UI는 월/일까지
+        노출·정렬해야 하므로 raw row의 release_date를 튜플로 함께 넘긴다.
+        """
         genre_map = await self._genres()
         rows = await self._client.fetch_upcoming(page=page, region=region)
-        snapshots: list[TmdbMovieSnapshotDto] = []
+        out: list[tuple[TmdbMovieSnapshotDto, str]] = []
         for row in rows:
             poster = self._client.poster_url(str(row.get("poster_path") or ""))
             mapped = map_tmdb_row(row, genre_map=genre_map, poster_url=poster)
             if mapped:
-                snapshots.append(mapped)
+                out.append((mapped, str(row.get("release_date") or "")))
         logger.debug(
-            "[TmdbCatalogAdapter] fetch_upcoming page=%d region=%s count=%d",
+            "[TmdbCatalogAdapter] fetch_upcoming_dated page=%d region=%s count=%d",
             page,
             region,
-            len(snapshots),
+            len(out),
         )
-        return snapshots
+        return out
 
     async def fetch_discover(
         self,
