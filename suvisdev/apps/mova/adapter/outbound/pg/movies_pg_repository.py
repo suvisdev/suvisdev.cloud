@@ -7,6 +7,7 @@ import logging
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mova.adapter.outbound.orm.market_picks_orm import MovaPick
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
@@ -166,7 +167,20 @@ class MoviesPgRepository(MoviesRepositoryPort):
         if query.sort == "rating":
             stmt = stmt.order_by(MovaMovie.rating.desc())
         elif query.sort == "popular":
-            stmt = stmt.order_by(MovaMovie.rating.desc())
+            # "인기순" = AI 채팅에서 픽된 횟수(=사용자 검색·질의 결과로 노출된 횟수)
+            # 내림차순, 동점이면 평점 내림차순. picks가 0건인 영화는 rating으로만 순위.
+            # popularity 캐시 컬럼 대신 실시간 join — movies 규모(수천 편)에서 실용적.
+            pick_count_sub = (
+                select(MovaPick.movie_id, func.count().label("pick_count"))
+                .group_by(MovaPick.movie_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(pick_count_sub, pick_count_sub.c.movie_id == MovaMovie.id)
+            stmt = stmt.order_by(
+                func.coalesce(pick_count_sub.c.pick_count, 0).desc(),
+                MovaMovie.rating.desc(),
+                MovaMovie.id.desc(),
+            )
         else:
             stmt = stmt.order_by(MovaMovie.release_year.desc(), MovaMovie.id.desc())
 

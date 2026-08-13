@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from fastapi import Header, HTTPException
 
-from shared.security.token_verifier import verify_token
+from shared.security.token_verifier import verify_token, verify_viewer_session_token
 
 _MOVA_AUD = "suvis-mova"
 
@@ -32,10 +32,16 @@ def require_user(authorization: str | None = Header(default=None)) -> UserPrinci
         raise HTTPException(status_code=401, detail="인증이 필요합니다.")
 
     token = authorization.removeprefix("Bearer ").strip()
+    # 두 발급 경로를 모두 수용: (1) auth 게이트웨이 RS256+aud, (2) viewer 세션 HS256.
+    # OAuth/이메일 로그인은 (2)로만 발급 — fallback 없으면 mova 인증 라우터 전체가 401.
+    # (2026-08-12 문서가 "auth 게이트웨이는 사실상 미사용, viewer가 주 인증"이라 정정한 것과 일치.)
     try:
         payload = verify_token(token, aud=_MOVA_AUD)
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다.") from e
+    except Exception:
+        try:
+            payload = verify_viewer_session_token(token)
+        except Exception as e:
+            raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다.") from e
 
     # RS256 토큰엔 username이 안 들어 있음. 라우터에서 실제로 username을 쓰는
     # 코드가 없어 빈 문자열로 둔다(있으면 /mova/whoami로 별도 조회).

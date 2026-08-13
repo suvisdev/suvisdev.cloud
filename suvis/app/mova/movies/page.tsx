@@ -71,8 +71,8 @@ const RATINGS = [
 type RatingValue = (typeof RATINGS)[number]["value"]
 
 const SORTS = [
-  { value: "latest", label: "최신순" },
   { value: "popular", label: "인기순" },
+  { value: "latest", label: "최신순" },
   { value: "rating", label: "평점순" },
 ] as const
 
@@ -226,7 +226,7 @@ function MovaMoviesPageInner() {
   const initialGenre = isGenreTab(searchParams.get("genre")) ? (searchParams.get("genre") as GenreTab) : "전체"
   const initialDecade = (searchParams.get("decade") ?? "") as DecadeValue
   const initialRating = (searchParams.get("min_rating") ?? "") as RatingValue
-  const initialSort = ((searchParams.get("sort") as SortValue) || "latest") as SortValue
+  const initialSort = ((searchParams.get("sort") as SortValue) || "popular") as SortValue
   const initialActor = searchParams.get("actor") ?? ""
   const initialAgeRating = (searchParams.get("age_rating") ?? "") as AgeRatingValue
   const initialPlatform = (searchParams.get("platform") ?? "") as PlatformValue
@@ -248,7 +248,7 @@ function MovaMoviesPageInner() {
     genre !== "전체" ||
     decade !== "" ||
     minRating !== "" ||
-    sort !== "latest" ||
+    sort !== "popular" ||
     actor !== "" ||
     ageRating !== "" ||
     platform !== ""
@@ -273,7 +273,7 @@ function MovaMoviesPageInner() {
     if (next.genre !== "전체") params.set("genre", next.genre)
     if (next.decade) params.set("decade", next.decade)
     if (next.minRating) params.set("min_rating", next.minRating)
-    if (next.sort !== "latest") params.set("sort", next.sort)
+    if (next.sort !== "popular") params.set("sort", next.sort)
     if (next.actor) params.set("actor", next.actor)
     if (next.ageRating) params.set("age_rating", next.ageRating)
     if (next.platform) params.set("platform", next.platform)
@@ -358,7 +358,7 @@ function MovaMoviesPageInner() {
       genre: "전체",
       decade: "",
       minRating: "",
-      sort: "latest",
+      sort: "popular",
       actor: "",
       ageRating: "",
       platform: "",

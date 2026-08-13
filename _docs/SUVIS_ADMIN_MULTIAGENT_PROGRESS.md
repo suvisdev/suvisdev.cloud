@@ -9,6 +9,16 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova 사이클 5건 + 카탈로그 대량 확장(2026-08-13)**:
+  ① 헤더 검색 관련성 정렬(짧은 쿼리 배우/감독 확장 가드+`title 시작→포함→기타`
+  정렬), ② 영화 탭 기본 정렬을 인기순(picks 카운트) 기본으로, ③ OAuth
+  사용자 mova 인증 통과(`shared/security/require_user.py`·`mova/dependencies/
+  require_auth.py`에 viewer HS256 세션 fallback + `/mova/login`에 OAuth 3버튼),
+  ④ 컬렉션 탭 자리에 미니게임(초성/카드뒤집기) 신설 — 라우터·마이그레이션
+  (`game_scores`)·리더보드까지 클린 아키텍처 8 파일 + 프론트 3 페이지,
+  ⑤ 카탈로그 2014 → 3965(TMDB discover KR 1000편 + KOFIC 986편, KOFIC
+  `repNationCd` 320221 원인 8자리 공통코드로 정정, `_ingest_kofic_movie`에
+  title+year 사전 중복 가드 추가). 상세: WORK_LOG 2026-08-13.
 - **mova 로그인 완전 장애 수정(2026-08-11)**: `beec23e`가 연결해뒀던
   미완성 auth 게이트웨이(`auth.suvisdev.cloud`, redirect_uri env var
   자체가 없어 항상 503) 의존을 제거하고 기존 검증된 viewer OAuth/이메일

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Eye, EyeOff } from "lucide-react"
 import { MovaLogo } from "@/components/mova/mova-logo"
+import { OAuthButtons } from "@/components/auth/oauth-buttons"
 import { FormStatus, initialFormStatus, isSuccessMessage } from "@/lib/form-status"
 import { saveSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
@@ -193,8 +194,20 @@ export function MovaAuthForms() {
             ))}
           </div>
 
+          {/* 소셜 로그인 — OAuth 사용자의 재로그인 경로 확보 (2026-08-13).
+              /viewer/oauth/{provider}/login으로 이동 → /oauth/callback에서
+              saveSuvisSession 완료. 아이디/비번 폼과 동일 세션을 씀. */}
+          <div className="px-6 pt-6">
+            <OAuthButtons />
+            <div className="my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-mova-border" />
+              <span className="text-[11px] text-neutral-500">또는</span>
+              <div className="h-px flex-1 bg-mova-border" />
+            </div>
+          </div>
+
           {tab === "login" ? (
-            <form onSubmit={handleLogin} className="space-y-4 px-6 py-6">
+            <form onSubmit={handleLogin} className="space-y-4 px-6 pb-6">
               <div className="space-y-2">
                 <label htmlFor="mova-login-username" className="text-sm text-neutral-400">아이디</label>
                 <input id="mova-login-username" name="username" type="text" autoComplete="username" placeholder="아이디" className={inputClass} />
@@ -220,7 +233,7 @@ export function MovaAuthForms() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSignup} className="space-y-4 px-6 py-6">
+            <form onSubmit={handleSignup} className="space-y-4 px-6 pb-6">
               <div className="space-y-2">
                 <label htmlFor="mova-signup-username" className="text-sm text-neutral-400">아이디</label>
                 <input id="mova-signup-username" name="username" type="text" autoComplete="username" placeholder="아이디" className={inputClass} />
