@@ -3,6 +3,7 @@
 from mova.adapter.outbound.orm.base_orm import MovaModel
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
 from mova.adapter.outbound.orm.market_collections_orm import MovaCollection
+from mova.adapter.outbound.orm.market_game_scores_orm import MovaGameScore
 from mova.adapter.outbound.orm.market_conversations_orm import (
     MovaConversation,
     MovaConversationMessage,
@@ -53,6 +54,7 @@ __all__ = [
     "slugify_tag",
     "MovaRanking",
     "MovaChat",
+    "MovaGameScore",
     "MovaPick",
     "MovaReview",
     "MovaUserAction",
