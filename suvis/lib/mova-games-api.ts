@@ -72,8 +72,11 @@ export type ChosungCategory = "all" | "kr" | "foreign"
 
 export function fetchNextChosungQuestion(
   category: ChosungCategory = "all",
+  excludeIds: number[] = [],
 ): Promise<ChosungQuestion> {
-  return gamesFetch<ChosungQuestion>(`/chosung/next?category=${category}`, {
+  const params = new URLSearchParams({ category })
+  if (excludeIds.length > 0) params.set("exclude", excludeIds.join(","))
+  return gamesFetch<ChosungQuestion>(`/chosung/next?${params.toString()}`, {
     cache: "no-store",
   })
 }

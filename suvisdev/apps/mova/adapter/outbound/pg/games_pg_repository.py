@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import Integer, and_, cast, desc, func, select
+from sqlalchemy import Integer, and_, cast, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_game_scores_orm import MovaGameScore
@@ -28,11 +28,60 @@ _CHOSUNG_LIST = (
     "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
 )
 
+# 한자음 숫자 초성. 0=영(ㅇ), 1=일(ㅇ), 2=이(ㅇ), 3=삼(ㅅ), 4=사(ㅅ),
+# 5=오(ㅇ), 6=육(ㅇ), 7=칠(ㅊ), 8=팔(ㅍ), 9=구(ㄱ). "20세기 소년"이
+# 사용자에겐 "이십세기소년"이라 초성 "ㅇㅅㅅㄱㅅㄴ"이어야 자연스러움
+# (2026-08-13 사용자 지적). "20"→"이십"→"ㅇㅅ" 처럼 자리수 단위(십/백/천/만)
+# 를 함께 발음으로 풀어낸다.
+_DIGIT_TO_CHO = "ㅇㅇㅇㅅㅅㅇㅇㅊㅍㄱ"
+
+
+def _integer_to_chosung(n: int) -> str:
+    """자연수를 한자음(이십, 백, 천) 기준 초성으로. 만 이상은 만 단위로 재귀."""
+    if n == 0:
+        return "ㅇ"
+    if n < 0:
+        n = -n
+    out: list[str] = []
+    if n >= 10000:
+        out.append(_integer_to_chosung(n // 10000))
+        out.append("ㅁ")
+        n %= 10000
+    if n >= 1000:
+        t = n // 1000
+        if t > 1:
+            out.append(_DIGIT_TO_CHO[t])
+        out.append("ㅊ")
+        n %= 1000
+    if n >= 100:
+        b = n // 100
+        if b > 1:
+            out.append(_DIGIT_TO_CHO[b])
+        out.append("ㅂ")
+        n %= 100
+    if n >= 10:
+        s = n // 10
+        if s > 1:
+            out.append(_DIGIT_TO_CHO[s])
+        out.append("ㅅ")
+        n %= 10
+    if n > 0:
+        out.append(_DIGIT_TO_CHO[n])
+    return "".join(out)
+
+
+def _replace_digit_runs(text: str) -> str:
+    """숫자 뭉치를 _integer_to_chosung 결과로 인라인 치환."""
+    import re
+
+    return re.sub(r"\d+", lambda m: _integer_to_chosung(int(m.group(0))), text)
+
 
 def _to_chosung_spaced(text: str) -> str:
-    """원래 형태 유지, 한글 음절은 초성으로 대체."""
+    """원래 형태 유지, 한글 음절·숫자 뭉치는 한자음 초성으로 대체."""
+    replaced = _replace_digit_runs(text)
     out: list[str] = []
-    for ch in text:
+    for ch in replaced:
         code = ord(ch)
         if 0xAC00 <= code <= 0xD7A3:
             out.append(_CHOSUNG_LIST[(code - 0xAC00) // 588])
@@ -42,13 +91,14 @@ def _to_chosung_spaced(text: str) -> str:
 
 
 def _to_chosung_condensed(text: str) -> str:
-    """공백·구두점 제거, 한글은 초성만, 영숫자는 대문자 유지."""
+    """공백·구두점 제거, 한글은 초성만, 숫자 뭉치는 한자음 초성, 영문은 대문자."""
+    replaced = _replace_digit_runs(text)
     out: list[str] = []
-    for ch in text:
+    for ch in replaced:
         code = ord(ch)
         if 0xAC00 <= code <= 0xD7A3:
             out.append(_CHOSUNG_LIST[(code - 0xAC00) // 588])
-        elif ch.isalnum():
+        elif ch.isalpha():
             out.append(ch.upper())
     return "".join(out)
 
@@ -63,35 +113,62 @@ def _is_korean_movie(movie: MovaMovie) -> bool:
     return False
 
 
-def _pool_conditions(min_rating: float):
-    """미니게임 영화 풀 필터.
-
-    - rating >= min_rating (2.5 기본)
-    - 한글 문자 최소 1자 포함(라틴 전용 제목 배제: "VIZIOEPROVOCAZIONE" 등)
-    - age_rating 있음(TMDB KR release_dates.certification 백필 대상 = 한국 상영이력)
-    - poster/title 비어있지 않음
-    - 시리즈 후속편(제목 끝이 " 숫자") 배제: "슈렉 2/3/5", "존 윅 4", "토이 스토리 3" 등
-      → 시리즈는 원작(숫자 없는 편)만 문제로 남는다. TMDB collection_id는 실측
-      결과 0.3%만 채워져 있어(2026-08-13) 컬렉션 기반 필터는 무용지물.
-      정규식 " [0-9]+$" — 원작 부제(007 스카이폴, 쓰리 빌보드 등)는 오탐 없음.
-
-    2026-08-13 사용자 피드백: 완전 라틴 제목·미상영 마이너 외국영화가 노출돼
-    난이도가 비합리적으로 높고, "슈렉 3 → ㅅㄹ3"처럼 후속편 번호가 초성게임
-    본질을 해치는 문제. 한국 상영작 + 원작만 남기게 좁힘.
-    실측(EC2): 필터 통과 편수 1517 → 1383편.
-    """
+def _common_conditions():
+    """모든 게임 풀 공통: title/poster 있음, 한글 포함, 시리즈 후속편 배제."""
     return [
-        MovaMovie.rating >= min_rating,
         MovaMovie.poster_url != "",
         MovaMovie.title != "",
         MovaMovie.title.op("~")("[가-힣]"),
         MovaMovie.title.op("!~")(" [0-9]+$"),
+    ]
+
+
+def _kr_pool_conditions(min_rating: float):
+    """한국 영화 풀. age_rating/platforms 필터 제외 — TMDB가 한국 영화에 이
+    두 필드를 대체로 안 채워주기 때문(실측 2026-08-13: KR 게임 풀 1919 → 29 →
+    20편으로 축소됨). rating은 완화(2.5 이상)해 편수 확보.
+    """
+    return [
+        *_common_conditions(),
+        MovaMovie.rating >= min(min_rating, 2.5),
+        MovaMovie.original_language == "ko",
+    ]
+
+
+def _foreign_pool_conditions(min_rating: float):
+    """외국 영화 풀. 사용자 지시(2026-08-13): "유명하고 인기 있는 영화만".
+    엄격 필터 유지 — rating 3.0+ · age_rating 있음(KR 심의 통과) · KR OTT
+    플랫폼 하나 이상. 한국 영화(original_language='ko') 제외.
+    """
+    return [
+        *_common_conditions(),
+        MovaMovie.rating >= min_rating,
+        (MovaMovie.original_language != "ko") | (MovaMovie.original_language.is_(None)),
         MovaMovie.age_rating.isnot(None),
-        # KR OTT 플랫폼(넷플릭스/티빙/왓챠 등) 하나 이상 있음 = 실제 국내 접근
-        # 가능한 영화. age_rating만으론 심의만 받고 실제 상영 없는 마이너 외국영화
-        # (태국·인도 등)가 통과함(2026-08-13 사용자 재지적).
         func.jsonb_array_length(MovaMovie.platforms) > 0,
     ]
+
+
+# 2026-08-13 이전 단일 필터. 남겨두면 다른 곳(카드 뒤집기)이 여전히 참조.
+# 여기서는 두 풀의 합집합 개념으로 유지 — 카드 뒤집기는 category 개념 없으므로
+# 기존 엄격 조건(외국) 그대로 쓰되 한국 영화도 원산지·평점 낮은 것까지 포함.
+def _pool_conditions(min_rating: float):
+    """카드 뒤집기·기타 용도의 통합 풀 — KR 완화 조건과 외국 엄격 조건의 합집합.
+
+    카드 뒤집기는 카테고리 개념이 없어 두 풀을 OR로 합쳐 다양성 확보.
+    """
+    common = _common_conditions()
+    kr_branch = and_(
+        MovaMovie.rating >= min(min_rating, 2.5),
+        MovaMovie.original_language == "ko",
+    )
+    foreign_branch = and_(
+        MovaMovie.rating >= min_rating,
+        (MovaMovie.original_language != "ko") | (MovaMovie.original_language.is_(None)),
+        MovaMovie.age_rating.isnot(None),
+        func.jsonb_array_length(MovaMovie.platforms) > 0,
+    )
+    return [*common, or_(kr_branch, foreign_branch)]
 
 
 class GamesPgRepository(GamesRepositoryPort):
@@ -99,27 +176,37 @@ class GamesPgRepository(GamesRepositoryPort):
         self._session = session
 
     async def sample_chosung_question(
-        self, min_rating: float, *, category: str = "all"
+        self,
+        min_rating: float,
+        *,
+        category: str = "all",
+        exclude_ids: list[int] | None = None,
     ) -> ChosungQuestionDto | None:
-        conditions = list(_pool_conditions(min_rating))
-        # category: 'kr' = original_language == 'ko', 'foreign' = 그 외, 'all' = 필터 없음.
-        # original_language를 판정 기준으로 삼는 이유는 origin_country가 jsonb라
-        # 서브쿼리·인덱스 부담이 있고, 실측상 대부분 영화가 이 필드로 판별 가능.
+        import random as _random
+
+        exclude_ids = exclude_ids or []
+
+        async def _try(conds: list) -> MovaMovie | None:
+            all_conds = list(conds)
+            if exclude_ids:
+                all_conds.append(MovaMovie.id.notin_(exclude_ids))
+            return (
+                await self._session.execute(
+                    select(MovaMovie).where(*all_conds).order_by(func.random()).limit(1)
+                )
+            ).scalar_one_or_none()
+
+        # 카테고리별 후보 풀 선정. 'all'은 70% 한국 · 30% 외국(사용자 지시
+        # 2026-08-13). 선택된 풀에서 소진 시 반대 풀로 폴백.
         if category == "kr":
-            conditions.append(MovaMovie.original_language == "ko")
+            row = await _try(_kr_pool_conditions(min_rating))
         elif category == "foreign":
-            conditions.append(
-                (MovaMovie.original_language != "ko")
-                | (MovaMovie.original_language.is_(None))
-            )
-        row = (
-            await self._session.execute(
-                select(MovaMovie)
-                .where(*conditions)
-                .order_by(func.random())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
+            row = await _try(_foreign_pool_conditions(min_rating))
+        else:
+            prefer_kr = _random.random() < 0.7
+            first = _kr_pool_conditions(min_rating) if prefer_kr else _foreign_pool_conditions(min_rating)
+            second = _foreign_pool_conditions(min_rating) if prefer_kr else _kr_pool_conditions(min_rating)
+            row = await _try(first) or await _try(second)
         if row is None:
             return None
 

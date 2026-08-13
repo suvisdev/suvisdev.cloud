@@ -26,9 +26,17 @@ games_router = APIRouter(prefix="/games", tags=["mova-games"])
 @games_router.get("/chosung/next", response_model=ChosungQuestionSchema)
 async def next_chosung_question(
     category: str = Query("all", pattern="^(all|kr|foreign)$"),
+    exclude: str = Query("", description="쉼표 구분 movie_id — 이번 게임 세션 중 배제"),
     use_case: GamesUseCase = Depends(get_games_use_case),
 ) -> ChosungQuestionSchema:
-    return (await use_case.next_chosung_question(category)).to_schema()
+    exclude_ids: list[int] = []
+    for tok in exclude.split(","):
+        tok = tok.strip()
+        if tok.isdigit():
+            exclude_ids.append(int(tok))
+    return (
+        await use_case.next_chosung_question(category, exclude_ids)
+    ).to_schema()
 
 
 @games_router.get("/memory/deck", response_model=MemoryDeckSchema)

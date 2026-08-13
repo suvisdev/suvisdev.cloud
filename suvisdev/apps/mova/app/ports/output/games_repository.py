@@ -15,12 +15,16 @@ from mova.app.dtos.games_dto import (
 class GamesRepositoryPort(ABC):
     @abstractmethod
     async def sample_chosung_question(
-        self, min_rating: float, *, category: str = "all"
+        self,
+        min_rating: float,
+        *,
+        category: str = "all",
+        exclude_ids: list[int] | None = None,
     ) -> ChosungQuestionDto | None:
         """rating >= min_rating인 영화 중 한 편을 무작위로 뽑아 초성 문제 구성.
 
-        category: 'all' | 'kr' | 'foreign'. kr=original_language=='ko',
-        foreign=그 외. 'all'은 필터 없음.
+        category: 'all' | 'kr' | 'foreign'. 'all'은 70% 한국 · 30% 외국 랜덤.
+        exclude_ids: 이번 게임 세션 중 이미 나온 movie.id 배제(중복 방지).
         """
 
     @abstractmethod
