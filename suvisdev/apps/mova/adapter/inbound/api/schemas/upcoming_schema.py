@@ -10,6 +10,7 @@ class UpcomingMovieSchema(BaseModel):
     slug: str
     title: str
     release_year: int
+    release_date: str  # YYYY-MM-DD (일부 미정작은 빈 문자열)
     rating: float
     poster_url: str
     genres: list[str]
