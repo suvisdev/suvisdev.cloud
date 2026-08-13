@@ -35,11 +35,13 @@ for _p in (_BACKEND, _APPS):
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:\t%(message)s")
 logger = logging.getLogger("bulk_import_movies")
 
-_SOURCES = ("tmdb_popular", "tmdb_discover", "kofic")
+# kofic 소스는 2026-08-13에 CLI 진입점에서 제거. KOFIC 목록 API가 poster/rating/
+# synopsis를 아예 안 줘서(상세 API로도 poster는 없음), 저장된 986편이 전부 빈
+# 껍데기로 검색·목록에 노출돼 "가짜 DB" 이슈를 냈다(로컬 실측 후 전량 삭제).
+# _ingest_kofic_movie·KoficAdapter·_KOFIC_NATION_CD는 도서관 성격으로 남겨둔다
+# — poster 보강 경로(예: TMDB 매칭)를 마련하기 전까진 CLI 재실행 금지.
+_SOURCES = ("tmdb_popular", "tmdb_discover")
 _TMDB_SLEEP_SECONDS = 0.25
-# KOFIC repNationCd — 8자리 공통코드(comCode 220310). "K"/"F" 같은 1글자는 API가
-# 320221 "국적구분 조건은 공통코드220310으로 조회된 8자리 코드를 입력하십시요"로 거부한다
-# (2026-08-13 실측). searchCodeList로 확인: 한국=22041011, 미국=22042002.
 _KOFIC_NATION_CD = {"KR": "22041011", "US": "22042002"}
 
 
