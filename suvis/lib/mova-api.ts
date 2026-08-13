@@ -117,6 +117,27 @@ export function movaMatchLabel(type: MovaSearchResult["match_type"]) {
   return MATCH_LABEL[type]
 }
 
+export type UpcomingMovie = {
+  tmdb_id: number
+  slug: string
+  title: string
+  release_year: number
+  rating: number
+  poster_url: string
+  genres: string[]
+  overview: string
+}
+
+/** TMDB 개봉예정작(한국 기준) — 백엔드 얇은 프록시. */
+export async function fetchUpcoming(page = 1): Promise<UpcomingMovie[]> {
+  const res = await fetch(`${API_BASE}/mova/upcoming?page=${page}`, {
+    next: { revalidate: 1800 },
+  })
+  if (!res.ok) return []
+  const data = (await res.json()) as { region: string; items: UpcomingMovie[] }
+  return data.items ?? []
+}
+
 export async function fetchMovaSearch(query: string): Promise<MovaSearchResult[]> {
   const q = query.trim()
   if (!q) return []

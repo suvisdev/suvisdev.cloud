@@ -103,6 +103,13 @@ class TmdbAdapter:
         data = await self._get("/movie/top_rated", params={"page": max(1, page)})
         return list(data.get("results") or [])
 
+    async def fetch_upcoming(self, *, page: int = 1, region: str | None = None) -> list[dict]:
+        params: dict[str, Any] = {"page": max(1, page)}
+        if region:
+            params["region"] = region
+        data = await self._get("/movie/upcoming", params=params)
+        return list(data.get("results") or [])
+
     async def fetch_discover(
         self,
         *,
