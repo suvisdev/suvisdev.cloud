@@ -13,7 +13,9 @@ from auth.repository import UserRepository
 from auth.schemas import KakaoMobileTokenResponse, TokenResponse
 from auth.security import JwtAdapter
 
-_ACCESS_TTL_MIN = 10
+# security.py의 _ACCESS_TTL_DEFAULT_MIN와 같은 이유로 7일. refresh 흐름 도입
+# 전까지 프론트에서 10분마다 401을 받아 재로그인이 유도되던 이슈의 즉시 fix.
+_ACCESS_TTL_MIN = 60 * 24 * 7
 _MOBILE_AUD = "suvis-susu"
 
 
