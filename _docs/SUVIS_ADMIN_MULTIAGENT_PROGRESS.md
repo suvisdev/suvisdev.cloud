@@ -732,23 +732,17 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 - (선택) 시행일 변경 시 `/mova/terms`·`/mova/privacy` 부칙 및 개정 이력
   섹션 추가 여부.
 
-### TMDB KR 유명 영화 ~1000편 대량 수집(2026-08-14 블로킹)
-- 목적: 초성 게임 KR 풀 확장 + 청불 배제 강화(코드 반영은 이미 배포).
-- 코드 준비 완료: `bulk_import_movies.py`에 `--vote-count-gte`,
-  `tmdb_adapter.fetch_discover`에 `include_adult=false` 명시. 로컬 psycopg
-  binary + Ollama nomic-embed-text 설치 완료.
-- **블로킹**: 로컬 `.env`가 `localhost:5432` 도커 postgres 대상인데 컨테이너
-  미기동 + WSL Docker Desktop integration 꺼짐 → `docker` CLI 호출 불가.
-- 다음 실행 옵션:
-  ① Neon 직접 URL을 로컬 `.env`에 임시 세팅 → 로컬 Ollama 임베딩으로 실행
-  ② `bulk_import_movies.py`를 `--no-embed` 또는 env 스위치(Ollama/Gemini)
-    대응으로 수정 → EC2에서 실행 (현재 코드는 `OllamaEmbeddingAdapter()`
-    하드코딩이라 EC2에서 매번 임베딩 실패 → hub_knowledge는 스킵되고
-    movies·credits만 저장됨. 수용 가능하면 그대로 EC2 실행도 가능)
-  ③ SSH로 EC2 접속해 임시 EMBEDDING_BACKEND 조정 후 수동 실행
-- `--start-page 101`은 실패했음(vote_count.gte=100 필터에선 페이지 100+ 결과
-  없음). `--start-page 1 --vote-count-gte 100`이면 356편이 필터 통과.
-  1000편 원하면 `--vote-count-gte 50`으로 완화 필요.
+### TMDB KR 유명 영화 대량 수집 후속(2026-08-14 완료 + 남은 것)
+- **완료(vote_count≥100, 356편, 실 신규 +13편)**: EC2 SSH → backend 재빌드
+  후 실행. 상세 WORK_LOG 2026-08-14. include_adult=false + 청불 배제 필터
+  원천 적용 → 이후 seed에 성인물 유입 리스크 제거.
+- **남은 것**: 신규 확보량이 낮음(vote_count≥100 상위는 이미 카탈로그에
+  대부분 있어서). 카탈로그 규모 진짜로 늘리려면 필터 완화 필요:
+  `--vote-count-gte 50` 또는 `20`으로 재실행하면 무명작·저평점 영화가 유입될
+  수 있음(트레이드오프: 초성 게임 품질 저하 가능).
+- **hub_knowledge 벡터 색인**: EC2 미인덱스 상태 계속(0 증가). 벡터 검색 자체가
+  프로덕션에서 안 도는 상태 유지 — 별건 백로그 "hub_knowledge 재임베딩"
+  참고.
 
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 

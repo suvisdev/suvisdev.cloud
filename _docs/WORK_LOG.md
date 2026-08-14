@@ -114,14 +114,27 @@
   메타 `text-xs`→`text-[10px]`, 별 아이콘 `h-3`→`h-2.5`, 장르 라벨 최대 2개
   로 truncate. platform 서브라벨은 제거(공간 확보). `sizes` 속성도 새 컬럼
   비율에 맞춰 재계산.
-- (같은 세션) TMDB KR seeder 실 실행 진행 중(EC2 SSH → backend 컨테이너):
+- (같은 세션) TMDB KR seeder 실 실행 완료(EC2 SSH → backend 컨테이너):
   ① EC2 디스크 정리(prune, 1GB 회수, 11GB 여유) ② `git pull` 확인 →
   PR #120·#121 반영됨 ③ `docker compose up -d --build backend` 재빌드
-  성공(6분 up 확인) ④ `--vote-count-gte` 새 옵션 노출 확인 ⑤ 기준선
+  성공 ④ `--vote-count-gte` 새 옵션 노출 확인 ⑤ 기준선
   카운트: kr_movies=1952 / total=3978 / hub_indexed=2014 / actors=17720
-  ⑥ nohup 백그라운드 실행 개시(30 pages × vote_count_gte=100). 진행 중 확인
-  시점 11/30 페이지. HubRagInteractor 임베딩 실패 워닝(Ollama EC2 미기동)
-  정상 폴백 — movies·credits는 저장, hub_knowledge만 스킵.
+  ⑥ nohup 백그라운드 실행(30 pages × vote_count_gte=100) → **완료**:
+  succeeded=356 failed=0 skipped=0, 페이지 19에서 결과 없음 종료.
+  ⑦ 델타: kr_movies +13(1952→1965) · total +16 · hub_indexed +0(Ollama EC2
+  미기동 폴백 정상) · actors +58. 356편 중 343편은 기존 카탈로그와 겹쳐
+  upsert로 갱신, 실제 신규는 13편 — vote_count≥100 유명작은 이미 대부분
+  적재돼 있어서. ⑧ 스팟체크: 최신 tmdb KR 15편 전부 정상(방탄소년단·
+  여고괴담·주유소 습격사건 등), 성인물 없음. include_adult=false + 청불
+  필터 원천 배제로 이 세션 이후 seed에 성인물 유입 리스크 제거.
+- (같은 세션) `/mova/movies` 페이지에 장르별 가로 스크롤 로우 도입(사용자
+  요청 "장르별로 보여줬으면 좋겠어"). 기본 상태(전체 + 필터 없음)에선
+  11개 장르(드라마·액션·로맨스·스릴러·SF·코미디·공포·범죄·애니메이션·
+  다큐멘터리·뮤지컬) 각 12편을 병렬 fetch해 넷플릭스 스타일 로우로 노출.
+  각 로우 헤더에 "더보기 →" 버튼 → 해당 장르 탭으로 전환(기존 평면
+  그리드). 필터가 하나라도 활성되면 자동으로 평면 그리드로 복귀. 새
+  컴포넌트 `GenreRow`·`GenreRowCard` 신설(120px 카드, aspect-[2/3],
+  mova-row-fade+mova-row-scroll 재사용).
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크
