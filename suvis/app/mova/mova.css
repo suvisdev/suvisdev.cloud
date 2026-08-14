@@ -16,17 +16,19 @@
   color: var(--mova-text);
 }
 
-/* Light mode override — Warm Cinema */
+/* Light mode override — Warm Cinema
+   대비 강화: muted 텍스트·border·accent-soft 채도 상향 (2026-08-14).
+   기존 값은 크림 배경 위에서 chip·소문구 가독성이 약해 사용자 지적. */
 html:not(.dark) .mova-app {
   --mova-bg: #f9f4ee;
   --mova-surface: #fff9f4;
-  --mova-surface-2: #f0e8de;
-  --mova-border: rgba(120, 60, 20, 0.10);
+  --mova-surface-2: #ece1d0;
+  --mova-border: rgba(80, 40, 15, 0.20);
   --mova-accent: #c4284f;
-  --mova-accent-soft: rgba(196, 40, 79, 0.10);
+  --mova-accent-soft: rgba(196, 40, 79, 0.14);
   --mova-accent-bright: #a81840;
   --mova-ai: #5b50b8;
-  --mova-muted: #7a6a60;
+  --mova-muted: #5a4638;
   --mova-text: #1a0f0a;
 }
 
