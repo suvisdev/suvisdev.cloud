@@ -3,7 +3,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Crown, Medal, Star, TrendingUp } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
-import { fetchMovaRankings } from "@/lib/mova-api"
+import { fetchMovaRankings, type MovaHotRankingItem } from "@/lib/mova-api"
 import { cn } from "@/lib/utils"
 import { RankingsRefreshButton } from "./rankings-refresh-button"
 
@@ -61,7 +61,11 @@ export default async function MovaRankingsPage({
           ))}
         </div>
 
-        {items.length === 0 ? (
+        {items === null ? (
+          <p className="py-10 text-center text-sm text-neutral-400">
+            일시적으로 랭킹을 불러오지 못했습니다. 새로고침해 주세요.
+          </p>
+        ) : items.length === 0 ? (
           <p className="py-10 text-center text-sm text-neutral-400">
             아직 랭킹 데이터가 없습니다.
           </p>
@@ -132,7 +136,7 @@ export default async function MovaRankingsPage({
   )
 }
 
-type RankingItem = Awaited<ReturnType<typeof fetchMovaRankings>>[number]
+type RankingItem = MovaHotRankingItem
 
 // 시상식 podium — 2·1·3 배치, 1위 가운데 크게, 왕관/메달 아이콘.
 function Podium({ top3 }: { top3: RankingItem[] }) {

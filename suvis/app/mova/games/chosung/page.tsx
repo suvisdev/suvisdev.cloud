@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 const GAME_SECONDS = 60
 
 type Phase = "idle" | "playing" | "done"
+type Mode = "timed" | "unlimited"
 
 type HintLevel = 0 | 1 | 2 | 3
 // 0: 조밀 초성만
@@ -33,9 +34,15 @@ const CATEGORY_LABELS: Record<ChosungCategory, string> = {
   foreign: "외국 영화",
 }
 
+const MODE_LABELS: Record<Mode, string> = {
+  timed: "1분 타임어택",
+  unlimited: "시간 무제한",
+}
+
 export default function ChosungGamePage() {
   const [phase, setPhase] = useState<Phase>("idle")
   const [category, setCategory] = useState<ChosungCategory>("all")
+  const [mode, setMode] = useState<Mode>("timed")
   const [question, setQuestion] = useState<ChosungQuestion | null>(null)
   const [answer, setAnswer] = useState("")
   const [hintLevel, setHintLevel] = useState<HintLevel>(0)
@@ -43,6 +50,7 @@ export default function ChosungGamePage() {
   const [correctCount, setCorrectCount] = useState(0)
   const [totalHintsUsed, setTotalHintsUsed] = useState(0)
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null)
+  const [revealed, setRevealed] = useState(false)
   const [loadingQ, setLoadingQ] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
@@ -61,6 +69,7 @@ export default function ChosungGamePage() {
       setAnswer("")
       setHintLevel(0)
       setFeedback(null)
+      setRevealed(false)
       setTimeout(() => inputRef.current?.focus(), 50)
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "문제를 불러오지 못했습니다.")
@@ -70,20 +79,21 @@ export default function ChosungGamePage() {
   }, [])
 
   useEffect(() => {
-    if (phase !== "playing") return
+    if (phase !== "playing" || mode !== "timed") return
     if (secondsLeft <= 0) {
       setPhase("done")
       return
     }
     const t = window.setTimeout(() => setSecondsLeft((v) => v - 1), 1000)
     return () => window.clearTimeout(t)
-  }, [phase, secondsLeft])
+  }, [phase, mode, secondsLeft])
 
   useEffect(() => {
     if (phase !== "done") return
     const session = getSuvisSession()
     const finalize = async () => {
-      if (session?.token) {
+      // 무제한 모드는 랭킹에 들어가지 않는다 — 기록 저장을 건너뛴다.
+      if (session?.token && mode === "timed") {
         setSavingScore(true)
         try {
           await saveGameScore({
@@ -105,7 +115,7 @@ export default function ChosungGamePage() {
       }
     }
     void finalize()
-  }, [phase, correctCount, totalHintsUsed])
+  }, [phase, mode, correctCount, totalHintsUsed])
 
   const startGame = async () => {
     setCorrectCount(0)
@@ -159,13 +169,13 @@ export default function ChosungGamePage() {
             <h1 className="text-lg font-semibold text-mova-text md:text-xl">영화 초성 게임</h1>
             {phase !== "idle" && (
               <span className="rounded-full bg-mova-accent-soft px-2 py-0.5 text-[10px] font-medium text-mova-accent-bright">
-                {CATEGORY_LABELS[category]}
+                {CATEGORY_LABELS[category]} · {MODE_LABELS[mode]}
               </span>
             )}
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="inline-flex items-center gap-1 rounded-md bg-mova-surface px-2 py-1 text-mova-text ring-1 ring-mova-border">
-              <Timer className="h-3.5 w-3.5" /> {secondsLeft}s
+              <Timer className="h-3.5 w-3.5" /> {mode === "timed" ? `${secondsLeft}s` : "무제한"}
             </span>
             <span className="rounded-md bg-mova-surface px-2 py-1 text-mova-text ring-1 ring-mova-border">
               맞힌 개수 {correctCount}
@@ -179,6 +189,8 @@ export default function ChosungGamePage() {
               1분 안에 최대한 많이 맞혀보세요. 힌트를 쓸수록 등수에서 뒤로 밀립니다.
               <br />
               힌트 순서: 띄어쓰기·한/외 표기 → 출연진 → 포스터 1/4.
+              <br />
+              시간 무제한 모드는 랭킹에 반영되지 않습니다.
             </p>
             <div>
               <p className="mb-2 text-xs font-medium text-mova-muted">카테고리</p>
@@ -196,6 +208,26 @@ export default function ChosungGamePage() {
                     )}
                   >
                     {CATEGORY_LABELS[c]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-mova-muted">모드</p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={cn(
+                      "rounded-full border px-4 py-1.5 text-sm font-medium transition",
+                      mode === m
+                        ? "border-mova-accent bg-mova-accent text-white"
+                        : "border-mova-border bg-mova-surface-2 text-mova-muted hover:text-mova-text",
+                    )}
+                  >
+                    {MODE_LABELS[m]}
                   </button>
                 ))}
               </div>
@@ -290,6 +322,12 @@ export default function ChosungGamePage() {
                   </button>
                 </div>
 
+                {revealed && question && (
+                  <p className="rounded-lg bg-mova-accent-soft px-4 py-2 text-center text-sm font-semibold text-mova-accent-bright">
+                    정답: {question.title}
+                  </p>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
@@ -303,6 +341,15 @@ export default function ChosungGamePage() {
                   <span className="text-xs text-mova-muted">
                     사용한 힌트 {totalHintsUsed}
                   </span>
+                  {mode === "unlimited" && !revealed && (
+                    <button
+                      type="button"
+                      onClick={() => setRevealed(true)}
+                      className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
+                    >
+                      정답 보기
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => void skipCurrent()}
@@ -310,6 +357,15 @@ export default function ChosungGamePage() {
                   >
                     <RotateCcw className="h-3 w-3" /> 다음 문제
                   </button>
+                  {mode === "unlimited" && (
+                    <button
+                      type="button"
+                      onClick={() => setPhase("done")}
+                      className="text-xs text-mova-muted hover:text-mova-text"
+                    >
+                      게임 종료
+                    </button>
+                  )}
                 </div>
               </>
             )}
