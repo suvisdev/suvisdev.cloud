@@ -138,24 +138,21 @@ function MovieCard({ movie }: { movie: ApiMovieRow }) {
           <MovaRankingPoster
             src={movie.poster_url}
             alt={movie.title}
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+            sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, (max-width: 1280px) 14vw, 12vw"
             className="object-cover transition duration-300 group-hover:scale-105"
           />
         </div>
-        <div className="space-y-1 p-2.5">
-          <p className="line-clamp-2 text-sm font-medium text-mova-text">{movie.title}</p>
-          <div className="flex items-center justify-between gap-2 text-xs text-neutral-400">
+        <div className="space-y-0.5 p-1.5">
+          <p className="line-clamp-2 text-xs font-medium text-mova-text">{movie.title}</p>
+          <div className="flex items-center justify-between gap-1 text-[10px] text-mova-muted">
             <span>{movie.release_year || "연도미상"}</span>
             <span className="inline-flex items-center gap-0.5">
-              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+              <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
               {movie.rating.toFixed(1)}
             </span>
           </div>
           {movie.genres.length > 0 && (
-            <p className="truncate text-[11px] text-neutral-500">{movie.genres.join(" · ")}</p>
-          )}
-          {(platform === "netflix" || platform === "disney") && (
-            <p className="text-[11px] capitalize text-neutral-500">{platform}</p>
+            <p className="truncate text-[10px] text-mova-muted">{movie.genres.slice(0, 2).join(" · ")}</p>
           )}
         </div>
       </Link>
@@ -492,7 +489,7 @@ function MovaMoviesPageInner() {
           </div>
         ) : (
           <>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 md:gap-4">
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 md:gap-3">
               {page.items.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} />
               ))}

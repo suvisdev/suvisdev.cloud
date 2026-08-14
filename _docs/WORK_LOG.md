@@ -108,6 +108,20 @@
     `backface-visibility`가 일부 브라우저·GPU 조합에서 실패. 해결: 3D flip
     유지 + face 콘텐츠에 `opacity` 이중 안전장치(백페이스 실패해도 isOpen=
     true면 face 반드시 노출, 100ms 지연 페이드).
+- (같은 세션) `/mova/movies` 그리드 밀도 상향 — 카드가 너무 크고 한 화면에
+  적게 보인다는 사용자 지적. 컬럼 `2/3/4/6` → `3/4/5/7/8` (모바일부터 xl까지
+  전부 +1~+2). 카드 내부 여백 `p-2.5`→`p-1.5`, 타이틀 `text-sm`→`text-xs`,
+  메타 `text-xs`→`text-[10px]`, 별 아이콘 `h-3`→`h-2.5`, 장르 라벨 최대 2개
+  로 truncate. platform 서브라벨은 제거(공간 확보). `sizes` 속성도 새 컬럼
+  비율에 맞춰 재계산.
+- (같은 세션) TMDB KR seeder 실 실행 진행 중(EC2 SSH → backend 컨테이너):
+  ① EC2 디스크 정리(prune, 1GB 회수, 11GB 여유) ② `git pull` 확인 →
+  PR #120·#121 반영됨 ③ `docker compose up -d --build backend` 재빌드
+  성공(6분 up 확인) ④ `--vote-count-gte` 새 옵션 노출 확인 ⑤ 기준선
+  카운트: kr_movies=1952 / total=3978 / hub_indexed=2014 / actors=17720
+  ⑥ nohup 백그라운드 실행 개시(30 pages × vote_count_gte=100). 진행 중 확인
+  시점 11/30 페이지. HubRagInteractor 임베딩 실패 워닝(Ollama EC2 미기동)
+  정상 폴백 — movies·credits는 저장, hub_knowledge만 스킵.
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크
