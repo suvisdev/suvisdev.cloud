@@ -27,7 +27,12 @@ class TmdbAdapterDiscoverTests(unittest.IsolatedAsyncioTestCase):
 
         adapter._get.assert_awaited_once_with(
             "/discover/movie",
-            params={"page": 2, "sort_by": "popularity.desc", "with_origin_country": "KR"},
+            params={
+                "page": 2,
+                "sort_by": "popularity.desc",
+                "include_adult": "false",
+                "with_origin_country": "KR",
+            },
         )
         self.assertEqual(rows, [{"id": 1, "title": "테스트"}])
 

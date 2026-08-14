@@ -51,6 +51,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--country", choices=("KR", "US", "ALL"), default="ALL")
     parser.add_argument("--pages", type=int, required=True, help="이번 실행에서 처리할 페이지 수")
     parser.add_argument("--start-page", type=int, default=1, help="이어받을 시작 페이지")
+    parser.add_argument(
+        "--vote-count-gte",
+        type=int,
+        default=None,
+        help="TMDB discover 최소 투표 수 필터. KR discover에서 무명·저품질(성인물"
+        " 다수 포함) 배제용. 유명 한국영화만 1000편 수집: --vote-count-gte 100",
+    )
     return parser.parse_args(argv)
 
 
@@ -294,7 +301,9 @@ async def _run(args: argparse.Namespace) -> None:
                         snapshots = await catalog.fetch_popular(page=page)
                     else:
                         snapshots = await catalog.fetch_discover(
-                            page=page, with_origin_country=origin
+                            page=page,
+                            with_origin_country=origin,
+                            vote_count_gte=args.vote_count_gte,
                         )
                 except TmdbAdapterError as e:
                     logger.error("[bulk_import] page=%d TMDB fetch 실패, 배치 중단 — %s", page, e)
