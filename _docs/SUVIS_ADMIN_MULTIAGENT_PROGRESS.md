@@ -732,6 +732,24 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 - (선택) 시행일 변경 시 `/mova/terms`·`/mova/privacy` 부칙 및 개정 이력
   섹션 추가 여부.
 
+### TMDB KR 유명 영화 ~1000편 대량 수집(2026-08-14 블로킹)
+- 목적: 초성 게임 KR 풀 확장 + 청불 배제 강화(코드 반영은 이미 배포).
+- 코드 준비 완료: `bulk_import_movies.py`에 `--vote-count-gte`,
+  `tmdb_adapter.fetch_discover`에 `include_adult=false` 명시. 로컬 psycopg
+  binary + Ollama nomic-embed-text 설치 완료.
+- **블로킹**: 로컬 `.env`가 `localhost:5432` 도커 postgres 대상인데 컨테이너
+  미기동 + WSL Docker Desktop integration 꺼짐 → `docker` CLI 호출 불가.
+- 다음 실행 옵션:
+  ① Neon 직접 URL을 로컬 `.env`에 임시 세팅 → 로컬 Ollama 임베딩으로 실행
+  ② `bulk_import_movies.py`를 `--no-embed` 또는 env 스위치(Ollama/Gemini)
+    대응으로 수정 → EC2에서 실행 (현재 코드는 `OllamaEmbeddingAdapter()`
+    하드코딩이라 EC2에서 매번 임베딩 실패 → hub_knowledge는 스킵되고
+    movies·credits만 저장됨. 수용 가능하면 그대로 EC2 실행도 가능)
+  ③ SSH로 EC2 접속해 임시 EMBEDDING_BACKEND 조정 후 수동 실행
+- `--start-page 101`은 실패했음(vote_count.gte=100 필터에선 페이지 100+ 결과
+  없음). `--start-page 1 --vote-count-gte 100`이면 356편이 필터 통과.
+  1000편 원하면 `--vote-count-gte 50`으로 완화 필요.
+
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 
 🔥 **1순위: hub_knowledge 재임베딩 실행(2026-08-07 재정의 — 조사로 전제가
