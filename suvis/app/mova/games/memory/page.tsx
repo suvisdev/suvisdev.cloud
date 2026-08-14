@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Loader2, RotateCcw, Timer } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
-import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import {
   fetchLeaderboard,
   fetchMemoryDeck,
@@ -12,6 +11,7 @@ import {
   type Leaderboard,
   type MemoryDeckPair,
 } from "@/lib/mova-games-api"
+import { coercePosterUrl } from "@/lib/mova-poster"
 import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
@@ -47,6 +47,27 @@ function pairsToCards(pairs: MemoryDeckPair[]): Card[] {
   return shuffle(cards)
 }
 
+/** 프리뷰 시작 전 포스터 이미지를 브라우저 캐시에 예열 — 12장 동시 렌더링 시
+ * 발생하던 프레임 드롭·이미지 pop-in 완화. 최대 2초까지만 기다리고 진행. */
+async function preloadPosters(urls: string[]): Promise<void> {
+  const loads = urls
+    .map((u) => coercePosterUrl(u))
+    .filter((u): u is string => Boolean(u))
+    .map(
+      (src) =>
+        new Promise<void>((resolve) => {
+          const img = new window.Image()
+          img.onload = () => resolve()
+          img.onerror = () => resolve()
+          img.src = src
+        }),
+    )
+  await Promise.race([
+    Promise.all(loads).then(() => undefined),
+    new Promise<void>((resolve) => window.setTimeout(resolve, 2000)),
+  ])
+}
+
 export default function MemoryGamePage() {
   const [phase, setPhase] = useState<Phase>("idle")
   const [stage, setStage] = useState<number>(1)
@@ -72,10 +93,14 @@ export default function MemoryGamePage() {
     setLeaderboard(null)
     try {
       const deck = await fetchMemoryDeck(n)
-      setCards(pairsToCards(deck.pairs))
+      const nextCards = pairsToCards(deck.pairs)
+      setCards(nextCards)
       setFlipped(new Set())
       setMatched(new Set())
       if (n >= PREVIEW_STAGE_THRESHOLD) {
+        // 이미지를 브라우저 캐시에 미리 넣은 뒤에 프리뷰 시작 — 12장 동시
+        // 로드로 발생하던 프레임 드롭·pop-in 해소.
+        await preloadPosters(nextCards.map((c) => c.poster_url))
         setPreviewLeft(PREVIEW_SECONDS)
         setPhase("preview")
       } else {
@@ -298,10 +323,10 @@ function FlipCard({
   isMatched: boolean
   onClick: () => void
 }) {
-  // Tailwind arbitrary `[backface-visibility:hidden]`/`[transform-style:preserve-3d]`
-  // 가 일부 브라우저·빌드 환경에서 CSS로 안 emit되는 케이스를 확인(2026-08-13,
-  // 프로덕션에서 카드가 뒤집혀도 뒷면 ? 만 계속 노출). 인라인 style로 3D 처리하면
-  // 브라우저가 style attribute를 그대로 파싱해 확실히 동작.
+  // 3D flip은 유지하되 face 콘텐츠 자체를 opacity로 이중 안전장치. 일부 브라우저·
+  // GPU에서 backface-visibility가 실패하는 경우에도 isOpen=true면 face가 반드시
+  // 노출되도록(2026-08-14 사용자 지적: 매치된 카드가 여전히 뒷면 표시).
+  const posterSrc = coercePosterUrl(card.poster_url)
   return (
     <button
       type="button"
@@ -313,22 +338,32 @@ function FlipCard({
       <div
         className={cn(
           "relative h-full w-full rounded-lg shadow-lg transition-transform duration-500 ease-out",
-          isMatched && "opacity-70",
+          isMatched && "opacity-80",
         )}
         style={{
           transformStyle: "preserve-3d",
           transform: isOpen ? "rotateY(180deg)" : "rotateY(0deg)",
         }}
       >
-        {/* 뒷면 */}
+        {/* 뒷면 — mova 브랜드 */}
         <div
-          className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-lg bg-mova-surface-2 text-2xl font-bold text-mova-muted ring-1 ring-mova-border"
+          className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-mova-surface via-mova-surface-2 to-mova-surface ring-1 ring-mova-border"
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
+            opacity: isOpen ? 0 : 1,
+            transition: "opacity 200ms ease-out 200ms",
           }}
         >
-          ?
+          <span className="inline-flex items-center gap-1 opacity-70">
+            <span
+              className="h-3 w-[2px] rounded-full bg-mova-accent shadow-[0_0_6px_var(--mova-accent-soft)]"
+              aria-hidden
+            />
+            <span className="font-display text-[11px] font-bold tracking-[0.22em] text-mova-text uppercase md:text-xs">
+              mova
+            </span>
+          </span>
         </div>
         {/* 앞면 */}
         <div
@@ -337,15 +372,26 @@ function FlipCard({
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
+            opacity: isOpen ? 1 : 0,
+            transition: "opacity 200ms ease-out 200ms",
           }}
         >
           {card.kind === "poster" ? (
-            <MovaRankingPoster
-              src={card.poster_url}
-              alt={card.title}
-              sizes="120px"
-              className="object-cover"
-            />
+            // Next.js Image 옵티마이저 우회 — 12장 동시 요청 시 병목되어 프리뷰
+            // 렉을 유발. TMDB CDN이 이미 적정 크기 포스터를 제공하므로 직접 로드.
+            posterSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={posterSrc}
+                alt={card.title}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-neutral-800" aria-hidden />
+            )
           ) : (
             <div className="flex h-full items-center justify-center bg-gradient-to-br from-mova-accent-soft to-mova-surface p-2">
               <p className="line-clamp-4 text-center text-xs font-semibold text-mova-text md:text-sm">
