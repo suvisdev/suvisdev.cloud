@@ -160,6 +160,60 @@ function MovieCard({ movie }: { movie: ApiMovieRow }) {
   )
 }
 
+function GenreRow({
+  genre,
+  items,
+  onSeeAll,
+}: {
+  genre: string
+  items: ApiMovieRow[]
+  onSeeAll: () => void
+}) {
+  return (
+    <section>
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-sm font-semibold text-mova-text md:text-base">{genre}</h3>
+        <button
+          type="button"
+          onClick={onSeeAll}
+          className="text-xs text-mova-muted transition hover:text-mova-text"
+        >
+          더보기 →
+        </button>
+      </div>
+      <div className="mova-row-fade mova-row-scroll -mx-4 px-4 md:-mx-6 md:px-6">
+        <div className="flex gap-2 overflow-x-auto pb-2 md:gap-3">
+          {items.map((movie) => (
+            <GenreRowCard key={movie.id} movie={movie} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function GenreRowCard({ movie }: { movie: ApiMovieRow }) {
+  const catalogId = resolveMovaCatalogSlug(movie.slug, movie.title)
+  return (
+    <Link
+      href={`/mova/title/${catalogId}`}
+      className="group w-[104px] shrink-0 md:w-[120px]"
+    >
+      <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
+        <MovaRankingPoster
+          src={movie.poster_url}
+          alt={movie.title}
+          sizes="120px"
+          className="object-cover transition duration-300 group-hover:scale-105"
+        />
+      </div>
+      <p className="mt-1 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent-bright">
+        {movie.title}
+      </p>
+    </Link>
+  )
+}
+
 function TrendingCard({ item, rank }: { item: MovaHotRankingItem; rank: number }) {
   return (
     <Link
@@ -238,6 +292,8 @@ function MovaMoviesPageInner() {
   const [platform, setPlatform] = useState<PlatformValue>(initialPlatform)
   const [page, setPage] = useState<PageState>(INITIAL_STATE)
   const [trending, setTrending] = useState<MovaHotRankingItem[]>([])
+  const [genreRows, setGenreRows] = useState<{ genre: string; items: ApiMovieRow[] }[]>([])
+  const [genreRowsLoading, setGenreRowsLoading] = useState(false)
   const genreRef = useRef<HTMLDivElement>(null)
   const patchPage = (patch: Partial<PageState>) => patchState(setPage, patch)
 
@@ -249,6 +305,10 @@ function MovaMoviesPageInner() {
     actor !== "" ||
     ageRating !== "" ||
     platform !== ""
+
+  // 기본 상태(전체 + 필터 없음)에선 장르별 가로 스크롤 로우 노출(넷플릭스 스타일).
+  // 필터가 하나라도 활성되면 기존 평면 그리드로 전환.
+  const showGenreRows = !hasActiveFilters
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -324,10 +384,35 @@ function MovaMoviesPageInner() {
 
   useEffect(() => {
     setPage(INITIAL_STATE)
-    void loadMovies(0, false)
+    if (!showGenreRows) void loadMovies(0, false)
     syncUrl({ genre, decade, minRating, sort, actor, ageRating, platform })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genre, decade, minRating, sort, actor, ageRating, platform])
+
+  // 장르 로우 데이터: 기본 상태에서만 11개 장르를 병렬로 fetch(각 12편).
+  useEffect(() => {
+    if (!showGenreRows) return
+    let cancelled = false
+    setGenreRowsLoading(true)
+    const rowGenres = GENRES.filter((g) => g !== "전체")
+    void Promise.all(
+      rowGenres.map(async (g) => {
+        try {
+          const data = await fetchMovaMovies(12, 0, { genre: g, sort: "popular" })
+          return { genre: g, items: data.items }
+        } catch {
+          return { genre: g, items: [] as ApiMovieRow[] }
+        }
+      }),
+    ).then((rows) => {
+      if (cancelled) return
+      setGenreRows(rows.filter((r) => r.items.length > 0))
+      setGenreRowsLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [showGenreRows])
 
   const updateFilters = (
     patch: Partial<{
@@ -450,8 +535,26 @@ function MovaMoviesPageInner() {
           )}
         </section>
 
-        {/* 영화 그리드 */}
-        {page.loading ? (
+        {/* 영화 표시 — 기본 상태: 장르별 로우 / 필터 활성: 평면 그리드 */}
+        {showGenreRows ? (
+          genreRowsLoading ? (
+            <p className="flex items-center gap-2 text-sm text-mova-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              불러오는 중...
+            </p>
+          ) : (
+            <div className="space-y-6">
+              {genreRows.map((row) => (
+                <GenreRow
+                  key={row.genre}
+                  genre={row.genre}
+                  items={row.items}
+                  onSeeAll={() => updateFilters({ genre: row.genre as GenreTab })}
+                />
+              ))}
+            </div>
+          )
+        ) : page.loading ? (
           <p className="flex items-center gap-2 text-sm text-neutral-400">
             <Loader2 className="h-4 w-4 animate-spin" />
             불러오는 중...
