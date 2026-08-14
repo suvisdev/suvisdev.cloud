@@ -127,6 +127,16 @@
   적재돼 있어서. ⑧ 스팟체크: 최신 tmdb KR 15편 전부 정상(방탄소년단·
   여고괴담·주유소 습격사건 등), 성인물 없음. include_adult=false + 청불
   필터 원천 배제로 이 세션 이후 seed에 성인물 유입 리스크 제거.
+- (같은 세션) **KR 성인·저품질 영화 130편 DB purge 실행**(사용자 판단:
+  rating 필터로 걸러도 DB에 남아 있는 게 문제). 조건: `original_language=ko
+  AND title ~ '정사|음란|매춘|스와핑|누드|룸싸롱|성인영화|여교사|여교수|
+  첫경험|퇴폐|색녀|처제|형수|새엄마|유부녀|숙모|과부|야한|매혹적|룸메이트|
+  욕망|불륜|...' AND title !~ '여선생|탐하다|마약왕|강남|노량|기생충|공작|
+  암살|택시운전사|1987|남산의 부장' AND rating < 4.0`. 자식 테이블 정리
+  (characters 572·movie_directors 120·tags 165·hub_knowledge 1) 후
+  movies 130 삭제, 트랜잭션 원자성 보장. rankings/reviews/picks/watchlist/
+  user_actions는 0건 삭제(성인 타이틀은 사용자 인터랙션 자체가 없었음).
+  KR 카탈로그: 1965 → 1835편.
 - (같은 세션) 초성 게임 KR 풀 rating 필터 재정정 — `min()` → `max()`.
   이전 커밋에서 `rating >= min(min_rating, 3.3)`으로 바꿨지만 caller의
   `_MIN_RATING=3.0`이 3.3보다 낮아 `min(3.0, 3.3)=3.0`으로 캡핑돼
