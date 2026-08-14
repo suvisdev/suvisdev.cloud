@@ -157,15 +157,16 @@ def _common_conditions():
 def _kr_pool_conditions(min_rating: float):
     """한국 영화 풀. age_rating/platforms 필터 제외 — TMDB가 한국 영화에 이
     두 필드를 대체로 안 채워주기 때문(실측 2026-08-13: KR 게임 풀 1919 → 29 →
-    20편으로 축소됨). rating cap 2.5→3.3 상향(2026-08-14 사용자 지적:
-    "여교사: 제자와의 사랑" rating 2.9가 초성 게임에 노출됨). TMDB `adult`
-    플래그·KR 청불 등급이 없어도 rating 3.3 미만은 저품질·성인 오탐이 많아
-    일괄 배제. 3.3 컷 시 KR 풀 707편(2.5 컷 1279 → 3.3 컷 707) — 게임
-    다양성엔 충분. 청불 배제는 `_common_conditions()`에서 처리.
+    20편으로 축소됨). rating 최소 3.3 강제(2026-08-14 사용자 재지적:
+    "여교수와 남제자" rating 3.0가 통과됨 — `min()`이었을 때 caller의
+    _MIN_RATING=3.0이 3.3보다 낮아 3.0으로 캡핑돼 이 영화가 통과). `max()`로
+    바꿔 **최소 3.3 이상**을 강제. TMDB `adult` 플래그·KR 청불 등급이 없고
+    장르에 "에로" 카테고리도 없어 KR 소프트 에로를 signal로 못 잡음 →
+    rating 컷이 유일한 신뢰 필터. 3.3 컷 시 KR 풀 707편(충분).
     """
     return [
         *_common_conditions(),
-        MovaMovie.rating >= min(min_rating, 3.3),
+        MovaMovie.rating >= max(min_rating, 3.3),
         MovaMovie.original_language == "ko",
     ]
 
@@ -195,7 +196,7 @@ def _pool_conditions(min_rating: float):
     """
     common = _common_conditions()
     kr_branch = and_(
-        MovaMovie.rating >= min(min_rating, 3.3),
+        MovaMovie.rating >= max(min_rating, 3.3),
         MovaMovie.original_language == "ko",
     )
     foreign_branch = and_(
