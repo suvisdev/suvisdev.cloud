@@ -84,6 +84,7 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
         with_origin_country: str | None = None,
         with_genres: str | None = None,
         sort_by: str = "popularity.desc",
+        vote_count_gte: int | None = None,
     ) -> list[TmdbMovieSnapshotDto]:
         genre_map = await self._genres()
         rows = await self._client.fetch_discover(
@@ -91,6 +92,8 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
             with_origin_country=with_origin_country,
             with_genres=with_genres,
             sort_by=sort_by,
+            include_adult=False,
+            vote_count_gte=vote_count_gte,
         )
         snapshots: list[TmdbMovieSnapshotDto] = []
         for row in rows:

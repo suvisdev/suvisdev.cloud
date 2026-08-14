@@ -117,13 +117,26 @@ class TmdbAdapter:
         with_origin_country: str | None = None,
         with_genres: str | None = None,
         sort_by: str = "popularity.desc",
+        include_adult: bool = False,
+        vote_count_gte: int | None = None,
     ) -> list[dict]:
-        """TMDB /discover/movie — region/genre 등 필터를 걸어 대량 수집할 때 사용."""
-        params: dict[str, Any] = {"page": max(1, page), "sort_by": sort_by}
+        """TMDB /discover/movie — region/genre 등 필터를 걸어 대량 수집할 때 사용.
+
+        `include_adult`는 기본 False(성인 영화 제외). `vote_count_gte`로 최소
+        투표 수 필터를 걸면 무명·저품질 영화(19금 성인물 다수 포함)를 배제할
+        수 있음 — 2026-08-14 사용자 지적("이상한 19금영화 말고").
+        """
+        params: dict[str, Any] = {
+            "page": max(1, page),
+            "sort_by": sort_by,
+            "include_adult": "true" if include_adult else "false",
+        }
         if with_origin_country:
             params["with_origin_country"] = with_origin_country
         if with_genres:
             params["with_genres"] = with_genres
+        if vote_count_gte is not None:
+            params["vote_count.gte"] = int(vote_count_gte)
         data = await self._get("/discover/movie", params=params)
         return list(data.get("results") or [])
 

@@ -61,6 +61,30 @@
   `--mova-surface-2` #f0e8de→#ece1d0(구분감), `--mova-accent-soft`
   0.10→0.14 (chip 배경 노출). 크림 배경 위에서 소문구·chip·border가
   흐릿하다는 사용자 지적 반영.
+- (같은 세션) 초성 게임 개선 2건 — 사용자 지적:
+  ① 시리즈 넘버 숫자는 영어 발음으로. "강철비 2: 정상회담"이 기존엔 "이"
+    (한자음, 초성 ㅇ)로 뽑혔지만 실제 관용은 "투"(초성 ㅌ). `_replace_digit_runs`
+    를 개편해 **숫자 앞에 공백**이 있고 값이 1~10인 짧은 정수만 시리즈
+    넘버로 간주하여 영어 발음 초성으로 대체(1=원 ㅇ, 2=투 ㅌ, 3=쓰리 ㅆㄹ,
+    4=포 ㅍ, 5=파이브 ㅍㅇㅂ, 6=식스 ㅅㅅ, 7=세븐 ㅅㅂ, 8=에잇 ㅇㅇ,
+    9=나인 ㄴㅇ, 10=텐 ㅌ). "20세기 소년"·"13일의 금요일"처럼 다른 글자에
+    붙은 숫자는 기존 한자음(이십·십삼) 그대로 — 실측 6케이스 통과.
+  ② 청소년 관람불가(청불) 등급 배제. 기존 KR 풀은 age_rating 필터가 없어
+    "유부녀의 사정일지" 같은 성인·저품질 영화가 게임 풀에 노출됨.
+    `_common_conditions`에 `age_rating != '청불' OR NULL` 조건 추가 — KR·
+    외국·통합(카드뒤집기) 풀 모두 원천 차단.
+- (같은 세션) TMDB discover 어댑터 강화 — `fetch_discover`에 `include_adult`
+  (기본 False, 파라미터로 명시 전송) + `vote_count_gte` 옵션 추가. 카탈로그
+  어댑터·`bulk_import_movies` CLI(`--vote-count-gte`)에도 전파. 목적: 유명
+  한국영화만 대량 수집(성인·무명 배제). 테스트 `test_fetch_discover_calls_
+  discover_endpoint_with_params`의 params 기대값에 `include_adult: "false"`
+  추가. 실 수집 실행은 사용자 판단 대기 — 명령: `python scripts/bulk_import_
+  movies.py --source tmdb_discover --country KR --pages 50 --start-page 101
+  --vote-count-gte 100`.
+- (같은 세션) 기존 실패 관찰: `apps/mova/tests/test_bulk_import_movies.py::
+  ParseArgsTests::test_start_page_for_resume`가 `--source kofic`을 요구하나
+  현행 `_SOURCES=("tmdb_popular", "tmdb_discover")` 뿐이라 실패 — 이 세션
+  이전부터 존재하던 stale 테스트, 별건.
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크

@@ -35,6 +35,23 @@ _CHOSUNG_LIST = (
 # 를 함께 발음으로 풀어낸다.
 _DIGIT_TO_CHO = "ㅇㅇㅇㅅㅅㅇㅇㅊㅍㄱ"
 
+# 시리즈 넘버(공백 뒤 짧은 정수) 전용 영어 발음 초성. 한글 발음 그대로
+# 음절별 초성을 이어붙인다 — "3(쓰리)" → 쓰·리 → ㅆㄹ, "5(파이브)" →
+# 파·이·브 → ㅍㅇㅂ. "강철비 2: 정상회담" → "강철비 투" → "ㄱㅊㅂㅌ"
+# (2026-08-14 사용자 지적: 한자음 "이"보다 영어 "투"가 시리즈 표기 관용).
+_SERIES_DIGIT_TO_CHO = {
+    1: "ㅇ",     # 원
+    2: "ㅌ",     # 투
+    3: "ㅆㄹ",   # 쓰리
+    4: "ㅍ",     # 포
+    5: "ㅍㅇㅂ", # 파이브
+    6: "ㅅㅅ",   # 식스
+    7: "ㅅㅂ",   # 세븐
+    8: "ㅇㅇ",   # 에잇
+    9: "ㄴㅇ",   # 나인
+    10: "ㅌ",    # 텐
+}
+
 
 def _integer_to_chosung(n: int) -> str:
     """자연수를 한자음(이십, 백, 천) 기준 초성으로. 만 이상은 만 단위로 재귀."""
@@ -71,10 +88,19 @@ def _integer_to_chosung(n: int) -> str:
 
 
 def _replace_digit_runs(text: str) -> str:
-    """숫자 뭉치를 _integer_to_chosung 결과로 인라인 치환."""
+    """숫자 뭉치를 초성으로 치환. 앞에 공백이 있고 값이 1~10인 짧은 정수는
+    시리즈 넘버로 간주 → 영어 발음("투"·"쓰리"), 그 외는 한자음("이십"·"삼")."""
     import re
 
-    return re.sub(r"\d+", lambda m: _integer_to_chosung(int(m.group(0))), text)
+    def _repl(m: re.Match[str]) -> str:
+        s = m.group(0)
+        n = int(s)
+        prev = text[m.start() - 1] if m.start() > 0 else ""
+        if prev == " " and n in _SERIES_DIGIT_TO_CHO:
+            return _SERIES_DIGIT_TO_CHO[n]
+        return _integer_to_chosung(n)
+
+    return re.sub(r"\d+", _repl, text)
 
 
 def _to_chosung_spaced(text: str) -> str:
@@ -114,19 +140,25 @@ def _is_korean_movie(movie: MovaMovie) -> bool:
 
 
 def _common_conditions():
-    """모든 게임 풀 공통: title/poster 있음, 한글 포함, 시리즈 후속편 배제."""
+    """모든 게임 풀 공통: title/poster 있음, 한글 포함, 시리즈 후속편 배제,
+    청소년 관람불가(청불) 등급 제외. "청불"만 뽑으면 성인/에로 영화가
+    게임 풀에 섞여 나오는 문제(2026-08-14 사용자 지적: "유부녀의 사정일지"
+    등)를 원천 차단.
+    """
     return [
         MovaMovie.poster_url != "",
         MovaMovie.title != "",
         MovaMovie.title.op("~")("[가-힣]"),
         MovaMovie.title.op("!~")(" [0-9]+$"),
+        (MovaMovie.age_rating != "청불") | (MovaMovie.age_rating.is_(None)),
     ]
 
 
 def _kr_pool_conditions(min_rating: float):
     """한국 영화 풀. age_rating/platforms 필터 제외 — TMDB가 한국 영화에 이
     두 필드를 대체로 안 채워주기 때문(실측 2026-08-13: KR 게임 풀 1919 → 29 →
-    20편으로 축소됨). rating은 완화(2.5 이상)해 편수 확보.
+    20편으로 축소됨). rating은 완화(2.5 이상)해 편수 확보. 청불 배제는
+    _common_conditions()에서 처리.
     """
     return [
         *_common_conditions(),
@@ -138,7 +170,8 @@ def _kr_pool_conditions(min_rating: float):
 def _foreign_pool_conditions(min_rating: float):
     """외국 영화 풀. 사용자 지시(2026-08-13): "유명하고 인기 있는 영화만".
     엄격 필터 유지 — rating 3.0+ · age_rating 있음(KR 심의 통과) · KR OTT
-    플랫폼 하나 이상. 한국 영화(original_language='ko') 제외.
+    플랫폼 하나 이상. 한국 영화(original_language='ko') 제외. 청불 배제는
+    _common_conditions()에서 처리.
     """
     return [
         *_common_conditions(),
