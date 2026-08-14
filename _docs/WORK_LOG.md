@@ -28,6 +28,45 @@
 
 ---
 
+## 2026-08-14
+
+### 작업 내용
+- mova 하단 푸터 신설(티켓 A) — TMDB API 이용약관의 attribution 요건 미충족
+  건을 단독 disclaimer 배너 대신 왓챠피디아·Letterboxd 스타일의 정상 푸터
+  안에 편입. 이용약관·개인정보 처리방침·문의 자리를 함께 확보해 후속
+  법적 페이지 추가 시 재작업 없이 링크만 채우도록 함.
+
+### 수정/구현
+- `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크
+  행(이용약관·개인정보 처리방침·문의) → TMDB attribution 한 줄 → 카피라이트
+  순 3단 구성. `bg-mova-surface/60` + `border-mova-border`로 mova 토큰만
+  사용, 반응형(모바일 세로 스택 / md↑ 가로 배치 + `·` 구분자).
+- attribution 문구: "Movie data provided by TMDB. This product uses the TMDB
+  API but is not endorsed or certified by TMDB." — "TMDB" 단어를
+  https://www.themoviedb.org 링크로 감쌈(target=_blank, rel=noopener
+  noreferrer).
+- 문의 링크는 `mailto:ssuvisdev@gmail.com`(현행 도메인 이메일).
+- 이용약관·개인정보 처리방침은 `/mova/terms`·`/mova/privacy` Link만 배치
+  (페이지 실체는 별개 티켓 — 티켓에서 명시적으로 스코프 제외).
+- `suvis/app/mova/layout.tsx` 배선 — `<div className="mova-app min-h-screen">`
+  → `<div className="mova-app flex min-h-screen flex-col">`로 바꾸고
+  `{children}` 뒤에 `<MovaFooter />` 추가. `mt-auto`로 짧은 페이지에서도
+  뷰포트 바닥에 붙게 함. 모든 `/mova/**` 페이지에 자동 노출.
+- `/mova/main`(챗)은 내부에서 `h-screen overflow-hidden`으로 뷰포트 고정
+  구조라, 푸터는 뷰포트 아래에 렌더되어 스크롤로만 노출 — 티켓의 "sticky
+  아님, 스크롤 끝에만 노출" 요건과 일치.
+
+### 오류·막힌 점
+- 없음. `pnpm type-check` 통과.
+
+### 산출물
+- 파일: `suvis/components/mova/mova-footer.tsx`(신규),
+  `suvis/app/mova/layout.tsx`(수정).
+- 후속(별개 티켓): `/mova/terms`·`/mova/privacy` 실 페이지 작성,
+  문의 이메일 최종 확정.
+
+---
+
 ## 2026-08-13
 
 ### 작업 내용 — 후속 사이클 J
