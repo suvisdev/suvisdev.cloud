@@ -124,7 +124,10 @@ export default function MovaPage() {
           <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-mova-text sm:text-3xl md:text-5xl">
             지금 볼 영화,
             <br />
-            Mova가 찾아줄게.
+            <span className="bg-gradient-to-r from-mova-accent via-[#e05a8a] to-mova-accent-bright bg-clip-text text-transparent">
+              Mova
+            </span>
+            가 찾아줄게.
           </h1>
 
           <div className="mt-4 sm:mt-5 md:mt-6">

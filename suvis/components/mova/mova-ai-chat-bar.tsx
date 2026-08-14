@@ -491,7 +491,7 @@ export function MovaAiChatBar({
     <section className="mx-auto flex w-full min-h-0 max-w-3xl flex-1 flex-col px-4 md:px-6">
       <div
         ref={listRef}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-6"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3"
       >
         {chat.messages.map((msg, i) => (
           <div
@@ -576,7 +576,7 @@ export function MovaAiChatBar({
 
       <form
         onSubmit={handleSubmit}
-        className="sticky bottom-0 z-10 border-t border-mova-border bg-mova-bg/95 py-3 backdrop-blur-md"
+        className="sticky bottom-0 z-10 border-t border-mova-border bg-mova-bg/95 py-2 backdrop-blur-md"
       >
         <div className="relative rounded-2xl border border-mova-border bg-mova-surface shadow-sm transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_4px_24px_rgba(190,24,93,0.12)]">
           <textarea

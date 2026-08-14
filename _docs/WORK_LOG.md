@@ -44,6 +44,13 @@
   왓챠피디아 이용약관 구조를 채택. 기존 SUVIS 루트 페이지(`app/terms`,
   `app/privacy`, 시행일 2026-07-20)의 톤·섹션 스키마도 함께 참고해 mova
   특화 조항으로 재작성.
+- (같은 세션) 푸터 추가 축소 — 폰트 11px→10px, py-4→py-3, gap-2→gap-1.
+- (같은 세션) `/mova/main` 채팅 여백·상하 대칭 조정 — 리스트 상단 py-6→py-3
+  (24→12px, 아래 입력폼과 대칭), 입력폼 py-3→py-2, "대화 목록" 상단 toolbar
+  py-2→py-1. 사용자 지적: "위아래 간격이 안 맞음".
+- (같은 세션) `/mova` 랜딩 히어로 카피에 브랜드 포인트 — "Mova가 찾아줄게."
+  안의 "Mova"에 accent→#e05a8a→accent-bright 가로 그라디언트 텍스트. 채팅
+  유저 말풍선(accent→#b84a72)과 동일 톤 계열로 브랜드 일관성 유지.
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크
