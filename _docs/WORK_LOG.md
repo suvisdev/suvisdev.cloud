@@ -85,6 +85,29 @@
   ParseArgsTests::test_start_page_for_resume`가 `--source kofic`을 요구하나
   현행 `_SOURCES=("tmdb_popular", "tmdb_discover")` 뿐이라 실패 — 이 세션
   이전부터 존재하던 stale 테스트, 별건.
+- (같은 세션) TMDB KR 대량 수집 실행 시도 → **DB 접속 실패로 미완**.
+  ① 로컬 psycopg[binary] 미설치 → `uv pip install`로 해결.
+  ② 로컬 Ollama에 `nomic-embed-text` 없음 → `ollama pull`로 해결.
+  ③ `vote_count_gte=100` + `--start-page 101` → 결과 0(필터 유니버스가 100
+    페이지보다 짧음). `--start-page 1`로 재시도 → 18페이지 356편이 필터 통과.
+  ④ 356편 전량 `upsert_movie 실패` — 원인: 로컬 `.env`의 `MOVA_DATABASE_URL`
+    이 `localhost:5432` 로컬 도커 대상인데 도커 컨테이너 미기동, 게다가 WSL에
+    Docker Desktop WSL integration이 꺼져 있어 `docker` CLI 자체가 호출 불가
+    (`/mnt/c/Program Files/Docker/...` PATH는 잡히나 실행 시 "could not be
+    found in this WSL 2 distro"). 사용자에게 옵션 3안 제시(Neon URL 임시
+    세팅 / EC2 Claude 세션 위임 / SSH 직접) 후 대기.
+- (같은 세션) 카드 뒤집기 게임(`/mova/games/memory`) 3건 개선 — 사용자 지적:
+  ① 3초 프리뷰 시 렉이 심함. 원인: Next.js `<Image>` 옵티마이저가 12장을
+    동시에 처리하면서 flip 애니메이션과 겹쳐 프레임 드롭. 해결: `<Image>`를
+    직접 `<img loading="eager" fetchPriority="high">`로 교체(TMDB CDN 직참,
+    옵티마이저 우회) + 프리뷰 진입 전 `preloadPosters()`로 브라우저 캐시
+    예열(`new Image()` 병렬, 최대 2s 타임아웃).
+  ② 카드 뒷면 표지를 `?` → mova 브랜드(accent 세로 바 + "MOVA" 워드마크)로
+    교체. MovaLogo 파생 디자인 재사용.
+  ③ 매치된 카드가 여전히 뒷면(`?`)으로 표시되는 케이스. 원인 추정:
+    `backface-visibility`가 일부 브라우저·GPU 조합에서 실패. 해결: 3D flip
+    유지 + face 콘텐츠에 `opacity` 이중 안전장치(백페이스 실패해도 isOpen=
+    true면 face 반드시 노출, 100ms 지연 페이드).
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크
