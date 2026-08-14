@@ -127,6 +127,11 @@
   적재돼 있어서. ⑧ 스팟체크: 최신 tmdb KR 15편 전부 정상(방탄소년단·
   여고괴담·주유소 습격사건 등), 성인물 없음. include_adult=false + 청불
   필터 원천 배제로 이 세션 이후 seed에 성인물 유입 리스크 제거.
+- (같은 세션) 초성 게임 KR 풀 rating 필터 재정정 — `min()` → `max()`.
+  이전 커밋에서 `rating >= min(min_rating, 3.3)`으로 바꿨지만 caller의
+  `_MIN_RATING=3.0`이 3.3보다 낮아 `min(3.0, 3.3)=3.0`으로 캡핑돼
+  "여교수와 남제자"(rating 3.0) 통과함. `max(min_rating, 3.3)`으로 정정 →
+  최소 3.3 강제. 첫 시도에서 min/max 방향 실수, 배포 재시도.
 - (같은 세션) 초성 게임 KR 풀 rating 상한 2.5→3.3 상향(사용자 재지적:
   "여교사: 제자와의 사랑"(rating 2.9, age_rating NULL, TMDB adult=false)가
   여전히 노출됨). age_rating NULL·TMDB adult 플래그로는 KR 성인·저품질을
