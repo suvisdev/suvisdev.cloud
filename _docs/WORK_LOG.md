@@ -35,19 +35,28 @@
   건을 단독 disclaimer 배너 대신 왓챠피디아·Letterboxd 스타일의 정상 푸터
   안에 편입. 이용약관·개인정보 처리방침·문의 자리를 함께 확보해 후속
   법적 페이지 추가 시 재작업 없이 링크만 채우도록 함.
+- (같은 세션) 사용자 요청으로 푸터 세로 여백 축소(py-8→py-4, gap-4→gap-2,
+  attribution·카피라이트 폰트 xs→11px)로 하단 잠식 완화.
+- (같은 세션) 티켓 A 후속 페이지 실체 작성 — `/mova/terms`,
+  `/mova/privacy`. 사용자가 참고 자료로 왓챠피디아 이용약관·개인정보처리방침·
+  왓챠(VOD 스트리밍) 이용약관 3건을 제공. 왓챠(VOD 스트리밍)는 mova에
+  존재하지 않는 유료 결제·왓챠 캐시·환불 로직이 대부분이라 부적합 판단,
+  왓챠피디아 이용약관 구조를 채택. 기존 SUVIS 루트 페이지(`app/terms`,
+  `app/privacy`, 시행일 2026-07-20)의 톤·섹션 스키마도 함께 참고해 mova
+  특화 조항으로 재작성.
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크
   행(이용약관·개인정보 처리방침·문의) → TMDB attribution 한 줄 → 카피라이트
   순 3단 구성. `bg-mova-surface/60` + `border-mova-border`로 mova 토큰만
-  사용, 반응형(모바일 세로 스택 / md↑ 가로 배치 + `·` 구분자).
+  사용, 반응형(모바일 세로 스택 / md↑ 가로 배치 + `·` 구분자). 후속 축소:
+  py-8→py-4, md:py-5, gap-4→gap-2, attribution·카피라이트 `text-xs`→
+  `text-[11px]`.
 - attribution 문구: "Movie data provided by TMDB. This product uses the TMDB
   API but is not endorsed or certified by TMDB." — "TMDB" 단어를
   https://www.themoviedb.org 링크로 감쌈(target=_blank, rel=noopener
   noreferrer).
 - 문의 링크는 `mailto:ssuvisdev@gmail.com`(현행 도메인 이메일).
-- 이용약관·개인정보 처리방침은 `/mova/terms`·`/mova/privacy` Link만 배치
-  (페이지 실체는 별개 티켓 — 티켓에서 명시적으로 스코프 제외).
 - `suvis/app/mova/layout.tsx` 배선 — `<div className="mova-app min-h-screen">`
   → `<div className="mova-app flex min-h-screen flex-col">`로 바꾸고
   `{children}` 뒤에 `<MovaFooter />` 추가. `mt-auto`로 짧은 페이지에서도
@@ -55,15 +64,32 @@
 - `/mova/main`(챗)은 내부에서 `h-screen overflow-hidden`으로 뷰포트 고정
   구조라, 푸터는 뷰포트 아래에 렌더되어 스크롤로만 노출 — 티켓의 "sticky
   아님, 스크롤 끝에만 노출" 요건과 일치.
+- `suvis/app/mova/terms/page.tsx` 신설 — 왓챠피디아 이용약관 골격을 채택
+  하되 mova 서비스 특성(무료·리뷰/평점·미니게임·TMDB 데이터 출처)에
+  맞춰 14조로 재작성. 유료 결제·본인인증·B2B·환불 등 mova에 없는 조항
+  전부 제외. 게시물 조항(리뷰·평점·컬렉션·랭킹 기록)과 크롤링/스크래핑
+  금지 조항은 유지. 외부 데이터 조항 신설(TMDB/KOFIC + attribution).
+  MovaHeader 포함, mova 토큰만 사용, 시행일 2026-08-14.
+- `suvis/app/mova/privacy/page.tsx` 신설 — 왓챠피디아 개인정보처리방침의
+  섹션 스키마 + 기존 `app/privacy` 스타일을 계승해 15개 섹션으로 재작성.
+  OAuth 3사(Google/Kakao/Naver) 각각 실제 수집 항목 명시(X·Apple 제외 —
+  mova는 지원 안 함). 처리 항목에 서비스 이용 과정 생성 정보(리뷰/평점/
+  watchlist/게임 랭킹/프로필)와 자동 수집 정보(로그·쿠키·기기 정보)
+  분리 명시. 위탁·국외 이전에 AWS 서울, Google(OAuth+Gemini API), Kakao,
+  Naver 3계층 명시(왓챠 사례의 결제·본인인증 위탁은 mova에 없어 삭제).
+  결제·왓챠 캐시·본인인증·B2B·환불 조항 전부 제외. 광고 없음 명시.
+  TMDB 외부 데이터는 개인정보 아님을 명시. 만 14세 미만 회원가입 불가
+  원칙 유지. 시행일 2026-08-14.
 
 ### 오류·막힌 점
 - 없음. `pnpm type-check` 통과.
 
 ### 산출물
-- 파일: `suvis/components/mova/mova-footer.tsx`(신규),
-  `suvis/app/mova/layout.tsx`(수정).
-- 후속(별개 티켓): `/mova/terms`·`/mova/privacy` 실 페이지 작성,
-  문의 이메일 최종 확정.
+- 파일: `suvis/components/mova/mova-footer.tsx`(신규+축소),
+  `suvis/app/mova/layout.tsx`(수정),
+  `suvis/app/mova/terms/page.tsx`(신규),
+  `suvis/app/mova/privacy/page.tsx`(신규).
+- 후속(별개 티켓): 문의 이메일 최종 확정 여부.
 
 ---
 
