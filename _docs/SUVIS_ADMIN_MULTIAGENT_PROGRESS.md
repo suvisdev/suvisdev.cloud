@@ -9,12 +9,16 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
-- **mova 하단 푸터 + TMDB attribution(2026-08-14, 티켓 A)** —
-  `components/mova/mova-footer.tsx` 신설, `app/mova/layout.tsx`에 배선.
-  단독 disclaimer 배너 대신 왓챠피디아·Letterboxd 스타일의 정상 푸터에
-  TMDB attribution 한 줄을 편입(요건 문구 그대로, "TMDB" → themoviedb.org
-  링크). 이용약관·개인정보 처리방침·문의 링크 자리도 함께 확보(페이지
-  실체는 후속 티켓). 상세: WORK_LOG 2026-08-14.
+- **mova 하단 푸터 + TMDB attribution + 약관/개인정보 페이지(2026-08-14,
+  티켓 A + 후속)** — `components/mova/mova-footer.tsx` 신설(+세로 여백 축소),
+  `app/mova/layout.tsx` 배선. 단독 disclaimer 배너 대신 왓챠피디아·
+  Letterboxd 스타일의 정상 푸터에 TMDB attribution 한 줄 편입. 후속으로
+  `app/mova/terms/page.tsx`·`app/mova/privacy/page.tsx` 실체 작성 — 참고
+  자료 중 왓챠피디아(리뷰·평점 커뮤니티) 스키마를 채택하고 왓챠(VOD 유료
+  스트리밍)는 mova에 없는 결제·왓챠 캐시·환불 로직이라 부적합 판단, 기존
+  SUVIS 루트 `/terms`·`/privacy` 톤·구조도 계승해 mova 특화(무료·리뷰/
+  평점/게임 랭킹, TMDB 외부 데이터, OAuth 3사, 결제·본인인증 위탁 제거)
+  조항으로 재작성. 상세: WORK_LOG 2026-08-14.
 - **초성 게임 정답 보기 + 한국 영화 풀 데이터 정정(2026-08-13)** — 상세는
   WORK_LOG 2026-08-13 후속 사이클 J. 무제한 모드에 정답 보기 기능 추가,
   `original_language='ko'`로 잘못 태깅된 중국/홍콩 영화 5편 DB 수정.
@@ -722,11 +726,11 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ## 다음 / 남은 작업 (백로그)
 
-### mova 법적 페이지·문의(2026-08-14 티켓 A 후속 — 자리만 확보, 실체 미작성)
-- `/mova/terms` 이용약관 페이지 실체 작성(현재 푸터 Link만 존재, 404).
-- `/mova/privacy` 개인정보 처리방침 페이지 실체 작성(동일).
-- 문의 이메일 최종 확정 — 현재 푸터는 `mailto:ssuvisdev@gmail.com` 사용,
-  전용 support 주소로 바꿀지 결정 필요.
+### mova 법적 페이지 후속(2026-08-14 티켓 A 후속)
+- 문의 이메일 최종 확정 — 현재 푸터·개인정보 처리방침 모두
+  `ssuvisdev@gmail.com` 사용, 전용 support 주소로 바꿀지 결정 필요.
+- (선택) 시행일 변경 시 `/mova/terms`·`/mova/privacy` 부칙 및 개정 이력
+  섹션 추가 여부.
 
 ### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
 
