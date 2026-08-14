@@ -51,6 +51,16 @@
 - (같은 세션) `/mova` 랜딩 히어로 카피에 브랜드 포인트 — "Mova가 찾아줄게."
   안의 "Mova"에 accent→#e05a8a→accent-bright 가로 그라디언트 텍스트. 채팅
   유저 말풍선(accent→#b84a72)과 동일 톤 계열로 브랜드 일관성 유지.
+- (같은 세션) `/mova/rankings` podium 시상식 실루엣 수정 — 기존
+  `aspect-[2/3]` + `mt-6/mt-10` 조합이 items-end grid에서 badge만 위로
+  올리는 역효과(1위 badge가 오히려 낮음)를 냈음. 1위 poster `w-full`,
+  2·3위 poster `w-[78%] md:w-[82%]`로 크기 계층 부여 → items-end가 자연스러운
+  1위 우뚝·2·3위 나란히 podium 실루엣 만들도록 재작성.
+- (같은 세션) 라이트 모드 색감 강화 — `--mova-border`
+  0.10→0.20, `--mova-muted` #7a6a60→#5a4638 (대비 ~4.2:1→~7:1),
+  `--mova-surface-2` #f0e8de→#ece1d0(구분감), `--mova-accent-soft`
+  0.10→0.14 (chip 배경 노출). 크림 배경 위에서 소문구·chip·border가
+  흐릿하다는 사용자 지적 반영.
 
 ### 수정/구현
 - `suvis/components/mova/mova-footer.tsx` 신설 — server component. 링크

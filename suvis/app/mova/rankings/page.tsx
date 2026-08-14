@@ -164,28 +164,30 @@ function Podium({ top3 }: { top3: RankingItem[] }) {
 }
 
 function PodiumCard({ item, rank }: { item: RankingItem; rank: 1 | 2 | 3 }) {
+  // items-end 그리드에서 1위 poster는 큼(w-full), 2·3위는 좁게(w-[78%])
+  // → aspect-[2/3] 유지 채 높이가 작아져 자연스러운 시상식 podium 실루엣.
   const meta: Record<
     1 | 2 | 3,
-    { badgeColor: string; ringColor: string; heightAspect: string; icon: React.ReactNode; label: string }
+    { badgeColor: string; ringColor: string; posterWidth: string; icon: React.ReactNode; label: string }
   > = {
     1: {
       badgeColor: "bg-amber-400 text-black",
-      ringColor: "ring-amber-400/60",
-      heightAspect: "aspect-[2/3]",
+      ringColor: "ring-amber-400/70",
+      posterWidth: "w-full",
       icon: <Crown className="h-5 w-5 md:h-6 md:w-6" />,
       label: "1위",
     },
     2: {
       badgeColor: "bg-neutral-300 text-black",
-      ringColor: "ring-neutral-300/50",
-      heightAspect: "aspect-[2/3] mt-6 md:mt-10",
+      ringColor: "ring-neutral-300/60",
+      posterWidth: "w-[78%] md:w-[82%]",
       icon: <Medal className="h-4 w-4 md:h-5 md:w-5" />,
       label: "2위",
     },
     3: {
       badgeColor: "bg-amber-700 text-white",
-      ringColor: "ring-amber-700/50",
-      heightAspect: "aspect-[2/3] mt-10 md:mt-16",
+      ringColor: "ring-amber-700/60",
+      posterWidth: "w-[78%] md:w-[82%]",
       icon: <Medal className="h-4 w-4 md:h-5 md:w-5" />,
       label: "3위",
     },
@@ -207,8 +209,8 @@ function PodiumCard({ item, rank }: { item: RankingItem; rank: 1 | 2 | 3 }) {
       </span>
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-lg bg-neutral-900 ring-2 shadow-lg transition group-hover:brightness-110",
-          m.heightAspect,
+          "relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-2 shadow-lg transition group-hover:brightness-110",
+          m.posterWidth,
           m.ringColor,
         )}
       >
