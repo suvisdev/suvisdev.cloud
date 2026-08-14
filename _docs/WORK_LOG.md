@@ -203,6 +203,64 @@
   `suvis/app/mova/privacy/page.tsx`(신규).
 - 후속(별개 티켓): 문의 이메일 최종 확정 여부.
 
+### 작업 내용 — 후속 사이클(채팅 3건)
+사용자 스크린샷 제보 기반. 원인 규명 + 백엔드/프론트 동시 수정.
+
+1. **대화 흐름 미반영**: `/mova/main`에서 "코미디 영화 추천해줘" → "최근영화로
+   추천해줘" → "2026년 영화로 추천해줘"가 각각 독립 추천으로 처리돼 코미디
+   컨텍스트가 사라짐(2턴차부터 최신·2026 broad).
+2. **채팅 홈에서 추천 키워드 씹힘**: 이력이 남은 상태에서 `/mova` 랜딩 칩을
+   클릭하면 `/mova/main?q=X`로 이동해도 새 키워드가 전송 안 됨. DB 모드에선
+   `mova-chat-shell.tsx`가 `?q=`를 replaceState로 지우고 `mova-ai-chat-bar.tsx`가
+   `autoSentRef.current=true`로 즉시 잠가서 씹힘. 익명 모드는 hydration이 `?q=`
+   있으면 sessionStorage 복원을 스킵하는 별개 버그로 이력이 통째 유실됨.
+3. **랭킹 레일 상시 노출**: 우측 랭킹 사이드바를 채팅창에서 숨기고 싶다는 요청.
+
+### 수정/구현 — 후속 사이클
+- 백엔드 흐름 반영:
+  - `mova/app/ports/output/llm_output_port.py` — `extract_intent(message,
+    history=None)`으로 시그니처 확장.
+  - `mova/adapter/outbound/llm/{gemini,exaone,lora,qwen,ollama_exaone}_recommendation_adapter.py`
+    5개 어댑터 시그니처 통일 → `IntentExtractionService.extract(message, history)` 위임.
+  - `mova/adapter/outbound/llm/intent_extraction.py` — 새 헬퍼
+    `_prepend_recent_user_context(current, history)`: 최근 사용자 발화 최대
+    2개(각 24자 상한)를 앞에 이어붙여 결정론적/Gemini 추출 모두에 흘려보냄.
+    `EXTRACT_PROMPT`에 "대화 흐름 처리" 규칙 명시(조건 누적,
+    "말고"/"바꿔줘"는 최신만).
+  - `mova/app/use_cases/market_chat_interactor.py` — `extract_intent` 호출부에
+    `request.history_dicts()` 전달.
+  - `mova/tests/test_market_chat_interactor.py` — `ChatInteractorHistoryForwardTests`
+    회귀 테스트 추가(history가 두 번째 인자로 전달되는지 검증).
+- 프론트 `?q=` 씹힘 수정:
+  - `suvis/components/mova/mova-chat-shell.tsx` — `conversationId != null` 시
+    `?q=` replaceState로 스트립하던 effect 제거.
+  - `suvis/components/mova/mova-ai-chat-bar.tsx`:
+    - `pendingQuery` 상태(lazy init으로 마운트 시 URL에서 1회 캡처).
+    - DB 모드 `conversationIdProp` effect의 즉시 `autoSentRef.current=true`
+      잠금 제거.
+    - 익명 hydration에서 `?q=` 조기 리턴 제거 → sessionStorage 무조건 복원.
+    - `hydratedRef` → `hydrated` 상태로 변경(auto-send가 stale sendMessage,
+      즉 chat.messages=[]인 클로저로 먼저 발화해 히스토리 빈 채로 요청 나가는
+      race 방지).
+    - auto-send는 `chat.loading` 대기 → 로드 완료 후 sendMessage useCallback이
+      새 chat.messages 담아 재생성될 때 재실행돼 append 전송.
+- 랭킹 레일 토글:
+  - `suvis/components/mova/mova-chat-shell.tsx` — `RAIL_HIDDEN_KEY`
+    localStorage(디폴트 `"1"`=숨김), 상단 대화 목록 바 우측에 `BarChart3`
+    아이콘 토글(lg+만). `!railHidden`일 때만 `<MovaChatRail />` 렌더.
+
+### 오류·막힌 점 — 후속 사이클
+- 없음. `pnpm type-check` 통과, mova+viewer+ontology 273개 pytest 통과
+  (사전 실패 2건 — `test_zero_recs_reply_content_when_already_shown_all`의
+  `_compose_empty_reply` 문구 랜덤 pick으로 브리틀한 assertion,
+  `test_start_page_for_resume`의 argparse choices에 `kofic` 미등록 — 이번
+  변경과 무관하며 deselect).
+
+### 산출물 — 후속 사이클
+- 파일: 위 백엔드 8개(포트/어댑터 5+intent_extraction+interactor+테스트),
+  프론트 2개(mova-chat-shell.tsx, mova-ai-chat-bar.tsx). 총 11개.
+- 커밋: 3개 예정(feat/rail-toggle, fix/query-swallow, feat/intent-history).
+
 ---
 
 ## 2026-08-13
