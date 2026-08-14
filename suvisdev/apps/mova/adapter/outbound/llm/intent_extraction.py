@@ -16,6 +16,13 @@ INTENT_MOOD = "mood"
 
 EXTRACT_PROMPT = """사용자의 영화 추천 요청에서 DB 검색·`chat` 저장용 정보를 추출하세요.
 
+**대화 흐름 처리**: 사용자 메시지 앞부분에 이전 발화가 함께 나올 수 있습니다
+(예: "코미디 영화 추천해줘 최근영화로 추천해줘"). 이 경우 각 조건을 **모두 AND로
+누적**해서 뽑으세요 — 마지막 문장만 보면 안 됩니다. 위 예는 refined_query
+"최근 코미디 영화", genres=["코미디"], year_min=2020 처럼 처리하면 됩니다.
+단, 뒤 문장이 명시적으로 조건을 부정/교체하면(예: "말고", "빼고", "다큐로 바꿔줘")
+이전 조건을 버리고 최신 발화만 반영하세요.
+
 규칙:
 - intent_type:
   - "filter_and": 배우·장르·조건을 **동시에** 만족 (예: 전지현 + 스릴러)
@@ -188,6 +195,36 @@ def merge_keyword_lists(*lists: list[str] | None, limit: int = MAX_CHAT_KEYWORDS
             if len(out) >= limit:
                 return out
     return out
+
+
+def _prepend_recent_user_context(
+    current: str, history: list[dict[str, str]] | None
+) -> str:
+    """대화 흐름 반영용: 최근 사용자 발화(현재 메시지 직전 최대 2개)를 앞에 붙여
+    합친 텍스트를 돌려준다. 후속 발화가 이전 조건을 이어받도록 하기 위함.
+
+    Why: "코미디 영화 추천해줘" → "최근영화로 추천해줘"에서 두 번째 턴이 조건만
+    추가하는 발화라, 원문만 보면 장르 시그널이 사라져 각 턴이 독립 추천이 된다.
+    최근 유저 텍스트를 앞에 이어 붙이면 결정론적/Gemini 추출 모두가 누적 조건을
+    한 문장처럼 처리한다.
+
+    How to apply: `IntentExtractionService.extract`의 입력 텍스트 생성 지점에서 호출.
+    현재 메시지가 이미 20자 초과면 길이 폭주를 막기 위해 이전 컨텍스트는 각 24자로
+    자른다. 순서는 오래된 것 → 최신 → 현재 메시지.
+    """
+    if not history:
+        return current
+    user_texts: list[str] = []
+    for entry in history:
+        if str(entry.get("role", "")) != "user":
+            continue
+        content = str(entry.get("content", "")).strip()
+        if content:
+            user_texts.append(content[:24])
+    recent = user_texts[-2:]
+    if not recent:
+        return current
+    return " ".join([*recent, current])
 
 
 def _empty_filters() -> dict[str, Any]:
@@ -372,7 +409,9 @@ def normalize_keywords(
 
 
 class IntentExtractionService:
-    def extract(self, message: str) -> dict[str, Any]:
+    def extract(
+        self, message: str, history: list[dict[str, str]] | None = None
+    ) -> dict[str, Any]:
         text = message.strip()
         if not text:
             return {
@@ -382,13 +421,18 @@ class IntentExtractionService:
                 "search_filters": _empty_filters(),
             }
 
+        # 대화 흐름 반영: 최근 사용자 발화(최대 2개)를 컨텍스트로 앞에 붙여
+        # 결정론적/Gemini 추출 모두에 흘려보낸다. "코미디 영화" → "최근영화로"
+        # 같은 후속 발화가 이전 조건을 삼키지 않게 하기 위함(2026-08-14).
+        composed_text = _prepend_recent_user_context(text, history)
+
         parsed: dict[str, Any] = {}
 
         # 결정론적 추출로 먼저 훑는다. 장르·배우·국가·연도 중 하나라도 잡히면
         # 그것만으로 후보 쿼리가 성립하므로 Gemini 호출을 건너뛴다 —
         # `/mova/chat` 1건이 Gemini를 2회(의도 추출 + 추천 생성) 쓰던 것을
         # 이런 질의에선 1회로 줄인다(분당 15요청 한도 → 수용 인원 2배).
-        deterministic = self._fallback_raw(text)
+        deterministic = self._fallback_raw(composed_text)
         keymaker = get_keymaker()
         if _has_hard_signal(deterministic):
             parsed = deterministic
@@ -397,23 +441,23 @@ class IntentExtractionService:
                 gemini = keymaker.get_gemini_model("flash")
                 if gemini is not None:
                     response = gemini.generate_content(
-                        EXTRACT_PROMPT.format(message=fence_user_text(text))
+                        EXTRACT_PROMPT.format(message=fence_user_text(composed_text))
                     )
                     parsed = self._parse_json(response.text or "")
             except Exception:
                 logger.exception("[IntentExtractionService] Gemini 추출 실패, fallback 사용")
 
         if not parsed.get("refined_query") and not parsed.get("keywords"):
-            parsed = self._fallback_raw(text)
+            parsed = self._fallback_raw(composed_text)
 
         refined = str(parsed.get("refined_query", "")).strip()[:255]
         raw_kw = parsed.get("keywords") or []
         if not isinstance(raw_kw, list):
             raw_kw = []
 
-        intent_type, search_filters = build_search_filters(text, raw_kw, parsed)
+        intent_type, search_filters = build_search_filters(composed_text, raw_kw, parsed)
         keywords = normalize_keywords(
-            text,
+            composed_text,
             refined,
             raw_kw,
             search_filters=search_filters,

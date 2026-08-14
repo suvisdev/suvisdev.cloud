@@ -148,5 +148,56 @@ class ChatInteractorSearchTagCatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["year_max"], 2029)
 
 
+class ChatInteractorHistoryForwardTests(unittest.IsolatedAsyncioTestCase):
+    """extract_intent에 대화 history가 함께 전달되는지 확인
+    — 후속 발화가 이전 조건을 삼키는 문제 대응(2026-08-14)."""
+
+    async def test_history_passed_to_extract_intent(self) -> None:
+        repo = AsyncMock()
+        repo.save_chat.return_value = 1
+        repo.search_tag_catalog.return_value = []
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("rag", [])
+        hub_rag = AsyncMock()
+        hub_rag.search_movies.return_value = []
+
+        recommender = AsyncMock()
+        recommender.extract_intent = Mock(
+            return_value={
+                "refined_query": "테스트",
+                "keywords": [],
+                "intent_type": "mood",
+                "search_filters": {
+                    "must": {"actors": [], "genres": [], "keywords": [], "countries": []},
+                    "similar_to": {"actors": []},
+                    "year_min": None,
+                    "year_max": None,
+                },
+            }
+        )
+        recommender.generate_recommendation.return_value = ("답변", [])
+
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=recommender,
+            preferences=AsyncMock(),
+            hub_rag=hub_rag,
+            classifier=classifier,
+            general=AsyncMock(),
+        )
+        history = [
+            {"role": "user", "content": "코미디 영화 추천해줘"},
+            {"role": "assistant", "content": "골라봤어요."},
+        ]
+        await interactor.chat(MovaChatRequest(message="최근영화로", history=history))
+
+        recommender.extract_intent.assert_called_once()
+        args, kwargs = recommender.extract_intent.call_args
+        self.assertEqual(args[0], "최근영화로")
+        # history는 두 번째 positional 또는 kw로 전달되어야 함
+        passed_history = args[1] if len(args) > 1 else kwargs.get("history")
+        self.assertEqual(passed_history, history)
+
+
 if __name__ == "__main__":
     unittest.main()
