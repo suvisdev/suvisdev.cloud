@@ -238,23 +238,32 @@ def _empty_filters() -> dict[str, Any]:
 
 
 def _has_hard_signal(parsed: dict[str, Any]) -> bool:
-    """결정론적 추출만으로 후보 쿼리를 만들 수 있는가.
+    """결정론적 추출만으로 후보 쿼리를 만들 수 있는가 — Gemini 폴백을 스킵할지 결정.
 
-    후보 검색(`search_tag_catalog`)이 **하드 조건**으로 쓰는 신호 — 장르·배우·
-    국가·연도 — 중 하나라도 잡혔으면 참이다. 이때는 Gemini 의도 추출을 건너뛴다.
-    **키워드만 나온 경우는 거짓**이다: 그건 토큰을 자른 것뿐이라 "비 오는 날
-    볼만한" 같은 무드 질의를 Gemini 없이 처리하면 품질이 떨어진다.
+    "**장르 하나만** 잡혀도 hard signal"로 봤던 이전 규칙은, "전지현 코미디"처럼
+    배우+장르 질의에서 `_guess_actors` 정규식이 조사 없는 이름을 못 잡는 사이
+    Gemini까지 스킵돼 배우가 통째로 사라지는 경로를 만들었다(QUALITY_PHASE1 §9
+    실측). 이제는 결정론적 추출만으로 **실용적으로 강한** 조건일 때만 True:
 
-    `_fallback_raw()`가 돌려준 `search_filters`를 그대로 본다.
+    - 배우가 이미 잡힘 → Gemini 재확인 불필요
+    - 연도가 잡힘 → 연도 자체가 강한 필터
+    - 국가+장르 조합 → 두 축 교차라 후보 좁힘이 이미 유효
+
+    장르만·국가만·키워드만은 False로 떨어져 Gemini 폴백이 배우·기타 조건을
+    보강한다. 트레이드오프: Gemini 호출이 늘어 분당 15요청 한도(무료 티어)
+    소모 증가 — 배우 인식 개선의 대가. `_fallback_raw()`가 돌려준
+    `search_filters`를 그대로 본다.
     """
     filters = parsed.get("search_filters") or {}
     must = filters.get("must") or {}
     similar = filters.get("similar_to") or {}
     if filters.get("year_min") is not None or filters.get("year_max") is not None:
         return True
-    return any(must.get(k) for k in ("actors", "genres", "countries")) or bool(
-        similar.get("actors")
-    )
+    if must.get("actors") or similar.get("actors"):
+        return True
+    if must.get("countries") and must.get("genres"):
+        return True
+    return False
 
 
 def _coerce_str_list(value: Any) -> list[str]:

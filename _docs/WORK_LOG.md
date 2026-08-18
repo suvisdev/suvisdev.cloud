@@ -315,6 +315,48 @@
   collections WHERE slug IN (...)` — 로컬 CSV 백업 안 함(정식 배정 경로
   로만 통한 UPDATE라 이력·재현 가능).
 
+### 수정/구현 — intent_extraction 배우 인식 개선 (옵션 A)
+- **사전 조사(쓰기 없이)**: QUALITY_PHASE1 §9.3의 "잔여 실패 원인 =
+  intent_type=mood 오분류"가 실제로는 원인/결과 반전임을 실 코드로 확정.
+  - `QwenIntentClassifier`(ontology)의 destination은 `crud|rag|general` 3택,
+    `mood` 없음. "전지현 코미디"는 `rag`로 정상 분류됨.
+  - 진짜 원인은 mova `IntentExtractionService`(`intent_extraction.py`)의 두 축
+    결합 결함: (1) `_guess_actors` 정규식이 조사·후치 마커("XX 배우/출연/이랑
+    …") 뒤에만 배우 인식 → "전지현 코미디"는 미매칭 · (2)
+    `_has_hard_signal`이 장르 하나만 잡혀도 True 반환 → Gemini 폴백 스킵.
+    이 두 축이 만나 `must.actors=[]`가 되고 `build_search_filters`가 조건 개수
+    1개(장르만)로 fallback해 `intent_type=INTENT_MOOD`가 됨. mood는 결과이지
+    원인이 아님.
+- **수정**: `intent_extraction.py:240-266 _has_hard_signal` 완화 —
+  "장르만/국가만/키워드만"은 False로 떨어져 Gemini 폴백을 태우고, 배우가
+  이미 잡혔거나 연도가 있거나 국가+장르 조합인 경우에만 True. Gemini 프롬프트
+  예시가 배우 인식을 정확히 학습해 있어 폴백만 태우면 `must.actors`가 채워짐.
+- **트레이드오프**: 무료 티어 분당 15요청 소모 증가 — "장르만/국가만"인
+  질의가 Gemini를 새로 부르게 됨. 배우 인식 개선의 대가.
+- **테스트 갱신**(`test_intent_gemini_skip.py`):
+  - **시맨틱 변경 반영으로 2건 어설션 반전**:
+    `test_skips_gemini_when_genre_found`→`test_calls_gemini_when_only_genre`,
+    `test_skips_gemini_when_country_found`→`test_calls_gemini_when_only_country`.
+  - **신규 2건**: `test_skips_gemini_when_country_and_genre`(국가+장르 조합
+    은 여전히 스킵), `test_skips_gemini_when_actor_already_caught`(배우 잡히면
+    스킵).
+  - 기존 2건 유지: `test_skips_gemini_when_year_found`,
+    `test_country_year_genre_query_still_resolves`(#9 회귀 방지).
+- **회귀**: `apps/mova/tests/test_intent_gemini_skip.py` 7 pass. 전체
+  `apps/mova/tests` **216 pass** + 사전 실패 2건(bulk_import `--source
+  kofic`·`_compose_empty_reply` 랜덤 문구 하드 기대, 이번 스코프 밖).
+- **QUALITY_PHASE1 §9.3 정정**: 원인/결과 반전 서술을 두 축 결합 결함으로
+  재기술 + 옵션 A 해소 요지 추가. §9.4 대조표의 "intent_type=mood 오분류"
+  문구도 두 축 결합 결함으로 변경.
+- **의도적으로 안 함**: `_guess_actors` 정규식 확장(옵션 B, false positive
+  위험) · `actors.name` DB lookup(옵션 C, 인프라 추가) — 옵션 A 실측 후
+  부족하면 추가 트랙으로.
+
+### 산출물(추가)
+- 수정 파일: `intent_extraction.py`(hard signal 완화 5줄+docstring),
+  `test_intent_gemini_skip.py`(테스트 갱신·확장),
+  `MOVA_RECOMMENDATION_QUALITY_PHASE1.md`(§9.3 정정, §9.4 대조표 문구).
+
 ### 수정/구현 — 개봉예정 필터 세부(참고)
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
   `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에

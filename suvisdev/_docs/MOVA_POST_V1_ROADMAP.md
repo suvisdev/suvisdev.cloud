@@ -50,7 +50,7 @@ Section B·C·D의 축을 새 스코프로 진행한다.
 | 취향 재정렬 후속 — alpha 별점 결합 튜닝 | ⏳ | 재정렬 후속 백로그 | 현재는 순수 코사인. `α·cosine + (1-α)·norm(rating)` A/B 실측 후 alpha 결정. 별점이 후보 12편 압축 시점에 이미 적용돼 이중 계산 회피가 우선순위였음 |
 | 취향 재정렬 후속 — 후보 window 확대 | ⏳ | 재정렬 후속 백로그 | `search_tag_catalog(limit=16)` · LLM 3편 pick 구조. taste vector 있는 유저에게 window 확대 검토 |
 | `search_tag_catalog` 후보 생성 개선 | ⚠️ 부분 | QUALITY_PHASE1 §9(2026-08-18 정정) | (1) 배우 이름 미지원 · (2) top-12 rating 컷 · (4) `origin_country` **3건은 이미 해소**(26adfec/26adfec/b07c64b). (3) 키워드 OR→AND 결합만 미해소. 원 4가지 결함 표기의 stale 정정은 §9 참고 |
-| intent_extraction 배우 인식 (신규) | ⏳ | QUALITY_PHASE1 §9.3 | #5·#7 잔여 실패의 실제 원인이 저장소가 아니라 intent 계층으로 이동함(`intent_type=mood` 오분류 → `actor_names=[]`). 별도 트랙 |
+| intent_extraction 배우 인식 (옵션 A) | ✅ 2026-08-18 완결 | QUALITY_PHASE1 §9.3 (정정) — `_has_hard_signal` 완화로 장르 하나만으론 Gemini 스킵 안 함. 두 축 결합 결함(정규식 미인식 + Gemini 스킵)에서 후자 해소. 옵션 B(정규식 확장)/C(actors.name DB lookup)는 실측 결과 부족하면 추가 트랙 |
 | hub_knowledge 재임베딩 실행 | ⚠️ | 1순위 | Ollama 벡터(2014행) vs Gemini 쿼리 벡터가 의미 공간 불호환. 프로덕션 데이터 삭제·재적재라 사용자 판단 대기. 실행 명령·선행조건 준비 완료 |
 | `EMBEDDING_BACKEND=gemini` 스위치 켜기 | ⚠️ | 1순위 남은 것 ① | 재임베딩 없이 flip만 하면 오히려 조용한 오응답(차원 같아 에러 없이 잘못된 이웃) — flip은 재임베딩과 원자적으로 진행해야 함 |
 | 영화-컬렉션 배정 API/CLI 신설 | ✅ | 2026-08-18 완결(7순위 해소) — `PATCH/DELETE /mova/collections/{slug}/movies` + `scripts/assign_collection_cli.py`. 8순위 실질 창구 확보. 상세: WORK_LOG 2026-08-18 |
@@ -188,3 +188,4 @@ Section B·C·D의 축을 새 스코프로 진행한다.
 | 2026-08-18 | QUALITY_PHASE1 §7 stale 정정(§9 신설) — 배우 조인·`origin_country`·레거시 12편 해소 반영, 잔여 결함이 (3) 다중 장르 AND + intent 계층으로 이동함 명시 | 프로덕션 실측 재검증 |
 | 2026-08-18 | 영화-컬렉션 배정 API/CLI 신설(7순위 완결) — B-1 표 및 Section E-1 반영 | 12파일 신규/수정, 신규 테스트 6건 |
 | 2026-08-18 | 컬렉션 큐레이션 v2 부분 완결(8순위 3/6) — 감독 필모 3개 신규, 총 배정 44→77편. B-1에 KR 성인 잔여 purge v2 + rating 노이즈 완화 백로그 추가 | 감독 3개(spielberg/tarantino/ridley-scott) 배정 + D/E/F rating=5.0 노이즈 오염 실측 |
+| 2026-08-18 | intent_extraction 배우 인식 옵션 A 완결 — `_has_hard_signal` 완화, QUALITY_PHASE1 §9.3 원인/결과 반전 서술 정정 | 두 축 결합 결함 규명 · 테스트 4→7건 · mova 216 pass |
