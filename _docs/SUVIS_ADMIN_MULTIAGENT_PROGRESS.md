@@ -9,6 +9,13 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **intent_extraction 배우 인식 개선 옵션 A (2026-08-18)** —
+  `_has_hard_signal` 완화: 장르 하나만으론 Gemini 스킵 안 하고 배우 폴백 유도.
+  QUALITY_PHASE1 §9.3의 두 축 결합 결함(정규식 미인식 + Gemini 스킵)에서
+  후자를 해소. 프롬프트 예시가 배우 인식을 학습해 있어 폴백만 태우면 채워짐.
+  트레이드오프: 무료 티어 분당 15요청 소모 증가. 테스트 4→7건(2건 반전 +
+  2건 신규), mova 214→216 pass. §9.3 원인/결과 반전 서술도 정정.
+  상세: WORK_LOG 2026-08-18.
 - **컬렉션 큐레이션 v2 부분 완결 (8순위 3/6, 2026-08-18)** — 감독 필모
   3개 컬렉션(spielberg-world 12편·tarantino-universe 11편·ridley-scott-selects
   10편) 신규. 배정 총계 44→77편(1.1%→2.0%). `seed_collections_v2.sql` +
@@ -891,10 +898,11 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
   `origin_country`도 2026-08-07 b07c64b로 해소. **남은 결함은 (3) 키워드끼리의
   AND 결합**(예: "SF+드라마") 뿐 — 배우+장르 교집합은 이미 있음, 순수 다중
   장르 AND는 미해소로 남음.
-- **intent_extraction 배우 인식 개선(2026-08-18 신규 발견)** — QUALITY_PHASE1
-  §9.3 근거. #5·#7 잔여 실패의 실제 원인이 저장소가 아니라 intent 계층.
-  `intent_type=mood` 오분류로 `actor_names=[]`가 저장소에 전달됨.
-  `intent_extraction.py`의 배우 신호 인식 개선이 별도 트랙.
+- ~~**intent_extraction 배우 인식 개선**~~ — **옵션 A 완료(2026-08-18)**:
+  위 "완료됨" 참고. `_has_hard_signal` 완화로 배우가 안 잡혔으면 Gemini
+  폴백을 태우도록 변경. 프로덕션 실측(#5·#7 카드 반환 여부)은 배포 후
+  확인 예정. 옵션 B(정규식 확장)·C(actors.name DB lookup)는 실측 결과
+  부족하면 추가 트랙으로 검토.
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`
