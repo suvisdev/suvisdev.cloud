@@ -129,7 +129,7 @@
 - EC2 DB 레거시 12편 삭제(백업 CSV 2건, EC2 홈).
 - WORK_LOG·PROGRESS 갱신.
 
-### 수정/구현
+### 수정/구현 — 개봉예정 필터 세부(참고)
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
   `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에
   최근 개봉된 항목까지 함께 반환하므로, region 필터만으로는 "과거 개봉일"이
