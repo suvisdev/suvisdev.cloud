@@ -28,6 +28,39 @@
 
 ---
 
+## 2026-08-18
+
+### 작업 내용
+- 사용자 리포트: `/mova/upcoming`(개봉 예정작)에 이미 개봉일이 지난
+  영화가 섞여 있음. 원인 확인 후 수정.
+
+### 수정/구현
+- 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
+  `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에
+  최근 개봉된 항목까지 함께 반환하므로, region 필터만으로는 "과거 개봉일"이
+  걸러지지 않는다.
+- 프로덕션 실측(오늘 = 2026-08-18): 20건 중 2건이 과거 개봉일 —
+  `2012-07-05 모모와 다락방의 수상한 요괴들`, `2026-05-27 백룸`.
+- 수정: 라우터에서 `datetime.now(ZoneInfo("Asia/Seoul")).date()` 기준으로
+  `release_date < today_kr`인 항목을 제외. 개봉일 미정(빈 문자열)은 프론트
+  월별 그룹핑의 "개봉일 미정" 섹션 유지를 위해 그대로 통과시킴. 정렬 규칙
+  (개봉일 오름차순, 미정은 뒤)은 그대로 둠.
+- 프론트(`app/mova/upcoming/page.tsx`)는 손대지 않음 — 필터는 백엔드에서
+  하는 것이 자연스러움(공통 소스, 30분 캐시 유효).
+
+### 오류·막힌 점
+- 로컬 백엔드가 안 떠 있어 `curl 127.0.0.1:8000` 실패 → 프로덕션
+  (`https://api.suvisdev.cloud/mova/upcoming`)으로 재확인해 지난 개봉일 2건
+  확정.
+- venv 미활성 상태라 `pytest`·`lint-imports`는 실행 안 함. `py_compile`로
+  문법만 확인(OK).
+
+### 산출물
+- `suvisdev/apps/mova/adapter/inbound/api/v1/upcoming_router.py` 수정.
+- WORK_LOG·PROGRESS 갱신. 커밋 해시는 커밋 후 이 자리에 채워 넣음.
+
+---
+
 ## 2026-08-14
 
 ### 작업 내용
