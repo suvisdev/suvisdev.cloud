@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from mova.app.dtos.market_collections_dto import (
+    CollectionAssignResultDto,
     CollectionCreateCommand,
     CollectionDetailDto,
     CollectionListDto,
@@ -40,3 +41,19 @@ class ListCollectionMoviesUseCase(ABC):
         offset: int,
     ) -> CollectionMoviesDto | None:
         """컬렉션에 속한 영화 목록. 컬렉션이 없으면 None."""
+
+
+class AssignMoviesUseCase(ABC):
+    @abstractmethod
+    async def assign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        """movie_ids를 이 컬렉션으로 배정(one-to-many 덮어쓰기). 컬렉션 없으면 None."""
+
+
+class UnassignMoviesUseCase(ABC):
+    @abstractmethod
+    async def unassign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        """이 컬렉션에서 movie_ids 배정 해제(idempotent). 컬렉션 없으면 None."""

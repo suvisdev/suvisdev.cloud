@@ -10,6 +10,7 @@ if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
 from mova.app.dtos.market_collections_dto import (  # noqa: E402
+    CollectionAssignResultDto,
     CollectionCreateCommand,
     CollectionDetailDto,
     CollectionListDto,
@@ -79,6 +80,32 @@ class _FakeRepository:
             offset=offset,
         )
 
+    async def assign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        if slug == "missing":
+            return None
+        return CollectionAssignResultDto(
+            collection_id=1,
+            collection_slug=slug,
+            affected=len(movie_ids),
+            skipped_ids=[],
+            moved_from_other_collection=0,
+        )
+
+    async def unassign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        if slug == "missing":
+            return None
+        return CollectionAssignResultDto(
+            collection_id=1,
+            collection_slug=slug,
+            affected=len(movie_ids),
+            skipped_ids=[],
+            moved_from_other_collection=0,
+        )
+
 
 class CollectionsInteractorTests(unittest.IsolatedAsyncioTestCase):
     async def test_create_collection_delegates_to_repository(self) -> None:
@@ -109,6 +136,20 @@ class CollectionsInteractorTests(unittest.IsolatedAsyncioTestCase):
         interactor = CollectionsInteractor(repository=_FakeRepository())
         self.assertIsNone(await interactor.get_collection("missing"))
         self.assertIsNone(await interactor.list_collection_movies("missing", limit=20, offset=0))
+
+    async def test_assign_and_unassign_delegate_and_bubble_none(self) -> None:
+        interactor = CollectionsInteractor(repository=_FakeRepository())
+
+        assigned = await interactor.assign_movies("nolan-world", [1, 2, 3])
+        assert assigned is not None
+        self.assertEqual(assigned.affected, 3)
+
+        unassigned = await interactor.unassign_movies("nolan-world", [1, 2])
+        assert unassigned is not None
+        self.assertEqual(unassigned.affected, 2)
+
+        self.assertIsNone(await interactor.assign_movies("missing", [1]))
+        self.assertIsNone(await interactor.unassign_movies("missing", [1]))
 
 
 if __name__ == "__main__":

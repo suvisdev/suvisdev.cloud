@@ -202,6 +202,64 @@
 - WORK_LOG(이 항목) + PROGRESS "취향 재정렬 후속" 백로그의 배우 조인
   항목 완결 표시.
 
+### 수정/구현 — 영화-컬렉션 배정 API/CLI 신설 (PROGRESS 7순위)
+- **사전 조사(쓰기 없이)**: `movies.collection_id` FK **one-to-many** 구조
+  확인(조인 테이블 없음 → 마이그레이션 신설 불필요). 기존 8개 층 스캔:
+  Schema/DTO/Input Port/Interactor/Output Port/PgRepo/Router/Tests 전부 존재,
+  CRUD·List·Movies 조회는 있으나 배정 경로 부재. `scripts/seed_collections.sql`
+  이 raw UPDATE로 시드 중이던 상태.
+- **결정**: API(어드민 가드) + CLI(Repository 직접 호출) **둘 다 신설**
+  (사용자 지시). CLI는 8순위 큐레이션 확장 전 실질 창구.
+- **Port·DTO 확장**:
+  - `CollectionRepositoryPort.assign_movies(slug, movie_ids) → CollectionAssignResultDto | None`
+  - `CollectionRepositoryPort.unassign_movies(slug, movie_ids) → CollectionAssignResultDto | None`
+  - `AssignMoviesUseCase` · `UnassignMoviesUseCase` 신설
+  - `CollectionAssignResultDto` — `collection_id, collection_slug, affected,
+    skipped_ids, moved_from_other_collection`
+- **PgRepository 구현**:
+  - `assign`: `SELECT id, collection_id WHERE id IN (...)`로 존재+현재 소속
+    확인 → `moved_from_other_collection` 계산 → `UPDATE ... SET collection_id`
+  - `unassign`: `SELECT id WHERE id IN AND collection_id = ?`로 대상 좁힘 →
+    `UPDATE ... SET collection_id = NULL`
+  - 둘 다 중복 id 제거(`dict.fromkeys`), 컬렉션 없으면 `None`, 빈 movie_ids
+    는 0-affected 결과 반환(idempotent).
+- **Router**:
+  - `PATCH /mova/collections/{slug}/movies` — 배정, `require_admin`
+  - `DELETE /mova/collections/{slug}/movies` — 해제, `require_admin`
+  - `CollectionMoviesMutationRequest` body(`movie_ids: list[int]`,
+    `min_length=1, max_length=500`), `CollectionAssignResultSchema` 응답
+  - 컬렉션 없으면 404, 존재 안 하는 movie_id는 `skipped_ids`로 부분 성공(200)
+- **DI**: `market_chat_provider.py` 패턴과 정합. `get_assign_movies_use_case`
+  · `get_unassign_movies_use_case` 신설, 기존 interactor 인스턴스 공유.
+- **CLI**: `suvisdev/scripts/assign_collection_cli.py` 신설
+  (`--slug --movie-ids A,B,C [--unassign] [--dry-run]`).
+  `SCRIPTS_EXECUTION_GUIDE.md` 표준 형태 준수, docstring에 시맨틱 명시.
+  Repository 직접 호출(관리자 SSH 전제).
+- **테스트 6건 추가**:
+  - Router 5건: assign 부분 성공(moved 카운트 검증) · assign 404 · assign 빈
+    바디 422 · unassign 부분 성공 · unassign 404
+  - Interactor 1건: assign/unassign 위임 + None bubble
+  - CLI 6건(별도 파일 `test_assign_collection_cli.py`): argparse 파싱 정상·
+    unassign+dry-run 조합·정수 아닌 값 거부·빈 값 거부·공백 관용·helper 직접
+  - fake use case에 `assign_movies`/`unassign_movies` 메서드 추가, router
+    fixture에 `require_admin` override 배선.
+- **회귀**: `apps/mova/tests` 214 pass + 신규 6 pass. 사전 실패 2건은 이번
+  스코프 밖(bulk_import `--source kofic` 미반영, `_compose_empty_reply` 랜덤
+  문구 하드 기대 — 이전 사이클과 동일).
+- **마이그레이션 없음**: `movies.collection_id`가 이미 있고 `ON DELETE SET NULL`
+  까지 걸려 있어 신규 마이그레이션 불필요.
+- **의도적으로 안 함**: 어드민 UI(별도 프론트 스코프), many-to-many 전환
+  (구조 변경, 별도 티켓).
+
+### 산출물(추가)
+- 신규 파일: `assign_collection_cli.py`, `test_assign_collection_cli.py`
+- 수정: `market_collections_dto.py`, `market_collections_repository.py`(port),
+  `market_collections_pg_repository.py`, `collections_use_case.py`(port),
+  `collections_interactor.py`, `collections_provider.py`,
+  `market_collections_schema.py`, `collections_router.py`,
+  `test_collections_router.py`, `test_collections_interactor.py`
+- 총 신규 2 + 수정 10 = 12 파일.
+
 ### 수정/구현 — 개봉예정 필터 세부(참고)
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
   `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에

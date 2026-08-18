@@ -9,6 +9,14 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **영화-컬렉션 배정 API/CLI 신설 (7순위 완결, 2026-08-18)** —
+  `PATCH/DELETE /mova/collections/{slug}/movies`(`require_admin`, 부분 성공
+  응답에 `skipped_ids`·`moved_from_other_collection` 포함) + Repository
+  직접 호출 CLI `scripts/assign_collection_cli.py`(`--slug --movie-ids
+  A,B,C [--unassign] [--dry-run]`). one-to-many(`movies.collection_id` FK)
+  구조라 다른 컬렉션 이동은 덮어쓰기 시맨틱, 해제는 idempotent(이 컬렉션에
+  없던 movie_id는 조용히 skipped). 마이그레이션 신설 없음. 테스트 12건
+  (기존 15 + 신규 6). 상세: WORK_LOG 2026-08-18.
 - **취향 벡터 재정렬 (1-c 다음 순서 1, 2026-08-18)** — movies.embedding·
   reviews.embedding·user_taste_vectors 세 벡터가 전부 Gemini 768d로 정합함을
   사전 진단(쓰기 없이 4축)에서 확정한 뒤 실 구현. `ChatInteractor`가 recs
@@ -801,16 +809,9 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 - 예상 소요: 원인이 단순 종료라면 재기동 5분 이내, 터널 설정 문제면
   `_docs/lora-remote-gpu-ops.md` 절차 재확인 필요.
 
-💤 **7순위: 영화-컬렉션 배정 API/CLI 신설(신규, 2026-08-06)**
-- 이유: 오늘 컬렉션 5개는 SQL 직접 UPDATE로 시드했지만(`scripts/
-  seed_collections.sql`), 정식 큐레이션 흐름(관리자가 주기적으로 새
-  컬렉션을 만들고 영화를 배정)엔 SQL 우회가 아닌 정식 경로가 필요함 —
-  `POST /collections`(생성)는 이미 있지만 "이 영화들을 이 컬렉션에
-  넣기"에 해당하는 엔드포인트/CLI가 아예 없음.
-- 시작 조건: 어드민 전용 엔드포인트로 만들지(`require_admin`), 단순
-  CLI 스크립트로 충분한지 결정 — 사용 빈도(자주 큐레이션할지 가끔인지)
-  에 따라 갈림.
-- 예상 소요: 반나절 이내(단순 UPDATE 래핑 수준).
+~~💤 **7순위: 영화-컬렉션 배정 API/CLI 신설**~~ — **완료(2026-08-18)**:
+위 "완료됨" 참고. API(require_admin) + CLI 둘 다 신설. 8순위(컬렉션
+큐레이션 확장)의 실질 창구 확보.
 
 💤 **8순위: 컬렉션 큐레이션 지속 확장(신규, 2026-08-06)**
 - 이유: 오늘 5개(놀란/90년대 로맨스/SF 클래식/가족/액션)는 시작일 뿐 —
