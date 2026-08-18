@@ -9,6 +9,17 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova 개봉예정에서 과거 개봉일 필터(2026-08-18)** — TMDB
+  `/movie/upcoming` region=KR가 이미 개봉된 항목까지 반환하는 것을 라우터에서
+  KST 기준 오늘 이전 날짜 제외로 걸러냄. 개봉일 미정은 유지. 프로덕션 실측
+  20건 중 2건 제거(2012-07-05·2026-05-27). 상세: WORK_LOG 2026-08-18.
+- **mova 채팅 3건 후속(2026-08-14)** — ① `extract_intent`에 대화 history
+  병합("코미디" 다음 "최근영화로"가 코미디 컨텍스트 유지),
+  ② `/mova` 랜딩 칩 클릭 시 `?q=` 씹힘 수정(pendingQuery 상태 + hydration/
+  auto-send race fix, DB/익명 동일 로직), ③ 우측 랭킹 레일 토글(디폴트 숨김,
+  상단 대화목록 바 우측 `BarChart3` 아이콘, localStorage `mova-rail-hidden`).
+  총 11개 파일(백엔드 8 + 프론트 2 + 회귀 테스트 1). 상세: WORK_LOG
+  2026-08-14 후속 사이클.
 - **mova 하단 푸터 + TMDB attribution + 약관/개인정보 페이지(2026-08-14,
   티켓 A + 후속)** — `components/mova/mova-footer.tsx` 신설(+세로 여백 축소),
   `app/mova/layout.tsx` 배선. 단독 disclaimer 배너 대신 왓챠피디아·

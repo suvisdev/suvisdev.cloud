@@ -169,13 +169,24 @@ export function MovaAiChatBar({
   const [conversationId, setConversationId] = useState<number | null>(
     conversationIdProp ?? null,
   )
+  // URL ?q=X는 마운트 시점에 딱 한 번만 캡처. 이후엔 상태로만 흘려서 로드가
+  // 끝난 뒤 기존 이력 뒤에 append하는 방식으로 send한다(기존 대화가 있어도
+  // 키워드가 씹히지 않게 하기 위함).
+  const [pendingQuery, setPendingQuery] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    const q = new URLSearchParams(window.location.search).get("q")
+    return q?.trim() || null
+  })
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
 
   const listRef = useRef<HTMLDivElement>(null)
   const heroInputRef = useRef<HTMLTextAreaElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
-  const hydratedRef = useRef(false)
+  // 하이드레이션은 상태로 관리한다. ref로만 두면 hydration effect 실행 시
+  // auto-send effect가 stale sendMessage(chat.messages=[])로 먼저 발화해
+  // 히스토리가 빈 채로 서버에 요청이 나가는 race가 있다.
+  const [hydrated, setHydrated] = useState(false)
   const dailySuggestions = useMemo(() => getRotatingMovaChatSuggestions(3), [])
   const isInitial = chat.messages.length === 0
 
@@ -205,37 +216,32 @@ export function MovaAiChatBar({
 
   useEffect(() => {
     if (dbMode) {
-      hydratedRef.current = true
+      setHydrated(true)
       return
     }
     if (typeof window === "undefined") return
+    // ?q=가 있어도 sessionStorage를 무조건 복원. ?q= 전송은 pendingQuery로 별도 처리.
+    // 기존에는 ?q=가 있으면 복원을 스킵해서 이력이 있는 익명 사용자의 채팅이
+    // 새 send로 덮여 사라지는 버그가 있었다.
     try {
-      const hasQ = new URLSearchParams(window.location.search).get("q")
-      if (hasQ) {
-        hydratedRef.current = true
-        return
-      }
       const raw = window.sessionStorage.getItem(CHAT_STORAGE_KEY)
-      if (!raw) {
-        hydratedRef.current = true
-        return
-      }
-      const parsed = JSON.parse(raw) as Partial<ChatState>
-      const messages = Array.isArray(parsed.messages) ? parsed.messages : []
-      if (messages.length > 0) {
-        setChat((prev) => ({ ...prev, messages }))
-        autoSentRef.current = true
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<ChatState>
+        const messages = Array.isArray(parsed.messages) ? parsed.messages : []
+        if (messages.length > 0) {
+          setChat((prev) => ({ ...prev, messages }))
+        }
       }
     } catch {
       // ignore corrupted storage
     } finally {
-      hydratedRef.current = true
+      setHydrated(true)
     }
   }, [dbMode])
 
   useEffect(() => {
     if (dbMode) return
-    if (typeof window === "undefined" || !hydratedRef.current) return
+    if (typeof window === "undefined" || !hydrated) return
     try {
       window.sessionStorage.setItem(
         CHAT_STORAGE_KEY,
@@ -244,7 +250,7 @@ export function MovaAiChatBar({
     } catch {
       // ignore quota/storage errors
     }
-  }, [chat.messages, dbMode])
+  }, [chat.messages, dbMode, hydrated])
 
   // DB 모드: 상위에서 conversationIdProp이 바뀔 때(사이드바 클릭·새 대화 버튼)
   // 해당 대화를 서버에서 로드하거나 상태를 비운다.
@@ -258,9 +264,9 @@ export function MovaAiChatBar({
       return
     }
     if (conversationIdProp === undefined) return
-    // ★ 동기적으로 autoSentRef를 잠근다 — 같은 tick의 auto-send effect가
-    // async 로드보다 먼저 발화해 URL ?q=로 새 대화를 또 만드는 사고 방지.
-    autoSentRef.current = true
+    // 로드가 끝난 뒤 auto-send effect가 fresh sendMessage(=업데이트된 chat.messages를
+    // 클로저에 담은)로 재실행되면서 pendingQuery를 append로 전송한다.
+    // 예전엔 여기서 autoSentRef를 즉시 잠가 ?q=가 씹혔다(2026-08-14 수정).
     let cancelled = false
     setChat((prev) => ({ ...prev, loading: true, error: null }))
     void getConversation(conversationIdProp)
@@ -391,19 +397,21 @@ export function MovaAiChatBar({
   )
 
   useEffect(() => {
-    if (!hydratedRef.current) return
+    if (!hydrated) return
     if (autoSentRef.current) return
-    const raw = typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("q")
-      : null
-    const initial = (raw || "").trim()
-    if (!initial) return
+    if (!pendingQuery) return
+    // 진행 중인 로드·send가 있으면 대기. DB 모드에서 conversation을 불러오는
+    // 동안엔 chat.loading=true로 잠기며, 로드 완료 후 setChat이 커밋되면
+    // sendMessage useCallback이 새 chat.messages를 담아 재생성되고 이 effect가
+    // 다시 실행돼 append 전송이 이루어진다.
+    if (chat.loading) return
     autoSentRef.current = true
-    void sendMessage(initial).finally(() => {
+    setPendingQuery(null)
+    void sendMessage(pendingQuery).finally(() => {
       // 뒤로 가기로 재진입해도 auto-send가 다시 발화하지 않도록 URL에서 q 제거.
       router.replace(pathname, { scroll: false })
     })
-  }, [sendMessage, router, pathname])
+  }, [hydrated, pendingQuery, chat.loading, sendMessage, router, pathname])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

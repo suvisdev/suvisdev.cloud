@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
@@ -33,6 +36,9 @@ async def list_upcoming(
         pairs = await catalog.fetch_upcoming_dated(page=page, region="KR")
     except TmdbAdapterError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+    # TMDB /movie/upcoming은 region=KR로도 이미 개봉된 항목이 섞여 오므로
+    # 한국 기준 오늘 이전 날짜는 걸러낸다. 개봉일 미정(빈 문자열)은 남긴다.
+    today_kr = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
     items = [
         UpcomingMovieSchema(
             tmdb_id=s.tmdb_id,
@@ -46,6 +52,7 @@ async def list_upcoming(
             overview=s.overview or "",
         )
         for s, release_date in pairs
+        if not release_date or release_date >= today_kr
     ]
     # 개봉일 오름차순(=먼저 개봉하는 것부터). 빈 문자열(=미정)은 뒤로.
     items.sort(key=lambda m: (m.release_date == "", m.release_date))

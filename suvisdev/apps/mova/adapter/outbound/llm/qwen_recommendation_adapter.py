@@ -33,8 +33,10 @@ class QwenRecommendationAdapter(RecommendationPort):
         self._reply_svc = ChatReplyService()
         self._orchestrator = T1MidFakerOrchestrator(model=_QWEN_MODEL)
 
-    def extract_intent(self, message: str) -> dict[str, Any]:
-        return self._intent_svc.extract(message)
+    def extract_intent(
+        self, message: str, history: list[dict[str, str]] | None = None
+    ) -> dict[str, Any]:
+        return self._intent_svc.extract(message, history=history)
 
     async def generate_recommendation(
         self,

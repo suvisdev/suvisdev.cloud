@@ -19,8 +19,14 @@ class RecommendationPort(ABC):
     """
 
     @abstractmethod
-    def extract_intent(self, message: str) -> dict[str, Any]:
+    def extract_intent(
+        self, message: str, history: list[dict[str, str]] | None = None
+    ) -> dict[str, Any]:
         """사용자 메시지 → 검색 의도 dict.
+
+        `history`는 최근 대화(role/content 쌍)로, 후속 발화가 이전 조건만 다듬는
+        경우("코미디" → "최근영화로")에 이전 컨텍스트가 사라지지 않도록 반영한다.
+        None이면 단발성 질의처럼 처리.
 
         반환 키: refined_query · keywords · intent_type · search_filters.
         CPU-bound(형태소 분석)이라 동기 메서드 — 호출 측에서 asyncio.to_thread 위임.

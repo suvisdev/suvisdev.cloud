@@ -75,7 +75,11 @@ class ChatInteractor(ChatUseCase):
             return await self._reply_general(request, trace_id)
 
         # 1. 의도 추출 (CPU-bound → 스레드 위임). LLM 출력 포트 경유.
-        intent = await asyncio.to_thread(self._llm.extract_intent, request.message)
+        # 대화 히스토리를 함께 넘겨 후속 발화("최근영화로")가 이전 조건("코미디")을
+        # 삼키지 않게 한다 — 각 턴이 독립 추천이 되던 문제 대응(2026-08-14).
+        intent = await asyncio.to_thread(
+            self._llm.extract_intent, request.message, request.history_dicts()
+        )
 
         # 2. RAG 시맨틱 검색(ontology Hub) + 사용자 컨텍스트 (병렬). 0건이면 기존 태그
         #    키워드 검색으로 폴백 — Hub/Ollama 임베딩 장애 시에도 채팅 자체는 계속 동작해야 한다.

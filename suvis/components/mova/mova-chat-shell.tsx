@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { PanelLeft, PanelLeftClose } from "lucide-react"
+import { BarChart3, PanelLeft, PanelLeftClose } from "lucide-react"
 import { MovaAiChatBar } from "@/components/mova/mova-ai-chat-bar"
 import { MovaChatRail } from "@/components/mova/mova-chat-rail"
 import { MovaChatSidebar } from "@/components/mova/mova-chat-sidebar"
@@ -21,6 +21,7 @@ import {
 
 const ACTIVE_CONV_KEY = "mova-active-conversation-id"
 const SIDEBAR_COLLAPSED_KEY = "mova-sidebar-collapsed"
+const RAIL_HIDDEN_KEY = "mova-rail-hidden"
 
 export function MovaChatShell() {
   const [loggedIn, setLoggedIn] = useState(false)
@@ -28,6 +29,7 @@ export function MovaChatShell() {
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [desktopCollapsed, setDesktopCollapsed] = useState(false)
+  const [railHidden, setRailHidden] = useState(true)
   const [hydrated, setHydrated] = useState(false)
 
   // 로그인 상태 감지 + sessionStorage에서 활성 대화 복원
@@ -49,6 +51,15 @@ export function MovaChatShell() {
     try {
       const collapsed = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"
       setDesktopCollapsed(collapsed)
+    } catch {
+      // ignore
+    }
+
+    // 랭킹 레일 숨김 상태 복원. 값이 없으면 디폴트 숨김("1"). 사용자가 명시적으로
+    // "0"으로 저장한 경우에만 노출한다.
+    try {
+      const raw = window.localStorage.getItem(RAIL_HIDDEN_KEY)
+      setRailHidden(raw === null ? true : raw === "1")
     } catch {
       // ignore
     }
@@ -78,23 +89,15 @@ export function MovaChatShell() {
     }
   }, [desktopCollapsed, hydrated])
 
-  // 하이드 + 활성 대화 복원 확정된 뒤엔 URL의 ?q=를 정리해서, 뒤로 가기·새로고침에서
-  // auto-send가 재발화하지 않도록 한다. 챗바 쪽의 스트립은 첫 send 성공 후에만
-  // 작동하므로 이 안전망이 필요하다(활성 대화가 로드돼 챗바가 send를 안 하는 케이스).
+  // 랭킹 레일 숨김 저장
   useEffect(() => {
     if (!hydrated) return
-    if (conversationId === null) return
     try {
-      const u = new URL(window.location.href)
-      if (u.searchParams.has("q")) {
-        u.searchParams.delete("q")
-        const qs = u.searchParams.toString()
-        window.history.replaceState({}, "", u.pathname + (qs ? `?${qs}` : ""))
-      }
+      window.localStorage.setItem(RAIL_HIDDEN_KEY, railHidden ? "1" : "0")
     } catch {
       // ignore
     }
-  }, [hydrated, conversationId])
+  }, [railHidden, hydrated])
 
   const handleSelect = useCallback((id: number) => {
     setConversationId(id)
@@ -202,6 +205,18 @@ export function MovaChatShell() {
             </button>
           )}
           <span className="text-xs text-mova-muted">대화 목록</span>
+
+          {/* 랭킹 레일 토글 — lg+에서만. 디폴트 숨김. */}
+          <button
+            type="button"
+            onClick={() => setRailHidden((v) => !v)}
+            aria-label={railHidden ? "랭킹 열기" : "랭킹 숨기기"}
+            aria-pressed={!railHidden}
+            className="ml-auto hidden h-9 items-center gap-1.5 rounded-lg px-2 text-xs text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text lg:flex"
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span>{railHidden ? "랭킹 보기" : "랭킹 숨기기"}</span>
+          </button>
         </div>
 
         <MovaAiChatBar
@@ -210,8 +225,8 @@ export function MovaChatShell() {
         />
       </div>
 
-      {/* 우측 랭킹 레일 — 데스크톱(lg+)만. 사이드바 접힘 여부와 무관하게 노출. */}
-      <MovaChatRail />
+      {/* 우측 랭킹 레일 — 데스크톱(lg+)만. 디폴트 숨김, 토글로 노출. */}
+      {!railHidden && <MovaChatRail />}
     </div>
   )
 }
