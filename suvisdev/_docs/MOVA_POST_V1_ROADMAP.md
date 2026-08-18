@@ -54,7 +54,9 @@ Section B·C·D의 축을 새 스코프로 진행한다.
 | hub_knowledge 재임베딩 실행 | ⚠️ | 1순위 | Ollama 벡터(2014행) vs Gemini 쿼리 벡터가 의미 공간 불호환. 프로덕션 데이터 삭제·재적재라 사용자 판단 대기. 실행 명령·선행조건 준비 완료 |
 | `EMBEDDING_BACKEND=gemini` 스위치 켜기 | ⚠️ | 1순위 남은 것 ① | 재임베딩 없이 flip만 하면 오히려 조용한 오응답(차원 같아 에러 없이 잘못된 이웃) — flip은 재임베딩과 원자적으로 진행해야 함 |
 | 영화-컬렉션 배정 API/CLI 신설 | ✅ | 2026-08-18 완결(7순위 해소) — `PATCH/DELETE /mova/collections/{slug}/movies` + `scripts/assign_collection_cli.py`. 8순위 실질 창구 확보. 상세: WORK_LOG 2026-08-18 |
-| 컬렉션 큐레이션 지속 확장 | ⏳ | 8순위 | 5개 큐레이션 완료(놀란/90년대 로맨스/SF 클래식/가족/액션). 7순위(배정 API/CLI) 이후 진행 권장 |
+| 컬렉션 큐레이션 지속 확장 | ⚠️ 부분(3/6, v3 남음) | 8순위 — v2(2026-08-18) 감독 필모 3개(spielberg/tarantino/ridley-scott, 33편) 완료. 총 배정 44→77편. v3 D/E/F(korean-cinema/animation-masters/horror-classics)는 rating=5.0 노이즈 오염 확인 → KR 성인 잔여 purge 선행 후 재시도 |
+| KR 성인 잔여 purge v2 (신규) | ⏳ | 8순위 선행 | 2026-08-14 130편 purge 이후에도 rating=5.0 top-N에 성인물 잔여("섹귀·피지컬 뷁·윤율의 사내 불륜·비키니바" 등 실측). 130편 purge 필터(키워드 regex + rating<4.0) 확대 재적용 필요 |
+| rating 노이즈 완화 (신규) | ⏳ | 8순위 v3 대안/보완 | rating 컬럼이 소수 평가에도 5.0을 반환 — 큐레이션 rating DESC 정렬에서 오답 유발 실증. vote_count 기반 재정렬 또는 rating 상한 컷(예: 4.5) 도입 검토 |
 | KR 카탈로그 필터 완화(`vote_count_gte` 50 또는 20) | ⚠️ | "TMDB KR 유명 영화 대량 수집 후속" | 신규 확보량이 낮음. 게임 품질 트레이드오프(초성 게임 필터 `rating ≥ 3.3`와 이중 방어). 확대 여부는 결정 필요 |
 
 ### B-2 운영/인프라 백로그
@@ -185,3 +187,4 @@ Section B·C·D의 축을 새 스코프로 진행한다.
 | 2026-08-18 | cloudflared 관찰 종결(자연 해소) — B-2 ✅ 갱신, Section E-3 슬롯 오픈 | 6.7일 실측 판정 |
 | 2026-08-18 | QUALITY_PHASE1 §7 stale 정정(§9 신설) — 배우 조인·`origin_country`·레거시 12편 해소 반영, 잔여 결함이 (3) 다중 장르 AND + intent 계층으로 이동함 명시 | 프로덕션 실측 재검증 |
 | 2026-08-18 | 영화-컬렉션 배정 API/CLI 신설(7순위 완결) — B-1 표 및 Section E-1 반영 | 12파일 신규/수정, 신규 테스트 6건 |
+| 2026-08-18 | 컬렉션 큐레이션 v2 부분 완결(8순위 3/6) — 감독 필모 3개 신규, 총 배정 44→77편. B-1에 KR 성인 잔여 purge v2 + rating 노이즈 완화 백로그 추가 | 감독 3개(spielberg/tarantino/ridley-scott) 배정 + D/E/F rating=5.0 노이즈 오염 실측 |
