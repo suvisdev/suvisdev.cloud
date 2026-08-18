@@ -159,6 +159,49 @@
 - `suvisdev/_docs/MOVA_POST_V1_ROADMAP.md` 신규 파일.
 - WORK_LOG 갱신(이 항목).
 
+### cloudflared 24h 관찰 결론 (로그 판정, 코드 변경 없음)
+- 6.7일(2026-08-11T13:34 ~ 2026-08-18T06:00) 9538 샘플, FAIL 620건 중
+  초일 527·08-13 13:00~13:18 연속 87·08-14 1건. **08-15~08-18 4일간
+  FAIL 0건**. cloudflared 컨테이너 uptime 12일(08-06 시작) 재시작 0회.
+  실측 응답 60ms. → ✅ 자연 해소, 관찰 종결. PROGRESS "진행 중"·ROADMAP
+  Section E-3 종결 반영. 로그 파일은 EC2 홈에 그대로 보존.
+
+### 수정/구현 — QUALITY_PHASE1 §7 stale 정정 (문서만)
+- 사용자 지시: 다음 착수 지점(ROADMAP Section E-2) "search_tag_catalog
+  배우 조인 추가"로 시작. 사전 조사 결과 **이미 구현·배포·검증 완료**
+  임을 발견:
+  - `market_chat_pg_repository.py:52-68 _movie_ids_by_actors` +
+    `search_tag_catalog(actor_names=..., countries=..., year_min=..., year_max=...)`
+    시그니처
+  - 커밋 이력: `26adfec (2026-08-06)` 배우 매칭·인기작 폴백,
+    `b07c64b (2026-08-07)` 국가·연도 하드 필터,
+    `4231991 (2026-08-07)` original_language 언어 필터
+  - 테스트 3건 `test_market_chat_interactor.py::ChatInteractorSearchTagCatalogTests`
+- 사용자에게 재확인 → **옵션 1(실측 재검증 + QUALITY_PHASE1 §7 정정,
+  코드 변경 없음)** 확정.
+- **실측**(EC2 프로덕션, 13초 간격 §8.1 쿼터 오염 방지):
+  - #6 송강호 스릴러: 3/3 grounded — 살인의 추억(925)·기생충(147)·
+    **박쥐(2172, 신규 등장)**. 배우 매칭 구조적 정착 실증(§7.2 "우연"
+    정정 근거).
+  - #5 전지현 코미디: 0카드, 하지만 `intent_type=mood` **오분류** —
+    저장소 계층 아니라 intent 계층으로 원인 이동.
+  - #7 키아누 리브스 액션: 0카드, 같은 패턴(`intent_type=mood`).
+- **문서 정정**: `MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §9 신설
+  (§7 stale 서술 정정) — 해소 결함 매핑 표(4건 중 3건 해소, (3) 다중
+  장르 AND만 미해소), §7.2 "우연" 정정, §7.3 잔여 실패가 intent 계층
+  이동으로 넘어감 명시, 실측 대조표, "§9 없이 §7만 인용하지 말 것"
+  경고. 코드 변경 없음.
+- **얻은 교훈**: PROGRESS·품질 문서·실 코드의 갱신 시차가 벌어지면
+  이미 해소된 결함을 다시 파는 반복 작업 발생. 오늘 실제로 겪음
+  (사용자가 §7.3 근거로 배우 조인 지시 → 사전 조사에서 이미 구현됨
+  발견). 사용자가 지목한 근거 문서는 반드시 사전 조사에서 실 코드와
+  대조할 것.
+
+### 산출물(추가)
+- `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §9 신설.
+- WORK_LOG(이 항목) + PROGRESS "취향 재정렬 후속" 백로그의 배우 조인
+  항목 완결 표시.
+
 ### 수정/구현 — 개봉예정 필터 세부(참고)
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
   `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에

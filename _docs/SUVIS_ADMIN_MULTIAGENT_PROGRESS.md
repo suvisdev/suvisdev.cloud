@@ -717,36 +717,19 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 
 ## 진행 중 (현재 액티브)
 
-🔥 **cloudflared `api.suvisdev.cloud` 전용 장애 — 24h 관찰 중(2026-08-11
-시작)**
-- 증상: EC2 자신이 보내는 `api.suvisdev.cloud` 아웃바운드 요청만 100%
-  실패(대부분 8초 타임아웃)하는데, 같은 터널의 `auth.suvisdev.cloud`·
-  `suvisdev.cloud`(Vercel)·외부 사이트·**로컬/실사용자 경로는 전부
-  정상** — 2026-08-06에 이미 한 번 겪었던 것과 동일 패턴("hostname 하나만
-  문제", 그때는 Cloudflare PoP 유지보수로 추정, 자연 해소).
-- 후보 A(EC2 conntrack UDP 타임아웃, `nf_conntrack_udp_timeout_stream`
-  120→600 런타임 상향) 적용했으나 반증 데이터 누적 중(FAIL 시점마다
-  conntrack은 매번 건강, 다른 hostname은 EC2에서도 전부 정상이라 conntrack
-  단독 원인이면 설명 안 됨) — **가설 기각 쪽에 가까움**.
-- 실사용자 영향 없음(로컬/Vercel 계속 200) — 급하지 않아 백그라운드
-  관찰만 지속. EC2 `~/cf_monitor.sh`가 60초 간격으로 기록 중
-  (`~/cf_monitor.log`/`~/cf_monitor_detail.log`, git 미추적).
-- **다음 세션 시작 시**: 24h 관찰 결론 내기 — "0건=sysctl 영구화
-  (`/etc/sysctl.d/`)", "빈도감소하나 잔존=부분 유효+다른 축(VPC egress·
-  엣지 PoP) 병행 조사", "무변화=sysctl 되돌리고 처음으로". 상세:
-  `WORK_LOG.md` 2026-08-11(추가⑫).
-- **관련 관찰 추가(2026-08-13)**: 위 항목은 EC2 자신이 보내는 아웃바운드
-  요청이 실패하는 케이스였는데, 이번엔 **실사용자(집 KT 회선) 인바운드
-  요청**이 `cf-ray`상 서울/도쿄가 아니라 LAX(로스앤젤레스) PoP로 라우팅되는
-  걸 확인 — 방향은 반대지만 "이 도메인이 특정 네트워크에서 비정상 PoP로
-  붙는다"는 같은 계열 증상일 가능성. VPN 없음·DNS는 KT 자체(168.126.63.1/2)
-  정상 확인해 클라이언트 쪽 설정 문제는 배제. **앱/인프라 코드로 조치할 수
-  있는 범위 밖(ISP-Cloudflare 피어링 추정)이라 사용자에게 Cloudflare WARP
-  안내만 하고 종결** — 다음 세션에서 재조사할 필요는 낮음, 위 EC2 쪽
-  항목과 병합해서 볼 가치는 있음. 상세: WORK_LOG 2026-08-13 후속 사이클 I.
+✅ **cloudflared `api.suvisdev.cloud` 관찰 종결(2026-08-18 판정)** — 6.7일
+9538 샘플 실측, FAIL 620건 중 초일(08-11) 527·08-13 연속구간 87·08-14 1건.
+**08-15~08-18 4일간 FAIL 0건**, 컨테이너 uptime 12일 재시작 0회, 응답 60ms
+안정. PROGRESS 서술 "hostname 하나만 문제, 자연 해소" 패턴 재현. 실사용자
+영향 없이 자연 해소로 확정 — 관찰 종결. sysctl `nf_conntrack_udp_timeout_stream`
+런타임 600 상태는 원복 없이 그대로 둠(반증 데이터로 원인 기각이라 영구화
+불필요, 원복도 재부팅에 자동 초기화되니 추가 조치 없음). 로그 파일
+(`~/cf_monitor.{log,detail.log}`) EC2 홈에 보존. 관련 08-13 실사용자 회선
+LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이미 종결됨.
+상세: WORK_LOG 2026-08-18.
 
-(03 제외 확정으로 이번 트랙의 액티브 조사 종료. 착수 대기 항목은
-아래 "다음 / 남은 작업" 참고.)
+(03 제외 확정 + cloudflared 관찰 종결로 이번 트랙의 액티브 조사 종료.
+착수 대기 항목은 아래 "다음 / 남은 작업" 참고.)
 
 ---
 
@@ -891,8 +874,15 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
 - **후보 window 확대** — 현재 `search_tag_catalog(limit=16)` + LLM이 3편 pick.
   taste vector가 있는 유저에게 window를 늘려 재정렬 여지를 넓힐지 검토(트레이드오프:
   프롬프트 토큰↑ · Gemini 요금).
-- **`search_tag_catalog` 후보 생성 개선** — 배우 필터 정확도, OR·AND 복합조건,
-  origin_country 활용. 재정렬 이전에 후보가 잘 뽑혀야 재정렬도 유효.
+- ~~**`search_tag_catalog` 후보 생성 개선** — 배우 필터~~ **배우 조인은
+  2026-08-06 26adfec로 이미 해소·2026-08-18 재확인**(QUALITY_PHASE1 §9).
+  `origin_country`도 2026-08-07 b07c64b로 해소. **남은 결함은 (3) 키워드끼리의
+  AND 결합**(예: "SF+드라마") 뿐 — 배우+장르 교집합은 이미 있음, 순수 다중
+  장르 AND는 미해소로 남음.
+- **intent_extraction 배우 인식 개선(2026-08-18 신규 발견)** — QUALITY_PHASE1
+  §9.3 근거. #5·#7 잔여 실패의 실제 원인이 저장소가 아니라 intent 계층.
+  `intent_type=mood` 오분류로 `actor_names=[]`가 저장소에 전달됨.
+  `intent_extraction.py`의 배우 신호 인식 개선이 별도 트랙.
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`
