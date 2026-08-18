@@ -56,6 +56,16 @@ class UserTasteVectorsPgRepository(UserTasteVectorRepositoryPort):
             updated_at=row.updated_at,
         )
 
+    async def get_taste_vector(self, user_id: int) -> list[float] | None:
+        row = (
+            await self._session.execute(
+                select(MovaUserTasteVector.vector).where(
+                    MovaUserTasteVector.user_id == user_id
+                )
+            )
+        ).scalar_one_or_none()
+        return list(row) if row is not None else None
+
     async def list_user_ids_with_rated_reviews(self, limit: int | None) -> list[int]:
         stmt = (
             select(MovaReview.user_id)

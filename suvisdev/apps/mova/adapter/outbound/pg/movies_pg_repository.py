@@ -338,6 +338,21 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie.embedding = embedding
         await self._session.commit()
 
+    async def list_embeddings_by_ids(
+        self, movie_ids: list[int]
+    ) -> dict[int, list[float]]:
+        if not movie_ids:
+            return {}
+        rows = (
+            await self._session.execute(
+                select(MovaMovie.id, MovaMovie.embedding).where(
+                    MovaMovie.id.in_(movie_ids),
+                    MovaMovie.embedding.is_not(None),
+                )
+            )
+        ).all()
+        return {int(mid): list(vec) for mid, vec in rows}
+
     async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
         movie_q = await self._session.execute(
             select(MovaMovie).where(MovaMovie.slug == slug)

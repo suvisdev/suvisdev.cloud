@@ -9,6 +9,21 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **취향 벡터 재정렬 (1-c 다음 순서 1, 2026-08-18)** — movies.embedding·
+  reviews.embedding·user_taste_vectors 세 벡터가 전부 Gemini 768d로 정합함을
+  사전 진단(쓰기 없이 4축)에서 확정한 뒤 실 구현. `ChatInteractor`가 recs
+  반환 후 save_picks 전에 taste vector×movies.embedding cosine 순으로
+  재정렬(별점 alpha 결합 없이 순수 코사인). taste vector 없거나 비로그인
+  이면 스킵 debug 로그, 상위 3편 노출은 유지. Port 2개 확장
+  (`get_taste_vector`, `list_embeddings_by_ids`), DI 배선, 테스트 3건.
+  상세: WORK_LOG 2026-08-18.
+- **레거시 무태그 12편(1056~1067) 정리(2026-08-18)** — grounded prompting
+  전환 이후 죽은 데이터(태그·크레딧·감독 전부 0, `release_year=0`, 비-TMDB
+  slug)였음. 정식 TMDB row가 이미 카탈로그에 있는 10편 + 대체 없는 2편
+  (조제·패터슨) 전부 삭제. 걸려 있던 picks 12건은 전부 익명·피드백 없음
+  (2026-08-05 골든셋 튜닝 시점 임시 데이터)이라 CASCADE 손실 없음. EC2
+  DB 실행 전 CSV 백업(`~/legacy_12_{movies,picks}_backup_*.csv`).
+  상세: WORK_LOG 2026-08-18.
 - **mova 개봉예정에서 과거 개봉일 필터(2026-08-18)** — TMDB
   `/movie/upcoming` region=KR가 이미 개봉된 항목까지 반환하는 것을 라우터에서
   KST 기준 오늘 이전 날짜 제외로 걸러냄. 개봉일 미정은 유지. 프로덕션 실측
@@ -788,20 +803,9 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   검색/LLM 자체 지식) 품질 비교가 가능해진다.
 - 실행 환경: EC2에서 전부 가능(노트북 불필요 — Gemini API 사용).
 
-💤 **3순위: 레거시 무태그 로우 12편 정리(짜투리)**
-- 이유: 골든셋 실패 대상 영화를 조회하다 발견 — id 1056~1067 12편이
-  `release_year=0`·비-TMDB slug·**장르 태그 0개**로 존재. Phase 1 골든셋
-  실패/취약 쿼리 대상과 정확히 겹쳐(빽 투 더 퓨쳐 "(1985)" 연도 suffix
-  포함 제목 등), title 매칭 시절 골든셋을 통과시키려 수동으로 끼워
-  넣은 임시 데이터로 추정(확정 근거는 없음). grounded prompting 전환
-  이후 태그가 없어 후보에 못 들어가는 죽은 데이터가 됨. 상세 목록:
-  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7.4.
-- 시작 조건: 정식 TMDB 재조회로 대체할지, 장르 태그만 수동 백필할지 결정.
-- **2026-08-06 재확인**: `search_tag_catalog()` 배우 매칭을 추가한 뒤에도
-  "전지현 코미디"가 여전히 실패 — 이 12편엔 장르 태그뿐 아니라 배우
-  크레딧 자체가 없어(TMDB credits 백필 대상 밖) 배우 매칭으로도 못
-  건짐. 이 항목이 그 근본 해결책.
-- 예상 소요: 12편 규모라 반나절 이내.
+~~💤 **3순위: 레거시 무태그 로우 12편 정리(짜투리)**~~ — **완료(2026-08-18)**:
+위 "완료됨" 참고. 정식 TMDB 정품 row가 이미 있는 10편 + 대체 없는 2편
+(조제·패터슨) 전부 삭제. picks 12건 CASCADE(익명·피드백 없음, 손실 없음).
 
 💤 **5순위: 노트북 GPU/Cloudflare Tunnel 복구 + `RECOMMENDATION_BACKEND` 원복 판단**
 - 이유: 2026-08-06 현재 EC2가 `gemini`로 수동 폴백된 상태(기본값은
@@ -875,8 +879,20 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   후 EC2 backend/auth 정식 이미지 재빌드까지 완료**(docker cp 임시 반영
   아님). 세부: WORK_LOG 2026-08-11 γ 사이클 + 후속 사이클 + 배포 사이클.
 - 다음 순서:
-  1. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
+  1. ~~**mova 추천 후보 정렬에 취향-영화 코사인 결합**~~ — **완료(2026-08-18)**:
+     위 "완료됨" 참고. 순수 코사인 정렬로 착수, 아래 세 후속은 별도 트랙.
   2. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
+
+**취향 재정렬 후속 백로그(2026-08-18 신규)**:
+- **alpha 별점 결합 튜닝** — 현재는 순수 코사인만. `α·cosine + (1-α)·norm(rating)`
+  같은 결합식으로 실측 A/B 후 alpha 결정. 별점이 이미 후보 12편 압축 시점에
+  적용된 상태라 이중 계산 회피가 우선순위였고, 재정렬은 카드 3편 안에서만
+  순서가 바뀌므로 지금은 순수 코사인이 정직함.
+- **후보 window 확대** — 현재 `search_tag_catalog(limit=16)` + LLM이 3편 pick.
+  taste vector가 있는 유저에게 window를 늘려 재정렬 여지를 넓힐지 검토(트레이드오프:
+  프롬프트 토큰↑ · Gemini 요금).
+- **`search_tag_catalog` 후보 생성 개선** — 배우 필터 정확도, OR·AND 복합조건,
+  origin_country 활용. 재정렬 이전에 후보가 잘 뽑혀야 재정렬도 유효.
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`

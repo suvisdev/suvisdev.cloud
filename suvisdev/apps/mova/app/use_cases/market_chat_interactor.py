@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -18,6 +19,10 @@ from mova.app.ports.output.market_conversations_errors import (
     ConversationNotFoundError,
 )
 from mova.app.ports.output.market_conversations_repository import ConversationsRepository
+from mova.app.ports.output.movies_repository import MoviesRepositoryPort
+from mova.app.ports.output.platform_user_taste_vector_repository import (
+    UserTasteVectorRepositoryPort,
+)
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
@@ -34,6 +39,44 @@ _GENERAL_CHAT_SYSTEM_PROMPT = (
 )
 
 
+def _cosine(a: list[float], b: list[float]) -> float:
+    """0벡터·차원 불일치는 0.0 반환 — 재정렬에서 그 rec만 뒤로 밀려남."""
+    if len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(x * x for x in b))
+    if na == 0.0 or nb == 0.0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def _rerank_by_taste_cosine(
+    recs: list,
+    taste_vector: list[float],
+    embeddings_by_id: dict[int, list[float]],
+) -> list:
+    """recs를 taste vector와의 cosine 유사도(내림차순)로 재정렬.
+
+    embedding이 없는(dict에 missing) rec은 cosine=-1로 취급해 뒤로 밀리지만,
+    자기들 사이의 상대 순서는 원본을 유지(stable sort). 재정렬 대상이 3편
+    수준이라 순수 Python으로 충분(pgvector <=>를 SQL로 태울 규모 아님).
+    """
+    def _key(rec_with_idx: tuple[int, object]) -> tuple[float, int]:
+        original_idx, rec = rec_with_idx
+        vec = embeddings_by_id.get(getattr(rec, "movie_id", None))
+        if vec is None:
+            # embedding 없는 rec은 재정렬 대상 밖 — 뒤로. 큰 key로 밀되
+            # 자기들끼리는 original_idx로 원래 순서 유지.
+            return (math.inf, original_idx)
+        # cosine 내림차순 = -cosine 오름차순.
+        return (-_cosine(taste_vector, vec), original_idx)
+
+    indexed = list(enumerate(recs))
+    indexed.sort(key=_key)
+    return [rec for _, rec in indexed]
+
+
 class ChatInteractor(ChatUseCase):
     def __init__(
         self,
@@ -44,6 +87,8 @@ class ChatInteractor(ChatUseCase):
         classifier: IntentClassifierPort,
         general: MycroftUseCase,
         conversations: ConversationsRepository | None = None,
+        movies: MoviesRepositoryPort | None = None,
+        taste_vectors: UserTasteVectorRepositoryPort | None = None,
     ) -> None:
         self._repo = repository
         self._llm = recommender
@@ -54,6 +99,11 @@ class ChatInteractor(ChatUseCase):
         # 대화 스레드는 로그인 사용자 한정 저장. 없어도 챗 자체는 동작해야 하므로
         # optional 주입 — 테스트나 초기 부팅 경로에서 미주입이어도 크래시 안 남.
         self._conversations = conversations
+        # 취향 벡터 재정렬은 로그인 유저 + 리뷰 임베딩이 준비된 유저에게만 적용.
+        # 두 port 중 하나라도 미주입이면 재정렬 스킵(LLM 원 순서 유지). 기존
+        # 테스트가 두 인자 없이 인스턴스화해도 깨지지 않게 optional로 둔다.
+        self._movies = movies
+        self._taste_vectors = taste_vectors
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
@@ -160,6 +210,14 @@ class ChatInteractor(ChatUseCase):
             model=request.model,
         )
 
+        # 3.5. 취향 벡터 재정렬 — 로그인 유저 + taste vector·movies embedding
+        #      양쪽 준비된 경우에만. 후보 생성/enrich 결과 순서는 LLM이 정한
+        #      것이지 별점순이 아니므로, 개인화 신호가 있으면 그 안에서 순서를
+        #      다시 잡는다. 재정렬 후 순서로 save_picks까지 반영해 UI 카드
+        #      배치와 저장 순서가 일치하게 한다. 별점 결합(alpha 튜닝)은
+        #      별도 백로그.
+        recs = await self._rerank_recommendations(request.user_id, recs, trace_id)
+
         # 4. chat + picks 저장
         batch_at = datetime.now(UTC)
         chat_id = await self._repo.save_chat(
@@ -254,6 +312,53 @@ class ChatInteractor(ChatUseCase):
             recommendations=recommendation_dtos,
             conversation_id=conversation_id,
         )
+
+    async def _rerank_recommendations(
+        self, user_id: int | None, recs: list, trace_id: str
+    ) -> list:
+        """taste vector가 있으면 movies.embedding과의 cosine으로 recs 재정렬.
+
+        스킵 조건(전부 debug 로그만): 비로그인, 두 port 중 하나 미주입,
+        taste vector 없음(리뷰 0건/rating 합계 0), recs 비어 있음, 모든
+        rec의 embedding이 dict에 없음(전량 unknown).
+        """
+        if not recs:
+            return recs
+        if user_id is None:
+            logger.debug("[ChatInteractor] trace=%s rerank skip: 비로그인", trace_id)
+            return recs
+        if self._taste_vectors is None or self._movies is None:
+            logger.debug(
+                "[ChatInteractor] trace=%s rerank skip: taste/movies port 미주입", trace_id
+            )
+            return recs
+
+        taste_vector = await self._taste_vectors.get_taste_vector(user_id)
+        if taste_vector is None:
+            logger.debug(
+                "[ChatInteractor] trace=%s rerank skip: taste vector 없음(user=%d)",
+                trace_id,
+                user_id,
+            )
+            return recs
+
+        movie_ids = [r.movie_id for r in recs if getattr(r, "movie_id", None) is not None]
+        embeddings_by_id = await self._movies.list_embeddings_by_ids(movie_ids)
+        if not embeddings_by_id:
+            logger.debug(
+                "[ChatInteractor] trace=%s rerank skip: movies.embedding 전량 없음", trace_id
+            )
+            return recs
+
+        reranked = _rerank_by_taste_cosine(recs, taste_vector, embeddings_by_id)
+        logger.info(
+            "[ChatInteractor] trace=%s rerank 적용 user=%d recs=%d embedded=%d",
+            trace_id,
+            user_id,
+            len(recs),
+            len(embeddings_by_id),
+        )
+        return reranked
 
     async def _reply_general(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
         """영화 지식 조회가 필요 없는 잡담 — RAG·추천 없이 Gemini(Mycroft) 답변만 저장·반환."""
