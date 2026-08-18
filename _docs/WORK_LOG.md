@@ -260,6 +260,61 @@
   `test_collections_router.py`, `test_collections_interactor.py`
 - 총 신규 2 + 수정 10 = 12 파일.
 
+### 수정/구현 — 컬렉션 큐레이션 v2 (PROGRESS 8순위 부분 완결)
+- **사전 조사(쓰기 없이)**: EC2 DB 실측 — 카탈로그 3852편 중 배정 44편
+  (1.1%), 미배정 3808편. 8-06 시점 서술(2014편) 대비 카탈로그 확장 반영.
+  프론트 `/mova/collections`는 완전 동적(`fetchMovaCollections`, 그리드
+  자동 렌더) — 백엔드만으로 커버.
+- **후보 6개 데이터 기반 선정**: A) spielberg(스필버그 감독 12편) · B)
+  tarantino(11편 전량) · C) ridley-scott(10편) · D) korean-cinema(233편
+  풀에서 top-15) · E) animation-masters(178편 풀에서 top-12) ·
+  F) horror-classics(138편 풀에서 top-10).
+- **⚠ 실측에서 D·F 오염 발견**: rating DESC LIMIT이 **rating=5.0 노이즈**
+  (소수 평가 + 성인물 잔여 로우)에 걸림. D 15편은 "섹귀·피지컬 뷁·윤율의
+  사내 불륜·비키니바" 등 **전량 성인물**, F 10편도 상위 대부분이 성인물
+  KR 로우("흡혈귀 야녀·월하의 사미인곡·한녀·악령·하녀의 방·춘몽" 등
+  1970~80년대 rating=5.0 노이즈). E도 상위 몇 편이 중국 계열
+  (`仙逆剧场版`·`八仙！`)로 검증 필요. **그대로 실행 시 대표작 컬렉션에
+  성인물 노출 사고**. 즉시 사용자에게 보고.
+- **사용자 결정(옵션 2)**: A/B/C 3개만 이번 사이클 진행, D/E/F는 KR 성인
+  잔여 purge(2026-08-14 130편 purge 연장선) 선행 후 다음 사이클에서
+  재시도.
+- **실행**:
+  - `suvisdev/scripts/seed_collections_v2.sql` 신설 — 3개 컬렉션 INSERT
+    (`ON CONFLICT DO NOTHING`). 배정 SQL은 없음(7순위 CLI로 진행하려는
+    의도 파일 상단 명시).
+  - EC2 프로덕션: `docker compose exec -T db psql -f seed_collections_v2.sql`
+    → `INSERT 0 3` 확인 → collections 8개(1~5 기존, 6~8 신규).
+  - 배정 3회: `docker compose exec -T backend python scripts/
+    assign_collection_cli.py --slug ... --movie-ids ...`
+    - A `spielberg-world` (id=6): 12편(232,386,576,521,717,901,580,1147,
+      339,808,2,883) affected=12 skipped=0 moved=0
+    - B `tarantino-universe` (id=7): 11편(146,322,121,660,757,399,785,876,
+      1964,482,1393) affected=11 skipped=0 moved=0
+    - C `ridley-scott-selects` (id=8): 10편(152,345,112,1338,634,455,470,
+      290,1906,769) affected=10 skipped=0 moved=0
+- **검증**:
+  - DB SELECT: 컬렉션 8개(기존 5 + 신규 3) 확인, 신규 3개 편수 12/11/10 정확.
+    기존 5개 편수(12/8/8/8/8) 변동 없음(회귀 확인).
+  - 배정 총계: 44 + 33 = **77편 / 3852편 = 2.0%** (기존 1.1% → 2배)
+  - API 검증: `GET /mova/collections?limit=20` → items 8개 반환.
+    `GET /mova/collections/{slug}/movies` × 3 → total=12/11/10 정확.
+  - 프론트: 완전 동적이라 별도 배포 없이 즉시 반영. Vercel 캐시 만료 후
+    `/mova/collections` 그리드에 3개 신규 카드 노출 예정.
+- **얻은 관찰**: rating 컬럼이 소수 평가에도 5.0을 반환하는 노이즈 취약성
+  이 큐레이션의 rating DESC 정렬에서 실제로 사고 유발할 수 있음을 실증.
+  ROADMAP 백로그에 "KR 성인 잔여 purge" + "rating 노이즈 완화(vote_count
+  기반 재정렬 등)" 추가 필요.
+- **의도적으로 안 함**: D/E/F 강행 · 김기덕 등 논란 감독 컬렉션 ·
+  카탈로그 필터 완화 · 프론트 어드민 UI.
+
+### 산출물(추가)
+- 신규 파일: `suvisdev/scripts/seed_collections_v2.sql`
+- EC2 프로덕션 DB 변경: collections 3행 INSERT + movies 33행 UPDATE.
+  롤백 필요 시 `assign_collection_cli.py --unassign` 3회 + `DELETE FROM
+  collections WHERE slug IN (...)` — 로컬 CSV 백업 안 함(정식 배정 경로
+  로만 통한 UPDATE라 이력·재현 가능).
+
 ### 수정/구현 — 개봉예정 필터 세부(참고)
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
   `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에

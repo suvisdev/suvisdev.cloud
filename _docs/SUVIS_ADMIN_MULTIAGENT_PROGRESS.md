@@ -9,6 +9,13 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **컬렉션 큐레이션 v2 부분 완결 (8순위 3/6, 2026-08-18)** — 감독 필모
+  3개 컬렉션(spielberg-world 12편·tarantino-universe 11편·ridley-scott-selects
+  10편) 신규. 배정 총계 44→77편(1.1%→2.0%). `seed_collections_v2.sql` +
+  7순위 CLI(`assign_collection_cli.py`)로 실행 — 정식 경로 첫 실증. D/E/F
+  후보(korean-cinema·animation-masters·horror-classics)는 rating=5.0 노이즈
+  로 성인물 오염 실측 → KR 성인 잔여 purge 선행 후 다음 사이클로 이월.
+  상세: WORK_LOG 2026-08-18.
 - **영화-컬렉션 배정 API/CLI 신설 (7순위 완결, 2026-08-18)** —
   `PATCH/DELETE /mova/collections/{slug}/movies`(`require_admin`, 부분 성공
   응답에 `skipped_ids`·`moved_from_other_collection` 포함) + Repository
@@ -813,14 +820,18 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 위 "완료됨" 참고. API(require_admin) + CLI 둘 다 신설. 8순위(컬렉션
 큐레이션 확장)의 실질 창구 확보.
 
-💤 **8순위: 컬렉션 큐레이션 지속 확장(신규, 2026-08-06)**
-- 이유: 오늘 5개(놀란/90년대 로맨스/SF 클래식/가족/액션)는 시작일 뿐 —
-  시즌별·테마별 추가 큐레이션으로 `/mova/collections`를 계속 채워나갈
-  여지가 큼(현재 카탈로그 2014편 중 44편만 배정, 나머지는 미배정 상태로
-  남아 있어도 무방하나 컬렉션 다양성은 늘릴수록 좋음).
-- 시작 조건: 7순위(배정 API/CLI)가 있으면 더 쉬워짐 — 순서상 7순위 이후
-  권장.
-- 예상 소요: 컨셉당 반나절 이내(오늘 사이클과 동일 패턴).
+💤 **8순위: 컬렉션 큐레이션 지속 확장 — v2 부분 완결(2026-08-18), v3 남음**
+- **v2(2026-08-18) 완료**: 감독 필모 3개(spielberg/tarantino/ridley-scott)
+  신규, 총 33편 배정. 배정 총계 44→77편. 위 "완료됨" 참고.
+- **v3 남음(다음 사이클)**: D `korean-cinema` · E `animation-masters` ·
+  F `horror-classics` 3개 — v2 실측에서 rating=5.0 노이즈로 성인물 오염
+  확인, KR 성인 잔여 purge 선행 필요.
+- **선행 백로그**: **KR 성인 잔여 purge v2** — 2026-08-14 130편 purge 이후에도
+  rating=5.0 top-N 쿼리에 성인물이 계속 잡힘("섹귀·피지컬 뷁·윤율의 사내
+  불륜·비키니바" 등 실측). 130편 purge 필터(키워드 regex + rating<4.0)를
+  확대 재적용 필요. 또는 rating 노이즈 완화(vote_count 기반 재정렬 등,
+  ROADMAP 별도 항목) 병행.
+- **예상 소요**: v3 컨셉당 반나절(v2와 동일 패턴, purge 선행 시간 별도).
 
 🔥 **신규 1-b순위: `movies.embedding` 백필 완결(2026-08-11 자동화 등록)**
 - 08-10 중단 원인 **재검증 완료(2026-08-11)** — 문서 기록 그대로 Gemini
