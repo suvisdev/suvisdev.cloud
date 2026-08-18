@@ -129,6 +129,36 @@
 - EC2 DB 레거시 12편 삭제(백업 CSV 2건, EC2 홈).
 - WORK_LOG·PROGRESS 갱신.
 
+### 수정/구현 — MOVA v1 완결 판정 로드맵 문서 신설
+- 파일: `suvisdev/_docs/MOVA_POST_V1_ROADMAP.md` (신규, 문서만).
+- 목적: PROGRESS(백로그 순위)·WORK_LOG(일자별 기록) 위의 상위 로드맵
+  — v1 완결 판정 5축 + 완결 후 백로그 스냅샷 + 신규 사이클 후보 +
+  취업 어필 문서화 트랙 + 우선순위 정렬.
+- 구조: Meta / A(5축 판정) / B(남은 백로그 4하위) / C(v2 후보 3건) /
+  D(취업 어필 3항목) / E(다음 착수 지점 3건).
+- 근거 사용 원칙: 실 파일 근거만, 창작 금지. 사용자가 언급한
+  소스 중 `suvisdev/_docs/MOVA_UI_AUDIT.md`·`suvisdev/_docs/PROGRESS.md`
+  경로는 실제 존재하지 않음(전자는 파일 자체 없음, 후자는 실제
+  경로가 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`) — 실제 존재 파일
+  (`_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`,
+  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`,
+  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`,
+  `suvisdev/apps/mova/_docs/CLAUDE.md`)만 근거로 사용.
+- v1 완결 판정 = 5/5 ✅: (1) UX 루프 폐쇄(취향 재정렬 오늘 배포로
+  최종 폐쇄), (2) 데이터 정합성(크론 3건·HNSW·레거시 정리), (3) 보안
+  하드닝(리뷰 IDOR·watched 게이트), (4) 운영 관측성(크론 로그 표준),
+  (5) 결함 관리(PROGRESS 우선순위 명시적 관리).
+- Section C-3(챗봇 학원 커리큘럼 대응)은 근거 문서 부재로 "판단 보류"
+  로 명시하고 사용자 범위 명세 요청 조건 기재. Section D 전체도
+  근거 문서 부재라 "사용자 지정 카테고리 · 실행 전 스코프 합의 필요"
+  명시.
+- 사용자 스코프 준수: PROGRESS.md 수정 없음(별도 티켓). 코드 변경
+  없음, 문서 신설만.
+
+### 산출물(추가)
+- `suvisdev/_docs/MOVA_POST_V1_ROADMAP.md` 신규 파일.
+- WORK_LOG 갱신(이 항목).
+
 ### 수정/구현 — 개봉예정 필터 세부(참고)
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
   `/movie/upcoming`(region=KR) 결과를 그대로 프록시. TMDB는 이 엔드포인트에
