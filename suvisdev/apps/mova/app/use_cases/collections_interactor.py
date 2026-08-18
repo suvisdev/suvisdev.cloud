@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from mova.app.dtos.market_collections_dto import (
+    CollectionAssignResultDto,
     CollectionCreateCommand,
     CollectionDetailDto,
     CollectionListDto,
     CollectionMoviesDto,
 )
 from mova.app.ports.input.collections_use_case import (
+    AssignMoviesUseCase,
     CreateCollectionUseCase,
     GetCollectionUseCase,
     ListCollectionMoviesUseCase,
     ListCollectionsUseCase,
+    UnassignMoviesUseCase,
 )
 from mova.app.ports.output.market_collections_repository import CollectionRepositoryPort
 
@@ -22,6 +25,8 @@ class CollectionsInteractor(
     ListCollectionsUseCase,
     GetCollectionUseCase,
     ListCollectionMoviesUseCase,
+    AssignMoviesUseCase,
+    UnassignMoviesUseCase,
 ):
     def __init__(self, repository: CollectionRepositoryPort) -> None:
         self._repository = repository
@@ -47,3 +52,13 @@ class CollectionsInteractor(
             limit=limit,
             offset=offset,
         )
+
+    async def assign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        return await self._repository.assign_movies(slug, movie_ids)
+
+    async def unassign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        return await self._repository.unassign_movies(slug, movie_ids)

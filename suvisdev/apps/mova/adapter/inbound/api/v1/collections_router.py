@@ -6,24 +6,31 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from mova.adapter.inbound.api.schemas.market_collections_schema import (
+    CollectionAssignResultSchema,
     CollectionCreateSchema,
     CollectionDetailSchema,
     CollectionListSchema,
+    CollectionMoviesMutationRequest,
     CollectionMoviesSchema,
 )
 from mova.app.dtos.market_collections_dto import CollectionCreateCommand
 from mova.app.ports.input.collections_use_case import (
+    AssignMoviesUseCase,
     CreateCollectionUseCase,
     GetCollectionUseCase,
     ListCollectionMoviesUseCase,
     ListCollectionsUseCase,
+    UnassignMoviesUseCase,
 )
 from mova.dependencies.collections_provider import (
+    get_assign_movies_use_case,
     get_create_collection_use_case,
     get_get_collection_use_case,
     get_list_collection_movies_use_case,
     get_list_collections_use_case,
+    get_unassign_movies_use_case,
 )
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 collections_router = APIRouter(prefix="/collections", tags=["mova-collections"])
 
@@ -95,6 +102,44 @@ async def list_collection_movies(
 ) -> CollectionMoviesSchema:
     """컬렉션에 속한 영화 목록 (movies.collection_id FK 기준)."""
     dto = await collections.list_collection_movies(slug, limit=limit, offset=offset)
+    if dto is None:
+        raise HTTPException(status_code=404, detail=f"Collection '{slug}' not found")
+    return dto.to_schema()
+
+
+@collections_router.patch("/{slug}/movies", response_model=CollectionAssignResultSchema)
+async def assign_movies_to_collection(
+    slug: str,
+    body: CollectionMoviesMutationRequest,
+    _: AdminPrincipal = Depends(require_admin),
+    collections: AssignMoviesUseCase = Depends(get_assign_movies_use_case),
+) -> CollectionAssignResultSchema:
+    """영화를 이 컬렉션으로 배정 — 어드민 전용.
+
+    one-to-many(`movies.collection_id` FK) 구조라 다른 컬렉션에 이미 속한
+    영화도 이 컬렉션으로 이동한다(덮어쓰기). 관측성 위해
+    `moved_from_other_collection` 카운트를 응답에 노출. DB에 없는 movie_id는
+    `skipped_ids`로 분리 반환(부분 성공, 404 안 냄).
+    """
+    dto = await collections.assign_movies(slug, body.movie_ids)
+    if dto is None:
+        raise HTTPException(status_code=404, detail=f"Collection '{slug}' not found")
+    return dto.to_schema()
+
+
+@collections_router.delete("/{slug}/movies", response_model=CollectionAssignResultSchema)
+async def unassign_movies_from_collection(
+    slug: str,
+    body: CollectionMoviesMutationRequest,
+    _: AdminPrincipal = Depends(require_admin),
+    collections: UnassignMoviesUseCase = Depends(get_unassign_movies_use_case),
+) -> CollectionAssignResultSchema:
+    """영화의 이 컬렉션 배정 해제 — 어드민 전용, idempotent.
+
+    이 컬렉션에 속하지 않은 movie_id(다른 컬렉션 소속 또는 어디에도 없음)는
+    `skipped_ids`로 담아 조용히 반환. 실제 NULL 처리된 영화 수는 `affected`.
+    """
+    dto = await collections.unassign_movies(slug, body.movie_ids)
     if dto is None:
         raise HTTPException(status_code=404, detail=f"Collection '{slug}' not found")
     return dto.to_schema()

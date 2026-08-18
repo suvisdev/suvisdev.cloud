@@ -144,6 +144,32 @@ class CollectionListDto:
 
 
 @dataclass(frozen=True)
+class CollectionAssignResultDto:
+    """영화 배정/해제 결과. movies.collection_id one-to-many 구조라 배정 시
+    다른 컬렉션에 이미 속한 영화는 자동 이동(덮어쓰기 시맨틱), 해제 시
+    이 컬렉션에 속하지 않은 movie_id는 조용히 무시(idempotent)."""
+
+    collection_id: int
+    collection_slug: str
+    affected: int  # 배정: SET된 영화 수, 해제: NULL 처리된 영화 수
+    skipped_ids: list[int]  # 배정: DB에 없는 movie_id, 해제: 이 컬렉션에 없던 movie_id
+    moved_from_other_collection: int  # 배정 전용, 해제 시 0
+
+    def to_schema(self) -> object:
+        from mova.adapter.inbound.api.schemas.market_collections_schema import (
+            CollectionAssignResultSchema,
+        )
+
+        return CollectionAssignResultSchema(
+            collection_id=self.collection_id,
+            collection_slug=self.collection_slug,
+            affected=self.affected,
+            skipped_ids=list(self.skipped_ids),
+            moved_from_other_collection=self.moved_from_other_collection,
+        )
+
+
+@dataclass(frozen=True)
 class CollectionCreateCommand:
     slug: CollectionSlug
     name: CollectionName

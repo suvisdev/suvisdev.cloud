@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_collections_orm import MovaCollection
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_collections_dto import (
+    CollectionAssignResultDto,
     CollectionCreateCommand,
     CollectionDetailDto,
     CollectionListDto,
@@ -132,4 +133,105 @@ class CollectionsPgRepository(CollectionRepositoryPort):
             total=total,
             limit=limit,
             offset=offset,
+        )
+
+    async def assign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        entity = await self._get_entity_by_slug(slug)
+        if entity is None:
+            return None
+        if not movie_ids:
+            return CollectionAssignResultDto(
+                collection_id=entity.id,
+                collection_slug=str(entity.slug),
+                affected=0,
+                skipped_ids=[],
+                moved_from_other_collection=0,
+            )
+
+        unique_ids = list(dict.fromkeys(int(m) for m in movie_ids))
+        # 존재 확인 + 현재 collection_id 대조 (한 쿼리) — 부분 성공 응답 근거.
+        existing_rows = (
+            await self._session.execute(
+                select(MovaMovie.id, MovaMovie.collection_id).where(MovaMovie.id.in_(unique_ids))
+            )
+        ).all()
+        existing_map = {int(mid): (cid if cid is None else int(cid)) for mid, cid in existing_rows}
+        found_ids = list(existing_map.keys())
+        skipped_ids = [m for m in unique_ids if m not in existing_map]
+        moved_from_other = sum(
+            1 for m in found_ids if existing_map[m] is not None and existing_map[m] != entity.id
+        )
+
+        if found_ids:
+            await self._session.execute(
+                update(MovaMovie)
+                .where(MovaMovie.id.in_(found_ids))
+                .values(collection_id=entity.id)
+            )
+            await self._session.commit()
+
+        logger.info(
+            "[CollectionsPgRepository] assign slug=%s affected=%d skipped=%d moved=%d",
+            slug,
+            len(found_ids),
+            len(skipped_ids),
+            moved_from_other,
+        )
+        return CollectionAssignResultDto(
+            collection_id=entity.id,
+            collection_slug=str(entity.slug),
+            affected=len(found_ids),
+            skipped_ids=skipped_ids,
+            moved_from_other_collection=moved_from_other,
+        )
+
+    async def unassign_movies(
+        self, slug: str, movie_ids: list[int]
+    ) -> CollectionAssignResultDto | None:
+        entity = await self._get_entity_by_slug(slug)
+        if entity is None:
+            return None
+        if not movie_ids:
+            return CollectionAssignResultDto(
+                collection_id=entity.id,
+                collection_slug=str(entity.slug),
+                affected=0,
+                skipped_ids=[],
+                moved_from_other_collection=0,
+            )
+
+        unique_ids = list(dict.fromkeys(int(m) for m in movie_ids))
+        # 이 컬렉션에 실제로 속한 movie_id만 골라 NULL 처리. 나머지는 skipped.
+        in_collection_rows = (
+            await self._session.execute(
+                select(MovaMovie.id).where(
+                    MovaMovie.id.in_(unique_ids), MovaMovie.collection_id == entity.id
+                )
+            )
+        ).all()
+        in_collection_ids = [int(r[0]) for r in in_collection_rows]
+        skipped_ids = [m for m in unique_ids if m not in set(in_collection_ids)]
+
+        if in_collection_ids:
+            await self._session.execute(
+                update(MovaMovie)
+                .where(MovaMovie.id.in_(in_collection_ids))
+                .values(collection_id=None)
+            )
+            await self._session.commit()
+
+        logger.info(
+            "[CollectionsPgRepository] unassign slug=%s affected=%d skipped=%d",
+            slug,
+            len(in_collection_ids),
+            len(skipped_ids),
+        )
+        return CollectionAssignResultDto(
+            collection_id=entity.id,
+            collection_slug=str(entity.slug),
+            affected=len(in_collection_ids),
+            skipped_ids=skipped_ids,
+            moved_from_other_collection=0,
         )

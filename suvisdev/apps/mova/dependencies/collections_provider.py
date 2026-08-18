@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.matrix.grid_oracle_database_manager import get_mova_db
 from mova.adapter.outbound.pg.market_collections_pg_repository import CollectionsPgRepository
 from mova.app.ports.input.collections_use_case import (
+    AssignMoviesUseCase,
     CreateCollectionUseCase,
     GetCollectionUseCase,
     ListCollectionMoviesUseCase,
     ListCollectionsUseCase,
+    UnassignMoviesUseCase,
 )
 from mova.app.ports.output.market_collections_repository import CollectionRepositoryPort
 from mova.app.use_cases.collections_interactor import CollectionsInteractor
@@ -48,4 +50,16 @@ def get_get_collection_use_case(
 def get_list_collection_movies_use_case(
     interactor: CollectionsInteractor = Depends(get_collections_interactor),
 ) -> ListCollectionMoviesUseCase:
+    return interactor
+
+
+def get_assign_movies_use_case(
+    interactor: CollectionsInteractor = Depends(get_collections_interactor),
+) -> AssignMoviesUseCase:
+    return interactor
+
+
+def get_unassign_movies_use_case(
+    interactor: CollectionsInteractor = Depends(get_collections_interactor),
+) -> UnassignMoviesUseCase:
     return interactor
