@@ -33,6 +33,48 @@
 ### 작업 내용
 - 사용자 리포트: `/mova/upcoming`(개봉 예정작)에 이미 개봉일이 지난
   영화가 섞여 있음. 원인 확인 후 수정.
+- (같은 세션) PROGRESS 백로그 훑어 착수 가능한 항목 실행. 벡터 스위치
+  단독 flip은 재임베딩 없이는 오히려 오응답(ollama 벡터 vs gemini 쿼리)
+  이라 보류 유지. 3순위 "레거시 무태그 12편(1056~1067) 정리"만 실행.
+- 크론 상태 점검: movies embedding(잔여 0), review embedding(잔여 0),
+  taste vectors(전일 1건 갱신) 전부 건강. `POSTGRES_PASSWORD blank` 경고는
+  crontab 라인이 `docker compose exec`라 `--env-file` 없이 도는 것 —
+  exec 실행에는 무해(컨테이너 내부 env 정상, "Mova DB 엔진 초기화 성공"
+  로그 확인).
+
+### 수정/구현 — 레거시 12편 정리
+- 대상 확정: EC2 DB에서 id 1056~1067 12편 전부 `release_year=0`, 비-TMDB
+  slug, tags/chars/dirs 전부 0인 죽은 로우 재확인. 2026-08-05 골든셋 튜닝
+  시점에 title 매칭용으로 끼워 넣은 임시 데이터로 추정(WORK_LOG 2026-08-05
+  및 memory `project_mova_vector_search_pending_reembed.md`와 정합).
+- 정식 대체 조회: 12편 중 10편은 정식 TMDB row가 이미 카탈로그에 있음
+  확인(엽기적인 그녀=`tmdb-11178`, 극한직업=`tmdb-567646` 등). 조제·
+  패터슨 2편만 대체 없음 — 어차피 태그 0으로 후보에 못 들어가던 상태라
+  잃는 것 없음(필요 시 나중에 정식 TMDB import로 복구).
+- 외래키 참조 조사: `movies` 참조 8개 테이블(characters/tags/rankings/
+  reviews/picks/watchlist/user_actions/movie_directors) 전부 CASCADE.
+  실사용자 데이터 확인 결과 `picks`에만 12건 걸림, 나머지 0. picks 12건은
+  전부 `user_id=NULL`(익명), `feedback=NULL`, `batch_at=2026-08-05 04:58~05:23`
+  으로 골든셋 검증 시점 임시 로그로 확정.
+- 백업: EC2 `~/legacy_12_movies_backup_20260818_013402.csv`(119KB, 12행) +
+  `~/legacy_12_picks_backup_20260818_013402.csv`(2KB, 12행). 초기에
+  `pg_dump | grep -E '1056|1057...'`로 만들려 했다가 embedding 벡터 내부
+  부동소수 값에 오탐(42MB 나옴) — WHERE 절이 있는 `COPY (...) TO STDOUT
+  CSV`로 재작성.
+- 실행: `DELETE FROM movies WHERE id BETWEEN 1056 AND 1067` 트랜잭션 —
+  `DELETE 12` + CASCADE로 picks 12건 함께 삭제, 검증 쿼리로 잔여 0 확인.
+
+### 오류·막힌 점
+- `pg_dump` 오탐(위 참고).
+- 로컬 백엔드 미기동이라 `/mova/upcoming` 검증은 프로덕션으로 함.
+- 정식 대체 조회 쿼리에서 `\\d picks` 결과 `created_at` 없고 `batch_at`이 실
+  컬럼명이라 재쿼리.
+
+### 산출물
+- `suvisdev/apps/mova/adapter/inbound/api/v1/upcoming_router.py` 수정
+  (개봉예정 필터, PR #127 머지 `8d4f272`, EC2 backend 재빌드 완료).
+- EC2 DB 레거시 12편 삭제(백업 CSV 2건, EC2 홈).
+- WORK_LOG·PROGRESS 갱신.
 
 ### 수정/구현
 - 원인: `mova/adapter/inbound/api/v1/upcoming_router.py`가 TMDB
