@@ -10,7 +10,10 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
-from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest  # noqa: E402
+from mova.adapter.inbound.api.schemas.market_chat_schema import (  # noqa: E402
+    MovaChatRecommendationSchema,
+    MovaChatRequest,
+)
 from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
     ChatInteractor,
     _GENERAL_CHAT_SYSTEM_PROMPT,
@@ -197,6 +200,119 @@ class ChatInteractorHistoryForwardTests(unittest.IsolatedAsyncioTestCase):
         # history는 두 번째 positional 또는 kw로 전달되어야 함
         passed_history = args[1] if len(args) > 1 else kwargs.get("history")
         self.assertEqual(passed_history, history)
+
+
+class ChatInteractorTasteRerankTests(unittest.IsolatedAsyncioTestCase):
+    """taste vector cosine 재정렬 — 5개 어댑터 공통 경로라 인터랙터에서 검증.
+
+    (a) taste vector 있음 → cosine 순으로 재정렬(순서 뒤바뀜 실측)
+    (b) taste vector 없음(리뷰 없는 유저) → LLM 원 순서 유지, movies port 미호출
+    (c) user_id None(비로그인) → taste·movies port 둘 다 미호출, LLM 원 순서 유지
+    """
+
+    def _rec(self, movie_id: int, title: str) -> MovaChatRecommendationSchema:
+        return MovaChatRecommendationSchema(
+            id=f"tmdb-{movie_id}",
+            movie_id=movie_id,
+            title=title,
+            poster="",
+            synopsis="",
+            platform=None,
+            hook="",
+        )
+
+    def _build(
+        self, *, recs: list[MovaChatRecommendationSchema], with_taste_ports: bool = True
+    ) -> tuple[ChatInteractor, AsyncMock, AsyncMock]:
+        repo = AsyncMock()
+        repo.save_chat.return_value = 1
+        repo.search_tag_catalog.return_value = []
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("rag", [])
+        hub_rag = AsyncMock()
+        hub_rag.search_movies.return_value = []
+        recommender = AsyncMock()
+        recommender.extract_intent = Mock(
+            return_value={
+                "refined_query": "테스트",
+                "keywords": [],
+                "intent_type": "mood",
+                "search_filters": {
+                    "must": {"actors": [], "genres": [], "keywords": [], "countries": []},
+                    "similar_to": {"actors": []},
+                    "year_min": None,
+                    "year_max": None,
+                },
+            }
+        )
+        recommender.generate_recommendation.return_value = ("답변", recs)
+
+        taste_repo = AsyncMock() if with_taste_ports else None
+        movies_repo = AsyncMock() if with_taste_ports else None
+
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=recommender,
+            preferences=AsyncMock(),
+            hub_rag=hub_rag,
+            classifier=classifier,
+            general=AsyncMock(),
+            movies=movies_repo,
+            taste_vectors=taste_repo,
+        )
+        return interactor, taste_repo, movies_repo
+
+    async def test_taste_vector_present_reorders_recs(self) -> None:
+        # 3편: taste vector와 정확히 일치하는 두 번째 rec을 앞으로 보내야 함.
+        recs = [
+            self._rec(101, "A"),
+            self._rec(202, "B (best match)"),
+            self._rec(303, "C"),
+        ]
+        interactor, taste_repo, movies_repo = self._build(recs=recs)
+        taste_repo.get_taste_vector.return_value = [1.0, 0.0, 0.0]
+        movies_repo.list_embeddings_by_ids.return_value = {
+            101: [0.5, 0.5, 0.0],  # cosine ≈ 0.707
+            202: [1.0, 0.0, 0.0],  # cosine = 1.0
+            303: [0.0, 1.0, 0.0],  # cosine = 0.0
+        }
+
+        response = await interactor.chat(
+            MovaChatRequest(message="추천", history=[], user_id=42)
+        )
+
+        # movie_id 순서: 202(가장 유사) → 101 → 303
+        actual = [r.movie_id for r in response.recommendations]
+        self.assertEqual(actual, [202, 101, 303])
+        # save_picks 순서도 재정렬 결과와 일치해야 저장·화면이 어긋나지 않음
+        picks_kwargs = interactor._repo.save_picks.await_args.kwargs
+        saved_movie_ids = [r.movie_id for r in picks_kwargs["recommendations"]]
+        self.assertEqual(saved_movie_ids, [202, 101, 303])
+
+    async def test_taste_vector_missing_keeps_original_order(self) -> None:
+        # 로그인 유저지만 리뷰 0건이라 taste vector = None → 재정렬 스킵.
+        recs = [self._rec(101, "A"), self._rec(202, "B"), self._rec(303, "C")]
+        interactor, taste_repo, movies_repo = self._build(recs=recs)
+        taste_repo.get_taste_vector.return_value = None
+
+        response = await interactor.chat(
+            MovaChatRequest(message="추천", history=[], user_id=42)
+        )
+
+        self.assertEqual([r.movie_id for r in response.recommendations], [101, 202, 303])
+        # taste vector가 없으면 movies embeddings 페치 자체를 건너뜀
+        movies_repo.list_embeddings_by_ids.assert_not_awaited()
+
+    async def test_anonymous_user_skips_taste_lookup(self) -> None:
+        # 비로그인: taste·movies port가 주입돼 있어도 호출조차 안 함.
+        recs = [self._rec(101, "A"), self._rec(202, "B"), self._rec(303, "C")]
+        interactor, taste_repo, movies_repo = self._build(recs=recs)
+
+        response = await interactor.chat(MovaChatRequest(message="추천", history=[]))
+
+        self.assertEqual([r.movie_id for r in response.recommendations], [101, 202, 303])
+        taste_repo.get_taste_vector.assert_not_awaited()
+        movies_repo.list_embeddings_by_ids.assert_not_awaited()
 
 
 if __name__ == "__main__":

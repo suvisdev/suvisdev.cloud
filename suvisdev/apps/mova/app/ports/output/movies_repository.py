@@ -90,6 +90,18 @@ class MoviesRepositoryPort(ABC):
         """movie_id의 embedding만 갱신."""
 
     @abstractmethod
+    async def list_embeddings_by_ids(
+        self, movie_ids: list[int]
+    ) -> dict[int, list[float]]:
+        """movie_id 리스트에 대응하는 embedding 매핑 — 채팅 추천 재정렬 전용.
+
+        embedding이 NULL인 항목은 반환 dict에서 제외한다(빈 dict일 수 있음).
+        입력이 빈 리스트면 빈 dict 즉시 반환. 재정렬 경로에서 자기 자신
+        cosine을 계산하는 게 아니라 taste vector와 비교하므로 slug 대신
+        movie_id 배치 조회 형태로 설계.
+        """
+
+    @abstractmethod
     async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
         """slug 영화의 embedding과 코사인 거리가 가까운 순 — 자기 자신은 제외.
 

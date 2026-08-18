@@ -36,6 +36,59 @@
 - (같은 세션) PROGRESS 백로그 훑어 착수 가능한 항목 실행. 벡터 스위치
   단독 flip은 재임베딩 없이는 오히려 오응답(ollama 벡터 vs gemini 쿼리)
   이라 보류 유지. 3순위 "레거시 무태그 12편(1056~1067) 정리"만 실행.
+- (같은 세션) 취향-영화 코사인 결합 랭킹 착수 전 벡터 공간 정합성
+  읽기 전용 조사 → Go 판정. 이어서 실 구현·검증·커밋까지 완료.
+
+### 수정/구현 — 취향 벡터 재정렬 (1-c 다음 순서 1)
+- **사전 진단(쓰기 없이 4축 조사)**: movies.embedding·reviews.embedding·
+  user_taste_vectors 세 벡터가 전부 Gemini 768d로 정합함을 실 코드 경로로
+  확정 (backfill_movie_embeddings_cli.py:91,97 하드 gemini / review_embedding_provider.py:15,21 하드 gemini /
+  platform_user_taste_vector_interactor.py:45-63 reviews 벡터 가중 평균 →
+  자동 gemini 공간). `EMBEDDING_BACKEND` 플래그는 hub_rag_provider.py:28-38
+  한 곳에만 걸려 있어 hub_knowledge 트랙과 movies/reviews 트랙은 완전 독립
+  — flip은 랭킹 결합과 무관.
+- **결정 5개 (재해석 없이 적용)**: (1) 결합 위치 = ChatInteractor 계층
+  (5개 어댑터 공통이라 하위 chat_reply.py 대신 상위 인터랙터에 삽입),
+  (2) 순수 코사인 정렬(별점 alpha 결합은 후속 백로그), (3) taste vector
+  없으면 스킵 debug 로그, (4) 후보 window 12 유지 · 상위 3 노출 유지,
+  (5) Python 재정렬(3편 규모, SQL <=> 불필요).
+- **Port 확장**:
+  - `UserTasteVectorRepositoryPort.get_taste_vector(user_id) → list[float]|None`
+    신설 (얇은 wrapper, 재정렬 경로 전용 — DTO 없이 벡터만).
+  - `MoviesRepositoryPort.list_embeddings_by_ids(movie_ids) → dict[int, list[float]]`
+    신설 (배치 조회, embedding NULL은 반환 dict에서 제외).
+- **PgRepository 구현**: 각 port에 대응. taste는 `select(vector).where(user_id==?)`,
+  movies는 `select(id, embedding).where(id IN ..., embedding IS NOT NULL)`.
+- **ChatInteractor**:
+  - 생성자에 `movies: MoviesRepositoryPort | None`, `taste_vectors:
+    UserTasteVectorRepositoryPort | None` optional 주입(기존 테스트 호환).
+  - `_llm.generate_recommendation()` 반환 직후 · `save_chat/save_picks`
+    이전에 `_rerank_recommendations()` 호출 — save_picks 순서와 UI 카드
+    배치가 어긋나지 않게.
+  - 재정렬 helper `_rerank_by_taste_cosine(recs, taste_vector, embeddings_by_id)`:
+    embedding 없는 rec은 `math.inf` key로 뒤로 밀되 자기들끼리는 original_idx
+    stable sort로 원 순서 유지. 0벡터/차원 불일치는 cosine=0.0.
+  - 스킵 조건(debug 로그만): 비로그인, port 미주입, taste vector None(리뷰 0건/
+    rating 합계 0), movies embedding 전량 없음.
+- **DI**: `market_chat_provider.py`에 `get_movies_repository_for_chat`·
+  `get_user_taste_vector_repository` 신설, `get_chat_use_case`에 배선.
+- **테스트 3건**(`test_market_chat_interactor.py::ChatInteractorTasteRerankTests`):
+  (a) taste vector 있음 → cosine 순 재정렬 발현(입력 `[101,202,303]` +
+  taste `[1,0,0]` + embedding `[[0.5,0.5,0],[1,0,0],[0,1,0]]` → 응답 순서
+  `[202,101,303]`, save_picks 순서도 동일 검증),
+  (b) taste vector None → LLM 원 순서 유지 + movies port 미호출 assert,
+  (c) 비로그인 user_id=None → 두 port 미호출 assert.
+- **회귀**: `apps/mova/tests` 202 pass + 신규 3 pass. 사전 실패 2건
+  (`test_bulk_import_movies.py::test_start_page_for_resume` — 스크립트에서
+  `--source kofic` 옵션이 제거된 상태 미반영, `test_market_conversations_interactor.py::
+  test_zero_recs_reply_content_when_already_shown_all` — `_compose_empty_reply`
+  랜덤 문구 다양화 이후 하드코딩 문구 기대 잔재)은 이번 스코프 아니라 손대지 않음.
+- **lint-imports**: "Hub (ontology) must not depend on any spoke BROKEN"은
+  사전 상태(ontology→dispatch 1 · ontology→mova 1 · ontology→viewer 3, 전부
+  이번 세션 이전부터 존재). 이번 변경은 전부 mova 내부라 새로 유발한 위반 없음.
+- **후속 백로그** (PROGRESS 갱신): alpha 별점 결합 튜닝, 후보 window
+  확대, `search_tag_catalog` 후보 생성 개선(배우 필터/OR·AND 복합조건/
+  origin_country).
 - 크론 상태 점검: movies embedding(잔여 0), review embedding(잔여 0),
   taste vectors(전일 1건 갱신) 전부 건강. `POSTGRES_PASSWORD blank` 경고는
   crontab 라인이 `docker compose exec`라 `--env-file` 없이 도는 것 —

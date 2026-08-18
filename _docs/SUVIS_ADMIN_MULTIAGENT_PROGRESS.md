@@ -9,6 +9,14 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **취향 벡터 재정렬 (1-c 다음 순서 1, 2026-08-18)** — movies.embedding·
+  reviews.embedding·user_taste_vectors 세 벡터가 전부 Gemini 768d로 정합함을
+  사전 진단(쓰기 없이 4축)에서 확정한 뒤 실 구현. `ChatInteractor`가 recs
+  반환 후 save_picks 전에 taste vector×movies.embedding cosine 순으로
+  재정렬(별점 alpha 결합 없이 순수 코사인). taste vector 없거나 비로그인
+  이면 스킵 debug 로그, 상위 3편 노출은 유지. Port 2개 확장
+  (`get_taste_vector`, `list_embeddings_by_ids`), DI 배선, 테스트 3건.
+  상세: WORK_LOG 2026-08-18.
 - **레거시 무태그 12편(1056~1067) 정리(2026-08-18)** — grounded prompting
   전환 이후 죽은 데이터(태그·크레딧·감독 전부 0, `release_year=0`, 비-TMDB
   slug)였음. 정식 TMDB row가 이미 카탈로그에 있는 10편 + 대체 없는 2편
@@ -871,8 +879,20 @@ writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치
   후 EC2 backend/auth 정식 이미지 재빌드까지 완료**(docker cp 임시 반영
   아님). 세부: WORK_LOG 2026-08-11 γ 사이클 + 후속 사이클 + 배포 사이클.
 - 다음 순서:
-  1. **mova 추천 후보 정렬에 취향-영화 코사인 결합**.
+  1. ~~**mova 추천 후보 정렬에 취향-영화 코사인 결합**~~ — **완료(2026-08-18)**:
+     위 "완료됨" 참고. 순수 코사인 정렬로 착수, 아래 세 후속은 별도 트랙.
   2. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
+
+**취향 재정렬 후속 백로그(2026-08-18 신규)**:
+- **alpha 별점 결합 튜닝** — 현재는 순수 코사인만. `α·cosine + (1-α)·norm(rating)`
+  같은 결합식으로 실측 A/B 후 alpha 결정. 별점이 이미 후보 12편 압축 시점에
+  적용된 상태라 이중 계산 회피가 우선순위였고, 재정렬은 카드 3편 안에서만
+  순서가 바뀌므로 지금은 순수 코사인이 정직함.
+- **후보 window 확대** — 현재 `search_tag_catalog(limit=16)` + LLM이 3편 pick.
+  taste vector가 있는 유저에게 window를 늘려 재정렬 여지를 넓힐지 검토(트레이드오프:
+  프롬프트 토큰↑ · Gemini 요금).
+- **`search_tag_catalog` 후보 생성 개선** — 배우 필터 정확도, OR·AND 복합조건,
+  origin_country 활용. 재정렬 이전에 후보가 잘 뽑혀야 재정렬도 유효.
 
 📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
 - 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`
