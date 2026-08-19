@@ -9,6 +9,13 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **멀티턴 주제 전환 시 이전 턴 필터 오염 수정 (2026-08-19)** —
+  `IntentExtractionService.extract()`에서 `composed_text`(이전 턴 포함)를
+  결정론적 경로에 흘리던 것이 원인. 수정: `composed_text`는 Gemini
+  EXTRACT_PROMPT에만 사용, 나머지(build_search_filters/normalize_keywords/
+  keywords)는 현재 턴(`text`)·결정론적 결과(`deterministic`)에서만 유도.
+  Gemini 응답에서는 `refined_query`만 취함. 변경 1파일
+  (`intent_extraction.py`). 상세: WORK_LOG 2026-08-19.
 - **intent_extraction 배우 인식 개선 옵션 A (2026-08-18)** —
   `_has_hard_signal` 완화: 장르 하나만으론 Gemini 스킵 안 하고 배우 폴백 유도.
   QUALITY_PHASE1 §9.3의 두 축 결합 결함(정규식 미인식 + Gemini 스킵)에서

@@ -28,6 +28,38 @@
 
 ---
 
+## 2026-08-19
+
+### 작업 내용
+- WSL 클린 재구축 Phase 2 — 개발 환경 복원 (Node.js/pnpm/Python/프론트·백엔드
+  의존성/.env).
+- 멀티턴 주제 전환 미감지 버그 조사 및 수정. 증상: 1턴 "액션 영화" → 2턴
+  "여행 영화"에서 "새 후보 없음" — 이전 턴 장르가 search_filters에 잔존.
+
+### 수정/구현
+- **`intent_extraction.py` — `IntentExtractionService.extract()`**:
+  `_prepend_recent_user_context()`가 만든 `composed_text`(이전 턴 포함)를
+  결정론적 경로(`_fallback_raw`, `build_search_filters`, `normalize_keywords`)에
+  흘리던 것이 근본 원인. 수정 후 `composed_text`는 Gemini EXTRACT_PROMPT에만
+  사용하고, 결정론적 경로·keywords·search_filters는 현재 턴(`text`)에서만 유도.
+  Gemini 응답에서는 `refined_query`만 취하고 `must`/`similar_to`/`keywords`는
+  결정론적 결과를 사용해 이전 턴 필터 오염 방지.
+- 변경 파일: `suvisdev/apps/mova/adapter/outbound/llm/intent_extraction.py` 1개.
+
+### 오류·막힌 점
+- 최초 계획은 3줄 변경(composed_text → text)이었으나, `.env`에 GEMINI_API_KEY가
+  있어 Gemini 경로가 실제 동작하면서 `parsed.keywords`와 `parsed.must`를 통해
+  이전 턴 장르가 여전히 유입되는 것을 확인. `build_search_filters`에 넘기는
+  `parsed`를 `deterministic`(현재 턴 결과)으로 교체하여 해결.
+- WSL Phase 2: Python 3.14(Ubuntu 26.04 기본)에서 matplotlib 빌드 실패 →
+  pyenv로 3.13.15 설치 해결. /tmp tmpfs 3.9GB 한도로 torch 다운로드 실패 →
+  TMPDIR=~/pip-tmp로 우회 해결.
+
+### 산출물
+- 커밋 예정: `fix(mova): 멀티턴 주제 전환 시 이전 턴 필터 오염 수정`
+
+---
+
 ## 2026-08-18
 
 ### 작업 내용

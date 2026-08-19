@@ -430,9 +430,9 @@ class IntentExtractionService:
                 "search_filters": _empty_filters(),
             }
 
-        # 대화 흐름 반영: 최근 사용자 발화(최대 2개)를 컨텍스트로 앞에 붙여
-        # 결정론적/Gemini 추출 모두에 흘려보낸다. "코미디 영화" → "최근영화로"
-        # 같은 후속 발화가 이전 조건을 삼키지 않게 하기 위함(2026-08-14).
+        # 대화 흐름 반영: 최근 사용자 발화(최대 2개)를 컨텍스트로 앞에 붙인다.
+        # Gemini EXTRACT_PROMPT에만 사용 — 결정론적 경로(build_search_filters,
+        # normalize_keywords)에는 현재 턴(text)만 넘겨 이전 턴 필터 오염을 방지.
         composed_text = _prepend_recent_user_context(text, history)
 
         parsed: dict[str, Any] = {}
@@ -441,7 +441,9 @@ class IntentExtractionService:
         # 그것만으로 후보 쿼리가 성립하므로 Gemini 호출을 건너뛴다 —
         # `/mova/chat` 1건이 Gemini를 2회(의도 추출 + 추천 생성) 쓰던 것을
         # 이런 질의에선 1회로 줄인다(분당 15요청 한도 → 수용 인원 2배).
-        deterministic = self._fallback_raw(composed_text)
+        # composed_text가 아닌 text를 사용 — 이전 턴 발화가 결정론적 경로에
+        # 유입되면 주제가 바뀌어도 이전 장르/배우가 잔존한다.
+        deterministic = self._fallback_raw(text)
         keymaker = get_keymaker()
         if _has_hard_signal(deterministic):
             parsed = deterministic
@@ -457,16 +459,18 @@ class IntentExtractionService:
                 logger.exception("[IntentExtractionService] Gemini 추출 실패, fallback 사용")
 
         if not parsed.get("refined_query") and not parsed.get("keywords"):
-            parsed = self._fallback_raw(composed_text)
+            parsed = self._fallback_raw(text)
 
+        # Gemini가 composed_text(이전 턴 포함)를 봤으므로 refined_query만 취하고,
+        # keywords·must·similar_to는 현재 턴(text) 결정론적 결과를 쓴다 —
+        # 이전 턴 장르/배우가 search_filters에 오염되는 것을 방지.
         refined = str(parsed.get("refined_query", "")).strip()[:255]
-        raw_kw = parsed.get("keywords") or []
-        if not isinstance(raw_kw, list):
-            raw_kw = []
+        det_kw = deterministic.get("keywords") or []
+        raw_kw = det_kw if isinstance(det_kw, list) else []
 
-        intent_type, search_filters = build_search_filters(composed_text, raw_kw, parsed)
+        intent_type, search_filters = build_search_filters(text, raw_kw, deterministic)
         keywords = normalize_keywords(
-            composed_text,
+            text,
             refined,
             raw_kw,
             search_filters=search_filters,
