@@ -461,10 +461,11 @@ class IntentExtractionService:
         if not parsed.get("refined_query") and not parsed.get("keywords"):
             parsed = self._fallback_raw(text)
 
-        # Gemini가 composed_text(이전 턴 포함)를 봤으므로 refined_query만 취하고,
-        # keywords·must·similar_to는 현재 턴(text) 결정론적 결과를 쓴다 —
-        # 이전 턴 장르/배우가 search_filters에 오염되는 것을 방지.
-        refined = str(parsed.get("refined_query", "")).strip()[:255]
+        # Gemini가 composed_text(이전 턴 포함)를 봤으므로 refined_query·keywords·
+        # must·similar_to 모두 현재 턴(text) 결정론적 결과를 쓴다 —
+        # refined_query가 RAG 검색 쿼리로 직행하므로, Gemini 것을 쓰면
+        # 이전 턴 배우/장르가 시맨틱 검색까지 오염된다.
+        refined = str(deterministic.get("refined_query", "")).strip()[:255]
         det_kw = deterministic.get("keywords") or []
         raw_kw = det_kw if isinstance(det_kw, list) else []
 

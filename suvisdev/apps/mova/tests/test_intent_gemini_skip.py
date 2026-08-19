@@ -147,7 +147,8 @@ class IntentGeminiFallbackTriggerTests(unittest.TestCase):
 
 
 class IntentGeminiStillUsedTests(unittest.TestCase):
-    """하드 조건이 없는 무드 질의는 Gemini를 그대로 쓴다(품질 회귀 방지)."""
+    """하드 조건이 없는 무드 질의는 Gemini를 호출하되, refined_query는
+    현재 턴 결정론적 결과를 쓴다(이전 턴 컨텍스트 오염 방지)."""
 
     def test_mood_query_calls_gemini(self) -> None:
         called: list[str] = []
@@ -168,7 +169,8 @@ class IntentGeminiStillUsedTests(unittest.TestCase):
             result = svc.extract("요즘 너무 지치는데 볼만한 거 없을까")
 
         self.assertEqual(len(called), 1)
-        self.assertEqual(result["refined_query"], "잔잔한 위로")
+        # refined_query는 Gemini 것이 아니라 현재 턴 결정론적 추출 결과
+        self.assertIn("볼만한", result["refined_query"])
 
 
 if __name__ == "__main__":

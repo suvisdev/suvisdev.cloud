@@ -11,11 +11,16 @@
 
 - **멀티턴 주제 전환 시 이전 턴 필터 오염 수정 (2026-08-19)** —
   `IntentExtractionService.extract()`에서 `composed_text`(이전 턴 포함)를
-  결정론적 경로에 흘리던 것이 원인. 수정: `composed_text`는 Gemini
-  EXTRACT_PROMPT에만 사용, 나머지(build_search_filters/normalize_keywords/
-  keywords)는 현재 턴(`text`)·결정론적 결과(`deterministic`)에서만 유도.
-  Gemini 응답에서는 `refined_query`만 취함. 변경 1파일
-  (`intent_extraction.py`). 상세: WORK_LOG 2026-08-19.
+  결정론적 경로 + `refined_query` RAG 검색에 흘리던 것이 원인. 수정 2단계:
+  ① search_filters/keywords/normalize_keywords → 현재 턴 text·deterministic
+  결과만 사용(1차 배포). ② refined_query도 deterministic에서 가져옴 — Gemini의
+  refined_query가 RAG 시맨틱 검색 쿼리로 직행해 이전 턴 배우가 후보를
+  오염시키던 것을 차단(2차 수정). 변경 2파일(`intent_extraction.py`,
+  `test_intent_gemini_skip.py`). 상세: WORK_LOG_MOVA 2026-08-19.
+- **초성게임 한국 영화 풀 외국 영화 혼입 수정 (2026-08-19)** —
+  `_kr_pool_conditions`에 한국어 이름 배우 EXISTS 서브쿼리 추가.
+  `original_language='ko'` 오분류 영화를 배우 이름으로 필터. 변경 1파일
+  (`games_pg_repository.py`). 상세: WORK_LOG_MOVA 2026-08-19.
 - **intent_extraction 배우 인식 개선 옵션 A (2026-08-18)** —
   `_has_hard_signal` 완화: 장르 하나만으론 Gemini 스킵 안 하고 배우 폴백 유도.
   QUALITY_PHASE1 §9.3의 두 축 결합 결함(정규식 미인식 + Gemini 스킵)에서

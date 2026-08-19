@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import Integer, and_, cast, desc, func, or_, select
+from sqlalchemy import Integer, and_, cast, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_game_scores_orm import MovaGameScore
@@ -154,6 +154,19 @@ def _common_conditions():
     ]
 
 
+def _has_korean_actor():
+    """해당 영화에 한국어 이름 배우가 1명 이상 있는지 EXISTS 서브쿼리."""
+    return exists(
+        select(1)
+        .select_from(MovaCharacter)
+        .join(MovaActor, MovaCharacter.actor_id == MovaActor.id)
+        .where(
+            MovaCharacter.movie_id == MovaMovie.id,
+            MovaActor.name.op("~")("[가-힣]"),
+        )
+    )
+
+
 def _kr_pool_conditions(min_rating: float):
     """한국 영화 풀. age_rating/platforms 필터 제외 — TMDB가 한국 영화에 이
     두 필드를 대체로 안 채워주기 때문(실측 2026-08-13: KR 게임 풀 1919 → 29 →
@@ -163,11 +176,15 @@ def _kr_pool_conditions(min_rating: float):
     바꿔 **최소 3.3 이상**을 강제. TMDB `adult` 플래그·KR 청불 등급이 없고
     장르에 "에로" 카테고리도 없어 KR 소프트 에로를 signal로 못 잡음 →
     rating 컷이 유일한 신뢰 필터. 3.3 컷 시 KR 풀 707편(충분).
+
+    한국어 이름 배우 EXISTS 조건 추가(2026-08-19) — original_language='ko'지만
+    실제 외국 영화인 TMDB 오분류를 배우 이름으로 걸러낸다.
     """
     return [
         *_common_conditions(),
         MovaMovie.rating >= max(min_rating, 3.3),
         MovaMovie.original_language == "ko",
+        _has_korean_actor(),
     ]
 
 
