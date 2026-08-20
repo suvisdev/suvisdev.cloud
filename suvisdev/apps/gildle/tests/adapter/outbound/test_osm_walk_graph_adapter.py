@@ -7,6 +7,8 @@ from gildle.adapter.outbound.graph.osm_walk_graph_adapter import OsmWalkGraphAda
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.route_edge import RouteEdge
 
+_PATCH_TARGET = "gildle.adapter.outbound.graph.osm_walk_graph_adapter._ox"
+
 
 def _make_mock_graph() -> MagicMock:
     """osmnx가 반환하는 MultiDiGraph를 흉내내는 mock."""
@@ -21,8 +23,9 @@ def _make_mock_graph() -> MagicMock:
 
 
 class TestLoadEdges:
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_returns_route_edges(self, mock_ox: MagicMock) -> None:
+    @patch(_PATCH_TARGET)
+    def test_returns_route_edges(self, mock_ox_fn: MagicMock) -> None:
+        mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_place.return_value = _make_mock_graph()
         adapter = OsmWalkGraphAdapter()
 
@@ -37,8 +40,9 @@ class TestLoadEdges:
             "마포구, 서울, 대한민국", network_type="walk"
         )
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_no_name_sets_none(self, mock_ox: MagicMock) -> None:
+    @patch(_PATCH_TARGET)
+    def test_no_name_sets_none(self, mock_ox_fn: MagicMock) -> None:
+        mock_ox = mock_ox_fn.return_value
         graph = _make_mock_graph()
         graph.edges.return_value = [(1, 2, 0, {"length": 80.0})]
         mock_ox.graph_from_place.return_value = graph
@@ -48,8 +52,9 @@ class TestLoadEdges:
 
         assert edges[0].road_name is None
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_list_name_takes_first(self, mock_ox: MagicMock) -> None:
+    @patch(_PATCH_TARGET)
+    def test_list_name_takes_first(self, mock_ox_fn: MagicMock) -> None:
+        mock_ox = mock_ox_fn.return_value
         graph = _make_mock_graph()
         graph.edges.return_value = [(1, 2, 0, {"length": 100.0, "name": ["월드컵북로", "월드컵로"]})]
         mock_ox.graph_from_place.return_value = graph
@@ -59,8 +64,9 @@ class TestLoadEdges:
 
         assert edges[0].road_name == "월드컵북로"
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_deduplicates_reverse_edges(self, mock_ox: MagicMock) -> None:
+    @patch(_PATCH_TARGET)
+    def test_deduplicates_reverse_edges(self, mock_ox_fn: MagicMock) -> None:
+        mock_ox = mock_ox_fn.return_value
         graph = _make_mock_graph()
         graph.edges.return_value = [
             (1, 2, 0, {"length": 150.0, "name": "월드컵북로"}),
@@ -73,8 +79,9 @@ class TestLoadEdges:
 
         assert len(edges) == 1
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_midpoint_is_average_of_nodes(self, mock_ox: MagicMock) -> None:
+    @patch(_PATCH_TARGET)
+    def test_midpoint_is_average_of_nodes(self, mock_ox_fn: MagicMock) -> None:
+        mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_place.return_value = _make_mock_graph()
         adapter = OsmWalkGraphAdapter()
 
@@ -111,8 +118,9 @@ class TestNearestNode:
 
 
 class TestGraphML:
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_save_graphml(self, mock_ox: MagicMock, tmp_path: Path) -> None:
+    @patch(_PATCH_TARGET)
+    def test_save_graphml(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
+        mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_place.return_value = _make_mock_graph()
         adapter = OsmWalkGraphAdapter()
 
@@ -121,8 +129,9 @@ class TestGraphML:
         assert out == tmp_path / "test.graphml"
         mock_ox.save_graphml.assert_called_once()
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_load_from_graphml(self, mock_ox: MagicMock, tmp_path: Path) -> None:
+    @patch(_PATCH_TARGET)
+    def test_load_from_graphml(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
+        mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         adapter = OsmWalkGraphAdapter()
 

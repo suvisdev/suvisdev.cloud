@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 from typing import Any
-
-import osmnx as ox
 
 from gildle.app.ports.output.walk_graph_port import WalkGraphPort
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.route_edge import RouteEdge
+
+
+def _ox() -> Any:
+    return importlib.import_module("osmnx")
 
 
 class OsmWalkGraphAdapter(WalkGraphPort):
@@ -26,11 +29,11 @@ class OsmWalkGraphAdapter(WalkGraphPort):
             cache_path = self._cache_dir / f"{place.replace(', ', '_')}.graphml"
             if cache_path.exists():
                 return self.load_from_graphml(cache_path)
-            graph = ox.graph_from_place(place, network_type="walk")
+            graph = _ox().graph_from_place(place, network_type="walk")
             self._cache_dir.mkdir(parents=True, exist_ok=True)
-            ox.save_graphml(graph, filepath=cache_path)
+            _ox().save_graphml(graph, filepath=cache_path)
             return self._graph_to_edges(graph)
-        graph = ox.graph_from_place(place, network_type="walk")
+        graph = _ox().graph_from_place(place, network_type="walk")
         return self._graph_to_edges(graph)
 
     def nearest_node(self, edges: list[RouteEdge], point: Coordinate) -> str | None:
@@ -40,12 +43,12 @@ class OsmWalkGraphAdapter(WalkGraphPort):
         return min(all_nodes, key=lambda nid: point.distance_to(all_nodes[nid]))
 
     def save_graphml(self, place: str, path: Path) -> Path:
-        graph = ox.graph_from_place(place, network_type="walk")
-        ox.save_graphml(graph, filepath=path)
+        graph = _ox().graph_from_place(place, network_type="walk")
+        _ox().save_graphml(graph, filepath=path)
         return path
 
     def load_from_graphml(self, path: Path) -> list[RouteEdge]:
-        graph = ox.load_graphml(filepath=path)
+        graph = _ox().load_graphml(filepath=path)
         return self._graph_to_edges(graph)
 
     def _graph_to_edges(self, graph: Any) -> list[RouteEdge]:

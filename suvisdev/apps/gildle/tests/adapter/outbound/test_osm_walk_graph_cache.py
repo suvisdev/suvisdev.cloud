@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+_PATCH_TARGET = "gildle.adapter.outbound.graph.osm_walk_graph_adapter._ox"
+
 
 class TestGraphMLCache:
     @staticmethod
@@ -15,10 +17,11 @@ class TestGraphMLCache:
         graph.edges.return_value = [(1, 2, 0, {"length": 150.0, "name": "월드컵북로"})]
         return graph
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_cache_miss_fetches_and_saves(self, mock_ox: MagicMock, tmp_path: Path) -> None:
+    @patch(_PATCH_TARGET)
+    def test_cache_miss_fetches_and_saves(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         from gildle.adapter.outbound.graph.osm_walk_graph_adapter import OsmWalkGraphAdapter
 
+        mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_place.return_value = self._make_mock_graph()
         adapter = OsmWalkGraphAdapter(cache_dir=tmp_path)
 
@@ -28,10 +31,11 @@ class TestGraphMLCache:
         mock_ox.graph_from_place.assert_called_once()
         mock_ox.save_graphml.assert_called_once()
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_cache_hit_skips_network(self, mock_ox: MagicMock, tmp_path: Path) -> None:
+    @patch(_PATCH_TARGET)
+    def test_cache_hit_skips_network(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         from gildle.adapter.outbound.graph.osm_walk_graph_adapter import OsmWalkGraphAdapter
 
+        mock_ox = mock_ox_fn.return_value
         cache_file = tmp_path / "마포구_서울_대한민국.graphml"
         cache_file.write_text("<graphml/>")
         mock_ox.load_graphml.return_value = self._make_mock_graph()
@@ -43,10 +47,11 @@ class TestGraphMLCache:
         mock_ox.graph_from_place.assert_not_called()
         mock_ox.load_graphml.assert_called_once()
 
-    @patch("gildle.adapter.outbound.graph.osm_walk_graph_adapter.ox")
-    def test_no_cache_dir_always_fetches(self, mock_ox: MagicMock) -> None:
+    @patch(_PATCH_TARGET)
+    def test_no_cache_dir_always_fetches(self, mock_ox_fn: MagicMock) -> None:
         from gildle.adapter.outbound.graph.osm_walk_graph_adapter import OsmWalkGraphAdapter
 
+        mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_place.return_value = self._make_mock_graph()
         adapter = OsmWalkGraphAdapter(cache_dir=None)
 
