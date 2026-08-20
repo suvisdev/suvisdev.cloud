@@ -9,6 +9,14 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **Gildle 소개 페이지 + OSM 보행 그래프 인프라 + 어드민 세션 수정 (2026-08-20)** —
+  ① 프론트: `suvis/app/gildle/` 소개 페이지(전용 CSS 토큰, layout, page) + `/apps`
+  카탈로그 링크 연동. ② 백엔드 보안: `require_admin.py`에 RS256→HS256 이중 검증
+  폴백 추가(viewer HS256 토큰으로 어드민 접근 시 "유효하지 않은 세션" 에러 수정).
+  ③ 백엔드 인프라: WalkGraphPort ABC + OsmWalkGraphAdapter(osmnx 2.x, GraphML 캐시,
+  MultiDiGraph→무향 RouteEdge 중복 제거) + RouteEdge 점수 필드 3개(tree/hazard/
+  dog_friendly_score) + DI 팩토리(`get_walk_graph_port`) + 테스트 12개 신규(총 104).
+  상세: WORK_LOG_GILDLE 2026-08-20.
 - **멀티턴 주제 전환 시 이전 턴 필터 오염 수정 (2026-08-19)** —
   `IntentExtractionService.extract()`에서 `composed_text`(이전 턴 포함)를
   결정론적 경로 + `refined_query` RAG 검색에 흘리던 것이 원인. 수정 2단계:

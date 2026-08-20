@@ -1,0 +1,54 @@
+/* Gildle — 반려견 산책 경로 추천 (숲·자연 테마, 깊은 그린 베이스) */
+.gildle-app {
+  overflow-x: clip;
+  /* Default: dark forest */
+  --gildle-bg: #0a0d0a;
+  --gildle-surface: #121a14;
+  --gildle-surface-2: #1a261c;
+  --gildle-border: rgba(255, 255, 255, 0.08);
+  --gildle-accent: #34d399;
+  --gildle-accent-soft: rgba(52, 211, 153, 0.16);
+  --gildle-accent-bright: #6ee7b7;
+  --gildle-warm: #d4a574;
+  --gildle-muted: #9ca3af;
+  --gildle-text: #f0fdf4;
+  background-color: var(--gildle-bg);
+  color: var(--gildle-text);
+}
+
+/* Light mode — Warm Nature */
+html:not(.dark) .gildle-app {
+  --gildle-bg: #f4f9f0;
+  --gildle-surface: #fafdf7;
+  --gildle-surface-2: #e2edda;
+  --gildle-border: rgba(30, 70, 30, 0.15);
+  --gildle-accent: #16a34a;
+  --gildle-accent-soft: rgba(22, 163, 74, 0.12);
+  --gildle-accent-bright: #15803d;
+  --gildle-warm: #a16207;
+  --gildle-muted: #4a5d3e;
+  --gildle-text: #0f1a0a;
+}
+
+.gildle-nature-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(52, 211, 153, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(212, 165, 116, 0.10), transparent 50%),
+    var(--gildle-bg);
+}
+
+html:not(.dark) .gildle-nature-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(22, 163, 74, 0.06), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(161, 98, 7, 0.05), transparent 50%),
+    var(--gildle-bg);
+}
+
+.gildle-grain::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}

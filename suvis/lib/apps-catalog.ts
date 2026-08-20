@@ -30,6 +30,7 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     id: "gildle",
     titleKo: "Gildle",
     titleEn: "Dog Walk Guide",
+    href: "/gildle",
     available: false,
     imageFirst: true,
     gradient: "from-emerald-400 via-green-500 to-teal-600",

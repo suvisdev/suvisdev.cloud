@@ -68,7 +68,7 @@ export function AppMuseumCard({ app }: AppMuseumCardProps) {
     <article
       className={cn(
         "flex h-full min-h-[280px] flex-col overflow-hidden rounded-sm bg-white shadow-md shadow-black/8 transition-shadow md:min-h-[320px]",
-        app.available && "hover:shadow-lg hover:shadow-black/12",
+        (app.available || app.href) && "hover:shadow-lg hover:shadow-black/12",
         !app.available && !app.href && "cursor-default",
       )}
     >
@@ -87,11 +87,12 @@ export function AppMuseumCard({ app }: AppMuseumCardProps) {
   )
 
   if (app.href) {
+    const isExternal = app.href.startsWith("http")
     return (
       <Link
         href={app.href}
-        target={app.available ? undefined : "_blank"}
-        rel={app.available ? undefined : "noopener noreferrer"}
+        target={isExternal ? "_blank" : undefined}
+        rel={isExternal ? "noopener noreferrer" : undefined}
         className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2"
       >
         {content}

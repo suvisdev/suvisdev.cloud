@@ -129,6 +129,18 @@
   --color-mova-ai: var(--mova-ai);
   --color-mova-muted: var(--mova-muted);
   --color-mova-text: var(--mova-text);
+
+  /* gildle(app/gildle/gildle.css) 전용 토큰 — .gildle-app 스코프에서 정의 */
+  --color-gildle-bg: var(--gildle-bg);
+  --color-gildle-surface: var(--gildle-surface);
+  --color-gildle-surface-2: var(--gildle-surface-2);
+  --color-gildle-border: var(--gildle-border);
+  --color-gildle-accent: var(--gildle-accent);
+  --color-gildle-accent-soft: var(--gildle-accent-soft);
+  --color-gildle-accent-bright: var(--gildle-accent-bright);
+  --color-gildle-warm: var(--gildle-warm);
+  --color-gildle-muted: var(--gildle-muted);
+  --color-gildle-text: var(--gildle-text);
 }
 
 @layer base {

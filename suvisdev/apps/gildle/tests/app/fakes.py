@@ -8,10 +8,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from pathlib import Path
+
 from gildle.app.ports.output.geocoding_port import GeocodingPort
 from gildle.app.ports.output.hazard_zone_repository import HazardZoneRepository
 from gildle.app.ports.output.route_graph_port import RouteGraphPort
 from gildle.app.ports.output.tree_segment_repository import TreeSegmentRepository
+from gildle.app.ports.output.walk_graph_port import WalkGraphPort
 from gildle.domain.entities.hazard_zone import HazardZone
 from gildle.domain.entities.tree_segment import TreeSegment
 from gildle.domain.value_objects.coordinate import Coordinate
@@ -73,3 +76,28 @@ class CapturingRouteGraphPort(RouteGraphPort):
         self.end = end
         self.weight_fn = weight_fn
         return list(self._path)
+
+
+class FakeWalkGraphSource(WalkGraphPort):
+    """OSM 네트워크 호출 없이 WalkGraphPort를 테스트하기 위한 Fake."""
+
+    def __init__(self, edges: list[RouteEdge] | None = None) -> None:
+        self._edges = list(edges or [])
+
+    def load_edges(self, place: str) -> list[RouteEdge]:
+        return list(self._edges)
+
+    def nearest_node(self, edges: list[RouteEdge], point: Coordinate) -> str | None:
+        all_nodes: dict[str, Coordinate] = {}
+        for edge in (edges or self._edges):
+            all_nodes.setdefault(edge.from_node, edge.midpoint)
+            all_nodes.setdefault(edge.to_node, edge.midpoint)
+        if not all_nodes:
+            return None
+        return min(all_nodes, key=lambda nid: point.distance_to(all_nodes[nid]))
+
+    def save_graphml(self, place: str, path: Path) -> Path:
+        return path
+
+    def load_from_graphml(self, path: Path) -> list[RouteEdge]:
+        return list(self._edges)

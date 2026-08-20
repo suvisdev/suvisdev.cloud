@@ -9,7 +9,9 @@ from gildle.adapter.outbound.geocoding.kakao_geocoding_adapter import (
 from gildle.adapter.outbound.graph.networkx_route_graph_adapter import (
     NetworkXRouteGraphAdapter,
 )
+from gildle.adapter.outbound.graph.osm_walk_graph_adapter import OsmWalkGraphAdapter
 from gildle.adapter.outbound.graph.sample_walk_graph_source import SampleWalkGraphSource
+from gildle.app.ports.output.walk_graph_port import WalkGraphPort
 from gildle.adapter.outbound.repositories.csv_tree_segment_repository import (
     CsvTreeSegmentRepository,
 )
@@ -62,6 +64,22 @@ def _csv_encoding() -> str:
 
 def get_walk_graph_source() -> SampleWalkGraphSource:
     return SampleWalkGraphSource(json_path=_walk_graph_path())
+
+
+def _graph_cache_dir() -> Path:
+    return Path(os.getenv("GILDLE_GRAPH_CACHE_DIR", str(_DATA_DIR / "graph_cache")))
+
+
+def get_walk_graph_port() -> WalkGraphPort:
+    """GILDLE_WALK_GRAPH_SOURCE 환경변수로 그래프 소스를 전환한다.
+
+    - "osm" → OsmWalkGraphAdapter (osmnx, GraphML 캐시 사용)
+    - 그 외 (기본) → OsmWalkGraphAdapter (캐시 없이 매번 네트워크 호출)
+    """
+    source = os.getenv("GILDLE_WALK_GRAPH_SOURCE", "sample")
+    if source == "osm":
+        return OsmWalkGraphAdapter(cache_dir=_graph_cache_dir())
+    return OsmWalkGraphAdapter(cache_dir=None)
 
 
 def get_calculate_route_use_case() -> CalculateDogFriendlyRouteUseCase:
