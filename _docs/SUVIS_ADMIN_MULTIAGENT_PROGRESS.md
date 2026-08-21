@@ -9,10 +9,10 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
-- **Gildle 실데이터 연동 — 가로수/결빙 CSV (2026-08-21)** —
-  영등포구 가로수 + 전국 결빙 사고 CSV를 cp949로 data/에 배치, 통합 테스트 8건
-  추가(112건 전량 통과). env 오버라이드(`GILDLE_TREE_CSV`/`GILDLE_HAZARD_CSV`/
-  `GILDLE_CSV_ENCODING=cp949`)로 전환. 어댑터·도메인 레이어 변경 없음.
+- **Gildle 실데이터 연동 + 환경 점수 배치 (2026-08-21)** —
+  ① 영등포구 가로수 + 전국 결빙 사고 CSV를 cp949로 data/에 배치, 통합 테스트 8건.
+  ② EdgeScoreCalculator — tree/hazard/dog_friendly 점수 산정 배치 서비스 + JSON
+  캐시 + CLI. 테스트 23건 추가(총 135건 전량 통과). 도메인 레이어 변경 없음.
   상세: WORK_LOG_GILDLE 2026-08-21.
 - **Gildle 소개 페이지 + OSM 보행 그래프 인프라 + 어드민 세션 수정 (2026-08-20)** —
   ① 프론트: `suvis/app/gildle/` 소개 페이지(전용 CSS 토큰, layout, page) + `/apps`

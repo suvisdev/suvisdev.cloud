@@ -33,6 +33,10 @@
 ### 작업 내용
 - Gildle 실데이터 연동: 영등포구 가로수 CSV + 전국 결빙 교통사고 다발지역 CSV를
   data/ 디렉터리에 배치하고, cp949 인코딩으로 어댑터가 정상 동작하는지 검증.
+- route_edges 환경 점수 배치 산정: EdgeScoreCalculator 구현. tree_score(도로명
+  매칭 우선→좌표 근접 50m 폴백, 보너스 수종 비율+밀도 정규화), hazard_score
+  (반경 내 거리 기반 선형 감쇠, 복수 겹침 시 max), dog_friendly_score
+  (tree_score×0.7+0.3 휴리스틱). JSON 캐시 직렬화/역직렬화 포함.
 
 ### 수정/구현
 - **`apps/gildle/data/yeongdeungpo_tree_segments.csv`** (신규): 영등포구
@@ -57,8 +61,10 @@
 - 결빙 CSV: 12행 중 서울 7건 로드 (비서울 4건 필터 + 좌표결측 1건 스킵)
 
 ### 산출물
-- 테스트: 104 → 112건 (신규 8건 추가, 전량 통과)
+- 테스트: 104 → 135건 (실데이터 8건 + 점수산정 23건 + CSV영속화 2건, 전량 통과)
 - env 연결: `GILDLE_TREE_CSV`, `GILDLE_HAZARD_CSV`, `GILDLE_CSV_ENCODING=cp949`
+- 신규 모듈: `scripts/compute_edge_scores.py`(EdgeScoreCalculator + CLI + JSON 캐시)
+- CLI: `PYTHONPATH="$PWD:$PWD/apps" python -m gildle.scripts.compute_edge_scores`
 
 ---
 
