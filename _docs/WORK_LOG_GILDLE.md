@@ -148,6 +148,46 @@
 - 도메인/애플리케이션 레이어 변경 0건
 - 마이그레이션: `20260821_0001` (route_edges score 3컬럼 + route_nodes osm_id)
 
+### 작업 내용 (Leaflet 보행 그래프 지도 시각화)
+- scored_edges.json 1,616개 엣지를 Leaflet 지도 위에 시각화하는 페이지 구축.
+  나무 그늘 / 결빙 위험 / 반려견 친화 3개 레이어 토글, CircleMarker + 툴팁,
+  색상 범례 포함.
+
+### 수정/구현 (Leaflet 보행 그래프 지도 시각화)
+- **`suvisdev/apps/gildle/adapter/inbound/api/v1/route_router.py`** (수정):
+  `GET /graph-edges` 엔드포인트 추가 — scored_edges.json을 읽어 raw JSON 반환.
+  env `GILDLE_SCORED_EDGES`로 경로 오버라이드 가능.
+- **`suvis/app/api/gildle/graph-edges/route.ts`** (신규): Next.js API 프록시 →
+  백엔드 `/api/gildle/graph-edges`. `backendFetch` 사용.
+- **`suvis/app/gildle/map/page.tsx`** (신규): `"use client"` + `next/dynamic`
+  `ssr: false`로 Leaflet 컴포넌트 동적 임포트. 로딩 상태 표시.
+- **`suvis/app/gildle/map/_components/gildle-map.tsx`** (신규): 클라이언트
+  컴포넌트. react-leaflet MapContainer + CartoDB dark 타일. 3개 ScoreLayer
+  (`tree`/`hazard`/`dog_friendly`) 탭 토글. CircleMarker at midpoint, 점수별
+  색상(회색→진한색 4단계), 반경·투명도 비례. 도로명+3점수 Tooltip. FitBounds
+  자동 맞춤. 하단 색상 범례. 여의도 중심 `[37.528, 126.933]`.
+- **`suvis/app/gildle/page.tsx`** (수정): "Coming Soon" 자리에 `/gildle/map`
+  링크 버튼("보행 그래프 지도 보기") 추가. 경로 추천은 "Coming Soon"으로 분리.
+- **`suvis/package.json`** (수정): `leaflet@1.9.4`, `react-leaflet@5.0.0`,
+  `@types/leaflet@1.9.22` 의존성 추가.
+- **`suvisdev/apps/gildle/scripts/import_to_db.py`** (수정): midpoint 키를
+  `raw["midpoint"]["latitude"]`(nested) → `raw["midpoint_lat"]`(flat)로 수정.
+  scored_edges.json 실제 포맷과 일치시킴.
+- **`suvisdev/apps/gildle/tests/scripts/test_import_to_db.py`** (수정): 테스트
+  픽스처도 flat 키(`midpoint_lat`/`midpoint_lng`) 포맷으로 수정.
+
+### 오류·막힌 점 (Leaflet 보행 그래프 지도 시각화)
+- `next/dynamic`의 `ssr: false`는 App Router의 Server Component에서 사용 불가 —
+  `page.tsx`에 `"use client"` 디렉티브 추가로 해결.
+- `import_to_db.py`에서 midpoint를 nested dict(`raw["midpoint"]["latitude"]`)로
+  접근하고 있었으나, `save_scored_edges()`가 생성하는 실제 JSON은 flat 키
+  (`midpoint_lat`/`midpoint_lng`) — KeyError 발생. flat 키로 수정.
+
+### 산출물 (Leaflet 보행 그래프 지도 시각화)
+- 페이지: `http://localhost:3000/gildle/map` — 1,616개 엣지 지도 시각화
+- 백엔드 엔드포인트: `GET /api/gildle/graph-edges` (1,616개 JSON)
+- 소개 페이지 `/gildle`에서 지도 링크 연결
+
 ---
 
 ## 2026-08-20

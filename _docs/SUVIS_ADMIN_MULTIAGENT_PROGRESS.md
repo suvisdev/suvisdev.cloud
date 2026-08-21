@@ -9,14 +9,16 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
-- **Gildle CSV→PostgreSQL 전환 + OSM 실데이터 + 환경 점수 배치 (2026-08-21)** —
+- **Gildle CSV→PostgreSQL 전환 + OSM 실데이터 + 환경 점수 배치 + Leaflet 지도 시각화 (2026-08-21)** —
   ① 영등포구 가로수 + 전국 결빙 사고 CSV cp949 배치, 통합 테스트 8건.
   ② EdgeScoreCalculator tree/hazard/dog_friendly 점수 산정 배치 + JSON 캐시. 테스트 23건.
   ③ OSM 보행 그래프 다운로드 + 통합 파이프라인. 여의도 1.5km 1,616 edges. 테스트 10건.
-  ④ CSV→PostgreSQL 리포지토리 전환: Pg 구현체 3종(TreeSegment/HazardZone/RouteGraph)
-  + import_to_db CLI + ORM score 3컬럼/osm_id 추가 + 마이그레이션(`20260821_0001`)
-  + `GILDLE_DB_MODE=csv|postgres` 환경변수 DI 분기. 도메인/앱 레이어 변경 0건.
-  테스트 25건 추가(총 170건 전량 통과).
+  ④ CSV→PostgreSQL 리포지토리 전환: Pg 구현체 3종 + import_to_db CLI + 마이그레이션.
+  도메인/앱 레이어 변경 0건. 테스트 25건.
+  ⑤ Leaflet 보행 그래프 지도: `/gildle/map` 페이지(react-leaflet, 3레이어 토글,
+  CircleMarker, 툴팁, 범례) + 백엔드 `GET /graph-edges` + Next.js API 프록시 +
+  소개 페이지 링크. import_to_db midpoint 키 포맷 수정(nested→flat).
+  총 테스트 170건 전량 통과.
   상세: WORK_LOG_GILDLE 2026-08-21.
 - **Gildle 소개 페이지 + OSM 보행 그래프 인프라 + 어드민 세션 수정 (2026-08-20)** —
   ① 프론트: `suvis/app/gildle/` 소개 페이지(전용 CSS 토큰, layout, page) + `/apps`

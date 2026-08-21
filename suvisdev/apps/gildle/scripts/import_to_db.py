@@ -88,10 +88,9 @@ def import_scored_edges(session: Session, json_path: Path) -> int:
         for node_key in ("from_node", "to_node"):
             osm_id = str(raw[node_key])
             if osm_id not in node_map:
-                mid = raw["midpoint"]
                 node = RouteNodeOrm(
-                    latitude=mid["latitude"],
-                    longitude=mid["longitude"],
+                    latitude=raw["midpoint_lat"],
+                    longitude=raw["midpoint_lng"],
                     node_type="osm",
                     osm_id=osm_id,
                 )

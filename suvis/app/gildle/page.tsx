@@ -66,8 +66,15 @@ export default function GildlePage() {
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-3 sm:mt-10 sm:flex-row sm:justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-gildle-accent/30 bg-gildle-accent-soft px-5 py-2.5 text-sm font-semibold text-gildle-accent">
-              Coming Soon
+            <Link
+              href="/gildle/map"
+              className="inline-flex items-center gap-2 rounded-full border border-gildle-accent/30 bg-gildle-accent-soft px-5 py-2.5 text-sm font-semibold text-gildle-accent transition-colors hover:bg-gildle-accent hover:text-white"
+            >
+              <MapPin className="h-4 w-4" strokeWidth={1.8} />
+              보행 그래프 지도 보기
+            </Link>
+            <span className="inline-flex items-center gap-2 rounded-full border border-gildle-border bg-gildle-surface/60 px-5 py-2.5 text-sm text-gildle-muted">
+              경로 추천 — Coming Soon
             </span>
           </div>
         </section>

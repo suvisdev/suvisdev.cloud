@@ -43,7 +43,8 @@ def _make_scored_edges_json(tmp_path: Path) -> Path:
             "from_node": "100",
             "to_node": "200",
             "base_distance_m": 150.0,
-            "midpoint": {"latitude": 37.527, "longitude": 126.926},
+            "midpoint_lat": 37.527,
+            "midpoint_lng": 126.926,
             "road_name": "여의대로",
             "tree_score": 0.8,
             "hazard_score": 0.2,
@@ -53,7 +54,8 @@ def _make_scored_edges_json(tmp_path: Path) -> Path:
             "from_node": "200",
             "to_node": "300",
             "base_distance_m": 200.0,
-            "midpoint": {"latitude": 37.529, "longitude": 126.930},
+            "midpoint_lat": 37.529,
+            "midpoint_lng": 126.930,
             "road_name": None,
             "tree_score": 0.0,
             "hazard_score": 0.0,
@@ -126,7 +128,7 @@ class TestImportScoredEdges:
         node = session.query(RouteNodeOrm).filter(
             RouteNodeOrm.osm_id == "100"
         ).one()
-        assert node.latitude == 37.527
+        assert abs(node.latitude - 37.527) < 0.001
 
     def test_idempotent(self, tmp_path: Path) -> None:
         session = _make_session()

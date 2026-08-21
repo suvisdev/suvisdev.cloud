@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import ORJSONResponse
 
 from gildle.adapter.inbound.api.schemas.route_schema import (
     RouteRequestSchema,
@@ -26,6 +30,8 @@ from gildle.domain.value_objects.season_mode import SeasonMode
 route_router = APIRouter(tags=["gildle"])
 logger = logging.getLogger(__name__)
 
+_DATA_DIR = Path(__file__).resolve().parents[4] / "data"
+
 
 @route_router.post("/routes", response_model=RouteResponseSchema)
 def calculate_route(
@@ -45,6 +51,16 @@ def calculate_route(
 
     path = use_case.execute(graph_source.load_edges(), start_node, end_node, mode)
     return RouteResponseSchema(path=path)
+
+
+@route_router.get("/graph-edges")
+def get_graph_edges() -> list[dict[str, Any]]:
+    scored_path = Path(
+        os.getenv("GILDLE_SCORED_EDGES", str(_DATA_DIR / "scored_edges.json"))
+    )
+    if not scored_path.exists():
+        raise HTTPException(status_code=404, detail="scored_edges.json 없음")
+    return json.loads(scored_path.read_text(encoding="utf-8"))
 
 
 @route_router.get("/map-data")
