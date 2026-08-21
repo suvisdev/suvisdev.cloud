@@ -12,3 +12,4 @@ class RouteNodeOrm(GildleBase):
     latitude: Mapped[float]
     longitude: Mapped[float]
     node_type: Mapped[str]
+    osm_id: Mapped[str | None] = mapped_column(nullable=True, unique=True)

@@ -60,11 +60,93 @@
 - 가로수 CSV: 12행 중 8건 로드 (미지원 수종 3건 + 좌표결측 1건 스킵)
 - 결빙 CSV: 12행 중 서울 7건 로드 (비서울 4건 필터 + 좌표결측 1건 스킵)
 
+### 작업 내용 (OSM 보행 그래프 + 파이프라인)
+- OSM 보행 그래프 실데이터 연동: osmnx 2.x로 여의도 1.5km 반경 보행 그래프
+  다운로드, GraphML 캐시, 전체 파이프라인(OSM→edge 변환→점수 산정→JSON) 구축.
+
+### 수정/구현 (OSM 보행 그래프 + 파이프라인)
+- **`apps/gildle/scripts/download_osm_graph.py`** (신규): osmnx lazy import
+  (`importlib.import_module`)로 EC2 호환 유지. `graph_from_point(center, dist,
+  network_type="walk")` → `save_graphml()`. env: `GILDLE_GRAPH_CACHE_DIR`,
+  `GILDLE_OSM_CENTER_LAT/LNG`, `GILDLE_OSM_DIST_M`.
+- **`apps/gildle/scripts/build_graph_pipeline.py`** (신규): GraphML 로드 →
+  `OsmWalkGraphAdapter.load_from_graphml()` → CSV 리포지터리 2개 로드 →
+  `EdgeScoreCalculator.score_edges()` → `save_scored_edges()`. 단일 진입점.
+- **`apps/gildle/tests/scripts/test_download_osm_graph.py`** (신규): mock
+  osmnx 기반 4건 — center/dist 인자, GraphML 저장, 부모 디렉터리 자동 생성.
+- **`apps/gildle/tests/scripts/test_build_graph_pipeline.py`** (신규): mock
+  OSM + 실 CSV 통합 6건 — JSON 생성, 여의대로 tree_score>0, 점수 범위,
+  JSON 로드, 멱등성, dog_friendly≥0.3.
+- **`.gitignore`**: `suvisdev/apps/gildle/data/**/*.graphml`,
+  `suvisdev/apps/gildle/data/scored_edges.json` 추가 — 재생성:
+  `python -m gildle.scripts.build_graph_pipeline`.
+
+### 오류·막힌 점 (OSM 보행 그래프 + 파이프라인)
+- `compute_edge_scores.py`의 `main()`에 `SampleWalkGraphSource.load_edges("")`
+  호출이 있으나 `load_edges()`는 인자 없음 — `build_graph_pipeline.py`가
+  대체 진입점으로 이 경로는 미사용. 잠재 버그로 남겨둠.
+
+### 데이터 (OSM 보행 그래프)
+- OSM 다운로드: 여의도 중심 (37.528, 126.933), 반경 1.5km, 1,178 노드 / 3,260 엣지
+- 중복 제거 후 1,616 undirected RouteEdge
+- 점수 산정: tree_score>0: 107개, hazard_score>0: 101개
+- 생성 파일: `data/graph_cache/yeongdeungpo_yeouido.graphml`(1.3MB),
+  `data/scored_edges.json`(456KB) — .gitignore 대상
+
 ### 산출물
-- 테스트: 104 → 135건 (실데이터 8건 + 점수산정 23건 + CSV영속화 2건, 전량 통과)
-- env 연결: `GILDLE_TREE_CSV`, `GILDLE_HAZARD_CSV`, `GILDLE_CSV_ENCODING=cp949`
-- 신규 모듈: `scripts/compute_edge_scores.py`(EdgeScoreCalculator + CLI + JSON 캐시)
-- CLI: `PYTHONPATH="$PWD:$PWD/apps" python -m gildle.scripts.compute_edge_scores`
+- 테스트: 104 → 145건 (실데이터 8 + 점수산정 23 + CSV영속화 2 + OSM 다운로드 4 + 파이프라인 6, 전량 통과)
+- env 연결: `GILDLE_TREE_CSV`, `GILDLE_HAZARD_CSV`, `GILDLE_CSV_ENCODING=cp949`,
+  `GILDLE_GRAPH_CACHE_DIR`, `GILDLE_OSM_CENTER_LAT/LNG`, `GILDLE_OSM_DIST_M`,
+  `GILDLE_SCORED_EDGES`
+- 신규 모듈: `scripts/compute_edge_scores.py`, `scripts/download_osm_graph.py`,
+  `scripts/build_graph_pipeline.py`
+- 재생성 CLI: `PYTHONPATH="$PWD:$PWD/apps" python -m gildle.scripts.build_graph_pipeline`
+
+### 작업 내용 (CSV → PostgreSQL 리포지토리 전환)
+- CSV 파일 기반 리포지토리를 PostgreSQL로 전환. Port(ABC) 유지, Adapter만 교체.
+  도메인/애플리케이션 레이어 코드 변경 없음.
+- `GILDLE_DB_MODE=csv|postgres` 환경변수로 CSV/Pg 전환.
+
+### 수정/구현 (CSV → PostgreSQL 리포지토리 전환)
+- **`adapter/outbound/orm/route_edge_orm.py`** (수정): `tree_score`,
+  `hazard_score`, `dog_friendly_score` 컬럼 추가 (Float, default 0,
+  CHECK 0~1).
+- **`adapter/outbound/orm/route_node_orm.py`** (수정): `osm_id` 컬럼 추가
+  (String, nullable, UNIQUE) — OSM 노드 ID를 보존해 RouteEdge 재구성 시 사용.
+- **`alembic/versions/20260821_0001_gildle_add_edge_scores_and_osm_id.py`**
+  (신규): route_edges score 3컬럼 + route_nodes osm_id 마이그레이션.
+- **`adapter/outbound/pg/tree_segment_pg_repository.py`** (신규):
+  `TreeSegmentRepository` Pg 구현체. sync SQLAlchemy Session.
+  `find_all()` → SELECT→from_orm, `save_many()` → TRUNCATE+INSERT.
+- **`adapter/outbound/pg/hazard_zone_pg_repository.py`** (신규):
+  `HazardZoneRepository` Pg 구현체. `find_all()` → SELECT→from_orm.
+- **`adapter/outbound/pg/route_graph_pg_repository.py`** (신규):
+  `RouteGraphPort` Pg 구현체. `load_edges()` → route_nodes+route_edges
+  JOIN→RouteEdge(osm_id 기반 노드 키, 점수 포함), `build_graph()` →
+  NetworkX 구성, `find_shortest_path()` → NetworkX 최단경로.
+- **`scripts/import_to_db.py`** (신규): CSV 가로수/결빙 + scored_edges.json →
+  DB TRUNCATE+INSERT. 멱등성 보장. CLI 독립 실행 가능.
+- **`dependencies/route_provider.py`** (수정): `GILDLE_DB_MODE=postgres`
+  분기 추가. Pg 리포지토리 lazy import + sync session factory 조립.
+  기본값 `csv`로 기존 동작 유지.
+
+### 테스트 (CSV → PostgreSQL 리포지토리 전환)
+- **`tests/adapter/outbound/test_pg_tree_segment_repository.py`** (신규):
+  SQLite in-memory 6건 — 빈 테이블, ORM→Entity 변환, 좌표 매핑,
+  save+find roundtrip, truncate 멱등성, 빈 리스트 clear.
+- **`tests/adapter/outbound/test_pg_hazard_zone_repository.py`** (신규):
+  4건 — 빈 테이블, 전체 조회, 필드 매핑, contains 검증.
+- **`tests/adapter/outbound/test_pg_route_graph_repository.py`** (신규):
+  7건 — 빈 테이블, osm_id 기반 노드 키, 점수 로드, midpoint 검증,
+  그래프 빌드, 최단경로, 경로 없음.
+- **`tests/scripts/test_import_to_db.py`** (신규): 8건 — CSV 임포트
+  (가로수 8건, 결빙 서울 7건), scored_edges 임포트 (노드+엣지 생성,
+  점수 저장, osm_id 저장), 모두 멱등성 검증.
+
+### 산출물
+- 테스트: 145 → 170건 (Pg 리포지토리 17건 + import 8건, 전량 통과)
+- 도메인/애플리케이션 레이어 변경 0건
+- 마이그레이션: `20260821_0001` (route_edges score 3컬럼 + route_nodes osm_id)
 
 ---
 

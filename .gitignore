@@ -19,3 +19,7 @@ __pycache__/
 
 # TypeScript incremental build 캐시 (자동 재생성됨)
 suvis/tsconfig.tsbuildinfo
+
+# gildle — OSM 그래프·점수 산출물 (재생성: python -m gildle.scripts.build_graph_pipeline)
+suvisdev/apps/gildle/data/**/*.graphml
+suvisdev/apps/gildle/data/scored_edges.json

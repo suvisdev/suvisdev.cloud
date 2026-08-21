@@ -36,11 +36,11 @@ from gildle.app.use_cases.import_tree_segment_interactor import (
 )
 from gildle.domain.services.route_weight_calculator import RouteWeightCalculator
 
-# Composition Root: 구체 어댑터를 조립해 Use Case(입력 포트)를 돌려준다.
-# main.py 외에는 이 모듈만 구체 어댑터를 안다 — 라우터는 입력 포트(ABC)에만 의존(DIP).
-# Repository를 CSV → PostgreSQL로 바꿔도 여기 한 줄만 고치면 Use Case는 그대로다(OCP).
-
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+def _db_mode() -> str:
+    return os.getenv("GILDLE_DB_MODE", "csv")
 
 
 def _tree_csv_path() -> Path:
@@ -58,7 +58,6 @@ def _walk_graph_path() -> Path:
 
 
 def _csv_encoding() -> str:
-    # 실제 data.go.kr 파일이 cp949/euc-kr이면 GILDLE_CSV_ENCODING로 지정한다.
     return os.getenv("GILDLE_CSV_ENCODING", "utf-8-sig")
 
 
@@ -71,18 +70,45 @@ def _graph_cache_dir() -> Path:
 
 
 def get_walk_graph_port() -> WalkGraphPort:
-    """GILDLE_WALK_GRAPH_SOURCE 환경변수로 그래프 소스를 전환한다.
-
-    - "osm" → OsmWalkGraphAdapter (osmnx, GraphML 캐시 사용)
-    - 그 외 (기본) → OsmWalkGraphAdapter (캐시 없이 매번 네트워크 호출)
-    """
     source = os.getenv("GILDLE_WALK_GRAPH_SOURCE", "sample")
     if source == "osm":
         return OsmWalkGraphAdapter(cache_dir=_graph_cache_dir())
     return OsmWalkGraphAdapter(cache_dir=None)
 
 
+def _get_gildle_session_factory():
+    """gildle 전용 sync SQLAlchemy 세션 팩토리. postgres 모드에서만 호출."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    db_url = os.getenv("DATABASE_URL", "")
+    if db_url.startswith("postgresql://") and "+psycopg" not in db_url:
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+    engine = create_engine(db_url, pool_pre_ping=True, pool_recycle=300)
+    return sessionmaker(bind=engine)
+
+
 def get_calculate_route_use_case() -> CalculateDogFriendlyRouteUseCase:
+    if _db_mode() == "postgres":
+        from gildle.adapter.outbound.pg.hazard_zone_pg_repository import (
+            PgHazardZoneRepository,
+        )
+        from gildle.adapter.outbound.pg.route_graph_pg_repository import (
+            PgRouteGraphRepository,
+        )
+        from gildle.adapter.outbound.pg.tree_segment_pg_repository import (
+            PgTreeSegmentRepository,
+        )
+
+        factory = _get_gildle_session_factory()
+        return CalculateDogFriendlyRouteInteractor(
+            tree_repository=PgTreeSegmentRepository(session_factory=factory),
+            hazard_repository=PgHazardZoneRepository(session_factory=factory),
+            route_graph=PgRouteGraphRepository(session_factory=factory),
+            weight_calculator=RouteWeightCalculator(),
+        )
+
     encoding = _csv_encoding()
     return CalculateDogFriendlyRouteInteractor(
         tree_repository=CsvTreeSegmentRepository(
@@ -97,6 +123,20 @@ def get_calculate_route_use_case() -> CalculateDogFriendlyRouteUseCase:
 
 
 def get_map_data_use_case() -> GetMapVisualizationDataUseCase:
+    if _db_mode() == "postgres":
+        from gildle.adapter.outbound.pg.hazard_zone_pg_repository import (
+            PgHazardZoneRepository,
+        )
+        from gildle.adapter.outbound.pg.tree_segment_pg_repository import (
+            PgTreeSegmentRepository,
+        )
+
+        factory = _get_gildle_session_factory()
+        return GetMapVisualizationDataInteractor(
+            tree_repository=PgTreeSegmentRepository(session_factory=factory),
+            hazard_repository=PgHazardZoneRepository(session_factory=factory),
+        )
+
     encoding = _csv_encoding()
     return GetMapVisualizationDataInteractor(
         tree_repository=CsvTreeSegmentRepository(
@@ -109,5 +149,4 @@ def get_map_data_use_case() -> GetMapVisualizationDataUseCase:
 
 
 def get_import_tree_segment_use_case() -> ImportTreeSegmentUseCase:
-    # 좌표가 이미 있는 표준데이터를 가정 → geocoding fallback은 선택적(여기선 사용 안 함).
     return ImportTreeSegmentInteractor(geocoder=KakaoGeocodingAdapter())
