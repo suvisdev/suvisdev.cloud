@@ -40,9 +40,9 @@ export function Header() {
           <Link href="/devlog" className={navLinkClass}>
             Devlog
           </Link>
-          <Link href="/contact#about" className={navLinkClass}>
+          <a href="https://jk.suvisdev.cloud" className={navLinkClass} target="_blank" rel="noopener noreferrer">
             About
-          </Link>
+          </a>
           <Link href="/contact#contact" className={navLinkClass}>
             Contact
           </Link>

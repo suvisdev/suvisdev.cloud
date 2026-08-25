@@ -10,14 +10,14 @@ import { RankingsRefreshButton } from "./rankings-refresh-button"
 export const metadata: Metadata = { title: "HOT 랭킹 — Mova" }
 
 const TABS = [
-  { key: "chat_trend", label: "AI 검색 TOP" },
   { key: "box_office", label: "박스오피스" },
+  { key: "chat_trend", label: "AI 검색 TOP" },
 ] as const
 
 type SourceKey = (typeof TABS)[number]["key"]
 
 function resolveSource(raw: string | undefined): SourceKey {
-  return TABS.some((tab) => tab.key === raw) ? (raw as SourceKey) : "chat_trend"
+  return TABS.some((tab) => tab.key === raw) ? (raw as SourceKey) : "box_office"
 }
 
 export default async function MovaRankingsPage({

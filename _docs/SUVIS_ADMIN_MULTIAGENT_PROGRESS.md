@@ -9,6 +9,10 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **Jekyll GitHub Pages 배포 + 메인 About 링크 변경 + Mova 랭킹 기본값 (2026-08-25)** —
+  suvisjk → `suvisdev/suvisjk` 레포 분리, GitHub Actions Jekyll 빌드,
+  `jk.suvisdev.cloud` 커스텀 도메인. 헤더 About → Jekyll 외부 링크.
+  Mova 랭킹 탭 박스오피스 우선. 상세: WORK_LOG_MAINPAGE 2026-08-25.
 - **Gildle 서울 전역 확장 + OSM 나무/공원 점수 통합 + 줌 간소화 (2026-08-25)** —
   ① 보행 그래프 영등포구(1,616) → 서울 전체(233,964 edges) 확장.
   ② Overpass API로 나무 6,851·공원 3,053 수집, 격자 매칭으로 tree_score 18배 증가

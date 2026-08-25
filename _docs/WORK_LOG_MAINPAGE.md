@@ -28,6 +28,29 @@
 
 ---
 
+## 2026-08-25
+
+### 작업 내용
+- Jekyll 포트폴리오 사이트(suvisjk) GitHub Pages 배포: Just the Docs 테마 적용,
+  `suvisdev/suvisjk` 레포 생성, GitHub Actions Jekyll 워크플로우 설정,
+  커스텀 도메인 `jk.suvisdev.cloud` 연결 (Cloudflare DNS CNAME).
+- 두 Jekyll 사이트(suvisjk 4000, demo 4001) 포트 고정 분리.
+- 메인 사이트 헤더 About 링크를 Jekyll 사이트(`jk.suvisdev.cloud`)로 변경.
+- Mova 랭킹 페이지: 탭 순서 변경(박스오피스 먼저) + 기본값을 box_office로 변경.
+
+### 수정/구현
+- `suvis/components/header.tsx`: About 링크 `/contact#about` → `https://jk.suvisdev.cloud` (외부 링크, 새 탭)
+- `suvis/app/mova/rankings/page.tsx`: TABS 순서 + resolveSource 기본값 변경
+- `suvisjk/_config.yml`: `port: 4000`, `url: https://jk.suvisdev.cloud`
+- `demo.suvisdev.cloud/_config.yml`: `port: 4001`
+- `.github/workflows/jekyll.yml`: Ruby 3.1 → 3.3 (Bundler 4.x 호환)
+
+### 산출물
+- GitHub Pages: https://jk.suvisdev.cloud
+- 레포: https://github.com/suvisdev/suvisjk
+
+---
+
 ## 2026-08-12
 ### 작업 내용
 
