@@ -48,7 +48,8 @@ export function MovaActorDialog({ actorId, onClose }: MovaActorDialogProps) {
 
   return (
     <Dialog open={actorId !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto border-mova-border bg-mova-bg text-mova-text">
+      {/* Dialog는 body로 포털되므로 .mova-app 토큰 스코프를 직접 부여해야 한다 */}
+      <DialogContent className="mova-app max-h-[80vh] max-w-lg overflow-y-auto border-mova-border bg-mova-bg text-mova-text">
         {loading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-mova-muted" />

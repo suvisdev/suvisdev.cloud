@@ -401,9 +401,12 @@ function MovaMoviesPageInner() {
       rowGenres.map(async (g) => {
         try {
           // 인기 상위 48편 풀에서 12편을 무작위 추출 — 방문할 때마다 같은
-          // 영화만 반복 노출되지 않게 로테이션을 준다.
+          // 영화만 반복 노출되지 않게 로테이션을 준다. 최근 15년 작품을
+          // 우선하고(1950~70년대 뜬금 노출 방지), 부족할 때만 전체로 폴백.
           const data = await fetchMovaMovies(48, 0, { genre: g, sort: "popular" })
-          const pool = [...data.items]
+          const cutoff = new Date().getFullYear() - 15
+          const recent = data.items.filter((m) => m.release_year >= cutoff)
+          const pool = recent.length >= 12 ? recent : [...data.items]
           for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1))
             ;[pool[i], pool[j]] = [pool[j], pool[i]]

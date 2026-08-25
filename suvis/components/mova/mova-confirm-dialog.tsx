@@ -38,7 +38,8 @@ export function MovaConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm border-mova-border bg-mova-bg text-mova-text">
+      {/* Dialog는 body로 포털되므로 .mova-app 토큰 스코프를 직접 부여해야 한다 */}
+      <DialogContent className="mova-app max-w-sm border-mova-border bg-mova-bg text-mova-text">
         <DialogHeader>
           <DialogTitle className="text-mova-text">{title}</DialogTitle>
           {description ? (
