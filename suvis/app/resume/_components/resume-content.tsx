@@ -236,8 +236,8 @@ export function ResumeContent() {
           <div className="mt-6 space-y-6">
             <TimelineItem
               period="2026.07 — 2026.10"
-              title="풀스택 AI 개발 과정 (팀 SEUK)"
-              desc="Python · FastAPI · Next.js · Flutter · AI/ML 파이프라인 구축"
+              title="하이미디어 생성형 AI 과정 (팀 SEUK)"
+              desc="AI 모델 운영을 위한 하네스 시스템 설계와 AI 서비스 구현. Python · FastAPI · Next.js · Flutter · AI/ML 파이프라인 구축"
             />
             <TimelineItem
               period="2009.03 — 2015"
