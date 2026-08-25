@@ -222,12 +222,20 @@ function findNearestNode(
   let bestLat = 0
   let bestLng = 0
   for (const e of edges) {
-    const d = (e.midpoint_lat - lat) ** 2 + (e.midpoint_lng - lng) ** 2
-    if (d < bestDist) {
-      bestDist = d
+    const dFrom =
+      (e.from_lat - lat) ** 2 + (e.from_lng - lng) ** 2
+    if (dFrom < bestDist) {
+      bestDist = dFrom
       bestNode = e.from_node
-      bestLat = e.midpoint_lat
-      bestLng = e.midpoint_lng
+      bestLat = e.from_lat
+      bestLng = e.from_lng
+    }
+    const dTo = (e.to_lat - lat) ** 2 + (e.to_lng - lng) ** 2
+    if (dTo < bestDist) {
+      bestDist = dTo
+      bestNode = e.to_node
+      bestLat = e.to_lat
+      bestLng = e.to_lng
     }
   }
   return { nodeId: bestNode, lat: bestLat, lng: bestLng }
@@ -435,6 +443,30 @@ export default function GildleMap() {
     setRouteError(null)
   }
 
+  const handleLocate = useCallback(() => {
+    if (!("geolocation" in navigator)) {
+      setRouteError("이 브라우저에서 위치 서비스를 사용할 수 없습니다")
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        setPanTarget({ lat: latitude, lng: longitude })
+        const nearest = findNearestNode(latitude, longitude, edges)
+        if (nearest) {
+          setStartPoint(nearest)
+          setEndPoint(null)
+          setRouteSegments([])
+          setRouteError(null)
+        }
+      },
+      () => {
+        setRouteError("위치 권한이 거부되었습니다")
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }, [edges])
+
   const cfg = LAYER_CONFIG[layer]
   const nonZero = edges.filter((e) => (e[cfg.key] as number) > 0).length
 
@@ -512,8 +544,33 @@ export default function GildleMap() {
       </header>
 
       <div className="z-[1000] flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-white/10 bg-[#0a0d0a]/90 px-4 py-2 backdrop-blur">
-        <div className="w-full sm:w-48">
-          <PlaceSearch edges={edges} onSelect={handleSearchSelect} />
+        <div className="flex w-full items-center gap-1.5 sm:w-auto">
+          <div className="flex-1 sm:w-48 sm:flex-none">
+            <PlaceSearch edges={edges} onSelect={handleSearchSelect} />
+          </div>
+          <button
+            type="button"
+            onClick={handleLocate}
+            title="현재 위치"
+            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-gray-400 transition-colors hover:border-emerald-500/50 hover:text-emerald-400"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <line x1="12" y1="2" x2="12" y2="6" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="6" y2="12" />
+              <line x1="18" y1="12" x2="22" y2="12" />
+            </svg>
+          </button>
         </div>
 
         <div className="flex items-center gap-1">

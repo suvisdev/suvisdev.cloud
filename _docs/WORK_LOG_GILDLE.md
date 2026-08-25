@@ -40,6 +40,12 @@
   렌더링 성능 최적화. 점수 높은 엣지는 샘플링에서 보존.
 - 지도 UX 폴리싱: 점→선 시각화, 장소 검색(Nominatim), 뷰포트 기반
   동적 로딩, 모바일 레이아웃, 경로 상세 정보(결빙 주의/그늘 양호 구간).
+- 경로 API 좌표 응답 추가: `/routes` 응답에 `coordinates` 배열 포함,
+  프론트에서 경로 폴리라인 렌더링에 사용.
+- 최근접 노드 탐색 수정: midpoint 기반 → from/to 좌표 기반으로 변경
+  (프론트·백엔드 양쪽). `SampleWalkGraphSource` 의존성 제거.
+- 현재 위치 버튼: 브라우저 Geolocation API로 현 위치 획득 → 지도 이동 +
+  가장 가까운 노드를 출발점으로 자동 설정.
 
 ### 수정/구현
 - **`suvisdev/apps/gildle/adapter/inbound/api/v1/route_router.py`**:

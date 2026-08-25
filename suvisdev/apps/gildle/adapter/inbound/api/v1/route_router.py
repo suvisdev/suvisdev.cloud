@@ -12,9 +12,7 @@ from fastapi.responses import ORJSONResponse
 from gildle.adapter.inbound.api.schemas.route_schema import (
     NavigateRequestSchema,
     RouteRequestSchema,
-    RouteResponseSchema,
 )
-from gildle.adapter.outbound.graph.sample_walk_graph_source import SampleWalkGraphSource
 from gildle.app.ports.input.calculate_route_use_case import (
     CalculateDogFriendlyRouteUseCase,
 )
@@ -24,7 +22,6 @@ from gildle.app.ports.input.get_map_data_use_case import (
 from gildle.dependencies.route_provider import (
     get_calculate_route_use_case,
     get_map_data_use_case,
-    get_walk_graph_source,
 )
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.route_edge import RouteEdge
@@ -37,24 +34,66 @@ logger = logging.getLogger(__name__)
 _DATA_DIR = Path(__file__).resolve().parents[4] / "data"
 
 
-@route_router.post("/routes", response_model=RouteResponseSchema)
+@route_router.post("/routes")
 def calculate_route(
     request: RouteRequestSchema,
     use_case: CalculateDogFriendlyRouteUseCase = Depends(get_calculate_route_use_case),
-    graph_source: SampleWalkGraphSource = Depends(get_walk_graph_source),
-) -> RouteResponseSchema:
+) -> dict[str, Any]:
     try:
         start, end, mode = request.to_domain()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    start_node = graph_source.nearest_node(start)
-    end_node = graph_source.nearest_node(end)
-    if start_node is None or end_node is None:
-        return RouteResponseSchema(path=[])
+    edges = _load_scored_edges()
+    if not edges:
+        raise HTTPException(status_code=404, detail="scored_edges.json 없음")
 
-    path = use_case.execute(graph_source.load_edges(), start_node, end_node, mode)
-    return RouteResponseSchema(path=path)
+    start_node = _find_nearest_node_id(edges, start)
+    end_node = _find_nearest_node_id(edges, end)
+    if start_node is None or end_node is None:
+        return {"path": [], "coordinates": []}
+
+    path = use_case.execute(edges, start_node, end_node, mode)
+
+    edge_lookup: dict[tuple[str, str], RouteEdge] = {}
+    for e in edges:
+        edge_lookup[(e.from_node, e.to_node)] = e
+        edge_lookup[(e.to_node, e.from_node)] = e
+
+    coordinates: list[list[float]] = []
+    for i in range(len(path) - 1):
+        edge = edge_lookup.get((path[i], path[i + 1]))
+        if edge and edge.from_coord is not None:
+            coordinates.append([edge.from_coord.latitude, edge.from_coord.longitude])
+        elif edge:
+            coordinates.append([edge.midpoint.latitude, edge.midpoint.longitude])
+    if path and len(path) >= 2:
+        last_edge = edge_lookup.get((path[-2], path[-1]))
+        if last_edge and last_edge.to_coord is not None:
+            coordinates.append([last_edge.to_coord.latitude, last_edge.to_coord.longitude])
+
+    return {"path": path, "coordinates": coordinates}
+
+
+def _find_nearest_node_id(
+    edges: list[RouteEdge], point: Coordinate
+) -> str | None:
+    if not edges:
+        return None
+    best_dist = float("inf")
+    best_node = ""
+    for edge in edges:
+        if edge.from_coord is not None:
+            d = point.distance_to(edge.from_coord)
+            if d < best_dist:
+                best_dist = d
+                best_node = edge.from_node
+        if edge.to_coord is not None:
+            d = point.distance_to(edge.to_coord)
+            if d < best_dist:
+                best_dist = d
+                best_node = edge.to_node
+    return best_node or None
 
 
 _route_edges_cache: list[RouteEdge] | None = None
