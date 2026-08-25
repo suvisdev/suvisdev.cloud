@@ -101,13 +101,13 @@ export function ResumeContent() {
       <aside className="hidden w-[280px] shrink-0 md:block">
         <div className="sticky top-20 space-y-8">
           <div>
-            <h1 className="text-4xl font-black tracking-tight text-neutral-100">
+            <h1 className="text-4xl font-black tracking-tight text-neutral-900">
               Your Name
             </h1>
-            <p className="mt-2 text-sm font-semibold uppercase tracking-[0.25em] text-amber-400">
+            <p className="mt-2 text-sm font-semibold uppercase tracking-[0.25em] text-amber-600">
               Full-Stack Developer
             </p>
-            <p className="mt-3 text-sm italic text-neutral-500">
+            <p className="mt-3 text-sm italic text-neutral-400">
               &quot;코드로 문제를 해결하는 개발자&quot;
             </p>
           </div>
@@ -122,8 +122,8 @@ export function ResumeContent() {
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold tracking-wide transition-all",
                     activeSection === item.id
-                      ? "border-l-2 border-amber-400 bg-amber-400/10 text-amber-400"
-                      : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+                      ? "border-l-2 border-amber-500 bg-amber-50 text-amber-600"
+                      : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -133,14 +133,14 @@ export function ResumeContent() {
             })}
           </nav>
 
-          <div className="space-y-3 border-t border-neutral-800 pt-6 text-sm text-neutral-500">
-            <a href="mailto:ssuvisdev@gmail.com" className="flex items-center gap-3 transition-colors hover:text-amber-400">
+          <div className="space-y-3 border-t border-neutral-200 pt-6 text-sm text-neutral-500">
+            <a href="mailto:ssuvisdev@gmail.com" className="flex items-center gap-3 transition-colors hover:text-amber-600">
               <Mail className="h-4 w-4" /> ssuvisdev@gmail.com
             </a>
-            <a href="https://github.com/suvisdev" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 transition-colors hover:text-amber-400">
+            <a href="https://github.com/suvisdev" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 transition-colors hover:text-amber-600">
               <Github className="h-4 w-4" /> github.com/suvisdev
             </a>
-            <a href="https://suvisdev.cloud" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 transition-colors hover:text-amber-400">
+            <a href="https://suvisdev.cloud" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 transition-colors hover:text-amber-600">
               <Globe className="h-4 w-4" /> suvisdev.cloud
             </a>
           </div>
@@ -148,12 +148,12 @@ export function ResumeContent() {
       </aside>
 
       {/* MOBILE HEADER */}
-      <div className="mb-6 w-full border-b border-neutral-800 pb-6 md:hidden">
-        <h1 className="text-3xl font-black tracking-tight text-neutral-100">Your Name</h1>
-        <p className="mt-1 text-sm font-semibold uppercase tracking-[0.25em] text-amber-400">
+      <div className="mb-6 w-full border-b border-neutral-200 pb-6 md:hidden">
+        <h1 className="text-3xl font-black tracking-tight text-neutral-900">Your Name</h1>
+        <p className="mt-1 text-sm font-semibold uppercase tracking-[0.25em] text-amber-600">
           Full-Stack Developer
         </p>
-        <p className="mt-2 text-sm italic text-neutral-500">&quot;코드로 문제를 해결하는 개발자&quot;</p>
+        <p className="mt-2 text-sm italic text-neutral-400">&quot;코드로 문제를 해결하는 개발자&quot;</p>
       </div>
 
       {/* RIGHT CONTENT */}
@@ -161,7 +161,7 @@ export function ResumeContent() {
         {/* ABOUT */}
         <section id="about" ref={(el) => { sectionRefs.current.about = el }}>
           <SectionHeader num="01" title="About" />
-          <div className="mt-6 space-y-4 text-[15px] leading-relaxed text-neutral-300">
+          <div className="mt-6 space-y-4 text-[15px] leading-relaxed text-neutral-600">
             <p>
               AI 영화 추천, 보행 경로 최적화, 모바일 앱까지 — 하나의 모듈러 모놀리식
               아키텍처 위에서 기획부터 배포까지 전 과정을 개인 프로젝트로 수행했습니다.
@@ -189,18 +189,18 @@ export function ResumeContent() {
                 href={p.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group block rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 transition-all hover:border-amber-400/40 hover:bg-amber-400/5"
+                className="group block rounded-xl border border-neutral-200 bg-white p-5 transition-all hover:border-amber-400 hover:bg-amber-50"
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-neutral-100 group-hover:text-amber-400">
+                    <h3 className="text-lg font-bold text-neutral-900 group-hover:text-amber-600">
                       {p.name}
                     </h3>
-                    <p className="mt-0.5 text-sm text-neutral-400">{p.desc}</p>
+                    <p className="mt-0.5 text-sm text-neutral-500">{p.desc}</p>
                   </div>
-                  <Globe className="h-4 w-4 shrink-0 text-neutral-600 transition-colors group-hover:text-amber-400" />
+                  <Globe className="h-4 w-4 shrink-0 text-neutral-400 transition-colors group-hover:text-amber-600" />
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-neutral-400">{p.detail}</p>
+                <p className="mt-3 text-sm leading-relaxed text-neutral-500">{p.detail}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {p.tech.map((t) => (
                     <Badge key={t}>{t}</Badge>
@@ -217,7 +217,7 @@ export function ResumeContent() {
           <div className="mt-6 space-y-8">
             {TECH_STACK.map((group) => (
               <div key={group.category}>
-                <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-neutral-500">
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-neutral-400">
                   {group.category}
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -264,16 +264,16 @@ export function ResumeContent() {
 
 function SectionHeader({ num, title }: { num: string; title: string }) {
   return (
-    <div className="flex items-baseline gap-3 border-b border-neutral-800 pb-4">
-      <span className="text-sm font-bold text-amber-400">{num}.</span>
-      <h2 className="text-2xl font-bold text-neutral-100">{title}</h2>
+    <div className="flex items-baseline gap-3 border-b border-neutral-200 pb-4">
+      <span className="text-sm font-bold text-amber-600">{num}.</span>
+      <h2 className="text-2xl font-bold text-neutral-900">{title}</h2>
     </div>
   )
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full border border-neutral-700 bg-neutral-800/60 px-3 py-1 text-sm text-neutral-300 transition-colors hover:border-amber-400/50 hover:text-amber-400">
+    <span className="rounded-full border border-neutral-200 bg-neutral-100 px-3 py-1 text-sm text-neutral-600 transition-colors hover:border-amber-400 hover:text-amber-600">
       {children}
     </span>
   )
@@ -281,19 +281,19 @@ function Badge({ children }: { children: React.ReactNode }) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-900/50 px-4 py-3 text-center">
-      <p className="text-lg font-bold text-amber-400">{value}</p>
-      <p className="mt-0.5 text-xs text-neutral-500">{label}</p>
+    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-center">
+      <p className="text-lg font-bold text-amber-600">{value}</p>
+      <p className="mt-0.5 text-xs text-neutral-400">{label}</p>
     </div>
   )
 }
 
 function TimelineItem({ period, title, desc }: { period: string; title: string; desc: string }) {
   return (
-    <div className="relative border-l-2 border-neutral-800 pl-5">
-      <div className="absolute -left-[5px] top-1.5 h-2 w-2 rounded-full bg-amber-400" />
-      {period && <p className="text-xs font-medium text-amber-400">{period}</p>}
-      <h3 className="mt-1 font-semibold text-neutral-200">{title}</h3>
+    <div className="relative border-l-2 border-neutral-200 pl-5">
+      <div className="absolute -left-[5px] top-1.5 h-2 w-2 rounded-full bg-amber-500" />
+      {period && <p className="text-xs font-medium text-amber-600">{period}</p>}
+      <h3 className="mt-1 font-semibold text-neutral-800">{title}</h3>
       <p className="mt-0.5 text-sm text-neutral-500">{desc}</p>
     </div>
   )
@@ -305,12 +305,12 @@ function ContactCard({ icon: Icon, label, value, href }: { icon: typeof Mail; la
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4 transition-all hover:border-amber-400/40 hover:bg-amber-400/5"
+      className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 transition-all hover:border-amber-400 hover:bg-amber-50"
     >
-      <Icon className="h-5 w-5 text-amber-400" />
+      <Icon className="h-5 w-5 text-amber-600" />
       <div>
-        <p className="text-xs text-neutral-500">{label}</p>
-        <p className="text-sm font-medium text-neutral-200">{value}</p>
+        <p className="text-xs text-neutral-400">{label}</p>
+        <p className="text-sm font-medium text-neutral-800">{value}</p>
       </div>
     </a>
   )

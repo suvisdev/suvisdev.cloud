@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Resume — Suvisdev" }
 
 export default function ResumePage() {
   return (
-    <main className="min-h-screen bg-[#0d1117] px-4 py-12 md:px-8 md:py-16">
+    <main className="min-h-screen bg-white px-4 py-12 md:px-8 md:py-16">
       <ResumeContent />
     </main>
   )
