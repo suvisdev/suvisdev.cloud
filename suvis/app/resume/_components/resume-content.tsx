@@ -236,7 +236,7 @@ export function ResumeContent() {
           <div className="mt-6 space-y-6">
             <TimelineItem
               period="2026.07 — 2026.10"
-              title="SEUK 풀스택 AI 개발 과정"
+              title="풀스택 AI 개발 과정 (팀 SEUK)"
               desc="Python · FastAPI · Next.js · Flutter · AI/ML 파이프라인 구축"
             />
             <TimelineItem
