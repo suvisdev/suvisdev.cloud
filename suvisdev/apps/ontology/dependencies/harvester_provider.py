@@ -177,6 +177,20 @@ def build_crawl_schedule_use_case(
     )
 
 
+def build_ai_review_generator() -> object:
+    """AI 리뷰 생성 인터랙터 조립 — CLI에서 호출."""
+    from ontology.adapter.outbound.llm.gemini_llm_adapter import GeminiLlmAdapter
+    from ontology.adapter.outbound.repositories.ai_review_pg_adapter import AiReviewPgAdapter
+    from ontology.app.use_cases.ai_review_generator_interactor import (
+        AiReviewGeneratorInteractor,
+    )
+
+    return AiReviewGeneratorInteractor(
+        llm=GeminiLlmAdapter(),
+        writer=AiReviewPgAdapter(),
+    )
+
+
 def build_harvester_command_parser() -> HarvesterCommandParserPort:
     from ontology.adapter.outbound.llm.qwen_harvester_command_parser import (
         QwenHarvesterCommandParser,

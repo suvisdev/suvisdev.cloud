@@ -1,4 +1,4 @@
-"""스크래퍼 CLI — scripts/harvester_cli.py {scrape|interactive|sites}.
+"""스크래퍼 CLI — scripts/harvester_cli.py {scrape|interactive|sites|crawl-batch|generate-reviews}.
 
 진행 상황은 완료 시 건수·경로·소요시간으로 요약한다. search()가 제너레이터라 정확한
 "[23/50]" 실시간 카운터를 보여주려면 백그라운드 스레드로 폴링해야 하는데, 그러면
@@ -8,6 +8,7 @@ Ctrl+C가 메인 스레드에만 꽂혀 작업 스레드를 못 끊는 문제가
 
 from __future__ import annotations
 
+import asyncio
 import time
 from pathlib import Path
 
@@ -94,6 +95,44 @@ def crawl_batch() -> None:
         return
     for meta in results:
         console.print(f"[green]✔[/green] {meta.record_count}건 → {meta.path}")
+
+
+@app.command(name="generate-reviews")
+def generate_reviews(
+    data_dir: Path = typer.Option(
+        Path("apps") / "ontology" / "resources" / "crawled",
+        "--data-dir",
+        "-d",
+        help="수집된 JSONL 파일 디렉터리",
+    ),
+) -> None:
+    """수집된 JSONL 데이터를 기반으로 AI 리뷰를 생성해 reviews 테이블에 저장한다."""
+    from ontology.dependencies.harvester_provider import build_ai_review_generator
+
+    generator = build_ai_review_generator()
+
+    started = time.monotonic()
+    try:
+        with console.status("AI 리뷰 생성 중..."):
+            report = asyncio.run(generator.generate_from_directory(data_dir))
+    except KeyboardInterrupt:
+        console.print("\n[yellow]중단됨.[/yellow]")
+        raise typer.Exit(code=130) from None
+
+    elapsed = time.monotonic() - started
+    console.print(f"\n[bold]AI 리뷰 생성 리포트[/bold] ({elapsed:.1f}s)")
+    console.print(f"  수집 원재료: {report.total_materials}건")
+    console.print(f"  DB 매칭:    {report.matched_movies}건")
+    console.print(f"  생성 완료:  {report.generated_reviews}건")
+    console.print(f"  기존 스킵:  {report.skipped_existing}건")
+    console.print(f"  실패:       {report.failed}건")
+
+    for r in report.results:
+        console.print(
+            f"  [green]✔[/green] {r.movie_title} → ★{r.rating:.1f} (review_id={r.review_id})"
+        )
+    for err in report.errors:
+        console.print(f"  [red]✘[/red] {err}")
 
 
 @app.command()

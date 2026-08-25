@@ -10,7 +10,7 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
-from ontology.adapter.outbound.scraper.kowiki_scraper import KowikiScraper  # noqa: E402
+from ontology.adapter.outbound.scraper.kowiki_scraper import KowikiScraper, _movie_query  # noqa: E402
 from ontology.test.fakes.fake_crawl_schedule_collabs import FakeVisitedStore  # noqa: E402
 from ontology.test.fakes.fake_page_fetcher import FakePageFetcher  # noqa: E402
 from ontology.test.fakes.fake_rate_limiter import FakeRateLimiter  # noqa: E402
@@ -32,13 +32,30 @@ def _build_scraper() -> KowikiScraper:
     return KowikiScraper(fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore())
 
 
+def _build_odyssey_scraper() -> KowikiScraper:
+    fetcher = FakePageFetcher()
+    fetcher.add_rule(
+        "list=search",
+        (_FIXTURES / "kowiki_search_odyssey.json").read_text(encoding="utf-8"),
+    )
+    fetcher.add_rule(
+        f"page={quote('오디세이 (영화)')}",
+        (_FIXTURES / "kowiki_parse_odyssey_movie.json").read_text(encoding="utf-8"),
+    )
+    fetcher.add_rule(
+        f"page={quote('오디세이아')}",
+        (_FIXTURES / "kowiki_parse_odyssey_epic.json").read_text(encoding="utf-8"),
+    )
+    return KowikiScraper(fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore())
+
+
 class KowikiScraperTest(unittest.TestCase):
     def test_extracts_sections_and_infobox_for_movie_doc(self) -> None:
         scraper = _build_scraper()
 
         records = list(scraper.search("패터슨", limit=10))
 
-        self.assertEqual(len(records), 2)
+        self.assertEqual(len(records), 1)
         movie = records[0]
         self.assertEqual(movie.title, "패터슨 (영화)")
         self.assertIn("짐 자무시", movie.content)
@@ -52,16 +69,28 @@ class KowikiScraperTest(unittest.TestCase):
         self.assertEqual(movie.infobox["감독"], "짐 자무시")
         self.assertEqual(movie.infobox["장르"], "드라마")
 
-    def test_person_doc_without_infobox_still_produces_record(self) -> None:
+    def test_person_doc_without_infobox_is_skipped(self) -> None:
         scraper = _build_scraper()
 
         records = list(scraper.search("패터슨", limit=10))
 
-        person = records[1]
-        self.assertEqual(person.title, "짐 자무시")
-        self.assertIsNone(person.infobox)  # 영화 정보 템플릿 없음 — 후처리가 이걸로 필터링
-        self.assertIsNone(person.sections)  # "생애"/"필모그래피"는 대상 섹션 목록 밖 — 정상
-        self.assertIn("독립영화", person.content)  # lead는 문서 종류 무관하게 항상 채워짐
+        titles = [r.title for r in records]
+        self.assertNotIn("짐 자무시", titles)
+
+    def test_odyssey_filters_epic_keeps_movie(self) -> None:
+        scraper = _build_odyssey_scraper()
+
+        records = list(scraper.search("오디세이", limit=10))
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].title, "오디세이 (영화)")
+        assert records[0].infobox is not None
+        self.assertEqual(records[0].infobox["감독"], "크리스토퍼 놀란")
+        self.assertIn("줄거리", records[0].sections or {})
+
+    def test_movie_query_appends_suffix(self) -> None:
+        self.assertEqual(_movie_query("오디세이"), "오디세이 (영화)")
+        self.assertEqual(_movie_query("패터슨 (영화)"), "패터슨 (영화)")
 
     def test_serializes_without_error(self) -> None:
         import json

@@ -1,15 +1,15 @@
 """한국어 위키백과 MediaWiki API 어댑터 — ScrapeDatasetInteractor(온디맨드 CLI)가 쓰는 스크래퍼.
 
 HTML을 직접 긁지 않고 공식 API만 쓴다 (robots 이슈 원천 차단, 파싱 안정성 확보).
-검색(action=query) → 문서별 본문(action=parse, wikitext) 2단계. 영화 문서가 아니어도
-(인물 문서 등) 에러 없이 레코드를 만든다 — infobox 유무로 영화 문서 여부는 후처리가
-판별하게 필드만 채워둔다.
+검색(action=query) → 문서별 본문(action=parse, wikitext) 2단계. {{영화 정보}} infobox가
+없는 문서(인물·서사시 등)는 영화가 아니므로 스킵하고 로그를 남긴다.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -19,6 +19,8 @@ import mwparserfromhell
 
 from ontology.app.dtos.scrape_dto import ScrapedRecord
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
+
+logger = logging.getLogger(__name__)
 
 _SEARCH_URL = (
     "https://ko.wikipedia.org/w/api.php"
@@ -68,13 +70,25 @@ def _extract_sections(code: mwparserfromhell.wikicode.Wikicode) -> tuple[str, di
     return lead, sections
 
 
+def _movie_query(keyword: str) -> str:
+    """검색 정밀도를 높이기 위해 "(영화)" 접미사를 붙인다.
+
+    "오디세이"처럼 동음이의 문서가 많은 키워드에서 서사시·인물 대신
+    영화 문서를 상위로 올리는 효과가 있다.
+    """
+    if "(영화)" in keyword:
+        return keyword
+    return f"{keyword} (영화)"
+
+
 class KowikiScraper(SiteScraperPort):
     site_id = "kowiki"
     user_agent = "SUVIS-harvester/0.1 (personal project; contact via github)"
 
     def search(self, keyword: str, limit: int) -> Iterator[ScrapedRecord]:
+        query = _movie_query(keyword)
         self._rate_limiter.acquire(_RATE_DOMAIN)
-        search_url = _SEARCH_URL.format(query=quote(keyword), limit=limit)
+        search_url = _SEARCH_URL.format(query=quote(query), limit=limit)
         search_payload = json.loads(self._fetcher.fetch(search_url))
         titles = [item["title"] for item in search_payload.get("query", {}).get("search", [])]
 
@@ -90,8 +104,16 @@ class KowikiScraper(SiteScraperPort):
             wikitext = _strip_refs(parse_payload["parse"]["wikitext"]["*"])
             code = mwparserfromhell.parse(wikitext)
 
-            lead, sections = _extract_sections(code)
             infobox = _extract_infobox(code)
+            if infobox is None:
+                logger.info(
+                    "[KowikiScraper] 영화 infobox 없음, 스킵 | keyword=%s title=%s",
+                    keyword,
+                    title,
+                )
+                continue
+
+            lead, sections = _extract_sections(code)
 
             yield ScrapedRecord(
                 source=self.site_id,
