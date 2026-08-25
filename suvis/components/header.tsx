@@ -38,8 +38,11 @@ export function Header() {
             Apps
           </Link>
           <a href="https://jk.suvisdev.cloud" className={navLinkClass} target="_blank" rel="noopener noreferrer">
-            Docs
+            Blog
           </a>
+          <Link href="/resume" className={navLinkClass}>
+            Resume
+          </Link>
           <Link href="/contact#contact" className={navLinkClass}>
             Contact
           </Link>
@@ -50,7 +53,7 @@ export function Header() {
             Apps
           </Link>
           <a href="https://jk.suvisdev.cloud" className={`${navLinkClass} md:hidden`} target="_blank" rel="noopener noreferrer">
-            Docs
+            Blog
           </a>
           {isAdmin && (
             <>
