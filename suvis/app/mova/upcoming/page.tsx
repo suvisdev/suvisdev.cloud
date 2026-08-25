@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { CalendarClock } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
@@ -60,31 +61,33 @@ export default async function MovaUpcomingPage() {
               </h2>
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 md:gap-4">
                 {g.items.map((m) => (
-                  <li
-                    key={m.tmdb_id}
-                    className="overflow-hidden rounded-lg border border-mova-border bg-mova-surface"
-                  >
-                    <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
-                      <MovaRankingPoster
-                        src={m.poster_url}
-                        alt={m.title}
-                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
-                        className="object-cover"
-                      />
-                      {m.release_date && (
-                        <span className="absolute right-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white tabular-nums">
-                          {formatDay(m.release_date)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="space-y-1 p-2.5">
-                      <p className="line-clamp-2 text-sm font-medium text-mova-text">{m.title}</p>
-                      {m.genres.length > 0 && (
-                        <p className="truncate text-[11px] text-neutral-500">
-                          {m.genres.join(" · ")}
-                        </p>
-                      )}
-                    </div>
+                  <li key={m.tmdb_id}>
+                    <Link
+                      href={`/mova/title/tmdb-${m.tmdb_id}`}
+                      className="group block overflow-hidden rounded-lg border border-mova-border bg-mova-surface transition-colors hover:border-mova-accent/40"
+                    >
+                      <div className="relative aspect-[2/3] w-full overflow-hidden bg-neutral-900">
+                        <MovaRankingPoster
+                          src={m.poster_url}
+                          alt={m.title}
+                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                          className="object-cover transition-transform group-hover:scale-105"
+                        />
+                        {m.release_date && (
+                          <span className="absolute right-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white tabular-nums">
+                            {formatDay(m.release_date)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-1 p-2.5">
+                        <p className="line-clamp-2 text-sm font-medium text-mova-text group-hover:text-mova-accent">{m.title}</p>
+                        {m.genres.length > 0 && (
+                          <p className="truncate text-[11px] text-neutral-500">
+                            {m.genres.join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>

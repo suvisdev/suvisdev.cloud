@@ -149,7 +149,7 @@ function Podium({ top3 }: { top3: RankingItem[] }) {
     { item: third, rank: 3 },
   ]
   return (
-    <section className="mb-6 rounded-2xl border border-mova-border bg-gradient-to-b from-amber-500/10 via-mova-surface to-transparent p-4 md:p-6">
+    <section className="mb-6 rounded-2xl border border-mova-border bg-gradient-to-b from-amber-500/10 via-mova-surface to-transparent p-5 md:p-8">
       <div className="grid grid-cols-3 items-end gap-3 md:gap-6">
         {slots.map(({ item, rank }) =>
           item ? (
@@ -174,21 +174,21 @@ function PodiumCard({ item, rank }: { item: RankingItem; rank: 1 | 2 | 3 }) {
       badgeColor: "bg-amber-400 text-black",
       ringColor: "ring-amber-400/70",
       posterWidth: "w-full",
-      icon: <Crown className="h-5 w-5 md:h-6 md:w-6" />,
+      icon: <Crown className="h-6 w-6 md:h-7 md:w-7" />,
       label: "1위",
     },
     2: {
       badgeColor: "bg-neutral-300 text-black",
       ringColor: "ring-neutral-300/60",
-      posterWidth: "w-[78%] md:w-[82%]",
-      icon: <Medal className="h-4 w-4 md:h-5 md:w-5" />,
+      posterWidth: "w-[88%] md:w-[90%]",
+      icon: <Medal className="h-5 w-5 md:h-6 md:w-6" />,
       label: "2위",
     },
     3: {
       badgeColor: "bg-amber-700 text-white",
       ringColor: "ring-amber-700/60",
-      posterWidth: "w-[78%] md:w-[82%]",
-      icon: <Medal className="h-4 w-4 md:h-5 md:w-5" />,
+      posterWidth: "w-[88%] md:w-[90%]",
+      icon: <Medal className="h-5 w-5 md:h-6 md:w-6" />,
       label: "3위",
     },
   }
@@ -200,7 +200,7 @@ function PodiumCard({ item, rank }: { item: RankingItem; rank: 1 | 2 | 3 }) {
     >
       <span
         className={cn(
-          "mb-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow md:text-xs",
+          "mb-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold shadow md:text-sm",
           m.badgeColor,
         )}
       >
@@ -218,10 +218,10 @@ function PodiumCard({ item, rank }: { item: RankingItem; rank: 1 | 2 | 3 }) {
           <Image src={item.poster} alt={item.title} fill className="object-cover" sizes="(max-width: 768px) 33vw, 260px" />
         ) : null}
       </div>
-      <p className="mt-2 line-clamp-2 text-center text-xs font-semibold text-mova-text group-hover:text-mova-accent md:text-sm">
+      <p className="mt-2 line-clamp-2 text-center text-sm font-semibold text-mova-text group-hover:text-mova-accent md:text-base">
         {item.title}
       </p>
-      <p className="text-[10px] text-mova-muted">
+      <p className="text-xs text-mova-muted">
         {item.year} · ★ {item.rating.toFixed(1)}
       </p>
     </Link>

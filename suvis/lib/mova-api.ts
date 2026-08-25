@@ -139,6 +139,44 @@ export async function fetchUpcoming(page = 1): Promise<UpcomingMovie[]> {
   return data.items ?? []
 }
 
+/** TMDB 개봉 예정 영화 상세 — 트레일러·출연진 포함. */
+export async function fetchUpcomingDetail(tmdbId: number): Promise<MovaMovie | null> {
+  const url =
+    typeof window !== "undefined"
+      ? `/api/mova/upcoming/${tmdbId}`
+      : `${API_BASE}/mova/upcoming/${tmdbId}`
+  const res = await fetch(url, { next: { revalidate: 1800 } })
+  if (!res.ok) return null
+  const row = (await res.json()) as MovieDetailApiRow & { release_date?: string }
+  const poster = coercePosterUrl(row.poster_url) ?? POSTER_PLACEHOLDER
+  return {
+    movieDbId: row.id,
+    id: row.slug,
+    title: row.title,
+    year: String(row.release_year || ""),
+    genres: row.genres ?? [],
+    country: "",
+    ageRating: row.age_rating ?? "",
+    platform: undefined,
+    platforms: row.platforms,
+    trailerKey: row.trailer_key,
+    poster,
+    backdrop: poster,
+    rating: row.rating,
+    ratingCount: 0,
+    rank: 0,
+    synopsis: row.synopsis ?? "",
+    ratingDistribution: Array(10).fill(0),
+    cast: row.actors.map((a) => ({
+      name: a.name,
+      role: a.role_type === "director" ? "감독" : (a.character_name ?? ""),
+      photo: coercePosterUrl(a.profile_photo_url) ?? "",
+    })),
+    gallery: [],
+    comments: [],
+  }
+}
+
 export async function fetchMovaSearch(query: string): Promise<MovaSearchResult[]> {
   const q = query.trim()
   if (!q) return []

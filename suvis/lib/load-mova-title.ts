@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { fetchMovaTitle } from "@/lib/mova-api"
+import { fetchMovaTitle, fetchUpcomingDetail } from "@/lib/mova-api"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { findMovaMovie, type MovaMovie } from "@/lib/mova-movies"
 
@@ -34,6 +34,18 @@ export async function loadMovaTitle(rawSlug: string): Promise<MovaMovie | null> 
       comments: staticMovie.comments,
     }
   }
+
+  if (!apiMovie) {
+    const tmdbMatch = id.match(/^tmdb-(\d+)$/)
+    if (tmdbMatch) {
+      try {
+        apiMovie = await fetchUpcomingDetail(Number(tmdbMatch[1]))
+      } catch {
+        apiMovie = null
+      }
+    }
+  }
+
   return apiMovie ?? staticMovie ?? null
 }
 

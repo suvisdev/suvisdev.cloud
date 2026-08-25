@@ -14,8 +14,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from mova.adapter.inbound.api.schemas.upcoming_schema import (
+    UpcomingActorSchema,
+    UpcomingDetailSchema,
     UpcomingListSchema,
     UpcomingMovieSchema,
+    UpcomingPlatformSchema,
 )
 from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapterError
 from mova.adapter.outbound.http.tmdb_catalog_adapter import TmdbCatalogAdapter
@@ -57,3 +60,67 @@ async def list_upcoming(
     # 개봉일 오름차순(=먼저 개봉하는 것부터). 빈 문자열(=미정)은 뒤로.
     items.sort(key=lambda m: (m.release_date == "", m.release_date))
     return UpcomingListSchema(region="KR", items=items)
+
+
+@upcoming_router.get("/{tmdb_id}", response_model=UpcomingDetailSchema)
+async def get_upcoming_detail(
+    tmdb_id: int,
+    catalog: TmdbCatalogAdapter = Depends(_get_catalog),
+) -> UpcomingDetailSchema:
+    """TMDB 영화 상세 — DB에 없는 개봉 예정작도 트레일러·출연진을 볼 수 있게 한다."""
+    from mova.adapter.outbound.http.tmdb_mapper import (
+        build_image_url,
+        map_tmdb_row,
+        tmdb_slug,
+    )
+
+    try:
+        row = await catalog._client.fetch_movie_detail(tmdb_id)
+    except TmdbAdapterError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    genre_map = await catalog._genres()
+    poster = catalog._client.poster_url(str(row.get("poster_path") or ""))
+    mapped = map_tmdb_row(row, genre_map=genre_map, poster_url=poster)
+    if mapped is None:
+        raise HTTPException(status_code=404, detail="TMDB에서 영화를 찾을 수 없습니다")
+
+    actors: list[UpcomingActorSchema] = []
+    credits = row.get("credits") or {}
+    for d in credits.get("crew") or []:
+        if d.get("job") == "Director" and d.get("name"):
+            actors.append(UpcomingActorSchema(
+                name=d["name"],
+                role_type="director",
+                profile_photo_url=build_image_url(d.get("profile_path")),
+            ))
+    for c in (credits.get("cast") or [])[:10]:
+        if c.get("name"):
+            actors.append(UpcomingActorSchema(
+                name=c["name"],
+                role_type="actor",
+                profile_photo_url=build_image_url(c.get("profile_path")),
+                character_name=str(c.get("character") or "") or None,
+            ))
+
+    platforms = [
+        UpcomingPlatformSchema(provider=str(p.get("provider", "")), url=p.get("url"))
+        for p in mapped.platforms
+        if p.get("provider")
+    ]
+
+    return UpcomingDetailSchema(
+        id=mapped.tmdb_id,
+        slug=tmdb_slug(mapped.tmdb_id),
+        title=mapped.title,
+        release_year=mapped.release_year,
+        rating=mapped.rating,
+        poster_url=mapped.poster_url,
+        platforms=platforms,
+        age_rating=mapped.age_rating,
+        genres=list(mapped.genres),
+        synopsis=mapped.overview or None,
+        trailer_key=mapped.trailer_key,
+        actors=actors,
+        release_date=str(row.get("release_date") or ""),
+    )
