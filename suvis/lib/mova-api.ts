@@ -878,3 +878,48 @@ export async function fetchMovaActor(actorId: number): Promise<MovaActorDetail |
     return null
   }
 }
+
+// ── 리뷰 댓글 ────────────────────────────────────────────────────────────────
+
+export type MovaReviewComment = {
+  id: number
+  review_id: number
+  user_id: number
+  nickname: string
+  body: string
+  created_at: string
+}
+
+export async function fetchReviewComments(reviewId: number): Promise<MovaReviewComment[]> {
+  const res = await fetch(reviewsFetchUrl(`/${reviewId}/comments`), { cache: "no-store" })
+  if (!res.ok) return []
+  return (await res.json()) as MovaReviewComment[]
+}
+
+export async function addReviewComment(reviewId: number, body: string): Promise<MovaReviewComment> {
+  const res = await fetch(reviewsFetchUrl(`/${reviewId}/comments`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+    body: JSON.stringify({ body }),
+  })
+  const data = (await res.json()) as MovaReviewComment & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(safeApiErrorMessage(data.detail, `댓글 등록 실패 (${res.status})`, res.status))
+  }
+  return data
+}
+
+export async function deleteReviewComment(commentId: number): Promise<void> {
+  const res = await fetch(reviewsFetchUrl(`/comments/${commentId}`), {
+    method: "DELETE",
+    headers: { ...authHeader() },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const detail =
+      typeof data === "object" && data && "detail" in data
+        ? (data as { detail: unknown }).detail
+        : undefined
+    throw new Error(safeApiErrorMessage(detail, `댓글 삭제 실패 (${res.status})`, res.status))
+  }
+}

@@ -12,7 +12,8 @@ export function RankingsRefreshButton({ source }: { source: string }) {
   async function handleRefresh() {
     setLoading(true)
     try {
-      await refreshMovaRankings(source)
+      // 백엔드 재집계는 chat_trend만 지원 — 다른 source는 스냅샷만 다시 읽는다.
+      if (source === "chat_trend") await refreshMovaRankings(source)
       router.refresh() // 서버 컴포넌트 재실행 → 최신 스냅샷 로드
     } catch {
       // 실패 시 조용히 무시 — 기존 데이터 유지

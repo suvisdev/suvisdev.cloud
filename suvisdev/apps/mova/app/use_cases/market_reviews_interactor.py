@@ -5,6 +5,7 @@ from __future__ import annotations
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
     ReviewActivityDto,
+    ReviewCommentDto,
     ReviewDto,
     ReviewWithUserDto,
 )
@@ -58,3 +59,17 @@ class ReviewsInteractor(ReviewsUseCase):
 
     async def delete_review(self, review_id: int) -> bool:
         return await self._repository.delete_review(review_id)
+
+    async def add_comment(self, review_id: int, user_id: int, body: str) -> ReviewCommentDto:
+        text = (body or "").strip()
+        if not text:
+            raise ReviewValidationError("댓글 내용을 입력해 주세요.")
+        if len(text) > 500:
+            raise ReviewValidationError("댓글은 500자 이내로 작성해 주세요.")
+        return await self._repository.add_comment(review_id, user_id, text)
+
+    async def get_comments(self, review_id: int) -> list[ReviewCommentDto]:
+        return await self._repository.get_comments_by_review(review_id)
+
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        return await self._repository.delete_comment(comment_id, user_id)

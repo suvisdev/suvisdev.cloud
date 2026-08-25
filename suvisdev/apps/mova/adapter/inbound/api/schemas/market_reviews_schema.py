@@ -79,6 +79,19 @@ class ReviewWithUserSchema(BaseModel):
     spoiler_spans: list[SpoilerSpanSchema] = Field(default_factory=list)
 
 
+class ReviewCommentCreateSchema(BaseModel):
+    body: str
+
+
+class ReviewCommentSchema(BaseModel):
+    id: int
+    review_id: int
+    user_id: int
+    nickname: str
+    body: str
+    created_at: datetime
+
+
 class MovieRatingSummarySchema(BaseModel):
     movie_id: int
     average_rating: float

@@ -7,6 +7,7 @@ import logging
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mova.adapter.outbound.orm.market_review_comments_orm import MovaReviewComment
 from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
 from mova.adapter.outbound.orm.market_user_actions_orm import (
     ACTION_WATCHED,
@@ -17,6 +18,7 @@ from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
     ReviewActivityDto,
+    ReviewCommentDto,
     ReviewDto,
     ReviewWithUserDto,
 )
@@ -214,6 +216,59 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         await self._session.delete(row)
         await self._session.commit()
         await self._update_movie_rating(movie_id)
+        return True
+
+    async def add_comment(self, review_id: int, user_id: int, body: str) -> ReviewCommentDto:
+        row = MovaReviewComment(review_id=review_id, user_id=user_id, body=body)
+        self._session.add(row)
+        await self._session.commit()
+        await self._session.refresh(row)
+        nickname = (
+            await self._session.execute(select(User.nickname).where(User.id == user_id))
+        ).scalar_one_or_none()
+        return ReviewCommentDto(
+            id=row.id,
+            review_id=row.review_id,
+            user_id=row.user_id,
+            nickname=nickname or "",
+            body=row.body,
+            created_at=row.created_at,
+        )
+
+    async def get_comments_by_review(self, review_id: int) -> list[ReviewCommentDto]:
+        rows = (
+            await self._session.execute(
+                select(MovaReviewComment, User.nickname)
+                .join(User, MovaReviewComment.user_id == User.id)
+                .where(MovaReviewComment.review_id == review_id)
+                .order_by(MovaReviewComment.created_at.asc())
+            )
+        ).all()
+        return [
+            ReviewCommentDto(
+                id=c.id,
+                review_id=c.review_id,
+                user_id=c.user_id,
+                nickname=nickname or "",
+                body=c.body,
+                created_at=c.created_at,
+            )
+            for c, nickname in rows
+        ]
+
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        row = (
+            await self._session.execute(
+                select(MovaReviewComment).where(
+                    MovaReviewComment.id == comment_id,
+                    MovaReviewComment.user_id == user_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return False
+        await self._session.delete(row)
+        await self._session.commit()
         return True
 
     async def get_body_for_embedding(self, review_id: int) -> str | None:

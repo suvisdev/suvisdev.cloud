@@ -65,6 +65,14 @@
   랭킹 포디움 빈 슬롯 placeholder, 채팅 로딩 영상 비율, 닉네임 깜빡임
   (모듈 캐시), 랜딩·채팅 헤더 검색 placeholder 통일,
   window.confirm/alert 전부 Mova 스타일 다이얼로그로 교체.
+- **리뷰 댓글 + 리뷰 수정 진입 + 에디터 리뷰**: ① `review_comments` 테이블
+  신규(1단 댓글, 로그인 작성, 본인만 삭제) — 헥사고날 전체 스택(ORM/스키마/
+  DTO/포트/인터랙터/라우터) + 프록시 + 접힘식 댓글 스레드 UI.
+  ② 본인 리뷰 카드에 "수정" 버튼 → 기존 수정 폼으로 스크롤.
+  ③ `generate_editor_reviews.py` 신규 — 구글뉴스 RSS(제목+요약만) + Gemini로
+  "Mova 에디터" 시스템 계정 리뷰 생성 배치(영화당 1건, 재실행 안전).
+  랜딩 자체 헤더를 공통 MovaHeader로 통일. 다이얼로그 포털 투명 배경 수정
+  (.mova-app 스코프). 새로고침 버튼 양 탭 통일.
 
 ### 수정/구현
 - EC2 `suvisdev/.env`: `RECOMMENDATION_BACKEND=gemini` → `lora` 변경 후

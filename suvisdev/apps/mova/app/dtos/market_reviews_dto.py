@@ -77,6 +77,28 @@ class ReviewWithUserDto:
 
 
 @dataclass(frozen=True)
+class ReviewCommentDto:
+    id: int
+    review_id: int
+    user_id: int
+    nickname: str
+    body: str
+    created_at: datetime
+
+    def to_schema(self) -> object:
+        from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewCommentSchema
+
+        return ReviewCommentSchema(
+            id=self.id,
+            review_id=self.review_id,
+            user_id=self.user_id,
+            nickname=self.nickname,
+            body=self.body,
+            created_at=self.created_at,
+        )
+
+
+@dataclass(frozen=True)
 class MovieRatingSummaryDto:
     movie_id: int
     average_rating: float

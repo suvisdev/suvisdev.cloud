@@ -5,6 +5,7 @@ import Image from "next/image"
 import { useEffect, useState } from "react"
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp } from "lucide-react"
 import { MovaActorDialog } from "@/components/mova/title/mova-actor-dialog"
+import { MovaReviewComments } from "@/components/mova/title/mova-review-comments"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaOttBadge } from "@/components/mova/mova-ott-badge"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
@@ -428,9 +429,19 @@ export function MovaTitleView({
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium text-mova-text">{comment.user}</p>
-                        {comment.rating > 0 ? (
-                          <RatingStars rating={comment.rating} className="text-xs" />
-                        ) : null}
+                        <span className="flex items-center gap-2">
+                          {myReview && String(myReview.id) === comment.id ? (
+                            <a
+                              href="#review-form"
+                              className="text-xs text-mova-muted transition-colors hover:text-mova-accent-bright"
+                            >
+                              수정
+                            </a>
+                          ) : null}
+                          {comment.rating > 0 ? (
+                            <RatingStars rating={comment.rating} className="text-xs" />
+                          ) : null}
+                        </span>
                       </div>
                       {comment.text ? (
                         <p className="mt-2 text-sm leading-relaxed text-neutral-300">
@@ -440,15 +451,18 @@ export function MovaTitleView({
                       <p className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-500">
                         <ThumbsUp className="h-3 w-3" />
                         {comment.likes}
-                        {comment.commentCount > 0 ? ` · 댓글 ${comment.commentCount}` : ""}
                       </p>
+                      <MovaReviewComments reviewId={Number(comment.id)} session={session} />
                     </li>
                   ))}
                 </ul>
               )}
             </div>
 
-            <aside className="h-fit rounded-xl border border-mova-border bg-mova-surface p-4 md:p-5">
+            <aside
+              id="review-form"
+              className="h-fit scroll-mt-20 rounded-xl border border-mova-border bg-mova-surface p-4 md:p-5"
+            >
               <h2 className="text-base font-semibold text-mova-text">리뷰 남기기</h2>
               {!canSubmitReview ? (
                 <p className="mt-3 text-xs text-neutral-500">

@@ -6,6 +6,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from mova.adapter.inbound.api.schemas.market_reviews_schema import (
+    ReviewCommentCreateSchema,
+    ReviewCommentSchema,
     MovieRatingSummarySchema,
     ReviewActivityCreateSchema,
     ReviewActivitySchema,
@@ -196,3 +198,48 @@ async def delete_review(
         raise HTTPException(status_code=403, detail="본인 리뷰만 삭제할 수 있습니다.")
     await use_case.delete_review(review_id)
     return {"status": "deleted"}
+
+@market_reviews_router.get(
+    "/{review_id}/comments", response_model=list[ReviewCommentSchema]
+)
+async def get_review_comments(
+    review_id: int,
+    use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+) -> list[ReviewCommentSchema]:
+    """리뷰 댓글 목록(작성순) — 공개."""
+    dtos = await use_case.get_comments(review_id)
+    return [d.to_schema() for d in dtos]
+
+
+@market_reviews_router.post(
+    "/{review_id}/comments", response_model=ReviewCommentSchema, status_code=201
+)
+async def add_review_comment(
+    review_id: int,
+    body: ReviewCommentCreateSchema,
+    principal: UserPrincipal = Depends(require_user),
+    use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+) -> ReviewCommentSchema:
+    """리뷰 댓글 작성 — 로그인 필수, 신원은 토큰에서만."""
+    existing = await use_case.get_by_id(review_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
+    try:
+        dto = await use_case.add_comment(review_id, principal.user_id, body.body)
+    except ReviewValidationError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
+    return dto.to_schema()
+
+
+@market_reviews_router.delete("/comments/{comment_id}", status_code=200)
+async def delete_review_comment(
+    comment_id: int,
+    principal: UserPrincipal = Depends(require_user),
+    use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+) -> dict[str, str]:
+    """본인 댓글 삭제 — 소유권을 쿼리에 함께 걸어 없는 것/남의 것을 구분하지 않는다."""
+    ok = await use_case.delete_comment(comment_id, principal.user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
+    return {"status": "deleted"}
+

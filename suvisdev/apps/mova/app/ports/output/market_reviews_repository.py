@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
     ReviewActivityDto,
+    ReviewCommentDto,
     ReviewDto,
     ReviewWithUserDto,
 )
@@ -59,6 +60,19 @@ class ReviewsRepositoryPort(ABC):
     @abstractmethod
     async def delete_review(self, review_id: int) -> bool:
         """리뷰 삭제. 존재하지 않으면 False."""
+
+    @abstractmethod
+    async def add_comment(self, review_id: int, user_id: int, body: str) -> "ReviewCommentDto":
+        """리뷰 댓글 작성."""
+
+    @abstractmethod
+    async def get_comments_by_review(self, review_id: int) -> list["ReviewCommentDto"]:
+        """리뷰 댓글 목록(작성순)."""
+
+    @abstractmethod
+    async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        """본인 댓글 삭제 — WHERE id AND user_id로 소유권을 쿼리에 함께 건다.
+        없는 것과 남의 것을 구분해 알려주지 않는다(존재 캐내기 방지)."""
 
     @abstractmethod
     async def get_body_for_embedding(self, review_id: int) -> str | None:
