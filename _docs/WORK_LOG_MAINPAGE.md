@@ -45,7 +45,8 @@
 - `suvis/app/resume/page.tsx`: 신규 Resume 페이지 래퍼
 - `suvis/app/resume/_components/resume-content.tsx`: 신규 — 좌측 사이드바 네비 + 우측 콘텐츠 5섹션
   (About·Projects·Tech Stack·Education·Contact), IntersectionObserver 스크롤 스파이,
-  악센트 색상 골드/앰버(amber-400)로 결정
+  악센트 색상 골드/앰버(amber-600), 다크→화이트 배경 라이트 모드 전환,
+  이름 "진수택" 반영, Contact에 전화번호(마스킹) 추가
 - `suvis/app/mova/rankings/page.tsx`: TABS 순서 + resolveSource 기본값 변경
 - `suvisjk/_config.yml`: `port: 4000`, `url: https://jk.suvisdev.cloud`
 - `demo.suvisdev.cloud/_config.yml`: `port: 4001`

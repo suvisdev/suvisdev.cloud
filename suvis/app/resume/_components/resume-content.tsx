@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { User, FolderKanban, Layers, GraduationCap, Mail, Github, Globe } from "lucide-react"
+import { User, FolderKanban, Layers, GraduationCap, Mail, Github, Globe, Phone } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
@@ -102,7 +102,7 @@ export function ResumeContent() {
         <div className="sticky top-20 space-y-8">
           <div>
             <h1 className="text-4xl font-black tracking-tight text-neutral-900">
-              Your Name
+              진수택
             </h1>
             <p className="mt-2 text-sm font-semibold uppercase tracking-[0.25em] text-amber-600">
               Full-Stack Developer
@@ -149,7 +149,7 @@ export function ResumeContent() {
 
       {/* MOBILE HEADER */}
       <div className="mb-6 w-full border-b border-neutral-200 pb-6 md:hidden">
-        <h1 className="text-3xl font-black tracking-tight text-neutral-900">Your Name</h1>
+        <h1 className="text-3xl font-black tracking-tight text-neutral-900">진수택</h1>
         <p className="mt-1 text-sm font-semibold uppercase tracking-[0.25em] text-amber-600">
           Full-Stack Developer
         </p>
@@ -251,6 +251,7 @@ export function ResumeContent() {
         <section id="contact" ref={(el) => { sectionRefs.current.contact = el }}>
           <SectionHeader num="05" title="Contact" />
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <ContactCard icon={Phone} label="Phone" value="010-****-****" href="tel:010-0000-0000" />
             <ContactCard icon={Mail} label="Email" value="ssuvisdev@gmail.com" href="mailto:ssuvisdev@gmail.com" />
             <ContactCard icon={Github} label="GitHub" value="suvisdev" href="https://github.com/suvisdev" />
             <ContactCard icon={Globe} label="Portfolio" value="suvisdev.cloud" href="https://suvisdev.cloud" />
