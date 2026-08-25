@@ -38,10 +38,14 @@
 - 메인 사이트 헤더 네비게이션 개편: About·Devlog 제거 → Apps·Blog·Resume·Contact 4개로 재구성.
   Blog는 `jk.suvisdev.cloud` 외부 링크, Resume는 플레이스홀더 페이지(`/resume`).
 - Mova 랭킹 페이지: 탭 순서 변경(박스오피스 먼저) + 기본값을 box_office로 변경.
+- Jekyll devlog 페이지: 전체/Mova/Gildle/인프라·보안 탭 필터링 UI + WORK_LOG 기반 포스트 8건 추가.
 
 ### 수정/구현
 - `suvis/components/header.tsx`: 네비게이션 About·Devlog → Blog(jk.suvisdev.cloud)·Resume 변경
-- `suvis/app/resume/page.tsx`: 신규 — "준비 중" 플레이스홀더 페이지
+- `suvis/app/resume/page.tsx`: 신규 Resume 페이지 래퍼
+- `suvis/app/resume/_components/resume-content.tsx`: 신규 — 좌측 사이드바 네비 + 우측 콘텐츠 5섹션
+  (About·Projects·Tech Stack·Education·Contact), IntersectionObserver 스크롤 스파이,
+  악센트 색상 골드/앰버(amber-400)로 결정
 - `suvis/app/mova/rankings/page.tsx`: TABS 순서 + resolveSource 기본값 변경
 - `suvisjk/_config.yml`: `port: 4000`, `url: https://jk.suvisdev.cloud`
 - `demo.suvisdev.cloud/_config.yml`: `port: 4001`

@@ -11,7 +11,8 @@
 
 - **Jekyll GitHub Pages 배포 + 메인 About 링크 변경 + Mova 랭킹 기본값 (2026-08-25)** —
   suvisjk → `suvisdev/suvisjk` 레포 분리, GitHub Actions Jekyll 빌드,
-  `jk.suvisdev.cloud` 커스텀 도메인. 헤더 About → Jekyll 외부 링크.
+  `jk.suvisdev.cloud` 커스텀 도메인. 헤더 Apps·Blog·Resume·Contact 4탭 구성.
+  Resume 페이지 신규(사이드바+5섹션, amber-400 악센트). devlog 탭 필터링 + 포스트 8건.
   Mova 랭킹 탭 박스오피스 우선. 상세: WORK_LOG_MAINPAGE 2026-08-25.
 - **Gildle 서울 전역 확장 + OSM 나무/공원 점수 통합 + 줌 간소화 (2026-08-25)** —
   ① 보행 그래프 영등포구(1,616) → 서울 전체(233,964 edges) 확장.
