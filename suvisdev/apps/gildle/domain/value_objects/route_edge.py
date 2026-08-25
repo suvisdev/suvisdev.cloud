@@ -18,6 +18,8 @@ class RouteEdge:
     base_distance_m: float
     midpoint: Coordinate
     road_name: str | None
+    from_coord: Coordinate | None = None
+    to_coord: Coordinate | None = None
     tree_score: float = 0.0
     hazard_score: float = 0.0
     dog_friendly_score: float = 0.0

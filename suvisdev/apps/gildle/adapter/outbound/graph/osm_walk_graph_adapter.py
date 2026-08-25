@@ -86,6 +86,8 @@ class OsmWalkGraphAdapter(WalkGraphPort):
                     base_distance_m=length,
                     midpoint=mid,
                     road_name=road_name,
+                    from_coord=Coordinate(latitude=u_lat, longitude=u_lng),
+                    to_coord=Coordinate(latitude=v_lat, longitude=v_lng),
                 )
             )
         return edges

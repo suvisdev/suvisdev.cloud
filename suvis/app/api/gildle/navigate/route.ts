@@ -1,12 +1,14 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = request.nextUrl
-    const qs = searchParams.toString()
-    const path = qs ? `/api/gildle/graph-edges?${qs}` : "/api/gildle/graph-edges"
-    const res = await backendFetch(path)
+    const body = await request.json()
+    const res = await backendFetch("/api/gildle/navigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
     if (!res.ok) {
       return NextResponse.json(
         { error: `Backend ${res.status}` },

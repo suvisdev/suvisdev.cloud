@@ -73,9 +73,13 @@ export default function GildlePage() {
               <MapPin className="h-4 w-4" strokeWidth={1.8} />
               보행 그래프 지도 보기
             </Link>
-            <span className="inline-flex items-center gap-2 rounded-full border border-gildle-border bg-gildle-surface/60 px-5 py-2.5 text-sm text-gildle-muted">
-              경로 추천 — Coming Soon
-            </span>
+            <Link
+              href="/gildle/map"
+              className="inline-flex items-center gap-2 rounded-full border border-gildle-border bg-gildle-surface/60 px-5 py-2.5 text-sm text-gildle-muted transition-colors hover:border-gildle-accent/30 hover:bg-gildle-accent-soft hover:text-gildle-accent"
+            >
+              <Route className="h-4 w-4" strokeWidth={1.8} />
+              경로 추천
+            </Link>
           </div>
         </section>
 

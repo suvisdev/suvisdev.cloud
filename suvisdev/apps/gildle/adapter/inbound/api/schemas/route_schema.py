@@ -34,6 +34,14 @@ class RouteRequestSchema(BaseModel):
         return start, end, SeasonMode.from_value(self.mode)
 
 
+class NavigateRequestSchema(BaseModel):
+    """노드 ID 기반 경로 탐색 요청."""
+
+    start_node: str = Field(..., description="출발 노드 ID")
+    end_node: str = Field(..., description="도착 노드 ID")
+    mode: str = Field("spring_autumn", description="spring_autumn | winter_safety")
+
+
 class RouteResponseSchema(BaseModel):
     """경로 계산 응답 — 노드 id 경로."""
 

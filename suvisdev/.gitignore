@@ -118,6 +118,11 @@ Desktop.ini
 # --- 중첩 저장소 메타 (실수로 상위에 포함 방지) ---
 **/.git/
 
+# --- Gildle 대용량 데이터 ---
+apps/gildle/data/scored_edges.json
+apps/gildle/data/graph_cache/
+
 # --- 기타 로컬 전용 ---
 *.local
 .cache/
+cache/

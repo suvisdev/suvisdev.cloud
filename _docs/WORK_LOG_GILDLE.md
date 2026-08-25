@@ -28,6 +28,61 @@
 
 ---
 
+## 2026-08-25
+
+### 작업 내용
+- Gildle 서울 전역 확장: 영등포구(1,616 edges) → 서울 전체(233,964 edges)
+  보행 그래프 확장 완료.
+- OSM 나무/공원 데이터 통합: Overpass API로 서울 전역 나무(6,851개)·
+  공원(3,053개) 데이터를 수집하고, 격자 인덱스 기반 근접 매칭으로
+  tree_score·dog_friendly_score 재산정.
+- 줌 레벨별 서버 사이드 간소화: 줌 12~14에서 격자 기반 샘플링으로
+  렌더링 성능 최적화. 점수 높은 엣지는 샘플링에서 보존.
+- 지도 UX 폴리싱: 점→선 시각화, 장소 검색(Nominatim), 뷰포트 기반
+  동적 로딩, 모바일 레이아웃, 경로 상세 정보(결빙 주의/그늘 양호 구간).
+
+### 수정/구현
+- **`suvisdev/apps/gildle/adapter/inbound/api/v1/route_router.py`**:
+  `zoom` Query 파라미터 추가, `_decimate_by_grid()` 격자 샘플링 함수 신규.
+  `_get_scored_edges_raw()` mtime 캐시 + bbox 필터 + zoom 간소화 파이프라인.
+- **`suvis/app/gildle/map/_components/gildle-map.tsx`**:
+  CircleMarker→Polyline 전환, PlaceSearch(Nominatim) 컴포넌트,
+  ViewportLoader(bbox+zoom 전송, AbortController), zoomend 이벤트 감지,
+  경로 요약(거리/시간/점수) + 상세(경유 도로/결빙 주의/그늘 양호).
+  YEOUIDO_CENTER→SEOUL_CENTER, 초기 줌 15→12.
+- **`suvis/app/api/gildle/graph-edges/route.ts`**: bbox+zoom 쿼리 파라미터 포워딩.
+- **`suvisdev/apps/gildle/domain/value_objects/route_edge.py`**:
+  `from_coord`, `to_coord` 필드 추가.
+- **`suvisdev/apps/gildle/adapter/outbound/graph/osm_walk_graph_adapter.py`**:
+  `_graph_to_edges()`에서 from_coord/to_coord 전달.
+- **`suvisdev/apps/gildle/scripts/compute_edge_scores.py`**:
+  `save_scored_edges()`에 from/to 좌표 포함, indent 제거(77MB 최적화).
+- **`suvisdev/.gitignore`**: `apps/gildle/data/scored_edges.json`,
+  `apps/gildle/data/graph_cache/` 추가(대용량 데이터 제외).
+- **`suvisdev/apps/gildle/data/seoul_trees_osm.json`** (신규, 771KB):
+  Overpass API 서울 tree=* 6,851개(node 6,491 + way 360).
+- **`suvisdev/apps/gildle/data/seoul_parks_osm.json`** (신규, 1.1MB):
+  Overpass API 서울 leisure=park 3,053개.
+
+### 데이터
+- **보행 그래프**: osmnx `network_type='walk'` — 164,740 nodes, 472,026 raw edges
+  → 233,964 중복 제거 edges. `graph_cache/seoul.graphml` (gitignore 대상).
+- **나무 점수**: tree_score > 0 엣지 686 → 12,219개 (18배 증가).
+  OSM 6,851개 나무를 80m 반경 격자 매칭.
+- **반려견 친화**: dog_friendly > 0.3 엣지 76,109개.
+  공원 150m 반경 근접 엣지에 +0.4 부스트.
+- **줌별 엣지 수**: zoom 12 = 4,682 / zoom 13 = 13,956 /
+  zoom 14 = 42,194 / zoom 15+ = 233,816 (전체).
+
+### 오류·막힌 점
+- Overpass API POST 요청 시 406 Not Acceptable — GET + URL 인코딩으로 해결.
+- uvicorn `reload=True`가 `apps/` 하위 변경 감지 실패 — 프로세스 kill 후 재시작.
+- 프론트 loading 초기값 `true` → MapContainer 미렌더링 데드락 — `false`로 수정.
+
+### 산출물
+- scored_edges.json 77MB (OSM 나무/공원 반영 완료)
+- 서울 전역 보행 지도 `/gildle/map` 동작 확인
+
 ## 2026-08-21
 
 ### 작업 내용

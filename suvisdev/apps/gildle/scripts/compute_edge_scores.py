@@ -106,8 +106,9 @@ class EdgeScoreCalculator:
 
 
 def save_scored_edges(edges: list[RouteEdge], path: Path) -> None:
-    records = [
-        {
+    records = []
+    for e in edges:
+        rec: dict[str, object] = {
             "from_node": e.from_node,
             "to_node": e.to_node,
             "base_distance_m": e.base_distance_m,
@@ -118,9 +119,14 @@ def save_scored_edges(edges: list[RouteEdge], path: Path) -> None:
             "hazard_score": round(e.hazard_score, 6),
             "dog_friendly_score": round(e.dog_friendly_score, 6),
         }
-        for e in edges
-    ]
-    path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+        if e.from_coord is not None:
+            rec["from_lat"] = e.from_coord.latitude
+            rec["from_lng"] = e.from_coord.longitude
+        if e.to_coord is not None:
+            rec["to_lat"] = e.to_coord.latitude
+            rec["to_lng"] = e.to_coord.longitude
+        records.append(rec)
+    path.write_text(json.dumps(records, ensure_ascii=False), encoding="utf-8")
 
 
 def load_scored_edges(path: Path) -> list[RouteEdge]:
