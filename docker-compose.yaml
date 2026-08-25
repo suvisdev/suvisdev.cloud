@@ -67,6 +67,9 @@ services:
     volumes:
       - ./suvisdev/datasets:/suvisdev/datasets
       - ./suvisdev/apps/ontology/resources/crawled:/suvisdev/apps/ontology/resources/crawled
+      # gildle scored_edges.json(77MB)은 gitignore 대상이라 이미지에 최신본이 없다.
+      # 로컬에서 생성 후 scp로 올리면 재빌드 없이 반영되도록 호스트를 마운트한다.
+      - ./suvisdev/apps/gildle/data:/suvisdev/apps/gildle/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
