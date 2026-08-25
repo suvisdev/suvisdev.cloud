@@ -4,6 +4,8 @@ export type MovaCastMember = {
   name: string
   role: string
   photo: string
+  /** 실 API 전용 — 배우 상세(/mova/actors/{id}) 연동 키. 목업 데이터는 채우지 않는다. */
+  actorId?: number
 }
 
 export type MovaComment = {

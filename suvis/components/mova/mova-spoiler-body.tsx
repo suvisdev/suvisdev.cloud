@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { EyeOff } from "lucide-react"
+import { MovaConfirmDialog } from "@/components/mova/mova-confirm-dialog"
 
 type SpoilerSpan = { start: number; end: number; text: string }
 
@@ -27,6 +28,7 @@ export function MovaSpoilerBody({
   showBadge = true,
 }: MovaSpoilerBodyProps) {
   const [revealed, setRevealed] = useState<Set<number>>(new Set())
+  const [pendingIdx, setPendingIdx] = useState<number | null>(null)
 
   const cleanSpans = (spans ?? [])
     .filter((s) => s && s.end > s.start && s.start >= 0 && s.end <= body.length)
@@ -38,7 +40,13 @@ export function MovaSpoilerBody({
 
   const handleReveal = (idx: number) => {
     if (revealed.has(idx)) return
-    if (!window.confirm("스포일러일 수 있습니다. 보시겠습니까?")) return
+    setPendingIdx(idx)
+  }
+
+  const confirmReveal = () => {
+    if (pendingIdx === null) return
+    const idx = pendingIdx
+    setPendingIdx(null)
     setRevealed((prev) => {
       const next = new Set(prev)
       next.add(idx)
@@ -91,6 +99,14 @@ export function MovaSpoilerBody({
         </span>
       )}
       {parts}
+      <MovaConfirmDialog
+        open={pendingIdx !== null}
+        title="스포일러 주의"
+        description="스포일러일 수 있습니다. 보시겠습니까?"
+        confirmLabel="보기"
+        onConfirm={confirmReveal}
+        onClose={() => setPendingIdx(null)}
+      />
     </span>
   )
 }

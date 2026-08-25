@@ -28,12 +28,16 @@ type MovaLoginButtonProps = {
   size?: "sm" | "md"
 }
 
+// 페이지 이동마다 컴포넌트가 리마운트돼 nickname이 null→fetch 완료로 바뀌며
+// username이 잠깐 노출되던 깜빡임 방지 — 모듈 레벨 캐시로 첫 렌더부터 닉네임 표시.
+let cachedNickname: string | null = null
+
 export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<SuvisSession | null>(null)
-  const [nickname, setNickname] = useState<string | null>(null)
+  const [nickname, setNickname] = useState<string | null>(cachedNickname)
 
   const refreshSession = useCallback(() => {
     setSession(getSuvisSession())
@@ -45,16 +49,18 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
 
   useEffect(() => {
     if (!session) {
+      cachedNickname = null
       setNickname(null)
       return
     }
     let cancelled = false
     fetchProfile(session.id)
       .then((p) => {
+        cachedNickname = p.nickname
         if (!cancelled) setNickname(p.nickname)
       })
       .catch(() => {
-        if (!cancelled) setNickname(null)
+        if (!cancelled) setNickname(cachedNickname)
       })
     return () => {
       cancelled = true

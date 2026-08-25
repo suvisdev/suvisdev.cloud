@@ -25,7 +25,6 @@ function MovaLandingSearch() {
   return (
     <MovaSearchBar
       className="relative w-[9.5rem] shrink-0 sm:w-44 md:w-48"
-      placeholder="검색"
       inputClassName="h-8 w-full min-w-0 border border-mova-border bg-mova-surface text-xs sm:text-sm"
       onEmptySubmit={(q) => {
         if (q.trim()) {

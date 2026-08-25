@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp } from "lucide-react"
+import { MovaActorDialog } from "@/components/mova/title/mova-actor-dialog"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaOttBadge } from "@/components/mova/mova-ott-badge"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
@@ -40,10 +41,18 @@ const CAST_PLACEHOLDER =
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80"
 
 function CastAvatar({ name, photo }: { name: string; photo: string }) {
-  const src = coercePosterUrl(photo) ?? CAST_PLACEHOLDER
+  const [failed, setFailed] = useState(false)
+  const src = failed ? CAST_PLACEHOLDER : (coercePosterUrl(photo) ?? CAST_PLACEHOLDER)
   return (
-    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-neutral-800 md:h-16 md:w-16">
-      <Image src={src} alt={name} fill className="object-cover" sizes="64px" />
+    <div className="relative mx-auto h-14 w-14 shrink-0 overflow-hidden rounded-full bg-neutral-800 md:h-16 md:w-16">
+      <Image
+        src={src}
+        alt={name}
+        fill
+        className="object-cover"
+        sizes="64px"
+        onError={() => setFailed(true)}
+      />
     </div>
   )
 }
@@ -75,6 +84,7 @@ export function MovaTitleView({
   // 새로고침하면 다시 안 눌린 상태로 보이지만, 백엔드 기록 자체는 남아 있어 리뷰 게이트는 그대로 통과한다.
   const [watchedMarking, setWatchedMarking] = useState(false)
   const [watchedMarked, setWatchedMarked] = useState(false)
+  const [selectedActorId, setSelectedActorId] = useState<number | null>(null)
   const patchReview = (patch: Partial<FormStatus>) => patchState(setReview, patch)
 
   const canSubmitReview = Boolean(movie.movieDbId)
@@ -337,9 +347,26 @@ export function MovaTitleView({
               <ul className="mova-row-scroll flex gap-4 overflow-x-auto pb-2">
                 {movie.cast.map((member) => (
                   <li key={`${member.name}-${member.role}`} className="w-24 shrink-0 text-center md:w-28">
-                    <CastAvatar name={member.name} photo={member.photo} />
-                    <p className="mt-2 truncate text-sm font-medium text-mova-text">{member.name}</p>
-                    <p className="truncate text-xs text-neutral-500">{member.role}</p>
+                    {member.actorId ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedActorId(member.actorId ?? null)}
+                        className="group block w-full"
+                        title={`${member.name} 상세 보기`}
+                      >
+                        <CastAvatar name={member.name} photo={member.photo} />
+                        <p className="mt-2 truncate text-sm font-medium text-mova-text transition group-hover:text-mova-accent">
+                          {member.name}
+                        </p>
+                        <p className="truncate text-xs text-neutral-500">{member.role}</p>
+                      </button>
+                    ) : (
+                      <>
+                        <CastAvatar name={member.name} photo={member.photo} />
+                        <p className="mt-2 truncate text-sm font-medium text-mova-text">{member.name}</p>
+                        <p className="truncate text-xs text-neutral-500">{member.role}</p>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -518,6 +545,7 @@ export function MovaTitleView({
           </section>
         </div>
       </main>
+      <MovaActorDialog actorId={selectedActorId} onClose={() => setSelectedActorId(null)} />
     </>
   )
 }

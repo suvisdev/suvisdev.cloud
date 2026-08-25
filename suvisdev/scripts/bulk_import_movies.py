@@ -58,6 +58,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="TMDB discover 최소 투표 수 필터. KR discover에서 무명·저품질(성인물"
         " 다수 포함) 배제용. 유명 한국영화만 1000편 수집: --vote-count-gte 100",
     )
+    parser.add_argument(
+        "--region",
+        default=None,
+        help="TMDB discover region — 개봉 국가 기준 필터(외화 포함). 예: KR."
+        " --release-type과 함께 쓰면 release_date 필터가 그 나라 개봉일 기준.",
+    )
+    parser.add_argument(
+        "--release-type",
+        default=None,
+        help="TMDB with_release_type. 극장 개봉만: '2|3'",
+    )
+    parser.add_argument(
+        "--release-date-lte",
+        default=None,
+        help="개봉일 상한(YYYY-MM-DD). 최신순 수집 시 미개봉작 제외용",
+    )
+    parser.add_argument(
+        "--sort-by",
+        default="popularity.desc",
+        help="TMDB discover 정렬. 최신 개봉순: primary_release_date.desc",
+    )
     return parser.parse_args(argv)
 
 
@@ -304,6 +325,10 @@ async def _run(args: argparse.Namespace) -> None:
                             page=page,
                             with_origin_country=origin,
                             vote_count_gte=args.vote_count_gte,
+                            region=args.region,
+                            with_release_type=args.release_type,
+                            release_date_lte=args.release_date_lte,
+                            sort_by=args.sort_by,
                         )
                 except TmdbAdapterError as e:
                     logger.error("[bulk_import] page=%d TMDB fetch 실패, 배치 중단 — %s", page, e)

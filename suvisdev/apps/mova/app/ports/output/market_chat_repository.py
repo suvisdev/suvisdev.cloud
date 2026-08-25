@@ -22,6 +22,7 @@ class ChatRepositoryPort(ABC):
         countries: list[str] | None = None,
         year_min: int | None = None,
         year_max: int | None = None,
+        title_terms: list[str] | None = None,
     ) -> list[MovaSearchItemSchema]:
         """keywords(tags.label ILIKE)·actor_names(출연진/감독 이름) → 영화 후보.
 

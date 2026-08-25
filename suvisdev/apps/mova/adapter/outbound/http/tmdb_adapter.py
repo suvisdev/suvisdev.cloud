@@ -119,6 +119,9 @@ class TmdbAdapter:
         sort_by: str = "popularity.desc",
         include_adult: bool = False,
         vote_count_gte: int | None = None,
+        region: str | None = None,
+        with_release_type: str | None = None,
+        release_date_lte: str | None = None,
     ) -> list[dict]:
         """TMDB /discover/movie — region/genre 등 필터를 걸어 대량 수집할 때 사용.
 
@@ -137,6 +140,14 @@ class TmdbAdapter:
             params["with_genres"] = with_genres
         if vote_count_gte is not None:
             params["vote_count.gte"] = int(vote_count_gte)
+        # region+with_release_type을 함께 주면 release_date.* 필터가 그 나라의
+        # 개봉일 기준으로 동작한다 — "한국에 개봉한 영화"(외화 포함) 수집용.
+        if region:
+            params["region"] = region
+        if with_release_type:
+            params["with_release_type"] = with_release_type
+        if release_date_lte:
+            params["release_date.lte"] = release_date_lte
         data = await self._get("/discover/movie", params=params)
         return list(data.get("results") or [])
 

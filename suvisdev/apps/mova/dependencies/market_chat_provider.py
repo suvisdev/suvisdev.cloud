@@ -6,6 +6,9 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_mova_db
+from mova.adapter.outbound.llm.fallback_recommendation_adapter import (
+    FallbackRecommendationAdapter,
+)
 from mova.adapter.outbound.llm.gemini_recommendation_adapter import (
     GeminiRecommendationAdapter,
 )

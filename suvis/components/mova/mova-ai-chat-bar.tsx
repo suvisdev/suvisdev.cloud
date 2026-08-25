@@ -562,7 +562,7 @@ export function MovaAiChatBar({
                   playsInline
                   preload="auto"
                   aria-hidden
-                  className="block h-32 w-40 object-cover md:h-36 md:w-48"
+                  className="block h-auto w-40 md:w-48"
                 />
               </div>
               <div className="flex items-center gap-2 text-xs text-mova-muted">

@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useRef, useState } from "react"
+
+import { DragScrollRow } from "@/components/mova/drag-scroll-row"
 import { Loader2, RotateCcw, Star, TrendingUp } from "lucide-react"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
@@ -182,11 +184,11 @@ function GenreRow({
         </button>
       </div>
       <div className="mova-row-fade mova-row-scroll -mx-4 px-4 md:-mx-6 md:px-6">
-        <div className="flex gap-2 overflow-x-auto pb-2 md:gap-3">
+        <DragScrollRow className="flex cursor-grab gap-2 overflow-x-auto pb-2 md:gap-3">
           {items.map((movie) => (
             <GenreRowCard key={movie.id} movie={movie} />
           ))}
-        </div>
+        </DragScrollRow>
       </div>
     </section>
   )
@@ -398,8 +400,15 @@ function MovaMoviesPageInner() {
     void Promise.all(
       rowGenres.map(async (g) => {
         try {
-          const data = await fetchMovaMovies(12, 0, { genre: g, sort: "popular" })
-          return { genre: g, items: data.items }
+          // 인기 상위 48편 풀에서 12편을 무작위 추출 — 방문할 때마다 같은
+          // 영화만 반복 노출되지 않게 로테이션을 준다.
+          const data = await fetchMovaMovies(48, 0, { genre: g, sort: "popular" })
+          const pool = [...data.items]
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1))
+            ;[pool[i], pool[j]] = [pool[j], pool[i]]
+          }
+          return { genre: g, items: pool.slice(0, 12) }
         } catch {
           return { genre: g, items: [] as ApiMovieRow[] }
         }
@@ -463,11 +472,11 @@ function MovaMoviesPageInner() {
               <span className="text-xs text-neutral-500">AI 채팅 기반</span>
             </div>
             <div className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
-              <div className="flex gap-3 overflow-x-auto pb-2 md:gap-4">
+              <DragScrollRow className="flex cursor-grab gap-3 overflow-x-auto pb-2 md:gap-4">
                 {trending.map((item, i) => (
                   <TrendingCard key={item.id} item={item} rank={i + 1} />
                 ))}
-              </div>
+              </DragScrollRow>
             </div>
           </section>
         )}
@@ -482,7 +491,7 @@ function MovaMoviesPageInner() {
           </div>
 
           <div ref={genreRef} className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
-            <div className="flex gap-2 overflow-x-auto pb-2">
+            <DragScrollRow className="flex cursor-grab gap-2 overflow-x-auto pb-2">
               {GENRES.map((g) => (
                 <button
                   key={g}
@@ -498,7 +507,7 @@ function MovaMoviesPageInner() {
                   {g}
                 </button>
               ))}
-            </div>
+            </DragScrollRow>
           </div>
         </section>
 
@@ -581,11 +590,11 @@ function MovaMoviesPageInner() {
               <div>
                 <p className="mb-2 text-xs text-neutral-500">대신 이런 영화는 어때요?</p>
                 <div className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
-                  <div className="flex gap-3 overflow-x-auto pb-2 md:gap-4">
+                  <DragScrollRow className="flex cursor-grab gap-3 overflow-x-auto pb-2 md:gap-4">
                     {trending.slice(0, 8).map((item, i) => (
                       <TrendingCard key={item.id} item={item} rank={i + 1} />
                     ))}
-                  </div>
+                  </DragScrollRow>
                 </div>
               </div>
             )}

@@ -34,6 +34,37 @@
 - EC2 mova 추천 백엔드를 gemini 폴백 → lora로 복구. 노트북 lora-server와
   Cloudflare 터널(`lora.suvisdev.cloud`)이 정상 동작 중인데 EC2만 폴백에
   남아 있던 상태.
+- **채팅 무응답 근본 원인 규명 + LoRA 재학습**: 7/20 어댑터가 구버전 출력
+  형식(movie_id 없음)으로 학습돼 현재 그라운딩 프롬프트에서 picks:[]만 반환.
+  기존 export 스크립트도 completion에 movie_id가 없는 구형식임을 확인.
+  → Gemini 교사 증류 데이터셋 60건(실 DB 카탈로그 + 그라운딩 검증 필터) 생성,
+  EXAONE-AWQ LoRA 재학습(3 epoch, loss 0.92→0.49, `mova_20260825_123937`).
+  재검증: 3개 질의 모두 recs=3 정상 (이전 전부 0).
+- **폴백 어댑터 + 서킷 브레이커**: `FallbackRecommendationAdapter`(lora 실패
+  시 Gemini 자동 전환) + 오케스트레이터 서킷(연속 2회 실패 → 60초 즉시 실패).
+  노트북 꺼짐 = 수동 .env 전환하던 운영 부담 제거.
+- **DB 정리 (성인물 + 한국 미개봉)**: ① CLIP 포스터 제로샷(0.995 임계) +
+  제목 키워드 + 성인물 배우 전파(118명) + 수동 검토로 672편 삭제.
+  ② TMDB release_dates KR 부재 400편 삭제(고전 명작 19편은 오탐 보존).
+  ③ 고아 배우 3,938명 정리. 최종 movies 4,255→3,419, actors 22,430→18,492.
+  전부 trash 스키마 백업. 검수 리포트 HTML을 바탕화면에 생성.
+- **TMDB 최신 수집**: discover에 region/release_type/release_date_lte/sort_by
+  파라미터 추가, 한국 개봉 기준(외화 포함)·성인물 제외·최신순 1,000편 수집
+  (실패 0).
+- **"집에서만 502/404" 근본 해결**: 집 docker cloudflared가 EC2와 동일 토큰
+  으로 api 터널에 이중 접속 → Cloudflare가 트래픽을 구버전 로컬 스택으로
+  분산하던 것. lora 전용 터널(systemd `cloudflared-lora`)은 별도로 이미 존재
+  → 중복 docker cloudflared 중지 + restart=no.
+- **검색 품질**: mood_expansion에 히어로/마블 추가 + franchise_expansion
+  신규(마블→어벤져스 등 대표작 제목 확장) + search_tag_catalog 제목 매칭.
+  콜드 스타트 후보 정렬을 "최근 15년 우선, 평점순" 2단 정렬로 변경(1959년
+  작 뜬금 추천 방지).
+- **프론트 UX 6건**: 가로 스크롤 행 마우스 드래그(DragScrollRow), 배우
+  클릭→소개+출연작 다이얼로그(기존 `/mova/actors/{id}` 연동), 출연진
+  사진·이름 정렬, 아바타 onError 폴백, 장르 행 로테이션(48편 풀 셔플),
+  랭킹 포디움 빈 슬롯 placeholder, 채팅 로딩 영상 비율, 닉네임 깜빡임
+  (모듈 캐시), 랜딩·채팅 헤더 검색 placeholder 통일,
+  window.confirm/alert 전부 Mova 스타일 다이얼로그로 교체.
 
 ### 수정/구현
 - EC2 `suvisdev/.env`: `RECOMMENDATION_BACKEND=gemini` → `lora` 변경 후

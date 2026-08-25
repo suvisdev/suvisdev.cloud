@@ -155,11 +155,36 @@ function Podium({ top3 }: { top3: RankingItem[] }) {
           item ? (
             <PodiumCard key={rank} item={item} rank={rank} />
           ) : (
-            <div key={rank} />
+            <PodiumPlaceholder key={rank} rank={rank} />
           ),
         )}
       </div>
     </section>
+  )
+}
+
+// AI 검색 TOP처럼 아직 순위가 덜 쌓인 탭에서 빈 슬롯을 채워, 박스오피스
+// 포디움과 같은 3열 실루엣을 유지한다 (2026-08-25 두 탭 불일치 지적).
+function PodiumPlaceholder({ rank }: { rank: 1 | 2 | 3 }) {
+  const posterWidth = rank === 1 ? "w-full" : "w-[88%] md:w-[90%]"
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <span className="flex items-center gap-1 rounded-full bg-mova-surface-2 px-2.5 py-1 text-xs font-bold text-neutral-500">
+        {rank}위
+      </span>
+      <div
+        className={cn(
+          "flex aspect-[2/3] items-center justify-center rounded-xl border border-dashed border-mova-border bg-mova-surface-2/40 px-3 text-center",
+          posterWidth,
+        )}
+      >
+        <p className="text-xs leading-relaxed text-neutral-500">
+          클릭이 쌓이면
+          <br />
+          순위에 올라와요
+        </p>
+      </div>
+    </div>
   )
 }
 

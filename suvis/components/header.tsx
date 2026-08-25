@@ -44,7 +44,7 @@ export function Header() {
             Resume
           </Link>
           <Link href="/contact#contact" className={navLinkClass}>
-            Contact
+            About
           </Link>
         </nav>
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { MessageSquarePlus, Trash2, X } from "lucide-react"
+import { MovaConfirmDialog } from "@/components/mova/mova-confirm-dialog"
 import {
   deleteConversation,
   listConversations,
@@ -29,6 +30,7 @@ export function MovaChatSidebar({
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   const reload = useCallback(async () => {
     try {
@@ -46,9 +48,15 @@ export function MovaChatSidebar({
     void reload()
   }, [reload, refreshKey])
 
-  const handleDelete = async (id: number, e: React.MouseEvent) => {
+  const handleDelete = (id: number, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!window.confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.")) return
+    setPendingDeleteId(id)
+  }
+
+  const confirmDelete = async () => {
+    if (pendingDeleteId === null) return
+    const id = pendingDeleteId
+    setPendingDeleteId(null)
     try {
       await deleteConversation(id)
       setConversations((prev) => prev.filter((c) => c.id !== id))
@@ -123,6 +131,15 @@ export function MovaChatSidebar({
           })}
         </ul>
       </div>
+      <MovaConfirmDialog
+        open={pendingDeleteId !== null}
+        title="대화 삭제"
+        description="이 대화를 삭제할까요? 되돌릴 수 없습니다."
+        confirmLabel="삭제"
+        destructive
+        onConfirm={() => void confirmDelete()}
+        onClose={() => setPendingDeleteId(null)}
+      />
     </aside>
   )
 }

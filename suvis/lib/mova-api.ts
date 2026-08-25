@@ -171,6 +171,7 @@ export async function fetchUpcomingDetail(tmdbId: number): Promise<MovaMovie | n
       name: a.name,
       role: a.role_type === "director" ? "감독" : (a.character_name ?? ""),
       photo: coercePosterUrl(a.profile_photo_url) ?? "",
+      actorId: a.actor_id,
     })),
     gallery: [],
     comments: [],
@@ -264,6 +265,7 @@ type MovieDetailApiRow = {
   synopsis: string | null
   trailer_key: string | null
   actors: {
+    actor_id: number
     name: string
     role_type: "director" | "actor"
     profile_photo_url: string
@@ -317,6 +319,7 @@ export async function fetchMovaTitle(slug: string): Promise<MovaMovie | null> {
             ? `출연 | ${a.character_name}`
             : "출연",
       photo: a.profile_photo_url,
+      actorId: a.actor_id,
     })),
     comments: [],
     gallery: [],
@@ -815,5 +818,63 @@ export function apiMovieToMovaMovie(row: ApiMovieRow): MovaMovie {
     cast: [],
     comments: [],
     gallery: [],
+  }
+}
+
+// ── 배우 상세 (GET /mova/actors/{id}) ────────────────────────────────────────
+
+export type MovaActorFilmItem = {
+  movieId: number
+  slug: string
+  title: string
+  year: string
+  rating: number
+  poster: string
+}
+
+export type MovaActorDetail = {
+  id: number
+  name: string
+  roleType: "director" | "actor"
+  photo: string
+  filmography: MovaActorFilmItem[]
+}
+
+type ApiActorDetail = {
+  id: number
+  name: string
+  role_type: "director" | "actor"
+  profile_photo_url: string
+  filmography: {
+    movie_id: number
+    slug: string
+    title: string
+    release_year: number
+    rating: number
+    poster_url: string
+  }[]
+}
+
+export async function fetchMovaActor(actorId: number): Promise<MovaActorDetail | null> {
+  try {
+    const res = await fetch(`/api/mova/actors/${actorId}`, { cache: "no-store" })
+    if (!res.ok) return null
+    const row = (await res.json()) as ApiActorDetail
+    return {
+      id: row.id,
+      name: row.name,
+      roleType: row.role_type,
+      photo: coercePosterUrl(row.profile_photo_url) ?? "",
+      filmography: row.filmography.map((f) => ({
+        movieId: f.movie_id,
+        slug: f.slug,
+        title: f.title,
+        year: String(f.release_year || ""),
+        rating: f.rating,
+        poster: coercePosterUrl(f.poster_url) ?? "",
+      })),
+    }
+  } catch {
+    return null
   }
 }

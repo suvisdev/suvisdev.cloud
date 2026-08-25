@@ -9,6 +9,11 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova 대규모 정비 (2026-08-25 오후)** — ① LoRA 재학습(Gemini 교사 증류,
+  채팅 recs 복구), ② 폴백 어댑터+서킷 브레이커, ③ DB 정리(성인물 672 +
+  미개봉 400 + 고아 배우 3,938 삭제, trash 백업), ④ TMDB KR 최신 1,000편
+  수집, ⑤ 터널 이중 접속 502 근본 해결, ⑥ 프랜차이즈 검색+최신 우선 정렬,
+  ⑦ 프론트 UX 10건. 상세: WORK_LOG_MOVA 2026-08-25.
 - **EC2 mova 추천 lora 복구 + EXAONE 베이스 실측 확인 (2026-08-25)** —
   EC2 `.env` `RECOMMENDATION_BACKEND` gemini→lora 전환, 터널 경유 `/generate`
   엔드투엔드 200 확인. 베이스는 EXAONE-3.5-2.4B-Instruct-AWQ(Qwen 기술은

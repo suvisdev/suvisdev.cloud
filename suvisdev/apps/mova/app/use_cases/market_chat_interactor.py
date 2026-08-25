@@ -169,6 +169,9 @@ class ChatInteractor(ChatUseCase):
             actor_names = [*must.get("actors", []), *similar.get("actors", [])]
             # mood 자연어("오싹오싹한" 등)를 대중 장르 태그로 확장 (2026-08-13).
             # Ollama 임베딩이 안 붙는 환경에서 tag catalog 폴백이 mood를 이해하도록.
+            from mova.domain.value_objects.franchise_expansion import (
+                expand_franchise_titles,
+            )
             from mova.domain.value_objects.mood_expansion import expand_mood_keywords
 
             expanded_keywords = expand_mood_keywords(intent["keywords"])[:12]
@@ -179,6 +182,8 @@ class ChatInteractor(ChatUseCase):
                 countries=must.get("countries") or [],
                 year_min=intent["search_filters"].get("year_min"),
                 year_max=intent["search_filters"].get("year_max"),
+                # "마블" 같은 프랜차이즈 언급 → 대표작 제목 매칭 (2026-08-25)
+                title_terms=expand_franchise_titles(intent["keywords"]),
             )
 
         # 2.5. 대화 스레드에서 이미 추천한 영화 슬러그를 뽑아 후보에서 제거한다.

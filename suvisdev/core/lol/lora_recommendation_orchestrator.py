@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 
 import httpx
@@ -25,6 +26,40 @@ _LORA_SERVER_TOKEN = os.getenv("LORA_SERVER_TOKEN", "")
 _DEFAULT_TIMEOUT = httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)
 _RETRY_ATTEMPTS = 2  # 최초 시도 + 1회 재시도
 _RETRY_BACKOFF_SECONDS = 0.5
+
+# 서킷 브레이커 — 인스턴스가 요청마다 새로 만들어지므로(DI) 상태는 모듈 레벨 공유.
+# 연속 실패가 임계에 닿으면 쿨다운 동안 HTTP 호출 없이 즉시 실패시켜, 죽은
+# lora 서버에 요청마다 타임아웃(최대 60초)을 기다리는 것을 막는다.
+_CIRCUIT_FAILURE_THRESHOLD = 2
+_CIRCUIT_COOLDOWN_SECONDS = 60.0
+_circuit_lock = threading.Lock()
+_circuit_failures = 0
+_circuit_open_until = 0.0
+
+
+def _circuit_is_open() -> bool:
+    with _circuit_lock:
+        return time.monotonic() < _circuit_open_until
+
+
+def _circuit_record_failure() -> None:
+    global _circuit_failures, _circuit_open_until
+    with _circuit_lock:
+        _circuit_failures += 1
+        if _circuit_failures >= _CIRCUIT_FAILURE_THRESHOLD:
+            _circuit_open_until = time.monotonic() + _CIRCUIT_COOLDOWN_SECONDS
+            logger.warning(
+                "[LoraRecommendationOrchestrator] 서킷 오픈 — 연속 %d회 실패, %.0fs 동안 즉시 실패 처리",
+                _circuit_failures,
+                _CIRCUIT_COOLDOWN_SECONDS,
+            )
+
+
+def _circuit_record_success() -> None:
+    global _circuit_failures, _circuit_open_until
+    with _circuit_lock:
+        _circuit_failures = 0
+        _circuit_open_until = 0.0
 
 
 class LoraOrchestratorError(Exception):
@@ -60,6 +95,13 @@ class LoraRecommendationOrchestrator:
         payload: dict[str, str] = {"prompt": prompt}
         if system:
             payload["system"] = system
+
+        if _circuit_is_open():
+            raise LoraOrchestratorError(
+                "LoRA 서버 서킷 오픈 상태(연속 실패 후 쿨다운) — 즉시 실패 처리",
+                status_code=503,
+            )
+
         logger.info("[LoraRecommendationOrchestrator] generate prompt_chars=%d", len(prompt))
 
         headers = {"X-LoRA-Token": self._token} if self._token else {}
@@ -67,13 +109,16 @@ class LoraRecommendationOrchestrator:
         try:
             r = self._post_with_retry(headers, payload)
         except httpx.TimeoutException as e:
+            _circuit_record_failure()
             raise LoraOrchestratorError("LoRA 서버 응답 타임아웃", status_code=504) from e
         except httpx.TransportError as e:
+            _circuit_record_failure()
             raise LoraOrchestratorError(
                 f"LoRA 서버에 연결할 수 없습니다: {e!s}", status_code=503
             ) from e
 
         if r.status_code != 200:
+            _circuit_record_failure()
             raise LoraOrchestratorError(
                 f"LoRA 서버 호출 실패 (HTTP {r.status_code}): {r.text[:200]}",
                 status_code=502,
@@ -81,7 +126,9 @@ class LoraRecommendationOrchestrator:
 
         text = (r.json().get("text") or "").strip()
         if not text:
+            _circuit_record_failure()
             raise LoraOrchestratorError("LoRA 모델이 빈 응답을 반환했습니다.", status_code=502)
+        _circuit_record_success()
         return text
 
     def _post_with_retry(

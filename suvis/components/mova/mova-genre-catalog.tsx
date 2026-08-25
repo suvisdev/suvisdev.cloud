@@ -1,3 +1,4 @@
+import { DragScrollRow } from "@/components/mova/drag-scroll-row"
 import Image from "next/image"
 import Link from "next/link"
 import { Film } from "lucide-react"
@@ -106,11 +107,11 @@ export function MovaGenreCatalog({
               </span>
             </div>
             <div className="mova-row-fade mova-row-scroll -mx-4 px-4 md:-mx-0 md:px-0">
-              <div className="flex gap-2.5 overflow-x-auto pb-2 md:gap-3">
+              <DragScrollRow className="flex cursor-grab gap-2.5 overflow-x-auto pb-2 md:gap-3">
                 {movies.map((movie) => (
                   <MovieCard key={movie.id} movie={movie} />
                 ))}
-              </div>
+              </DragScrollRow>
             </div>
           </section>
         ))}

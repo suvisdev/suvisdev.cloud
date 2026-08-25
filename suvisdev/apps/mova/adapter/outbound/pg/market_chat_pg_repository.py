@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +49,14 @@ class ChatPgRepository(ChatRepositoryPort):
         )
         return {r[0] for r in rows}
 
+    async def _movie_ids_by_titles(self, title_terms: list[str]) -> set[int]:
+        """프랜차이즈 확장 제목(어벤져스, 스파이더맨 등) → 제목 부분일치 영화."""
+        if not title_terms:
+            return set()
+        cond = or_(*[MovaMovie.title.ilike(f"%{t}%") for t in title_terms[:15]])
+        rows = await self._session.execute(select(MovaMovie.id).where(cond).distinct())
+        return {r[0] for r in rows}
+
     async def _movie_ids_by_actors(self, actor_names: list[str]) -> set[int]:
         if not actor_names:
             return set()
@@ -90,13 +98,21 @@ class ChatPgRepository(ChatRepositoryPort):
             conds.append(MovaMovie.release_year <= year_max)
         return conds
 
+    @staticmethod
+    def _recency_first_order() -> list:
+        """최근 15년 작품 우선, 그 안에서 평점순 — 콜드 스타트(취향 데이터 없음)
+        추천에 1950~70년대 작품이 뜬금없이 뜨는 것 방지(2026-08-25 사용자 지적).
+        연도 필터를 명시한 질의는 conds가 이미 좁혀서 이 정렬의 영향이 없다."""
+        cutoff = datetime.now(UTC).year - 15
+        return [(MovaMovie.release_year >= cutoff).desc(), MovaMovie.rating.desc()]
+
     async def _movies_by_ids(
         self, movie_ids: set[int], limit: int, conds: list
     ) -> list[MovaMovie]:
         rows = await self._session.execute(
             select(MovaMovie)
             .where(MovaMovie.id.in_(movie_ids), *conds)
-            .order_by(MovaMovie.rating.desc())
+            .order_by(*self._recency_first_order())
             .limit(limit)
         )
         return list(rows.scalars().all())
@@ -110,12 +126,21 @@ class ChatPgRepository(ChatRepositoryPort):
         countries: list[str] | None = None,
         year_min: int | None = None,
         year_max: int | None = None,
+        title_terms: list[str] | None = None,
     ) -> list[MovaSearchItemSchema]:
         has_hard_filter = bool(countries) or year_min is not None or year_max is not None
-        if not keywords and not actor_names and not has_hard_filter:
+        if not keywords and not actor_names and not title_terms and not has_hard_filter:
             return []
 
         conds = self._hard_conds(countries, year_min, year_max)
+
+        # 프랜차이즈 제목 매칭이 있으면 최우선 — "마블"이 장르(액션) 근사보다
+        # 실제 어벤져스/스파이더맨을 물어오는 것이 정확하다.
+        title_ids = await self._movie_ids_by_titles(title_terms or [])
+        if title_ids:
+            rows = await self._movies_by_ids(title_ids, limit, conds)
+            if rows:
+                return _to_search_items(rows, "title")
 
         tag_ids = await self._movie_ids_by_tags(keywords)
         actor_ids = await self._movie_ids_by_actors(actor_names or [])
@@ -143,7 +168,10 @@ class ChatPgRepository(ChatRepositoryPort):
         # enrich 단계에서 전부 드롭돼 "reply는 자신있는데 카드 0개"가 된다
         # (2026-08-06 실사용 재현: "주말에 몰아볼 시리즈 느낌 영화").
         fallback_rows = await self._session.execute(
-            select(MovaMovie).where(*conds).order_by(MovaMovie.rating.desc()).limit(limit)
+            select(MovaMovie)
+            .where(*conds)
+            .order_by(*self._recency_first_order())
+            .limit(limit)
         )
         return _to_search_items(list(fallback_rows.scalars().all()), "popular_fallback")
 

@@ -18,6 +18,7 @@ import {
   ThumbsUp,
   X,
 } from "lucide-react"
+import { MovaConfirmDialog } from "@/components/mova/mova-confirm-dialog"
 import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaSpoilerBody } from "@/components/mova/mova-spoiler-body"
 import {
@@ -125,27 +126,34 @@ export default function MypagePage() {
   }
 
   const [deleting, setDeleting] = useState(false)
-  const handleDeleteAccount = async () => {
+  // 탈퇴 2단 확인 다이얼로그 단계 — window.confirm/prompt/alert 대체.
+  const [accountStep, setAccountStep] = useState<
+    "idle" | "confirm" | "input" | "mismatch" | "done"
+  >("idle")
+
+  const [accountUsername, setAccountUsername] = useState("")
+
+  const handleDeleteAccount = () => {
     const s = getSuvisSession()
     if (!s) return
-    // 2단 확인 — 프롬프트에 정확한 사용자명 재입력 요구.
-    const first = window.confirm(
-      "정말 계정을 탈퇴하시겠습니까?\n\n" +
-        "찜한 영화·리뷰·대화 기록·취향 데이터가 모두 영구 삭제되며 복구할 수 없습니다.",
-    )
-    if (!first) return
-    const typed = window.prompt(`계속하려면 아이디 "${s.username}"을(를) 입력해 주세요.`)
+    setAccountUsername(s.username)
+    setAccountStep("confirm")
+  }
+
+  const confirmDeleteAccount = async (typed?: string) => {
+    const s = getSuvisSession()
+    if (!s) return
     if (typed?.trim() !== s.username) {
-      if (typed !== null) window.alert("아이디가 일치하지 않아 탈퇴가 취소되었습니다.")
+      setAccountStep("mismatch")
       return
     }
     setDeleting(true)
     try {
       await deleteMovaAccount(s.id)
       clearSuvisSession()
-      window.alert("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.")
-      router.replace("/mova")
+      setAccountStep("done")
     } catch (e) {
+      setAccountStep("idle")
       setError(e instanceof Error ? e.message : "탈퇴에 실패했습니다.")
       setDeleting(false)
     }
@@ -196,8 +204,16 @@ export default function MypagePage() {
     }
   }
 
-  const handleDeleteReview = async (reviewId: number) => {
-    if (!window.confirm("이 리뷰를 삭제할까요? 되돌릴 수 없습니다.")) return
+  const [pendingReviewId, setPendingReviewId] = useState<number | null>(null)
+
+  const handleDeleteReview = (reviewId: number) => {
+    setPendingReviewId(reviewId)
+  }
+
+  const confirmDeleteReview = async () => {
+    if (pendingReviewId === null) return
+    const reviewId = pendingReviewId
+    setPendingReviewId(null)
     setRemovingReviewId(reviewId)
     try {
       await deleteMovaReview(reviewId)
@@ -623,6 +639,52 @@ export default function MypagePage() {
           </>
         ) : null}
       </main>
+      <MovaConfirmDialog
+        open={pendingReviewId !== null}
+        title="리뷰 삭제"
+        description="이 리뷰를 삭제할까요? 되돌릴 수 없습니다."
+        confirmLabel="삭제"
+        destructive
+        onConfirm={() => void confirmDeleteReview()}
+        onClose={() => setPendingReviewId(null)}
+      />
+      <MovaConfirmDialog
+        open={accountStep === "confirm"}
+        title="계정 탈퇴"
+        description={
+          "정말 계정을 탈퇴하시겠습니까?\n찜한 영화·리뷰·대화 기록·취향 데이터가 모두 영구 삭제되며 복구할 수 없습니다."
+        }
+        confirmLabel="계속"
+        destructive
+        onConfirm={() => setAccountStep("input")}
+        onClose={() => setAccountStep("idle")}
+      />
+      <MovaConfirmDialog
+        open={accountStep === "input"}
+        title="아이디 확인"
+        description={`계속하려면 아이디 "${accountUsername}"을(를) 입력해 주세요.`}
+        confirmLabel={deleting ? "탈퇴 중..." : "탈퇴"}
+        destructive
+        inputPlaceholder={accountUsername}
+        onConfirm={(typed) => void confirmDeleteAccount(typed)}
+        onClose={() => setAccountStep("idle")}
+      />
+      <MovaConfirmDialog
+        open={accountStep === "mismatch"}
+        title="탈퇴 취소"
+        description="아이디가 일치하지 않아 탈퇴가 취소되었습니다."
+        cancelLabel={null}
+        onConfirm={() => setAccountStep("idle")}
+        onClose={() => setAccountStep("idle")}
+      />
+      <MovaConfirmDialog
+        open={accountStep === "done"}
+        title="탈퇴 완료"
+        description="탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다."
+        cancelLabel={null}
+        onConfirm={() => router.replace("/mova")}
+        onClose={() => router.replace("/mova")}
+      />
     </>
   )
 }
