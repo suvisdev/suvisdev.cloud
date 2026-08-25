@@ -35,11 +35,13 @@
   `suvisdev/suvisjk` 레포 생성, GitHub Actions Jekyll 워크플로우 설정,
   커스텀 도메인 `jk.suvisdev.cloud` 연결 (Cloudflare DNS CNAME).
 - 두 Jekyll 사이트(suvisjk 4000, demo 4001) 포트 고정 분리.
-- 메인 사이트 헤더 About 링크를 Jekyll 사이트(`jk.suvisdev.cloud`)로 변경.
+- 메인 사이트 헤더 네비게이션 개편: About·Devlog 제거 → Apps·Blog·Resume·Contact 4개로 재구성.
+  Blog는 `jk.suvisdev.cloud` 외부 링크, Resume는 플레이스홀더 페이지(`/resume`).
 - Mova 랭킹 페이지: 탭 순서 변경(박스오피스 먼저) + 기본값을 box_office로 변경.
 
 ### 수정/구현
-- `suvis/components/header.tsx`: About 링크 `/contact#about` → `https://jk.suvisdev.cloud` (외부 링크, 새 탭)
+- `suvis/components/header.tsx`: 네비게이션 About·Devlog → Blog(jk.suvisdev.cloud)·Resume 변경
+- `suvis/app/resume/page.tsx`: 신규 — "준비 중" 플레이스홀더 페이지
 - `suvis/app/mova/rankings/page.tsx`: TABS 순서 + resolveSource 기본값 변경
 - `suvisjk/_config.yml`: `port: 4000`, `url: https://jk.suvisdev.cloud`
 - `demo.suvisdev.cloud/_config.yml`: `port: 4001`
