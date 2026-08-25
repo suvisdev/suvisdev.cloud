@@ -10,6 +10,7 @@ from mova.adapter.outbound.orm.market_conversations_orm import (
 )
 from mova.adapter.outbound.orm.market_picks_orm import MovaPick
 from mova.adapter.outbound.orm.market_rankings_orm import MovaRanking
+from mova.adapter.outbound.orm.market_review_comments_orm import MovaReviewComment
 from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
 from mova.adapter.outbound.orm.market_user_actions_orm import (
     ACTION_CLICK,
@@ -36,6 +37,7 @@ from mova.adapter.outbound.orm.studio_tags_orm import (
 
 __all__ = [
     "MovaCollection",
+    "MovaReviewComment",
     "MovaConversation",
     "MovaConversationMessage",
     "MovaWatchlist",
