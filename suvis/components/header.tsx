@@ -37,9 +37,9 @@ export function Header() {
           <Link href="/apps" className={navLinkClass}>
             Apps
           </Link>
-          <a href="https://jk.suvisdev.cloud" className={navLinkClass} target="_blank" rel="noopener noreferrer">
+          <Link href="/blog" className={navLinkClass}>
             Blog
-          </a>
+          </Link>
           <Link href="/resume" className={navLinkClass}>
             Resume
           </Link>
@@ -52,9 +52,9 @@ export function Header() {
           <Link href="/apps" className={`${navLinkClass} md:hidden`}>
             Apps
           </Link>
-          <a href="https://jk.suvisdev.cloud" className={`${navLinkClass} md:hidden`} target="_blank" rel="noopener noreferrer">
+          <Link href="/blog" className={`${navLinkClass} md:hidden`}>
             Blog
-          </a>
+          </Link>
           {isAdmin && (
             <>
               <Link href="/lesson" className={`${navLinkClass} sm:hidden`}>
