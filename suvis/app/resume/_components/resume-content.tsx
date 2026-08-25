@@ -240,9 +240,9 @@ export function ResumeContent() {
               desc="Python · FastAPI · Next.js · Flutter · AI/ML 파이프라인 구축"
             />
             <TimelineItem
-              period=""
-              title="학력 정보를 입력해주세요"
-              desc="플레이스홀더"
+              period="2009.03 — 2015"
+              title="경상대학교 건축공학과 (자퇴)"
+              desc=""
             />
           </div>
         </section>
