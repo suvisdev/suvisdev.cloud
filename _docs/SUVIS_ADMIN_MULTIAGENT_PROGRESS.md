@@ -9,6 +9,15 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **EC2 mova 추천 lora 복구 + EXAONE 베이스 실측 확인 (2026-08-25)** —
+  EC2 `.env` `RECOMMENDATION_BACKEND` gemini→lora 전환, 터널 경유 `/generate`
+  엔드투엔드 200 확인. 베이스는 EXAONE-3.5-2.4B-Instruct-AWQ(Qwen 기술은
+  구정보). 상세: WORK_LOG_MOVA 2026-08-25.
+- **EC2 이미지 통합 + gildle 데이터 바인드 마운트 (2026-08-25)** —
+  backend·auth가 `suvisdev-app:latest` 단일 이미지 공유(중복 9.23GB 해제,
+  재빌드 디스크 부족 문제 해소). gildle `data/` 호스트 마운트로 scored_edges
+  갱신 시 재빌드 불필요. 상세: WORK_LOG_GILDLE 2026-08-25.
+
 - **Jekyll GitHub Pages 배포 + 메인 About 링크 변경 + Mova 랭킹 기본값 (2026-08-25)** —
   suvisjk → `suvisdev/suvisjk` 레포 분리, GitHub Actions Jekyll 빌드,
   `jk.suvisdev.cloud` 커스텀 도메인. 헤더 Apps·Blog·Resume·Contact 4탭 구성.

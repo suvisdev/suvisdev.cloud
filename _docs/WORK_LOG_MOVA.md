@@ -28,6 +28,28 @@
 
 ---
 
+## 2026-08-25
+
+### 작업 내용
+- EC2 mova 추천 백엔드를 gemini 폴백 → lora로 복구. 노트북 lora-server와
+  Cloudflare 터널(`lora.suvisdev.cloud`)이 정상 동작 중인데 EC2만 폴백에
+  남아 있던 상태.
+
+### 수정/구현
+- EC2 `suvisdev/.env`: `RECOMMENDATION_BACKEND=gemini` → `lora` 변경 후
+  backend 컨테이너만 재생성(`--force-recreate --no-deps`, 약 8초).
+- 코드 변경 없음 — 운영 설정 전환만.
+
+### 검증
+- 컨테이너 printenv: `RECOMMENDATION_BACKEND=lora`,
+  `LORA_SERVER_URL=https://lora.suvisdev.cloud` 확인.
+- EC2 컨테이너 안에서 터널 경유 `/health` 200, `/generate` 실제 생성 200
+  (엔드투엔드 확인).
+- 베이스 모델 실측: **EXAONE-3.5-2.4B-Instruct-AWQ** + mova LoRA 어댑터
+  (`mova_20260720_022643`, awq_gptqmodel 백엔드). 루트 CLAUDE.md의
+  "베이스 Qwen2.5-1.5B" 기술은 구정보 — 어댑터 `adapter_config.json`의
+  `base_model_name_or_path`가 EXAONE-AWQ를 가리킨다.
+
 ## 2026-08-19
 
 ### 작업 내용
