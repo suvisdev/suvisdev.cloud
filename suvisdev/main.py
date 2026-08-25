@@ -120,6 +120,21 @@ async def lifespan(app: FastAPI):
                         logger.info("[main] KOFIC 박스오피스 자동 수입 스케줄러 시작 (24시간 주기)")
                     except Exception as kofic_sched_err:
                         logger.warning("[main] KOFIC 수입 스케줄러 시작 실패: %s", kofic_sched_err)
+                    try:
+                        from mova.adapter.inbound.scheduler.editor_reviews_scheduler import (
+                            run_editor_reviews_scheduler,
+                        )
+
+                        app.state.editor_reviews_scheduler = asyncio.create_task(
+                            run_editor_reviews_scheduler()
+                        )
+                        logger.info(
+                            "[main] 에디터 리뷰 자동 생성 스케줄러 시작 (24시간 주기)"
+                        )
+                    except Exception as editor_sched_err:
+                        logger.warning(
+                            "[main] 에디터 리뷰 스케줄러 시작 실패: %s", editor_sched_err
+                        )
                 else:
                     logger.info(
                         "[main] ENABLE_MOVA_STARTUP=false — mova 부팅 작업"
