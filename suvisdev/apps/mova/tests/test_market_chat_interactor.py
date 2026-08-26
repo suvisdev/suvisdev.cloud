@@ -56,6 +56,33 @@ class ChatInteractorGeneralRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.reply, "답변입니다.")
         self.assertEqual(response.recommendations, [])
 
+    async def test_general_includes_recent_history_in_question(self) -> None:
+        """불만·후속 발화가 맥락 없이 인사말로 답변되던 것 방지(2026-08-26) —
+        히스토리가 있으면 [이전 대화] 블록으로 질문에 인라인된다."""
+        interactor, _repo, general = _build_interactor(classifier_destination="general")
+        request = MovaChatRequest(
+            message="똑같은 말 반복하지마",
+            history=[
+                {"role": "user", "content": "코미디 추천해줘"},
+                {"role": "assistant", "content": "명작 코미디를 추천해 드릴게요."},
+            ],
+        )
+
+        await interactor.chat(request)
+
+        command = general.ask.await_args.args[0]
+        self.assertIn("[이전 대화]", command.question)
+        self.assertIn("코미디 추천해줘", command.question)
+        self.assertIn("[현재 발화]\n똑같은 말 반복하지마", command.question)
+
+    async def test_general_without_history_sends_message_as_is(self) -> None:
+        interactor, _repo, general = _build_interactor(classifier_destination="general")
+        request = MovaChatRequest(message="안녕", history=[])
+
+        await interactor.chat(request)
+
+        self.assertEqual(general.ask.await_args.args[0].question, "안녕")
+
     async def test_crud_destination_also_calls_mycroft_with_system_prompt(self) -> None:
         """ea167b5에서 crud도 general과 동일 처리로 통합된 구조를 유지하는지 확인."""
         interactor, _repo, general = _build_interactor(classifier_destination="crud")

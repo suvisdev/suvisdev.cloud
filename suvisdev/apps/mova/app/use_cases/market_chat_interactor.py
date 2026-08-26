@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 # 재사용하지 않는다 — general은 포맷 강제 없는 대화체 답변이 목적이다.
 _GENERAL_CHAT_SYSTEM_PROMPT = (
     "너는 mova의 영화 대화 도우미다. 영화/작품 관련 일반 질문에 한국어로 간결하고 "
-    "자연스럽게 답한다. 추천 요청이면 목록을 나열하지 말고 대화로 안내한다."
+    "자연스럽게 답한다. 추천 요청이면 목록을 나열하지 말고 대화로 안내한다. "
+    "[이전 대화]가 주어지면 그 흐름에 이어서 답하고, 사용자가 불만이나 지적을 "
+    "하면 인사말 없이 짧게 사과한 뒤 어떻게 다시 요청하면 되는지 한 가지만 안내한다."
 )
 
 
@@ -385,8 +387,21 @@ class ChatInteractor(ChatUseCase):
 
     async def _reply_general(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
         """영화 지식 조회가 필요 없는 잡담 — RAG·추천 없이 Gemini(Mycroft) 답변만 저장·반환."""
+        # 최근 대화를 함께 넘긴다 — 없으면 "똑같은 말 반복하지마" 같은 불만에
+        # 맥락 없는 인사말이 나간다(2026-08-26 라이브 실측). Mycroft 포트가
+        # question+system만 받으므로 히스토리는 질문 텍스트에 인라인한다.
+        history = request.history_dicts()[-6:]
+        if history:
+            context = "\n".join(
+                f"{'사용자' if m['role'] == 'user' else '도우미'}: {m['content'][:200]}"
+                for m in history
+                if m["content"]
+            )
+            question = f"[이전 대화]\n{context}\n\n[현재 발화]\n{request.message}"
+        else:
+            question = request.message
         answer = await self._general.ask(
-            MycroftAskCommand(question=request.message, system=_GENERAL_CHAT_SYSTEM_PROMPT)
+            MycroftAskCommand(question=question, system=_GENERAL_CHAT_SYSTEM_PROMPT)
         )
         chat_id = await self._repo.save_chat(
             user_id=request.user_id,
