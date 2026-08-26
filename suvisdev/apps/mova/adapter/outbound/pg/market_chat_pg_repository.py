@@ -83,7 +83,10 @@ class ChatPgRepository(ChatRepositoryPort):
         self, countries: list[str] | None, year_min: int | None, year_max: int | None
     ) -> list:
         """국가·연도 하드 조건 — 태그 매칭 결과와 인기작 폴백 양쪽에 똑같이 건다."""
-        conds = [self._language_cond()]
+        # 언어 허용목록(ko·en)은 "맥락 없는 외국어 영화 노출 방지"가 목적이라,
+        # 사용자가 국가를 명시한 요청("일본 애니메이션")에는 적용하지 않는다 —
+        # 적용하면 ja 원어 작품이 전부 걸러져 recs=0 (2026-08-26 프로덕션 실측).
+        conds = [] if countries else [self._language_cond()]
         if countries:
             # origin_country는 JSONB 배열(공동제작이면 ["US","GB"]) — 하나라도
             # 겹치면 통과. 아직 백필 안 된 로우(NULL)는 국가를 증명할 수 없어 제외한다.
