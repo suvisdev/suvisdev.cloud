@@ -23,9 +23,14 @@ export function MovaHeader() {
   const router = useRouter()
   const [loggedIn, setLoggedIn] = useState(false)
 
+  // 로그인 페이지는 전체 화면 폼이라 헤더를 두지 않는 기존 설계 유지.
+  const hideHeader = pathname === "/mova/login"
+
   useEffect(() => {
     setLoggedIn(getSuvisSession() !== null)
   }, [pathname])
+
+  if (hideHeader) return null
 
   const nav = MOVA_NAV.filter((item) => item.href !== "/mova/mypage" || loggedIn)
 

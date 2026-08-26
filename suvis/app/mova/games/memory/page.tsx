@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Loader2, RotateCcw, Timer } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import {
   fetchLeaderboard,
   fetchMemoryDeck,
@@ -215,7 +214,6 @@ export default function MemoryGamePage() {
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[1000px] space-y-6 px-4 py-6 md:px-6 md:py-8">
         <Link href="/mova/games" className="inline-flex items-center gap-1.5 text-sm text-mova-muted hover:text-mova-text">
           <ArrowLeft className="h-3.5 w-3.5" /> 미니게임

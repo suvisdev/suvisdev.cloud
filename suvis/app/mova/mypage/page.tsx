@@ -19,7 +19,6 @@ import {
   X,
 } from "lucide-react"
 import { MovaConfirmDialog } from "@/components/mova/mova-confirm-dialog"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaSpoilerBody } from "@/components/mova/mova-spoiler-body"
 import {
   deleteMovaAccount,
@@ -235,7 +234,6 @@ export default function MypagePage() {
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[900px] space-y-6 px-4 py-5 md:px-6 md:py-8">
 
         {/* 프로필 헤더 */}

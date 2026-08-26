@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Star } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { fetchMovaCollectionDetail, fetchMovaCollectionMovies } from "@/lib/mova-api"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
@@ -29,7 +28,6 @@ export default async function MovaCollectionDetailPage({ params }: PageProps) {
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 md:py-8">
         <Link
           href="/mova/collections"

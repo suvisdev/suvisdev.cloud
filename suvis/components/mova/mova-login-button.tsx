@@ -28,39 +28,56 @@ type MovaLoginButtonProps = {
   size?: "sm" | "md"
 }
 
-// 페이지 이동마다 컴포넌트가 리마운트돼 nickname이 null→fetch 완료로 바뀌며
-// username이 잠깐 노출되던 깜빡임 방지 — 모듈 레벨 캐시로 첫 렌더부터 닉네임 표시.
-let cachedNickname: string | null = null
+// 새로고침 후에도 첫 렌더부터 닉네임을 보여주기 위한 localStorage 캐시.
+// (이전의 모듈 레벨 캐시는 메모리라 새로고침 시 username이 먼저 노출됐다.)
+function readCachedNickname(userId: number): string | null {
+  try {
+    return localStorage.getItem(`mova-nickname:${userId}`)
+  } catch {
+    return null
+  }
+}
+
+function writeCachedNickname(userId: number, nickname: string) {
+  try {
+    localStorage.setItem(`mova-nickname:${userId}`, nickname)
+  } catch {
+    // 저장 실패는 무시 — 다음 fetch가 다시 채운다.
+  }
+}
 
 export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  // SSR 마크업과 hydration 첫 렌더를 일치시키기 위해 세션은 effect에서 읽는다.
+  // hydrated 전에는 자리만 잡는 placeholder를 그려 "로그인 → 닉네임" 플래시를 막는다.
+  const [hydrated, setHydrated] = useState(false)
   const [session, setSession] = useState<SuvisSession | null>(null)
-  const [nickname, setNickname] = useState<string | null>(cachedNickname)
+  const [nickname, setNickname] = useState<string | null>(null)
 
   const refreshSession = useCallback(() => {
-    setSession(getSuvisSession())
+    const s = getSuvisSession()
+    setSession(s)
+    // 세션과 같은 렌더 커밋에 캐시 닉네임을 함께 넣어 username 노출 프레임을 없앤다.
+    setNickname(s ? readCachedNickname(s.id) : null)
   }, [])
 
   useEffect(() => {
     refreshSession()
+    setHydrated(true)
   }, [pathname, refreshSession, open])
 
   useEffect(() => {
-    if (!session) {
-      cachedNickname = null
-      setNickname(null)
-      return
-    }
+    if (!session) return
     let cancelled = false
     fetchProfile(session.id)
       .then((p) => {
-        cachedNickname = p.nickname
+        writeCachedNickname(session.id, p.nickname)
         if (!cancelled) setNickname(p.nickname)
       })
       .catch(() => {
-        if (!cancelled) setNickname(cachedNickname)
+        // 실패 시 캐시/username 표시 유지
       })
     return () => {
       cancelled = true
@@ -72,6 +89,11 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
     refreshSession()
     router.refresh()
   }, [refreshSession, router])
+
+  if (!hydrated) {
+    // 세션 확인 전 자리 표시 — 로그인 버튼과 같은 높이의 빈 박스.
+    return <div className={cn("h-8 w-8 shrink-0 sm:w-20", className)} aria-hidden />
+  }
 
   if (session) {
     return (
@@ -90,6 +112,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
           onClick={() => {
             clearSuvisSession()
             setSession(null)
+            setNickname(null)
           }}
           aria-label="로그아웃"
           className={cn(

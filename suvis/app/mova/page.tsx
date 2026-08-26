@@ -1,7 +1,6 @@
 "use client"
 
 import { Suspense, useState } from "react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaIntro } from "@/components/mova/mova-intro"
 import { MovaLandingChatBar } from "@/components/mova/mova-landing-chat-bar"
 
@@ -9,12 +8,10 @@ export default function MovaPage() {
   const [introDone, setIntroDone] = useState(false)
 
   return (
-    <main className="mova-cinema-bg mova-grain relative flex min-h-screen min-w-0 flex-col overflow-x-clip">
+    // 헤더가 레이아웃으로 올라가(2026-08-26) 랜딩은 남은 뷰포트를 flex-1로
+    // 채운다 — min-h-screen이면 헤더 높이만큼 스크롤이 생긴다.
+    <main className="mova-cinema-bg mova-grain relative flex min-h-0 flex-1 min-w-0 flex-col overflow-x-clip">
       {!introDone && <MovaIntro onDone={() => setIntroDone(true)} />}
-
-      {/* 자체 헤더 마크업(로고 md·left-32·무보더)이 다른 페이지의 공통 헤더와
-          미묘하게 달라 보이던 것 — 공통 MovaHeader로 통일 (2026-08-25). */}
-      <MovaHeader />
 
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-6 sm:py-8 -mt-6 sm:-mt-10">
         <section

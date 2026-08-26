@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
 import { Crown, Medal, Star, TrendingUp } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { fetchMovaRankings, type MovaHotRankingItem } from "@/lib/mova-api"
 import { cn } from "@/lib/utils"
 import { RankingsRefreshButton } from "./rankings-refresh-button"
@@ -31,7 +30,6 @@ export default async function MovaRankingsPage({
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[900px] space-y-5 px-4 py-5 md:px-6 md:py-8">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">

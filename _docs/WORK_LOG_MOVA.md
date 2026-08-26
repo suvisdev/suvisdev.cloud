@@ -61,6 +61,19 @@
   220201, vote≥100) discover 458편 ↔ 카탈로그 3,419편을 제목 정규화+연도 ±1
   매칭 → 65편(레미제라블·라라랜드·위대한 쇼맨·위키드·겨울왕국 등).
 
+### 수정/구현 (추가) — 헤더 레이아웃 통합 + 닉네임 깜빡임 해소
+- 좌상단 닉네임 깜빡임의 3중 원인 규명: ① MovaHeader가 각 page에 개별
+  마운트라 이동마다 리마운트, ② 세션이 effect에서 채워져 "로그인 버튼→
+  닉네임" 플래시, ③ 닉네임이 별도 fetchProfile이라 새로고침 시 username
+  선노출(8/25 모듈 캐시는 메모리라 새로고침 미커버).
+- 해소: MovaHeader를 `app/mova/layout.tsx`로 통합(리마운트 제거, 페이지
+  14곳+타이틀 뷰에서 제거, `/mova/login`은 헤더가 pathname으로 자기 숨김),
+  랜딩·채팅은 min-h-screen/h-screen → flex-1로 높이 보정. 로그인 버튼은
+  hydration 가드 placeholder + localStorage 닉네임 캐시(user id 키)로
+  첫 렌더부터 닉네임 표시.
+- 검증: tsc·eslint(0 errors) 통과, `pnpm build` 성공, dev 서버 SSR 실측
+  — 전 페이지 헤더 1개·`/mova/login`만 0개 확인.
+
 ### 수정/구현 (추가)
 - `/mova/movies` 장르 탭을 DB 실측에 맞게 갱신: 뮤지컬 0편 문제로 모험·
   판타지·가족·미스터리·음악 추가, 뮤지컬은 아래 백필과 함께 유지(총 16탭).

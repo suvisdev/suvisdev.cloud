@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { MovaHeader } from "@/components/mova/mova-header"
 
 export const metadata: Metadata = {
   title: "이용약관 — Mova",
@@ -147,7 +146,6 @@ const ARTICLES: Article[] = [
 export default function MovaTermsPage() {
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-3xl px-4 py-10 md:px-6 md:py-14">
         <h1 className="text-2xl font-bold tracking-tight text-mova-text">이용약관</h1>
         <p className="mt-2 text-sm text-mova-muted">본 약관은 2026년 8월 14일부터 적용됩니다.</p>

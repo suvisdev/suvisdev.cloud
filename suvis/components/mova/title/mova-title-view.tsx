@@ -6,7 +6,6 @@ import { useEffect, useState } from "react"
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp } from "lucide-react"
 import { MovaActorDialog } from "@/components/mova/title/mova-actor-dialog"
 import { MovaReviewComments } from "@/components/mova/title/mova-review-comments"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaOttBadge } from "@/components/mova/mova-ott-badge"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { MovaSpoilerBody } from "@/components/mova/mova-spoiler-body"
@@ -204,7 +203,6 @@ export function MovaTitleView({
 
   return (
     <>
-      <MovaHeader />
       <main className="pb-10">
         <section className="relative min-h-[280px] overflow-hidden md:min-h-[360px]">
           <div className="absolute inset-0 bg-mova-surface">

@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Layers } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { fetchMovaCollections } from "@/lib/mova-api"
 
 export const metadata: Metadata = { title: "컬렉션 — Mova" }
@@ -18,7 +17,6 @@ export default async function MovaCollectionsPage() {
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[1400px] px-4 py-6 md:px-6 md:py-8">
         <div className="mb-6 flex items-center gap-2">
           <Layers className="h-5 w-5 text-mova-accent" />

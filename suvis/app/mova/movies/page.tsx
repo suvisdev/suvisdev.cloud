@@ -6,7 +6,6 @@ import { Suspense, useEffect, useRef, useState } from "react"
 
 import { DragScrollRow } from "@/components/mova/drag-scroll-row"
 import { Loader2, RotateCcw, Star, TrendingUp } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { Button } from "@/components/ui/button"
 import {
@@ -470,7 +469,6 @@ function MovaMoviesPageInner() {
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[1400px] space-y-6 px-4 py-5 md:px-6 md:py-6">
 
         {/* 인기 검색 영화 */}

@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, Loader2, Trophy } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { fetchLeaderboard, type GameType, type Leaderboard } from "@/lib/mova-games-api"
 import { cn } from "@/lib/utils"
 
@@ -62,7 +61,6 @@ const GAMES = [
 export default function GamesHubPage() {
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[1200px] px-4 py-5 md:px-6 md:py-8">
         <header className="mb-5">
           <h1 className="text-xl font-semibold text-mova-text md:text-2xl">미니게임</h1>

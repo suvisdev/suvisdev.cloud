@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { CalendarClock } from "lucide-react"
-import { MovaHeader } from "@/components/mova/mova-header"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import { fetchUpcoming, type UpcomingMovie } from "@/lib/mova-api"
 
@@ -40,7 +39,6 @@ export default async function MovaUpcomingPage() {
 
   return (
     <>
-      <MovaHeader />
       <main className="mx-auto max-w-[1200px] space-y-6 px-4 py-5 md:px-6 md:py-8">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-5 w-5 text-mova-accent" />
