@@ -161,6 +161,18 @@
   콘텐츠는 신규 포스트뿐이었음). deploy key가 push 불가라 remote를
   HTTPS(gh 인증)로 전환.
 
+### 오늘 커밋 요약 (시간순)
+- `3eeda2c` Cursor 설정 제거 · `af4ff37`/`0937ced` 앱 카탈로그 SEUK 카드
+- `d4828b8` 검증 파이프라인 복구(pytest·lint-imports·eslint 그린)
+- `2885155` pre-commit 게이트 복구 + ruff 전체 포맷
+- `efa0835` 헤더 레이아웃 통합(닉네임 깜빡임 해소)
+- `83d8b44` 언어 허용목록 우회(일본 애니 0건 수정)
+- `f8f217f` dedup 소진 풀 확장 재검색
+- `0343a05` 불만·메타 발화 general 가드
+- `75df08c` general 응답 히스토리 전달
+- `58fb796` ingest_movie bool 반환 + 재임베딩 재시도·재개
+- suvisjk `af91804` 8/26 포스트 · ats `c8594af`~`9b84ff8` 팀원·주간보고·Arda
+
 ## 2026-08-25
 
 ### 작업 내용
