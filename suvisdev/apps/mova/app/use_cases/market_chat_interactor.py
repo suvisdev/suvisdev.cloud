@@ -62,6 +62,7 @@ def _rerank_by_taste_cosine(
     자기들 사이의 상대 순서는 원본을 유지(stable sort). 재정렬 대상이 3편
     수준이라 순수 Python으로 충분(pgvector <=>를 SQL로 태울 규모 아님).
     """
+
     def _key(rec_with_idx: tuple[int, object]) -> tuple[float, int]:
         original_idx, rec = rec_with_idx
         vec = embeddings_by_id.get(getattr(rec, "movie_id", None))
@@ -318,9 +319,7 @@ class ChatInteractor(ChatUseCase):
             conversation_id=conversation_id,
         )
 
-    async def _rerank_recommendations(
-        self, user_id: int | None, recs: list, trace_id: str
-    ) -> list:
+    async def _rerank_recommendations(self, user_id: int | None, recs: list, trace_id: str) -> list:
         """taste vector가 있으면 movies.embedding과의 cosine으로 recs 재정렬.
 
         스킵 조건(전부 debug 로그만): 비로그인, 두 port 중 하나 미주입,
@@ -476,9 +475,7 @@ class ChatInteractor(ChatUseCase):
         if conversation_id is None:
             title = user_content.strip().splitlines()[0][:40] if user_content.strip() else "새 대화"
             conversation_id = await self._conversations.create(request.user_id, title)
-        await self._conversations.append_message(
-            conversation_id, "user", user_content, user_meta
-        )
+        await self._conversations.append_message(conversation_id, "user", user_content, user_meta)
         await self._conversations.append_message(
             conversation_id, "assistant", assistant_content, assistant_meta
         )

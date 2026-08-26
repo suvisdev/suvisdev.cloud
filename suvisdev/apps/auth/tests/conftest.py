@@ -9,8 +9,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 _here = Path(__file__).parent  # apps/auth/tests/
 
 _paths = [
-    _here.parent.parent,            # apps/     → auth.* 임포트
-    _here.parent.parent.parent,     # suvisdev/ → core.* 임포트
+    _here.parent.parent,  # apps/     → auth.* 임포트
+    _here.parent.parent.parent,  # suvisdev/ → core.* 임포트
 ]
 for _p in _paths:
     if str(_p) not in sys.path:

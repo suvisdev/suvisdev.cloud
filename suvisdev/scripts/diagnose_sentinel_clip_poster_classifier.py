@@ -48,7 +48,9 @@ def _load_model() -> tuple[CLIPModel, CLIPProcessor, torch.device]:
     return model, processor, device
 
 
-def _poster_probs(model: CLIPModel, processor: CLIPProcessor, device: torch.device, paths: list[str]) -> np.ndarray:
+def _poster_probs(
+    model: CLIPModel, processor: CLIPProcessor, device: torch.device, paths: list[str]
+) -> np.ndarray:
     prompts = _POSTER_PROMPTS + _NON_POSTER_PROMPTS
     text_inputs = processor(text=prompts, return_tensors="pt", padding=True).to(device)
     with torch.no_grad():
@@ -84,7 +86,9 @@ def main() -> None:
     for name, paths in groups.items():
         print(f"{name}: n={len(paths)}")
 
-    poster_prob = {name: _poster_probs(model, processor, device, paths) for name, paths in groups.items()}
+    poster_prob = {
+        name: _poster_probs(model, processor, device, paths) for name, paths in groups.items()
+    }
 
     print("\n=== 그룹별 CLIP poster_prob(포스터일 확률, 제로샷) 분포 ===")
     for name, probs in poster_prob.items():

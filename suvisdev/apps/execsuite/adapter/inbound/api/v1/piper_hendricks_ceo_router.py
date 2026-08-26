@@ -12,9 +12,4 @@ hendricks_ceo_router = APIRouter(prefix="/hendricks", tags=["hendricks"])
 async def introduce_myself(
     hendricks: HendricksCeoUseCase = Depends(get_hendricks_ceo_use_case),
 ) -> HendricksCeoResponse:
-    return await hendricks.introduce_myself(
-        HendricksCeoSchema(
-            id=1,
-            name="리처드 헨드릭스 주인공"
-        )
-    )
+    return await hendricks.introduce_myself(HendricksCeoSchema(id=1, name="리처드 헨드릭스 주인공"))

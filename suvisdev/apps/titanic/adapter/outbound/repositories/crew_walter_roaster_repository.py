@@ -19,55 +19,59 @@ class WalterRepository(WalterPort):
         self._session = session
 
     async def get_train_set(self) -> pd.DataFrame:
-        ''' survived 컬럼이 있는 데이터 전체를 데이터프레임으로 반환하는 메소드'''
+        """survived 컬럼이 있는 데이터 전체를 데이터프레임으로 반환하는 메소드"""
         stmt = (
             select(JackTrainerOrm, RoseModelOrm)
             .join(RoseModelOrm, RoseModelOrm.passenger_id == JackTrainerOrm.passenger_id)
             .where(JackTrainerOrm.survived != "")
         )
         result = await self._session.execute(stmt)
-        return pd.DataFrame([
-            {
-                "passenger_id": p.passenger_id,
-                "name": p.name,
-                "gender": p.gender,
-                "age": p.age,
-                "sib_sp": p.sib_sp,
-                "parch": p.parch,
-                "survived": p.survived,
-                "pclass": b.pclass,
-                "ticket": b.ticket,
-                "fare": b.fare,
-                "cabin": b.cabin,
-                "embarked": b.embarked,
-            }
-            for p, b in result.all()
-        ])
+        return pd.DataFrame(
+            [
+                {
+                    "passenger_id": p.passenger_id,
+                    "name": p.name,
+                    "gender": p.gender,
+                    "age": p.age,
+                    "sib_sp": p.sib_sp,
+                    "parch": p.parch,
+                    "survived": p.survived,
+                    "pclass": b.pclass,
+                    "ticket": b.ticket,
+                    "fare": b.fare,
+                    "cabin": b.cabin,
+                    "embarked": b.embarked,
+                }
+                for p, b in result.all()
+            ]
+        )
 
     async def get_test_set(self) -> pd.DataFrame:
-        ''' survived 컬럼이 없는 데이터 전체를 데이터프레임으로 반환하는 메소드 '''
+        """survived 컬럼이 없는 데이터 전체를 데이터프레임으로 반환하는 메소드"""
         stmt = (
             select(JackTrainerOrm, RoseModelOrm)
             .join(RoseModelOrm, RoseModelOrm.passenger_id == JackTrainerOrm.passenger_id)
             .where(JackTrainerOrm.survived == "")
         )
         result = await self._session.execute(stmt)
-        return pd.DataFrame([
-            {
-                "passenger_id": p.passenger_id,
-                "name": p.name,
-                "gender": p.gender,
-                "age": p.age,
-                "sib_sp": p.sib_sp,
-                "parch": p.parch,
-                "pclass": b.pclass,
-                "ticket": b.ticket,
-                "fare": b.fare,
-                "cabin": b.cabin,
-                "embarked": b.embarked,
-            }
-            for p, b in result.all()
-        ])
+        return pd.DataFrame(
+            [
+                {
+                    "passenger_id": p.passenger_id,
+                    "name": p.name,
+                    "gender": p.gender,
+                    "age": p.age,
+                    "sib_sp": p.sib_sp,
+                    "parch": p.parch,
+                    "pclass": b.pclass,
+                    "ticket": b.ticket,
+                    "fare": b.fare,
+                    "cabin": b.cabin,
+                    "embarked": b.embarked,
+                }
+                for p, b in result.all()
+            ]
+        )
 
     async def introduce_myself(self, query: WalterQuery) -> WalterResponse:
         logger.info(f"[WalterRepository] introduce_myself 진입 | request_data={query}")

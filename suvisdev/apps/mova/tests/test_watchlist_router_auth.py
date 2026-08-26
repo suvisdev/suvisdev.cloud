@@ -18,12 +18,13 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
+from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
+
 from mova.adapter.inbound.api.v1.market_watchlist_router import (  # noqa: E402
     market_watchlist_router,
 )
 from mova.app.dtos.market_watchlist_dto import WatchlistDto  # noqa: E402
 from mova.dependencies.market_watchlist_provider import get_watchlist_use_case  # noqa: E402
-from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
 
 
 class _FakeWatchlistUseCase:
@@ -112,9 +113,7 @@ class WatchlistAuthTests(unittest.TestCase):
         c = _client(uc, principal=UserPrincipal(user_id=99, username="admin", role="admin"))
 
         self.assertEqual(c.get("/watchlist/1").status_code, 403)
-        self.assertEqual(
-            c.post("/watchlist", json={"user_id": 1, "movie_id": 2}).status_code, 403
-        )
+        self.assertEqual(c.post("/watchlist", json={"user_id": 1, "movie_id": 2}).status_code, 403)
 
 
 if __name__ == "__main__":

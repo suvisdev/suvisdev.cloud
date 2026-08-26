@@ -5,7 +5,6 @@ from execsuite.app.ports.output.piper_gilfoyle_sys_port import GilfoyleSysPort
 
 
 class GilfoyleSysRepository(GilfoyleSysPort):
-
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 

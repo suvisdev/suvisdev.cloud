@@ -11,7 +11,9 @@ from core.lol.lora_recommendation_orchestrator import (
 
 
 class _FakeResponse:
-    def __init__(self, status_code: int = 200, json_data: dict | None = None, text: str = "") -> None:
+    def __init__(
+        self, status_code: int = 200, json_data: dict | None = None, text: str = ""
+    ) -> None:
         self.status_code = status_code
         self._json_data = json_data or {}
         self.text = text

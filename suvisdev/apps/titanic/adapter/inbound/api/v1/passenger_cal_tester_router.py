@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 
 from titanic.adapter.inbound.api.schemas.passenger_cal_tester_schema import CalTesterSchema
 from titanic.app.dtos.passenger_cal_tester_dto import CalTesterResponse, TestmodelResponse
@@ -12,12 +12,7 @@ cal_tester_router = APIRouter(prefix="/cal", tags=["cal"])
 async def introduce_myself(
     cal: CalTesterUseCase = Depends(get_cal_tester_use_case),
 ) -> CalTesterResponse:
-    return await cal.introduce_myself(
-        CalTesterSchema(
-            id=6,
-            name="칼 테스터 주인공"
-        )
-    )
+    return await cal.introduce_myself(CalTesterSchema(id=6, name="칼 테스터 주인공"))
 
 
 @cal_tester_router.post("/score")

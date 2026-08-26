@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from ontology.adapter.inbound.api.schemas.vision_schema import (
     VisionPosterFlagSchema,
@@ -11,7 +12,6 @@ from ontology.app.dtos.vision_dto import (
 )
 from ontology.app.ports.input.vision_use_case import VisionUseCase
 from ontology.dependencies.vision_provider import get_vision_use_case
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 vision_introduce_router = APIRouter(tags=["vision"])
 

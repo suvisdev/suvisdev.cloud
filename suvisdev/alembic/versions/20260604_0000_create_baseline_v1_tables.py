@@ -50,10 +50,16 @@ def upgrade() -> None:
         sa.Column("nickname", sa.String(length=50), nullable=False),
         sa.Column("email", sa.String(length=255), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.ForeignKeyConstraint(["group_id"], ["groups.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
@@ -77,10 +83,16 @@ def upgrade() -> None:
         sa.Column("bio", sa.String(length=255), nullable=False, server_default=""),
         sa.Column("age_group", sa.String(length=16), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.ForeignKeyConstraint(["group_id"], ["groups.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
@@ -197,10 +209,16 @@ def upgrade() -> None:
         sa.Column("search_filters", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("hit_count", sa.Integer(), nullable=False, server_default="1"),
         sa.Column(
-            "last_used_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "last_used_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["assistant_id"], ["assistants.id"], ondelete="SET NULL"),
@@ -322,7 +340,9 @@ def upgrade() -> None:
         sa.Column("file_as", sa.String(length=200), nullable=False, server_default=""),
         sa.Column("organization_name", sa.String(length=200), nullable=False, server_default=""),
         sa.Column("organization_title", sa.String(length=200), nullable=False, server_default=""),
-        sa.Column("organization_department", sa.String(length=200), nullable=False, server_default=""),
+        sa.Column(
+            "organization_department", sa.String(length=200), nullable=False, server_default=""
+        ),
         sa.Column("birthday", sa.String(length=50), nullable=False, server_default=""),
         sa.Column("notes", sa.Text(), nullable=False, server_default=""),
         sa.Column("photo", sa.String(length=500), nullable=False, server_default=""),

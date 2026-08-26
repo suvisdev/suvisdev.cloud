@@ -96,9 +96,7 @@ class TestRealDataQuirks:
 class TestSaveMany:
     def test_save_many_writes_refined_csv(self, tmp_path):
         refined = tmp_path / "refined_tree_segments.csv"
-        repo = CsvTreeSegmentRepository(
-            csv_path=tmp_path / "unused.csv", refined_path=refined
-        )
+        repo = CsvTreeSegmentRepository(csv_path=tmp_path / "unused.csv", refined_path=refined)
 
         repo.save_many(
             [

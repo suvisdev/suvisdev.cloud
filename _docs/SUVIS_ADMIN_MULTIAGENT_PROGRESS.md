@@ -830,6 +830,19 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 
 ## 다음 / 남은 작업 (백로그)
 
+### 코드 품질 부채 (2026-08-26 전체 검증에서 실측)
+- **mypy 재활성화** — pre-commit 복구 시 전체 실측 1,327건(485 파일)이라
+  훅에서 임시 비활성(`.pre-commit-config.yaml` 주석 참조). 대부분 ORM
+  Any-서브클래싱(sqlalchemy mypy 플러그인 미설정 의심)·테스트 미주석.
+  플러그인 설정 → ORM부터 단계적으로 갚고 재활성화.
+- **`google.generativeai` → `google.genai` 마이그레이션** — 구 패키지
+  지원 종료(부팅 시 FutureWarning). 동작은 정상.
+- **mova-ai-chat-bar useCallback 의존성 리팩터링** — sendMessage가
+  conversationId·dbMode·onConversationChanged를 클로저로 잡는 구조.
+  자동 전송(?q=) 트리거가 sendMessage 재생성에 묶여 있어 단순 deps 추가
+  금지 — 부모 콜백 useCallback + ref 참조 + 트리거 재설계로 함께 수정
+  (eslint 경고 1건 의도적 보존 중).
+
 ### 뉴스 기반 자동 리뷰 작성 (2026-08-25 사용자 요청)
 - 현재 Google News 스크레이퍼는 제목+요약만 수집해 **hub_knowledge(RAG)에만
   적재** — reviews 테이블에 리뷰를 자동 작성하는 기능은 없다. 크롤링도

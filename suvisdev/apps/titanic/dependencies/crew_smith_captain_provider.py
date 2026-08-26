@@ -24,26 +24,27 @@ from titanic.dependencies.passenger_jack_trainer_provider import get_jack_traine
 from titanic.dependencies.passenger_rose_model_provider import get_rose_model_use_case
 
 
-def get_smith_captain_repository(
-        db: AsyncSession = Depends(get_db)
-) -> SmithCaptainPort:
+def get_smith_captain_repository(db: AsyncSession = Depends(get_db)) -> SmithCaptainPort:
     return SmithCaptainRepository(session=db)
 
+
 def get_smith_captain_use_case(
-        repository: SmithCaptainPort = Depends(get_smith_captain_repository),
-        jack: JackTrainerUseCase = Depends(get_jack_trainer_use_case),
-        cal: CalTesterUseCase = Depends(get_cal_tester_use_case),
-        walter: WalterUseCase = Depends(get_walter_roaster_use_case),
-        andrews: AndrewsArchitectUseCase = Depends(get_andrews_architect_use_case),
-        rose: RoseModelUseCase = Depends(get_rose_model_use_case),
-        lowe: LoweBoatUseCase = Depends(get_lowe_boat_use_case),
-        hartley: HartleyViolinUseCase = Depends(get_hartley_violin_use_case)
+    repository: SmithCaptainPort = Depends(get_smith_captain_repository),
+    jack: JackTrainerUseCase = Depends(get_jack_trainer_use_case),
+    cal: CalTesterUseCase = Depends(get_cal_tester_use_case),
+    walter: WalterUseCase = Depends(get_walter_roaster_use_case),
+    andrews: AndrewsArchitectUseCase = Depends(get_andrews_architect_use_case),
+    rose: RoseModelUseCase = Depends(get_rose_model_use_case),
+    lowe: LoweBoatUseCase = Depends(get_lowe_boat_use_case),
+    hartley: HartleyViolinUseCase = Depends(get_hartley_violin_use_case),
 ) -> SmithCaptainUseCase:
-    return SmithCaptainInteractor(repository=repository,
-                                  jack=jack,
-                                  cal=cal,
-                                  walter=walter,
-                                  andrews=andrews,
-                                  rose=rose,
-                                  lowe=lowe,
-                                  hartley=hartley)
+    return SmithCaptainInteractor(
+        repository=repository,
+        jack=jack,
+        cal=cal,
+        walter=walter,
+        andrews=andrews,
+        rose=rose,
+        lowe=lowe,
+        hartley=hartley,
+    )

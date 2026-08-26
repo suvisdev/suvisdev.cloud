@@ -24,7 +24,9 @@ def _build_scraper() -> TmdbScraper:
     fetcher = FakePageFetcher()
     fetcher.add_rule("search/movie", (_FIXTURES / "tmdb_search.json").read_text())
     fetcher.add_rule("movie/496243", (_FIXTURES / "tmdb_movie_detail.json").read_text())
-    return TmdbScraper(fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore())
+    return TmdbScraper(
+        fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore()
+    )
 
 
 class TmdbScraperTest(unittest.TestCase):

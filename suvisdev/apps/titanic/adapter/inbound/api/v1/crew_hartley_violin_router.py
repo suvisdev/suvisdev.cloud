@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 
 from titanic.adapter.inbound.api.schemas.crew_hartley_violin_schema import HartleyViolinSchema
 from titanic.app.dtos.crew_hartley_violin_dto import HartleyViolinResponse
@@ -12,9 +12,4 @@ hartley_violin_router = APIRouter(prefix="/hartley", tags=["hartley"])
 async def introduce_myself(
     hartley: HartleyViolinUseCase = Depends(get_hartley_violin_use_case),
 ) -> HartleyViolinResponse:
-    return await hartley.introduce_myself(
-        HartleyViolinSchema(
-            id=2,
-            name="하트리 바이올린 주인공"
-        )
-    )
+    return await hartley.introduce_myself(HartleyViolinSchema(id=2, name="하트리 바이올린 주인공"))

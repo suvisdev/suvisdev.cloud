@@ -11,6 +11,8 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
+from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest  # noqa: E402
+from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema  # noqa: E402
 from mova.app.dtos.market_conversations_dto import (  # noqa: E402
     ConversationDetailDto,
     ConversationMessageDto,
@@ -20,12 +22,10 @@ from mova.app.ports.output.market_conversations_errors import (  # noqa: E402
     ConversationForbiddenError,
     ConversationNotFoundError,
 )
+from mova.app.use_cases.market_chat_interactor import ChatInteractor  # noqa: E402
 from mova.app.use_cases.market_conversations_interactor import (  # noqa: E402
     ConversationsInteractor,
 )
-from mova.app.use_cases.market_chat_interactor import ChatInteractor  # noqa: E402
-from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest  # noqa: E402
-from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema  # noqa: E402
 
 
 class ConversationsInteractorTests(unittest.IsolatedAsyncioTestCase):
@@ -111,11 +111,15 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
         chat_repo.save_chat.return_value = 42
         chat_repo.get_recent_intents_by_user.return_value = []
         chat_repo.search_tag_catalog.return_value = [
-            MovaSearchItemSchema(id=f"tmdb-{i}", title=f"영화 {i}", year="", rating=0.0, poster="", match_type="tag")
+            MovaSearchItemSchema(
+                id=f"tmdb-{i}", title=f"영화 {i}", year="", rating=0.0, poster="", match_type="tag"
+            )
             for i in (1, 2, 3)
         ]
         preferences = AsyncMock()
-        preferences.get_preferences.return_value = type("P", (), {"nickname": "u", "preferred_genres": []})()
+        preferences.get_preferences.return_value = type(
+            "P", (), {"nickname": "u", "preferred_genres": []}
+        )()
         hub_rag = AsyncMock()
         hub_rag.search_movies.return_value = []  # 태그 폴백 경로로
 
@@ -127,8 +131,18 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
             from mova.adapter.inbound.api.schemas.market_chat_schema import (
                 MovaChatRecommendationSchema,
             )
+
             recs = [
-                MovaChatRecommendationSchema(id=c.id, movie_id=None, title=c.title, year="", poster="", synopsis="", platform=None, hook="")
+                MovaChatRecommendationSchema(
+                    id=c.id,
+                    movie_id=None,
+                    title=c.title,
+                    year="",
+                    poster="",
+                    synopsis="",
+                    platform=None,
+                    hook="",
+                )
                 for c in tag_catalog
             ]
             return ("추천합니다.", recs)
@@ -195,27 +209,55 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
         chat_repo.save_chat.return_value = 42
         chat_repo.get_recent_intents_by_user.return_value = []
         chat_repo.search_tag_catalog.return_value = [
-            MovaSearchItemSchema(id="tmdb-1", title="a", year="", rating=0.0, poster="", match_type="tag")
+            MovaSearchItemSchema(
+                id="tmdb-1", title="a", year="", rating=0.0, poster="", match_type="tag"
+            )
         ]
         preferences = AsyncMock()
-        preferences.get_preferences.return_value = type("P", (), {"nickname": "u", "preferred_genres": []})()
+        preferences.get_preferences.return_value = type(
+            "P", (), {"nickname": "u", "preferred_genres": []}
+        )()
         hub_rag = AsyncMock()
         hub_rag.search_movies.return_value = []
         llm = Mock()
-        llm.extract_intent.return_value = {"refined_query": "다른것", "keywords": [], "intent_type": "mood", "search_filters": {}}
+        llm.extract_intent.return_value = {
+            "refined_query": "다른것",
+            "keywords": [],
+            "intent_type": "mood",
+            "search_filters": {},
+        }
         # LLM은 소개한 것을 그대로 다시 돌려주는 시나리오(전량 필터 예정)
         from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommendationSchema
-        llm.generate_recommendation = AsyncMock(return_value=(
-            "취향에 맞춰 엄선한 명작 영화들을 추천해 드릴게요.",
-            [MovaChatRecommendationSchema(id="tmdb-1", movie_id=None, title="a", year="", poster="", synopsis="", platform=None, hook="")],
-        ))
+
+        llm.generate_recommendation = AsyncMock(
+            return_value=(
+                "취향에 맞춰 엄선한 명작 영화들을 추천해 드릴게요.",
+                [
+                    MovaChatRecommendationSchema(
+                        id="tmdb-1",
+                        movie_id=None,
+                        title="a",
+                        year="",
+                        poster="",
+                        synopsis="",
+                        platform=None,
+                        hook="",
+                    )
+                ],
+            )
+        )
         conversations = AsyncMock()
         conversations.get_recent_recommendation_slugs.return_value = {"tmdb-1"}
         conversations.get_owner_id.return_value = 7
 
         interactor = ChatInteractor(
-            repository=chat_repo, recommender=llm, preferences=preferences,
-            hub_rag=hub_rag, classifier=classifier, general=AsyncMock(), conversations=conversations,
+            repository=chat_repo,
+            recommender=llm,
+            preferences=preferences,
+            hub_rag=hub_rag,
+            classifier=classifier,
+            general=AsyncMock(),
+            conversations=conversations,
         )
         req = MovaChatRequest(message="다른것도", history=[], user_id=7, conversation_id=99)
         # 안내 문구는 변형 3종 중 랜덤 pick — 첫 변형으로 고정해 결정적으로 검증한다.

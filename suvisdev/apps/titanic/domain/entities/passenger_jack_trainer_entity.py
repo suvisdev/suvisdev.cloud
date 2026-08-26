@@ -31,10 +31,10 @@ class PassengerJackTrainer:
         self.survived = new_survived
 
     def summary(self) -> str:
-        survived_label = {True: "생존", False: "사망", None: "미확인"}[
-            self.survived.is_alive
-        ]
-        return f"[{self.passenger_id}] {self.identity.title} {self.identity.gender} — {survived_label}"
+        survived_label = {True: "생존", False: "사망", None: "미확인"}[self.survived.is_alive]
+        return (
+            f"[{self.passenger_id}] {self.identity.title} {self.identity.gender} — {survived_label}"
+        )
 
     @classmethod
     def create(

@@ -20,13 +20,16 @@ class CalTesterInteractor(CalTesterUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: CalTesterSchema) -> CalTesterResponse:
+        return await self._repository.introduce_myself(
+            CalTesterQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )
 
-        return await self._repository.introduce_myself(CalTesterQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
-    
-    async def test_model(self, test_set=None, train_result: dict | None = None) -> TestmodelResponse:
+    async def test_model(
+        self, test_set=None, train_result: dict | None = None
+    ) -> TestmodelResponse:
         """1등 모델로 test_set 예측 실행 후 최고 전략 선정"""
         result = train_result or {}
         accuracies: dict = result.get("accuracies", {})
@@ -46,6 +49,8 @@ class CalTesterInteractor(CalTesterUseCase):
         best_model = trained_strategies.get(best_entry.strategy)
         if best_model and X_test:
             predictions = best_model.predict_proba(X_test)
-            logger.info(f"[CalTesterInteractor] {best_entry.strategy} 모델로 {len(predictions)}명 예측 완료")
+            logger.info(
+                f"[CalTesterInteractor] {best_entry.strategy} 모델로 {len(predictions)}명 예측 완료"
+            )
 
         return TestmodelResponse(best=best_entry, leaderboard=leaderboard, predictions=predictions)

@@ -1,4 +1,4 @@
-﻿"""movie_tags -> tags, movie_characters -> characters (재실행 안전).
+"""movie_tags -> tags, movie_characters -> characters (재실행 안전).
 
 Usage (suvisdev 폴더에서):
   python scripts/rename_movie_tags_and_characters.py
@@ -55,10 +55,7 @@ async def main() -> None:
 
         if await table_exists(conn, "tags"):
             await conn.execute(
-                text(
-                    "ALTER TABLE tags "
-                    "DROP CONSTRAINT IF EXISTS uq_movie_tags_movie_slug"
-                ),
+                text("ALTER TABLE tags " "DROP CONSTRAINT IF EXISTS uq_movie_tags_movie_slug"),
             )
             await conn.execute(
                 text(

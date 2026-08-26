@@ -33,13 +33,9 @@ class GetMapVisualizationDataInteractor(GetMapVisualizationDataUseCase):
         hazard_zones: list[dict[str, Any]] = []
 
         if mode is SeasonMode.SPRING_AUTUMN:
-            tree_segments = [
-                self._serialize_segment(s) for s in self._tree_repository.find_all()
-            ]
+            tree_segments = [self._serialize_segment(s) for s in self._tree_repository.find_all()]
         elif mode is SeasonMode.WINTER_SAFETY:
-            hazard_zones = [
-                self._serialize_hazard(h) for h in self._hazard_repository.find_all()
-            ]
+            hazard_zones = [self._serialize_hazard(h) for h in self._hazard_repository.find_all()]
 
         return {
             "mode": mode.value,

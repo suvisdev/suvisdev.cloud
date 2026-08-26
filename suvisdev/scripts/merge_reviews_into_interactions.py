@@ -1,4 +1,4 @@
-﻿"""`reviews` → `interactions`(action_type=review) 병합 (재실행 안전).
+"""`reviews` → `interactions`(action_type=review) 병합 (재실행 안전).
 
 Usage (suvisdev 폴더에서):
   python scripts/merge_reviews_into_interactions.py
@@ -91,9 +91,7 @@ async def main() -> None:
 
         print("CREATE UNIQUE INDEX uq_interactions_review (partial)")
         await conn.execute(
-            text(
-                "DROP INDEX IF EXISTS uq_interactions_review_user_movie"
-            ),
+            text("DROP INDEX IF EXISTS uq_interactions_review_user_movie"),
         )
         await conn.execute(
             text(

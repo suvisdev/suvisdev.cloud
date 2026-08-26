@@ -10,12 +10,11 @@ from execsuite.app.ports.output.piper_gilfoyle_sys_port import GilfoyleSysPort
 from execsuite.app.use_case.piper_gilfoyle_sys_interactor import GilfoyleSysInteractor
 
 
-def get_gilfoyle_sys_repository(
-        db: AsyncSession = Depends(get_db)
-) -> GilfoyleSysPort:
+def get_gilfoyle_sys_repository(db: AsyncSession = Depends(get_db)) -> GilfoyleSysPort:
     return GilfoyleSysRepository(session=db)
 
+
 def get_gilfoyle_sys_use_case(
-        repository: GilfoyleSysPort = Depends(get_gilfoyle_sys_repository)
+    repository: GilfoyleSysPort = Depends(get_gilfoyle_sys_repository),
 ) -> GilfoyleSysUseCase:
     return GilfoyleSysInteractor(repository=repository)

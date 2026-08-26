@@ -22,7 +22,9 @@ class TimmConvnextAdapter(ImageClassifierPort):
     피하기 위함이며, 평소엔 GPU 메모리를 전혀 점유하지 않는다.
     """
 
-    def __init__(self, weights_path: Path, classes_path: Path, *, device: str | None = None) -> None:
+    def __init__(
+        self, weights_path: Path, classes_path: Path, *, device: str | None = None
+    ) -> None:
         self._weights_path = weights_path
         self._classes: dict[str, str] = json.loads(classes_path.read_text(encoding="utf-8"))
         self._device = device or ("cuda" if torch.cuda.is_available() else "cpu")

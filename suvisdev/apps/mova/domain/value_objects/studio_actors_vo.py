@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     try:
         ActorName("")
-        assert False, "should raise"
+        raise AssertionError("should raise")
     except ValueError:
         pass
 

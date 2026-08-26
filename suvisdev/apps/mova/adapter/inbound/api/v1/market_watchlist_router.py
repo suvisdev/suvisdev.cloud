@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from shared.security.require_user import UserPrincipal, require_user
 
 from mova.adapter.inbound.api.schemas.market_watchlist_schema import (
     WatchlistAddSchema,
@@ -9,7 +10,6 @@ from mova.adapter.inbound.api.schemas.market_watchlist_schema import (
 )
 from mova.app.ports.input.market_watchlist_use_case import WatchlistUseCase
 from mova.dependencies.market_watchlist_provider import get_watchlist_use_case
-from shared.security.require_user import UserPrincipal, require_user
 
 market_watchlist_router = APIRouter(prefix="/watchlist", tags=["mova-watchlist"])
 

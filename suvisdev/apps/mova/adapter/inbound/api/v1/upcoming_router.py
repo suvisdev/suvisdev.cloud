@@ -89,19 +89,23 @@ async def get_upcoming_detail(
     credits = row.get("credits") or {}
     for d in credits.get("crew") or []:
         if d.get("job") == "Director" and d.get("name"):
-            actors.append(UpcomingActorSchema(
-                name=d["name"],
-                role_type="director",
-                profile_photo_url=build_image_url(d.get("profile_path")),
-            ))
+            actors.append(
+                UpcomingActorSchema(
+                    name=d["name"],
+                    role_type="director",
+                    profile_photo_url=build_image_url(d.get("profile_path")),
+                )
+            )
     for c in (credits.get("cast") or [])[:10]:
         if c.get("name"):
-            actors.append(UpcomingActorSchema(
-                name=c["name"],
-                role_type="actor",
-                profile_photo_url=build_image_url(c.get("profile_path")),
-                character_name=str(c.get("character") or "") or None,
-            ))
+            actors.append(
+                UpcomingActorSchema(
+                    name=c["name"],
+                    role_type="actor",
+                    profile_photo_url=build_image_url(c.get("profile_path")),
+                    character_name=str(c.get("character") or "") or None,
+                )
+            )
 
     platforms = [
         UpcomingPlatformSchema(provider=str(p.get("provider", "")), url=p.get("url"))

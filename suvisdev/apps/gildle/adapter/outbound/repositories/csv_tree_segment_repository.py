@@ -88,9 +88,7 @@ class CsvTreeSegmentRepository(TreeSegmentRepository):
             }
             for s in segments
         ]
-        pd.DataFrame(records).to_csv(
-            self._refined_path, index=False, encoding=self._encoding
-        )
+        pd.DataFrame(records).to_csv(self._refined_path, index=False, encoding=self._encoding)
 
     def _to_segment(self, position: int, row: dict[str, Any]) -> TreeSegment | None:
         try:

@@ -46,7 +46,5 @@ class ReviewSpoilerBackfillInteractor:
                 logger.info("[spoiler_backfill] 감지 실패 review_id=%s err=%s", review_id, e)
                 return "failed"
             await repo.update_spoiler_spans(review_id, spans)
-            logger.info(
-                "[spoiler_backfill] review_id=%s spans=%d", review_id, len(spans)
-            )
+            logger.info("[spoiler_backfill] review_id=%s spans=%d", review_id, len(spans))
             return "succeeded"

@@ -148,7 +148,10 @@ class MapTmdbRowAgeRatingPlatformsTests(unittest.TestCase):
             },
             "watch/providers": {
                 "results": {
-                    "KR": {"link": "https://example.com/watch", "flatrate": [{"provider_name": "wavve"}]}
+                    "KR": {
+                        "link": "https://example.com/watch",
+                        "flatrate": [{"provider_name": "wavve"}],
+                    }
                 }
             },
         }

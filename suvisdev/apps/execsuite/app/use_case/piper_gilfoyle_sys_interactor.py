@@ -15,8 +15,9 @@ class GilfoyleSysInteractor(GilfoyleSysUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: GilfoyleSysSchema) -> GilfoyleSysResponse:
-
-        return await self._repository.introduce_myself(GilfoyleSysQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            GilfoyleSysQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

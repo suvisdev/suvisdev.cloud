@@ -19,8 +19,8 @@ class Survived:
             return cls(value=None)
         try:
             return cls(value=SurvivedType(int(raw.strip())))
-        except (ValueError, KeyError):
-            raise ValueError(f"Survived 유효하지 않은 값: '{raw}'")
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Survived 유효하지 않은 값: '{raw}'") from e
 
     @classmethod
     def unknown(cls) -> Survived:

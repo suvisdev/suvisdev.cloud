@@ -59,9 +59,7 @@ async def main() -> None:
     async with engine.begin() as conn:
         if not await column_exists(conn, "movies", "collection_id"):
             print("ALTER movies ADD collection_id")
-            await conn.execute(
-                text("ALTER TABLE movies ADD COLUMN collection_id INTEGER NULL")
-            )
+            await conn.execute(text("ALTER TABLE movies ADD COLUMN collection_id INTEGER NULL"))
             await conn.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_movies_collection_id ON movies (collection_id)")
             )

@@ -102,7 +102,9 @@ class AuthService:
 
         adapter = self._get_oauth_adapter(provider)
         identity = await adapter.exchange_code(code)
-        user = await self._users.find_by_oauth_identity(identity.provider, identity.provider_user_id)
+        user = await self._users.find_by_oauth_identity(
+            identity.provider, identity.provider_user_id
+        )
         if user is None:
             raise OAuthIdentityNotLinked(
                 f"{provider} 계정이 아직 연동되지 않았습니다. viewer에서 먼저 연동하세요."
@@ -148,10 +150,16 @@ class AuthService:
             nickname=identity.nickname,
         )
         access_jwt = self._tokens.issue_access_token(
-            sub=str(user.user_id), roles=user.role_values(), aud=_MOBILE_AUD, expires_min=_ACCESS_TTL_MIN
+            sub=str(user.user_id),
+            roles=user.role_values(),
+            aud=_MOBILE_AUD,
+            expires_min=_ACCESS_TTL_MIN,
         )
         refresh_token = self._mobile_refresh.issue(
-            user_id=str(user.user_id), sub=str(user.user_id), aud=_MOBILE_AUD, roles=user.role_values()
+            user_id=str(user.user_id),
+            sub=str(user.user_id),
+            aud=_MOBILE_AUD,
+            roles=user.role_values(),
         )
         return KakaoMobileTokenResponse(
             access_token=access_jwt,

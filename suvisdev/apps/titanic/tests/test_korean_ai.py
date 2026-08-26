@@ -10,6 +10,7 @@ from korean_ai import run_korean_ai
 
 # ── 일반 테스트 (ollama mock, 서버 불필요) ────────────────────────────
 
+
 class TestRunKoreanAi:
     def test_returns_llm_response_content(self):
         with patch("korean_ai.ollama.chat") as mock_chat:
@@ -32,6 +33,7 @@ class TestRunKoreanAi:
 
 
 # ── ollama 통합 테스트 (실제 서버 필요) ─────────────────────────────
+
 
 @pytest.mark.ollama
 def test_real_ollama_korean_question():

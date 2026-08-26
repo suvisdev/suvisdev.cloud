@@ -10,10 +10,10 @@ if str(APPS) not in sys.path:
 
 from ontology.app.dtos.sentiment_analysis_dto import SentimentResult  # noqa: E402
 
-
 # ── 실제 GPU + 학습된 어댑터가 필요한 통합 테스트 ─────────────────────
 # H3(파인튜닝)에서 저장한 apps/ontology/runs/echo_sentiment/adapter가 있어야
 # 통과한다. 실행 전 lora-server 등 다른 GPU 프로세스를 내려 VRAM을 확보할 것.
+
 
 @pytest.mark.gpu
 def test_echo_analyze_returns_sentiment_result_via_port() -> None:

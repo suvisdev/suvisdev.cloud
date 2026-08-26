@@ -11,7 +11,6 @@ from gildle.adapter.outbound.graph.networkx_route_graph_adapter import (
 )
 from gildle.adapter.outbound.graph.osm_walk_graph_adapter import OsmWalkGraphAdapter
 from gildle.adapter.outbound.graph.sample_walk_graph_source import SampleWalkGraphSource
-from gildle.app.ports.output.walk_graph_port import WalkGraphPort
 from gildle.adapter.outbound.repositories.csv_tree_segment_repository import (
     CsvTreeSegmentRepository,
 )
@@ -25,6 +24,7 @@ from gildle.app.ports.input.get_map_data_use_case import (
     GetMapVisualizationDataUseCase,
 )
 from gildle.app.ports.input.import_tree_segment_use_case import ImportTreeSegmentUseCase
+from gildle.app.ports.output.walk_graph_port import WalkGraphPort
 from gildle.app.use_cases.calculate_route_interactor import (
     CalculateDogFriendlyRouteInteractor,
 )
@@ -48,9 +48,7 @@ def _tree_csv_path() -> Path:
 
 
 def _hazard_csv_path() -> Path:
-    return Path(
-        os.getenv("GILDLE_HAZARD_CSV", str(_DATA_DIR / "sample_hazard_zones.csv"))
-    )
+    return Path(os.getenv("GILDLE_HAZARD_CSV", str(_DATA_DIR / "sample_hazard_zones.csv")))
 
 
 def _walk_graph_path() -> Path:
@@ -111,9 +109,7 @@ def get_calculate_route_use_case() -> CalculateDogFriendlyRouteUseCase:
 
     encoding = _csv_encoding()
     return CalculateDogFriendlyRouteInteractor(
-        tree_repository=CsvTreeSegmentRepository(
-            csv_path=_tree_csv_path(), encoding=encoding
-        ),
+        tree_repository=CsvTreeSegmentRepository(csv_path=_tree_csv_path(), encoding=encoding),
         hazard_repository=TrafficAuthorityHazardZoneRepository(
             csv_path=_hazard_csv_path(), encoding=encoding
         ),
@@ -139,9 +135,7 @@ def get_map_data_use_case() -> GetMapVisualizationDataUseCase:
 
     encoding = _csv_encoding()
     return GetMapVisualizationDataInteractor(
-        tree_repository=CsvTreeSegmentRepository(
-            csv_path=_tree_csv_path(), encoding=encoding
-        ),
+        tree_repository=CsvTreeSegmentRepository(csv_path=_tree_csv_path(), encoding=encoding),
         hazard_repository=TrafficAuthorityHazardZoneRepository(
             csv_path=_hazard_csv_path(), encoding=encoding
         ),

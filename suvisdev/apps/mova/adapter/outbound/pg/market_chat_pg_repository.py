@@ -44,9 +44,7 @@ class ChatPgRepository(ChatRepositoryPort):
         if not keywords:
             return set()
         cond = or_(*[MovaTag.label.ilike(f"%{kw}%") for kw in keywords[:6]])
-        rows = await self._session.execute(
-            select(MovaTag.movie_id).where(cond).distinct()
-        )
+        rows = await self._session.execute(select(MovaTag.movie_id).where(cond).distinct())
         return {r[0] for r in rows}
 
     async def _movie_ids_by_titles(self, title_terms: list[str]) -> set[int]:
@@ -89,9 +87,7 @@ class ChatPgRepository(ChatRepositoryPort):
         if countries:
             # origin_country는 JSONB 배열(공동제작이면 ["US","GB"]) — 하나라도
             # 겹치면 통과. 아직 백필 안 된 로우(NULL)는 국가를 증명할 수 없어 제외한다.
-            conds.append(
-                or_(*[MovaMovie.origin_country.contains([c]) for c in countries])
-            )
+            conds.append(or_(*[MovaMovie.origin_country.contains([c]) for c in countries]))
         if year_min is not None:
             conds.append(MovaMovie.release_year >= year_min)
         if year_max is not None:
@@ -106,9 +102,7 @@ class ChatPgRepository(ChatRepositoryPort):
         cutoff = datetime.now(UTC).year - 15
         return [(MovaMovie.release_year >= cutoff).desc(), MovaMovie.rating.desc()]
 
-    async def _movies_by_ids(
-        self, movie_ids: set[int], limit: int, conds: list
-    ) -> list[MovaMovie]:
+    async def _movies_by_ids(self, movie_ids: set[int], limit: int, conds: list) -> list[MovaMovie]:
         rows = await self._session.execute(
             select(MovaMovie)
             .where(MovaMovie.id.in_(movie_ids), *conds)
@@ -168,10 +162,7 @@ class ChatPgRepository(ChatRepositoryPort):
         # enrich 단계에서 전부 드롭돼 "reply는 자신있는데 카드 0개"가 된다
         # (2026-08-06 실사용 재현: "주말에 몰아볼 시리즈 느낌 영화").
         fallback_rows = await self._session.execute(
-            select(MovaMovie)
-            .where(*conds)
-            .order_by(*self._recency_first_order())
-            .limit(limit)
+            select(MovaMovie).where(*conds).order_by(*self._recency_first_order()).limit(limit)
         )
         return _to_search_items(list(fallback_rows.scalars().all()), "popular_fallback")
 

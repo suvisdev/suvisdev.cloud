@@ -19,7 +19,5 @@ class AiReviewWriterPort(ABC):
         """이미 AI 리뷰가 존재하는지 확인한다."""
 
     @abstractmethod
-    async def save_review(
-        self, *, user_id: int, movie_id: int, rating: float, body: str
-    ) -> int:
+    async def save_review(self, *, user_id: int, movie_id: int, rating: float, body: str) -> int:
         """리뷰를 저장하고 review_id를 반환한다."""

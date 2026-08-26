@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from dispatch.adapter.inbound.api.schemas.telegram_schema import (
     TelegramIntroduceSchema,
@@ -11,7 +12,6 @@ from dispatch.app.dtos.telegram_dto import TelegramIntroduceResponse
 from dispatch.app.ports.input.telegram_use_case import TelegramUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.telegram_provider import get_telegram_use_case
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 telegram_router = APIRouter(prefix="/telegram", tags=["dispatch-telegram"])
 

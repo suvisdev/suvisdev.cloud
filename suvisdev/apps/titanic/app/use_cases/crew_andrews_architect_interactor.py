@@ -20,53 +20,91 @@ logger = logging.getLogger(__name__)
 
 _GENDER_MAP = {"여성": "female", "여자": "female", "남성": "male", "남자": "male"}
 _AGE_GROUP_MAP: dict[str, tuple[int, int]] = {
-    "유아": (0, 5), "아기": (0, 5),
-    "어린이": (0, 12), "아이": (0, 12),
-    "청소년": (12, 18), "십대": (13, 19),
+    "유아": (0, 5),
+    "아기": (0, 5),
+    "어린이": (0, 12),
+    "아이": (0, 12),
+    "청소년": (12, 18),
+    "십대": (13, 19),
     "청년": (18, 35),
     "중년": (35, 60),
-    "노인": (60, 120), "어르신": (60, 120),
+    "노인": (60, 120),
+    "어르신": (60, 120),
 }
-_FEATURE_NAMES = ["gender", "sib_sp", "parch", "pclass", "embarked", "Title", "AgeGroup", "FareBand"]
+_FEATURE_NAMES = [
+    "gender",
+    "sib_sp",
+    "parch",
+    "pclass",
+    "embarked",
+    "Title",
+    "AgeGroup",
+    "FareBand",
+]
 
-_HYPOTHETICAL_MARKERS = ["이라면", "라면", "살았을까", "살 수 있었을까", "살 수 있을까", "었을까", "겠어", "생존할까", "예측해줘", "예측해"]
+_HYPOTHETICAL_MARKERS = [
+    "이라면",
+    "라면",
+    "살았을까",
+    "살 수 있었을까",
+    "살 수 있을까",
+    "었을까",
+    "겠어",
+    "생존할까",
+    "예측해줘",
+    "예측해",
+]
 
 # 귀족/직함 → (pclass, title_code, fare_band)
 _NOBILITY_MAP: dict[str, tuple[int, int, int]] = {
-    "귀족": (1, 5, 4), "경": (1, 5, 4), "공작": (1, 5, 4),
-    "백작": (1, 5, 4), "남작": (1, 5, 4), "상류층": (1, 5, 4),
-    "의사": (2, 6, 3), "박사": (2, 6, 3), "목사": (2, 6, 3),
-    "평민": (3, 1, 1), "노동자": (3, 1, 1), "서민": (3, 1, 1),
+    "귀족": (1, 5, 4),
+    "경": (1, 5, 4),
+    "공작": (1, 5, 4),
+    "백작": (1, 5, 4),
+    "남작": (1, 5, 4),
+    "상류층": (1, 5, 4),
+    "의사": (2, 6, 3),
+    "박사": (2, 6, 3),
+    "목사": (2, 6, 3),
+    "평민": (3, 1, 1),
+    "노동자": (3, 1, 1),
+    "서민": (3, 1, 1),
 }
 
 
 def _age_to_group(age: int) -> int:
-    if age <= 0:  return 0
-    if age <= 5:  return 1
-    if age <= 12: return 2
-    if age <= 18: return 3
-    if age <= 24: return 4
-    if age <= 35: return 5
-    if age <= 60: return 6
+    if age <= 0:
+        return 0
+    if age <= 5:
+        return 1
+    if age <= 12:
+        return 2
+    if age <= 18:
+        return 3
+    if age <= 24:
+        return 4
+    if age <= 35:
+        return 5
+    if age <= 60:
+        return 6
     return 7
 
 
 class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
-
     def __init__(self, repository: AndrewsArchitectPort):
         self.repository = repository
         # kiwipiepy==0.23.1 이 기능이 주입되는 곳
         self.kiwi = Kiwi()
 
     def analyze_intent(self, messages: str) -> dict[str, Any]:
-        '''Kiwi 형태소 분석으로 프론트 질문의 의도를 파악하는 메소드
+        """Kiwi 형태소 분석으로 프론트 질문의 의도를 파악하는 메소드
 
         반환값:
             intent   : 감지된 의도 (SURVIVAL_PREDICT / STATISTICS / PASSENGER_SEARCH / MODEL_TRAIN / UNKNOWN)
             keywords : 분석에 사용된 핵심 형태소 목록
             scores   : 의도별 매칭 점수
             tokens   : Kiwi가 분석한 전체 (형태소, 품사) 쌍 목록
-        '''
+        """
         tokens = self.kiwi.tokenize(messages)
         keywords = [t.form for t in tokens if t.tag.startswith(("NN", "VV", "VA", "XR"))]
 
@@ -91,43 +129,56 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         }
 
     def generate_reply(self, question: str, ml_context: dict) -> str:
-        '''ML 예측 결과를 받아 Kiwi entity 추출 기반으로 응답 문자열을 반환'''
-        analysis   = self.analyze_intent(question)
-        intent     = analysis["intent"]
+        """ML 예측 결과를 받아 Kiwi entity 추출 기반으로 응답 문자열을 반환"""
+        analysis = self.analyze_intent(question)
+        intent = analysis["intent"]
 
         predictions: list[float] = ml_context.get("predictions", [])
-        test_meta: pd.DataFrame | None = ml_context.get("test_meta")
-        best_model: str   = ml_context.get("best_model", "unknown")
-        accuracy: float   = ml_context.get("accuracy", 0.0)
-        n_train: int      = ml_context.get("n_train", 0)
-        n_test            = len(predictions)
-        n_sur_all         = sum(1 for p in predictions if p >= 0.5)
-        rate_all          = n_sur_all / n_test if n_test else 0.0
+        best_model: str = ml_context.get("best_model", "unknown")
+        accuracy: float = ml_context.get("accuracy", 0.0)
+        n_train: int = ml_context.get("n_train", 0)
+        n_test = len(predictions)
+        n_sur_all = sum(1 for p in predictions if p >= 0.5)
+        rate_all = n_sur_all / n_test if n_test else 0.0
 
         def predict_subset(mask: pd.Series) -> tuple[int, int, float]:
-            idx   = mask[mask].index.tolist()
+            idx = mask[mask].index.tolist()
             preds = [predictions[i] for i in idx if i < n_test]
-            n     = len(preds)
+            n = len(preds)
             n_sur = sum(1 for p in preds if p >= 0.5)
             return n, n_sur, (n_sur / n if n else 0.0)
 
         # ── entity 추출 ───────────────────────────────────────────────
-        gender_kw        = next((k for k in _GENDER_MAP if k in question), None)
-        age_group_kw     = next((k for k in _AGE_GROUP_MAP if k in question), None)
-        age_exact_match  = re.search(r"(\d+)\s*(?:세|살)", question)
+        gender_kw = next((k for k in _GENDER_MAP if k in question), None)
+        age_group_kw = next((k for k in _AGE_GROUP_MAP if k in question), None)
+        age_exact_match = re.search(r"(\d+)\s*(?:세|살)", question)
         age_decade_match = re.search(r"(\d+)대", question)
-        pclass_match     = re.search(r"([1-3])등석", question)
+        pclass_match = re.search(r"([1-3])등석", question)
 
-        is_total        = any(w in question for w in ["탑승객", "총 몇", "몇명이야", "몇 명이야", "인원", "총인원", "전체"])
-        is_avg_age      = any(w in question for w in ["평균 나이", "평균나이", "나이 평균", "평균 연령", "몇살"])
-        is_class_stat   = "등급" in question or ("통계" in question and not gender_kw and not age_exact_match)
-        is_captain      = "선장" in question
-        is_important    = any(w in question for w in ["중요", "영향", "핵심", "결정", "요인", "피처"])
+        is_total = any(
+            w in question
+            for w in ["탑승객", "총 몇", "몇명이야", "몇 명이야", "인원", "총인원", "전체"]
+        )
+        is_avg_age = any(
+            w in question for w in ["평균 나이", "평균나이", "나이 평균", "평균 연령", "몇살"]
+        )
+        is_class_stat = "등급" in question or (
+            "통계" in question and not gender_kw and not age_exact_match
+        )
+        is_captain = "선장" in question
+        is_important = any(w in question for w in ["중요", "영향", "핵심", "결정", "요인", "피처"])
         is_hypothetical = any(m in question for m in _HYPOTHETICAL_MARKERS)
 
         # ── 가정형 질문 — ML 모델로 직접 예측 ───────────────────────
-        if is_hypothetical and (age_exact_match or gender_kw or pclass_match or any(k in question for k in _NOBILITY_MAP)):
-            return self._predict_hypothetical(question, ml_context, age_exact_match, gender_kw, pclass_match)
+        if is_hypothetical and (
+            age_exact_match
+            or gender_kw
+            or pclass_match
+            or any(k in question for k in _NOBILITY_MAP)
+        ):
+            return self._predict_hypothetical(
+                question, ml_context, age_exact_match, gender_kw, pclass_match
+            )
 
         # ── 특수 키워드 응답 ──────────────────────────────────────────
         if is_captain:
@@ -155,16 +206,18 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
             return f"실제 탑승객 {n_train}명의 평균 나이는 {avg:.1f}세입니다."
 
         # ── 조건 조합 응답 — train_set 실제 생존율 기반 ──────────────
-        if train_df is not None and (age_exact_match or age_decade_match or age_group_kw or gender_kw or pclass_match):
-            df         = train_df.copy()
-            df["age"]  = pd.to_numeric(df["age"], errors="coerce")
+        if train_df is not None and (
+            age_exact_match or age_decade_match or age_group_kw or gender_kw or pclass_match
+        ):
+            df = train_df.copy()
+            df["age"] = pd.to_numeric(df["age"], errors="coerce")
             df["survived"] = pd.to_numeric(df["survived"], errors="coerce")
-            df["pclass"]   = pd.to_numeric(df["pclass"], errors="coerce")
-            mask       = pd.Series([True] * len(df), index=df.index)
+            df["pclass"] = pd.to_numeric(df["pclass"], errors="coerce")
+            mask = pd.Series([True] * len(df), index=df.index)
             conditions: list[str] = []
 
             if age_exact_match:
-                age  = int(age_exact_match.group(1))
+                age = int(age_exact_match.group(1))
                 mask &= df["age"] == age
                 conditions.append(f"{age}세")
             elif age_decade_match:
@@ -181,15 +234,15 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
                 conditions.append(gender_kw)
 
             if pclass_match:
-                cls  = int(pclass_match.group(1))
+                cls = int(pclass_match.group(1))
                 mask &= df["pclass"] == cls
                 conditions.append(f"{cls}등석")
 
             subset = df[mask]
-            n      = len(subset)
-            n_sur  = int(subset["survived"].sum())
-            rate   = n_sur / n if n else 0.0
-            desc   = " ".join(conditions)
+            n = len(subset)
+            n_sur = int(subset["survived"].sum())
+            rate = n_sur / n if n else 0.0
+            desc = " ".join(conditions)
 
             if n == 0:
                 return f"'{desc}' 조건에 맞는 탑승객 데이터가 없습니다."
@@ -202,13 +255,13 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         if is_class_stat and train_df is not None:
             df = train_df.copy()
             df["survived"] = pd.to_numeric(df["survived"], errors="coerce")
-            df["pclass"]   = pd.to_numeric(df["pclass"], errors="coerce")
+            df["pclass"] = pd.to_numeric(df["pclass"], errors="coerce")
             lines = []
             for cls in sorted(df["pclass"].dropna().unique()):
                 subset = df[df["pclass"] == cls]
-                n      = len(subset)
-                n_sur  = int(subset["survived"].sum())
-                rate   = n_sur / n if n else 0.0
+                n = len(subset)
+                n_sur = int(subset["survived"].sum())
+                rate = n_sur / n if n else 0.0
                 lines.append(f"{int(cls)}등석({n_sur}/{n}명 {rate:.1%})")
             return (
                 f"실제 데이터 기준 등급별 생존율: {', '.join(lines)}. "
@@ -227,7 +280,7 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
             df = train_df.copy()
             df["survived"] = pd.to_numeric(df["survived"], errors="coerce")
             female = df[df["gender"] == "female"]
-            male   = df[df["gender"] == "male"]
+            male = df[df["gender"] == "male"]
             f_rate = female["survived"].mean()
             m_rate = male["survived"].mean()
             total_rate = df["survived"].mean()
@@ -239,17 +292,15 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         if intent == "STATISTICS" and train_df is not None:
             df = train_df.copy()
             df["survived"] = pd.to_numeric(df["survived"], errors="coerce")
-            df["pclass"]   = pd.to_numeric(df["pclass"], errors="coerce")
+            df["pclass"] = pd.to_numeric(df["pclass"], errors="coerce")
             lines = []
             for cls in sorted(df["pclass"].dropna().unique()):
                 subset = df[df["pclass"] == cls]
-                n      = len(subset)
-                n_sur  = int(subset["survived"].sum())
-                rate   = n_sur / n if n else 0.0
+                n = len(subset)
+                n_sur = int(subset["survived"].sum())
+                rate = n_sur / n if n else 0.0
                 lines.append(f"{int(cls)}등석({n_sur}/{n}명 {rate:.1%})")
-            return (
-                f"실제 데이터 기준 등급별 생존율: {', '.join(lines)}."
-            )
+            return f"실제 데이터 기준 등급별 생존율: {', '.join(lines)}."
 
         if intent == "MODEL_TRAIN":
             trained = ml_context.get("trained_models", [])
@@ -263,22 +314,24 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
             f"{n_sur_all}명({rate_all:.1%}) 생존 예측. 정확도 {accuracy:.1%}."
         )
 
-    def _predict_hypothetical(self, question: str, ml_context: dict, age_match, gender_kw, pclass_match) -> str:
+    def _predict_hypothetical(
+        self, question: str, ml_context: dict, age_match, gender_kw, pclass_match
+    ) -> str:
         best_model = ml_context.get("best_model", "unknown")
         trained_strategies = ml_context.get("trained_strategies", {})
-        strategy  = trained_strategies.get(best_model)
+        strategy = trained_strategies.get(best_model)
         estimator = getattr(strategy, "_estimator", None)
         if estimator is None:
             return "현재 모델로는 가상 예측이 불가합니다."
 
         # ── 피처 추출 ─────────────────────────────────────────────────
-        gender   = 0  # male default
-        pclass   = 3
-        title    = 1  # Mr default
+        gender = 0  # male default
+        pclass = 3
+        title = 1  # Mr default
         fare_band = 1
-        age      = 30
-        sib_sp   = 0
-        parch    = 0
+        age = 30
+        sib_sp = 0
+        parch = 0
         embarked = 1  # S default
 
         if gender_kw:
@@ -314,28 +367,33 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
 
         # ── 응답 구성 ─────────────────────────────────────────────────
         desc_parts = []
-        if age_match:       desc_parts.append(f"{age}세")
-        if gender_kw:       desc_parts.append(gender_kw)
-        if nobility_kw:     desc_parts.append(nobility_kw)
-        elif pclass_match:  desc_parts.append(f"{pclass}등석")
+        if age_match:
+            desc_parts.append(f"{age}세")
+        if gender_kw:
+            desc_parts.append(gender_kw)
+        if nobility_kw:
+            desc_parts.append(nobility_kw)
+        elif pclass_match:
+            desc_parts.append(f"{pclass}등석")
         desc = " ".join(desc_parts) if desc_parts else "해당 조건의 승객"
 
-        verdict = "생존했을 가능성이 높습니다" if proba >= 0.5 else "생존하지 못했을 가능성이 높습니다"
-        return (
-            f"{desc} 승객의 ML 예측 생존 확률: {proba:.1%}\n"
-            f"→ {verdict}. ({best_model} 기준)"
+        verdict = (
+            "생존했을 가능성이 높습니다" if proba >= 0.5 else "생존하지 못했을 가능성이 높습니다"
         )
+        return f"{desc} 승객의 ML 예측 생존 확률: {proba:.1%}\n" f"→ {verdict}. ({best_model} 기준)"
 
     def _feature_importance_reply(self, ml_context: dict, best_model: str) -> str:
         trained_strategies = ml_context.get("trained_strategies", {})
-        strategy  = trained_strategies.get(best_model)
+        strategy = trained_strategies.get(best_model)
         estimator = getattr(strategy, "_estimator", None)
 
         if estimator is not None and hasattr(estimator, "feature_importances_"):
             importances = estimator.feature_importances_.tolist()
             if len(importances) == len(_FEATURE_NAMES):
-                ranked = sorted(zip(_FEATURE_NAMES, importances, strict=False), key=lambda x: x[1], reverse=True)
-                lines  = [f"{i+1}. {n}({v:.3f})" for i, (n, v) in enumerate(ranked[:5])]
+                ranked = sorted(
+                    zip(_FEATURE_NAMES, importances, strict=False), key=lambda x: x[1], reverse=True
+                )
+                lines = [f"{i+1}. {n}({v:.3f})" for i, (n, v) in enumerate(ranked[:5])]
                 return f"[{best_model} 모델 기준 실제 피처 중요도]\n" + "\n".join(lines)
 
         return (
@@ -345,8 +403,10 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         )
 
     async def introduce_myself(self, schema: AndrewsArchitectSchema) -> AndrewsArchitectResponse:
-        '''앤드류 설계자의 자기소개 인터렉트'''
-        return await self.repository.introduce_myself(AndrewsArchitectQuery(
-            id=schema.id,
-            name=schema.name,
-        ))
+        """앤드류 설계자의 자기소개 인터렉트"""
+        return await self.repository.introduce_myself(
+            AndrewsArchitectQuery(
+                id=schema.id,
+                name=schema.name,
+            )
+        )

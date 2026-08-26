@@ -12,9 +12,4 @@ gilfoyle_sys_router = APIRouter(prefix="/gilfoyle", tags=["gilfoyle"])
 async def introduce_myself(
     gilfoyle: GilfoyleSysUseCase = Depends(get_gilfoyle_sys_use_case),
 ) -> GilfoyleSysResponse:
-    return await gilfoyle.introduce_myself(
-        GilfoyleSysSchema(
-            id=2,
-            name="버트람 길포일 주인공"
-        )
-    )
+    return await gilfoyle.introduce_myself(GilfoyleSysSchema(id=2, name="버트람 길포일 주인공"))

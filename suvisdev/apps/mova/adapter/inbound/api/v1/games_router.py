@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from shared.security.require_user import UserPrincipal, optional_user, require_user
 
 from mova.adapter.inbound.api.schemas.games_schema import (
     ChosungQuestionSchema,
@@ -18,7 +19,6 @@ from mova.adapter.inbound.api.schemas.games_schema import (
 )
 from mova.app.ports.input.games_use_case import GamesUseCase
 from mova.dependencies.games_provider import get_games_use_case
-from shared.security.require_user import UserPrincipal, optional_user, require_user
 
 games_router = APIRouter(prefix="/games", tags=["mova-games"])
 
@@ -34,9 +34,7 @@ async def next_chosung_question(
         tok = tok.strip()
         if tok.isdigit():
             exclude_ids.append(int(tok))
-    return (
-        await use_case.next_chosung_question(category, exclude_ids)
-    ).to_schema()
+    return (await use_case.next_chosung_question(category, exclude_ids)).to_schema()
 
 
 @games_router.get("/memory/deck", response_model=MemoryDeckSchema)
@@ -67,7 +65,5 @@ async def leaderboard(
 ) -> LeaderboardSchema:
     me_user_id = principal.user_id if principal else None
     return (
-        await use_case.leaderboard(
-            game_type=game, stage=stage, limit=limit, me_user_id=me_user_id
-        )
+        await use_case.leaderboard(game_type=game, stage=stage, limit=limit, me_user_id=me_user_id)
     ).to_schema()

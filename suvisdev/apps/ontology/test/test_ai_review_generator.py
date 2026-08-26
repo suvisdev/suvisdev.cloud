@@ -55,9 +55,7 @@ class _FakeWriter(AiReviewWriterPort):
     async def has_ai_review(self, user_id: int, movie_id: int) -> bool:
         return (user_id, movie_id) in self._reviews
 
-    async def save_review(
-        self, *, user_id: int, movie_id: int, rating: float, body: str
-    ) -> int:
+    async def save_review(self, *, user_id: int, movie_id: int, rating: float, body: str) -> int:
         rid = self._next_review_id
         self._next_review_id += 1
         self._reviews[(user_id, movie_id)] = rid

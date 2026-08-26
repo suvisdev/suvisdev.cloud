@@ -7,4 +7,5 @@ class AndrewArchitectOrm(Base):
     - 실제 db 테이블을 생성하지 않고 설계만 유지합니다.
 
     """
+
     __abstract__ = True

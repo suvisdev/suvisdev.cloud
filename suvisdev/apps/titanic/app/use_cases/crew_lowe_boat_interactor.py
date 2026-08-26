@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class LoweBoatInteractor(LoweBoatUseCase):
-
     def __init__(self, repository: LoweBoatPort) -> None:
         self._repository = repository
 
@@ -36,10 +35,25 @@ class LoweBoatInteractor(LoweBoatUseCase):
         train["gender"] = train["gender"].map({"male": 0, "female": 1})
 
         bins = [-1, 0, 5, 12, 18, 24, 35, 60, np.inf]
-        age_labels = ["Unknown", "Baby", "Child", "Teenager", "Student", "Young Adult", "Adult", "Senior"]
+        age_labels = [
+            "Unknown",
+            "Baby",
+            "Child",
+            "Teenager",
+            "Student",
+            "Young Adult",
+            "Adult",
+            "Senior",
+        ]
         age_title_mapping = {
-            0: "Unknown", 1: "Baby", 2: "Child", 3: "Teenager",
-            4: "Student", 5: "Young Adult", 6: "Adult", 7: "Senior",
+            0: "Unknown",
+            1: "Baby",
+            2: "Child",
+            3: "Teenager",
+            4: "Student",
+            5: "Young Adult",
+            6: "Adult",
+            7: "Senior",
         }
         age_mapping = {v: k for k, v in age_title_mapping.items()}
         train["age"] = pd.to_numeric(train["age"], errors="coerce").fillna(-0.5)
@@ -52,8 +66,7 @@ class LoweBoatInteractor(LoweBoatUseCase):
 
         train["fare"] = pd.to_numeric(train["fare"], errors="coerce").fillna(0)
         train["FareBand"] = (
-            pd.qcut(train["fare"], 4, labels=[1, 2, 3, 4], duplicates="drop")
-            .fillna(1).astype(int)
+            pd.qcut(train["fare"], 4, labels=[1, 2, 3, 4], duplicates="drop").fillna(1).astype(int)
         )
 
         train["pclass"] = pd.to_numeric(train["pclass"], errors="coerce").fillna(3).astype(int)
@@ -66,7 +79,9 @@ class LoweBoatInteractor(LoweBoatUseCase):
         return train.values.tolist(), y_label
 
     async def introduce_myself(self, schemas: LoweBoatSchema) -> LoweBoatResponse:
-        return await self._repository.introduce_myself(LoweBoatQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            LoweBoatQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

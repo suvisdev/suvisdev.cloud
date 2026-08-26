@@ -14,6 +14,8 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
+from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
+
 from mova.adapter.inbound.api.v1.market_reviews_router import market_reviews_router  # noqa: E402
 from mova.app.dtos.market_reviews_dto import (  # noqa: E402
     MovieRatingSummaryDto,
@@ -36,7 +38,6 @@ from mova.dependencies.review_embedding_provider import (  # noqa: E402
 from mova.dependencies.review_spoiler_provider import (  # noqa: E402
     get_review_spoiler_backfill_use_case,
 )
-from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
 
 _NOW = datetime(2026, 7, 31, tzinfo=UTC)
 
@@ -49,7 +50,9 @@ class _FakeReviewsUseCase:
         self.update_review_calls: list[tuple[int, float | None, str | None]] = []
         self.delete_review_calls: list[int] = []
 
-    async def add_activity(self, user_id: int, movie_id: int, action_type: str) -> ReviewActivityDto:
+    async def add_activity(
+        self, user_id: int, movie_id: int, action_type: str
+    ) -> ReviewActivityDto:
         return ReviewActivityDto(
             id=1, user_id=user_id, movie_id=movie_id, action_type=action_type, action_at=_NOW
         )
@@ -60,7 +63,12 @@ class _FakeReviewsUseCase:
         if rating is None and not (body and body.strip()):
             raise ReviewValidationError("별점 또는 감상평 중 하나는 입력해야 합니다.")
         return ReviewDto(
-            id=1, user_id=user_id, movie_id=movie_id, rating=rating or 0, body=body or "", action_at=_NOW
+            id=1,
+            user_id=user_id,
+            movie_id=movie_id,
+            rating=rating or 0,
+            body=body or "",
+            action_at=_NOW,
         )
 
     async def get_by_id(self, review_id: int) -> ReviewDto | None:
@@ -235,7 +243,9 @@ class ReviewsRouterPhaseBTests(unittest.TestCase):
 
 class ReviewsRouterOwnershipTests(unittest.TestCase):
     def test_patch_other_users_review_returns_403(self) -> None:
-        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        owner_review = ReviewDto(
+            id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW
+        )
         use_case = _FakeReviewsUseCase(existing_review=owner_review)
         attacker = UserPrincipal(user_id=2, username="attacker")
         client = _build_client(use_case, principal=attacker)
@@ -255,7 +265,9 @@ class ReviewsRouterOwnershipTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_patch_own_review_succeeds(self) -> None:
-        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        owner_review = ReviewDto(
+            id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW
+        )
         use_case = _FakeReviewsUseCase(existing_review=owner_review)
         principal = UserPrincipal(user_id=1, username="tester")
         client = _build_client(use_case, principal=principal)
@@ -268,7 +280,9 @@ class ReviewsRouterOwnershipTests(unittest.TestCase):
 
 class ReviewsRouterDeleteTests(unittest.TestCase):
     def test_delete_other_users_review_returns_403(self) -> None:
-        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        owner_review = ReviewDto(
+            id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW
+        )
         use_case = _FakeReviewsUseCase(existing_review=owner_review)
         attacker = UserPrincipal(user_id=2, username="attacker")
         client = _build_client(use_case, principal=attacker)
@@ -288,7 +302,9 @@ class ReviewsRouterDeleteTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_delete_own_review_succeeds(self) -> None:
-        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        owner_review = ReviewDto(
+            id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW
+        )
         use_case = _FakeReviewsUseCase(existing_review=owner_review)
         principal = UserPrincipal(user_id=1, username="tester")
         client = _build_client(use_case, principal=principal)
@@ -299,7 +315,9 @@ class ReviewsRouterDeleteTests(unittest.TestCase):
         self.assertEqual(use_case.delete_review_calls, [1])
 
     def test_admin_can_delete_other_users_review(self) -> None:
-        owner_review = ReviewDto(id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW)
+        owner_review = ReviewDto(
+            id=1, user_id=1, movie_id=10, rating=3.0, body="원본", action_at=_NOW
+        )
         use_case = _FakeReviewsUseCase(existing_review=owner_review)
         admin = UserPrincipal(user_id=99, username="admin", role="admin")
         client = _build_client(use_case, principal=admin)

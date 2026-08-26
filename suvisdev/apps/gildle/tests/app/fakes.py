@@ -6,9 +6,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
-
 from pathlib import Path
+from typing import Any
 
 from gildle.app.ports.output.geocoding_port import GeocodingPort
 from gildle.app.ports.output.hazard_zone_repository import HazardZoneRepository
@@ -89,7 +88,7 @@ class FakeWalkGraphSource(WalkGraphPort):
 
     def nearest_node(self, edges: list[RouteEdge], point: Coordinate) -> str | None:
         all_nodes: dict[str, Coordinate] = {}
-        for edge in (edges or self._edges):
+        for edge in edges or self._edges:
             all_nodes.setdefault(edge.from_node, edge.midpoint)
             all_nodes.setdefault(edge.to_node, edge.midpoint)
         if not all_nodes:

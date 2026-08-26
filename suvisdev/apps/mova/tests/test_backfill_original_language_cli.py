@@ -35,9 +35,7 @@ class BackfillOneTests(unittest.IsolatedAsyncioTestCase):
         movies_repo = AsyncMock()
         catalog = AsyncMock()
 
-        outcome = await _backfill_one(
-            movies_repo, catalog, 1, "hand-curated-movie", dry_run=False
-        )
+        outcome = await _backfill_one(movies_repo, catalog, 1, "hand-curated-movie", dry_run=False)
 
         self.assertEqual(outcome, "skipped")
         catalog.fetch_by_id.assert_not_awaited()

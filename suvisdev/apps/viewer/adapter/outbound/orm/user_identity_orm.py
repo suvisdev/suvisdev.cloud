@@ -14,7 +14,9 @@ class UserIdentity(ViewerModel):
     """`users` 계정과 OAuth 프로바이더 계정(google/naver/kakao)을 연결한다."""
 
     __tablename__ = "user_identities"
-    __table_args__ = (UniqueConstraint("provider", "provider_user_id", name="uq_user_identities_provider_sub"),)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_user_identities_provider_sub"),
+    )
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),

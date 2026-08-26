@@ -22,9 +22,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TABLE reviews ADD COLUMN spoiler_spans JSONB NOT NULL DEFAULT '[]'::jsonb"
-    )
+    op.execute("ALTER TABLE reviews ADD COLUMN spoiler_spans JSONB NOT NULL DEFAULT '[]'::jsonb")
 
 
 def downgrade() -> None:

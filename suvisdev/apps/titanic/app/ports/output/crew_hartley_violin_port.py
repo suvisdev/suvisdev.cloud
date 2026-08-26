@@ -9,5 +9,5 @@ class HartleyViolinPort(ABC):
     """crew_hartley_violin output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: HartleyViolinQuery)->HartleyViolinResponse:
+    def introduce_myself(self, query: HartleyViolinQuery) -> HartleyViolinResponse:
         pass

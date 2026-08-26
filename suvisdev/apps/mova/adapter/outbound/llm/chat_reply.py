@@ -94,7 +94,9 @@ class ChatReplyService:
                 if not title:
                     continue
                 hook = _strip_hanja(pick.hook.strip())[:120]
-                platform = pick.platform.strip() if pick.platform and pick.platform.strip() else None
+                platform = (
+                    pick.platform.strip() if pick.platform and pick.platform.strip() else None
+                )
                 recommendations.append(
                     MovaChatRecommendationSchema(
                         id=slugify_movie(title),

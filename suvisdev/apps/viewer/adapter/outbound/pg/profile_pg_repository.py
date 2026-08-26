@@ -44,9 +44,7 @@ class ProfilePgRepository(ProfileRepository):
             return None
         return await self.get_profile(user_id)
 
-    async def update_preferred_genres(
-        self, user_id: int, genres: list[str]
-    ) -> ProfileDto | None:
+    async def update_preferred_genres(self, user_id: int, genres: list[str]) -> ProfileDto | None:
         updated = await update_user_preferred_genres(user_id, genres)
         if not updated:
             return None

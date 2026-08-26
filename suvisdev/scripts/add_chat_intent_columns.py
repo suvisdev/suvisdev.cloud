@@ -1,4 +1,4 @@
-﻿"""chat.intent_type, chat.search_filters 컬럼 추가.
+"""chat.intent_type, chat.search_filters 컬럼 추가.
 
 Usage (suvisdev 폴더에서):
   python scripts/add_chat_intent_columns.py
@@ -38,14 +38,10 @@ async def main() -> None:
         if not await column_exists(conn, "chat", "intent_type"):
             print("ALTER chat ADD intent_type")
             await conn.execute(
-                text(
-                    "ALTER TABLE chat ADD COLUMN intent_type VARCHAR(32) NOT NULL DEFAULT 'mood'"
-                ),
+                text("ALTER TABLE chat ADD COLUMN intent_type VARCHAR(32) NOT NULL DEFAULT 'mood'"),
             )
             await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_chat_intent_type ON chat (intent_type)"
-                ),
+                text("CREATE INDEX IF NOT EXISTS ix_chat_intent_type ON chat (intent_type)"),
             )
         else:
             print("chat.intent_type already exists")

@@ -32,4 +32,4 @@ async def receive_uploaded_records(
     try:
         return await james.receive_uploaded_records(text)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

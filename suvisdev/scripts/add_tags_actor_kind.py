@@ -1,4 +1,4 @@
-﻿"""tags.actor_id, tags.tag_kind 컬럼 및 FK (actors.id) 추가.
+"""tags.actor_id, tags.tag_kind 컬럼 및 FK (actors.id) 추가.
 
 Usage (suvisdev 폴더에서):
   python scripts/add_tags_actor_kind.py
@@ -60,9 +60,7 @@ async def main() -> None:
         if not await column_exists(conn, "tags", "tag_kind"):
             print("ALTER tags ADD tag_kind")
             await conn.execute(
-                text(
-                    "ALTER TABLE tags ADD COLUMN tag_kind VARCHAR(16) NOT NULL DEFAULT 'mood'"
-                ),
+                text("ALTER TABLE tags ADD COLUMN tag_kind VARCHAR(16) NOT NULL DEFAULT 'mood'"),
             )
             await conn.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_tags_tag_kind ON tags (tag_kind)"),

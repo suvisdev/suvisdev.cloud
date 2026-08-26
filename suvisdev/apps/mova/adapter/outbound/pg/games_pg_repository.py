@@ -24,9 +24,7 @@ from viewer.adapter.outbound.orm.user_orm import get_viewer_user_nicknames
 
 logger = logging.getLogger(__name__)
 
-_CHOSUNG_LIST = (
-    "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
-)
+_CHOSUNG_LIST = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
 
 # 한자음 숫자 초성. 0=영(ㅇ), 1=일(ㅇ), 2=이(ㅇ), 3=삼(ㅅ), 4=사(ㅅ),
 # 5=오(ㅇ), 6=육(ㅇ), 7=칠(ㅊ), 8=팔(ㅍ), 9=구(ㄱ). "20세기 소년"이
@@ -40,16 +38,16 @@ _DIGIT_TO_CHO = "ㅇㅇㅇㅅㅅㅇㅇㅊㅍㄱ"
 # 파·이·브 → ㅍㅇㅂ. "강철비 2: 정상회담" → "강철비 투" → "ㄱㅊㅂㅌ"
 # (2026-08-14 사용자 지적: 한자음 "이"보다 영어 "투"가 시리즈 표기 관용).
 _SERIES_DIGIT_TO_CHO = {
-    1: "ㅇ",     # 원
-    2: "ㅌ",     # 투
-    3: "ㅆㄹ",   # 쓰리
-    4: "ㅍ",     # 포
-    5: "ㅍㅇㅂ", # 파이브
-    6: "ㅅㅅ",   # 식스
-    7: "ㅅㅂ",   # 세븐
-    8: "ㅇㅇ",   # 에잇
-    9: "ㄴㅇ",   # 나인
-    10: "ㅌ",    # 텐
+    1: "ㅇ",  # 원
+    2: "ㅌ",  # 투
+    3: "ㅆㄹ",  # 쓰리
+    4: "ㅍ",  # 포
+    5: "ㅍㅇㅂ",  # 파이브
+    6: "ㅅㅅ",  # 식스
+    7: "ㅅㅂ",  # 세븐
+    8: "ㅇㅇ",  # 에잇
+    9: "ㄴㅇ",  # 나인
+    10: "ㅌ",  # 텐
 }
 
 
@@ -258,21 +256,33 @@ class GamesPgRepository(GamesRepositoryPort):
             row = await _try(_foreign_pool_conditions(min_rating))
         else:
             prefer_kr = _random.random() < 0.7
-            first = _kr_pool_conditions(min_rating) if prefer_kr else _foreign_pool_conditions(min_rating)
-            second = _foreign_pool_conditions(min_rating) if prefer_kr else _kr_pool_conditions(min_rating)
+            first = (
+                _kr_pool_conditions(min_rating)
+                if prefer_kr
+                else _foreign_pool_conditions(min_rating)
+            )
+            second = (
+                _foreign_pool_conditions(min_rating)
+                if prefer_kr
+                else _kr_pool_conditions(min_rating)
+            )
             row = await _try(first) or await _try(second)
         if row is None:
             return None
 
         cast_rows = (
-            await self._session.execute(
-                select(MovaActor.name)
-                .join(MovaCharacter, MovaCharacter.actor_id == MovaActor.id)
-                .where(MovaCharacter.movie_id == row.id)
-                .order_by(MovaCharacter.billing_order.asc().nullslast())
-                .limit(5)
+            (
+                await self._session.execute(
+                    select(MovaActor.name)
+                    .join(MovaCharacter, MovaCharacter.actor_id == MovaActor.id)
+                    .where(MovaCharacter.movie_id == row.id)
+                    .order_by(MovaCharacter.billing_order.asc().nullslast())
+                    .limit(5)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         return ChosungQuestionDto(
             movie_id=row.id,
@@ -287,13 +297,17 @@ class GamesPgRepository(GamesRepositoryPort):
     async def sample_memory_deck(self, stage: int, min_rating: float) -> MemoryDeckDto:
         pairs_needed = 2 * stage
         rows = (
-            await self._session.execute(
-                select(MovaMovie)
-                .where(*_pool_conditions(min_rating))
-                .order_by(func.random())
-                .limit(pairs_needed)
+            (
+                await self._session.execute(
+                    select(MovaMovie)
+                    .where(*_pool_conditions(min_rating))
+                    .order_by(func.random())
+                    .limit(pairs_needed)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         return MemoryDeckDto(
             stage=stage,
@@ -333,10 +347,7 @@ class GamesPgRepository(GamesRepositoryPort):
                 MovaGameScore.played_at.asc(),
             )
         else:  # memory 통합
-            metric = (
-                MovaGameScore.stage * 1000
-                + func.greatest(0, 500 - MovaGameScore.score)
-            )
+            metric = MovaGameScore.stage * 1000 + func.greatest(0, 500 - MovaGameScore.score)
             metric_order = metric.desc()
             best_row_order = (metric_order, MovaGameScore.played_at.asc())
 
@@ -374,9 +385,7 @@ class GamesPgRepository(GamesRepositoryPort):
         else:
             overall_order = (desc(best_subq.c.metric), best_subq.c.played_at.asc())
 
-        overall_rank = (
-            func.row_number().over(order_by=overall_order).label("overall_rank")
-        )
+        overall_rank = func.row_number().over(order_by=overall_order).label("overall_rank")
         ranked = (
             select(
                 best_subq.c.user_id,

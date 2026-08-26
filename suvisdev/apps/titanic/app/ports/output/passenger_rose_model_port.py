@@ -13,7 +13,7 @@ class RoseModelPort(ABC):
     """passenger_rose_model output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: RoseModelQuery)->RoseModelResponse:
+    def introduce_myself(self, query: RoseModelQuery) -> RoseModelResponse:
         pass
 
     @abstractmethod

@@ -20,9 +20,7 @@ from ontology.adapter.outbound.config.api_keys import get_tmdb_api_key
 from ontology.app.dtos.scrape_dto import ScrapedRecord
 from ontology.app.ports.output.site_scraper_port import SiteScraperPort
 
-_SEARCH_URL = (
-    "https://api.themoviedb.org/3/search/movie?query={query}&language=ko-KR&api_key={key}"
-)
+_SEARCH_URL = "https://api.themoviedb.org/3/search/movie?query={query}&language=ko-KR&api_key={key}"
 _DETAIL_URL = (
     "https://api.themoviedb.org/3/movie/{id}"
     "?language=ko-KR&append_to_response=credits&api_key={key}"

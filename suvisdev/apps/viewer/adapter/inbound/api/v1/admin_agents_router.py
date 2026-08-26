@@ -12,7 +12,6 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-
 from shared.security.require_admin import AdminPrincipal, require_admin
 
 admin_agents_router = APIRouter(prefix="/admin/agents", tags=["admin"])
@@ -106,17 +105,23 @@ def _get_agent_or_404(agent_id: str) -> dict:
 @admin_agents_router.get("", response_model=list[AgentSummarySchema])
 async def list_agents(_: AdminPrincipal = Depends(require_admin)) -> list[AgentSummarySchema]:
     return [
-        AgentSummarySchema(id=agent_id, name=a["name"], description=a["description"], status=a["status"])
+        AgentSummarySchema(
+            id=agent_id, name=a["name"], description=a["description"], status=a["status"]
+        )
         for agent_id, a in _AGENTS.items()
     ]
 
 
 @admin_agents_router.get("/{agent_id}", response_model=AgentDetailSchema)
-async def get_agent(
-    agent_id: str, _: AdminPrincipal = Depends(require_admin)
-) -> AgentDetailSchema:
+async def get_agent(agent_id: str, _: AdminPrincipal = Depends(require_admin)) -> AgentDetailSchema:
     a = _get_agent_or_404(agent_id)
-    return AgentDetailSchema(id=agent_id, name=a["name"], description=a["description"], status=a["status"], model=a["model"])
+    return AgentDetailSchema(
+        id=agent_id,
+        name=a["name"],
+        description=a["description"],
+        status=a["status"],
+        model=a["model"],
+    )
 
 
 @admin_agents_router.post("/{agent_id}/toggle", response_model=ToggleResponseSchema)
@@ -146,8 +151,6 @@ async def get_agent_logs(
 
 
 @admin_agents_router.get("/{agent_id}/model", response_model=dict)
-async def get_agent_model(
-    agent_id: str, _: AdminPrincipal = Depends(require_admin)
-) -> dict:
+async def get_agent_model(agent_id: str, _: AdminPrincipal = Depends(require_admin)) -> dict:
     a = _get_agent_or_404(agent_id)
     return {"id": agent_id, "model": a["model"], "status": a["status"]}

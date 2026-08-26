@@ -34,7 +34,9 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
     ) -> tuple[CrawlScheduleInteractor, FakeCrawlScheduleStatePort, FakeCrawlEventPublisher]:
         visited_store = FakeVisitedStore()
         scraper = FakeDedupingSiteScraper(
-            fetcher=None, rate_limiter=None, visited_store=visited_store  # type: ignore[arg-type]
+            fetcher=None,
+            rate_limiter=None,
+            visited_store=visited_store,  # type: ignore[arg-type]
         )
         policy = CrawlPolicy(
             site_id="fake-dedup", keywords=("k",), interval_minutes=interval_minutes
@@ -90,7 +92,9 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
             out_dir = Path(tmp)
             visited_store = FakeVisitedStore()
             scraper = FakeDedupingSiteScraper(
-                fetcher=None, rate_limiter=None, visited_store=visited_store  # type: ignore[arg-type]
+                fetcher=None,
+                rate_limiter=None,
+                visited_store=visited_store,  # type: ignore[arg-type]
             )
             publisher = FakeCrawlEventPublisher()
             interactor = CrawlScheduleInteractor(
@@ -109,7 +113,12 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
             self.assertEqual(publisher.published[0].site_id, "fake-dedup")
 
     def _build_with_keyword_source(
-        self, out_dir: Path, *, static_keywords: tuple[str, ...], source: FakeKeywordSource, max_dynamic: int = 20
+        self,
+        out_dir: Path,
+        *,
+        static_keywords: tuple[str, ...],
+        source: FakeKeywordSource,
+        max_dynamic: int = 20,
     ) -> tuple[CrawlScheduleInteractor, FakeKeywordRecordingScraper]:
         scraper = FakeKeywordRecordingScraper()
         policy = CrawlPolicy(

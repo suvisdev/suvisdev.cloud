@@ -20,11 +20,12 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
+from shared.security.require_user import UserPrincipal, optional_user  # noqa: E402
+
 from mova.adapter.inbound.api.rate_limit import chat_rate_limit  # noqa: E402
 from mova.adapter.inbound.api.v1.market_chat_router import market_chat_router  # noqa: E402
 from mova.app.dtos.market_chat_dto import ChatResponseDto  # noqa: E402
 from mova.dependencies.market_chat_provider import get_chat_use_case  # noqa: E402
-from shared.security.require_user import UserPrincipal, optional_user  # noqa: E402
 
 
 def _client(use_case, *, principal: UserPrincipal | None) -> TestClient:

@@ -38,18 +38,14 @@ class ParseArgsTests(unittest.TestCase):
 
     def test_movie_ids_non_integer_rejected(self) -> None:
         with self.assertRaises(SystemExit):
-            assign_collection_cli._parse_args(
-                ["--slug", "x", "--movie-ids", "1,abc,3"]
-            )
+            assign_collection_cli._parse_args(["--slug", "x", "--movie-ids", "1,abc,3"])
 
     def test_movie_ids_empty_rejected(self) -> None:
         with self.assertRaises(SystemExit):
             assign_collection_cli._parse_args(["--slug", "x", "--movie-ids", ""])
 
     def test_movie_ids_whitespace_tolerated(self) -> None:
-        args = assign_collection_cli._parse_args(
-            ["--slug", "x", "--movie-ids", " 1 , 2 , 3 "]
-        )
+        args = assign_collection_cli._parse_args(["--slug", "x", "--movie-ids", " 1 , 2 , 3 "])
         self.assertEqual(args.movie_ids, [1, 2, 3])
 
     def test_parse_movie_ids_helper_direct(self) -> None:

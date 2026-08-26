@@ -10,21 +10,21 @@ _ALIAS = {"Mlle": "Mr", "Ms": "Miss"}
 
 
 class TitleType(int, Enum):
-    MR     = 1
-    MISS   = 2
-    MRS    = 3
+    MR = 1
+    MISS = 2
+    MRS = 3
     MASTER = 4
-    ROYAL  = 5
-    RARE   = 6
+    ROYAL = 5
+    RARE = 6
 
 
 _NAME_TO_TYPE: dict[str, TitleType] = {
-    "Mr":     TitleType.MR,
-    "Miss":   TitleType.MISS,
-    "Mrs":    TitleType.MRS,
+    "Mr": TitleType.MR,
+    "Miss": TitleType.MISS,
+    "Mrs": TitleType.MRS,
     "Master": TitleType.MASTER,
-    "Royal":  TitleType.ROYAL,
-    "Rare":   TitleType.RARE,
+    "Royal": TitleType.ROYAL,
+    "Rare": TitleType.RARE,
 }
 
 

@@ -36,13 +36,13 @@ from core.matrix.grid_oracle_database_manager import (
 )
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from dispatch.adapter.inbound.api import dispatch_router
+from execsuite.adapter.inbound.api import execsuite_router
 from gildle.adapter.inbound.api import gildle_router
 from media.router import media_router
 from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
 from ontology.adapter.inbound.api import nlp_router, ontology_router, vision_router
-from execsuite.adapter.inbound.api import execsuite_router
 from titanic.adapter.inbound.api import titanic_router
 from viewer.adapter.inbound.api import viewer_router
 from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
@@ -128,9 +128,7 @@ async def lifespan(app: FastAPI):
                         app.state.editor_reviews_scheduler = asyncio.create_task(
                             run_editor_reviews_scheduler()
                         )
-                        logger.info(
-                            "[main] 에디터 리뷰 자동 생성 스케줄러 시작 (24시간 주기)"
-                        )
+                        logger.info("[main] 에디터 리뷰 자동 생성 스케줄러 시작 (24시간 주기)")
                     except Exception as editor_sched_err:
                         logger.warning(
                             "[main] 에디터 리뷰 스케줄러 시작 실패: %s", editor_sched_err

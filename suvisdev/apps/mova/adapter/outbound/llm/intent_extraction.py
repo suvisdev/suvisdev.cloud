@@ -165,7 +165,7 @@ def _guess_countries(text: str) -> list[str]:
 
 
 def _guess_year_range(text: str) -> tuple[int | None, int | None]:
-    """"2020년대"→(2020,2029), "90년대"→(1990,1999), "2015년"→(2015,2015)."""
+    """ "2020년대"→(2020,2029), "90년대"→(1990,1999), "2015년"→(2015,2015)."""
     m = _DECADE_RE.search(text)
     if m:
         raw = int(m.group(1))
@@ -197,9 +197,7 @@ def merge_keyword_lists(*lists: list[str] | None, limit: int = MAX_CHAT_KEYWORDS
     return out
 
 
-def _prepend_recent_user_context(
-    current: str, history: list[dict[str, str]] | None
-) -> str:
+def _prepend_recent_user_context(current: str, history: list[dict[str, str]] | None) -> str:
     """대화 흐름 반영용: 최근 사용자 발화(현재 메시지 직전 최대 2개)를 앞에 붙여
     합친 텍스트를 돌려준다. 후속 발화가 이전 조건을 이어받도록 하기 위함.
 
@@ -349,9 +347,11 @@ def build_search_filters(
     # 국가·연도는 후보를 좁히는 하드 조건이라 LLM 응답이 없어도 원문에서 직접 뽑는다
     # (Gemini 추출이 실패해도 "2020년대 한국 액션"이 동작해야 한다).
     must_countries = merge_keyword_lists(
-        [c for c in _coerce_str_list(must_raw.get("countries")) if c.upper() in set(
-            _COUNTRY_ALIASES.values()
-        )],
+        [
+            c
+            for c in _coerce_str_list(must_raw.get("countries"))
+            if c.upper() in set(_COUNTRY_ALIASES.values())
+        ],
         _guess_countries(cleaned),
         limit=4,
     )
@@ -418,9 +418,7 @@ def normalize_keywords(
 
 
 class IntentExtractionService:
-    def extract(
-        self, message: str, history: list[dict[str, str]] | None = None
-    ) -> dict[str, Any]:
+    def extract(self, message: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
         text = message.strip()
         if not text:
             return {

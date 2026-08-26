@@ -19,7 +19,9 @@ class AdminUsersPgRepository(AdminUsersRepository):
 
     async def list_users(self) -> list[UserAdminDto]:
         users_result = await self._session.execute(
-            select(User.id, User.email, User.nickname, User.created_at).order_by(User.created_at.desc())
+            select(User.id, User.email, User.nickname, User.created_at).order_by(
+                User.created_at.desc()
+            )
         )
         users = users_result.all()
         if not users:
@@ -27,7 +29,9 @@ class AdminUsersPgRepository(AdminUsersRepository):
 
         user_ids = [u.id for u in users]
         identities_result = await self._session.execute(
-            select(UserIdentity.user_id, UserIdentity.provider).where(UserIdentity.user_id.in_(user_ids))
+            select(UserIdentity.user_id, UserIdentity.provider).where(
+                UserIdentity.user_id.in_(user_ids)
+            )
         )
         providers_map: dict[int, list[str]] = {}
         for row in identities_result.all():

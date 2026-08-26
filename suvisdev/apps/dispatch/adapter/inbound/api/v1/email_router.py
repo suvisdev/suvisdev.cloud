@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from dispatch.adapter.inbound.api.schemas.email_schema import (
     EmailIntroduceSchema,
@@ -11,7 +12,6 @@ from dispatch.app.dtos.email_dto import EmailIntroduceResponse
 from dispatch.app.ports.input.email_use_case import EmailUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.email_provider import get_email_use_case
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 email_router = APIRouter(prefix="/email", tags=["dispatch-email"])
 

@@ -5,7 +5,6 @@ from execsuite.app.ports.output.piper_bighetti_hr_port import BighettiHrPort
 
 
 class BighettiHrRepository(BighettiHrPort):
-
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 

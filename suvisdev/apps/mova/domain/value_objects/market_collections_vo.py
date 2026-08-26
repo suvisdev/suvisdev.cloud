@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     try:
         CollectionSlug("Bad Slug!")
-        assert False, "should raise"
+        raise AssertionError("should raise")
     except ValueError:
         pass
 

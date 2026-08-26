@@ -24,7 +24,9 @@ class GoogleNewsScraperTest(unittest.TestCase):
         fetcher = FakePageFetcher(single_response=_FIXTURE)
         visited = FakeVisitedStore()
         rate_limiter = FakeRateLimiter()
-        scraper = GoogleNewsScraper(fetcher=fetcher, rate_limiter=rate_limiter, visited_store=visited)
+        scraper = GoogleNewsScraper(
+            fetcher=fetcher, rate_limiter=rate_limiter, visited_store=visited
+        )
         return scraper, visited, rate_limiter
 
     def test_parses_title_link_published_publisher_summary(self) -> None:

@@ -12,9 +12,4 @@ lowe_boat_router = APIRouter(prefix="/lowe", tags=["lowe"])
 async def introduce_myself(
     lowe: LoweBoatUseCase = Depends(get_lowe_boat_use_case),
 ) -> LoweBoatResponse:
-    return await lowe.introduce_myself(
-        LoweBoatSchema(
-            id=3,
-            name="로우 보트 주인공"
-        )
-    )
+    return await lowe.introduce_myself(LoweBoatSchema(id=3, name="로우 보트 주인공"))

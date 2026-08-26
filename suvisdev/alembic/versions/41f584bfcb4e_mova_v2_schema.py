@@ -22,9 +22,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.create_table(
         "user_actions",
-        sa.Column(
-            "user_id", sa.Integer(), nullable=False, comment="Viewer users.id (동일 DB FK)"
-        ),
+        sa.Column("user_id", sa.Integer(), nullable=False, comment="Viewer users.id (동일 DB FK)"),
         sa.Column("movie_id", sa.Integer(), nullable=False),
         sa.Column("action_type", sa.String(length=32), nullable=False),
         sa.Column(
@@ -38,53 +36,65 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(
-        op.f("ix_user_actions_action_at"), "user_actions", ["action_at"], unique=False
-    )
+    op.create_index(op.f("ix_user_actions_action_at"), "user_actions", ["action_at"], unique=False)
     op.create_index(
         op.f("ix_user_actions_action_type"), "user_actions", ["action_type"], unique=False
     )
-    op.create_index(
-        op.f("ix_user_actions_movie_id"), "user_actions", ["movie_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_user_actions_user_id"), "user_actions", ["user_id"], unique=False
-    )
+    op.create_index(op.f("ix_user_actions_movie_id"), "user_actions", ["movie_id"], unique=False)
+    op.create_index(op.f("ix_user_actions_user_id"), "user_actions", ["user_id"], unique=False)
     op.add_column(
         "actors",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "actors",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "assistants",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "assistants",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column("characters", sa.Column("character_name", sa.String(length=50), nullable=False))
     op.add_column(
         "characters",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "characters",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.drop_constraint(op.f("uq_characters_movie_actor"), "characters", type_="unique")
@@ -94,13 +104,19 @@ def upgrade() -> None:
     op.add_column(
         "collections",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "collections",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
@@ -115,13 +131,19 @@ def upgrade() -> None:
     op.add_column(
         "movies",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "movies",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.alter_column(
@@ -144,13 +166,19 @@ def upgrade() -> None:
     op.add_column(
         "reviews",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "reviews",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.drop_index(op.f("ix_reviews_action_at"), table_name="reviews")
@@ -161,13 +189,19 @@ def upgrade() -> None:
     op.add_column(
         "tags",
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.add_column(
         "tags",
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
     op.alter_column("tags", "movie_id", existing_type=sa.INTEGER(), nullable=True)
@@ -210,7 +244,8 @@ def downgrade() -> None:
         ),
     )
     op.add_column(
-        "reviews", sa.Column("action_type", sa.VARCHAR(length=32), autoincrement=False, nullable=False)
+        "reviews",
+        sa.Column("action_type", sa.VARCHAR(length=32), autoincrement=False, nullable=False),
     )
     op.drop_constraint("uq_reviews_user_movie", "reviews", type_="unique")
     op.create_index(op.f("ix_reviews_action_type"), "reviews", ["action_type"], unique=False)

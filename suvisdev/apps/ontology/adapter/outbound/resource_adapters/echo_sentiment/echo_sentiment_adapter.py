@@ -58,7 +58,9 @@ class EchoSentimentAdapter(SentimentAnalysisPort):
         prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False).to(self._device)
 
-        label_token_ids = [tokenizer(label, add_special_tokens=False)["input_ids"][0] for label in _LABELS]
+        label_token_ids = [
+            tokenizer(label, add_special_tokens=False)["input_ids"][0] for label in _LABELS
+        ]
 
         with torch.no_grad():
             logits = model(**inputs).logits[0, -1]

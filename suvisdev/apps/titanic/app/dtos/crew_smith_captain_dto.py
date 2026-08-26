@@ -25,4 +25,3 @@ class SmithCaptainChatCommand:
     messages: str
     system_instruction: str | None = None
     model: str | None = "flash"
- 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from dispatch.adapter.inbound.api.schemas.receive_schema import (
     ReceiveItemSchema,
@@ -10,7 +11,6 @@ from dispatch.app.dtos.receive_dto import ReceiveSaveCommand
 from dispatch.app.ports.input.receive_use_case import ReceiveUseCase
 from dispatch.app.ports.output.dispatch_errors import DispatchError
 from dispatch.dependencies.receive_provider import get_receive_use_case
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 receive_router = APIRouter(prefix="/receive", tags=["dispatch-receive"])
 

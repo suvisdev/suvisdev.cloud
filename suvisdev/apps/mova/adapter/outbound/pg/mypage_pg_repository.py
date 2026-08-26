@@ -32,7 +32,9 @@ class MypagePgRepository(MypageRepository):
             )
         ).one_or_none()
         nickname = profile_row.nickname if profile_row else None
-        preferred_genres: list[str] = list(profile_row.preferred_genres or []) if profile_row else []
+        preferred_genres: list[str] = (
+            list(profile_row.preferred_genres or []) if profile_row else []
+        )
 
         picks_rows = (
             await self._session.execute(
@@ -114,9 +116,7 @@ class MypagePgRepository(MypageRepository):
                 )
             )
         ).one()
-        average_rating = (
-            round(float(review_stats[1]), 2) if review_stats[1] is not None else None
-        )
+        average_rating = round(float(review_stats[1]), 2) if review_stats[1] is not None else None
 
         return MypageDto(
             nickname=nickname,

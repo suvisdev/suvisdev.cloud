@@ -12,6 +12,8 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
+from shared.security.require_admin import AdminPrincipal, require_admin  # noqa: E402
+
 from mova.adapter.inbound.api.v1.collections_router import collections_router  # noqa: E402
 from mova.app.dtos.market_collections_dto import (  # noqa: E402
     CollectionAssignResultDto,
@@ -29,7 +31,6 @@ from mova.dependencies.collections_provider import (  # noqa: E402
     get_list_collections_use_case,
     get_unassign_movies_use_case,
 )
-from shared.security.require_admin import AdminPrincipal, require_admin  # noqa: E402
 
 
 class _FakeCollectionsUseCase:

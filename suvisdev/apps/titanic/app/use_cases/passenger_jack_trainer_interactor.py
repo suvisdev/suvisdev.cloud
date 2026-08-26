@@ -16,14 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class JackTrainerInteractor(JackTrainerUseCase):
-
     def __init__(self, repository: JackTrainerPort, strategies: dict) -> None:
         self.repository = repository
         self._strategy_classes = strategies
         self._trained_strategies: dict = {}
 
     def _preprocess_features(self, df: pd.DataFrame) -> list[list[float]]:
-        '''survived 컬럼 없는 DataFrame을 모델 입력 피처 리스트로 변환'''
+        """survived 컬럼 없는 DataFrame을 모델 입력 피처 리스트로 변환"""
         df["Title"] = df["name"].str.extract(r"([A-Za-z]+)\.", expand=False)
         df["Title"] = df["Title"].replace(
             ["Capt", "Col", "Don", "Dr", "Major", "Rev", "Jonkheer", "Dona", "Mme"], "Rare"
@@ -36,10 +35,25 @@ class JackTrainerInteractor(JackTrainerUseCase):
         df["gender"] = df["gender"].map({"male": 0, "female": 1})
 
         bins = [-1, 0, 5, 12, 18, 24, 35, 60, np.inf]
-        age_labels = ["Unknown", "Baby", "Child", "Teenager", "Student", "Young Adult", "Adult", "Senior"]
+        age_labels = [
+            "Unknown",
+            "Baby",
+            "Child",
+            "Teenager",
+            "Student",
+            "Young Adult",
+            "Adult",
+            "Senior",
+        ]
         age_title_mapping = {
-            0: "Unknown", 1: "Baby", 2: "Child", 3: "Teenager",
-            4: "Student", 5: "Young Adult", 6: "Adult", 7: "Senior",
+            0: "Unknown",
+            1: "Baby",
+            2: "Child",
+            3: "Teenager",
+            4: "Student",
+            5: "Young Adult",
+            6: "Adult",
+            7: "Senior",
         }
         age_mapping = {v: k for k, v in age_title_mapping.items()}
         df["age"] = pd.to_numeric(df["age"], errors="coerce").fillna(-0.5)
@@ -52,8 +66,7 @@ class JackTrainerInteractor(JackTrainerUseCase):
 
         df["fare"] = pd.to_numeric(df["fare"], errors="coerce").fillna(0.0)
         df["FareBand"] = (
-            pd.qcut(df["fare"], 4, labels=[1, 2, 3, 4], duplicates="drop")
-            .fillna(1).astype(int)
+            pd.qcut(df["fare"], 4, labels=[1, 2, 3, 4], duplicates="drop").fillna(1).astype(int)
         )
 
         df["pclass"] = pd.to_numeric(df["pclass"], errors="coerce").fillna(3).astype(int)
@@ -65,7 +78,9 @@ class JackTrainerInteractor(JackTrainerUseCase):
 
         return df.values.tolist()
 
-    def _run_training(self, train_set: pd.DataFrame, test_set: pd.DataFrame | None = None) -> dict[str, Any]:
+    def _run_training(
+        self, train_set: pd.DataFrame, test_set: pd.DataFrame | None = None
+    ) -> dict[str, Any]:
         logger.info("[JackTrainerInteractor] 학습 파이프라인 시작")
 
         train = train_set.copy()
@@ -86,7 +101,9 @@ class JackTrainerInteractor(JackTrainerUseCase):
                 self._trained_strategies[key] = strategy
                 accuracies[key] = acc
                 trained_names.append(strategy.key)
-                logger.info(f"[JackTrainerInteractor] {strategy.key} 학습 완료 | accuracy={acc:.3f}")
+                logger.info(
+                    f"[JackTrainerInteractor] {strategy.key} 학습 완료 | accuracy={acc:.3f}"
+                )
             except Exception as e:
                 logger.warning(f"[JackTrainerInteractor] {key} 학습 실패 | error={e}")
 
@@ -94,11 +111,13 @@ class JackTrainerInteractor(JackTrainerUseCase):
         test_meta: pd.DataFrame | None = None
         if test_set is not None and not test_set.empty:
             test = test_set.copy()
-            test_meta = pd.DataFrame({
-                "age":    pd.to_numeric(test["age"], errors="coerce"),
-                "gender": test["gender"],
-                "pclass": pd.to_numeric(test["pclass"], errors="coerce").fillna(3).astype(int),
-            }).reset_index(drop=True)
+            test_meta = pd.DataFrame(
+                {
+                    "age": pd.to_numeric(test["age"], errors="coerce"),
+                    "gender": test["gender"],
+                    "pclass": pd.to_numeric(test["pclass"], errors="coerce").fillna(3).astype(int),
+                }
+            ).reset_index(drop=True)
             X_test = self._preprocess_features(test)
             logger.info(f"[JackTrainerInteractor] test_set 전처리 완료 | {len(X_test)}명")
 
@@ -111,12 +130,16 @@ class JackTrainerInteractor(JackTrainerUseCase):
             "test_meta": test_meta,
         }
 
-    async def train_model(self, train_set: pd.DataFrame, test_set: pd.DataFrame | None = None) -> dict[str, Any]:
+    async def train_model(
+        self, train_set: pd.DataFrame, test_set: pd.DataFrame | None = None
+    ) -> dict[str, Any]:
         return await asyncio.to_thread(self._run_training, train_set, test_set)
 
     async def introduce_myself(self, schema: JackTrainerSchema) -> JackTrainerResponse:
-        '''잭 트레이너의 자기소개 인터렉트'''
-        return await self.repository.introduce_myself(JackTrainerQuery(
-            id=schema.id,
-            name=schema.name,
-        ))
+        """잭 트레이너의 자기소개 인터렉트"""
+        return await self.repository.introduce_myself(
+            JackTrainerQuery(
+                id=schema.id,
+                name=schema.name,
+            )
+        )

@@ -72,7 +72,9 @@ class CrawlScheduleInteractor(CrawlScheduleUseCase):
         같은 append+이벤트 발행 경로(_run_policy)를 그대로 재사용한다 — interval_minutes는
         due-check에 안 쓰이므로 아무 값이나 넣어도 무방하다.
         """
-        policy = CrawlPolicy(site_id=site_id, keywords=keywords, interval_minutes=1, limit_per_keyword=limit)
+        policy = CrawlPolicy(
+            site_id=site_id, keywords=keywords, interval_minutes=1, limit_per_keyword=limit
+        )
         return self._run_policy(policy, datetime.now(UTC))
 
     def _is_due(self, policy: CrawlPolicy, now: datetime) -> bool:
@@ -85,7 +87,9 @@ class CrawlScheduleInteractor(CrawlScheduleUseCase):
         keywords = self._resolve_keywords(policy)
         scraper = self._build_scraper(policy.site_id)
         limit = policy.limit_per_keyword or self._limit_per_keyword
-        records = itertools.chain.from_iterable(scraper.search(keyword, limit) for keyword in keywords)
+        records = itertools.chain.from_iterable(
+            scraper.search(keyword, limit) for keyword in keywords
+        )
         path = self._output_dir / f"{policy.site_id}_{now.strftime('%Y%m%d')}.jsonl"
         meta = self._writer.write(records, path, append=True)
 

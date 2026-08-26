@@ -27,8 +27,8 @@ class Embarked:
             return cls(value=None)
         try:
             return cls(value=EmbarkedType(raw.strip().upper()))
-        except (ValueError, KeyError):
-            raise ValueError(f"Embarked 유효하지 않은 값: '{raw}'")
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Embarked 유효하지 않은 값: '{raw}'") from e
 
     @property
     def port_name(self) -> str:

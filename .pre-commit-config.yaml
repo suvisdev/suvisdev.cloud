@@ -1,0 +1,37 @@
+# suvisdev(백엔드) 커밋 게이트. 원래 suvisdev/.pre-commit-config.yaml에
+# 있었으나 git 루트가 모노레포 루트라 그 위치에서는 훅이 아예 동작하지
+# 않았다(2026-08-26 확인) — 루트로 이동하고 경로를 suvisdev/로 스코프.
+repos:
+  # 1. ruff — lint + format (설정은 suvisdev/pyproject.toml을 파일 위치 기준 자동 탐색)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^suvisdev/
+      - id: ruff-format
+        files: ^suvisdev/
+
+  # 2. mypy — 정적 타입 검사. 2026-08-26 전체 실측 결과 레거시 1,327건
+  #    (485 파일, ORM Any-서브클래싱·미주석 테스트가 대부분)이라 켜면 모든
+  #    백엔드 커밋이 막힘. 부채를 단계적으로 갚은 뒤 재활성화할 것 —
+  #    PROGRESS.md 백로그 참조.
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.10.0
+  #   hooks:
+  #     - id: mypy
+  #       additional_dependencies:
+  #         - pydantic
+  #         - sqlalchemy[mypy]
+  #       args: [--config-file=suvisdev/pyproject.toml]
+  #       files: ^suvisdev/
+
+  # 3. import-linter — 스타-토폴로지 의존 규칙 강제
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: "Architecture: Star-topology dependency check"
+        entry: bash -c 'cd suvisdev && PYTHONPATH="$PWD:$PWD/apps" lint-imports'
+        language: system
+        pass_filenames: false
+        always_run: true

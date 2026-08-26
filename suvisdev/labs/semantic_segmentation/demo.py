@@ -25,7 +25,9 @@ def main(image_path: Path) -> None:
     image_bytes = image_path.read_bytes()
     result = adapter.segment(image_bytes)
 
-    print(f"{image_path}: {result.width}x{result.height} 마스크, 클래스 {len(result.detected_classes)}개 검출")
+    print(
+        f"{image_path}: {result.width}x{result.height} 마스크, 클래스 {len(result.detected_classes)}개 검출"
+    )
     total_pixels = result.width * result.height
     for detected in sorted(result.detected_classes, key=lambda d: d.pixel_count, reverse=True):
         ratio = detected.pixel_count / total_pixels

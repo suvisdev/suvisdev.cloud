@@ -59,7 +59,9 @@ _DEFECTS = {"blur": _blur, "black_bar": _black_bar, "watermark": _watermark}
 
 def main() -> None:
     all_images = sorted(_SRC.glob("*/*/*.jpg"))
-    assert len(all_images) == 232, f"예상 232장, 실제 {len(all_images)}장 — genre_classifier_train 구조 변경됨?"
+    assert (
+        len(all_images) == 232
+    ), f"예상 232장, 실제 {len(all_images)}장 — genre_classifier_train 구조 변경됨?"
 
     rng = random.Random(_SEED)
     shuffled = all_images[:]

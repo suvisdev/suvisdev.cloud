@@ -73,7 +73,9 @@ class _FakeGoogleAdapter:
         if code == "valid-code":
             return OAuthIdentity(provider="google", provider_user_id="linked-sub", email="a@b.com")
         if code == "unlinked-code":
-            return OAuthIdentity(provider="google", provider_user_id="unlinked-sub", email="c@d.com")
+            return OAuthIdentity(
+                provider="google", provider_user_id="unlinked-sub", email="c@d.com"
+            )
         raise OAuthError("잘못된 코드", status_code=400)
 
 
@@ -99,6 +101,7 @@ def client(rsa_keypair, monkeypatch, user_repo):
     )
 
     import auth_main
+
     from auth import router as auth_router_module
 
     monkeypatch.setattr(auth_router_module, "_service", service)
@@ -107,7 +110,8 @@ def client(rsa_keypair, monkeypatch, user_repo):
 
 def test_login_success_issues_tokens(client):
     resp = client.post(
-        "/auth/login", json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"}
+        "/auth/login",
+        json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -124,7 +128,8 @@ def test_login_wrong_password_returns_401(client):
 
 def test_refresh_rotates_and_reuse_is_rejected(client):
     login_resp = client.post(
-        "/auth/login", json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"}
+        "/auth/login",
+        json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"},
     )
     refresh_token = login_resp.json()["refresh_token"]
 
@@ -201,7 +206,9 @@ def test_oauth_callback_unlinked_identity_returns_409(client):
 
 
 def test_oauth_callback_missing_state_returns_400(client):
-    resp = client.get("/auth/callback/google", params={"code": "valid-code"}, follow_redirects=False)
+    resp = client.get(
+        "/auth/callback/google", params={"code": "valid-code"}, follow_redirects=False
+    )
     assert resp.status_code == 400
 
 
@@ -221,7 +228,9 @@ def test_oauth_callback_reused_state_returns_400(client):
     _callback_and_extract_handoff_code(client, code="valid-code", state=state)
 
     second = client.get(
-        "/auth/callback/google", params={"code": "valid-code", "state": state}, follow_redirects=False
+        "/auth/callback/google",
+        params={"code": "valid-code", "state": state},
+        follow_redirects=False,
     )
     assert second.status_code == 400
 
@@ -237,9 +246,7 @@ def test_oauth_callback_uses_aud_saved_at_login_start(client):
 
     import jwt as pyjwt
 
-    claims = pyjwt.decode(
-        exchanged.json()["access_token"], options={"verify_signature": False}
-    )
+    claims = pyjwt.decode(exchanged.json()["access_token"], options={"verify_signature": False})
     assert claims["aud"] == "suvis-gildle"
 
 
@@ -263,7 +270,9 @@ def test_exchange_unknown_code_returns_404(client):
 
 def test_oauth_callback_redirects_to_whitelisted_return_to(client):
     state = _start_login_and_extract_state(client, return_to="/mova")
-    _callback_and_extract_handoff_code(client, code="valid-code", state=state, expected_path="/mova?code=")
+    _callback_and_extract_handoff_code(
+        client, code="valid-code", state=state, expected_path="/mova?code="
+    )
 
 
 def test_oauth_callback_falls_back_silently_for_non_whitelisted_return_to(client):
@@ -330,7 +339,11 @@ def test_signup_success_issues_tokens_immediately(client):
 def test_signup_duplicate_email_returns_409(client):
     resp = client.post(
         "/auth/signup",
-        json={"email": "existing@example.com", "password": "correct-password123", "aud": "suvis-mova"},
+        json={
+            "email": "existing@example.com",
+            "password": "correct-password123",
+            "aud": "suvis-mova",
+        },
     )
     assert resp.status_code == 409
 
@@ -354,7 +367,11 @@ def test_signup_invalid_email_returns_422(client):
 def test_signup_without_username_defaults_to_email_prefix(client, user_repo):
     resp = client.post(
         "/auth/signup",
-        json={"email": "prefix-user@example.com", "password": "correct-password123", "aud": "suvis-mova"},
+        json={
+            "email": "prefix-user@example.com",
+            "password": "correct-password123",
+            "aud": "suvis-mova",
+        },
     )
     assert resp.status_code == 201
     assert user_repo.create_user_calls[-1]["username"] == "prefix-user"
@@ -376,7 +393,11 @@ def test_login_works_for_account_created_via_signup(client):
 
     login_resp = client.post(
         "/auth/login",
-        json={"username": "new-signup-user", "password": "correct-password123", "aud": "suvis-mova"},
+        json={
+            "username": "new-signup-user",
+            "password": "correct-password123",
+            "aud": "suvis-mova",
+        },
     )
     assert login_resp.status_code == 200
     assert login_resp.json()["access_token"]

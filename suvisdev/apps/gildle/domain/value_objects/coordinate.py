@@ -31,9 +31,6 @@ class Coordinate:
         d_lat = math.radians(other.latitude - self.latitude)
         d_lng = math.radians(other.longitude - self.longitude)
 
-        a = (
-            math.sin(d_lat / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin(d_lng / 2) ** 2
-        )
+        a = math.sin(d_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(d_lng / 2) ** 2
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return _EARTH_RADIUS_M * c

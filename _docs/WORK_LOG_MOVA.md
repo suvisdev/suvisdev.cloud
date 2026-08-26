@@ -86,6 +86,18 @@
   결합 (a)를 hub 계약에, 신규 mova ORM 6건을 spoke 계약 ignore에 등록,
   6 계약 전부 KEPT. ④ ruff F401 미사용 임포트 12건 제거.
   검증: pytest 626 passed·lint-imports exit 0·`import main` OK.
+- **pre-commit 게이트 복구**: 훅·도구 모두 미설치 상태였음(WSL 재구축
+  여파 — 이번 드리프트 누적의 근본 원인). 설정이 `suvisdev/` 안에 있어
+  모노레포 git 루트에서 애초에 동작 불가 → 루트로 이동하고 경로 스코프
+  (`files: ^suvisdev/`, lint-imports는 cd 래핑). ruff+ruff-format 전체
+  적용(433 파일, 포맷·정렬만 — pytest 626 passed 재확인). mypy는 전체
+  실측 1,327건이라 임시 비활성(백로그 등재). 자동수정 불가 53건 처리:
+  실제 냄새 14건 수정(B011 assert False→AssertionError 4, B904 예외
+  체이닝 from e 7, B007 미사용 루프 변수 2, F841 1) + F821(DTO lazy
+  import 반환 주석)은 TYPE_CHECKING 임포트로 해결. 의도적 관례(E402
+  부트스트랩·sklearn X 변수명·Gemini systemInstruction 미러링·기존
+  예외/모듈명)는 pyproject per-file-ignores에 사유와 함께 등재.
+  최종: pre-commit 3훅 전부 Passed.
 - 지킬 블로그(`suvisdev/suvisjk` 레포) 8/26 포스트(장르 탭·뮤지컬 백필)
   추가·푸시. 8/25 포스트는 전 세션이 이미 배포해 둔 상태였음. 모노레포 안
   `suvisjk/`가 레포 분리(8/25) 이전의 낡은 무연결 사본이었던 것을 발견 —

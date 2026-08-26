@@ -63,7 +63,7 @@ if __name__ == "__main__":
 
     try:
         TagSlug("")
-        assert False
+        raise AssertionError("should raise")
     except ValueError:
         pass
 

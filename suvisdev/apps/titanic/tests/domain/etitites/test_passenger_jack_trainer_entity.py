@@ -28,8 +28,12 @@ class TestCreate:
 
 class TestEquality:
     def test_equal_when_passenger_id_matches_even_if_other_fields_differ(self) -> None:
-        a = PassengerJackTrainer.create("1", _identity("Braund, Mr. Owen Harris", "male"), Survived.from_raw("0"))
-        b = PassengerJackTrainer.create("1", _identity("Heikkinen, Miss. Laina", "female"), Survived.from_raw("1"))
+        a = PassengerJackTrainer.create(
+            "1", _identity("Braund, Mr. Owen Harris", "male"), Survived.from_raw("0")
+        )
+        b = PassengerJackTrainer.create(
+            "1", _identity("Heikkinen, Miss. Laina", "female"), Survived.from_raw("1")
+        )
         assert a == b
         assert hash(a) == hash(b)
 

@@ -17,9 +17,7 @@ class ProfileUseCase(ABC):
         pass
 
     @abstractmethod
-    async def update_preferred_genres(
-        self, user_id: int, genres: list[str]
-    ) -> ProfileDto | None:
+    async def update_preferred_genres(self, user_id: int, genres: list[str]) -> ProfileDto | None:
         pass
 
     @abstractmethod

@@ -10,5 +10,5 @@ class GilfoyleSysUseCase(ABC):
     """piper_gilfoyle_sys input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: GilfoyleSysSchema)->GilfoyleSysResponse:
+    async def introduce_myself(self, schemas: GilfoyleSysSchema) -> GilfoyleSysResponse:
         pass

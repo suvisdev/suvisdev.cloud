@@ -31,8 +31,17 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 MODEL_ID = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
-DATA_DIR = Path(__file__).resolve().parents[1] / "apps" / "ontology" / "resources" / "echo_sentiment_train"
-OUT_DIR = Path(__file__).resolve().parents[1] / "apps" / "ontology" / "runs" / "echo_sentiment" / "adapter"
+DATA_DIR = (
+    Path(__file__).resolve().parents[1] / "apps" / "ontology" / "resources" / "echo_sentiment_train"
+)
+OUT_DIR = (
+    Path(__file__).resolve().parents[1]
+    / "apps"
+    / "ontology"
+    / "runs"
+    / "echo_sentiment"
+    / "adapter"
+)
 
 MAX_SEQ_LENGTH = 256  # H2 실측: p95=93, max=135 — 여유 있게 수용
 BATCH_SIZE = 4
@@ -40,15 +49,24 @@ GRAD_ACCUM = 4
 EPOCHS = 2
 LEARNING_RATE = 2e-4
 
-print("=== patching transformers.masking_utils.create_causal_mask (EXAONE remote code signature drift) ===")
+print(
+    "=== patching transformers.masking_utils.create_causal_mask (EXAONE remote code signature drift) ==="
+)
 import transformers.masking_utils as _masking_utils
 
 _original_create_causal_mask = _masking_utils.create_causal_mask
 
 
 def _compat_create_causal_mask(
-    *, config, input_embeds=None, inputs_embeds=None, attention_mask=None,
-    cache_position=None, past_key_values=None, position_ids=None, **_ignored,
+    *,
+    config,
+    input_embeds=None,
+    inputs_embeds=None,
+    attention_mask=None,
+    cache_position=None,
+    past_key_values=None,
+    position_ids=None,
+    **_ignored,
 ):
     return _original_create_causal_mask(
         config=config,
@@ -79,7 +97,9 @@ class SentimentSFTDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         record = self.records[idx]
-        prompt_messages = [{"role": "user", "content": f"{record['instruction']}\n\n{record['input']}"}]
+        prompt_messages = [
+            {"role": "user", "content": f"{record['instruction']}\n\n{record['input']}"}
+        ]
         prompt_text = self.tokenizer.apply_chat_template(
             prompt_messages, tokenize=False, add_generation_prompt=True
         )
@@ -135,7 +155,9 @@ def main() -> None:
     )
 
     # H1에서 확인된 LGAI custom code 갭 — get/set_input_embeddings 위임
-    model.transformer.get_input_embeddings = types.MethodType(lambda self: self.wte, model.transformer)
+    model.transformer.get_input_embeddings = types.MethodType(
+        lambda self: self.wte, model.transformer
+    )
     model.transformer.set_input_embeddings = types.MethodType(
         lambda self, value: setattr(self, "wte", value), model.transformer
     )
@@ -149,8 +171,12 @@ def main() -> None:
     model = prepare_model_for_kbit_training(model)
 
     lora_config = LoraConfig(
-        r=8, lora_alpha=16, target_modules=["q_proj", "v_proj"],
-        lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
+        r=8,
+        lora_alpha=16,
+        target_modules=["q_proj", "v_proj"],
+        lora_dropout=0.05,
+        bias="none",
+        task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
@@ -159,14 +185,18 @@ def main() -> None:
     val_records = load_jsonl(DATA_DIR / "val.jsonl")
     train_ds = SentimentSFTDataset(train_records, tokenizer)
     train_loader = DataLoader(
-        train_ds, batch_size=BATCH_SIZE, shuffle=True,
+        train_ds,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
         collate_fn=lambda b: collate(b, tokenizer.pad_token_id),
     )
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=LEARNING_RATE)
 
-    print(f"\n=== 학습 시작: epochs={EPOCHS} batch={BATCH_SIZE} grad_accum={GRAD_ACCUM} (effective={BATCH_SIZE * GRAD_ACCUM}) ===")
+    print(
+        f"\n=== 학습 시작: epochs={EPOCHS} batch={BATCH_SIZE} grad_accum={GRAD_ACCUM} (effective={BATCH_SIZE * GRAD_ACCUM}) ==="
+    )
     model.train()
     step = 0
     for epoch in range(EPOCHS):
@@ -201,11 +231,21 @@ def main() -> None:
     tp = fp = fn = 0  # 긍정 기준
     with torch.no_grad():
         for record in val_records:
-            prompt_messages = [{"role": "user", "content": f"{record['instruction']}\n\n{record['input']}"}]
-            prompt_text = tokenizer.apply_chat_template(prompt_messages, tokenize=False, add_generation_prompt=True)
-            inputs = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False).to("cuda")
-            gen = model.generate(**inputs, max_new_tokens=5, do_sample=False, pad_token_id=tokenizer.pad_token_id)
-            pred_text = tokenizer.decode(gen[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
+            prompt_messages = [
+                {"role": "user", "content": f"{record['instruction']}\n\n{record['input']}"}
+            ]
+            prompt_text = tokenizer.apply_chat_template(
+                prompt_messages, tokenize=False, add_generation_prompt=True
+            )
+            inputs = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False).to(
+                "cuda"
+            )
+            gen = model.generate(
+                **inputs, max_new_tokens=5, do_sample=False, pad_token_id=tokenizer.pad_token_id
+            )
+            pred_text = tokenizer.decode(
+                gen[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True
+            ).strip()
             pred = "긍정" if "긍정" in pred_text else ("부정" if "부정" in pred_text else "?")
             gold = record["output"]
             if pred == gold:
@@ -221,7 +261,9 @@ def main() -> None:
     precision = tp / (tp + fp) if (tp + fp) else 0.0
     recall = tp / (tp + fn) if (tp + fn) else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
-    print(f"val accuracy={accuracy:.4f} ({correct}/{len(val_records)})  precision={precision:.4f} recall={recall:.4f} f1={f1:.4f}")
+    print(
+        f"val accuracy={accuracy:.4f} ({correct}/{len(val_records)})  precision={precision:.4f} recall={recall:.4f} f1={f1:.4f}"
+    )
 
     print(f"\n=== 어댑터 저장: {OUT_DIR} ===")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -229,7 +271,9 @@ def main() -> None:
     tokenizer.save_pretrained(OUT_DIR)
 
     print("\n=== H3 GATE 결과 ===")
-    print(f"val accuracy={accuracy:.4f} f1={f1:.4f} peak_vram={peak_mem:.1f}MB adapter_dir={OUT_DIR}")
+    print(
+        f"val accuracy={accuracy:.4f} f1={f1:.4f} peak_vram={peak_mem:.1f}MB adapter_dir={OUT_DIR}"
+    )
 
 
 if __name__ == "__main__":

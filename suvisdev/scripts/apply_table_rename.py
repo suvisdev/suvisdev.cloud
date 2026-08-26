@@ -1,4 +1,4 @@
-﻿"""Neon에서 mova_* 테이블 rename + Viewer users 제거 (1회 실행, 재실행 안전).
+"""Neon에서 mova_* 테이블 rename + Viewer users 제거 (1회 실행, 재실행 안전).
 
 Usage (suvisdev 폴더에서):
   python scripts/apply_table_rename.py

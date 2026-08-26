@@ -52,7 +52,14 @@ def test_verify_rejects_alg_none_forged_token(rsa_keypair):
     header = _b64url(json.dumps({"alg": "none", "typ": "JWT"}).encode())
     payload = _b64url(
         json.dumps(
-            {"sub": "42", "roles": ["admin"], "aud": "suvis-mova", "exp": int(time.time()) + 600, "iat": int(time.time()), "jti": "x"}
+            {
+                "sub": "42",
+                "roles": ["admin"],
+                "aud": "suvis-mova",
+                "exp": int(time.time()) + 600,
+                "iat": int(time.time()),
+                "jti": "x",
+            }
         ).encode()
     )
     forged = (header + b"." + payload + b".").decode()
@@ -67,7 +74,14 @@ def test_verify_rejects_hs256_key_confusion_attack(rsa_keypair):
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
     payload = _b64url(
         json.dumps(
-            {"sub": "42", "roles": ["admin"], "aud": "suvis-mova", "exp": int(time.time()) + 600, "iat": int(time.time()), "jti": "x"}
+            {
+                "sub": "42",
+                "roles": ["admin"],
+                "aud": "suvis-mova",
+                "exp": int(time.time()) + 600,
+                "iat": int(time.time()),
+                "jti": "x",
+            }
         ).encode()
     )
     signing_input = header + b"." + payload

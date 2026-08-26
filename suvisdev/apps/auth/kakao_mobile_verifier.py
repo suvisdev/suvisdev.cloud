@@ -29,9 +29,7 @@ class KakaoTokenInvalid(Exception):
 class KakaoMobileTokenVerifier:
     async def verify(self, access_token: str) -> KakaoMobileIdentity:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                _ME_URL, headers={"Authorization": f"Bearer {access_token}"}
-            )
+            resp = await client.get(_ME_URL, headers={"Authorization": f"Bearer {access_token}"})
         if resp.status_code != 200:
             raise KakaoTokenInvalid(f"카카오 access_token 검증 실패: {resp.text[:200]}")
 

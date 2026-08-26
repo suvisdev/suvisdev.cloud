@@ -37,22 +37,33 @@ _VAL_RATIO = 0.2
 
 # TMDB 세부 장르(ko-KR) → 학습용 대분류 6종
 _GENRE_TO_BUCKET = {
-    "액션": "action", "모험": "action", "전쟁": "action", "서부": "action",
-    "SF": "scifi_fantasy", "판타지": "scifi_fantasy",
-    "공포": "horror_thriller", "스릴러": "horror_thriller",
-    "미스터리": "horror_thriller", "범죄": "horror_thriller",
+    "액션": "action",
+    "모험": "action",
+    "전쟁": "action",
+    "서부": "action",
+    "SF": "scifi_fantasy",
+    "판타지": "scifi_fantasy",
+    "공포": "horror_thriller",
+    "스릴러": "horror_thriller",
+    "미스터리": "horror_thriller",
+    "범죄": "horror_thriller",
     "코미디": "comedy",
-    "드라마": "drama_romance", "로맨스": "drama_romance",
-    "역사": "drama_romance", "음악": "drama_romance", "다큐멘터리": "drama_romance",
-    "애니메이션": "animation_family", "가족": "animation_family",
+    "드라마": "drama_romance",
+    "로맨스": "drama_romance",
+    "역사": "drama_romance",
+    "음악": "drama_romance",
+    "다큐멘터리": "drama_romance",
+    "애니메이션": "animation_family",
+    "가족": "animation_family",
 }
 
 
 async def main() -> None:
+    from sqlalchemy import text
+
     from core.matrix.grid_oracle_database_manager import get_mova_session_factory, reload_env
     from core.matrix.vauly_keymaker_secret_manager import get_keymaker
     from mova.adapter.outbound.http.tmdb_catalog_adapter import TmdbCatalogAdapter
-    from sqlalchemy import text
 
     reload_env()
     keymaker = get_keymaker()

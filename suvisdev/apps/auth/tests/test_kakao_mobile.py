@@ -86,6 +86,7 @@ def client(rsa_keypair, monkeypatch, shared_fake_redis):
     )
 
     import auth_main
+
     from auth import router as auth_router_module
 
     monkeypatch.setattr(auth_router_module, "_service", service)

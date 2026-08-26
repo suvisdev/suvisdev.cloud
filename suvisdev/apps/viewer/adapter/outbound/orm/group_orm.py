@@ -1,4 +1,4 @@
-﻿"""@see suvisdev/_claude/ENTITY_RULE.md — 권한 그룹 (`groups`)."""
+"""@see suvisdev/_claude/ENTITY_RULE.md — 권한 그룹 (`groups`)."""
 
 from __future__ import annotations
 

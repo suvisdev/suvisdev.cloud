@@ -24,8 +24,6 @@ class SmithCaptainRepository(SmithCaptainPort):
         last = command.messages[-1].content if command.messages else ""
         return SmithChatResponse(reply=f"(임시 응답) 질문을 받았습니다: {last}")
 
-
     async def introduce_myself(self, query: SmithCaptainQuery) -> SmithCaptainResponse:
         logger.info(f"[SmithCaptainRepository] introduce_myself 진입 | request_data={query}")
         return SmithCaptainResponse(id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴")
-    

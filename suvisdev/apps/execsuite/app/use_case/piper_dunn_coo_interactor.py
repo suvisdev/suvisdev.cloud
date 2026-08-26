@@ -15,8 +15,9 @@ class DunnCooInteractor(DunnCooUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: DunnCooSchema) -> DunnCooResponse:
-
-        return await self._repository.introduce_myself(DunnCooQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            DunnCooQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

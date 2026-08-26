@@ -108,7 +108,9 @@ class IngestTmdbMovieRollbackTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_upsert_failure_rolls_back_and_returns_failed(self) -> None:
         movies_repo = AsyncMock()
-        movies_repo.upsert_movie.side_effect = Exception("value too long for type character varying(50)")
+        movies_repo.upsert_movie.side_effect = Exception(
+            "value too long for type character varying(50)"
+        )
         hub_rag = AsyncMock()
         credits_interactor = AsyncMock()
         session = AsyncMock()

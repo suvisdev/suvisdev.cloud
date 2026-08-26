@@ -20,11 +20,7 @@ INJECTION_GUARD = (
 
 def sanitize_user_text(text: str, *, max_len: int = 2000) -> str:
     """구분자·코드펜스 스푸핑 제거 + 길이 제한."""
-    cleaned = (
-        text.replace(USER_FENCE_OPEN, "")
-        .replace(USER_FENCE_CLOSE, "")
-        .replace("```", "")
-    )
+    cleaned = text.replace(USER_FENCE_OPEN, "").replace(USER_FENCE_CLOSE, "").replace("```", "")
     return cleaned.strip()[:max_len]
 
 

@@ -10,12 +10,11 @@ from titanic.app.ports.output.passenger_isidor_couple_port import IsidorCouplePo
 from titanic.app.use_cases.passenger_isidor_couple_interactor import IsidorCoupleInteractor
 
 
-def get_isidor_couple_repository(
-        db: AsyncSession = Depends(get_db)
-) -> IsidorCouplePort:
+def get_isidor_couple_repository(db: AsyncSession = Depends(get_db)) -> IsidorCouplePort:
     return IsidorCoupleRepository(session=db)
 
+
 def get_isidor_couple_use_case(
-        repository: IsidorCouplePort = Depends(get_isidor_couple_repository)
+    repository: IsidorCouplePort = Depends(get_isidor_couple_repository),
 ) -> IsidorCoupleUseCase:
     return IsidorCoupleInteractor(repository=repository)

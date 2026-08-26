@@ -62,5 +62,6 @@ class CollectionAssignResultSchema(BaseModel):
         description="배정: DB에 없는 movie_id · 해제: 이 컬렉션에 없던 movie_id"
     )
     moved_from_other_collection: int = Field(
-        ge=0, description="배정 전용 — 다른 컬렉션에서 이동돼 온 영화 수(덮어쓰기 관측성). 해제 시 0"
+        ge=0,
+        description="배정 전용 — 다른 컬렉션에서 이동돼 온 영화 수(덮어쓰기 관측성). 해제 시 0",
     )

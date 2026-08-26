@@ -15,13 +15,15 @@ from mova.adapter.inbound.api.schemas.market_chat_schema import (  # noqa: E402
     MovaChatRequest,
 )
 from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
-    ChatInteractor,
     _GENERAL_CHAT_SYSTEM_PROMPT,
+    ChatInteractor,
 )
 from ontology.app.dtos.mycroft_dto import MycroftAnswerDto  # noqa: E402
 
 
-def _build_interactor(*, classifier_destination: str) -> tuple[ChatInteractor, AsyncMock, AsyncMock]:
+def _build_interactor(
+    *, classifier_destination: str
+) -> tuple[ChatInteractor, AsyncMock, AsyncMock]:
     repo = AsyncMock()
     repo.save_chat.return_value = 1
     classifier = AsyncMock()
@@ -277,9 +279,7 @@ class ChatInteractorTasteRerankTests(unittest.IsolatedAsyncioTestCase):
             303: [0.0, 1.0, 0.0],  # cosine = 0.0
         }
 
-        response = await interactor.chat(
-            MovaChatRequest(message="추천", history=[], user_id=42)
-        )
+        response = await interactor.chat(MovaChatRequest(message="추천", history=[], user_id=42))
 
         # movie_id 순서: 202(가장 유사) → 101 → 303
         actual = [r.movie_id for r in response.recommendations]
@@ -295,9 +295,7 @@ class ChatInteractorTasteRerankTests(unittest.IsolatedAsyncioTestCase):
         interactor, taste_repo, movies_repo = self._build(recs=recs)
         taste_repo.get_taste_vector.return_value = None
 
-        response = await interactor.chat(
-            MovaChatRequest(message="추천", history=[], user_id=42)
-        )
+        response = await interactor.chat(MovaChatRequest(message="추천", history=[], user_id=42))
 
         self.assertEqual([r.movie_id for r in response.recommendations], [101, 202, 303])
         # taste vector가 없으면 movies embeddings 페치 자체를 건너뜀

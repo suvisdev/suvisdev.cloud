@@ -81,7 +81,9 @@ async def refresh(body: RefreshRequest) -> TokenResponse:
 
 
 @router.get("/auth/login/{provider}")
-async def start_oauth_login(provider: str, aud: str, return_to: str | None = None) -> RedirectResponse:
+async def start_oauth_login(
+    provider: str, aud: str, return_to: str | None = None
+) -> RedirectResponse:
     try:
         url = _service.start_oauth_login(provider, aud, _sanitize_return_to(return_to))
     except OAuthError as e:

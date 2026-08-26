@@ -21,5 +21,7 @@ class RuthValidationRepository(RuthValidationPort):
 
     async def introduce_myself(self, query: RuthValidationQuery) -> RuthValidationResponse:
         logger.info(f"[RuthValidationRepository] introduce_myself 진입 | request_data={query}")
-        response = RuthValidationResponse(id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴")
+        response = RuthValidationResponse(
+            id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴"
+        )
         return response

@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import io
 
+from labs.pose_estimation.dto import Keypoint, PoseResult
 from PIL import Image
 from ultralytics import YOLO
-
-from labs.pose_estimation.dto import Keypoint, PoseResult
 
 _MODEL_WEIGHTS = "yolov8n-pose.pt"
 
@@ -66,8 +65,6 @@ class YoloV8PoseAdapter:
                 for kp_idx in range(len(_COCO_KEYPOINT_NAMES))
             ]
             poses.append(
-                PoseResult(
-                    keypoints=keypoints, box_confidence=float(box_confs[person_idx])
-                )
+                PoseResult(keypoints=keypoints, box_confidence=float(box_confs[person_idx]))
             )
         return poses

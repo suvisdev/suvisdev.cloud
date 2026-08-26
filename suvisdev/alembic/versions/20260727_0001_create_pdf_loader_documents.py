@@ -25,7 +25,10 @@ def upgrade() -> None:
         sa.Column("extracted_text", sa.Text(), nullable=False),
         sa.Column("summary", sa.Text(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
     )

@@ -11,7 +11,9 @@ class JackTrainerOrm(Base):
 
     __tablename__ = "titanic_passengers"
 
-    passenger_id: Mapped[str] = mapped_column(String(32), primary_key=True, unique=True, nullable=False, index=True)
+    passenger_id: Mapped[str] = mapped_column(
+        String(32), primary_key=True, unique=True, nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     gender: Mapped[str] = mapped_column(String(16), nullable=False, default="")
     age: Mapped[str] = mapped_column(String(16), nullable=False, default="")

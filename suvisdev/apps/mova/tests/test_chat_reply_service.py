@@ -256,7 +256,7 @@ class MatchingRootCauseRegressionTests(unittest.IsolatedAsyncioTestCase):
     버그가 movie_id 기반 grounding으로 더 이상 발생하지 않음을 고정한다."""
 
     async def test_title_collision_no_longer_misattributes(self) -> None:
-        """"괴물" 재현 — DB엔 The Thing(1982)만 있고 Gemini가 실제로는 다른
+        """ "괴물" 재현 — DB엔 The Thing(1982)만 있고 Gemini가 실제로는 다른
         영화(movie_id=147, 기생충)를 의도해 정확한 movie_id를 돌려줬다면,
         title 텍스트가 우연히 "괴물"과 겹치더라도(과거엔 find_by_title이
         엉뚱한 The Thing에 연결했을 상황) movie_id만으로 조회하므로 항상
@@ -265,9 +265,7 @@ class MatchingRootCauseRegressionTests(unittest.IsolatedAsyncioTestCase):
         the_thing = _movie(id=426, slug="tmdb-1091", title="괴물", release_year=1982)
         parasite = _movie(id=147, slug="tmdb-496243", title="기생충", release_year=2019)
         repo = AsyncMock()
-        repo.find_by_id.side_effect = lambda movie_id: {426: the_thing, 147: parasite}.get(
-            movie_id
-        )
+        repo.find_by_id.side_effect = lambda movie_id: {426: the_thing, 147: parasite}.get(movie_id)
         factory, _ = _mock_factory(repo)
 
         # Gemini가 "송강호 출연 스릴러" 의도로 movie_id=147(기생충)을 정확히
@@ -296,7 +294,7 @@ class MatchingRootCauseRegressionTests(unittest.IsolatedAsyncioTestCase):
         repo.find_by_title.assert_not_awaited()  # 문자열 매칭 자체가 안 일어남
 
     async def test_year_suffix_format_no_longer_breaks_matching(self) -> None:
-        """"빽 투 더 퓨쳐 (1985)" 재현 — 과거엔 title에 연도 접미사가 붙으면
+        """ "빽 투 더 퓨쳐 (1985)" 재현 — 과거엔 title에 연도 접미사가 붙으면
         find_by_title 완전일치가 깨져 movie_id=null이 됐다. 이제는 title이
         뭐라고 적혀 있든 movie_id만 맞으면 정상 grounding된다."""
         movie = _movie(id=194, slug="tmdb-105", title="빽 투 더 퓨쳐", release_year=1985)

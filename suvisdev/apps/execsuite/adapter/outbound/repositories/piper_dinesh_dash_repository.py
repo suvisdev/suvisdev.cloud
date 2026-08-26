@@ -5,7 +5,6 @@ from execsuite.app.ports.output.piper_dinesh_dash_port import DineshDashPort
 
 
 class DineshDashRepository(DineshDashPort):
-
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 

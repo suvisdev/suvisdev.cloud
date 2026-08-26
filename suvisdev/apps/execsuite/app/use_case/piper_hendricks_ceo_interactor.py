@@ -15,8 +15,9 @@ class HendricksCeoInteractor(HendricksCeoUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: HendricksCeoSchema) -> HendricksCeoResponse:
-
-        return await self._repository.introduce_myself(HendricksCeoQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            HendricksCeoQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

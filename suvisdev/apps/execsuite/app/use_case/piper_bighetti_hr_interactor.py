@@ -15,8 +15,9 @@ class BighettiHrInteractor(BighettiHrUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: BighettiHrSchema) -> BighettiHrResponse:
-
-        return await self._repository.introduce_myself(BighettiHrQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            BighettiHrQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

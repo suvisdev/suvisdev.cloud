@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Response
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from analytics.adapter.inbound.api.schemas.visitor_schema import (
     DailyVisitorCountSchema,
-    VisitPingRequestSchema,
     VisitorSummarySchema,
+    VisitPingRequestSchema,
 )
 from analytics.app.ports.input.get_visitor_summary_use_case import GetVisitorSummaryUseCase
 from analytics.app.ports.input.record_visit_use_case import RecordVisitUseCase
@@ -13,7 +14,6 @@ from analytics.dependencies.visitor_provider import (
     get_record_visit_use_case,
     get_visitor_summary_use_case,
 )
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 visitor_router = APIRouter(prefix="/visitors", tags=["analytics-visitors"])
 

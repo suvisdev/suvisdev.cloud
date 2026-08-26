@@ -38,8 +38,16 @@ class JamesInteractor(JamesUseCase):
             elif lower_key == "sibsp":
                 normalized["sib_sp"] = value
             elif lower_key in {
-                "survived", "pclass", "name", "age", "parch",
-                "ticket", "fare", "cabin", "embarked", "gender",
+                "survived",
+                "pclass",
+                "name",
+                "age",
+                "parch",
+                "ticket",
+                "fare",
+                "cabin",
+                "embarked",
+                "gender",
             }:
                 normalized[lower_key] = value
             else:

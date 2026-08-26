@@ -169,7 +169,11 @@ def main() -> None:
             posters = images.get("posters") or []
             if counts["textless"] < _N_HARD_TEXTLESS:
                 textless = next(
-                    (p for p in posters if p.get("iso_639_1") is None and p["file_path"] != primary_poster_path),
+                    (
+                        p
+                        for p in posters
+                        if p.get("iso_639_1") is None and p["file_path"] != primary_poster_path
+                    ),
                     None,
                 )
                 if textless:

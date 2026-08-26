@@ -16,5 +16,7 @@ class HartleyViolinRepository(HartleyViolinPort):
 
     async def introduce_myself(self, query: HartleyViolinQuery) -> HartleyViolinResponse:
         logger.info(f"[HartleyViolinRepository] introduce_myself 진입 | request_data={query}")
-        response = HartleyViolinResponse(id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴")
+        response = HartleyViolinResponse(
+            id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴"
+        )
         return response

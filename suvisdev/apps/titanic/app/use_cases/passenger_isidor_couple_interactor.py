@@ -15,8 +15,9 @@ class IsidorCoupleInteractor(IsidorCoupleUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: IsidorCoupleSchema) -> IsidorCoupleResponse:
-    
-        return await self._repository.introduce_myself(IsidorCoupleQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            IsidorCoupleQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

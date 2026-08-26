@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_user import UserPrincipal, require_user
 
 from mova.adapter.inbound.api.schemas.market_conversations_schema import (
     ConversationDetailSchema,
@@ -14,7 +15,6 @@ from mova.app.ports.output.market_conversations_errors import (
     ConversationNotFoundError,
 )
 from mova.dependencies.market_conversations_provider import get_conversations_use_case
-from shared.security.require_user import UserPrincipal, require_user
 
 market_conversations_router = APIRouter(prefix="/conversations", tags=["mova-conversations"])
 

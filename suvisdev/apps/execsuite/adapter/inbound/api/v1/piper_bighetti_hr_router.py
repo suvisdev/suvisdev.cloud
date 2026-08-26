@@ -12,9 +12,4 @@ bighetti_hr_router = APIRouter(prefix="/bighetti", tags=["bighetti"])
 async def introduce_myself(
     bighetti: BighettiHrUseCase = Depends(get_bighetti_hr_use_case),
 ) -> BighettiHrResponse:
-    return await bighetti.introduce_myself(
-        BighettiHrSchema(
-            id=5,
-            name="넬슨 빅헤티 주인공"
-        )
-    )
+    return await bighetti.introduce_myself(BighettiHrSchema(id=5, name="넬슨 빅헤티 주인공"))

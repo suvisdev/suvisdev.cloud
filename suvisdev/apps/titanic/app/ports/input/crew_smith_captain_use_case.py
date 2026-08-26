@@ -16,9 +16,9 @@ class SmithCaptainUseCase(ABC):
     async def chat(self, schema: ChatSchema) -> SmithChatResponse:
         pass
 
-
     @abstractmethod
-    async def introduce_myself(self, schemas: SmithCaptainSchema, 
-) -> SmithCaptainResponse:
+    async def introduce_myself(
+        self,
+        schemas: SmithCaptainSchema,
+    ) -> SmithCaptainResponse:
         pass
-

@@ -113,9 +113,7 @@ class TestImportScoredEdges:
         json_path = _make_scored_edges_json(tmp_path)
         import_scored_edges(session, json_path)
 
-        edge = session.query(RouteEdgeOrm).filter(
-            RouteEdgeOrm.road_name == "여의대로"
-        ).one()
+        edge = session.query(RouteEdgeOrm).filter(RouteEdgeOrm.road_name == "여의대로").one()
         assert edge.tree_score == 0.8
         assert edge.hazard_score == 0.2
         assert edge.dog_friendly_score == 0.86
@@ -125,9 +123,7 @@ class TestImportScoredEdges:
         json_path = _make_scored_edges_json(tmp_path)
         import_scored_edges(session, json_path)
 
-        node = session.query(RouteNodeOrm).filter(
-            RouteNodeOrm.osm_id == "100"
-        ).one()
+        node = session.query(RouteNodeOrm).filter(RouteNodeOrm.osm_id == "100").one()
         assert abs(node.latitude - 37.527) < 0.001
 
     def test_idempotent(self, tmp_path: Path) -> None:

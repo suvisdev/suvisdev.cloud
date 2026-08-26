@@ -35,9 +35,7 @@ def upgrade() -> None:
         "titanic_bookings",
         sa.Column("passenger_id", sa.String(length=32), nullable=False),
     )
-    op.create_index(
-        "ix_titanic_bookings_passenger_id", "titanic_bookings", ["passenger_id"]
-    )
+    op.create_index("ix_titanic_bookings_passenger_id", "titanic_bookings", ["passenger_id"])
     op.create_foreign_key(
         "titanic_bookings_passenger_id_fkey",
         "titanic_bookings",
@@ -49,9 +47,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "titanic_bookings_passenger_id_fkey", "titanic_bookings", type_="foreignkey"
-    )
+    op.drop_constraint("titanic_bookings_passenger_id_fkey", "titanic_bookings", type_="foreignkey")
     op.drop_index("ix_titanic_bookings_passenger_id", table_name="titanic_bookings")
     op.drop_column("titanic_bookings", "passenger_id")
 

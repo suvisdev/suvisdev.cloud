@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from mova.adapter.inbound.api.schemas.market_collections_schema import (
     CollectionAssignResultSchema,
@@ -30,7 +31,6 @@ from mova.dependencies.collections_provider import (
     get_list_collections_use_case,
     get_unassign_movies_use_case,
 )
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 collections_router = APIRouter(prefix="/collections", tags=["mova-collections"])
 

@@ -92,9 +92,7 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_route_edges_from_node_id"), "route_edges", ["from_node_id"], unique=False
     )
-    op.create_index(
-        op.f("ix_route_edges_to_node_id"), "route_edges", ["to_node_id"], unique=False
-    )
+    op.create_index(op.f("ix_route_edges_to_node_id"), "route_edges", ["to_node_id"], unique=False)
     # route_results: route_requests와 1:1 — route_request_id에 UNIQUE 제약.
     op.create_table(
         "route_results",
@@ -110,9 +108,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["route_request_id"], ["route_requests.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "route_request_id", name="uq_route_results_route_request_id"
-        ),
+        sa.UniqueConstraint("route_request_id", name="uq_route_results_route_request_id"),
     )
 
 

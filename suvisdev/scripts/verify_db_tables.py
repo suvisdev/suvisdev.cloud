@@ -1,4 +1,5 @@
 """DB 연결·테이블 생성 검증 (viewer → mova 순서, FK 포함)."""
+
 from __future__ import annotations
 
 import asyncio

@@ -1,4 +1,4 @@
-﻿"""API 키·외부 서비스 설정을 한 객체에서 관리한다.
+"""API 키·외부 서비스 설정을 한 객체에서 관리한다.
 
 계약(contract): 이 모듈을 임포트하면 모듈 로드 시점의 싱글턴(`keymaker = Keymaker()`)이
 `suvisdev/.env`를 `load_dotenv(override=True)`로 읽어 `os.environ`에 채운다.

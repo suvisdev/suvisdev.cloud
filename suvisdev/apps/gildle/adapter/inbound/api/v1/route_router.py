@@ -26,7 +26,6 @@ from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.route_edge import RouteEdge
 from gildle.domain.value_objects.season_mode import SeasonMode
 
-
 route_router = APIRouter(tags=["gildle"])
 logger = logging.getLogger(__name__)
 
@@ -74,9 +73,7 @@ def calculate_route(
     return {"path": path, "coordinates": coordinates}
 
 
-def _find_nearest_node_id(
-    edges: list[RouteEdge], point: Coordinate
-) -> str | None:
+def _find_nearest_node_id(edges: list[RouteEdge], point: Coordinate) -> str | None:
     if not edges:
         return None
     best_dist = float("inf")
@@ -101,9 +98,7 @@ _route_edges_mtime: float = 0.0
 
 def _load_scored_edges() -> list[RouteEdge]:
     global _route_edges_cache, _route_edges_mtime  # noqa: PLW0603
-    scored_path = Path(
-        os.getenv("GILDLE_SCORED_EDGES", str(_DATA_DIR / "scored_edges.json"))
-    )
+    scored_path = Path(os.getenv("GILDLE_SCORED_EDGES", str(_DATA_DIR / "scored_edges.json")))
     if not scored_path.exists():
         return []
     mtime = scored_path.stat().st_mtime
@@ -118,9 +113,11 @@ def _load_scored_edges() -> list[RouteEdge]:
             midpoint=Coordinate(latitude=r["midpoint_lat"], longitude=r["midpoint_lng"]),
             road_name=r.get("road_name"),
             from_coord=Coordinate(latitude=r["from_lat"], longitude=r["from_lng"])
-            if "from_lat" in r else None,
+            if "from_lat" in r
+            else None,
             to_coord=Coordinate(latitude=r["to_lat"], longitude=r["to_lng"])
-            if "to_lat" in r else None,
+            if "to_lat" in r
+            else None,
             tree_score=float(r.get("tree_score", 0)),
             hazard_score=float(r.get("hazard_score", 0)),
             dog_friendly_score=float(r.get("dog_friendly_score", 0)),
@@ -176,9 +173,7 @@ _scored_edges_mtime: float = 0.0
 
 def _get_scored_edges_raw() -> list[dict[str, Any]]:
     global _scored_edges_cache, _scored_edges_mtime  # noqa: PLW0603
-    scored_path = Path(
-        os.getenv("GILDLE_SCORED_EDGES", str(_DATA_DIR / "scored_edges.json"))
-    )
+    scored_path = Path(os.getenv("GILDLE_SCORED_EDGES", str(_DATA_DIR / "scored_edges.json")))
     if not scored_path.exists():
         return []
     mtime = scored_path.stat().st_mtime
@@ -201,7 +196,8 @@ def get_graph_edges(
         raise HTTPException(status_code=404, detail="scored_edges.json 없음")
     if south is not None and west is not None and north is not None and east is not None:
         filtered = [
-            e for e in edges
+            e
+            for e in edges
             if south <= e["midpoint_lat"] <= north and west <= e["midpoint_lng"] <= east
         ]
         if zoom is not None and zoom < 15 and len(filtered) > 5000:

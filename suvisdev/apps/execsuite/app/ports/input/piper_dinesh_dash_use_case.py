@@ -10,5 +10,5 @@ class DineshDashUseCase(ABC):
     """piper_dinesh_dash input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: DineshDashSchema)->DineshDashResponse:
+    async def introduce_myself(self, schemas: DineshDashSchema) -> DineshDashResponse:
         pass

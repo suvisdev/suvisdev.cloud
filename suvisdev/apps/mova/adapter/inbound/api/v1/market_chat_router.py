@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from shared.security.require_user import UserPrincipal, optional_user
 
 from mova.adapter.inbound.api.rate_limit import chat_rate_limit
 from mova.adapter.inbound.api.schemas.market_chat_schema import (
@@ -17,7 +18,6 @@ from mova.app.ports.output.market_conversations_errors import (
     ConversationNotFoundError,
 )
 from mova.dependencies.market_chat_provider import get_chat_use_case
-from shared.security.require_user import UserPrincipal, optional_user
 
 market_chat_router = APIRouter(prefix="/chat", tags=["mova-chat"])
 

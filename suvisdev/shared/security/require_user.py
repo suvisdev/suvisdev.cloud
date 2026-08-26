@@ -15,7 +15,6 @@ import logging
 from dataclasses import dataclass
 
 from fastapi import Header, HTTPException
-
 from shared.security.token_verifier import verify_token, verify_viewer_session_token
 
 logger = logging.getLogger(__name__)

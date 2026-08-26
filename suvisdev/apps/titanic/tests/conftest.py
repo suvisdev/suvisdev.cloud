@@ -6,9 +6,9 @@ import pytest
 _here = Path(__file__).parent  # apps/titanic/tests/
 
 _paths = [
-    _here,                          # korean_ai 임포트
-    _here.parent.parent,            # apps/ → titanic.* 임포트
-    _here.parent.parent.parent,     # suvisdev/ → core.* 임포트
+    _here,  # korean_ai 임포트
+    _here.parent.parent,  # apps/ → titanic.* 임포트
+    _here.parent.parent.parent,  # suvisdev/ → core.* 임포트
     _here.parent.parent.parent.parent,  # cloud.suvisdev/ → tailor.* 임포트
 ]
 for _p in _paths:

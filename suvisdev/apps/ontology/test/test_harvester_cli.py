@@ -37,7 +37,17 @@ class HarvesterCliTest(unittest.TestCase):
             out_path = Path(tmp) / "out.jsonl"
             result = runner.invoke(
                 cli_app_module.app,
-                ["scrape", "--site", "fake", "--keyword", "패터슨", "--limit", "5", "--out", str(out_path)],
+                [
+                    "scrape",
+                    "--site",
+                    "fake",
+                    "--keyword",
+                    "패터슨",
+                    "--limit",
+                    "5",
+                    "--out",
+                    str(out_path),
+                ],
             )
 
             self.assertEqual(result.exit_code, 0, msg=result.output)

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
+from shared.security.require_user import UserPrincipal, require_user
 
 from mova.adapter.inbound.api.schemas.market_reviews_schema import (
-    ReviewCommentCreateSchema,
-    ReviewCommentSchema,
     MovieRatingSummarySchema,
     ReviewActivityCreateSchema,
     ReviewActivitySchema,
+    ReviewCommentCreateSchema,
+    ReviewCommentSchema,
     ReviewCreateSchema,
     ReviewSchema,
     ReviewUpdateSchema,
@@ -33,7 +34,6 @@ from mova.dependencies.platform_user_taste_vector_provider import (
 )
 from mova.dependencies.review_embedding_provider import get_review_embedding_backfill_use_case
 from mova.dependencies.review_spoiler_provider import get_review_spoiler_backfill_use_case
-from shared.security.require_user import UserPrincipal, require_user
 
 
 async def _embed_review_then_recompute_taste(
@@ -50,6 +50,7 @@ async def _embed_review_then_recompute_taste(
     outcome = await embedding_backfill.embed_one(review_id)
     if outcome == "succeeded":
         await taste_recompute.recompute_for_user(user_id)
+
 
 market_reviews_router = APIRouter(prefix="/reviews", tags=["mova-reviews"])
 
@@ -199,9 +200,8 @@ async def delete_review(
     await use_case.delete_review(review_id)
     return {"status": "deleted"}
 
-@market_reviews_router.get(
-    "/{review_id}/comments", response_model=list[ReviewCommentSchema]
-)
+
+@market_reviews_router.get("/{review_id}/comments", response_model=list[ReviewCommentSchema])
 async def get_review_comments(
     review_id: int,
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
@@ -242,4 +242,3 @@ async def delete_review_comment(
     if not ok:
         raise HTTPException(status_code=404, detail="댓글을 찾을 수 없습니다.")
     return {"status": "deleted"}
-

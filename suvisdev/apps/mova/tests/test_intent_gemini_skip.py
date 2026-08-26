@@ -57,9 +57,7 @@ class IntentGeminiSkipTests(unittest.TestCase):
         self.svc = IntentExtractionService()
 
     def _extract(self, message: str) -> dict:
-        with patch.object(
-            intent_extraction, "get_keymaker", return_value=_Keymaker(self.model)
-        ):
+        with patch.object(intent_extraction, "get_keymaker", return_value=_Keymaker(self.model)):
             return self.svc.extract(message)
 
     def test_skips_gemini_when_year_found(self) -> None:
@@ -163,9 +161,7 @@ class IntentGeminiStillUsedTests(unittest.TestCase):
                 return _R()
 
         svc = IntentExtractionService()
-        with patch.object(
-            intent_extraction, "get_keymaker", return_value=_Keymaker(_MoodModel())
-        ):
+        with patch.object(intent_extraction, "get_keymaker", return_value=_Keymaker(_MoodModel())):
             result = svc.extract("요즘 너무 지치는데 볼만한 거 없을까")
 
         self.assertEqual(len(called), 1)

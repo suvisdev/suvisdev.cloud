@@ -22,13 +22,12 @@ Usage (suvisdev 폴더에서):
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
-
 from anomalib.data import Folder
 from anomalib.data.utils.split import ValSplitMode
 from anomalib.engine import Engine
 from anomalib.models import Patchcore
 from anomalib.post_processing import PostProcessor
+from sklearn.metrics import roc_auc_score
 
 _ROOT = "apps/ontology/resources/sentinel_poster"
 
@@ -49,7 +48,9 @@ def _make_datamodule() -> Folder:
     )
 
 
-def _run(*, enable_normalization: bool, results_dir: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
+def _run(
+    *, enable_normalization: bool, results_dir: str
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
     datamodule = _make_datamodule()
     post_processor = PostProcessor(enable_normalization=enable_normalization)
     model = Patchcore(post_processor=post_processor)
@@ -73,14 +74,18 @@ def main() -> None:
         enable_normalization=True, results_dir="apps/ontology/runs/sentinel_anomaly_norm_on"
     )
     auroc_norm = roc_auc_score(labels_norm, scores_norm)
-    print(f"샘플 수: {len(scores_norm)} (normal={sum(labels_norm==0)}, abnormal={sum(labels_norm==1)})")
+    print(
+        f"샘플 수: {len(scores_norm)} (normal={sum(labels_norm==0)}, abnormal={sum(labels_norm==1)})"
+    )
 
     print("\n=== [2] 정규화 OFF (raw score, val_split_mode=NONE으로 test 117개 전부) ===")
     scores_raw, labels_raw, paths_raw = _run(
         enable_normalization=False, results_dir="apps/ontology/runs/sentinel_anomaly_norm_off"
     )
     auroc_raw = roc_auc_score(labels_raw, scores_raw)
-    print(f"샘플 수: {len(scores_raw)} (normal={sum(labels_raw==0)}, abnormal={sum(labels_raw==1)})")
+    print(
+        f"샘플 수: {len(scores_raw)} (normal={sum(labels_raw==0)}, abnormal={sum(labels_raw==1)})"
+    )
 
     print("\n=== 정규화 전/후 AUROC 비교 ===")
     print(f"정규화 ON  (min-max clamp): {auroc_norm:.4f}")
@@ -95,7 +100,9 @@ def main() -> None:
     n_norm, a_norm = _tie_counts(scores_norm, labels_norm)
     n_raw, a_raw = _tie_counts(scores_raw, labels_raw)
     print("\n=== score == 1.000 동점 개수 ===")
-    print(f"정규화 ON : normal={n_norm}/{sum(labels_norm==0)}, abnormal={a_norm}/{sum(labels_norm==1)}")
+    print(
+        f"정규화 ON : normal={n_norm}/{sum(labels_norm==0)}, abnormal={a_norm}/{sum(labels_norm==1)}"
+    )
     print(f"정규화 OFF: normal={n_raw}/{sum(labels_raw==0)}, abnormal={a_raw}/{sum(labels_raw==1)}")
 
     print("\n=== raw(비정규화) score 기준 정상 이미지 상위 10장 ===")

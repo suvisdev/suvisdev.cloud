@@ -83,14 +83,18 @@ def main(argv: list[str] | None = None) -> int:
         for no, text in malformed:
             # 값이 아니라 깨진 줄 자체라 그대로 보여준다(비밀이 들어갈 자리가 아니다).
             print(f"  - {no}행: {text!r}")
-        print("[env-drift] 편집기 확장이 끼워 넣은 문자일 수 있다(WORK_LOG 2026-07-29·07-30·08-04·08-10).")
+        print(
+            "[env-drift] 편집기 확장이 끼워 넣은 문자일 수 있다(WORK_LOG 2026-07-29·07-30·08-04·08-10)."
+        )
 
     missing = sorted(documented - actual)
     undocumented = sorted(actual - documented)
 
     if undocumented:
         # 실패 사유는 아니다 — .env에만 있는 키는 실험용·환경 전용일 수 있다.
-        print(f"[env-drift] .env.example에 없는 키 {len(undocumented)}개(참고): {', '.join(undocumented)}")
+        print(
+            f"[env-drift] .env.example에 없는 키 {len(undocumented)}개(참고): {', '.join(undocumented)}"
+        )
 
     if missing:
         print(f"[env-drift] .env에 없는 키 {len(missing)}개:")

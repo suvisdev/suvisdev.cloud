@@ -19,6 +19,7 @@ if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
 from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
+
 from viewer.adapter.inbound.api.v1.avatar_router import avatar_router  # noqa: E402
 from viewer.app.dtos.profile_dto import ProfileDto  # noqa: E402
 from viewer.dependencies.profile_provider import get_profile_use_case  # noqa: E402
@@ -34,9 +35,7 @@ class _FakeProfileUseCase:
     async def update_nickname(self, user_id: int, nickname: str) -> ProfileDto | None:
         return None
 
-    async def update_preferred_genres(
-        self, user_id: int, genres: list[str]
-    ) -> ProfileDto | None:
+    async def update_preferred_genres(self, user_id: int, genres: list[str]) -> ProfileDto | None:
         return None
 
     async def upload_avatar(
@@ -54,9 +53,7 @@ class _FakeProfileUseCase:
         )
 
 
-def _build_client(
-    use_case: _FakeProfileUseCase, *, principal: UserPrincipal | None
-) -> TestClient:
+def _build_client(use_case: _FakeProfileUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
     app.include_router(avatar_router)
     app.dependency_overrides[get_profile_use_case] = lambda: use_case

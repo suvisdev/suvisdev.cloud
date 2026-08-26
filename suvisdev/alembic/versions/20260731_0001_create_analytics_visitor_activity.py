@@ -29,9 +29,7 @@ def upgrade() -> None:
         sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("visitor_id", "visit_date"),
     )
-    op.create_index(
-        "ix_visitor_activity_last_seen_at", "visitor_activity", ["last_seen_at"]
-    )
+    op.create_index("ix_visitor_activity_last_seen_at", "visitor_activity", ["last_seen_at"])
     op.create_index("ix_visitor_activity_visit_date", "visitor_activity", ["visit_date"])
 
 

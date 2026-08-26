@@ -10,12 +10,11 @@ from execsuite.app.ports.output.piper_dinesh_dash_port import DineshDashPort
 from execsuite.app.use_case.piper_dinesh_dash_interactor import DineshDashInteractor
 
 
-def get_dinesh_dash_repository(
-        db: AsyncSession = Depends(get_db)
-) -> DineshDashPort:
+def get_dinesh_dash_repository(db: AsyncSession = Depends(get_db)) -> DineshDashPort:
     return DineshDashRepository(session=db)
 
+
 def get_dinesh_dash_use_case(
-        repository: DineshDashPort = Depends(get_dinesh_dash_repository)
+    repository: DineshDashPort = Depends(get_dinesh_dash_repository),
 ) -> DineshDashUseCase:
     return DineshDashInteractor(repository=repository)

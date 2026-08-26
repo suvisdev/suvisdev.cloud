@@ -8,8 +8,8 @@ _here = Path(__file__).parent  # apps/analytics/tests/
 # (먼저 import되는 쪽이 이긴다). fakes는 analytics.tests.app.fakes로 패키지
 # 경로를 통해 임포트한다.
 _paths = [
-    _here.parent.parent,            # apps/      → analytics.* 임포트
-    _here.parent.parent.parent,     # suvisdev/  → core.* 임포트
+    _here.parent.parent,  # apps/      → analytics.* 임포트
+    _here.parent.parent.parent,  # suvisdev/  → core.* 임포트
 ]
 for _p in _paths:
     if str(_p) not in sys.path:

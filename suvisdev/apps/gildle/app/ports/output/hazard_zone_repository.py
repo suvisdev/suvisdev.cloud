@@ -9,5 +9,4 @@ class HazardZoneRepository(ABC):
     """결빙 사고 다발 위험구역 저장소 출력 포트."""
 
     @abstractmethod
-    def find_all(self) -> list[HazardZone]:
-        ...
+    def find_all(self) -> list[HazardZone]: ...

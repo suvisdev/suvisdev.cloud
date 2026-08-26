@@ -53,9 +53,7 @@ class SemanticRouterInteractor(SemanticRouterUseCase):
 
     async def route(self, command: SemanticRouteCommand) -> SemanticRouteDto:
         destination, entities = await self._classifier.classify(command.question)
-        logger.info(
-            "[SemanticRouterInteractor] destination=%s entities=%s", destination, entities
-        )
+        logger.info("[SemanticRouterInteractor] destination=%s entities=%s", destination, entities)
 
         if destination == "crud":
             return SemanticRouteDto(

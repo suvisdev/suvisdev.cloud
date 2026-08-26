@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import hashlib
 import logging
@@ -41,7 +41,9 @@ class LoginPgRepository(LoginRepository):
         async with factory() as session:
             return await self._login_user(session, command)
 
-    async def _login_user(self, session: AsyncSession, command: LoginUserCommand) -> LoginResponseDto:
+    async def _login_user(
+        self, session: AsyncSession, command: LoginUserCommand
+    ) -> LoginResponseDto:
         username = command.username
         password = command.password
         logger.info("[LoginPgRepository] login_user 진입 — username=%s", username)
@@ -58,7 +60,9 @@ class LoginPgRepository(LoginRepository):
         ).scalar_one_or_none()
         if admin is not None and _verify_password(password, admin.password_hash):
             logger.info("[LoginPgRepository] login_user 완료 — admin_id=%s", admin.id)
-            return LoginResponseDto(user_id=admin.id, username=admin.username, nickname=admin.nickname)
+            return LoginResponseDto(
+                user_id=admin.id, username=admin.username, nickname=admin.nickname
+            )
 
         raise LoginRepositoryError(
             "아이디 또는 비밀번호가 올바르지 않습니다.",

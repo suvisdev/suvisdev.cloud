@@ -18,9 +18,7 @@ class UserTasteVectorsPgRepository(UserTasteVectorRepositoryPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def upsert(
-        self, user_id: int, vector: list[float] | None, review_count: int
-    ) -> None:
+    async def upsert(self, user_id: int, vector: list[float] | None, review_count: int) -> None:
         # ON CONFLICT (user_id) — vector·review_count 갱신.
         # updated_at은 컬럼 default `now()`가 INSERT에만 걸리므로,
         # UPDATE 경로에서는 `now()`를 명시적으로 넣어 stale 방지.
@@ -59,9 +57,7 @@ class UserTasteVectorsPgRepository(UserTasteVectorRepositoryPort):
     async def get_taste_vector(self, user_id: int) -> list[float] | None:
         row = (
             await self._session.execute(
-                select(MovaUserTasteVector.vector).where(
-                    MovaUserTasteVector.user_id == user_id
-                )
+                select(MovaUserTasteVector.vector).where(MovaUserTasteVector.user_id == user_id)
             )
         ).scalar_one_or_none()
         return list(row) if row is not None else None

@@ -80,10 +80,7 @@ def load_materials_from_jsonl(directory: Path) -> dict[str, MovieMaterial]:
                 if headline and headline not in b["news_headlines"]:
                     b["news_headlines"].append(headline)
 
-    return {
-        key: MovieMaterial(**b)
-        for key, b in buckets.items()
-    }
+    return {key: MovieMaterial(**b) for key, b in buckets.items()}
 
 
 def _normalize_title(title: str) -> str:
@@ -140,7 +137,7 @@ class AiReviewGeneratorInteractor:
         results: list[AiReviewResult] = []
         errors: list[str] = []
 
-        for key, mat in materials.items():
+        for mat in materials.values():
             if not mat.kowiki_sections and not mat.kobis_metrics:
                 continue
 
@@ -186,9 +183,7 @@ class AiReviewGeneratorInteractor:
         body = await self._llm.generate(prompt, system=_REVIEW_SYSTEM_PROMPT)
 
         rating_input = f"[리뷰]\n{body}\n\n[수집 자료]\n{prompt}"
-        rating_response = await self._llm.generate(
-            rating_input, system=_RATING_SYSTEM_PROMPT
-        )
+        rating_response = await self._llm.generate(rating_input, system=_RATING_SYSTEM_PROMPT)
         rating = _parse_rating(rating_response)
 
         review_id = await self._writer.save_review(

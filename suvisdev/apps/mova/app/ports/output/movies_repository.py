@@ -64,7 +64,9 @@ class MoviesRepositoryPort(ABC):
         """movie_id의 origin_country만 갱신."""
 
     @abstractmethod
-    async def list_missing_age_rating_or_platforms(self, limit: int | None) -> list[tuple[int, str]]:
+    async def list_missing_age_rating_or_platforms(
+        self, limit: int | None
+    ) -> list[tuple[int, str]]:
         """age_rating·platforms가 둘 다 미백필(NULL/[])인 TMDB 원산 영화 — 백필 순회 전용."""
 
     @abstractmethod
@@ -90,9 +92,7 @@ class MoviesRepositoryPort(ABC):
         """movie_id의 embedding만 갱신."""
 
     @abstractmethod
-    async def list_embeddings_by_ids(
-        self, movie_ids: list[int]
-    ) -> dict[int, list[float]]:
+    async def list_embeddings_by_ids(self, movie_ids: list[int]) -> dict[int, list[float]]:
         """movie_id 리스트에 대응하는 embedding 매핑 — 채팅 추천 재정렬 전용.
 
         embedding이 NULL인 항목은 반환 dict에서 제외한다(빈 dict일 수 있음).

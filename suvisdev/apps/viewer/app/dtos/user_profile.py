@@ -1,4 +1,4 @@
-﻿"""회원 프로필 코드값 — `users` 테이블 컬럼."""
+"""회원 프로필 코드값 — `users` 테이블 컬럼."""
 
 from enum import StrEnum
 

@@ -12,5 +12,5 @@ class RuthValidationUseCase(ABC):
     """ruth_validation input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: RuthValidationSchema)->RuthValidationResponse:
+    async def introduce_myself(self, schemas: RuthValidationSchema) -> RuthValidationResponse:
         pass

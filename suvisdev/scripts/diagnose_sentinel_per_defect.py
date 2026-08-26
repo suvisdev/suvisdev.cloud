@@ -12,13 +12,12 @@ Usage (suvisdev 폴더에서):
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
-
 from anomalib.data import Folder
 from anomalib.data.utils.split import ValSplitMode
 from anomalib.engine import Engine
 from anomalib.models import Patchcore
 from anomalib.post_processing import PostProcessor
+from sklearn.metrics import roc_auc_score
 
 _ROOT = "apps/ontology/resources/sentinel_poster"
 _DEFECT_TYPES = ["blur", "black_bar", "watermark"]
@@ -57,7 +56,9 @@ def main() -> None:
     defect_names = np.array([_defect_of(p) for p in paths])
 
     normal_scores = scores[defect_names == "good"]
-    print(f"normal(test/good) n={len(normal_scores)}, mean={normal_scores.mean():.3f}, std={normal_scores.std():.3f}")
+    print(
+        f"normal(test/good) n={len(normal_scores)}, mean={normal_scores.mean():.3f}, std={normal_scores.std():.3f}"
+    )
 
     print("\n=== 손상 유형별 AUROC (normal 42 vs 해당 유형) ===")
     for defect in _DEFECT_TYPES:

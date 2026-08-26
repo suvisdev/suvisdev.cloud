@@ -11,7 +11,9 @@ _OCR_PROMPT = "이 이미지에 보이는 텍스트를 그대로 추출해줘. �
 def extract_text(image_bytes: bytes, content_type: str) -> str:
     keymaker = get_keymaker()
     if not keymaker.is_gemini_ready():
-        raise RuntimeError("GEMINI_API_KEY가 설정되지 않았습니다. suvisdev/.env 에 키를 설정하세요.")
+        raise RuntimeError(
+            "GEMINI_API_KEY가 설정되지 않았습니다. suvisdev/.env 에 키를 설정하세요."
+        )
     gemini = keymaker.get_gemini_model(None)
     if gemini is None:
         raise RuntimeError("Gemini 모델을 초기화할 수 없습니다.")

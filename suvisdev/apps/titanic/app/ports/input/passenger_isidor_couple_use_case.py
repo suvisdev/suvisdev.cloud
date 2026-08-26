@@ -10,5 +10,5 @@ class IsidorCoupleUseCase(ABC):
     """isidor_couple input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: IsidorCoupleSchema)->IsidorCoupleResponse:
+    async def introduce_myself(self, schemas: IsidorCoupleSchema) -> IsidorCoupleResponse:
         pass

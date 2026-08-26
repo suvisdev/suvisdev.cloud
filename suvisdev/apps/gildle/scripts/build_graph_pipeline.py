@@ -37,7 +37,9 @@ def run_pipeline(
     logger.info("edges: %d", len(edges))
 
     segments = CsvTreeSegmentRepository(csv_path=tree_csv, encoding=csv_encoding).find_all()
-    hazards = TrafficAuthorityHazardZoneRepository(csv_path=hazard_csv, encoding=csv_encoding).find_all()
+    hazards = TrafficAuthorityHazardZoneRepository(
+        csv_path=hazard_csv, encoding=csv_encoding
+    ).find_all()
     logger.info("segments: %d  hazards: %d", len(segments), len(hazards))
 
     calc = EdgeScoreCalculator()

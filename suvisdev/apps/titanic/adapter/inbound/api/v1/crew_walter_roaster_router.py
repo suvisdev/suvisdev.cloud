@@ -17,10 +17,4 @@ logger = logging.getLogger(__name__)
 async def introduce_myself(
     walter: WalterUseCase = Depends(get_walter_roaster_use_case),
 ) -> WalterResponse:
-    
-    return await walter.introduce_myself(
-        WalterSchema(
-            id=5,
-            name="Walter"
-        )
-    )
+    return await walter.introduce_myself(WalterSchema(id=5, name="Walter"))

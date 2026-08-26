@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from shared.security.token_verifier import TokenPayload
 
 from mova.dependencies.require_auth import RoleChecker
-from shared.security.token_verifier import TokenPayload
 from viewer.adapter.outbound.orm.user_orm import get_viewer_user_nicknames
 
 whoami_router = APIRouter()

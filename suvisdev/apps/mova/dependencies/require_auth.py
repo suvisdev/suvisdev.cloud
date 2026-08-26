@@ -7,7 +7,6 @@ RoleChecker 자체는 mova 안에 작게 중복 정의한다(다른 앱들도 �
 from __future__ import annotations
 
 from fastapi import Depends, HTTPException, Request
-
 from shared.security.token_verifier import (
     TokenPayload,
     verify_token,

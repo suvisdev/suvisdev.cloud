@@ -9,6 +9,7 @@ class PClassType(int, Enum):
     SECOND = 2
     THIRD = 3
 
+
 @dataclass(frozen=True)
 class PClass:
     value: PClassType
@@ -19,8 +20,8 @@ class PClass:
             raise ValueError("PClass는 필수 값입니다.")
         try:
             return cls(value=PClassType(int(raw.strip())))
-        except (ValueError, KeyError):
-            raise ValueError(f"PClass 유효하지 않은 값: '{raw}'")
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"PClass 유효하지 않은 값: '{raw}'") from e
 
     @property
     def is_first_class(self) -> bool:

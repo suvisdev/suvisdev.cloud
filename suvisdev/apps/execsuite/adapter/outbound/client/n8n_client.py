@@ -6,7 +6,6 @@ import httpx
 
 
 class N8nClient:
-
     def __init__(self, webhook_url: str):
         self.webhook_url = webhook_url
 

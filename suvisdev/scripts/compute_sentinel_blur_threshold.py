@@ -60,7 +60,9 @@ def main() -> None:
         below = blur_scores < threshold
         print(f"\n=== 대조: 합성 블러(test/blur, n={len(blur_scores)}) ===")
         print(f"mean={blur_scores.mean():.1f} std={blur_scores.std():.1f}")
-        print(f"임계값 미만(정상 판정 실패=blur로 잡힘) 비율: {below.sum()}/{len(below)} ({100 * below.mean():.1f}%)")
+        print(
+            f"임계값 미만(정상 판정 실패=blur로 잡힘) 비율: {below.sum()}/{len(below)} ({100 * below.mean():.1f}%)"
+        )
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 
 from titanic.adapter.inbound.api.schemas.passenger_isidor_couple_schema import IsidorCoupleSchema
 from titanic.app.dtos.passenger_isidor_couple_dto import IsidorCoupleResponse
@@ -12,9 +12,4 @@ isidor_couple_router = APIRouter(prefix="/isidor", tags=["isidor"])
 async def introduce_myself(
     isidor: IsidorCoupleUseCase = Depends(get_isidor_couple_use_case),
 ) -> IsidorCoupleResponse:
-    return await isidor.introduce_myself(
-        IsidorCoupleSchema(
-            id=7,
-            name="이시도르 커플 주인공"
-        )
-    )
+    return await isidor.introduce_myself(IsidorCoupleSchema(id=7, name="이시도르 커플 주인공"))

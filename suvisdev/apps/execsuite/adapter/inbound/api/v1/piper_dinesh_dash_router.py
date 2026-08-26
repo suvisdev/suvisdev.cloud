@@ -12,9 +12,4 @@ dinesh_dash_router = APIRouter(prefix="/dinesh", tags=["dinesh"])
 async def introduce_myself(
     dinesh: DineshDashUseCase = Depends(get_dinesh_dash_use_case),
 ) -> DineshDashResponse:
-    return await dinesh.introduce_myself(
-        DineshDashSchema(
-            id=3,
-            name="디네시 추그타이 주인공"
-        )
-    )
+    return await dinesh.introduce_myself(DineshDashSchema(id=3, name="디네시 추그타이 주인공"))

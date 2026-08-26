@@ -16,5 +16,7 @@ class CalTesterRepository(CalTesterPort):
 
     async def introduce_myself(self, query: CalTesterQuery) -> CalTesterResponse:
         logger.info(f"[CalTesterRepository] introduce_myself 진입 | request_data={query}")
-        response = CalTesterResponse(id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴")
+        response = CalTesterResponse(
+            id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴"
+        )
         return response

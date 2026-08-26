@@ -185,7 +185,9 @@ class UserRepository:
                 await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
             ).scalar_one_or_none()
             if group_id is None:
-                raise RuntimeError("groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요.")
+                raise RuntimeError(
+                    "groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요."
+                )
 
             new_user = UserMirror(
                 group_id=group_id,
@@ -235,7 +237,9 @@ class UserRepository:
                 await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
             ).scalar_one_or_none()
             if group_id is None:
-                raise RuntimeError("groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요.")
+                raise RuntimeError(
+                    "groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요."
+                )
 
             # 카카오는 email/닉네임 동의 스코프가 없으면 값을 안 줄 수 있다 — users
             # 테이블 NOT NULL 제약을 만족시키기 위한 폴백. password_hash는 OAuth 전용

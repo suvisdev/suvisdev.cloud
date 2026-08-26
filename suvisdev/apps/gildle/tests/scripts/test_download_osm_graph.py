@@ -36,9 +36,7 @@ class TestDownloadWalkGraph:
         )
 
     @patch(_PATCH_OX)
-    def test_saves_graphml_to_output_path(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_saves_graphml_to_output_path(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_point.return_value = _make_mock_graph()
         output = tmp_path / "subdir" / "graph.graphml"
@@ -51,9 +49,7 @@ class TestDownloadWalkGraph:
         )
 
     @patch(_PATCH_OX)
-    def test_creates_parent_directory(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_creates_parent_directory(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.graph_from_point.return_value = _make_mock_graph()
         output = tmp_path / "deep" / "nested" / "graph.graphml"
@@ -63,9 +59,7 @@ class TestDownloadWalkGraph:
         assert output.parent.exists()
 
     @patch(_PATCH_OX)
-    def test_returns_node_and_edge_counts(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_returns_node_and_edge_counts(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         graph = _make_mock_graph()
         graph.__len__ = lambda self: 2

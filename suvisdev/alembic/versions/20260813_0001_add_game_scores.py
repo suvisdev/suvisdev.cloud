@@ -45,8 +45,7 @@ def upgrade() -> None:
         "ON game_scores (game_type, stage, score DESC)"
     )
     op.execute(
-        "CREATE INDEX ix_game_scores_user_type_stage "
-        "ON game_scores (user_id, game_type, stage)"
+        "CREATE INDEX ix_game_scores_user_type_stage " "ON game_scores (user_id, game_type, stage)"
     )
 
 

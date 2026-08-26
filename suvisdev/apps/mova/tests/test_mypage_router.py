@@ -20,10 +20,11 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
+from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
+
 from mova.adapter.inbound.api.v1.mypage_router import mypage_router  # noqa: E402
 from mova.app.dtos.mypage_dto import ActivitySummary, MypageDto  # noqa: E402
 from mova.dependencies.mypage_provider import get_mypage_use_case  # noqa: E402
-from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
 
 _NOW = datetime(2026, 8, 7, tzinfo=UTC)
 
@@ -44,9 +45,7 @@ class _FakeMypageUseCase:
         )
 
 
-def _build_client(
-    use_case: _FakeMypageUseCase, *, principal: UserPrincipal | None
-) -> TestClient:
+def _build_client(use_case: _FakeMypageUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
     app.include_router(mypage_router)
     app.dependency_overrides[get_mypage_use_case] = lambda: use_case

@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     try:
         CharacterLink(movie_id=0, actor_id=1)
-        assert False, "should raise"
+        raise AssertionError("should raise")
     except ValueError:
         pass
 

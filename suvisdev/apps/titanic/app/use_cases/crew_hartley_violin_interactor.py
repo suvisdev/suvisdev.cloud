@@ -42,11 +42,15 @@ class HartleyViolinInteractor(HartleyViolinUseCase):
         buf.seek(0)
         plt.close(fig)
 
-        logger.info(f"[HartleyViolinInteractor] 상관관계 히트맵 생성 | features={list(numeric_df.columns)}")
+        logger.info(
+            f"[HartleyViolinInteractor] 상관관계 히트맵 생성 | features={list(numeric_df.columns)}"
+        )
         return buf.read()
 
     async def introduce_myself(self, schemas: HartleyViolinSchema) -> HartleyViolinResponse:
-        return await self._repository.introduce_myself(HartleyViolinQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            HartleyViolinQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

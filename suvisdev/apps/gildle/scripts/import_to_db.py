@@ -26,9 +26,7 @@ from gildle.adapter.outbound.repositories.traffic_authority_hazard_zone_reposito
 logger = logging.getLogger(__name__)
 
 
-def import_tree_segments(
-    session: Session, csv_path: Path, encoding: str = "cp949"
-) -> int:
+def import_tree_segments(session: Session, csv_path: Path, encoding: str = "cp949") -> int:
     csv_repo = CsvTreeSegmentRepository(csv_path=csv_path, encoding=encoding)
     segments = csv_repo.find_all()
 
@@ -51,12 +49,8 @@ def import_tree_segments(
     return len(segments)
 
 
-def import_hazard_zones(
-    session: Session, csv_path: Path, encoding: str = "cp949"
-) -> int:
-    csv_repo = TrafficAuthorityHazardZoneRepository(
-        csv_path=csv_path, encoding=encoding
-    )
+def import_hazard_zones(session: Session, csv_path: Path, encoding: str = "cp949") -> int:
+    csv_repo = TrafficAuthorityHazardZoneRepository(csv_path=csv_path, encoding=encoding)
     zones = csv_repo.find_all()
 
     session.query(HazardZoneOrm).delete()

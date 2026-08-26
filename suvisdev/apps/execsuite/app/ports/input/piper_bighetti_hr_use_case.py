@@ -10,5 +10,5 @@ class BighettiHrUseCase(ABC):
     """piper_bighetti_hr input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: BighettiHrSchema)->BighettiHrResponse:
+    async def introduce_myself(self, schemas: BighettiHrSchema) -> BighettiHrResponse:
         pass

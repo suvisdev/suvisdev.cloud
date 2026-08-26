@@ -10,10 +10,10 @@ if str(APPS) not in sys.path:
 
 from ontology.app.dtos.anomaly_detection_dto import AnomalyResult  # noqa: E402
 
-
 # ── 실제 GPU(또는 CPU 폴백) + CLIP 다운로드가 필요한 통합 테스트 ────────
 # apps/ontology/resources/sentinel_poster/test/{good,blur}에서 각각 정상
 # 포스터·합성 블러 샘플을 하나씩 골라 두 신호(포스터 여부/블러 여부)를 검증한다.
+
 
 @pytest.mark.gpu
 def test_detect_returns_anomaly_result_via_port_for_good_poster() -> None:
@@ -22,7 +22,9 @@ def test_detect_returns_anomaly_result_via_port_for_good_poster() -> None:
     )
     from ontology.app.use_cases.anomaly_detection_interactor import AnomalyDetectionInteractor
 
-    image_path = ROOT / "apps" / "ontology" / "resources" / "sentinel_poster" / "test" / "good" / "0000.jpg"
+    image_path = (
+        ROOT / "apps" / "ontology" / "resources" / "sentinel_poster" / "test" / "good" / "0000.jpg"
+    )
     port = SentinelAnomalyAdapter()
     use_case = AnomalyDetectionInteractor(detector_port=port)
 
@@ -41,7 +43,9 @@ def test_detect_flags_synthetic_blur_sample() -> None:
     )
     from ontology.app.use_cases.anomaly_detection_interactor import AnomalyDetectionInteractor
 
-    image_path = ROOT / "apps" / "ontology" / "resources" / "sentinel_poster" / "test" / "blur" / "0000.jpg"
+    image_path = (
+        ROOT / "apps" / "ontology" / "resources" / "sentinel_poster" / "test" / "blur" / "0000.jpg"
+    )
     port = SentinelAnomalyAdapter()
     use_case = AnomalyDetectionInteractor(detector_port=port)
 

@@ -19,13 +19,12 @@ import io
 
 import numpy as np
 import torch
+from labs.semantic_segmentation.dto import DetectedClass, SegmentationResult
 from PIL import Image
 from torchvision.models.segmentation import (
     LRASPP_MobileNet_V3_Large_Weights,
     lraspp_mobilenet_v3_large,
 )
-
-from labs.semantic_segmentation.dto import DetectedClass, SegmentationResult
 
 
 class LrasppSegmentationAdapter:

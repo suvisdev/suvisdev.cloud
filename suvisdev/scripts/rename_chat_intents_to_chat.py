@@ -1,4 +1,4 @@
-﻿"""chat_intents -> chat 테이블 rename (재실행 안전).
+"""chat_intents -> chat 테이블 rename (재실행 안전).
 
 Usage (suvisdev 폴더에서):
   python scripts/rename_chat_intents_to_chat.py

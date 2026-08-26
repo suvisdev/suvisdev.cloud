@@ -36,7 +36,9 @@ class OAuthExchangeRequest(BaseModel):
 
 
 class KakaoMobileLoginRequest(BaseModel):
-    access_token: str = Field(..., min_length=1, description="kakao_flutter_sdk 로그인 결과의 access token")
+    access_token: str = Field(
+        ..., min_length=1, description="kakao_flutter_sdk 로그인 결과의 access token"
+    )
 
 
 class TokenResponse(BaseModel):

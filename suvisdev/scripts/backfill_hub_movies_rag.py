@@ -47,11 +47,11 @@ async def main() -> None:
         get_mova_session_factory,
         reload_env,
     )
+    from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
     from ontology.adapter.outbound.llm.ollama_embedding_adapter import OllamaEmbeddingAdapter
     from ontology.adapter.outbound.repositories.hub_knowledge_repository import (
         HubKnowledgeRepository,
     )
-    from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
     from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeUpsertCommand
     from ontology.app.use_cases.hub_rag_interactor import HubRagInteractor
 
@@ -61,7 +61,11 @@ async def main() -> None:
     factory = get_mova_session_factory()
     embedding = OllamaEmbeddingAdapter()
 
-    rows = [json.loads(line) for line in _DATASET.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [
+        json.loads(line)
+        for line in _DATASET.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     print(f"[backfill] {len(rows)}편 로드: {_DATASET}")
 
     ingested = 0

@@ -115,9 +115,7 @@ class TestBuildGraphAndShortestPath:
         edges = repo.load_edges()
         graph = repo.build_graph(edges)
 
-        path = repo.find_shortest_path(
-            graph, "100", "300", weight_fn=lambda e: e.base_distance_m
-        )
+        path = repo.find_shortest_path(graph, "100", "300", weight_fn=lambda e: e.base_distance_m)
         assert path == ["100", "200", "300"]
 
     def test_no_path_returns_empty(self) -> None:
@@ -128,7 +126,5 @@ class TestBuildGraphAndShortestPath:
         edges = repo.load_edges()
         graph = repo.build_graph(edges)
 
-        path = repo.find_shortest_path(
-            graph, "100", "999", weight_fn=lambda e: e.base_distance_m
-        )
+        path = repo.find_shortest_path(graph, "100", "999", weight_fn=lambda e: e.base_distance_m)
         assert path == []

@@ -47,7 +47,9 @@ class ScrapedRecord:
     sections: dict[str, str] | None = None  # 위키 섹션별 본문, 예: {"줄거리": "..."}
     infobox: dict[str, str] | None = None  # 위키/tmdb infobox key-value, 예: {"감독": "..."}
     external_ids: dict[str, str] | None = None  # 소스 간 매칭용, 예: {"tmdb_id": "496243"}
-    metrics: dict[str, float] | None = None  # kobis 등 정량 지표, 예: {"rank": 1, "audi_cnt": 152030}
+    metrics: dict[str, float] | None = (
+        None  # kobis 등 정량 지표, 예: {"rank": 1, "audi_cnt": 152030}
+    )
 
     def to_json_dict(self) -> dict[str, object]:
         record: dict[str, object] = {

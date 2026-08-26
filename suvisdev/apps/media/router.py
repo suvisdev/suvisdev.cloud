@@ -8,13 +8,13 @@ import mimetypes
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from shared.security.require_admin import AdminPrincipal, require_admin
+from shared.security.token_verifier import TokenPayload
 
 from core.matrix.aws_tank_s3_manager import get_tank
 from media.dependencies.require_auth import get_current_user
 from media.ocr import extract_text
 from media.schemas import OcrPhotoItem, PhotoUploadResponse
-from shared.security.require_admin import AdminPrincipal, require_admin
-from shared.security.token_verifier import TokenPayload
 
 media_router = APIRouter(prefix="/media", tags=["media"])
 
@@ -41,15 +41,11 @@ async def upload_photo(
     key = f"media/{user.sub}/{datetime.now():%Y%m%d_%H%M%S}_{file.filename}"
     tank = get_tank()
     try:
-        url = await asyncio.to_thread(
-            tank.upload_bytes, key, content, content_type=content_type
-        )
+        url = await asyncio.to_thread(tank.upload_bytes, key, content, content_type=content_type)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
-    return PhotoUploadResponse(
-        key=key, url=url, size_bytes=len(content), content_type=content_type
-    )
+    return PhotoUploadResponse(key=key, url=url, size_bytes=len(content), content_type=content_type)
 
 
 @media_router.get("/photos/ocr", response_model=list[OcrPhotoItem])

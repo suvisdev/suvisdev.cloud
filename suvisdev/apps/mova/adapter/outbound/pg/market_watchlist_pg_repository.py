@@ -17,7 +17,14 @@ class WatchlistPgRepository(WatchlistRepository):
     async def get_watchlist(self, user_id: int) -> WatchlistDto:
         rows = (
             await self._session.execute(
-                select(MovaWatchlist, MovaMovie.slug, MovaMovie.title, MovaMovie.release_year, MovaMovie.rating, MovaMovie.poster_url)
+                select(
+                    MovaWatchlist,
+                    MovaMovie.slug,
+                    MovaMovie.title,
+                    MovaMovie.release_year,
+                    MovaMovie.rating,
+                    MovaMovie.poster_url,
+                )
                 .join(MovaMovie, MovaMovie.id == MovaWatchlist.movie_id)
                 .where(MovaWatchlist.user_id == user_id)
                 .order_by(desc(MovaWatchlist.added_at))

@@ -35,7 +35,9 @@ logger = logging.getLogger("backfill_review_embeddings")
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--limit", type=int, default=None, help="앞 N건만 처리(기본값 없음 — 전량 실행)")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="앞 N건만 처리(기본값 없음 — 전량 실행)"
+    )
     parser.add_argument(
         "--dry-run", action="store_true", help="임베딩 호출 없이 대상 카운트만 로그로 출력"
     )

@@ -10,5 +10,5 @@ class MollyScalerUseCase(ABC):
     """molly_scaler input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: MollyScalerSchema)->MollyScalerResponse:
+    async def introduce_myself(self, schemas: MollyScalerSchema) -> MollyScalerResponse:
         pass

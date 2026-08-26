@@ -15,8 +15,9 @@ class DineshDashInteractor(DineshDashUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: DineshDashSchema) -> DineshDashResponse:
-
-        return await self._repository.introduce_myself(DineshDashQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            DineshDashQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

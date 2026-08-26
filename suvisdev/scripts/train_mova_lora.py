@@ -41,9 +41,7 @@ _DEFAULT_DATASET = _BACKEND / "apps" / "mova" / "_docs" / "chat_training_dataset
 _ADAPTERS_ROOT = Path(os.getenv("LORA_ADAPTERS_ROOT", str(Path.home() / "lora_adapters")))
 
 _TRAIN_BACKEND = os.getenv("MOVA_TRAIN_BACKEND", "plain")
-_BASE_MODEL_PATH = os.getenv(
-    "MOVA_TRAIN_BASE_MODEL", str(_REPO_ROOT / "Qwen2.5-1.5B-Instruct")
-)
+_BASE_MODEL_PATH = os.getenv("MOVA_TRAIN_BASE_MODEL", str(_REPO_ROOT / "Qwen2.5-1.5B-Instruct"))
 
 _TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
@@ -51,6 +49,7 @@ _TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj
 def _load_base_model():
     if _TRAIN_BACKEND == "awq_gptqmodel":
         from gptqmodel import BACKEND, GPTQModel
+
         model = GPTQModel.load(
             _BASE_MODEL_PATH, device="cuda:0", trust_remote_code=True, backend=BACKEND.TORCH
         )
@@ -94,13 +93,18 @@ def main(dataset_path: Path, epochs: int) -> None:
     base = _load_base_model()
 
     lora_config = LoraConfig(
-        r=16, lora_alpha=32, lora_dropout=0.05,
-        target_modules=_TARGET_MODULES, task_type="CAUSAL_LM",
+        r=16,
+        lora_alpha=32,
+        lora_dropout=0.05,
+        target_modules=_TARGET_MODULES,
+        task_type="CAUSAL_LM",
     )
     peft_model = get_peft_model(base, lora_config)
     if _TRAIN_BACKEND == "awq_gptqmodel":
         base.enable_input_require_grads()
-        peft_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        peft_model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False}
+        )
     peft_model.print_trainable_parameters()
     peft_model.train()
 
@@ -119,7 +123,10 @@ def main(dataset_path: Path, epochs: int) -> None:
             opt.step()
             opt.zero_grad()
             epoch_loss += out.loss.item()
-            print(f"[train] epoch={epoch} {i + 1}/{len(examples)} loss={out.loss.item():.4f}", flush=True)
+            print(
+                f"[train] epoch={epoch} {i + 1}/{len(examples)} loss={out.loss.item():.4f}",
+                flush=True,
+            )
         print(f"[train] epoch={epoch} 평균 loss={epoch_loss / len(examples):.4f}")
 
     version = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")

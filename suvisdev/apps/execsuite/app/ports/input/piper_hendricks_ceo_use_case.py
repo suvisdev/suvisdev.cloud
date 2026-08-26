@@ -10,5 +10,5 @@ class HendricksCeoUseCase(ABC):
     """piper_hendricks_ceo input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: HendricksCeoSchema)->HendricksCeoResponse:
+    async def introduce_myself(self, schemas: HendricksCeoSchema) -> HendricksCeoResponse:
         pass

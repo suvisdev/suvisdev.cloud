@@ -13,15 +13,24 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 MODEL_ID = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
 
-print("=== patching transformers.masking_utils.create_causal_mask (EXAONE remote code signature drift) ===")
+print(
+    "=== patching transformers.masking_utils.create_causal_mask (EXAONE remote code signature drift) ==="
+)
 import transformers.masking_utils as _masking_utils
 
 _original_create_causal_mask = _masking_utils.create_causal_mask
 
 
 def _compat_create_causal_mask(
-    *, config, input_embeds=None, inputs_embeds=None, attention_mask=None,
-    cache_position=None, past_key_values=None, position_ids=None, **_ignored,
+    *,
+    config,
+    input_embeds=None,
+    inputs_embeds=None,
+    attention_mask=None,
+    cache_position=None,
+    past_key_values=None,
+    position_ids=None,
+    **_ignored,
 ):
     return _original_create_causal_mask(
         config=config,

@@ -13,9 +13,8 @@ import tempfile
 import cv2
 import numpy as np
 import torch
-from torchvision.models.video import S3D_Weights, s3d
-
 from labs.video_classification.dto import LabelScore, VideoClassificationResult
+from torchvision.models.video import S3D_Weights, s3d
 
 _NUM_FRAMES = 16
 
@@ -42,7 +41,7 @@ class S3DVideoClassificationAdapter:
 
         predictions = [
             LabelScore(label=self._categories[idx], score=float(score))
-            for score, idx in zip(scores, indices)
+            for score, idx in zip(scores, indices, strict=False)
         ]
         return VideoClassificationResult(predictions=predictions)
 

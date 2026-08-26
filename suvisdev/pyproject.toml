@@ -19,6 +19,20 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "main.py" = ["E402"]  # sys.path 조작 후 import — 구조상 불가피
+"auth_main.py" = ["E402"]  # 동일 — sys.path 부트스트랩 후 import
+"scripts/verify_db_tables.py" = ["E402"]
+"scripts/train_echo_sentiment.py" = ["E402"]
+"apps/auth/tests/*.py" = ["E402"]  # 테스트 파일 내 path 부트스트랩 패턴
+"apps/ontology/_docs/*.py" = ["E402"]  # 일회성 점검 스크립트
+"apps/auth/*.py" = ["N818"]  # 기존 예외명(KakaoTokenInvalid 등) — 리네임은 호출부 파급이라 보류
+"apps/titanic/**/passenger_*" = ["N803", "N806"]  # sklearn 관례(X, X_test 등)
+"apps/ontology/app/use_cases/Crawler_interactor.py" = ["N999"]  # 기존 모듈명 — 리네임은 import 파급
+"apps/ontology/app/use_cases/Mycroft_interactor.py" = ["N999"]
+"apps/ontology/app/use_cases/Scraper_interactor.py" = ["N999"]
+# systemInstruction: Gemini API 와이어 포맷을 그대로 미러링하는 스키마 필드
+"apps/contents/adapter/inbound/api/schemas/soccer_chat_schema.py" = ["N815"]
+"apps/execsuite/adapter/inbound/api/schemas/langchain_chat_schema.py" = ["N815"]
+"apps/titanic/adapter/inbound/api/schemas/crew_smith_captain_schema.py" = ["N815"]
 
 [tool.ruff.lint.isort]
 known-first-party = [

@@ -11,12 +11,11 @@ from titanic.app.ports.output.passenger_jack_trainer_port import JackTrainerPort
 from titanic.app.use_cases.passenger_jack_trainer_interactor import JackTrainerInteractor
 
 
-def get_jack_trainer_repository(
-        db: AsyncSession = Depends(get_db)
-) -> JackTrainerPort:
+def get_jack_trainer_repository(db: AsyncSession = Depends(get_db)) -> JackTrainerPort:
     return JackTrainerRepository(session=db)
 
+
 def get_jack_trainer_use_case(
-        repository: JackTrainerPort = Depends(get_jack_trainer_repository),
+    repository: JackTrainerPort = Depends(get_jack_trainer_repository),
 ) -> JackTrainerUseCase:
     return JackTrainerInteractor(repository=repository, strategies=build_all_strategies())

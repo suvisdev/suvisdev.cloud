@@ -1,4 +1,4 @@
-﻿"""`users.role` 제거 → `groups` + `admins` + `users.group_id` 3테이블 구조.
+"""`users.role` 제거 → `groups` + `admins` + `users.group_id` 3테이블 구조.
 
 Usage (suvisdev 폴더에서):
   python scripts/migrate_users_role_to_groups_admins.py
@@ -87,14 +87,18 @@ async def main() -> None:
             await conn.run_sync(Admin.__table__.create)
 
         admin_rows = (
-            await conn.execute(
-                text(
-                    "SELECT id, username, password_hash, nickname, email "
-                    "FROM users WHERE role = :role"
-                ),
-                {"role": UserRole.ADMIN},
+            (
+                await conn.execute(
+                    text(
+                        "SELECT id, username, password_hash, nickname, email "
+                        "FROM users WHERE role = :role"
+                    ),
+                    {"role": UserRole.ADMIN},
+                )
             )
-        ).mappings().all()
+            .mappings()
+            .all()
+        )
 
         for row in admin_rows:
             await conn.execute(

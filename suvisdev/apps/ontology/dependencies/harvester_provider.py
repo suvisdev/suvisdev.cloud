@@ -26,7 +26,9 @@ class UnknownSiteError(Exception):
     def __init__(self, site_id: str) -> None:
         self.site_id = site_id
         self.available = sorted(SITE_REGISTRY)
-        super().__init__(f"등록되지 않은 사이트: {site_id} (등록됨: {', '.join(self.available) or '없음'})")
+        super().__init__(
+            f"등록되지 않은 사이트: {site_id} (등록됨: {', '.join(self.available) or '없음'})"
+        )
 
 
 class UnknownKeywordSourceError(Exception):
@@ -110,7 +112,8 @@ def build_keyword_source(source_id: str, *, rate: float) -> KeywordSourcePort:
         raise UnknownKeywordSourceError(source_id)
 
     return source_cls(
-        fetcher=HttpxPageFetcherAdapter(), rate_limiter=RedisRateLimiterAdapter(interval_seconds=rate)
+        fetcher=HttpxPageFetcherAdapter(),
+        rate_limiter=RedisRateLimiterAdapter(interval_seconds=rate),
     )
 
 

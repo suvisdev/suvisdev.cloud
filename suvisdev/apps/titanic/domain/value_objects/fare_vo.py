@@ -13,8 +13,8 @@ class Fare:
             return cls(value=None)
         try:
             return cls(value=float(raw.strip()))
-        except ValueError:
-            raise ValueError(f"Fare 유효하지 않은 값: '{raw}'")
+        except ValueError as e:
+            raise ValueError(f"Fare 유효하지 않은 값: '{raw}'") from e
 
     @property
     def is_free(self) -> bool | None:

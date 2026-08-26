@@ -35,10 +35,15 @@ class XGBoostStrategy(_SklearnStrategy):
     key = "xgboost"
 
     def __init__(self) -> None:
-        super().__init__(XGBClassifier(
-            n_estimators=100, max_depth=4, learning_rate=0.1,
-            eval_metric="logloss", random_state=42,
-        ))
+        super().__init__(
+            XGBClassifier(
+                n_estimators=100,
+                max_depth=4,
+                learning_rate=0.1,
+                eval_metric="logloss",
+                random_state=42,
+            )
+        )
 
 
 class RandomForestStrategy(_SklearnStrategy):

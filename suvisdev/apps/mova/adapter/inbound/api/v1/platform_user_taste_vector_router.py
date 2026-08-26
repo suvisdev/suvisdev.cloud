@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from shared.security.require_user import UserPrincipal, require_user
 
 from mova.adapter.inbound.api.schemas.platform_user_taste_vector_schema import (
     UserTasteVectorSchema,
@@ -13,7 +14,6 @@ from mova.app.use_cases.platform_user_taste_vector_interactor import (
 from mova.dependencies.platform_user_taste_vector_provider import (
     get_user_taste_vector_recompute_use_case,
 )
-from shared.security.require_user import UserPrincipal, require_user
 
 platform_user_taste_vector_router = APIRouter(tags=["mova-taste"])
 

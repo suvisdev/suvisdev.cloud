@@ -112,6 +112,8 @@ async def _run(dry_run: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dry-run", action="store_true", help="태그를 실제로 넣지 않고 대상만 출력")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="태그를 실제로 넣지 않고 대상만 출력"
+    )
     args = parser.parse_args()
     asyncio.run(_run(args.dry_run))

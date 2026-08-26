@@ -12,9 +12,4 @@ molly_scaler_router = APIRouter(prefix="/molly", tags=["molly"])
 async def introduce_myself(
     molly: MollyScalerUseCase = Depends(get_molly_scaler_use_case),
 ) -> MollyScalerResponse:
-    return await molly.introduce_myself(
-        MollyScalerSchema(
-            id=9,
-            name="몰리 스케일러 주인공"
-        )
-    )
+    return await molly.introduce_myself(MollyScalerSchema(id=9, name="몰리 스케일러 주인공"))

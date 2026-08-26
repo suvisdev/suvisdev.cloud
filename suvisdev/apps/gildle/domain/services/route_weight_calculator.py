@@ -45,9 +45,7 @@ class RouteWeightCalculator:
 
         return base
 
-    def _matches_bonus_tree(
-        self, edge: RouteEdge, segments: list[TreeSegment]
-    ) -> bool:
+    def _matches_bonus_tree(self, edge: RouteEdge, segments: list[TreeSegment]) -> bool:
         """보너스 수종 구간 매칭. 도로명 일치(우선) → 좌표 근접(보조) 순으로 본다."""
         bonus_segments = [s for s in segments if s.species.is_bonus_species]
 

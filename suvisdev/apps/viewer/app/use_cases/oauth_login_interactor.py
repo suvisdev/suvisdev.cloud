@@ -49,7 +49,8 @@ class OAuthLoginInteractor(OAuthLoginUseCase):
             )
             logger.info(
                 "[OAuthLoginInteractor] %s 기존 계정 로그인 — user_id=%s",
-                provider, existing.user_id,
+                provider,
+                existing.user_id,
             )
             return OAuthCallbackResultDto(kind="session", code=handoff_code)
 
@@ -65,7 +66,9 @@ class OAuthLoginInteractor(OAuthLoginUseCase):
         if identity is None:
             return None
         if not agreed:
-            logger.info("[OAuthLoginInteractor] %s 약관 동의 거부 — 계정 생성 취소", identity.provider)
+            logger.info(
+                "[OAuthLoginInteractor] %s 약관 동의 거부 — 계정 생성 취소", identity.provider
+            )
             return None
 
         login = await self._identity_repository.create_linked_user(identity)

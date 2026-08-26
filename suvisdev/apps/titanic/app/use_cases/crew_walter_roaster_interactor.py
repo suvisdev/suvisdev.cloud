@@ -17,15 +17,17 @@ class WalterInteractor(WalterUseCase):
         self._repository = repository
 
     async def get_train_set(self) -> pd.DataFrame:
-        '''월터가 DB에서 train set만 가져오는 메소드'''
+        """월터가 DB에서 train set만 가져오는 메소드"""
         return await self._repository.get_train_set()
 
     async def get_test_set(self) -> pd.DataFrame:
-        '''월터가 DB에서 test set만 가져오는 메소드'''
+        """월터가 DB에서 test set만 가져오는 메소드"""
         return await self._repository.get_test_set()
 
     async def introduce_myself(self, schema: WalterSchema) -> WalterResponse:
-        return await self._repository.introduce_myself(WalterQuery(
-            id=schema.id,
-            name=schema.name,
-        ))
+        return await self._repository.introduce_myself(
+            WalterQuery(
+                id=schema.id,
+                name=schema.name,
+            )
+        )

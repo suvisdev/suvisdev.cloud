@@ -12,5 +12,5 @@ class RuthValidationPort(ABC):
     """passenger_ruth_validation output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: RuthValidationQuery)->RuthValidationResponse:
+    def introduce_myself(self, query: RuthValidationQuery) -> RuthValidationResponse:
         pass

@@ -64,11 +64,12 @@ class RoseModelInteractor(RoseModelUseCase):
         self._strategies = strategies
 
     async def introduce_myself(self, schemas: RoseModelSchema) -> RoseModelResponse:
-
-        return await self._repository.introduce_myself(RoseModelQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            RoseModelQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )
 
     async def train(self, schemas: RoseModelTrainSchema) -> RoseModelTrainResponse:
         rows = await self._repository.list_training_rows()
@@ -80,9 +81,12 @@ class RoseModelInteractor(RoseModelUseCase):
         predicted = [1 if p >= 0.5 else 0 for p in strategy.predict_proba(X)]
         accuracy = (
             sum(1 for p, actual in zip(predicted, y, strict=False) if p == actual) / len(y)
-            if y else 0.0
+            if y
+            else 0.0
         )
-        return RoseModelTrainResponse(strategy=schemas.strategy, n_samples=len(y), accuracy=accuracy)
+        return RoseModelTrainResponse(
+            strategy=schemas.strategy, n_samples=len(y), accuracy=accuracy
+        )
 
     async def predict(self, schemas: RoseModelPredictSchema) -> RoseModelPredictResponse:
         rows = await self._repository.list_training_rows()
@@ -93,9 +97,14 @@ class RoseModelInteractor(RoseModelUseCase):
 
         age_default, fare_default = self._impute_defaults(rows)
         target_row = RoseModelFeatureRow(
-            pclass=schemas.pclass, sex=schemas.sex, age=schemas.age,
-            sib_sp=schemas.sib_sp, parch=schemas.parch, fare=schemas.fare,
-            embarked=schemas.embarked, survived="",
+            pclass=schemas.pclass,
+            sex=schemas.sex,
+            age=schemas.age,
+            sib_sp=schemas.sib_sp,
+            parch=schemas.parch,
+            fare=schemas.fare,
+            embarked=schemas.embarked,
+            survived="",
         )
         probability = strategy.predict_proba(
             [_encode_row(target_row, age_default, fare_default)],
@@ -109,7 +118,9 @@ class RoseModelInteractor(RoseModelUseCase):
     async def list_strategies(self) -> list[str]:
         return list(self._strategies.keys())
 
-    def _build_dataset(self, rows: list[RoseModelFeatureRow]) -> tuple[list[list[float]], list[int]]:
+    def _build_dataset(
+        self, rows: list[RoseModelFeatureRow]
+    ) -> tuple[list[list[float]], list[int]]:
         age_default, fare_default = self._impute_defaults(rows)
         X: list[list[float]] = []
         y: list[int] = []

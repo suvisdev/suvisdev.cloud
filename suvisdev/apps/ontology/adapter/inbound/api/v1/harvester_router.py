@@ -17,6 +17,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from ontology.adapter.inbound.api.schemas.harvester_schema import (
     HarvesterCommandRequestSchema,
@@ -42,7 +43,6 @@ from ontology.dependencies.harvester_provider import (
     custom_url_scrape_out_path,
     default_scrape_out_path,
 )
-from shared.security.require_admin import AdminPrincipal, require_admin
 
 harvester_router = APIRouter(prefix="/harvester", tags=["ontology-harvester"])
 
@@ -85,7 +85,9 @@ async def policies(_: AdminPrincipal = Depends(require_admin)) -> list[Harvester
     return out
 
 
-async def _run_custom_url(url: str, instruction: str, *, append: bool) -> HarvesterRunResponseSchema:
+async def _run_custom_url(
+    url: str, instruction: str, *, append: bool
+) -> HarvesterRunResponseSchema:
     out_path = custom_url_crawl_out_path() if append else custom_url_scrape_out_path(url)
     service = build_custom_url_scrape_use_case()
     try:

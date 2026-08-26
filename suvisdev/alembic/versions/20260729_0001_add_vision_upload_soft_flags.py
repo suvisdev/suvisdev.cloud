@@ -28,9 +28,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "vision_uploads",
-        sa.Column(
-            "is_poster_warning", sa.Boolean(), nullable=False, server_default=sa.false()
-        ),
+        sa.Column("is_poster_warning", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
 
 

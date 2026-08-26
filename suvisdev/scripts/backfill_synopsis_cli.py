@@ -35,7 +35,9 @@ _TMDB_SLEEP_SECONDS = 0.25
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--limit", type=int, default=None, help="앞 N편만 처리(기본값 없음 — 전량 실행)")
+    parser.add_argument(
+        "--limit", type=int, default=None, help="앞 N편만 처리(기본값 없음 — 전량 실행)"
+    )
     parser.add_argument(
         "--dry-run", action="store_true", help="DB write 없이 TMDB fetch 결과만 로그로 출력"
     )
@@ -85,7 +87,9 @@ async def _run(args: argparse.Namespace) -> None:
         print(f"[backfill_synopsis] 대상 {len(targets)}편")
 
         for movie_id, slug in targets:
-            outcome = await _backfill_one(movies_repo, catalog, movie_id, slug, dry_run=args.dry_run)
+            outcome = await _backfill_one(
+                movies_repo, catalog, movie_id, slug, dry_run=args.dry_run
+            )
             stats[outcome] += 1
             await asyncio.sleep(_TMDB_SLEEP_SECONDS)
 

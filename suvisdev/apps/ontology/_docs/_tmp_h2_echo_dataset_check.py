@@ -48,15 +48,22 @@ def main() -> None:
 
     print("\n=== 토큰 길이 분포 (train) ===")
     train_rows = load_jsonl(DATA_DIR / "train.jsonl")
-    lengths = [len(tokenizer(format_prompt(tokenizer, r), add_special_tokens=False)["input_ids"]) for r in train_rows]
+    lengths = [
+        len(tokenizer(format_prompt(tokenizer, r), add_special_tokens=False)["input_ids"])
+        for r in train_rows
+    ]
     lengths.sort()
     p50 = lengths[len(lengths) // 2]
     p95 = lengths[int(len(lengths) * 0.95)]
-    print(f"min={lengths[0]} mean={statistics.mean(lengths):.1f} p50={p50} p95={p95} max={lengths[-1]}")
+    print(
+        f"min={lengths[0]} mean={statistics.mean(lengths):.1f} p50={p50} p95={p95} max={lengths[-1]}"
+    )
 
     max_seq_length = 256
     over_budget = sum(1 for n in lengths if n > max_seq_length)
-    print(f"max_seq_length={max_seq_length} 초과 샘플: {over_budget}/{len(lengths)} ({over_budget / len(lengths):.1%})")
+    print(
+        f"max_seq_length={max_seq_length} 초과 샘플: {over_budget}/{len(lengths)} ({over_budget / len(lengths):.1%})"
+    )
 
     print("\n=== 배치 반환 확인 (batch_size=4, padding) ===")
     if tokenizer.pad_token is None:

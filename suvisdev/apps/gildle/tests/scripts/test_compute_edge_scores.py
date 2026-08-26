@@ -1,6 +1,5 @@
 """EdgeScoreCalculator 단위 테스트 — TDD."""
 
-
 import pytest
 
 from gildle.domain.entities.hazard_zone import HazardZone
@@ -233,7 +232,7 @@ class TestScoreEdges:
         second_run = self.calc.score_edges(edges, segments, hazards)
 
         assert len(first_run) == len(second_run)
-        for a, b in zip(first_run, second_run):
+        for a, b in zip(first_run, second_run, strict=False):
             assert a.tree_score == b.tree_score
             assert a.hazard_score == b.hazard_score
             assert a.dog_friendly_score == b.dog_friendly_score

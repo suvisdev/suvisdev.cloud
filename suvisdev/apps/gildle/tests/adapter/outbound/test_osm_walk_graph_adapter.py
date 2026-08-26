@@ -56,7 +56,9 @@ class TestLoadEdges:
     def test_list_name_takes_first(self, mock_ox_fn: MagicMock) -> None:
         mock_ox = mock_ox_fn.return_value
         graph = _make_mock_graph()
-        graph.edges.return_value = [(1, 2, 0, {"length": 100.0, "name": ["월드컵북로", "월드컵로"]})]
+        graph.edges.return_value = [
+            (1, 2, 0, {"length": 100.0, "name": ["월드컵북로", "월드컵로"]})
+        ]
         mock_ox.graph_from_place.return_value = graph
         adapter = OsmWalkGraphAdapter()
 

@@ -3,12 +3,12 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from shared.security.require_admin import AdminPrincipal, require_admin
+from shared.security.token_verifier import TokenPayload
 
 from media import router as router_module
 from media.dependencies.require_auth import get_current_user
 from media.router import media_router
-from shared.security.require_admin import AdminPrincipal, require_admin
-from shared.security.token_verifier import TokenPayload
 
 
 class _FakeTank:

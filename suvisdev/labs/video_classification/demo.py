@@ -17,7 +17,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import cv2
-
 from labs.video_classification.adapters.s3d_adapter import S3DVideoClassificationAdapter
 
 _SOURCE_IMAGE = Path(__file__).parent / "samples" / "source.jpg"
@@ -46,9 +45,7 @@ def main() -> None:
     adapter = S3DVideoClassificationAdapter()
     result = adapter.classify(video_bytes, top_k=5)
 
-    print(
-        f"(합성 클립, 실제 동작 없음 — 파이프라인 확인용) top-{len(result.predictions)} 예측:"
-    )
+    print(f"(합성 클립, 실제 동작 없음 — 파이프라인 확인용) top-{len(result.predictions)} 예측:")
     for pred in result.predictions:
         print(f"  {pred.label:30s} {pred.score:.3f}")
 

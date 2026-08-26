@@ -45,9 +45,7 @@ class TestOrmSchema:
         inspector = inspect(engine)
         # unique=True는 UNIQUE 제약 또는 unique 인덱스 어느 쪽으로도 반영될 수 있다.
         unique_cols = [
-            c
-            for u in inspector.get_unique_constraints("route_results")
-            for c in u["column_names"]
+            c for u in inspector.get_unique_constraints("route_results") for c in u["column_names"]
         ]
         unique_cols += [
             c

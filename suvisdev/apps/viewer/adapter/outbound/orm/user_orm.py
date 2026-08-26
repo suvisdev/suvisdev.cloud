@@ -1,4 +1,4 @@
-﻿"""@see suvisdev/_claude/ENTITY_RULE.md — 일반 사용자 계정 (`users`)."""
+"""@see suvisdev/_claude/ENTITY_RULE.md — 일반 사용자 계정 (`users`)."""
 
 from __future__ import annotations
 

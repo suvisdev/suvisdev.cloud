@@ -10,7 +10,6 @@ from titanic.app.dtos.passenger_jack_trainer_dto import JackTrainerResponse
 
 
 class JackTrainerUseCase(ABC):
-
     @abstractmethod
     async def train_model(
         self,

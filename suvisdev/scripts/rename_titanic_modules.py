@@ -1,4 +1,5 @@
 """Titanic 모듈 파일명을 schemas 접두·접미사 규칙으로 일괄 생성."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -242,7 +243,7 @@ class {m["repository"]}(ABC):
 
         write(
             ROOT / f"app/use_cases/{base}_interactor.py",
-            f'''from __future__ import annotations
+            f"""from __future__ import annotations
 
 import logging
 from typing import Any
@@ -260,12 +261,12 @@ class {m["interactor"]}({m["use_case"]}):
     async def {m["method"]}(self, request: dict[str, Any]){ret_ann}:
         logger.info("[%s] %s", "{m['interactor']}", "{m['method']}")
         return await self._repository.{m["method"]}(request)
-''',
+""",
         )
 
         write(
             ROOT / f"adapter/outbound/pg/{base}_pg_repository.py",
-            f'''from __future__ import annotations
+            f"""from __future__ import annotations
 
 import logging
 from typing import Any
@@ -284,12 +285,12 @@ class {m["pg"]}({m["repository"]}):
     async def {m["method"]}(self, request: dict[str, Any]){ret_ann}:
         logger.info("[%s] %s request=%s", "{m['pg']}", "{m['method']}", request)
         {pg_ret_stmt}
-''',
+""",
         )
 
         write(
             ROOT / f"dependencies/{base}.py",
-            f'''from sqlalchemy.ext.asyncio import AsyncSession
+            f"""from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_db
 from fastapi import Depends
@@ -303,12 +304,12 @@ from titanic.app.use_cases.{base}_interactor import {m["interactor"]}
 def {m["dep_fn"]}(db: AsyncSession = Depends(get_db)) -> {m["use_case"]}:
     repository: {m["repository"]} = {m["pg"]}(session=db)
     return {m["interactor"]}(repository=repository)
-''',
+""",
         )
 
         write(
             ROOT / f"adapter/inbound/api/v1/{base}_router.py",
-            f'''from __future__ import annotations
+            f"""from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
@@ -323,7 +324,7 @@ async def {m["handler"]}(
     use_case: {m["use_case"]} = Depends({m["dep_fn"]}),
 ) -> {m["response"]}:
     return await use_case.{m["method"]}({{}})
-''',
+""",
         )
 
         entity_kind = "crew" if base.startswith("crew_") else "passenger"
@@ -358,13 +359,11 @@ async def {m["handler"]}(
         "crew_lowe_boat_router",
         "passenger_molly_scaler_router",
     ]
-    imports = "\n".join(
-        f"from titanic.adapter.inbound.api.v1.{r} import {r}" for r in routers
-    )
+    imports = "\n".join(f"from titanic.adapter.inbound.api.v1.{r} import {r}" for r in routers)
     includes = "\n".join(f"titanic_router.include_router({r})" for r in routers)
     write(
         ROOT / "adapter/inbound/api/__init__.py",
-        f'''from fastapi import APIRouter
+        f"""from fastapi import APIRouter
 
 {imports}
 
@@ -372,7 +371,7 @@ titanic_router = APIRouter(prefix="/api/titanic", tags=["titanic"])
 {includes}
 
 __all__ = ["titanic_router"]
-''',
+""",
     )
 
     # remove legacy duplicate entity name

@@ -13,12 +13,12 @@ class WalterUseCase(ABC):
 
     @abstractmethod
     async def get_train_set(self) -> pd.DataFrame:
-        '''월터가 DB에서 train set만 가져오는 메소드'''
+        """월터가 DB에서 train set만 가져오는 메소드"""
         pass
 
     @abstractmethod
     async def get_test_set(self) -> pd.DataFrame:
-        '''월터가 DB에서 test set만 가져오는 메소드'''
+        """월터가 DB에서 test set만 가져오는 메소드"""
         pass
 
     @abstractmethod

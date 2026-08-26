@@ -43,9 +43,7 @@ async def main() -> None:
     async with engine.begin() as conn:
         if not await column_exists(conn, "picks", "feedback"):
             print("ALTER picks ADD feedback")
-            await conn.execute(
-                text("ALTER TABLE picks ADD COLUMN feedback VARCHAR(16) NULL")
-            )
+            await conn.execute(text("ALTER TABLE picks ADD COLUMN feedback VARCHAR(16) NULL"))
             await conn.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_picks_feedback ON picks (feedback)")
             )

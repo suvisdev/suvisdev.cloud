@@ -10,5 +10,5 @@ class DunnCooUseCase(ABC):
     """piper_dunn_coo input port."""
 
     @abstractmethod
-    async def introduce_myself(self, schemas: DunnCooSchema)->DunnCooResponse:
+    async def introduce_myself(self, schemas: DunnCooSchema) -> DunnCooResponse:
         pass

@@ -1,4 +1,4 @@
-﻿"""`tags` + `movie_tags`(tag_id) → `movie_tags`(slug, label) 단일 테이블로 병합 (재실행 안전).
+"""`tags` + `movie_tags`(tag_id) → `movie_tags`(slug, label) 단일 테이블로 병합 (재실행 안전).
 
 Usage (suvisdev 폴더에서):
   python scripts/merge_tags_tables.py
@@ -106,14 +106,10 @@ async def main() -> None:
                 text("ALTER TABLE movie_tags ALTER COLUMN label SET NOT NULL"),
             )
             await conn.execute(
-                text(
-                    "ALTER TABLE movie_tags DROP CONSTRAINT IF EXISTS uq_movie_tags_movie_tag"
-                ),
+                text("ALTER TABLE movie_tags DROP CONSTRAINT IF EXISTS uq_movie_tags_movie_tag"),
             )
             await conn.execute(
-                text(
-                    "ALTER TABLE movie_tags DROP CONSTRAINT IF EXISTS movie_tags_tag_id_fkey"
-                ),
+                text("ALTER TABLE movie_tags DROP CONSTRAINT IF EXISTS movie_tags_tag_id_fkey"),
             )
             await conn.execute(text("ALTER TABLE movie_tags DROP COLUMN IF EXISTS tag_id"))
             await conn.execute(

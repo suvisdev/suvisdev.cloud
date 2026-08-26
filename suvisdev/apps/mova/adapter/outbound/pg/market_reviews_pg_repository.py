@@ -273,9 +273,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
 
     async def get_body_for_embedding(self, review_id: int) -> str | None:
         row = (
-            await self._session.execute(
-                select(MovaReview.body).where(MovaReview.id == review_id)
-            )
+            await self._session.execute(select(MovaReview.body).where(MovaReview.id == review_id))
         ).scalar_one_or_none()
         if row is None or not row.strip():
             return None
@@ -294,9 +292,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
 
     async def update_embedding(self, review_id: int, embedding: list[float]) -> None:
         row = (
-            await self._session.execute(
-                select(MovaReview).where(MovaReview.id == review_id)
-            )
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
         ).scalar_one_or_none()
         if row is None:
             return

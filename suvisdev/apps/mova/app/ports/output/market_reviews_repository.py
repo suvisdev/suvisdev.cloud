@@ -62,11 +62,11 @@ class ReviewsRepositoryPort(ABC):
         """리뷰 삭제. 존재하지 않으면 False."""
 
     @abstractmethod
-    async def add_comment(self, review_id: int, user_id: int, body: str) -> "ReviewCommentDto":
+    async def add_comment(self, review_id: int, user_id: int, body: str) -> ReviewCommentDto:
         """리뷰 댓글 작성."""
 
     @abstractmethod
-    async def get_comments_by_review(self, review_id: int) -> list["ReviewCommentDto"]:
+    async def get_comments_by_review(self, review_id: int) -> list[ReviewCommentDto]:
         """리뷰 댓글 목록(작성순)."""
 
     @abstractmethod

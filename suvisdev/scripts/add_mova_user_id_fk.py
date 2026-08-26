@@ -1,4 +1,4 @@
-﻿"""chat / reviews / picks.user_id -> users.id FK (동일 DB 전제).
+"""chat / reviews / picks.user_id -> users.id FK (동일 DB 전제).
 
 Usage (suvisdev 폴더에서):
   python scripts/add_mova_user_id_fk.py

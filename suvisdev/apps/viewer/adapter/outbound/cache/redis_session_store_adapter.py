@@ -27,7 +27,9 @@ _HANDOFF_TTL = timedelta(seconds=60)
 
 def _resolve_role(email: str | None) -> str:
     """RBAC — ADMIN_EMAILS(콤마 구분, env)에 있는 이메일만 admin, 나머지는 user."""
-    admin_emails = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+    admin_emails = {
+        e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()
+    }
     return "admin" if email and email.lower() in admin_emails else "user"
 
 

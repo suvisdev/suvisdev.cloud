@@ -51,10 +51,6 @@ class SampleWalkGraphSource:
         rows = json.loads(self._json_path.read_text(encoding="utf-8"))
         coords: dict[str, Coordinate] = {}
         for row in rows:
-            coords[row["from"]] = Coordinate(
-                latitude=row["from_lat"], longitude=row["from_lng"]
-            )
-            coords[row["to"]] = Coordinate(
-                latitude=row["to_lat"], longitude=row["to_lng"]
-            )
+            coords[row["from"]] = Coordinate(latitude=row["from_lat"], longitude=row["from_lng"])
+            coords[row["to"]] = Coordinate(latitude=row["to_lat"], longitude=row["to_lng"])
         return coords

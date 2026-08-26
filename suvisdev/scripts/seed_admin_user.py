@@ -1,4 +1,4 @@
-﻿"""`admins` 테이블 관리자 1명 시드.
+"""`admins` 테이블 관리자 1명 시드.
 
 Usage (suvisdev 폴더에서):
   python scripts/seed_admin_user.py

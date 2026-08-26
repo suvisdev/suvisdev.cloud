@@ -11,12 +11,11 @@ from titanic.app.ports.output.passenger_rose_model_port import RoseModelPort
 from titanic.app.use_cases.passenger_rose_model_interactor import RoseModelInteractor
 
 
-def get_rose_model_repository(
-        db: AsyncSession = Depends(get_db)
-) -> RoseModelPort:
+def get_rose_model_repository(db: AsyncSession = Depends(get_db)) -> RoseModelPort:
     return RoseModelRepository(session=db)
 
+
 def get_rose_model_use_case(
-        repository: RoseModelPort = Depends(get_rose_model_repository)
+    repository: RoseModelPort = Depends(get_rose_model_repository),
 ) -> RoseModelUseCase:
     return RoseModelInteractor(repository=repository, strategies=ROSE_MODEL_STRATEGIES)

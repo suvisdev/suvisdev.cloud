@@ -60,7 +60,9 @@ class AiReviewPgAdapter(AiReviewWriterPort):
             )
             group_id = group_result.scalar_one_or_none()
             if group_id is None:
-                raise RuntimeError("groups 테이블에 'user' 그룹이 없습니다. seed를 먼저 실행하세요.")
+                raise RuntimeError(
+                    "groups 테이블에 'user' 그룹이 없습니다. seed를 먼저 실행하세요."
+                )
 
             insert_result = await session.execute(
                 text(
@@ -92,9 +94,7 @@ class AiReviewPgAdapter(AiReviewWriterPort):
             )
             return result.scalar_one_or_none() is not None
 
-    async def save_review(
-        self, *, user_id: int, movie_id: int, rating: float, body: str
-    ) -> int:
+    async def save_review(self, *, user_id: int, movie_id: int, rating: float, body: str) -> int:
         clamped_rating = max(1.0, min(5.0, round(rating * 2) / 2))
         factory = get_mova_session_factory()
         async with factory() as session:

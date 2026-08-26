@@ -11,11 +11,10 @@ Usage (suvisdev 폴더에서):
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
-
 from anomalib.data import Folder
 from anomalib.engine import Engine
 from anomalib.models import Patchcore
+from sklearn.metrics import roc_auc_score
 
 _ROOT = "apps/ontology/resources/sentinel_poster"
 _RESULTS_DIR = "apps/ontology/runs/sentinel_anomaly"
@@ -61,7 +60,9 @@ def main() -> None:
     print(f"=== 수동 계산 AUROC(sklearn): {manual_auroc:.4f} ===")
     print(f"=== Phase A(MVTec bottle) AUROC 대조군: {_PHASE_A_AUROC:.4f} ===\n")
 
-    print(f"전체 샘플 수: {len(scores_arr)} (normal={len(normal_scores)}, abnormal={len(abnormal_scores)})")
+    print(
+        f"전체 샘플 수: {len(scores_arr)} (normal={len(normal_scores)}, abnormal={len(abnormal_scores)})"
+    )
     print(
         f"normal score  min/max/mean/std: "
         f"{normal_scores.min():.4f} / {normal_scores.max():.4f} / "
@@ -75,7 +76,9 @@ def main() -> None:
 
     print("\n=== score/label 샘플 10개 ===")
     for i in range(min(10, len(scores_arr))):
-        print(f"{paths[i].split('/')[-2]}/{paths[i].split('/')[-1]}: score={scores_arr[i]:.4f} label={labels_arr[i]}")
+        print(
+            f"{paths[i].split('/')[-2]}/{paths[i].split('/')[-1]}: score={scores_arr[i]:.4f} label={labels_arr[i]}"
+        )
 
 
 if __name__ == "__main__":

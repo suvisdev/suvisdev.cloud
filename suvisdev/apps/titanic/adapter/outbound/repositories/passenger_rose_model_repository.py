@@ -23,12 +23,15 @@ class RoseModelRepository(RoseModelPort):
 
     async def introduce_myself(self, query: RoseModelQuery) -> RoseModelResponse:
         logger.info(f"[RoseModelRepository] introduce_myself 진입 | request_data={query}")
-        response = RoseModelResponse(id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴")
+        response = RoseModelResponse(
+            id=query.id * 10000, name=query.name + "가 레포지토리에 다녀옴"
+        )
         return response
 
     async def list_training_rows(self) -> list[RoseModelFeatureRow]:
         stmt = select(JackTrainerOrm, RoseModelOrm).join(
-            RoseModelOrm, RoseModelOrm.passenger_id == JackTrainerOrm.passenger_id,
+            RoseModelOrm,
+            RoseModelOrm.passenger_id == JackTrainerOrm.passenger_id,
         )
         result = await self._session.execute(stmt)
         return [

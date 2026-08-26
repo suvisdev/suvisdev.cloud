@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_user import UserPrincipal, require_user
 
 from mova.adapter.inbound.api.schemas.mypage_schema import MypageSchema
 from mova.app.ports.input.mypage_use_case import MypageUseCase
 from mova.dependencies.mypage_provider import get_mypage_use_case
-from shared.security.require_user import UserPrincipal, require_user
 
 mypage_router = APIRouter(prefix="/mypage", tags=["mova-mypage"])
 

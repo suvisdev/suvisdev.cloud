@@ -89,9 +89,7 @@ def get_chat_use_case(
     general: MycroftUseCase = Depends(get_semantic_mycroft_use_case),
     conversations: ConversationsRepository = Depends(get_conversations_repository),
     movies: MoviesRepositoryPort = Depends(get_movies_repository_for_chat),
-    taste_vectors: UserTasteVectorRepositoryPort = Depends(
-        get_user_taste_vector_repository
-    ),
+    taste_vectors: UserTasteVectorRepositoryPort = Depends(get_user_taste_vector_repository),
 ) -> ChatUseCase:
     return ChatInteractor(
         repository=repository,

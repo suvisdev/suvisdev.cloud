@@ -55,9 +55,7 @@ class TrafficAuthorityHazardZoneRepository(HazardZoneRepository):
 
     def find_all(self) -> list[HazardZone]:
         frame = pd.read_csv(self._csv_path, encoding=self._encoding)
-        seoul = frame[
-            frame[_COL_SIDO_SGG].astype(str).str.startswith(_SEOUL_PREFIX)
-        ]
+        seoul = frame[frame[_COL_SIDO_SGG].astype(str).str.startswith(_SEOUL_PREFIX)]
         zones: list[HazardZone] = []
         for position, row in enumerate(seoul.to_dict("records"), start=1):
             zone = self._to_zone(position, row)

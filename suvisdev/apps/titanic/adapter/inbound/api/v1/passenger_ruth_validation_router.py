@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 
 from titanic.adapter.inbound.api.schemas.passenger_ruth_validation_schema import (
     RuthValidationSchema,
@@ -14,9 +14,4 @@ ruth_validation_router = APIRouter(prefix="/ruth", tags=["ruth"])
 async def introduce_myself(
     ruth: RuthValidationUseCase = Depends(get_ruth_validation_use_case),
 ) -> RuthValidationResponse:
-    return await ruth.introduce_myself(
-        RuthValidationSchema(
-            id=11,
-            name="루스 검증 주인공"
-        )
-    )
+    return await ruth.introduce_myself(RuthValidationSchema(id=11, name="루스 검증 주인공"))

@@ -9,5 +9,5 @@ class IsidorCouplePort(ABC):
     """passenger_isidor_couple output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: IsidorCoupleQuery)->IsidorCoupleResponse:
+    def introduce_myself(self, query: IsidorCoupleQuery) -> IsidorCoupleResponse:
         pass

@@ -58,7 +58,9 @@ def _fetch_rows(url: str) -> list[tuple[str, str]]:
     return rows
 
 
-def _balanced_sample(rows: list[tuple[str, str]], per_label: int, rng: random.Random) -> list[tuple[str, str]]:
+def _balanced_sample(
+    rows: list[tuple[str, str]], per_label: int, rng: random.Random
+) -> list[tuple[str, str]]:
     by_label: dict[str, list[str]] = {"0": [], "1": []}
     for document, label in rows:
         by_label[label].append(document)
@@ -98,8 +100,12 @@ def main() -> None:
 
     train_pos = sum(1 for _, label in train_sample if label == "1")
     val_pos = sum(1 for _, label in val_sample if label == "1")
-    print(f"\n[prepare] train: {len(train_sample)}건 (긍정 {train_pos} / 부정 {len(train_sample) - train_pos})")
-    print(f"[prepare] val:   {len(val_sample)}건 (긍정 {val_pos} / 부정 {len(val_sample) - val_pos})")
+    print(
+        f"\n[prepare] train: {len(train_sample)}건 (긍정 {train_pos} / 부정 {len(train_sample) - train_pos})"
+    )
+    print(
+        f"[prepare] val:   {len(val_sample)}건 (긍정 {val_pos} / 부정 {len(val_sample) - val_pos})"
+    )
     print(f"[prepare] 완료 — 저장 위치: {_OUT_ROOT}")
 
 

@@ -32,8 +32,8 @@ class MovaConversation(MovaModel):
     title: Mapped[str] = mapped_column(
         String(80),
         nullable=False,
-        comment="사이드바 표시명. 첫 user 메시지 앞 40자 잘라 채움(제목이 UI에서 " \
-                "길게 표시되면 흐트러지므로 여유 두고 80).",
+        comment="사이드바 표시명. 첫 user 메시지 앞 40자 잘라 채움(제목이 UI에서 "
+        "길게 표시되면 흐트러지므로 여유 두고 80).",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -70,7 +70,7 @@ class MovaConversationMessage(MovaModel):
         nullable=False,
         default=dict,
         comment="user: {intent_type, refined_query, keywords}. "
-                "assistant: {recommendations: [...]}. 스키마는 프런트가 알고 있음.",
+        "assistant: {recommendations: [...]}. 스키마는 프런트가 알고 있음.",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

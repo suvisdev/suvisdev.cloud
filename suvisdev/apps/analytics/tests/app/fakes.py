@@ -22,7 +22,9 @@ class _FakeVisitorActivityRepository(VisitorActivityRepository):
             self.rows[key] = (now, now)
 
     async def count_active_since(self, since: datetime) -> int:
-        visitors = {vid for (vid, _), (_, last_seen_at) in self.rows.items() if last_seen_at >= since}
+        visitors = {
+            vid for (vid, _), (_, last_seen_at) in self.rows.items() if last_seen_at >= since
+        }
         return len(visitors)
 
     async def count_unique_on(self, visit_date: date) -> int:

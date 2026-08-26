@@ -116,7 +116,11 @@ async def main(out_path: Path) -> None:
             hits = await hub_rag.search_movies(row["refined_query"] or row["raw_message"], k=8)
             tag_catalog = [
                 MovaSearchItemSchema(
-                    id=h.source_ref, title=h.title, year="", rating=0.0, poster="",
+                    id=h.source_ref,
+                    title=h.title,
+                    year="",
+                    rating=0.0,
+                    poster="",
                     match_type="semantic",
                 )
                 for h in hits
@@ -136,9 +140,7 @@ async def main(out_path: Path) -> None:
             )
             target = {
                 "intro": _synthesize_intro(picks),
-                "picks": [
-                    {"title": p["title_snapshot"], "hook": p["hook"] or ""} for p in picks
-                ],
+                "picks": [{"title": p["title_snapshot"], "hook": p["hook"] or ""} for p in picks],
             }
             examples.append(
                 {

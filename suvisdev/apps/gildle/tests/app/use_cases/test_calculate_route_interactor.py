@@ -92,9 +92,7 @@ class TestCalculateRoute:
         graph = CapturingRouteGraphPort(path=["A", "B"])
         interactor = _interactor(graph, hazards=[hazard])
 
-        interactor.execute(
-            edges=[_edge()], start="A", end="B", mode=SeasonMode.WINTER_SAFETY
-        )
+        interactor.execute(edges=[_edge()], start="A", end="B", mode=SeasonMode.WINTER_SAFETY)
 
         assert graph.weight_fn is not None
         assert graph.weight_fn(_edge()) == 600.0  # 500% 증가

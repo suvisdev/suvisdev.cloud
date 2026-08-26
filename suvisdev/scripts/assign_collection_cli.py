@@ -56,9 +56,7 @@ def _parse_movie_ids(raw: str) -> list[int]:
         try:
             ids.append(int(token))
         except ValueError as exc:
-            raise argparse.ArgumentTypeError(
-                f"movie-ids에 정수가 아닌 값: {token!r}"
-            ) from exc
+            raise argparse.ArgumentTypeError(f"movie-ids에 정수가 아닌 값: {token!r}") from exc
     if not ids:
         raise argparse.ArgumentTypeError("movie-ids가 비어 있음")
     return ids

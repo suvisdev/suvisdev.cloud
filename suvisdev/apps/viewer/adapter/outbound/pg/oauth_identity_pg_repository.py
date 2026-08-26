@@ -68,7 +68,8 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
             )
         logger.info(
             "[OAuthIdentityPgRepository] %s 기존 연결 — user_id=%s",
-            identity.provider, user.id,
+            identity.provider,
+            user.id,
         )
         return LoginResponseDto(user_id=user.id, username=user.username, nickname=user.nickname)
 
@@ -87,7 +88,8 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
         await session.flush()
         logger.info(
             "[OAuthIdentityPgRepository] %s 신규 연결(약관 동의 완료) — user_id=%s",
-            identity.provider, user.id,
+            identity.provider,
+            user.id,
         )
         return LoginResponseDto(user_id=user.id, username=user.username, nickname=user.nickname)
 
@@ -100,10 +102,14 @@ class OAuthIdentityPgRepository(OAuthIdentityRepository):
             # users.email에는 unique 제약이 없어(기존 스키마) 여러 건이 있을 수
             # 있다 — 가장 먼저 만들어진 계정 하나로 결정적으로 연결한다.
             existing = (
-                await session.execute(
-                    select(User).where(User.email == identity.email).order_by(User.id).limit(1)
+                (
+                    await session.execute(
+                        select(User).where(User.email == identity.email).order_by(User.id).limit(1)
+                    )
                 )
-            ).scalars().first()
+                .scalars()
+                .first()
+            )
             if existing is not None:
                 return existing
 

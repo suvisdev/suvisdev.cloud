@@ -204,9 +204,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
 
         logger.debug("[MoviesPgRepository] list_movies total=%d returned=%d", total, len(movies))
         return MovieListDto(
-            items=[
-                MovieListItemDto.from_orm(m, genres_by_movie.get(m.id, [])) for m in movies
-            ],
+            items=[MovieListItemDto.from_orm(m, genres_by_movie.get(m.id, [])) for m in movies],
             total=total,
             limit=query.limit,
             offset=query.offset,
@@ -280,7 +278,9 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie.origin_country = origin_country
         await self._session.commit()
 
-    async def list_missing_age_rating_or_platforms(self, limit: int | None) -> list[tuple[int, str]]:
+    async def list_missing_age_rating_or_platforms(
+        self, limit: int | None
+    ) -> list[tuple[int, str]]:
         """age_rating·platforms 둘 다 미백필(NULL/[])인 TMDB 원산 영화 (movie.id, slug).
 
         platforms는 NOT NULL default `[]`라 origin_country처럼 "NULL=미백필"로
@@ -338,9 +338,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
         movie.embedding = embedding
         await self._session.commit()
 
-    async def list_embeddings_by_ids(
-        self, movie_ids: list[int]
-    ) -> dict[int, list[float]]:
+    async def list_embeddings_by_ids(self, movie_ids: list[int]) -> dict[int, list[float]]:
         if not movie_ids:
             return {}
         rows = (
@@ -354,9 +352,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
         return {int(mid): list(vec) for mid, vec in rows}
 
     async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
-        movie_q = await self._session.execute(
-            select(MovaMovie).where(MovaMovie.slug == slug)
-        )
+        movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.slug == slug))
         movie = movie_q.scalar_one_or_none()
         if movie is None or movie.embedding is None:
             return None

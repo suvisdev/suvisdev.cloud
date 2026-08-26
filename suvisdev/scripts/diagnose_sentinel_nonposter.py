@@ -19,13 +19,12 @@ Usage (컨테이너 안 /suvisdev에서):
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
-
 from anomalib.data import Folder
 from anomalib.data.utils.split import ValSplitMode
 from anomalib.engine import Engine
 from anomalib.models import Patchcore
 from anomalib.post_processing import PostProcessor
+from sklearn.metrics import roc_auc_score
 
 _ROOT = "apps/ontology/resources/sentinel_poster"
 _GROUPS = ["good", "non_poster_easy", "alt_poster_control"]
@@ -61,7 +60,11 @@ def _bootstrap_auroc_ci(
         y = np.concatenate([np.zeros(len(n)), np.ones(len(p))])
         s = np.concatenate([n, p])
         aurocs[i] = roc_auc_score(y, s)
-    return float(np.median(aurocs)), float(np.percentile(aurocs, 2.5)), float(np.percentile(aurocs, 97.5))
+    return (
+        float(np.median(aurocs)),
+        float(np.percentile(aurocs, 2.5)),
+        float(np.percentile(aurocs, 97.5)),
+    )
 
 
 def main() -> None:
@@ -103,10 +106,16 @@ def main() -> None:
     auroc = roc_auc_score(y, s)
     manual_auroc = _manual_pairwise_auroc(easy_scores_all, good_scores)
     median_ci, lo_ci, hi_ci = _bootstrap_auroc_ci(easy_scores_all, good_scores)
-    se_approx = np.sqrt(0.25 / min(len(good_scores), len(easy_scores_all)))  # 대략적 표준오차(0.5 기준)
-    print(f"AUROC(sklearn) = {auroc:.4f}, 수동 pairwise 재계산 = {manual_auroc:.4f} (일치하면 라벨 극성 정상)")
+    se_approx = np.sqrt(
+        0.25 / min(len(good_scores), len(easy_scores_all))
+    )  # 대략적 표준오차(0.5 기준)
+    print(
+        f"AUROC(sklearn) = {auroc:.4f}, 수동 pairwise 재계산 = {manual_auroc:.4f} (일치하면 라벨 극성 정상)"
+    )
     print(f"부트스트랩 95% CI = [{lo_ci:.4f}, {hi_ci:.4f}] (median={median_ci:.4f}, n_boot=2000)")
-    print(f"n=({len(good_scores)},{len(easy_scores_all)})일 때 대략적 SE≈{se_approx:.4f} — 0.5와 통계적으로 구분되는지 참고")
+    print(
+        f"n=({len(good_scores)},{len(easy_scores_all)})일 때 대략적 SE≈{se_approx:.4f} — 0.5와 통계적으로 구분되는지 참고"
+    )
     if lo_ci <= 0.5 <= hi_ci:
         verdict = "신호 없음(0.5가 CI 안에 있음 — 랜덤과 통계적으로 구분 안 됨)"
     elif auroc >= 0.9:

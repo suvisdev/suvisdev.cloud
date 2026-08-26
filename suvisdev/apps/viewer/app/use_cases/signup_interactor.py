@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import logging
 
@@ -17,5 +17,6 @@ class SignupInteractor(SignupUseCase):
         self._repository = repository
 
     async def signup(self, payload: SignupSchema) -> SignupResponseDto:
-        
-        return SignupResponseDto(user_id=await self._repository.save_user(SignupCommand.from_schema(payload)))
+        return SignupResponseDto(
+            user_id=await self._repository.save_user(SignupCommand.from_schema(payload))
+        )

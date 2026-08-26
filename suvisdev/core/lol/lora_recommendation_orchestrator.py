@@ -131,9 +131,7 @@ class LoraRecommendationOrchestrator:
         _circuit_record_success()
         return text
 
-    def _post_with_retry(
-        self, headers: dict[str, str], payload: dict[str, str]
-    ) -> httpx.Response:
+    def _post_with_retry(self, headers: dict[str, str], payload: dict[str, str]) -> httpx.Response:
         """네트워크 레벨 실패(타임아웃·연결 끊김)만 1회 재시도한다. HTTP 응답이
         오긴 왔으나 상태코드가 4xx/5xx인 경우는 재시도 대상이 아니다(호출자가
         즉시 처리)."""
@@ -141,9 +139,7 @@ class LoraRecommendationOrchestrator:
         for attempt in range(_RETRY_ATTEMPTS):
             try:
                 with httpx.Client(timeout=self._timeout) as client:
-                    return client.post(
-                        f"{self._base_url}/generate", json=payload, headers=headers
-                    )
+                    return client.post(f"{self._base_url}/generate", json=payload, headers=headers)
             except (httpx.TimeoutException, httpx.TransportError) as e:
                 last_error = e
                 if attempt < _RETRY_ATTEMPTS - 1:

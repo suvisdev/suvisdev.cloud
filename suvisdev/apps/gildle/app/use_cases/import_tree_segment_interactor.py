@@ -55,15 +55,9 @@ class ImportTreeSegmentInteractor(ImportTreeSegmentUseCase):
         except ValueError:
             return None
 
-    def _resolve_coordinates(
-        self, row: dict[str, Any]
-    ) -> tuple[Coordinate, Coordinate] | None:
-        start = self._coordinate_or_none(
-            row.get("start_latitude"), row.get("start_longitude")
-        )
-        end = self._coordinate_or_none(
-            row.get("end_latitude"), row.get("end_longitude")
-        )
+    def _resolve_coordinates(self, row: dict[str, Any]) -> tuple[Coordinate, Coordinate] | None:
+        start = self._coordinate_or_none(row.get("start_latitude"), row.get("start_longitude"))
+        end = self._coordinate_or_none(row.get("end_latitude"), row.get("end_longitude"))
         if start is not None and end is not None:
             return start, end
 

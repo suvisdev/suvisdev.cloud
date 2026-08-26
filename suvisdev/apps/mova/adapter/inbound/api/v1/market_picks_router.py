@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from shared.security.require_user import UserPrincipal, require_user
 
 from mova.adapter.inbound.api.schemas.market_picks_schema import (
     PickFeedbackSchema,
@@ -11,7 +12,6 @@ from mova.adapter.inbound.api.schemas.market_picks_schema import (
 )
 from mova.app.ports.input.market_picks_use_case import PicksUseCase
 from mova.dependencies.market_picks_provider import get_picks_use_case
-from shared.security.require_user import UserPrincipal, require_user
 
 market_picks_router = APIRouter(prefix="/picks", tags=["mova-picks"])
 

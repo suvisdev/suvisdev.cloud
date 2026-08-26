@@ -10,12 +10,11 @@ from execsuite.app.ports.output.piper_bighetti_hr_port import BighettiHrPort
 from execsuite.app.use_case.piper_bighetti_hr_interactor import BighettiHrInteractor
 
 
-def get_bighetti_hr_repository(
-        db: AsyncSession = Depends(get_db)
-) -> BighettiHrPort:
+def get_bighetti_hr_repository(db: AsyncSession = Depends(get_db)) -> BighettiHrPort:
     return BighettiHrRepository(session=db)
 
+
 def get_bighetti_hr_use_case(
-        repository: BighettiHrPort = Depends(get_bighetti_hr_repository)
+    repository: BighettiHrPort = Depends(get_bighetti_hr_repository),
 ) -> BighettiHrUseCase:
     return BighettiHrInteractor(repository=repository)

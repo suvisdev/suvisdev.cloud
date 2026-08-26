@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -32,9 +32,4 @@ async def chat(
 async def introduce_myself(
     smith: SmithCaptainUseCase = Depends(get_smith_captain_use_case),
 ) -> SmithCaptainResponse:
-    return await smith.introduce_myself(
-        SmithCaptainSchema(
-            id=4,
-            name="스미스 캡틴 주인공"
-        )
-    )
+    return await smith.introduce_myself(SmithCaptainSchema(id=4, name="스미스 캡틴 주인공"))

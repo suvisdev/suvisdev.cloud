@@ -44,7 +44,9 @@ class CustomUrlScrapeInteractor(CustomUrlScrapeUseCase):
         # 동기 호출들만 asyncio.to_thread로 감싼다.
         allowed = await asyncio.to_thread(self._robots_checker.is_allowed, url)
         if not allowed:
-            raise CrawlFetchError(f"robots.txt가 이 URL의 수집을 금지합니다: {url}", status_code=403)
+            raise CrawlFetchError(
+                f"robots.txt가 이 URL의 수집을 금지합니다: {url}", status_code=403
+            )
 
         html = await asyncio.to_thread(self._fetcher.fetch, url)
         extracted = await self._extractor.extract(html, instruction)

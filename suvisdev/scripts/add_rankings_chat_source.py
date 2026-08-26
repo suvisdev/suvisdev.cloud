@@ -1,4 +1,4 @@
-﻿"""rankings — chat_id, source, score 컬럼 및 UNIQUE (rank, ranked_at, source).
+"""rankings — chat_id, source, score 컬럼 및 UNIQUE (rank, ranked_at, source).
 
 Usage (suvisdev 폴더에서):
   python scripts/add_rankings_chat_source.py
@@ -69,7 +69,9 @@ async def main() -> None:
                     "FOREIGN KEY (chat_id) REFERENCES chat (id) ON DELETE SET NULL"
                 ),
             )
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rankings_chat_id ON rankings (chat_id)"))
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_rankings_chat_id ON rankings (chat_id)")
+            )
 
         if not await column_exists(conn, "rankings", "source"):
             print("ALTER rankings ADD source")
@@ -78,7 +80,9 @@ async def main() -> None:
                     "ALTER TABLE rankings ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'box_office'"
                 ),
             )
-            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rankings_source ON rankings (source)"))
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_rankings_source ON rankings (source)")
+            )
 
         if not await column_exists(conn, "rankings", "score"):
             print("ALTER rankings ADD score")

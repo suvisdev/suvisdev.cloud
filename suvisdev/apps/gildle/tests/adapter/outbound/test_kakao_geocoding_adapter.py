@@ -26,9 +26,7 @@ class TestKakaoGeocodingAdapter:
     def test_successful_geocode_returns_coordinate(self, monkeypatch):
         monkeypatch.setenv("KAKAO_API_KEY", "test-key")
         payload = {"documents": [{"x": "126.924", "y": "37.521"}]}
-        monkeypatch.setattr(
-            kakao_module.httpx, "get", lambda *a, **k: _FakeResponse(payload)
-        )
+        monkeypatch.setattr(kakao_module.httpx, "get", lambda *a, **k: _FakeResponse(payload))
         adapter = KakaoGeocodingAdapter()
 
         result = adapter.geocode("서울 영등포구 여의대로")

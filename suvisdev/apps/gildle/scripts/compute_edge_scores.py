@@ -85,23 +85,17 @@ class EdgeScoreCalculator:
             ts = self.compute_tree_score(edge, segments)
             hs = self.compute_hazard_score(edge, hazards)
             ds = self.compute_dog_friendly_score(ts)
-            scored.append(
-                replace(edge, tree_score=ts, hazard_score=hs, dog_friendly_score=ds)
-            )
+            scored.append(replace(edge, tree_score=ts, hazard_score=hs, dog_friendly_score=ds))
         return scored
 
-    def _match_segments(
-        self, edge: RouteEdge, segments: list[TreeSegment]
-    ) -> list[TreeSegment]:
+    def _match_segments(self, edge: RouteEdge, segments: list[TreeSegment]) -> list[TreeSegment]:
         if edge.road_name is not None:
             by_name = [s for s in segments if s.road_name == edge.road_name]
             if by_name:
                 return by_name
 
         return [
-            s
-            for s in segments
-            if edge.midpoint.distance_to(s.midpoint()) <= _PROXIMITY_MATCH_M
+            s for s in segments if edge.midpoint.distance_to(s.midpoint()) <= _PROXIMITY_MATCH_M
         ]
 
 
@@ -148,10 +142,9 @@ def load_scored_edges(path: Path) -> list[RouteEdge]:
 
 def main() -> None:
     import os
-    from gildle.dependencies.route_provider import (
-        _csv_encoding,
-        _hazard_csv_path,
-        _tree_csv_path,
+
+    from gildle.adapter.outbound.graph.sample_walk_graph_source import (
+        SampleWalkGraphSource,
     )
     from gildle.adapter.outbound.repositories.csv_tree_segment_repository import (
         CsvTreeSegmentRepository,
@@ -159,24 +152,20 @@ def main() -> None:
     from gildle.adapter.outbound.repositories.traffic_authority_hazard_zone_repository import (
         TrafficAuthorityHazardZoneRepository,
     )
-    from gildle.adapter.outbound.graph.sample_walk_graph_source import (
-        SampleWalkGraphSource,
+    from gildle.dependencies.route_provider import (
+        _csv_encoding,
+        _hazard_csv_path,
+        _tree_csv_path,
     )
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     data_dir = Path(__file__).resolve().parent.parent / "data"
-    walk_graph_path = Path(
-        os.getenv("GILDLE_WALK_GRAPH", str(data_dir / "sample_walk_graph.json"))
-    )
-    output_path = Path(
-        os.getenv("GILDLE_SCORED_EDGES", str(data_dir / "scored_edges.json"))
-    )
+    walk_graph_path = Path(os.getenv("GILDLE_WALK_GRAPH", str(data_dir / "sample_walk_graph.json")))
+    output_path = Path(os.getenv("GILDLE_SCORED_EDGES", str(data_dir / "scored_edges.json")))
 
     encoding = _csv_encoding()
-    segments = CsvTreeSegmentRepository(
-        csv_path=_tree_csv_path(), encoding=encoding
-    ).find_all()
+    segments = CsvTreeSegmentRepository(csv_path=_tree_csv_path(), encoding=encoding).find_all()
     hazards = TrafficAuthorityHazardZoneRepository(
         csv_path=_hazard_csv_path(), encoding=encoding
     ).find_all()

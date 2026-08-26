@@ -57,9 +57,7 @@ async def main() -> None:
                     """
                 )
             )
-            await conn.execute(
-                text("CREATE INDEX ix_collections_slug ON collections (slug)")
-            )
+            await conn.execute(text("CREATE INDEX ix_collections_slug ON collections (slug)"))
             print("collections table created.")
 
     await dispose_engine()

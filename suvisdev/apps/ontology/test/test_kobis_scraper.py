@@ -28,7 +28,9 @@ def _build_scraper() -> KobisScraper:
         "searchDailyBoxOfficeList", (_FIXTURES / "kobis_daily_boxoffice.json").read_text()
     )
     fetcher.add_rule("searchMovieInfo", (_FIXTURES / "kobis_movie_detail.json").read_text())
-    return KobisScraper(fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore())
+    return KobisScraper(
+        fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore()
+    )
 
 
 class KobisScraperTest(unittest.TestCase):

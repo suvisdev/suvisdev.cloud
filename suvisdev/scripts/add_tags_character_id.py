@@ -1,4 +1,4 @@
-﻿"""tags.character_id FK (characters.id) 추가, actor_id 제거.
+"""tags.character_id FK (characters.id) 추가, actor_id 제거.
 
 cast 태그는 영화–인물 연결(characters)을 검색 키워드로 노출한다.
 기존 actor_id 컬럼이 있으면 characters와 조인해 backfill 후 삭제한다.
@@ -57,10 +57,7 @@ async def main() -> None:
                 text("ALTER TABLE tags ADD COLUMN character_id INTEGER NULL"),
             )
             await conn.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_tags_character_id "
-                    "ON tags (character_id)"
-                ),
+                text("CREATE INDEX IF NOT EXISTS ix_tags_character_id " "ON tags (character_id)"),
             )
         else:
             print("tags.character_id already exists")
@@ -95,8 +92,7 @@ async def main() -> None:
             print("ADD uq_tags_character_id")
             await conn.execute(
                 text(
-                    "ALTER TABLE tags ADD CONSTRAINT uq_tags_character_id "
-                    "UNIQUE (character_id)"
+                    "ALTER TABLE tags ADD CONSTRAINT uq_tags_character_id " "UNIQUE (character_id)"
                 ),
             )
 

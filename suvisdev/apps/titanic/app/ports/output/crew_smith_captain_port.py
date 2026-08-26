@@ -20,4 +20,3 @@ class SmithCaptainPort(ABC):
     @abstractmethod
     async def introduce_myself(self, query: SmithCaptainQuery) -> SmithCaptainResponse:
         pass
-

@@ -43,9 +43,7 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(return_value=None)
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(
-            session_factory=factory, embedder=embedder
-        )
+        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
         with patch(
             "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
             return_value=repo,
@@ -65,9 +63,7 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(return_value="정말 재밌었어요")
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(
-            session_factory=factory, embedder=embedder
-        )
+        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
         with patch(
             "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
             return_value=repo,
@@ -87,9 +83,7 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(return_value="본문")
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(
-            session_factory=factory, embedder=embedder
-        )
+        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
         with patch(
             "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
             return_value=repo,
@@ -119,9 +113,7 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(side_effect=["본문 A", None, "본문 C"])
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(
-            session_factory=factory, embedder=embedder
-        )
+        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
         with patch(
             "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
             return_value=repo,

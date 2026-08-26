@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends
 
 from titanic.adapter.inbound.api.schemas.passenger_rose_model_schema import (
     RoseModelPredictSchema,
@@ -20,12 +20,7 @@ rose_model_router = APIRouter(prefix="/rose", tags=["rose"])
 async def introduce_myself(
     rose: RoseModelUseCase = Depends(get_rose_model_use_case),
 ) -> RoseModelResponse:
-    return await rose.introduce_myself(
-        RoseModelSchema(
-            id=10,
-            name="로즈 모델 주인공"
-        )
-    )
+    return await rose.introduce_myself(RoseModelSchema(id=10, name="로즈 모델 주인공"))
 
 
 @rose_model_router.post("/train")

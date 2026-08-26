@@ -16,5 +16,4 @@ class CalculateDogFriendlyRouteUseCase(ABC):
         start: str,
         end: str,
         mode: SeasonMode,
-    ) -> list[str]:
-        ...
+    ) -> list[str]: ...

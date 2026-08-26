@@ -17,9 +17,7 @@ class ProfileInteractor(ProfileUseCase):
     async def update_nickname(self, user_id: int, nickname: str) -> ProfileDto | None:
         return self._with_avatar_url(await self._repository.update_nickname(user_id, nickname))
 
-    async def update_preferred_genres(
-        self, user_id: int, genres: list[str]
-    ) -> ProfileDto | None:
+    async def update_preferred_genres(self, user_id: int, genres: list[str]) -> ProfileDto | None:
         return self._with_avatar_url(
             await self._repository.update_preferred_genres(user_id, genres)
         )
@@ -27,9 +25,7 @@ class ProfileInteractor(ProfileUseCase):
     async def upload_avatar(
         self, user_id: int, data: bytes, *, content_type: str, ext: str
     ) -> ProfileDto | None:
-        key = await self._avatar_storage.upload(
-            user_id, data, content_type=content_type, ext=ext
-        )
+        key = await self._avatar_storage.upload(user_id, data, content_type=content_type, ext=ext)
         return self._with_avatar_url(await self._repository.update_avatar_key(user_id, key))
 
     async def delete_account(self, user_id: int) -> bool:

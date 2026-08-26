@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-
 from anomalib.data import Folder
 from anomalib.data.utils.split import ValSplitMode
 from anomalib.engine import Engine
@@ -70,7 +69,9 @@ def main() -> None:
             b, _c, h, w = embedding.shape
             patch_embedding = net.reshape_embedding(embedding)  # (b*h*w, dim)
 
-            patch_scores, _locations = net.nearest_neighbors(embedding=patch_embedding, n_neighbors=1)
+            patch_scores, _locations = net.nearest_neighbors(
+                embedding=patch_embedding, n_neighbors=1
+            )
             patch_scores = patch_scores.reshape(b, h * w)
             patch_norms = patch_embedding.norm(dim=1).reshape(b, h * w)
 
@@ -84,18 +85,24 @@ def main() -> None:
     print("=== 그룹별 patch feature L2 norm(이미지당 평균, 정보량 proxy) ===")
     for g in _GROUPS:
         arr = np.array(l2_norms[g])
-        print(f"{g:10s}: n={len(arr):3d} mean={arr.mean():.3f} std={arr.std():.3f} min={arr.min():.3f} max={arr.max():.3f}")
+        print(
+            f"{g:10s}: n={len(arr):3d} mean={arr.mean():.3f} std={arr.std():.3f} min={arr.min():.3f} max={arr.max():.3f}"
+        )
 
     print("\n=== 그룹별 NN distance(top-1 patch score, 이미지당 평균) ===")
     for g in _GROUPS:
         arr = np.array(nn_dists[g])
-        print(f"{g:10s}: n={len(arr):3d} mean={arr.mean():.3f} std={arr.std():.3f} min={arr.min():.3f} max={arr.max():.3f}")
+        print(
+            f"{g:10s}: n={len(arr):3d} mean={arr.mean():.3f} std={arr.std():.3f} min={arr.min():.3f} max={arr.max():.3f}"
+        )
 
     print("\n=== L2 norm vs NN distance 상관관계(전 샘플 pooled) ===")
     all_norms = np.concatenate([l2_norms[g] for g in _GROUPS])
     all_dists = np.concatenate([nn_dists[g] for g in _GROUPS])
     corr = np.corrcoef(all_norms, all_dists)[0, 1]
-    print(f"pearson r(L2 norm, NN distance) = {corr:.4f}  (음수면 '정보량 적을수록 거리 큼' 가설 지지)")
+    print(
+        f"pearson r(L2 norm, NN distance) = {corr:.4f}  (음수면 '정보량 적을수록 거리 큼' 가설 지지)"
+    )
 
     print("\n=== 그룹별 L2 norm vs NN distance 상관관계(그룹 내부) ===")
     for g in _GROUPS:

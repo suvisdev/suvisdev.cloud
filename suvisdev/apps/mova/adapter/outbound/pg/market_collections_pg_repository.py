@@ -166,9 +166,7 @@ class CollectionsPgRepository(CollectionRepositoryPort):
 
         if found_ids:
             await self._session.execute(
-                update(MovaMovie)
-                .where(MovaMovie.id.in_(found_ids))
-                .values(collection_id=entity.id)
+                update(MovaMovie).where(MovaMovie.id.in_(found_ids)).values(collection_id=entity.id)
             )
             await self._session.commit()
 

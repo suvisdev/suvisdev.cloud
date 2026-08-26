@@ -8,7 +8,6 @@ mova의 apps/mova/dependencies/require_auth.py와 동일 패턴을 이 앱 자�
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
-
 from shared.security.token_verifier import TokenPayload, verify_token
 
 _SERVICE_AUD = "suvis-susu"

@@ -15,8 +15,9 @@ class MollyScalerInteractor(MollyScalerUseCase):
         self._repository = repository
 
     async def introduce_myself(self, schemas: MollyScalerSchema) -> MollyScalerResponse:
-     
-        return await self._repository.introduce_myself(MollyScalerQuery(
-            id=schemas.id,
-            name=schemas.name,
-        ))
+        return await self._repository.introduce_myself(
+            MollyScalerQuery(
+                id=schemas.id,
+                name=schemas.name,
+            )
+        )

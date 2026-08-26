@@ -5,7 +5,6 @@ from execsuite.app.ports.output.piper_dunn_coo_port import DunnCooPort
 
 
 class DunnCooRepository(DunnCooPort):
-
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 

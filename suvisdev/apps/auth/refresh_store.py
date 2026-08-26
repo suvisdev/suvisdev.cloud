@@ -59,7 +59,9 @@ class RefreshTokenStore:
             raise ReuseDetected(f"이미 사용된 리프레시 토큰 재사용 감지: family={family_id}")
 
         data["used"] = True
-        self._client.set(f"auth:refresh:{jti}", json.dumps(data), ex=int(_REFRESH_TTL.total_seconds()))
+        self._client.set(
+            f"auth:refresh:{jti}", json.dumps(data), ex=int(_REFRESH_TTL.total_seconds())
+        )
 
         new_jti, _ = self.issue(
             sub=data["sub"], aud=data["aud"], roles=data["roles"], family_id=family_id
@@ -69,7 +71,9 @@ class RefreshTokenStore:
         )
 
     def revoke_family(self, family_id: str) -> None:
-        self._client.set(f"auth:family:{family_id}:revoked", "1", ex=int(_REFRESH_TTL.total_seconds()))
+        self._client.set(
+            f"auth:family:{family_id}:revoked", "1", ex=int(_REFRESH_TTL.total_seconds())
+        )
 
     def is_family_revoked(self, family_id: str) -> bool:
         return self._client.get(f"auth:family:{family_id}:revoked") is not None

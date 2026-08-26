@@ -3,7 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 from gildle.scripts.build_graph_pipeline import run_pipeline
 from gildle.scripts.compute_edge_scores import load_scored_edges
 
@@ -42,9 +41,7 @@ def _hazard_csv_path() -> Path:
 
 class TestRunPipeline:
     @patch(_PATCH_OX)
-    def test_produces_scored_edges_json(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_produces_scored_edges_json(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         graphml = tmp_path / "test.graphml"
@@ -63,9 +60,7 @@ class TestRunPipeline:
         assert len(scored) > 0
 
     @patch(_PATCH_OX)
-    def test_yeouido_edge_gets_tree_score(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_yeouido_edge_gets_tree_score(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         graphml = tmp_path / "test.graphml"
@@ -85,9 +80,7 @@ class TestRunPipeline:
         assert yeouido_edges[0].tree_score > 0.0
 
     @patch(_PATCH_OX)
-    def test_all_scores_in_range(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_all_scores_in_range(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         graphml = tmp_path / "test.graphml"
@@ -108,9 +101,7 @@ class TestRunPipeline:
             assert 0.0 <= edge.dog_friendly_score <= 1.0
 
     @patch(_PATCH_OX)
-    def test_saved_json_is_loadable(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_saved_json_is_loadable(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         graphml = tmp_path / "test.graphml"
@@ -129,9 +120,7 @@ class TestRunPipeline:
         assert len(loaded) > 0
 
     @patch(_PATCH_OX)
-    def test_idempotent(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_idempotent(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         graphml = tmp_path / "test.graphml"
@@ -160,9 +149,7 @@ class TestRunPipeline:
         assert first == second
 
     @patch(_PATCH_OX)
-    def test_dog_friendly_score_at_least_base(
-        self, mock_ox_fn: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_dog_friendly_score_at_least_base(self, mock_ox_fn: MagicMock, tmp_path: Path) -> None:
         mock_ox = mock_ox_fn.return_value
         mock_ox.load_graphml.return_value = _make_mock_graph()
         graphml = tmp_path / "test.graphml"

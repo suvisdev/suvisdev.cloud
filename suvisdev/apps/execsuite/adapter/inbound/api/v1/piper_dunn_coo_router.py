@@ -12,9 +12,4 @@ dunn_coo_router = APIRouter(prefix="/dunn", tags=["dunn"])
 async def introduce_myself(
     dunn: DunnCooUseCase = Depends(get_dunn_coo_use_case),
 ) -> DunnCooResponse:
-    return await dunn.introduce_myself(
-        DunnCooSchema(
-            id=4,
-            name="도널드 던 주인공"
-        )
-    )
+    return await dunn.introduce_myself(DunnCooSchema(id=4, name="도널드 던 주인공"))

@@ -12,9 +12,7 @@ class MovaActor(MovaModel):
     """인물(배우·감독) 정보. PK `id` — UNIQUE는 `tmdb_person_id`(upsert 키, 동명이인 구분용)."""
 
     __tablename__ = "actors"
-    __table_args__ = (
-        UniqueConstraint("tmdb_person_id", name="uq_actors_tmdb_person_id"),
-    )
+    __table_args__ = (UniqueConstraint("tmdb_person_id", name="uq_actors_tmdb_person_id"),)
 
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     role_type: Mapped[str] = mapped_column(String(16), nullable=False, default="actor", index=True)

@@ -26,6 +26,13 @@ import contents.adapter.outbound.orm.schedule_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.stadium_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.team_orm  # noqa: F401,E402
 
+# grid_neo_theone_base.Base 등록 — titanic_passengers/bookings, dispatch_adress/inbox,
+# vision_uploads, pdf_loader_documents가 실제로 붙는 Base (TitanicBase와는 별개,
+# 지금까지 target_metadata 밖이었음).
+import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401,E402
+import dispatch.adapter.outbound.orm.receive_orm  # noqa: F401,E402
+import execsuite.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
+
 # gildle ORM 등록 — 모듈 import 시 테이블이 GildleBase.metadata에 붙는다.
 import gildle.adapter.outbound.orm.hazard_zone_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_edge_orm  # noqa: F401,E402
@@ -36,17 +43,9 @@ import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401,E402
 
 # mova ORM 등록 — 패키지 __init__이 전체 서브모듈을 import해 MovaBase.metadata에 붙인다.
 import mova.adapter.outbound.orm  # noqa: F401,E402
+import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
-
-# grid_neo_theone_base.Base 등록 — titanic_passengers/bookings, dispatch_adress/inbox,
-# vision_uploads, pdf_loader_documents가 실제로 붙는 Base (TitanicBase와는 별개,
-# 지금까지 target_metadata 밖이었음).
-import dispatch.adapter.outbound.orm.adress_orm  # noqa: F401,E402
-import dispatch.adapter.outbound.orm.receive_orm  # noqa: F401,E402
-import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
-import execsuite.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
-from core.matrix.grid_neo_theone_base import Base as NeoTheOneBase  # noqa: E402
 
 # viewer ORM 등록 — 모듈 import 시 테이블이 ViewerBase.metadata에 붙는다.
 import viewer.adapter.outbound.orm.admin_orm  # noqa: F401,E402
@@ -54,6 +53,7 @@ import viewer.adapter.outbound.orm.group_orm  # noqa: F401,E402
 import viewer.adapter.outbound.orm.user_identity_orm  # noqa: F401,E402
 import viewer.adapter.outbound.orm.user_orm  # noqa: F401,E402
 from contents.adapter.outbound.orm.base import ContentsBase  # noqa: E402
+from core.matrix.grid_neo_theone_base import Base as NeoTheOneBase  # noqa: E402
 from core.matrix.grid_oracle_database_manager import (  # noqa: E402
     MovaBase,
     TitanicBase,

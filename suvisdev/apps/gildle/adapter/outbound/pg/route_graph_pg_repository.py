@@ -26,23 +26,17 @@ class PgRouteGraphRepository(RouteGraphPort):
 
     def load_edges(self) -> list[RouteEdge]:
         session = self._session_factory()
-        rows = (
-            session.execute(
-                select(RouteEdgeOrm, RouteNodeOrm)
-                .join(RouteNodeOrm, RouteEdgeOrm.from_node_id == RouteNodeOrm.id)
+        rows = session.execute(
+            select(RouteEdgeOrm, RouteNodeOrm).join(
+                RouteNodeOrm, RouteEdgeOrm.from_node_id == RouteNodeOrm.id
             )
-            .all()
-        )
+        ).all()
 
         node_map: dict[int, RouteNodeOrm] = {}
-        for edge_orm, node_orm in rows:
+        for _edge_orm, node_orm in rows:
             node_map[node_orm.id] = node_orm
 
-        to_nodes = (
-            session.execute(select(RouteNodeOrm))
-            .scalars()
-            .all()
-        )
+        to_nodes = session.execute(select(RouteNodeOrm)).scalars().all()
         for n in to_nodes:
             node_map[n.id] = n
 

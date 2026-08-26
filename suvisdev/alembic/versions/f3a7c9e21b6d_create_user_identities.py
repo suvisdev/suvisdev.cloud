@@ -26,7 +26,9 @@ def upgrade() -> None:
         sa.Column("provider", sa.String(length=16), nullable=False),
         sa.Column("provider_user_id", sa.String(length=255), nullable=False),
         sa.Column("email", sa.String(length=255), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("provider", "provider_user_id", name="uq_user_identities_provider_sub"),

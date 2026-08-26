@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
-
 from shared.security.require_user import UserPrincipal, require_user
+
 from viewer.app.ports.input.profile_use_case import ProfileUseCase
 from viewer.dependencies.profile_provider import get_profile_use_case
 

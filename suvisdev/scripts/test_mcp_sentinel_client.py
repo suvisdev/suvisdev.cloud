@@ -26,7 +26,10 @@ async def main() -> None:
         command="python3",
         args=["-m", "ontology.adapter.inbound.mcp.anomaly_detection_mcp_server"],
         cwd=str(_BACKEND),
-        env={"PYTHONPATH": f"{_BACKEND}:{_BACKEND / 'apps'}", "INFERENCE_URL": "http://localhost:8000"},
+        env={
+            "PYTHONPATH": f"{_BACKEND}:{_BACKEND / 'apps'}",
+            "INFERENCE_URL": "http://localhost:8000",
+        },
     )
 
     async with stdio_client(server_params) as (read, write):

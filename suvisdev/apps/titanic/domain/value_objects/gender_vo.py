@@ -19,8 +19,8 @@ class Gender:
             raise ValueError("Gender는 필수 값입니다.")
         try:
             return cls(value=GenderType(raw.strip().lower()))
-        except (ValueError, KeyError):
-            raise ValueError(f"Gender 유효하지 않은 값: '{raw}'")
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Gender 유효하지 않은 값: '{raw}'") from e
 
     @property
     def is_female(self) -> bool:

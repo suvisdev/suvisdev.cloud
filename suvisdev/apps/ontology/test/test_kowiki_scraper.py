@@ -10,7 +10,10 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
-from ontology.adapter.outbound.scraper.kowiki_scraper import KowikiScraper, _movie_query  # noqa: E402
+from ontology.adapter.outbound.scraper.kowiki_scraper import (  # noqa: E402
+    KowikiScraper,
+    _movie_query,
+)
 from ontology.test.fakes.fake_crawl_schedule_collabs import FakeVisitedStore  # noqa: E402
 from ontology.test.fakes.fake_page_fetcher import FakePageFetcher  # noqa: E402
 from ontology.test.fakes.fake_rate_limiter import FakeRateLimiter  # noqa: E402
@@ -29,7 +32,9 @@ def _build_scraper() -> KowikiScraper:
         f"page={quote('짐 자무시')}",
         (_FIXTURES / "kowiki_parse_person.json").read_text(encoding="utf-8"),
     )
-    return KowikiScraper(fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore())
+    return KowikiScraper(
+        fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore()
+    )
 
 
 def _build_odyssey_scraper() -> KowikiScraper:
@@ -46,7 +51,9 @@ def _build_odyssey_scraper() -> KowikiScraper:
         f"page={quote('오디세이아')}",
         (_FIXTURES / "kowiki_parse_odyssey_epic.json").read_text(encoding="utf-8"),
     )
-    return KowikiScraper(fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore())
+    return KowikiScraper(
+        fetcher=fetcher, rate_limiter=FakeRateLimiter(), visited_store=FakeVisitedStore()
+    )
 
 
 class KowikiScraperTest(unittest.TestCase):

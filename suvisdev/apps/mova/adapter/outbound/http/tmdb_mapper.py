@@ -197,7 +197,7 @@ def map_kr_certification(release_dates: dict | None) -> str | None:
 
 
 def _normalize_provider_key(name: str) -> str:
-    """"Disney Plus" → "disneyplus" — studio_movies_router.py의 platform 필터가
+    """ "Disney Plus" → "disneyplus" — studio_movies_router.py의 platform 필터가
     쓰는 소문자·공백 없는 provider 키와 맞춘다."""
     return "".join(ch for ch in name.lower() if ch.isalnum())
 
@@ -239,7 +239,9 @@ def map_youtube_trailer(videos: dict | None) -> str | None:
     """
     if not videos:
         return None
-    results = [v for v in (videos.get("results") or []) if v.get("site") == "YouTube" and v.get("key")]
+    results = [
+        v for v in (videos.get("results") or []) if v.get("site") == "YouTube" and v.get("key")
+    ]
     if not results:
         return None
 

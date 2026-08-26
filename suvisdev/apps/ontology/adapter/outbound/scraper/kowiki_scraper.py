@@ -26,7 +26,9 @@ _SEARCH_URL = (
     "https://ko.wikipedia.org/w/api.php"
     "?action=query&list=search&srsearch={query}&format=json&srlimit={limit}"
 )
-_PARSE_URL = "https://ko.wikipedia.org/w/api.php?action=parse&page={title}&format=json&prop=wikitext"
+_PARSE_URL = (
+    "https://ko.wikipedia.org/w/api.php?action=parse&page={title}&format=json&prop=wikitext"
+)
 _RATE_DOMAIN = "ko.wikipedia.org"
 _MOVIE_INFOBOX_TEMPLATE = "영화 정보"
 _WANTED_SECTIONS = {"줄거리", "평가", "출연", "제작"}
