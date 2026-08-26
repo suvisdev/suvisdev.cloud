@@ -9,6 +9,11 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **배포 실측 확인 + 지킬 블로그 8/26 포스트 + 로컬 suvisjk 재연결 (2026-08-26)** —
+  `edc1de6`까지 EC2(코드·alembic head)·Vercel(장르 탭 번들)·DB(뮤지컬 65건)
+  배포 확인. 지킬 8/26 포스트 푸시(Pages 자동 배포). 모노레포 안 `suvisjk/`가
+  레포 분리 전 낡은 사본이었던 것을 원격 클론으로 재연결(push는 HTTPS/gh).
+  상세: WORK_LOG_MOVA 2026-08-26.
 - **mova 채팅 Gemini 자동 폴백 DI 연결 + 로딩 영상 크롭 수정 (2026-08-26)** —
   8/25 폴백 어댑터가 DI 미연결이라 LoRA 다운 시 502가 그대로 노출되던 것을
   `market_chat_provider.get_recommendation_port()`에서 조립하도록 수정
