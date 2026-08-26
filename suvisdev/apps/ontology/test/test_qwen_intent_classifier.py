@@ -75,6 +75,32 @@ class QwenIntentClassifierTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, _ROUTING_SYSTEM_PROMPT)
 
+    async def test_meta_complaint_routes_to_general_without_llm(self) -> None:
+        """봇 행동에 대한 불만·메타 발화는 LLM 라우터를 부르지 않고 결정론적으로
+        general — 2026-08-26 프로덕션 zero-rec 실측 사례 기반."""
+        cases = ["똑같은 말 반복하지마", "뭔 영화가 이렇게 없냐", "아니 엄선을 했으면 보여줘야지"]
+        for question in cases:
+            with self.subTest(question=question):
+                llm = AsyncMock()
+                classifier = QwenIntentClassifier(llm=llm)
+
+                destination, entities = await classifier.classify(question)
+
+                self.assertEqual(destination, "general")
+                self.assertEqual(entities, [])
+                llm.generate.assert_not_awaited()
+
+    async def test_recommendation_with_eopnya_still_reaches_llm(self) -> None:
+        """ "재밌는 영화 없냐"는 불만이 아니라 추천 요청 — 가드에 걸리면 안 된다."""
+        llm = AsyncMock()
+        llm.generate.return_value = '{"destination": "rag", "entities": []}'
+        classifier = QwenIntentClassifier(llm=llm)
+
+        destination, _ = await classifier.classify("재밌는 영화 없냐")
+
+        self.assertEqual(destination, "rag")
+        llm.generate.assert_awaited_once()
+
     async def test_unparseable_raw_text_falls_back_to_rag(self) -> None:
         """작은 라우팅 모델이 JSON 대신 질문에 직접 답해버리는 경우 — mova는 추천
         앱이라 애매하면 general(산문 누수)보다 rag(구조화 카드 실패)가 더 안전하다."""

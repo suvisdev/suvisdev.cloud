@@ -21,6 +21,17 @@ _DESTINATIONS = ("crud", "rag", "general")
 # "산문으로 새는 것"보다 "구조화 카드 경로에서 실패하는 것"이 사용자 기대에 가깝다.
 _DEFAULT_DESTINATION = "rag"
 
+# 봇의 직전 행동에 대한 불만·메타 발화 — 추천 파이프라인에 넣으면 빈 카드
+# 응답만 반복된다(2026-08-26 프로덕션 zero-rec 실측: "똑같은 말 반복하지마",
+# "뭔 영화가 이렇게 없냐", "아니 엄선을 했으면 보여줘야지"). LLM 라우터를
+# 거치지 않고 결정론적으로 general로 보낸다. 패턴은 실측 사례 기반으로만
+# 유지하고 넓히지 않는다 — "재밌는 영화 없냐"류 추천 요청과 혼동 금지.
+_META_COMPLAINT_PATTERNS: tuple[str, ...] = (
+    "반복하지",  # "똑같은 말 반복하지마"
+    "이렇게 없",  # "뭔 영화가 이렇게 없냐" ("영화 없냐" 단독은 추천 요청이라 제외)
+    "보여줘야지",  # "엄선을 했으면 보여줘야지"
+)
+
 _ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
 아래 JSON 스키마로만 응답하고, 다른 설명·인사말·예시는 절대 붙이지 마.
 
@@ -83,6 +94,10 @@ class QwenIntentClassifier(IntentClassifierPort):
         self._llm = llm
 
     async def classify(self, question: str) -> tuple[str, list[str]]:
+        if any(p in question for p in _META_COMPLAINT_PATTERNS):
+            logger.info("[QwenIntentClassifier] 불만·메타 발화 감지 → general (결정론 가드)")
+            return "general", []
+
         try:
             raw = await self._llm.generate(question, system=_ROUTING_SYSTEM_PROMPT)
         except HubRagError as e:
