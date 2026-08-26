@@ -40,14 +40,14 @@ export const APPS_CATALOG: AppCatalogItem[] = [
 
 export const TEAM_PROJECTS: AppCatalogItem[] = [
   {
-    id: "yaksok",
-    titleKo: "Yaksok",
-    titleEn: "알약 식별",
-    href: "https://seuk.cloud",
-    available: false,
+    id: "seuk",
+    titleKo: "SEUK",
+    titleEn: "슥 만드는 해커톤 팀",
+    href: "https://team.seuk.cloud",
+    available: true,
     imageFirst: true,
     gradient: "from-sky-400 via-blue-500 to-cyan-600",
-    image: "/apps-yaksok.jpg",
+    icon: "⚡",
     team: "Team Seuk",
   },
 ]

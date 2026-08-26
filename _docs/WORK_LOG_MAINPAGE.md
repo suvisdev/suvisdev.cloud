@@ -28,6 +28,21 @@
 
 ---
 
+## 2026-08-26
+
+### 작업 내용
+- `/apps` 팀 프로젝트 카드 교체: Yaksok(알약 식별, seuk.cloud) 제거 →
+  팀 SEUK 도메인(`team.seuk.cloud`, "슥 만드는 해커톤 팀") 카드 추가.
+  사이트 라이브(200) 확인 후 available: true.
+
+### 수정/구현
+- `suvis/lib/apps-catalog.ts` — TEAM_PROJECTS yaksok 항목을 seuk 항목으로 교체
+  (이미지 없이 ⚡ 아이콘 폴백 사용).
+- `suvis/public/apps-yaksok.jpg` 삭제(참조 0).
+
+### 산출물
+- `pnpm type-check` 통과. 커밋 후 Vercel 자동 배포.
+
 ## 2026-08-25
 
 ### 작업 내용
