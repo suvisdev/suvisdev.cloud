@@ -102,20 +102,28 @@ class ConversationsInteractorTests(unittest.IsolatedAsyncioTestCase):
 class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
     """대화 스레드의 이전 추천을 제외하는 필터 검증."""
 
-    async def _run_chat(self, *, already_shown: set[str]) -> tuple[list, list]:
+    @staticmethod
+    def _item(i: int) -> MovaSearchItemSchema:
+        return MovaSearchItemSchema(
+            id=f"tmdb-{i}", title=f"영화 {i}", year="", rating=0.0, poster="", match_type="tag"
+        )
+
+    async def _run_chat(
+        self, *, already_shown: set[str], wider_catalog: list | None = None
+    ) -> tuple[list, list]:
         """catalog에 tmdb-1,2,3, LLM은 catalog 전체를 그대로 픽. 이미 소개한 슬러그는
-        후보에서 제거돼야 하고, LLM이 실수로 되돌려줘도 최종 응답에서 필터돼야 한다."""
+        후보에서 제거돼야 하고, LLM이 실수로 되돌려줘도 최종 응답에서 필터돼야 한다.
+        wider_catalog가 주어지면 두 번째 search_tag_catalog(풀 확장 재검색)가 그걸 돌려준다."""
         classifier = AsyncMock()
         classifier.classify.return_value = ("rag", [])
         chat_repo = AsyncMock()
         chat_repo.save_chat.return_value = 42
         chat_repo.get_recent_intents_by_user.return_value = []
-        chat_repo.search_tag_catalog.return_value = [
-            MovaSearchItemSchema(
-                id=f"tmdb-{i}", title=f"영화 {i}", year="", rating=0.0, poster="", match_type="tag"
-            )
-            for i in (1, 2, 3)
-        ]
+        first_catalog = [self._item(i) for i in (1, 2, 3)]
+        if wider_catalog is None:
+            chat_repo.search_tag_catalog.return_value = first_catalog
+        else:
+            chat_repo.search_tag_catalog.side_effect = [first_catalog, wider_catalog]
         preferences = AsyncMock()
         preferences.get_preferences.return_value = type(
             "P", (), {"nickname": "u", "preferred_genres": []}
@@ -190,7 +198,17 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
         최종 응답에서만 완전 제거되어 실제론 0카드가 나감."""
         catalog_seen, final = await self._run_chat(already_shown={"tmdb-1", "tmdb-2", "tmdb-3"})
         self.assertEqual([c.id for c in catalog_seen], ["tmdb-1", "tmdb-2", "tmdb-3"])
-        self.assertEqual(final, [])
+        self.assertEqual([r.id for r in final], [])
+
+    async def test_dedup_exhausted_widens_pool_and_serves_new_candidates(self) -> None:
+        """dedup 소진 대안 행동(2026-08-26) — 첫 16편이 전부 소개된 상태면 풀을
+        넓혀 재검색하고, 거기서 아직 안 보여준 영화만 후보로 쓴다."""
+        wider = [self._item(i) for i in (1, 2, 3, 4, 5, 6)]
+        catalog_seen, final = await self._run_chat(
+            already_shown={"tmdb-1", "tmdb-2", "tmdb-3"}, wider_catalog=wider
+        )
+        self.assertEqual([c.id for c in catalog_seen], ["tmdb-4", "tmdb-5", "tmdb-6"])
+        self.assertEqual([r.id for r in final], ["tmdb-4", "tmdb-5", "tmdb-6"])
 
     async def test_zero_recs_replaces_reply_with_honest_message(self) -> None:
         """recs가 0건이 되면 reply를 '추천할 영화가 없어요' 계열로 대체.

@@ -151,6 +151,7 @@ class ChatInteractor(ChatUseCase):
             hits = await catalog_task
             past_intents, nickname, preferred_genres = [], None, []
 
+        search_wider = None  # RAG(semantic) 경로에는 풀 확장 재검색이 없다
         if hits:
             catalog = [
                 MovaSearchItemSchema(
@@ -176,22 +177,40 @@ class ChatInteractor(ChatUseCase):
             from mova.domain.value_objects.mood_expansion import expand_mood_keywords
 
             expanded_keywords = expand_mood_keywords(intent["keywords"])[:12]
-            catalog = await self._repo.search_tag_catalog(
-                expanded_keywords,
-                limit=16,
-                actor_names=actor_names,
-                countries=must.get("countries") or [],
-                year_min=intent["search_filters"].get("year_min"),
-                year_max=intent["search_filters"].get("year_max"),
-                # "마블" 같은 프랜차이즈 언급 → 대표작 제목 매칭 (2026-08-25)
-                title_terms=expand_franchise_titles(intent["keywords"]),
-            )
+
+            async def _search_catalog(limit: int):
+                return await self._repo.search_tag_catalog(
+                    expanded_keywords,
+                    limit=limit,
+                    actor_names=actor_names,
+                    countries=must.get("countries") or [],
+                    year_min=intent["search_filters"].get("year_min"),
+                    year_max=intent["search_filters"].get("year_max"),
+                    # "마블" 같은 프랜차이즈 언급 → 대표작 제목 매칭 (2026-08-25)
+                    title_terms=expand_franchise_titles(intent["keywords"]),
+                )
+
+            search_wider = _search_catalog  # dedup 소진 시 재검색용 (폴백 경로만)
+            catalog = await _search_catalog(16)
 
         # 2.5. 대화 스레드에서 이미 추천한 영화 슬러그를 뽑아 후보에서 제거한다.
         #      "다른 것도 추천해줘" 같은 후속 질의에서 같은 영화 재소개 방지.
         already_shown_slugs = await self._recently_recommended_slugs(request)
         if already_shown_slugs:
             filtered = [c for c in catalog if c.id not in already_shown_slugs]
+            if not filtered and search_wider is not None:
+                # dedup 소진 대안 행동(2026-08-26, 실측 zero-rec 13건 중 4건이
+                # 이 케이스): 조건은 그대로 두고 후보 풀만 16→48로 넓혀 한 번
+                # 재검색한다. 그래도 새 후보가 없으면 기존 동작(원본 유지 →
+                # LLM 정직한 0카드)으로 떨어진다.
+                wider = await search_wider(48)
+                filtered = [c for c in wider if c.id not in already_shown_slugs][:16]
+                if filtered:
+                    logger.info(
+                        "[ChatInteractor] trace=%s dedup 소진 → 풀 확장 재검색으로 새 후보 %d편",
+                        trace_id,
+                        len(filtered),
+                    )
             if filtered:  # 전부 필터되면(후보 부족) 원본 유지 — LLM이 정직하게 0카드 응답
                 dropped = len(catalog) - len(filtered)
                 if dropped > 0:
