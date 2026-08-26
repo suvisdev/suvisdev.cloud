@@ -43,6 +43,16 @@
 ### 산출물
 - `pnpm type-check` 통과. 커밋 후 Vercel 자동 배포.
 
+### 수정/구현 (추가) — eslint 파이프라인 복구
+- `pnpm lint`가 죽어 있었음(eslint가 devDependencies에 없음, WSL 재구축
+  여파로 추정) — eslint 9 + eslint-config-next 15.5 설치, `.next/` ignore,
+  `pnpm-workspace.yaml`에 unrs-resolver 빌드 승인.
+- 드러난 38 에러 정리: `--fix` 24건(type import 등) + 수동 14건(죽은
+  변수·함수·임포트 8, react/display-name 2, `<a>`→`Link`, console.error
+  제거, use-toast actionTypes 타입화 2). 경고 1건(mova-ai-chat-bar
+  useCallback deps)은 동작 변경 위험으로 의도적 보존.
+- 검증: `pnpm build` exit 0, eslint 0 errors, `tsc --noEmit` 통과.
+
 ## 2026-08-25
 
 ### 작업 내용

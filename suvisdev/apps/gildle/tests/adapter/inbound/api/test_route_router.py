@@ -1,7 +1,13 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gildle.adapter.inbound.api import gildle_router
+
+# 실 데이터(data/scored_edges.json, 서울 233k 엣지)가 로컬에 있으면 경로가
+# 달라지므로, 경로 테스트는 N1~N5 픽스처를 GILDLE_SCORED_EDGES로 고정한다.
+_SCORED_EDGES_FIXTURE = str(Path(__file__).parent / "scored_edges_sample.json")
 
 
 def _client() -> TestClient:
@@ -20,7 +26,8 @@ _START_END = {
 
 
 class TestCalculateRouteEndpoint:
-    def test_spring_picks_cherry_road_path(self):
+    def test_spring_picks_cherry_road_path(self, monkeypatch):
+        monkeypatch.setenv("GILDLE_SCORED_EDGES", _SCORED_EDGES_FIXTURE)
         client = _client()
         resp = client.post(
             "/gildle/routes", json={**_START_END, "mode": "spring_autumn"}
@@ -29,7 +36,8 @@ class TestCalculateRouteEndpoint:
         # 봄/가을: 벚나무 '여의대로' 30% 감면 → 여의대로 경로 선택.
         assert resp.json()["path"] == ["N1", "N2", "N5"]
 
-    def test_winter_avoids_hazard_path(self):
+    def test_winter_avoids_hazard_path(self, monkeypatch):
+        monkeypatch.setenv("GILDLE_SCORED_EDGES", _SCORED_EDGES_FIXTURE)
         client = _client()
         resp = client.post(
             "/gildle/routes", json={**_START_END, "mode": "winter_safety"}

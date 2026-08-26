@@ -15,7 +15,6 @@ if str(APPS) not in sys.path:
 
 import asyncio  # noqa: E402
 
-from ontology.app.dtos.ai_review_dto import MovieMaterial  # noqa: E402
 from ontology.app.ports.output.ai_review_writer_port import AiReviewWriterPort  # noqa: E402
 from ontology.app.ports.output.hub_llm_port import HubLlmPort  # noqa: E402
 from ontology.app.use_cases.ai_review_generator_interactor import (  # noqa: E402

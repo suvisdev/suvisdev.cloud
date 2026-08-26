@@ -32,6 +32,15 @@ forbidden_modules =
     sample
     analytics
     media
+# 아래 예외 (a)(Rule 2 주석 참고)와 동일: ontology가 DB 세션을 위해 core를
+# 임포트하고, core.grid_oracle이 테이블 등록을 위해 spoke ORM을 임포트하는
+# 간접 사슬. 직접 hub→spoke 임포트가 아니므로 허용.
+ignore_imports =
+    core.matrix.grid_oracle_database_manager -> dispatch.adapter.outbound.orm
+    core.matrix.grid_oracle_database_manager -> mova.adapter.outbound.orm
+    core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.admin_orm
+    core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.group_orm
+    core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.user_orm
 
 # Rule 2: Spokes must not import each other directly (star topology).
 [importlinter:contract:spoke-independence]
@@ -65,18 +74,21 @@ modules =
 # Remove the matching entries when either coupling is refactored away.
 ignore_imports =
     core.matrix.grid_oracle_database_manager -> dispatch.adapter.outbound.orm
-    core.matrix.grid_oracle_database_manager -> dispatch.adapter.outbound.orm.adress_orm
     core.matrix.grid_oracle_database_manager -> mova.adapter.outbound.orm
     core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.admin_orm
     core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.group_orm
     core.matrix.grid_oracle_database_manager -> viewer.adapter.outbound.orm.user_orm
-    core.matrix.grid_oracle_database_manager -> titanic.adapter.outbound.orm.passenger_jack_trainer_orm
-    core.matrix.grid_oracle_database_manager -> titanic.adapter.outbound.orm.passenger_rose_model_orm
     mova.adapter.outbound.orm.market_chat_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_picks_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_reviews_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_user_actions_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_watchlist_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_conversations_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_game_scores_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_review_comments_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.platform_user_taste_vectors_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.pg.games_pg_repository -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.inbound.scheduler.editor_reviews_scheduler -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.market_reviews_pg_repository -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.mypage_pg_repository -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.user_preference_pg_repository -> viewer.adapter.outbound.orm.user_orm

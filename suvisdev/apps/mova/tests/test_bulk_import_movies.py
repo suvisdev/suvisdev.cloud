@@ -66,9 +66,9 @@ class ParseArgsTests(unittest.TestCase):
 
     def test_start_page_for_resume(self) -> None:
         args = self._parse_args(
-            ["--source", "kofic", "--country", "KR", "--pages", "5", "--start-page", "31"]
+            ["--source", "tmdb_discover", "--country", "KR", "--pages", "5", "--start-page", "31"]
         )
-        self.assertEqual(args.source, "kofic")
+        self.assertEqual(args.source, "tmdb_discover")
         self.assertEqual(args.country, "KR")
         self.assertEqual(args.start_page, 31)
 

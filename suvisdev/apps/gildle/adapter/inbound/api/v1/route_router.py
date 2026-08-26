@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import ORJSONResponse
 
 from gildle.adapter.inbound.api.schemas.route_schema import (
     NavigateRequestSchema,

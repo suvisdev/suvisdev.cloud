@@ -218,10 +218,11 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
             hub_rag=hub_rag, classifier=classifier, general=AsyncMock(), conversations=conversations,
         )
         req = MovaChatRequest(message="다른것도", history=[], user_id=7, conversation_id=99)
-        dto = await interactor.chat(req)
+        # 안내 문구는 변형 3종 중 랜덤 pick — 첫 변형으로 고정해 결정적으로 검증한다.
+        with unittest.mock.patch("random.choice", lambda pool: pool[0]):
+            dto = await interactor.chat(req)
 
         self.assertEqual(dto.recommendations, [])
-        self.assertIn("찾지 못했어요", dto.reply)
         self.assertIn("이 대화에서 아직 소개하지 않은", dto.reply)
 
 

@@ -1,10 +1,8 @@
 """build_graph_pipeline 통합 테스트 — mock OSM + 실 CSV 데이터."""
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from gildle.scripts.build_graph_pipeline import run_pipeline
 from gildle.scripts.compute_edge_scores import load_scored_edges

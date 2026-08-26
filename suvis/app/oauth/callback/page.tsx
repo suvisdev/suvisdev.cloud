@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { exchangeOAuthCode } from "@/lib/oauth-api"
@@ -43,9 +44,9 @@ function OAuthCallbackInner() {
     return (
       <div className="flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center gap-3 bg-[#e8e8e8] px-4 text-center">
         <p className="text-sm font-medium text-red-600">{error}</p>
-        <a href="/" className="text-sm text-neutral-600 underline underline-offset-2">
+        <Link href="/" className="text-sm text-neutral-600 underline underline-offset-2">
           홈으로 돌아가기
-        </a>
+        </Link>
       </div>
     )
   }

@@ -30,7 +30,7 @@ function groupByMonth(items: UpcomingMovie[]): Group[] {
 
 function formatDay(release_date: string): string {
   if (!release_date) return ""
-  const [y, m, d] = release_date.split("-")
+  const [, m, d] = release_date.split("-")
   return `${Number(m)}/${Number(d)}`
 }
 

@@ -83,7 +83,6 @@ export default function MemoryGamePage() {
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [savingScore, setSavingScore] = useState(false)
 
-  const totalPairs = 2 * stage
   const totalCards = 4 * stage
 
   const startStage = useCallback(async (n: number) => {

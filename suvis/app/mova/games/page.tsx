@@ -143,16 +143,20 @@ function LeaderboardSidebar() {
   // chosung: 맞춘 개수(그대로 score) 노출.
   const renderScore = useMemo(() => {
     if (activeTab.key === "memory") {
-      return (e: Leaderboard["top"][number]) => (
-        <>
-          {e.computed_score.toLocaleString()}점
-          {e.stage !== null && (
-            <span className="ml-1 text-[10px] text-mova-muted">(S{e.stage}·{e.score}s)</span>
-          )}
-        </>
-      )
+      return function renderMemoryScore(e: Leaderboard["top"][number]) {
+        return (
+          <>
+            {e.computed_score.toLocaleString()}점
+            {e.stage !== null && (
+              <span className="ml-1 text-[10px] text-mova-muted">(S{e.stage}·{e.score}s)</span>
+            )}
+          </>
+        )
+      }
     }
-    return (e: Leaderboard["top"][number]) => <>{e.score}개 · 힌트 {e.hints_used}</>
+    return function renderChosungScore(e: Leaderboard["top"][number]) {
+      return <>{e.score}개 · 힌트 {e.hints_used}</>
+    }
   }, [activeTab.key])
 
   const shift = (d: 1 | -1) =>

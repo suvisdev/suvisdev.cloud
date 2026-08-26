@@ -7,8 +7,6 @@ test_traffic_authority_*)와 달리 **인코딩·실데이터 특성**을 검증
 
 import csv
 
-import pandas as pd
-import pytest
 
 from gildle.adapter.outbound.repositories.csv_tree_segment_repository import (
     CsvTreeSegmentRepository,

@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import { NextRequest, NextResponse } from "next/server"
+import type { NextRequest} from "next/server";
+import { NextResponse } from "next/server"
 
 type ModelKey = "flash" | "flash15" | "pro"
 
@@ -53,7 +54,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ reply: responseText, text: responseText })
   } catch (error) {
-    console.error("Gemini API Error:", error)
     const message = errorMessage(error)
     const status = /한도|429|quota/i.test(message) ? 429 : 500
     return NextResponse.json({ error: message }, { status })

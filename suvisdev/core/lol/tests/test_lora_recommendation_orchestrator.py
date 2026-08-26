@@ -50,6 +50,13 @@ def _no_sleep(monkeypatch):
     monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
 
 
+@pytest.fixture(autouse=True)
+def _reset_circuit(monkeypatch):
+    """서킷 브레이커 전역 상태가 앞선 실패 테스트에서 누출되지 않게 매 테스트 초기화."""
+    monkeypatch.setattr(module, "_circuit_failures", 0)
+    monkeypatch.setattr(module, "_circuit_open_until", 0.0)
+
+
 def _orchestrator(**kwargs) -> LoraRecommendationOrchestrator:
     return LoraRecommendationOrchestrator(base_url="http://lora.test", **kwargs)
 

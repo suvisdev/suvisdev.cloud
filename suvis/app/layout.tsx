@@ -1,13 +1,11 @@
 import type { Metadata } from 'next'
-import { Barlow_Condensed, Geist, Geist_Mono } from 'next/font/google'
+import { Barlow_Condensed, Geist } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { SiteChrome } from '@/components/site-chrome'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
-const _geistMono = Geist_Mono({ subsets: ['latin'] })
-
 const displayCondensed = Barlow_Condensed({
   subsets: ['latin'],
   weight: ['600', '700'],

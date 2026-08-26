@@ -7,9 +7,6 @@ import { Button } from "@/components/ui/button"
 import { patchState } from "@/lib/form-status"
 import { cn } from "@/lib/utils"
 
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
-
 type ChatMessage = {
   role: "user" | "assistant"
   content: string

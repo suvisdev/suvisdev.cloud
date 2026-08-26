@@ -8,7 +8,6 @@ code를 실제 토큰과 맞바꾼다. 키 접두사는 "auth:"로 분리(viewer
 
 from __future__ import annotations
 
-import json
 import os
 import secrets
 from datetime import timedelta

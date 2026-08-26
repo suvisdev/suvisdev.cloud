@@ -9,6 +9,11 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **전체 검증 파이프라인 복구 + 테스트·린트 그린화 (2026-08-26)** —
+  pytest 수집 충돌(scripts 패키지 섀도잉)·테스트 드리프트/격리 6건·
+  lint-imports 실행 불능·프론트 eslint 부재를 모두 복구. 최종: pytest
+  626 passed, lint-imports 6 계약 KEPT, eslint 0 errors, `pnpm build` 통과.
+  상세: WORK_LOG_MOVA·WORK_LOG_MAINPAGE 2026-08-26.
 - **배포 실측 확인 + 지킬 블로그 8/26 포스트 + 로컬 suvisjk 재연결 (2026-08-26)** —
   `edc1de6`까지 EC2(코드·alembic head)·Vercel(장르 탭 번들)·DB(뮤지컬 65건)
   배포 확인. 지킬 8/26 포스트 푸시(Pages 자동 배포). 모노레포 안 `suvisjk/`가

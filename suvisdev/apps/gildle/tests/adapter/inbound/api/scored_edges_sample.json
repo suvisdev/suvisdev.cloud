@@ -1,0 +1,6 @@
+[
+  {"from_node": "N1", "to_node": "N2", "base_distance_m": 200, "midpoint_lat": 37.52625, "midpoint_lng": 126.92575, "road_name": "여의대로", "from_lat": 37.5260, "from_lng": 126.9245, "to_lat": 37.5265, "to_lng": 126.9270},
+  {"from_node": "N2", "to_node": "N5", "base_distance_m": 200, "midpoint_lat": 37.52675, "midpoint_lng": 126.9280, "road_name": "여의대로", "from_lat": 37.5265, "from_lng": 126.9270, "to_lat": 37.5270, "to_lng": 126.9290},
+  {"from_node": "N1", "to_node": "N3", "base_distance_m": 150, "midpoint_lat": 37.5255, "midpoint_lng": 126.9250, "road_name": "샛길", "from_lat": 37.5260, "from_lng": 126.9245, "to_lat": 37.5250, "to_lng": 126.9255},
+  {"from_node": "N3", "to_node": "N5", "base_distance_m": 150, "midpoint_lat": 37.5260, "midpoint_lng": 126.92725, "road_name": "샛길", "from_lat": 37.5250, "from_lng": 126.9255, "to_lat": 37.5270, "to_lng": 126.9290}
+]

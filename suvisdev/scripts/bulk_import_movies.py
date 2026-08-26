@@ -9,11 +9,9 @@ Usage (suvisdev 폴더에서):
       --source tmdb_discover --country KR --pages 50
   docker compose exec backend python scripts/bulk_import_movies.py \
       --source tmdb_popular --pages 20 --start-page 21
-  docker compose exec backend python scripts/bulk_import_movies.py \
-      --source kofic --country KR --pages 30
 
-  --source        tmdb_popular | tmdb_discover | kofic
-  --country       KR | US | ALL (kofic은 K/F 2분류만 지원 — US는 F로 매핑)
+  --source        tmdb_popular | tmdb_discover (kofic은 2026-08-13 CLI에서 제거)
+  --country       KR | US | ALL
   --pages N       이번 실행에서 처리할 페이지 수
   --start-page N  이어받을 시작 페이지(기본 1)
 """

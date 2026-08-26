@@ -15,7 +15,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FormStatus, initialFormStatus, isSuccessMessage } from "@/lib/form-status"
+import type { FormStatus} from "@/lib/form-status";
+import { initialFormStatus, isSuccessMessage } from "@/lib/form-status"
 import { cn } from "@/lib/utils"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 import { saveSuvisSession } from "@/lib/suvis-session"
@@ -57,8 +58,6 @@ type SignupFormProps = {
   birth_year: string
 }
 
-type AuthApiResponse = { message?: string; id?: number; username?: string; nickname?: string }
-type AuthApiErrorBody = { detail?: string | unknown }
 
 const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
@@ -86,11 +85,6 @@ const tabListClass =
 // .dark 스코프에서 specificity로 이겨버리므로, ! 로 명시적으로 라이트를 강제한다.
 const tabTriggerClass =
   "rounded-lg border-transparent text-sm text-neutral-600 shadow-none focus-visible:ring-0 focus-visible:outline-none data-[state=active]:border-transparent data-[state=active]:bg-white data-[state=active]:text-neutral-900 data-[state=active]:shadow-sm dark:text-neutral-600! dark:data-[state=active]:border-transparent! dark:data-[state=active]:bg-white! dark:data-[state=active]:text-neutral-900!"
-
-function parseApiDetail(body: AuthApiErrorBody, status: number, notFound: string, failed: string) {
-  const fallback = status === 404 ? notFound : failed
-  return safeApiErrorMessage(body.detail, fallback, status)
-}
 
 export function AuthForms({
   mode = "login",

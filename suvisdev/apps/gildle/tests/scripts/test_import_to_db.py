@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 import gildle.adapter.outbound.orm.hazard_zone_orm  # noqa: F401

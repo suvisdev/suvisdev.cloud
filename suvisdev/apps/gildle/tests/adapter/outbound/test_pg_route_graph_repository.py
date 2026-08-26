@@ -11,7 +11,6 @@ from gildle.adapter.outbound.orm.route_node_orm import RouteNodeOrm
 from gildle.adapter.outbound.pg.route_graph_pg_repository import (
     PgRouteGraphRepository,
 )
-from gildle.domain.value_objects.route_edge import RouteEdge
 
 
 def _make_session() -> Session:

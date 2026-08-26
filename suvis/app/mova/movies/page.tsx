@@ -137,7 +137,6 @@ const INITIAL_STATE: PageState = {
 
 function MovieCard({ movie }: { movie: ApiMovieRow }) {
   const catalogId = resolveMovaCatalogSlug(movie.slug, movie.title)
-  const platform = movie.platforms[0]?.provider
   return (
     <li>
       <Link

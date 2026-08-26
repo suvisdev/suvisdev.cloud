@@ -1,6 +1,5 @@
 """EdgeScoreCalculator 단위 테스트 — TDD."""
 
-from dataclasses import replace
 
 import pytest
 

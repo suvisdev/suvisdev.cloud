@@ -73,6 +73,19 @@
 - 배포 실측 확인: EC2 저장소·백엔드 이미지 `edc1de6` 반영(컨테이너 안
   `with_keywords` 존재), alembic `20260825_0001 (head)`, Vercel 번들에
   새 장르 탭·뮤지컬 확인, EC2 DB 뮤지컬 태그 65건 존재.
+- **전체 검증 파이프라인 복구 + 테스트 그린화**: ① 전체 pytest에서만 나던
+  수집 에러 3건 — gildle conftest의 sys.path 순서로 정규 패키지
+  `apps/gildle/scripts`가 최상위 `scripts`를 선점(메타패스 훅으로 실증).
+  루트 `scripts/__init__.py` 추가 + gildle 쪽 빈 `__init__.py` 제거로
+  정규>네임스페이스 우선순위를 이용해 순서 무관 해결. ② 테스트 드리프트/
+  격리 6건 수정: bulk_import kofic(8/13 CLI 제거분) → tmdb_discover,
+  채팅 0건 안내 랜덤 3변형 플레이키 → random.choice 고정, gildle 경로 2건
+  → N1~N5 픽스처+`GILDLE_SCORED_EDGES` 고정(서울 실데이터 간섭 차단),
+  core/lol 서킷 전역 상태 누출 → autouse 리셋. 최종 626 passed.
+  ③ lint-imports가 낡은 ignore 3줄로 실행 불능이던 것 복구 — 문서화된
+  결합 (a)를 hub 계약에, 신규 mova ORM 6건을 spoke 계약 ignore에 등록,
+  6 계약 전부 KEPT. ④ ruff F401 미사용 임포트 12건 제거.
+  검증: pytest 626 passed·lint-imports exit 0·`import main` OK.
 - 지킬 블로그(`suvisdev/suvisjk` 레포) 8/26 포스트(장르 탭·뮤지컬 백필)
   추가·푸시. 8/25 포스트는 전 세션이 이미 배포해 둔 상태였음. 모노레포 안
   `suvisjk/`가 레포 분리(8/25) 이전의 낡은 무연결 사본이었던 것을 발견 —
