@@ -47,7 +47,7 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     available: true,
     imageFirst: true,
     gradient: "from-sky-400 via-blue-500 to-cyan-600",
-    icon: "⚡",
+    image: "/apps-seuk.jpg",
     team: "Team Seuk",
   },
 ]
