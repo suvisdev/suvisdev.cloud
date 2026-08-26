@@ -26,21 +26,22 @@ class HubRagInteractor(HubRagUseCase):
         self._repository = repository
         self._embedding = embedding
 
-    async def ingest_movie(self, command: HubKnowledgeUpsertCommand) -> None:
+    async def ingest_movie(self, command: HubKnowledgeUpsertCommand) -> bool:
         text = f"{command.title}\n{command.content}".strip()
         if not text:
-            return
+            return False
         try:
             vector = await self._embedding.embed(text)
         except HubRagError as e:
             # 임베딩 실패해도 임포트 자체(Spoke 쪽 트랜잭션)는 막지 않는다 — dispatch의
             # _embed_or_none과 동일 원칙: RAG 색인은 부가 기능이지 원본 데이터 유실 사유가 아니다.
+            # 다만 False를 돌려 배치 스크립트가 재시도할 수 있게 한다.
             logger.warning(
                 "[HubRagInteractor] ingest 임베딩 실패, 색인 생략 | source_ref=%s detail=%s",
                 command.source_ref,
                 e.detail,
             )
-            return
+            return False
         await self._repository.upsert(command, vector)
         logger.info(
             "[HubRagInteractor] ingest 완료 | source=%s source_ref=%s dim=%d",
@@ -48,6 +49,7 @@ class HubRagInteractor(HubRagUseCase):
             command.source_ref,
             len(vector),
         )
+        return True
 
     async def search_movies(
         self, query: str, *, k: int = 8, trace_id: str = ""

@@ -70,6 +70,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--reset", action="store_true", help="기존 mova_movie 로우 전량 삭제 후 인제스트"
     )
     parser.add_argument("--limit", type=int, default=None, help="앞 N편만 처리(시험 실행용)")
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="이미 색인된 source_ref는 건너뜀 — 중단·부분 실패 후 이어서 실행용",
+    )
     return parser.parse_args(argv)
 
 
@@ -118,8 +123,22 @@ async def main(args: argparse.Namespace) -> None:
             movies = movies[: args.limit]
         print(f"백엔드={args.embedding_backend} 총 {len(movies)}편 인제스트 시작")
 
+        # --skip-existing: 이미 색인된 영화는 건너뛴다 — 중단·부분 실패 후 재실행용.
+        existing_refs: set[str] = set()
+        if args.skip_existing:
+            rows = await session.execute(
+                select(HubKnowledgeOrm.source_ref).where(HubKnowledgeOrm.source == "mova_movie")
+            )
+            existing_refs = {r[0] for r in rows}
+            print(f"[skip-existing] 기존 색인 {len(existing_refs)}건은 건너뜀")
+
         succeeded = 0
+        skipped = 0
+        failed: list[str] = []
         for movie in movies:
+            if str(movie.id) in existing_refs:
+                skipped += 1
+                continue
             cast = await chars_repo.get_cast_by_movie(movie.id)
             cast_names = ", ".join(c.actor_name for c in cast.cast[:5])
             director_names = ", ".join(await _director_names(session, movie.id))
@@ -133,23 +152,40 @@ async def main(args: argparse.Namespace) -> None:
                 content_lines.append(f"감독: {director_names}")
             content = "\n".join(content_lines)
 
+            command = HubKnowledgeUpsertCommand(
+                source="mova_movie",
+                source_ref=str(movie.id),
+                title=movie.title,
+                content=content,
+            )
             try:
-                await hub.ingest_movie(
-                    HubKnowledgeUpsertCommand(
-                        source="mova_movie",
-                        source_ref=str(movie.id),
-                        title=movie.title,
-                        content=content,
-                    )
-                )
+                # ingest_movie는 임베딩 실패(레이트리밋 등)를 예외 대신 False로
+                # 돌려준다 — 지수 백오프로 재시도한다(2026-08-26: 전량 실행에서
+                # 2,083건이 조용히 생략돼 "성공 2,972"로 위장된 사고의 재발 방지).
+                indexed = False
+                for attempt in range(5):
+                    indexed = await hub.ingest_movie(command)
+                    if indexed:
+                        break
+                    await asyncio.sleep(2 * (2**attempt))  # 2,4,8,16,32초
                 await session.commit()
-                succeeded += 1
-                print(f"  완료: {movie.title}")
+                if indexed:
+                    succeeded += 1
+                    print(f"  완료: {movie.title}")
+                else:
+                    failed.append(movie.title)
+                    print(f"  실패(재시도 소진): {movie.title}")
             except Exception as e:  # noqa: BLE001
                 await session.rollback()
+                failed.append(movie.title)
                 print(f"  실패: {movie.title} — {e}")
 
-        print(f"전체 완료 succeeded={succeeded}/{len(movies)}")
+        print(
+            f"전체 완료 succeeded={succeeded} skipped={skipped} "
+            f"failed={len(failed)} / {len(movies)}"
+        )
+        if failed:
+            print("실패 목록(앞 20): " + ", ".join(failed[:20]))
 
 
 if __name__ == "__main__":
