@@ -54,7 +54,12 @@ def get_recommendation_port() -> RecommendationPort:
     backend = os.getenv("RECOMMENDATION_BACKEND", "lora")
     if backend == "gemini":
         return GeminiRecommendationAdapter()
-    return LoraRecommendationAdapter()
+    # lora 실패(서킷 오픈 포함) 시 Gemini로 자동 폴백. 서킷 쿨다운(60초)이
+    # 지나면 primary(LoRA)를 다시 시도하므로 서버 복구 시 자동 복귀한다.
+    return FallbackRecommendationAdapter(
+        primary=LoraRecommendationAdapter(),
+        fallback=GeminiRecommendationAdapter(),
+    )
 
 
 def get_user_preference_port(

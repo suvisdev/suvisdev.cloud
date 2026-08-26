@@ -553,9 +553,9 @@ export function MovaAiChatBar({
             <div className="flex flex-col gap-2">
               {/* 3D 클래퍼보드 감성 로딩 — 채팅 대기 시간(3~10초)이 브랜드 순간이
                   되도록 인라인 재생. muted+playsInline+loop로 자동 재생 정책 회피. */}
-              {/* 원본 1280×720 우측 ~20%가 검은 여백으로 구워져 있어, 컨테이너를
-                  콘텐츠 비율(7:5)로 잡고 object-left로 오른쪽만 크롭한다. */}
-              <div className="aspect-[7/5] w-40 overflow-hidden rounded-2xl border border-mova-border bg-black shadow-sm md:w-48">
+              {/* 원본 1280×720 하단 문구("Mova가 찾아줄게")가 폭 ~85%까지 차므로
+                  크롭 없이 16:9 그대로 보여준다(예전 7:5 크롭은 문구를 잘랐다). */}
+              <div className="aspect-video w-40 overflow-hidden rounded-2xl border border-mova-border bg-black shadow-sm md:w-48">
                 <video
                   src="/mova-clapperboard-loading.mp4"
                   autoPlay
@@ -564,7 +564,7 @@ export function MovaAiChatBar({
                   playsInline
                   preload="auto"
                   aria-hidden
-                  className="h-full w-full object-cover object-left"
+                  className="h-full w-full object-cover"
                 />
               </div>
               <div className="flex items-center gap-2 text-xs text-mova-muted">

@@ -28,6 +28,36 @@
 
 ---
 
+## 2026-08-26
+
+### 작업 내용
+- 프로덕션 `/mova/chat` 502 원인 규명: 노트북 lora-server·cloudflared가 내려가
+  `lora.suvisdev.cloud`가 530 → EC2(`RECOMMENDATION_BACKEND=lora`)의 LoRA 호출
+  연속 실패 → 서킷 오픈. 8/25에 추가된 `FallbackRecommendationAdapter`가
+  **DI에 미연결**이라 Gemini 자동 폴백이 작동하지 않고 에러가 그대로 노출됐다.
+- 채팅 로딩 클래퍼보드 영상 하단 문구("Mova가 찾아줄게") 잘림 수정. 영상
+  파일 자체는 원본과 md5 동일 — 잘림은 CSS 크롭(`aspect-[7/5]`+`object-left`)
+  때문이었다(주석의 "우측 20% 검은 여백" 전제가 현재 영상과 불일치).
+
+### 수정/구현
+- `suvisdev/apps/mova/dependencies/market_chat_provider.py` —
+  `get_recommendation_port()`가 lora 모드에서
+  `FallbackRecommendationAdapter(primary=LoRA, fallback=Gemini)`를 조립하도록
+  연결. 서킷 쿨다운(60초) 후 LoRA 재시도 → 성공 시 자동 복귀(왕복 자동 전환).
+- `suvis/components/mova/mova-ai-chat-bar.tsx` — 로딩 비디오 컨테이너를
+  `aspect-video`로, `object-left` 크롭 제거.
+
+### 오류·막힌 점
+- 로컬 검증 시 `.env`의 `RECOMMENDATION_BACKEND=gemini`가
+  `load_dotenv(override=True)`로 셸 env를 덮어써 폴백 조립이 안 보이는 것처럼
+  나옴 — import 후 `os.environ` 주입으로 양쪽 모드 조립 검증 완료.
+
+### 데이터
+- 변경 없음.
+
+### 산출물
+- 커밋(아래), mova 채팅 테스트 12건 통과, `pnpm type-check` 통과.
+
 ## 2026-08-25
 
 ### 작업 내용
