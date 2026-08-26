@@ -53,7 +53,20 @@
   나옴 — import 후 `os.environ` 주입으로 양쪽 모드 조립 검증 완료.
 
 ### 데이터
-- 변경 없음.
+- EC2 DB 장르 실측: 19개 장르(TMDB 표준). "뮤지컬"은 TMDB 장르 체계에
+  없어 0편 — 레미제라블은 "역사, 드라마", 라라랜드는 "코미디, 로맨스,
+  드라마"로만 수집돼 있었다. "음악"(92편)은 콘서트 실황·아이돌 다큐 계열로
+  뮤지컬과 별개(사용자 지적으로 확인).
+- TMDB 키워드(musical 4344 | broadway musical 165241 | musical theater
+  220201, vote≥100) discover 458편 ↔ 카탈로그 3,419편을 제목 정규화+연도 ±1
+  매칭 → 65편(레미제라블·라라랜드·위대한 쇼맨·위키드·겨울왕국 등).
+
+### 수정/구현 (추가)
+- `/mova/movies` 장르 탭을 DB 실측에 맞게 갱신: 뮤지컬 0편 문제로 모험·
+  판타지·가족·미스터리·음악 추가, 뮤지컬은 아래 백필과 함께 유지(총 16탭).
+- `suvisdev/scripts/tag_musical_genre.py` 신규 — TMDB 키워드 기반 '뮤지컬'
+  genre 태그 백필(멱등, `--dry-run` 지원). `TmdbAdapter.fetch_discover`에
+  `with_keywords` 파라미터 추가.
 
 ### 산출물
 - 커밋(아래), mova 채팅 테스트 12건 통과, `pnpm type-check` 통과.

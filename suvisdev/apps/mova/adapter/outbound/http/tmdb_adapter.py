@@ -116,6 +116,7 @@ class TmdbAdapter:
         page: int = 1,
         with_origin_country: str | None = None,
         with_genres: str | None = None,
+        with_keywords: str | None = None,
         sort_by: str = "popularity.desc",
         include_adult: bool = False,
         vote_count_gte: int | None = None,
@@ -138,6 +139,8 @@ class TmdbAdapter:
             params["with_origin_country"] = with_origin_country
         if with_genres:
             params["with_genres"] = with_genres
+        if with_keywords:
+            params["with_keywords"] = with_keywords
         if vote_count_gte is not None:
             params["vote_count.gte"] = int(vote_count_gte)
         # region+with_release_type을 함께 주면 release_date.* 필터가 그 나라의

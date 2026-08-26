@@ -19,6 +19,9 @@ import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { patchState } from "@/lib/form-status"
 import { cn } from "@/lib/utils"
 
+// DB tags(label) 실측 기준(2026-08-26). "뮤지컬"은 TMDB 장르에 없어
+// scripts/tag_musical_genre.py가 키워드 기반으로 백필한다. "음악"은 콘서트
+// 실황·음악 다큐 계열. 편수 적은 역사·전쟁·서부·TV영화는 탭 제외.
 const GENRES = [
   "전체",
   "드라마",
@@ -27,11 +30,16 @@ const GENRES = [
   "스릴러",
   "SF",
   "코미디",
+  "모험",
+  "판타지",
   "공포",
   "범죄",
   "애니메이션",
-  "다큐멘터리",
+  "가족",
+  "미스터리",
   "뮤지컬",
+  "다큐멘터리",
+  "음악",
 ] as const
 
 type GenreTab = (typeof GENRES)[number]
@@ -391,7 +399,7 @@ function MovaMoviesPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genre, decade, minRating, sort, actor, ageRating, platform])
 
-  // 장르 로우 데이터: 기본 상태에서만 11개 장르를 병렬로 fetch(각 12편).
+  // 장르 로우 데이터: 기본 상태에서만 전체 탭 장르를 병렬로 fetch(각 12편).
   useEffect(() => {
     if (!showGenreRows) return
     let cancelled = false
