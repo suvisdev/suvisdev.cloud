@@ -62,8 +62,9 @@ await backendFetch(path, { headers: auth ? { Authorization: auth } : {} })
 - 새로 무인증 엔드포인트를 만들 땐 왜 열어두는지, 무엇이 들어올 수 있는지 주석에
   적는다. 근거 없이 열린 엔드포인트는 취약점으로 간주한다.
 - 공개 데모 페이지가 인증이 걸린 엔드포인트를 호출하고 있지 않은지 확인한다
-  (`suvis/app/mail/contacts`가 `adress`에 가드를 걸면서 401만 받게 된 상태 —
-  미결 백로그).
+  (`suvis/app/mail/contacts`가 이 상태로 한동안 방치됐다가 2026-08-27
+  `app/mail/layout.tsx`의 `AdminAuthGate`로 정리됨 — 백엔드를 잠그면 그걸
+  호출하는 페이지의 노출·토큰 전달까지 같은 작업에서 맞춘다).
 
 ### 5. 소유권 검증 (IDOR)
 

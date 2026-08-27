@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useCallback, useRef, useState } from "react"
 import { BookUser, FileSpreadsheet, Upload, UserPlus, X } from "lucide-react"
+import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 const ACCEPT = ".csv,text/csv"
@@ -82,7 +83,11 @@ export default function MailContactsPage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      const res = await fetch("/api/dispatch/adress/upload", { method: "POST", body: formData })
+      const res = await fetch("/api/dispatch/adress/upload", {
+        method: "POST",
+        headers: authHeader(),
+        body: formData,
+      })
       const data = (await res.json()) as { row_count?: number; detail?: string }
       if (!res.ok) throw new Error(data.detail ?? `업로드 실패 (${res.status})`)
       setUploadResult(`업로드 성공: ${data.row_count ?? 0}개 연락처 등록됨`)

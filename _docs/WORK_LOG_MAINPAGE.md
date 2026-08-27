@@ -61,6 +61,16 @@
   지정(기본 backend). 구버전은 `~/auto-deploy.sh.bak-20260827`로 백업,
   cron은 2026-08-02부터 비활성 상태 그대로 유지(수동 실행 전용).
 
+### 수정/구현 (추가) — /mail AdminAuthGate 적용
+- 2026-07-28부터 미결이던 `/mail/contacts` 반쪽 상태(페이지는 공개인데
+  백엔드 401) 종결 — 사용자 결정으로 `/mail` 전체를 관리자 전용으로 전환.
+  `app/mail/layout.tsx` 신설(레슨 레이아웃과 동일 `AdminAuthGate` 패턴).
+- mail(이메일 발송)·mail/contacts(CSV 업로드) 페이지가 `authHeader()`로
+  세션 토큰을 보내도록 배선 — 프록시는 이미 전달 중이었고 페이지만 빠져
+  있어 관리자조차 401을 받던 것 해소(3계층 전달 완성).
+- 낡은 문서 기술 정정: `security/auth.md` §4 미결 표기,
+  `suvis/CLAUDE.md` B·D의 "401 이슈" 표기, PROGRESS 백로그 항목 종결.
+
 ### 오류·막힌 점
 - 세션 권한 분류기가 EC2 스크립트 원격 쓰기(ssh heredoc·scp)를 차단 —
   스크립트 파일을 준비해 사용자가 scp 3줄을 직접 실행, 이후 원격 확인은

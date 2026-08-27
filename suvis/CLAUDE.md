@@ -43,7 +43,7 @@ suvis/
 │   ├── langchain/chat/          # LangChain 챗 데모
 │   ├── lesson/                  # 레슨
 │   ├── login/, signup/          # 인증
-│   ├── mail/                    # 메일·연락처 공개 데모 (mail/contacts는 adress 백엔드 인증 필요 — 401 이슈 있음, 아래 D 참고)
+│   ├── mail/                    # 메일·연락처 데모 — layout.tsx AdminAuthGate로 관리자 전용(2026-08-27)
 │   ├── mova/                    # Mova(영화 추천) 섹션 — 자체 브랜드 토큰(mova.css), 상세는 `_docs/DESIGN.md`
 │   │   ├── page.tsx, layout.tsx, mova.css
 │   │   ├── login/, main/, movies/, collections/, rankings/, title/, mypage/
@@ -165,7 +165,7 @@ suvis/
 | `/login`, `/signup` | 로그인·회원가입 | `POST /viewer/login/login`, `POST /viewer/signup/signup` |
 | `/oauth/callback`, `/oauth/consent` | OAuth 콜백·동의 | `apps/auth` |
 | `/contact`, `/lesson`, `/apps`, `/devlog` | 정적/카탈로그 페이지 | — |
-| `/mail`, `/mail/contacts` | 연락처 공개 데모 | `dispatch` adress(현재 `require_admin` 가드로 공개 페이지 401 — 미결, `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 참고) |
+| `/mail`, `/mail/contacts` | 연락처 데모(관리자 전용 — `AdminAuthGate`) | `dispatch` email·adress(`require_admin`, 세션 Bearer 전달) |
 | `/dispatch`, `/telegram`, `/soccer/chat`, `/langchain/chat` | 발송·챗 데모 | `dispatch`, `execsuite` 등 |
 | `/titanic` | Titanic 메인 | — |
 | `/titanic/data-collection` | CSV 업로드 | `POST /titanic/james/...` |
