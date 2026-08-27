@@ -28,6 +28,54 @@
 
 ---
 
+## 2026-08-27
+
+### 작업 내용
+- LLM 챗 엔드포인트 3개(titanic `smith/chat`·execsuite `langchain/chat`·
+  contents `soccer/chat`)가 백엔드 무인증·무 rate-limit으로 인터넷에 공개돼
+  있던 것(2026-08-04 백로그 "의도 재확인 필요" 건)을 `require_admin`으로
+  잠금. 착수 전 프로덕션 실측으로 세 URL 모두 `api.suvisdev.cloud`에서
+  살아 있음을 확인(GET 405 = 라우트 존재). 사용자 결정: "mova 챗 제외
+  전부 잠금"(mova 챗만 공개 유지 — 자체 IP rate limit 보유).
+- 조사 중 발견: `/api/v1/langchain/chat`은 레슨 페이지뿐 아니라 **사이트
+  전역 공개 플로팅 챗 위젯(`SuvisChatPanel`)**도 호출하고 있었음 —
+  백엔드만 잠그면 익명 방문자에게 고장난 위젯이 남으므로(mail/contacts와
+  동일한 반쪽 상태) 위젯도 관리자 전용 노출로 함께 전환.
+- EC2 `~/auto-deploy.sh` 재작성 — backend 재생성 후 nginx가 구 IP를 캐시해
+  외부 502가 나던 문제(실측 2회, 8/25 백로그)의 재발 방지.
+
+### 수정/구현
+- 백엔드: 라우터 3개(`crew_smith_captain_router.py`·`langchain_chat_router.py`·
+  `soccer_chat_router.py`)에 `require_admin` 부착(`.claude/rules/security/auth.md`
+  §1 표준 패턴).
+- 프론트(3계층 토큰 전달): 프록시 `route.ts` 3개가 Authorization 헤더를
+  백엔드로 전달, 페이지 3개(smith-captain·soccer/chat·langchain/chat)가
+  `authHeader()`로 세션 토큰 전송, `gemini-chat-panel.tsx`는 헤더와 동일한
+  세션 role 구독 패턴으로 비관리자에게 렌더링하지 않음 + 토큰 전송.
+- 테스트: 앱별 401/관리자 통과 테스트 6건 신규(media 테스트의
+  dependency_overrides 패턴), `pytest.ini` testpaths에 `apps/execsuite/tests`·
+  `apps/contents/test` 추가(그동안 미수집 스캐폴드였음).
+- EC2 `~/auto-deploy.sh`(레포 밖 파일) 재작성: ① `docker compose restart` →
+  `--env-file suvisdev/.env up -d --build`(restart는 새 코드 미반영, 8/3 실측),
+  ② 배포 후 `docker exec nginx nginx -s reload` 항상 실행, ③ 인자로 서비스
+  지정(기본 backend). 구버전은 `~/auto-deploy.sh.bak-20260827`로 백업,
+  cron은 2026-08-02부터 비활성 상태 그대로 유지(수동 실행 전용).
+
+### 오류·막힌 점
+- 세션 권한 분류기가 EC2 스크립트 원격 쓰기(ssh heredoc·scp)를 차단 —
+  스크립트 파일을 준비해 사용자가 scp 3줄을 직접 실행, 이후 원격 확인은
+  읽기 전용 ssh로 완료.
+
+### 산출물
+- 검증: pytest 639 passed(신규 6건 포함), lint-imports 6 계약 KEPT,
+  `pnpm type-check`·lint 통과(경고 1건은 기존 백로그 등재분).
+- 결정 기록(사용자, 2026-08-27): **Gemini 유료 티어 전환 안 함** — 무료
+  티어 제약(임베딩 1,000/일, 분당 15요청)을 전제로 운영 계속.
+- PROGRESS.md 갱신: LLM 챗 무인증 백로그 → 완료, nginx 리로드 후속 → 완료,
+  9순위 (a) 결정 반영.
+
+---
+
 ## 2026-08-26
 
 ### 작업 내용

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Bot, CornerDownLeft, Link2, Loader2, Workflow } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { patchState } from "@/lib/form-status"
+import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type ChatMessage = {
@@ -62,7 +63,7 @@ export default function LangchainChatPage() {
     try {
       const res = await fetch(`/api/v1/langchain/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ messages: nextMessages }),
       })
       const data = (await res.json()) as { reply?: string; detail?: string }

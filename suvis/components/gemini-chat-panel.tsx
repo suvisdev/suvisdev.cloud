@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { CornerDownLeft, MessageCircle, Mic, Plus, SlidersHorizontal, X } from "lucide-react"
 import { patchState } from "@/lib/form-status"
+import { authHeader, getSuvisSession, SUVIS_SESSION_CHANGED_EVENT } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
@@ -24,6 +25,7 @@ type MessageFormProps = { message: string }
 
 // LESSON의 LangChain 채팅(app/langchain/chat/page.tsx)과 동일한 백엔드 —
 // semantic_router가 의도를 판단한 뒤 LangChain 체인이 답변을 생성한다.
+// 백엔드가 require_admin으로 잠겨 있어(2026-08-27) 위젯도 관리자에게만 노출한다.
 const CHAT_API = "/api/v1/langchain/chat"
 
 type ChatApiResponse = { reply?: string }
@@ -63,6 +65,7 @@ function parseChatApiError(body: ChatApiErrorBody, status: number): string {
 }
 
 export function SuvisChatPanel() {
+  const [isAdmin, setIsAdmin] = useState(false)
   const [ui, setUi] = useState<ChatUiState>({ open: false, listening: false })
   const [chat, setChat] = useState<ChatState>(initialChat)
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
@@ -72,6 +75,17 @@ export function SuvisChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const recognitionRef = useRef<SpeechRecognitionInstanceLike | null>(null)
+
+  useEffect(() => {
+    const syncFromSession = () => setIsAdmin(getSuvisSession()?.role === "admin")
+    syncFromSession()
+    window.addEventListener(SUVIS_SESSION_CHANGED_EVENT, syncFromSession)
+    window.addEventListener("storage", syncFromSession)
+    return () => {
+      window.removeEventListener(SUVIS_SESSION_CHANGED_EVENT, syncFromSession)
+      window.removeEventListener("storage", syncFromSession)
+    }
+  }, [])
 
   useEffect(() => {
     if (!ui.open) return
@@ -97,7 +111,7 @@ export function SuvisChatPanel() {
       try {
         const res = await fetch(CHAT_API, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeader() },
           body: JSON.stringify({ messages: nextMessages }),
         })
         const data = (await res.json()) as ChatApiResponse & ChatApiErrorBody
@@ -191,6 +205,8 @@ export function SuvisChatPanel() {
     patchChat({ error: null })
     recognition.start()
   }
+
+  if (!isAdmin) return null
 
   return (
     <>

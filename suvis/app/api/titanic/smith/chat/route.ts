@@ -4,9 +4,13 @@ import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    const auth = request.headers.get("authorization")
     const res = await backendFetch("/api/titanic/smith/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth ? { Authorization: auth } : {}),
+      },
       body: JSON.stringify(body),
     })
     let data: unknown

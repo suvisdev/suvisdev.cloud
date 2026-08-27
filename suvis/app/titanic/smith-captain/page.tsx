@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Anchor, Bot, CornerDownLeft, Loader2, MessageCircle, Ship } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { patchState } from "@/lib/form-status"
+import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type ChatMessage = {
@@ -69,7 +70,7 @@ export default function SmithCaptainChatPage() {
     try {
       const res = await fetch(`/api/titanic/smith/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({
           messages: nextMessages,
           model: "flash",

@@ -9,6 +9,13 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **LLM 챗 3종 require_admin 잠금 + EC2 배포 스크립트 재작성 (2026-08-27)** —
+  titanic smith·execsuite langchain·contents soccer 챗의 백엔드 무인증 공개
+  (2026-08-04 백로그)를 잠금(사용자 결정: mova 챗 제외 전부). langchain을
+  쓰던 공개 플로팅 챗 위젯(SuvisChatPanel)은 관리자 전용 노출로 전환.
+  3계층 토큰 전달 배선 + 테스트 6건. EC2 `~/auto-deploy.sh`를 현행 절차
+  (up -d --build + `--env-file` + nginx reload)로 재작성해 nginx 구 IP 캐시
+  502 재발 방지. 상세: WORK_LOG_MAINPAGE 2026-08-27.
 - **mova 채팅 실측 개선 3종 + RAG 부활 (2026-08-26 오후)** — zero-rec
   로그 실측에서 출발: ① 국가 명시 요청의 언어 허용목록 과차단 수정
   (일본 애니 0건→3건), ② dedup 소진 시 풀 16→48 확장 재검색, ③ 불만·
@@ -875,9 +882,9 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
   전용 UI 뱃지·출처 링크 표시(현재는 닉네임 "Mova 에디터"로만 구분).
 
 ### mova 채팅·배포 운영 후속(2026-08-25)
-- **backend 컨테이너 재생성 후 nginx 리로드 필요** — nginx가 구 IP를 캐시해
-  외부 502(실측 2회). 배포 스크립트에 `docker exec nginx nginx -s reload`
-  포함하거나 nginx resolver 설정 검토.
+- ~~**backend 컨테이너 재생성 후 nginx 리로드 필요**~~ — **완료(2026-08-27)**:
+  EC2 `~/auto-deploy.sh` 재작성으로 배포 시 nginx reload 항상 실행.
+  위 "완료됨" 참고.
 - **LoRA 교사 데이터셋 확대** — 현재 60건(스킵 25건은 카탈로그 부실이
   원인이었음). TMDB 1,000편 수집 + DB 정리 후 재생성하면 스킵이 줄어
   더 큰 셋 가능. `datasets/gen_teacher_dataset.py` 재실행.
@@ -1081,8 +1088,9 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
     순간 걸린 요청은 구제된다. 하루 한도엔 소용없으므로 1회로 끝낸다 —
     사용자를 40초씩 붙잡지 않기 위해서.
   - 테스트 9건 추가(`test_gemini_quota_retry.py` 4 + `test_intent_gemini_skip.py` 5).
-- **남은 것 (a)**: 유료 티어 전환 여부 — **제품·비용 결정이라 사용자 판단 필요**.
-  무료 티어인 한 임베딩 하루 1000건(위 1-b) 제약도 그대로다.
+- **(a) 결정 완료(2026-08-27, 사용자)**: **유료 티어 전환 안 함** — 무료
+  티어 제약(임베딩 하루 1000건, 분당 15요청)을 전제로 운영을 계속한다.
+  이 항목 종결.
 
 **선택은 다음 세션 시작 시 판단.**
 
@@ -1111,17 +1119,9 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
   전파 경로는 구조적으로 막힘(그대로 둠). 76~84행은 `upsert_movie()`
   자신의 독립적 실패 대비용으로 유효하니 제거하지 않음, 재현 시험은
   우선순위 낮음. 상세: WORK_LOG 2026-08-05(추가①).
-- **LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**: 리라이트 정리
-  중 route.ts를 새로 만들면서 확인 — `titanic/smith/chat`
-  (`apps/titanic/adapter/inbound/api/v1/crew_smith_captain_router.py`),
-  `execsuite/langchain/chat`(`apps/execsuite/.../langchain_chat_router.py`),
-  `contents/soccer/chat`(`apps/contents/.../soccer_chat_router.py`) 셋 다
-  `require_user`/`require_admin` 같은 인증 가드가 전혀 없고, `main.py`에
-  글로벌 rate-limit 미들웨어도 없고, 각 앱 자체에도 rate_limit 의존성이 없음
-  (mova `/mova/chat`은 IP 기준 rate limit이라도 있는 것과 대조). Gemini 호출
-  뒤라 무인증·무제한이면 남용(과금 유발) 벡터가 될 수 있음 — **의도된
-  설계인지(레슨 데모라 의도적으로 열어둔 것인지) 제품 결정으로 재확인
-  필요.** 이번 리라이트 정리 스코프와는 별개, 손대지 않음.
+- ~~**LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**~~ —
+  **완료(2026-08-27)**: 셋 다 `require_admin`으로 잠금(사용자 결정), 공개
+  플로팅 챗 위젯은 관리자 전용 노출로 전환. 위 "완료됨" 참고.
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(2026-08-04 신규)**: `suvisdev/main.py`에서
   `titanic`/`gildle`/`execsuite`/`dispatch`/`contents`/`vision`/`ontology`/`nlp`/
   `analytics`/`media`는 전부 `/api` 또는 `/api/v1`로 마운트되는데 `mova_router`만

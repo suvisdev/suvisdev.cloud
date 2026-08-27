@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from execsuite.adapter.inbound.api.schemas.langchain_chat_schema import (
     LangchainChatRequestSchema,
@@ -17,6 +18,7 @@ langchain_chat_router = APIRouter(prefix="/langchain", tags=["execsuite-langchai
 async def chat(
     req: LangchainChatRequestSchema,
     use_case: LangchainChatUseCase = Depends(get_langchain_chat_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> LangchainChatResponseSchema:
     try:
         dto = await use_case.chat(
