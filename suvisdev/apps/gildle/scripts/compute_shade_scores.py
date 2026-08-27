@@ -36,6 +36,10 @@ _SLOTS = list(range(7, 20))  # 07..19 KST
 _SEOUL_CENTER = (37.5665, 126.9780)
 _TREE_SHADE_WEIGHT = 0.6
 _MIN_SUN_ALT_DEG = 5.0  # 이보다 낮으면 전면 그늘(=100) 처리
+_IMPUTE_GRID_M = 250.0  # 결측 높이 추정 격자(동네 단위)
+_IMPUTE_MIN_SAMPLES = 3  # 격자 중앙값을 신뢰할 최소 실측 동 수
+_IMPUTE_MAX_HEIGHT_M = 150.0  # 추정치 상한(초고층 이웃 과대 전파 방지)
+_DEFAULT_HEIGHT_FALLBACK_M = 6.0  # 실측이 하나도 없을 때의 마지막 폴백
 
 
 def project_to_meters(lat: float, lng: float, lat0: float, lng0: float) -> tuple[float, float]:
@@ -43,6 +47,44 @@ def project_to_meters(lat: float, lng: float, lat0: float, lng0: float) -> tuple
     x = (lng - lng0) * 111320.0 * math.cos(math.radians(lat0))
     y = (lat - lat0) * 110540.0
     return x, y
+
+
+def impute_heights(buildings: list[dict[str, Any]]) -> int:
+    """`height_known=False` 건물의 높이를 이웃 실측 중앙값으로 추정한다.
+
+    서울 OSM 높이 태그 결측 실측 75.7%(2026-08-27) 대응. 250m 격자별로
+    실측(`height_known=True`) 높이의 중앙값을 구해 같은 격자의 결측 건물에
+    적용하고, 격자 표본이 부족하면 전역 중앙값으로 폴백한다. 격자 중앙값은
+    저층 주거지·고층 밀집지의 동네 특성을 그대로 반영하는 근사다(한계:
+    같은 격자 안 저층·고층 혼재는 평균화됨). 추정한 동 수를 반환한다.
+    """
+    from statistics import median
+
+    lat0, lng0 = _SEOUL_CENTER
+    centroids: list[tuple[float, float]] = []
+    cells: dict[tuple[int, int], list[float]] = {}
+    for b in buildings:
+        pts = b["outline"]
+        clat = sum(p[0] for p in pts) / len(pts)
+        clng = sum(p[1] for p in pts) / len(pts)
+        x, y = project_to_meters(clat, clng, lat0, lng0)
+        centroids.append((x, y))
+        if b.get("height_known"):
+            cell = (int(x // _IMPUTE_GRID_M), int(y // _IMPUTE_GRID_M))
+            cells.setdefault(cell, []).append(b["height_m"])
+
+    cell_median = {c: median(v) for c, v in cells.items() if len(v) >= _IMPUTE_MIN_SAMPLES}
+    known_all = [b["height_m"] for b in buildings if b.get("height_known")]
+    global_median = median(known_all) if known_all else _DEFAULT_HEIGHT_FALLBACK_M
+
+    imputed = 0
+    for b, (x, y) in zip(buildings, centroids, strict=True):
+        if b.get("height_known"):
+            continue
+        cell = (int(x // _IMPUTE_GRID_M), int(y // _IMPUTE_GRID_M))
+        b["height_m"] = min(cell_median.get(cell, global_median), _IMPUTE_MAX_HEIGHT_M)
+        imputed += 1
+    return imputed
 
 
 def _shadow_polygon(
@@ -120,7 +162,14 @@ def main() -> None:
 
     edges = json.loads(Path(args.edges).read_text(encoding="utf-8"))
     buildings = json.loads(Path(args.buildings).read_text(encoding="utf-8"))
-    logger.info("엣지 %d, 건물 %d, 슬롯 %s", len(edges), len(buildings), args.slots)
+    imputed = impute_heights(buildings)
+    logger.info(
+        "엣지 %d, 건물 %d(높이 추정 %d동), 슬롯 %s",
+        len(edges),
+        len(buildings),
+        imputed,
+        args.slots,
+    )
 
     per_edge: dict[str, list[int]] = {}
     for slot in args.slots:

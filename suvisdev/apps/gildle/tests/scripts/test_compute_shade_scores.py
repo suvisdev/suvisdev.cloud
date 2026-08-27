@@ -65,3 +65,44 @@ def test_project_roundtrip_scale():
     x0, y0 = project_to_meters(37.5300, 126.9300, 37.53, 126.93)
     x1, y1 = project_to_meters(37.5301, 126.9300, 37.53, 126.93)
     assert abs((y1 - y0) - 11.1) < 1.0 and abs(x1 - x0) < 0.01
+
+
+def test_impute_heights_uses_cell_median():
+    from gildle.scripts.compute_shade_scores import impute_heights
+
+    # 같은 250m 격자 안: 실측 20m·40m 두 동 + 결측 한 동 → 중앙값 30m.
+    def _b(lng_off: float, height: float, known: bool):
+        base = [
+            [37.5300, 126.9300 + lng_off],
+            [37.5300, 126.93005 + lng_off],
+            [37.53005, 126.93005 + lng_off],
+        ]
+        return {"outline": base, "height_m": height, "height_known": known}
+
+    buildings = [
+        _b(0.0, 20.0, True),
+        _b(0.0001, 40.0, True),
+        _b(0.0002, 6.0, False),
+        _b(0.0003, 25.0, True),
+    ]
+    imputed = impute_heights(buildings)
+    assert imputed == 1
+    assert buildings[2]["height_m"] == 25.0  # [20, 25, 40]의 중앙값
+
+
+def test_impute_heights_falls_back_to_global_median():
+    from gildle.scripts.compute_shade_scores import impute_heights
+
+    known_far = {
+        "outline": [[37.60, 127.10], [37.60, 127.1001], [37.6001, 127.1001]],
+        "height_m": 12.0,
+        "height_known": True,
+    }
+    unknown = {
+        "outline": [[37.45, 126.80], [37.45, 126.8001], [37.4501, 126.8001]],
+        "height_m": 6.0,
+        "height_known": False,
+    }
+    # 결측 건물의 격자엔 실측 표본이 없음(최소 3동 미달) → 전역 중앙값 12.0.
+    impute_heights([known_far, unknown])
+    assert unknown["height_m"] == 12.0
