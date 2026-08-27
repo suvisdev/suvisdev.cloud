@@ -8,10 +8,12 @@ class SeasonMode(Enum):
 
     - SPRING_AUTUMN: 봄·가을 — 보너스 수종 가로수길 30% 감면.
     - WINTER_SAFETY: 겨울 — 결빙 사고 다발지역 근처 500% 증가.
+    - SUMMER_SHADE: 여름 — 햇빛 구간에 그늘 비율 반비례 페널티(최대 500%).
     """
 
     SPRING_AUTUMN = "spring_autumn"
     WINTER_SAFETY = "winter_safety"
+    SUMMER_SHADE = "summer_shade"
 
     @classmethod
     def from_value(cls, value: str) -> SeasonMode:

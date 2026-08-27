@@ -137,3 +137,49 @@ class TestWinterSafety:
         weight = calc.calculate_edge_weight(edge, SeasonMode.WINTER_SAFETY, [seg], [])
 
         assert weight.value == 100.0  # 겨울 모드는 수종 감면 없음
+
+
+class TestSummerShade:
+    """여름 그늘 모드 — 햇빛 구간 강한 페널티(그늘 강력 우선)."""
+
+    def _summer_edge(self, tree_score: float = 0.0) -> RouteEdge:
+        return RouteEdge(
+            from_node="a",
+            to_node="b",
+            base_distance_m=100.0,
+            midpoint=Coordinate(latitude=37.53, longitude=126.93),
+            road_name=None,
+            tree_score=tree_score,
+        )
+
+    def test_full_shade_keeps_base_weight(self):
+        calc = RouteWeightCalculator()
+        w = calc.calculate_edge_weight(
+            self._summer_edge(), SeasonMode.SUMMER_SHADE, [], [], shade_fraction=1.0
+        )
+        assert w.value == 100.0
+
+    def test_full_sun_penalized_5x(self):
+        calc = RouteWeightCalculator()
+        w = calc.calculate_edge_weight(
+            self._summer_edge(), SeasonMode.SUMMER_SHADE, [], [], shade_fraction=0.0
+        )
+        assert w.value == 500.0  # base × (1 + 4.0)
+
+    def test_none_falls_back_to_tree_score(self):
+        calc = RouteWeightCalculator()
+        w = calc.calculate_edge_weight(
+            self._summer_edge(tree_score=1.0),
+            SeasonMode.SUMMER_SHADE,
+            [],
+            [],
+            shade_fraction=None,
+        )
+        assert w.value == 100.0  # tree_score 1.0 → 그늘 취급
+
+    def test_other_modes_ignore_shade_fraction(self):
+        calc = RouteWeightCalculator()
+        w = calc.calculate_edge_weight(
+            self._summer_edge(), SeasonMode.SPRING_AUTUMN, [], [], shade_fraction=0.0
+        )
+        assert w.value == 100.0

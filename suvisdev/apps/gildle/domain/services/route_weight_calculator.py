@@ -9,6 +9,7 @@ from gildle.domain.value_objects.season_mode import SeasonMode
 # 가중치 규칙 상수.
 _SPRING_DISCOUNT_RATE = 0.3  # 보너스 수종 구간 30% 감면
 _WINTER_PENALTY_RATE = 5.0  # 위험구역 근처 500% 증가(6배)
+_SUN_PENALTY_RATE = 4.0  # 완전 햇빛 구간 400% 증가(5배) — 그늘 강력 우선
 _PROXIMITY_MATCH_M = 10.0  # 도로명 매칭 실패 시 좌표 근접 보조 기준
 _HAZARD_NEAR_M = 20.0  # 위험구역 근접 판정 기준
 
@@ -25,11 +26,14 @@ class RouteWeightCalculator:
         mode: SeasonMode,
         nearby_segments: list[TreeSegment],
         nearby_hazards: list[HazardZone],
+        shade_fraction: float | None = None,
     ) -> RouteWeight:
         """간선 하나의 모드별 가중치를 계산한다.
 
         - SPRING_AUTUMN: 보너스 수종(벚나무/느티나무) 가로수길과 매칭되면 30% 감면.
         - WINTER_SAFETY: 결빙 위험구역이 간선 중간 좌표 20m 이내면 500% 증가.
+        - SUMMER_SHADE: 그늘 비율(0~1)에 반비례해 최대 400% 증가.
+          shade_fraction이 None(사전 계산 데이터 없음)이면 tree_score로 폴백.
         """
         base = RouteWeight(edge.base_distance_m)
 
@@ -42,6 +46,11 @@ class RouteWeightCalculator:
             if self._near_hazard(edge, nearby_hazards):
                 return base.apply_penalty(_WINTER_PENALTY_RATE)
             return base
+
+        if mode is SeasonMode.SUMMER_SHADE:
+            shade = shade_fraction if shade_fraction is not None else edge.tree_score
+            shade = max(0.0, min(1.0, shade))
+            return base.apply_penalty(_SUN_PENALTY_RATE * (1.0 - shade))
 
         return base
 
