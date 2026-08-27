@@ -40,21 +40,30 @@ _RETRY_BACKOFFS_S = [15.0, 60.0, 180.0]
 _DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
-def resolve_height_m(tags: dict[str, str]) -> float:
-    """height(m) → building:levels×3.0 → 기본 6.0 순으로 건물 높이를 정한다."""
+def resolve_height_m(tags: dict[str, str]) -> tuple[float, bool]:
+    """건물 높이(m)와 '태그에서 온 실측인지'를 반환한다.
+
+    height(m) → building:levels×3.0 → 기본 6.0 순. 0 이하 값은 오염 데이터로
+    보고 기본값 처리한다(서울 실측에서 -6.0 등 발견, 2026-08-27). known
+    플래그는 결측 높이 imputation(격자 중앙값)의 학습 데이터 구분에 쓴다.
+    """
     raw_height = tags.get("height", "")
     if raw_height:
         try:
-            return float(raw_height.split()[0].removesuffix("m"))
+            value = float(raw_height.split()[0].removesuffix("m"))
+            if value > 0:
+                return value, True
         except ValueError:
             pass
     raw_levels = tags.get("building:levels", "")
     if raw_levels:
         try:
-            return float(raw_levels) * _LEVEL_HEIGHT_M
+            levels = float(raw_levels)
+            if levels > 0:
+                return levels * _LEVEL_HEIGHT_M, True
         except ValueError:
             pass
-    return _DEFAULT_HEIGHT_M
+    return _DEFAULT_HEIGHT_M, False
 
 
 def make_tiles(
@@ -104,7 +113,8 @@ def fetch_tile(bbox: tuple[float, float, float, float], tile_no: int) -> list[di
             if len(geometry) < 3:
                 continue
             outline = [[p["lat"], p["lon"]] for p in geometry]
-            buildings.append({"outline": outline, "height_m": resolve_height_m(el.get("tags", {}))})
+            height_m, known = resolve_height_m(el.get("tags", {}))
+            buildings.append({"outline": outline, "height_m": height_m, "height_known": known})
         return buildings
     raise last_exc  # type: ignore[misc]  # 첫 시도 전엔 도달 불가
 
