@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,7 @@ from gildle.dependencies.route_provider import (
     get_calculate_route_use_case,
     get_map_data_use_case,
 )
+from gildle.domain.services.sun_position import sun_altitude_azimuth
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.route_edge import RouteEdge
 from gildle.domain.value_objects.season_mode import SeasonMode
@@ -148,23 +149,37 @@ def _load_shade_scores() -> dict[str, Any] | None:
     return _shade_cache
 
 
+_KST = timezone(timedelta(hours=9))
+_SEOUL_CENTER = (37.5665, 126.9780)
+
+
 def _resolve_slot(departure_time: str | None, slots: list[int]) -> int | None:
-    """ "HH:MM"을 가장 가까운 슬롯 시(hour)로 매핑. 슬롯 범위 밖(밤)이면 None."""
+    """ "HH:MM"을 가장 가까운 슬롯 시(hour)로 매핑.
+
+    밤 판정은 고정 슬롯 경계가 아니라 실제 오늘 날짜의 태양 고도로 한다
+    (일출·일몰 자동 연동, 외부 API 불필요). 해가 떠 있는데 사전 계산 슬롯
+    밖인 새벽·저녁 언저리는 가장 가까운 슬롯으로 클램프한다.
+    """
+    now_kst = datetime.now(_KST)
     if departure_time:
         try:
             hour_str, minute_str = departure_time.split(":")
             hour, minute = int(hour_str), int(minute_str)
+            dt_kst = now_kst.replace(hour=hour, minute=minute)
         except ValueError as exc:
             raise HTTPException(
                 status_code=400, detail='departure_time은 "HH:MM" 형식이어야 합니다'
             ) from exc
     else:
-        now_kst = datetime.now(UTC) + timedelta(hours=9)
         hour, minute = now_kst.hour, now_kst.minute
+        dt_kst = now_kst
+
+    altitude, _ = sun_altitude_azimuth(*_SEOUL_CENTER, dt_kst)
+    if altitude <= 0:
+        return None  # 일몰 후/일출 전 — 그늘 계산 제외
+
     slot = hour + (1 if minute >= 30 else 0)
-    if slot not in slots:
-        return None
-    return slot
+    return min(max(slot, slots[0]), slots[-1])
 
 
 class _FullShadeLookup(dict):

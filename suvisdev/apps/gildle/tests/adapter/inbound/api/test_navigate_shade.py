@@ -107,6 +107,7 @@ def test_summer_shade_takes_detour_and_reports_ratio(tmp_path, monkeypatch):
 
 
 def test_night_departure_skips_shade(tmp_path, monkeypatch):
+    # 밤 판정은 실제 태양 고도 기반(일출·일몰 자동 연동) — 23시는 계절 무관 밤.
     _write_fixtures(tmp_path, monkeypatch)
     resp = _client().post(
         "/gildle/navigate",
@@ -121,6 +122,24 @@ def test_night_departure_skips_shade(tmp_path, monkeypatch):
     assert data["path"] == ["s", "e"]  # 밤 — 그늘 계산 제외, 최단 직행
     assert data["night"] is True
     assert data["shade_ratio"] is None
+
+
+def test_midday_out_of_slot_clamps_not_night(tmp_path, monkeypatch):
+    # 정오는 계절 무관 낮. 픽스처 슬롯이 [7, 8]뿐이어도 밤 처리하지 않고
+    # 가장 가까운 슬롯(8시)으로 클램프해 그늘 가중을 적용해야 한다.
+    _write_fixtures(tmp_path, monkeypatch)
+    resp = _client().post(
+        "/gildle/navigate",
+        json={
+            "start_node": "s",
+            "end_node": "e",
+            "mode": "summer_shade",
+            "departure_time": "12:00",
+        },
+    )
+    data = resp.json()
+    assert data["night"] is False
+    assert data["path"] == ["s", "m", "e"]  # 8시 슬롯 그늘로 우회 선택
 
 
 def test_bad_departure_time_returns_400(tmp_path, monkeypatch):
