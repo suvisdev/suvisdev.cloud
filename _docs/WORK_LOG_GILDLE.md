@@ -28,6 +28,61 @@
 
 ---
 
+## 2026-08-27
+
+### 작업 내용
+- **여름 그늘 경로(`summer_shade`) 신규** — 뚜벅(ttubeok.com) 방식: 출발
+  시각의 태양 위치 + 건물 그림자 + 가로수를 결합해 그늘 위주 경로 안내.
+  사용자 결정: 정밀도 C(그림자 폴리곤 사전 계산) + 그늘 강력 우선(햇빛
+  구간 최대 5배 페널티, 경로는 항상 반환). 계획서:
+  `suvisdev/_docs/plans/2026-08-27-gildle-summer-shade.md` (Task 1~8 완료).
+- 밤 처리(사용자 요청 반영): 고정 시간 경계가 아니라 **요청 시각의 실제
+  태양 고도**(자체 수식, 외부 API 불필요)로 판정 — 고도 ≤ 0°면 그늘 계산
+  제외하고 최단 경로 + `night: true`. 일출·일몰이 계절 따라 자동 연동.
+- 정확도 개선(사용자 질문 "그림자 계산 모델" 논의 반영): 서울 전역 실측
+  에서 건물 높이 태그 결측 75.7% 발견 → `height_known` 플래그 재수집 +
+  **250m 격자 중앙값 imputation**(실측 66,273동 학습, 결측 179,612동 추정,
+  상한 150m). 음수 높이(-6.0) 오염값도 수집 단계 방어. 딥러닝 세그멘테이션은
+  "촬영 시각 그림자만 학습 가능"이라 시간대별 예측 목적과 안 맞아 기각.
+
+### 수정/구현
+- 도메인: `sun_position.py`(NOAA 근사, 순수 수식) 신규,
+  `SeasonMode.SUMMER_SHADE` + `RouteWeightCalculator` 그늘 규칙
+  (`base × (1 + 4.0×(1-shade))`, None이면 tree_score 폴백).
+- 배치 2종 신규: `fetch_osm_buildings.py`(Overpass 타일 분할, 미러 3곳 순환
+  ·지수 백오프·타일 단위 저장·이어받기), `compute_shade_scores.py`(건물
+  그림자 convex hull 캐스팅 + STRtree 엣지 교차, 13슬롯 07~19시,
+  나무 결합 min(1, 건물비율+0.6×tree_score), 높이 imputation 포함).
+- API: `/navigate`에 `departure_time`("HH:MM"), 응답에 `shade_ratio`(길이
+  가중)·`edge_shades`·`night`. `GILDLE_SHADE_SCORES` env로 테스트 격리.
+- 프론트(`gildle-map.tsx`): "여름 (그늘 우선)" 모드 + 시간 선택 input +
+  경로 구간을 그늘(초록)/햇빛(주황)으로 색 구분 + 그늘 비율 % 뱃지 +
+  밤 안내. 봄/가을 라벨은 "가로수길"로 변경(그늘 우선과 구분).
+- 테스트 신규 20건(태양 위치 3·수집 7·그림자 기하 6·가중치 4) + 인터랙터
+  3·navigate 5 — gildle 총 198개 전부 통과.
+
+### 오류·막힌 점
+- Overpass 공용 서버: 기본 UA 406 거부 → UA 명시. 1초 간격 과속으로 53타일
+  만에 429→연결 차단(IP 수준) → 미러 순환(osm.fr 안정 실측)·백오프 3단·
+  타일 단위 저장/이어받기로 재설계. osm.jp는 인증서 도메인 불일치로 제외.
+  kumi.systems는 private.coffee 별칭(사실상 동일 서버)임을 DNS로 확인.
+- 첫 전역 수집본은 "태그 6m"와 "기본값 6m"가 구분 안 돼 imputation 학습
+  불가 → 플래그 추가 후 전량 재수집(2회차, 실패 타일 0).
+
+### 데이터
+- 건물 245,885동(실측 높이 27%, 최고 322m), `shade_scores.json` 17MB
+  (233,964 엣지 × 13슬롯, 0~100 정수 퍼센트). 슬롯별 평균 그늘이 정오
+  16~17% 최소, 07시 54%·19시 73% 최대의 U자 곡선 — 물리적으로 타당.
+- 실데이터 E2E(여의도): 같은 출발·도착이 08시 36노드(그늘 90%)·13시
+  28노드(66%)·17시 36노드(76%)·22시 밤 최단으로 **시간대별로 실제 경로가
+  달라짐** 확인. spring_autumn 회귀 없음.
+- 원본 `seoul_buildings_osm.json`(약 200MB)·산출 `shade_scores.json`은
+  gitignore — EC2 반영은 shade_scores.json만 scp(bind mount, 재빌드 불필요).
+
+### 산출물
+- 커밋 11건(Task별 TDD 커밋), 계획서 1건. EC2 배포는 push 후
+  `~/auto-deploy.sh backend` + shade_scores.json scp.
+
 ## 2026-08-25
 
 ### 작업 내용
