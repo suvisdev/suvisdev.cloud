@@ -84,7 +84,8 @@ def fetch_tile(bbox: tuple[float, float, float, float], tile_no: int) -> list[di
         if backoff:
             logger.info("타일 %d 재시도 %d — %.0f초 대기", tile_no, attempt, backoff)
             time.sleep(backoff)
-        url = _OVERPASS_URLS[(tile_no + attempt) % len(_OVERPASS_URLS)]
+        # 항상 첫 미러(안정 실측)부터 시도, 재시도마다 다음 미러로 넘어간다.
+        url = _OVERPASS_URLS[attempt % len(_OVERPASS_URLS)]
         try:
             res = requests.post(
                 url,
