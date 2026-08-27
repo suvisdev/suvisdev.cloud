@@ -23,6 +23,8 @@ suvis/tsconfig.tsbuildinfo
 # gildle — OSM 그래프·점수 산출물 (재생성: python -m gildle.scripts.build_graph_pipeline)
 suvisdev/apps/gildle/data/**/*.graphml
 suvisdev/apps/gildle/data/scored_edges.json
+suvisdev/apps/gildle/data/seoul_buildings_osm.json
+suvisdev/apps/gildle/data/shade_scores.json
 
 # suvisjk — 별도 레포(suvisdev/suvisjk, GitHub Pages 배포)의 로컬 클론
 suvisjk/
