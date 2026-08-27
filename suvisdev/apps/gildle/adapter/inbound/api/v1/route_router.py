@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -129,6 +130,62 @@ def _load_scored_edges() -> list[RouteEdge]:
     return edges
 
 
+_shade_cache: dict[str, Any] | None = None
+_shade_mtime: float = 0.0
+
+
+def _load_shade_scores() -> dict[str, Any] | None:
+    """shade_scores.json 로더 — scored_edges와 동일한 mtime 캐시 패턴."""
+    global _shade_cache, _shade_mtime  # noqa: PLW0603
+    path = Path(os.getenv("GILDLE_SHADE_SCORES", str(_DATA_DIR / "shade_scores.json")))
+    if not path.exists():
+        return None
+    mtime = path.stat().st_mtime
+    if _shade_cache is not None and mtime == _shade_mtime:
+        return _shade_cache
+    _shade_cache = json.loads(path.read_text(encoding="utf-8"))
+    _shade_mtime = mtime
+    return _shade_cache
+
+
+def _resolve_slot(departure_time: str | None, slots: list[int]) -> int | None:
+    """ "HH:MM"을 가장 가까운 슬롯 시(hour)로 매핑. 슬롯 범위 밖(밤)이면 None."""
+    if departure_time:
+        try:
+            hour_str, minute_str = departure_time.split(":")
+            hour, minute = int(hour_str), int(minute_str)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail='departure_time은 "HH:MM" 형식이어야 합니다'
+            ) from exc
+    else:
+        now_kst = datetime.now(UTC) + timedelta(hours=9)
+        hour, minute = now_kst.hour, now_kst.minute
+    slot = hour + (1 if minute >= 30 else 0)
+    if slot not in slots:
+        return None
+    return slot
+
+
+class _FullShadeLookup(dict):
+    """밤 시간대: 해가 없으므로 모든 간선을 그늘(1.0)로 취급 → 순수 최단 경로."""
+
+    def get(self, key: Any, default: Any = None) -> float:
+        return 1.0
+
+
+def _build_shade_lookup(slot: int) -> dict[tuple[str, str], float] | None:
+    data = _load_shade_scores()
+    if data is None:
+        return None
+    idx = data["slots"].index(slot)
+    lookup: dict[tuple[str, str], float] = {}
+    for key, pcts in data["edges"].items():
+        from_node, _, to_node = key.partition("-")
+        lookup[(from_node, to_node)] = pcts[idx] / 100.0
+    return lookup
+
+
 @route_router.post("/navigate")
 def navigate(
     request: NavigateRequestSchema,
@@ -143,7 +200,23 @@ def navigate(
     if not edges:
         raise HTTPException(status_code=404, detail="scored_edges.json 없음")
 
-    path = use_case.execute(edges, request.start_node, request.end_node, season)
+    # 여름 그늘 모드: 출발 시각을 슬롯에 매핑해 사전 계산 그늘을 조회한다.
+    # 밤(슬롯 범위 밖)이면 해가 없으므로 그늘 계산을 제외하고 최단 경로로 안내.
+    shade_lookup: dict[tuple[str, str], float] | None = None
+    night = False
+    if season is SeasonMode.SUMMER_SHADE:
+        shade_data = _load_shade_scores()
+        slots = shade_data["slots"] if shade_data else list(range(7, 20))
+        slot = _resolve_slot(request.departure_time, slots)
+        if slot is None:
+            night = True
+            shade_lookup = _FullShadeLookup()
+        elif shade_data is not None:
+            shade_lookup = _build_shade_lookup(slot)
+
+    path = use_case.execute(
+        edges, request.start_node, request.end_node, season, shade_lookup=shade_lookup
+    )
 
     edge_lookup: dict[tuple[str, str], RouteEdge] = {}
     for e in edges:
@@ -164,7 +237,38 @@ def navigate(
         if last_edge and last_edge.to_coord is not None:
             coordinates.append([last_edge.to_coord.latitude, last_edge.to_coord.longitude])
 
-    return {"path": path, "coordinates": coordinates}
+    # 여름 그늘 모드(낮)에서만 경로의 길이가중 그늘 비율·구간별 그늘을 계산.
+    edge_shades: list[float] | None = None
+    shade_ratio: float | None = None
+    if (
+        season is SeasonMode.SUMMER_SHADE
+        and shade_lookup is not None
+        and not night
+        and len(path) >= 2
+    ):
+        edge_shades = []
+        total_len = 0.0
+        shaded_len = 0.0
+        for i in range(len(path) - 1):
+            edge = edge_lookup.get((path[i], path[i + 1]))
+            shade = 0.0
+            if edge is not None:
+                found = shade_lookup.get((edge.from_node, edge.to_node))
+                if found is None:
+                    found = shade_lookup.get((edge.to_node, edge.from_node))
+                shade = found if found is not None else 0.0
+                total_len += edge.base_distance_m
+                shaded_len += edge.base_distance_m * shade
+            edge_shades.append(round(shade, 2))
+        shade_ratio = round(shaded_len / total_len, 2) if total_len > 0 else None
+
+    return {
+        "path": path,
+        "coordinates": coordinates,
+        "shade_ratio": shade_ratio,
+        "edge_shades": edge_shades,
+        "night": night,
+    }
 
 
 _scored_edges_cache: list[dict[str, Any]] | None = None

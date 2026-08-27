@@ -39,7 +39,11 @@ class NavigateRequestSchema(BaseModel):
 
     start_node: str = Field(..., description="출발 노드 ID")
     end_node: str = Field(..., description="도착 노드 ID")
-    mode: str = Field("spring_autumn", description="spring_autumn | winter_safety")
+    mode: str = Field("spring_autumn", description="spring_autumn | winter_safety | summer_shade")
+    departure_time: str | None = Field(
+        None,
+        description='출발 시각 "HH:MM"(KST). summer_shade에서만 사용, 미지정 시 현재 시각.',
+    )
 
 
 class RouteResponseSchema(BaseModel):

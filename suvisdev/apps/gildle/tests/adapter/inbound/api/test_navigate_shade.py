@@ -1,0 +1,148 @@
+"""navigate summer_shade — 그늘 lookup 로딩·슬롯 매핑·응답 필드."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from gildle.adapter.inbound.api import gildle_router
+from gildle.adapter.inbound.api.v1 import route_router as rr
+
+
+@pytest.fixture(autouse=True)
+def _reset_router_caches():
+    # 모듈 전역 mtime 캐시가 테스트 간 오염되지 않게 리셋(8/26 서킷 리셋과 동일 패턴).
+    rr._route_edges_cache = None
+    rr._scored_edges_cache = None
+    rr._shade_cache = None
+    yield
+
+
+def _client() -> TestClient:
+    app = FastAPI()
+    app.include_router(gildle_router)
+    return TestClient(app)
+
+
+def _write_fixtures(tmp_path: Path, monkeypatch) -> None:
+    # 직행 s-e(그늘 0%) vs 우회 s-m-e(그늘 100%). 페널티 5배 > 우회 2배 거리.
+    edges = [
+        {
+            "from_node": "s",
+            "to_node": "e",
+            "base_distance_m": 100.0,
+            "midpoint_lat": 37.53,
+            "midpoint_lng": 126.93,
+            "from_lat": 37.530,
+            "from_lng": 126.930,
+            "to_lat": 37.531,
+            "to_lng": 126.930,
+            "tree_score": 0.0,
+            "hazard_score": 0.0,
+            "dog_friendly_score": 0.0,
+        },
+        {
+            "from_node": "s",
+            "to_node": "m",
+            "base_distance_m": 100.0,
+            "midpoint_lat": 37.530,
+            "midpoint_lng": 126.931,
+            "from_lat": 37.530,
+            "from_lng": 126.930,
+            "to_lat": 37.530,
+            "to_lng": 126.932,
+            "tree_score": 0.0,
+            "hazard_score": 0.0,
+            "dog_friendly_score": 0.0,
+        },
+        {
+            "from_node": "m",
+            "to_node": "e",
+            "base_distance_m": 100.0,
+            "midpoint_lat": 37.5305,
+            "midpoint_lng": 126.931,
+            "from_lat": 37.530,
+            "from_lng": 126.932,
+            "to_lat": 37.531,
+            "to_lng": 126.930,
+            "tree_score": 0.0,
+            "hazard_score": 0.0,
+            "dog_friendly_score": 0.0,
+        },
+    ]
+    shade = {
+        "date": "2026-08-01",
+        "slots": [7, 8],
+        "edges": {"s-e": [0, 0], "s-m": [100, 100], "m-e": [100, 100]},
+    }
+    edges_path = tmp_path / "edges.json"
+    shade_path = tmp_path / "shade.json"
+    edges_path.write_text(json.dumps(edges), encoding="utf-8")
+    shade_path.write_text(json.dumps(shade), encoding="utf-8")
+    monkeypatch.setenv("GILDLE_SCORED_EDGES", str(edges_path))
+    monkeypatch.setenv("GILDLE_SHADE_SCORES", str(shade_path))
+
+
+def test_summer_shade_takes_detour_and_reports_ratio(tmp_path, monkeypatch):
+    _write_fixtures(tmp_path, monkeypatch)
+    resp = _client().post(
+        "/gildle/navigate",
+        json={
+            "start_node": "s",
+            "end_node": "e",
+            "mode": "summer_shade",
+            "departure_time": "08:00",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["path"] == ["s", "m", "e"]
+    assert data["night"] is False
+    assert data["shade_ratio"] == 1.0
+    assert data["edge_shades"] == [1.0, 1.0]
+
+
+def test_night_departure_skips_shade(tmp_path, monkeypatch):
+    _write_fixtures(tmp_path, monkeypatch)
+    resp = _client().post(
+        "/gildle/navigate",
+        json={
+            "start_node": "s",
+            "end_node": "e",
+            "mode": "summer_shade",
+            "departure_time": "23:00",
+        },
+    )
+    data = resp.json()
+    assert data["path"] == ["s", "e"]  # 밤 — 그늘 계산 제외, 최단 직행
+    assert data["night"] is True
+    assert data["shade_ratio"] is None
+
+
+def test_bad_departure_time_returns_400(tmp_path, monkeypatch):
+    _write_fixtures(tmp_path, monkeypatch)
+    resp = _client().post(
+        "/gildle/navigate",
+        json={
+            "start_node": "s",
+            "end_node": "e",
+            "mode": "summer_shade",
+            "departure_time": "여덟시",
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_other_modes_response_unchanged_shape(tmp_path, monkeypatch):
+    _write_fixtures(tmp_path, monkeypatch)
+    resp = _client().post(
+        "/gildle/navigate",
+        json={"start_node": "s", "end_node": "e", "mode": "spring_autumn"},
+    )
+    data = resp.json()
+    assert data["path"] == ["s", "e"]
+    assert data["shade_ratio"] is None and data["night"] is False
