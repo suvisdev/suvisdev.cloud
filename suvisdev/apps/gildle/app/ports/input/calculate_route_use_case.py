@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 
 from gildle.domain.value_objects.route_edge import RouteEdge
 from gildle.domain.value_objects.season_mode import SeasonMode
@@ -16,4 +17,5 @@ class CalculateDogFriendlyRouteUseCase(ABC):
         start: str,
         end: str,
         mode: SeasonMode,
+        shade_lookup: Mapping[tuple[str, str], float] | None = None,
     ) -> list[str]: ...

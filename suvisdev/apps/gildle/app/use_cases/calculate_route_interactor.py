@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from gildle.app.ports.input.calculate_route_use_case import (
     CalculateDogFriendlyRouteUseCase,
 )
@@ -39,13 +41,19 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
         start: str,
         end: str,
         mode: SeasonMode,
+        shade_lookup: Mapping[tuple[str, str], float] | None = None,
     ) -> list[str]:
         segments = self._tree_repository.find_all()
         hazards = self._hazard_repository.find_all()
 
         def weight_fn(edge: RouteEdge) -> float:
+            shade = None
+            if shade_lookup is not None:
+                shade = shade_lookup.get((edge.from_node, edge.to_node))
+                if shade is None:
+                    shade = shade_lookup.get((edge.to_node, edge.from_node))
             return self._weight_calculator.calculate_edge_weight(
-                edge, mode, segments, hazards
+                edge, mode, segments, hazards, shade_fraction=shade
             ).value
 
         graph = self._route_graph.build_graph(edges)

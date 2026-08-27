@@ -96,3 +96,43 @@ class TestCalculateRoute:
 
         assert graph.weight_fn is not None
         assert graph.weight_fn(_edge()) == 600.0  # 500% 증가
+
+    def test_weight_fn_uses_shade_lookup_forward_key(self):
+        graph = CapturingRouteGraphPort(path=["A", "B"])
+        interactor = _interactor(graph)
+
+        interactor.execute(
+            edges=[_edge()],
+            start="A",
+            end="B",
+            mode=SeasonMode.SUMMER_SHADE,
+            shade_lookup={("A", "B"): 1.0},
+        )
+
+        assert graph.weight_fn is not None
+        assert graph.weight_fn(_edge()) == 100.0  # 완전 그늘 — 페널티 없음
+
+    def test_weight_fn_uses_shade_lookup_reverse_key(self):
+        graph = CapturingRouteGraphPort(path=["A", "B"])
+        interactor = _interactor(graph)
+
+        interactor.execute(
+            edges=[_edge()],
+            start="A",
+            end="B",
+            mode=SeasonMode.SUMMER_SHADE,
+            shade_lookup={("B", "A"): 0.0},  # 역방향 키만 존재
+        )
+
+        assert graph.weight_fn is not None
+        assert graph.weight_fn(_edge()) == 500.0  # 완전 햇빛 — 5배
+
+    def test_summer_without_lookup_falls_back_to_tree_score(self):
+        graph = CapturingRouteGraphPort(path=["A", "B"])
+        interactor = _interactor(graph)
+
+        interactor.execute(edges=[_edge()], start="A", end="B", mode=SeasonMode.SUMMER_SHADE)
+
+        assert graph.weight_fn is not None
+        # tree_score 기본 0.0 → 완전 햇빛 취급
+        assert graph.weight_fn(_edge()) == 500.0
