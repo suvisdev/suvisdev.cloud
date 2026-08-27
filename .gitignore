@@ -24,6 +24,7 @@ suvis/tsconfig.tsbuildinfo
 suvisdev/apps/gildle/data/**/*.graphml
 suvisdev/apps/gildle/data/scored_edges.json
 suvisdev/apps/gildle/data/seoul_buildings_osm.json
+suvisdev/apps/gildle/data/seoul_buildings_osm.state.json
 suvisdev/apps/gildle/data/shade_scores.json
 
 # suvisjk — 별도 레포(suvisdev/suvisjk, GitHub Pages 배포)의 로컬 클론
