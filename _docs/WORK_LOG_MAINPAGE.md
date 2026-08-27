@@ -71,6 +71,14 @@
 - 낡은 문서 기술 정정: `security/auth.md` §4 미결 표기,
   `suvis/CLAUDE.md` B·D의 "401 이슈" 표기, PROGRESS 백로그 항목 종결.
 
+### 수정/구현 (추가) — /dispatch·/telegram도 동일 정리 (전수 확인 후)
+- 게이트 없는 전 라우트의 `/api` 호출을 전수 grep — `/dispatch`(이메일
+  발송 데모)·`/telegram`(텔레그램 발송 데모)이 /mail과 동일한 반쪽 상태
+  (공개 페이지 ↔ require_admin 백엔드, 페이지 토큰 미전송)로 확인돼 같은
+  패턴 적용: `layout.tsx` AdminAuthGate 신설 2건 + 페이지 `authHeader()`
+  배선 2건. 이 외 남은 공개 호출은 gildle 지도(graph-edges·navigate)뿐
+  인데 인증 없는 공개 데이터 조회(LLM 비용 없음)라 의도된 공개로 판단.
+
 ### 오류·막힌 점
 - 세션 권한 분류기가 EC2 스크립트 원격 쓰기(ssh heredoc·scp)를 차단 —
   스크립트 파일을 준비해 사용자가 scp 3줄을 직접 실행, 이후 원격 확인은

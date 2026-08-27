@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { Bot, CheckCircle2, CornerDownLeft, Loader2, Mail, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { patchState } from "@/lib/form-status"
+import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type SendState = {
@@ -45,7 +46,7 @@ export default function DispatchPage() {
     try {
       const res = await fetch("/api/dispatch/email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ to, subject, prompt }),
       })
       const data = await res.json() as DispatchEmailResponse

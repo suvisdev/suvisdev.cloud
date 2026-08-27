@@ -166,7 +166,7 @@ suvis/
 | `/oauth/callback`, `/oauth/consent` | OAuth 콜백·동의 | `apps/auth` |
 | `/contact`, `/lesson`, `/apps`, `/devlog` | 정적/카탈로그 페이지 | — |
 | `/mail`, `/mail/contacts` | 연락처 데모(관리자 전용 — `AdminAuthGate`) | `dispatch` email·adress(`require_admin`, 세션 Bearer 전달) |
-| `/dispatch`, `/telegram`, `/soccer/chat`, `/langchain/chat` | 발송·챗 데모 | `dispatch`, `execsuite` 등 |
+| `/dispatch`, `/telegram`, `/soccer/chat`, `/langchain/chat` | 발송·챗 데모(관리자 전용 — `AdminAuthGate`) | `dispatch`, `execsuite` 등(`require_admin`, 세션 Bearer 전달) |
 | `/titanic` | Titanic 메인 | — |
 | `/titanic/data-collection` | CSV 업로드 | `POST /titanic/james/...` |
 | `/titanic/passengers` | 승객 조회 | `GET /titanic/walter/...` |
