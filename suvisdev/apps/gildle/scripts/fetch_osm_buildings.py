@@ -1,9 +1,9 @@
 """서울 건물 풋프린트+높이 Overpass 수집 배치.
 
-사용법(노트북, 네트워크 필요 — 전체 약 20~40분):
-    python apps/gildle/scripts/fetch_osm_buildings.py            # 서울 전역
-    python apps/gildle/scripts/fetch_osm_buildings.py \
-        --bbox 37.51 126.90 37.54 126.95                         # 부분 테스트
+사용법(노트북, 네트워크 필요 — 전체 약 20~40분, suvisdev/에서):
+    PYTHONPATH=apps python -m gildle.scripts.fetch_osm_buildings   # 서울 전역
+    PYTHONPATH=apps python -m gildle.scripts.fetch_osm_buildings \
+        --bbox 37.51 126.90 37.54 126.95                           # 부분 테스트
 
 타일 단위로 Overpass에 나눠 질의하고(타임아웃 회피), 결과를 하나의 JSON으로
 저장한다. 높이는 height 태그(m) → building:levels×3.0m → 기본 6.0m 순.
