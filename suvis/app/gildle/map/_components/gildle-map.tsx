@@ -34,10 +34,11 @@ type RouteSegment = {
   from: [number, number]
   to: [number, number]
   edge: ScoredEdge | null
+  shade: number | null
 }
 
 type ScoreLayer = "tree" | "hazard" | "dog_friendly"
-type SeasonMode = "spring_autumn" | "winter_safety"
+type SeasonMode = "spring_autumn" | "winter_safety" | "summer_shade"
 
 const SEOUL_CENTER: [number, number] = [37.5665, 126.978]
 
@@ -78,7 +79,8 @@ const LAYER_CONFIG: Record<
 }
 
 const SEASON_CONFIG: Record<SeasonMode, { label: string }> = {
-  spring_autumn: { label: "봄/가을 (그늘 우선)" },
+  spring_autumn: { label: "봄/가을 (가로수길)" },
+  summer_shade: { label: "여름 (그늘 우선)" },
   winter_safety: { label: "겨울 (결빙 회피)" },
 }
 
@@ -329,6 +331,14 @@ export default function GildleMap() {
   const [routeSegments, setRouteSegments] = useState<RouteSegment[]>([])
   const [routeLoading, setRouteLoading] = useState(false)
   const [routeError, setRouteError] = useState<string | null>(null)
+  const [departureTime, setDepartureTime] = useState<string>(() => {
+    const now = new Date()
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
+  })
+  const [routeShade, setRouteShade] = useState<{
+    ratio: number | null
+    night: boolean
+  } | null>(null)
   const [panTarget, setPanTarget] = useState<{ lat: number; lng: number } | null>(
     null,
   )
@@ -389,13 +399,21 @@ export default function GildleMap() {
         start_node: startPoint.nodeId,
         end_node: endPoint.nodeId,
         mode: season,
+        ...(season === "summer_shade" ? { departure_time: departureTime } : {}),
       }),
     })
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status}`)
         return res.json()
       })
-      .then((data: { path: string[]; coordinates: number[][] }) => {
+      .then(
+        (data: {
+          path: string[]
+          coordinates: number[][]
+          shade_ratio?: number | null
+          edge_shades?: number[] | null
+          night?: boolean
+        }) => {
         if (data.path.length === 0) {
           setRouteError("경로를 찾을 수 없습니다")
           setRouteSegments([])
@@ -416,9 +434,15 @@ export default function GildleMap() {
               from: coords[i],
               to: coords[i + 1],
               edge: edgeLookup.get(key) ?? null,
+              shade: data.edge_shades?.[edgeIdx] ?? null,
             })
           }
           setRouteSegments(segments)
+          setRouteShade(
+            season === "summer_shade"
+              ? { ratio: data.shade_ratio ?? null, night: data.night ?? false }
+              : null,
+          )
         }
         setRouteLoading(false)
       })
@@ -426,7 +450,7 @@ export default function GildleMap() {
         setRouteError(e instanceof Error ? e.message : "경로 조회 실패")
         setRouteLoading(false)
       })
-  }, [startPoint, endPoint, season, edgeLookup])
+  }, [startPoint, endPoint, season, departureTime, edgeLookup])
 
   const handleSearchSelect = useCallback(
     (lat: number, lng: number) => {
@@ -441,6 +465,7 @@ export default function GildleMap() {
     setEndPoint(null)
     setRouteSegments([])
     setRouteError(null)
+    setRouteShade(null)
   }
 
   const handleLocate = useCallback(() => {
@@ -610,6 +635,16 @@ export default function GildleMap() {
               </button>
             ),
           )}
+
+          {season === "summer_shade" && (
+            <input
+              type="time"
+              value={departureTime}
+              onChange={(e) => setDepartureTime(e.target.value)}
+              aria-label="출발 시각"
+              className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-amber-300 outline-none sm:text-xs"
+            />
+          )}
         </div>
 
         <span className="ml-auto hidden text-xs text-gray-500 sm:inline">
@@ -650,6 +685,16 @@ export default function GildleMap() {
                 ? `${(routeDistance / 1000).toFixed(1)}km`
                 : `${Math.round(routeDistance)}m`}{" "}
               · {Math.ceil(routeDistance / 67)}분
+            </span>
+          )}
+          {routeShade && !routeShade.night && routeShade.ratio !== null && (
+            <span className="text-xs font-medium text-amber-400">
+              ☀ 그늘 비율 {Math.round(routeShade.ratio * 100)}%
+            </span>
+          )}
+          {routeShade?.night && (
+            <span className="text-xs text-indigo-300">
+              🌙 밤 시간대 — 최단 경로로 안내
             </span>
           )}
           {routeSummary && (
@@ -768,6 +813,17 @@ export default function GildleMap() {
             />
           )}
           {routeSegments.map((seg, i) => {
+            // 여름 그늘 모드: 그늘 구간은 초록, 햇빛 구간은 주황으로 구분.
+            if (season === "summer_shade" && seg.shade !== null) {
+              const color = seg.shade >= 0.6 ? "#22c55e" : "#f59e0b"
+              return (
+                <Polyline
+                  key={`route-${i}`}
+                  positions={[seg.from, seg.to]}
+                  pathOptions={{ color, weight: 5, opacity: 0.95 }}
+                />
+              )
+            }
             const score = seg.edge
               ? (seg.edge[cfg.key] as number)
               : 0
