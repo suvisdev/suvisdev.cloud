@@ -102,6 +102,14 @@
     완결 안 된 주라 빈 목록 — KST 직전 일요일로 고정(`_last_completed_week_date`).
   - EC2 `.env`에 `KAKAO_API_KEY` 미반영(오늘 gildle 작업에서 로컬만 추가) —
     `KAKAO_CLIENT_ID`와 동일 값으로 등재 후 backend 재생성.
+- **임베딩 쿼터 429 대응(1순위 백로그)**: 크론 백필(하루 950건)이 실시간
+  채팅 RAG와 Gemini 일일 쿼터를 공유해 오후마다 채팅이 폴백 품질로 떨어지던
+  구조 분리. 임베딩 백필 3종(movies·reviews·ingest_hub_knowledge) CLI 시작
+  시 `GEMINI_BACKFILL_API_KEY`(두 번째 Google 프로젝트 키)로 genai를 재설정
+  — CLI는 서버와 별개 프로세스라 전역 재설정이 안전하고, 미설정이면 기존
+  동작. 로컬 임베딩 폴백안은 Gemini와 의미 공간이 달라(hub 어댑터 주석
+  실측) 전량 재임베딩 없이는 불가라 배제. `.env.example`·
+  `SCRIPTS_EXECUTION_GUIDE.md` 등재. **키 발급(사용자)·EC2 반영 대기.**
 - **프로덕션 실측(EC2)**: "주토피아 어때?" → evaluation(정량/정성 분리·표본
   1건 부족 명시·TMDB 리뷰 한국어 요약·payload 발췌), "주토피아 예매하고
   싶어" → not_showing+디즈니플러스 안내, "오디세이 예매하고 싶어"→"강남"

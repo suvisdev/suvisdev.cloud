@@ -92,6 +92,13 @@ async def _director_names(session, movie_id: int) -> list[str]:
 
 
 async def main(args: argparse.Namespace) -> None:
+    # 대량 재임베딩도 크론 백필과 같은 이유로 별도 키 사용(2026-08-28 쿼터 분리)
+    # — backfill_movie_embeddings_cli.py 주석 참고. 미설정이면 기존 키 그대로.
+    backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()
+    if backfill_key:
+        import google.generativeai as genai
+
+        genai.configure(api_key=backfill_key)
     factory = get_mova_session_factory()
     async with factory() as session:
         movies_repo = MoviesPgRepository(session)

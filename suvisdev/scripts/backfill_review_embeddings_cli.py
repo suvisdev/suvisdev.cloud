@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -50,6 +51,12 @@ async def _run(args: argparse.Namespace) -> None:
     # backfill_movie_embeddings_cli.py와 동일 순서 — get_keymaker()가 .env
     # 로드 부작용을 갖는다. 세션 팩토리·프로바이더보다 먼저 호출.
     get_keymaker()
+    # 크론 백필 쿼터 분리(2026-08-28) — backfill_movie_embeddings_cli.py와 동일.
+    backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()
+    if backfill_key:
+        import google.generativeai as genai
+
+        genai.configure(api_key=backfill_key)
 
     from mova.dependencies.review_embedding_provider import (
         get_review_embedding_backfill_use_case,

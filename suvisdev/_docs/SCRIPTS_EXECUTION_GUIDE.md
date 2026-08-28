@@ -32,6 +32,12 @@ docker compose exec -T backend \
 
 - movies와 reviews 백필은 **30분 시차**로 배치 — 같은 Gemini 무료 티어
   쿼터(임베딩 하루 1000건, 프로젝트 단위)를 공유하니 순차 진행.
+- **백필 쿼터는 실시간 채팅과 분리(2026-08-28)**: 백필이 일일 쿼터를 소진해
+  오후마다 채팅 RAG가 429로 죽던 실사고 대응으로, 임베딩 백필 3종
+  (movies·reviews·ingest_hub_knowledge)은 `.env`의 `GEMINI_BACKFILL_API_KEY`
+  (두 번째 Google 프로젝트에서 발급한 키)를 쓴다. 미설정이면 기존
+  `GEMINI_API_KEY` 하나로 동작하지만 채팅 쿼터를 다시 갉아먹는다 — EC2에
+  반드시 설정할 것.
 - reviews는 신규 저장 시 BackgroundTasks가 이미 잡음 → 크론은 **안전망**
   (BG 실패·서버 재시작 유실 잡기)이라 `--limit` 없이 잔여 전량 시도.
 - taste_vectors는 순수 SQL 가중 평균이라 Gemini 쿼터와 무관 — reviews(03:30)

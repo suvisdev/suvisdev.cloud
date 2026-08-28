@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -95,6 +96,15 @@ async def _run(args: argparse.Namespace) -> None:
     # get_keymaker()가 .env 로드의 부작용을 갖는다 — get_mova_session_factory()보다
     # 먼저 호출해야 MOVA_DATABASE_URL이 os.environ에 실린다(다른 backfill_*_cli.py와 동일 순서).
     get_keymaker()
+    # 크론 백필이 실시간 채팅과 Gemini 일일 쿼터를 공유해 오후마다 채팅 RAG가
+    # 429로 죽던 문제(2026-08-28 실사고) — 백필은 별도 키(두 번째 Google
+    # 프로젝트)로 분리한다. CLI는 서버와 별개 프로세스라 전역 재설정이 안전하고,
+    # 미설정이면 기존 키 그대로 동작한다.
+    backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()
+    if backfill_key:
+        import google.generativeai as genai
+
+        genai.configure(api_key=backfill_key)
     factory = get_mova_session_factory()
     embedder = GeminiEmbeddingAdapter()
 
