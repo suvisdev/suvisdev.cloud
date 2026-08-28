@@ -160,6 +160,60 @@ function normalizeAssistantReply(
   return { content, recommendations: merged }
 }
 
+function normalizeEvaluation(raw: unknown): ChatEvaluation | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  if (typeof o.movie_id !== "number" || typeof o.review_count !== "number") return null
+  return {
+    movie_id: o.movie_id,
+    review_count: o.review_count,
+    avg_rating: typeof o.avg_rating === "number" ? o.avg_rating : null,
+    tmdb_rating: typeof o.tmdb_rating === "number" ? o.tmdb_rating : null,
+    excerpts: Array.isArray(o.excerpts)
+      ? o.excerpts.filter((x): x is string => typeof x === "string")
+      : [],
+  }
+}
+
+function normalizeBooking(raw: unknown): ChatBooking | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  if (o.status !== "showing" && o.status !== "not_showing" && o.status !== "need_region") {
+    return null
+  }
+  const theaters: ChatTheater[] = Array.isArray(o.theaters)
+    ? o.theaters.flatMap((t) => {
+        if (!t || typeof t !== "object") return []
+        const th = t as Record<string, unknown>
+        if (typeof th.name !== "string" || !th.name) return []
+        return [
+          {
+            name: th.name,
+            address: typeof th.address === "string" ? th.address : "",
+            distance_m: typeof th.distance_m === "number" ? th.distance_m : null,
+            place_url: typeof th.place_url === "string" ? th.place_url : "",
+            phone: typeof th.phone === "string" ? th.phone : "",
+          },
+        ]
+      })
+    : []
+  const bookingLinks: ChatBookingLink[] = Array.isArray(o.booking_links)
+    ? o.booking_links.flatMap((l) => {
+        if (!l || typeof l !== "object") return []
+        const link = l as Record<string, unknown>
+        return typeof link.chain === "string" && typeof link.url === "string"
+          ? [{ chain: link.chain, url: link.url }]
+          : []
+      })
+    : []
+  return {
+    status: o.status,
+    region: typeof o.region === "string" ? o.region : null,
+    theaters,
+    booking_links: bookingLinks,
+  }
+}
+
 function messagesFromConversation(msgs: ConversationMessage[]): ChatMessage[] {
   return msgs.map((m) => {
     const meta = m.meta ?? {}
@@ -175,9 +229,17 @@ function messagesFromConversation(msgs: ConversationMessage[]): ChatMessage[] {
       const norm = normalizeRecommendation(raw)
       if (norm) recs.push(norm)
     }
-    return recs.length > 0
-      ? { role: "assistant", content: m.content, recommendations: recs }
-      : { role: "assistant", content: m.content }
+    // 3트랙(2026-08-28): 평가·예매 payload도 meta에 저장돼 스레드 복원 시
+    // 지표·영화관 패널이 재구성된다.
+    const evaluation = normalizeEvaluation(meta.evaluation)
+    const booking = normalizeBooking(meta.booking)
+    return {
+      role: "assistant",
+      content: m.content,
+      ...(recs.length > 0 ? { recommendations: recs } : {}),
+      ...(evaluation ? { evaluation } : {}),
+      ...(booking ? { booking } : {}),
+    }
   })
 }
 

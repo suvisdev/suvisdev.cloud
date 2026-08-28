@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 _KAKAO_BASE = "https://dapi.kakao.com"
 _ADDRESS_PATH = "/v2/local/search/address.json"
 _KEYWORD_PATH = "/v2/local/search/keyword.json"
-_SEARCH_RADIUS_M = 10_000
 _TIMEOUT_S = 10.0
 
 
@@ -27,7 +26,9 @@ class KakaoLocalTheaterAdapter(TheaterSearchPort):
     def __init__(self, api_key: str) -> None:
         self._api_key = (api_key or "").strip()
 
-    async def search_theaters(self, region: str, *, limit: int = 5) -> list[ChatTheaterDto] | None:
+    async def search_theaters(
+        self, region: str, *, limit: int = 5, radius_m: int = 10_000
+    ) -> list[ChatTheaterDto] | None:
         region = (region or "").strip()
         if not region:
             return None
@@ -50,7 +51,7 @@ class KakaoLocalTheaterAdapter(TheaterSearchPort):
                         "query": "영화관",
                         "x": x,
                         "y": y,
-                        "radius": _SEARCH_RADIUS_M,
+                        "radius": radius_m,
                         "sort": "distance",
                         "size": min(limit, 15),
                     },

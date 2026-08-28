@@ -339,3 +339,132 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FallbackHonestyPromptTests(unittest.TestCase):
+    def test_popular_fallback_catalog_gets_honesty_instruction(self) -> None:
+        from mova.adapter.outbound.llm.chat_prompt import ChatPromptBuilder
+
+        hits = [
+            MovaSearchItemSchema(
+                id="1", title="A", year="2020", rating=4.0, poster="", match_type="popular_fallback"
+            ),
+            MovaSearchItemSchema(
+                id="2", title="B", year="2021", rating=4.5, poster="", match_type="popular_fallback"
+            ),
+        ]
+        section = ChatPromptBuilder().format_tag_catalog_section(hits)
+        self.assertIn("폴백 후보", section)
+        self.assertIn("정직하게", section)
+
+    def test_matched_catalog_has_no_honesty_instruction(self) -> None:
+        from mova.adapter.outbound.llm.chat_prompt import ChatPromptBuilder
+
+        hits = [
+            MovaSearchItemSchema(
+                id="1", title="A", year="2020", rating=4.0, poster="", match_type="keyword"
+            ),
+            MovaSearchItemSchema(
+                id="2", title="B", year="2021", rating=4.5, poster="", match_type="popular_fallback"
+            ),
+        ]
+        section = ChatPromptBuilder().format_tag_catalog_section(hits)
+        self.assertNotIn("폴백 후보", section)
+
+
+class RegionTransportParsingTests(unittest.TestCase):
+    def test_car_widens_radius(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
+
+        region, radius, label = _parse_region_transport("강남 차로 갈게")
+        self.assertEqual((region, radius, label), ("강남", 20_000, "차량"))
+
+    def test_walk_narrows_radius(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
+
+        region, radius, label = _parse_region_transport("홍대입구역 도보")
+        self.assertEqual((region, radius, label), ("홍대입구역", 3_000, "도보"))
+
+    def test_plain_region_keeps_default(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
+
+        region, radius, label = _parse_region_transport("수원")
+        self.assertEqual((region, radius, label), ("수원", 10_000, None))
+
+
+class BookingTransportRadiusTests(unittest.IsolatedAsyncioTestCase):
+    async def test_region_with_car_passes_wider_radius(self) -> None:
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(7, "호프")]
+        movies = AsyncMock()
+        movies.find_by_id.return_value = _detail(7, "호프")
+        theaters = AsyncMock()
+        theaters.search_theaters.return_value = []
+        service = BookingAssistService(
+            repository=repo, movies=movies, box_office=AsyncMock(), theaters=theaters
+        )
+
+        result = await service.assist(
+            message="강남 차로 갈게", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        theaters.search_theaters.assert_awaited_once_with("강남", radius_m=20_000)
+        self.assertEqual(result.booking.region, "강남")
+        self.assertIn("차량 기준 반경 20km", result.reply)
+
+
+class TrackMetaPayloadTests(unittest.IsolatedAsyncioTestCase):
+    async def test_evaluation_meta_contains_full_payload(self) -> None:
+        from mova.app.dtos.market_chat_dto import ChatEvaluationDto, ChatRecommendationDto
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        repo = AsyncMock()
+        repo.save_chat.return_value = 11
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("evaluate", ["호프"])
+        evaluation = AsyncMock()
+        evaluation.evaluate.return_value = EvaluationResult(
+            status="ok",
+            reply="평가",
+            card=ChatRecommendationDto(
+                id="tmdb-7",
+                movie_id=7,
+                title="호프",
+                year="2021",
+                poster="",
+                synopsis="",
+                platform=None,
+                hook="",
+            ),
+            evaluation=ChatEvaluationDto(
+                movie_id=7,
+                review_count=5,
+                avg_rating=4.5,
+                tmdb_rating=4.2,
+                excerpts=["좋다"],
+            ),
+        )
+        conversations = AsyncMock()
+        conversations.get_owner_id.return_value = 3
+        conversations.get_last_evaluation_movie_id.return_value = None
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=AsyncMock(),
+            preferences=AsyncMock(),
+            hub_rag=AsyncMock(),
+            classifier=classifier,
+            general=AsyncMock(),
+            conversations=conversations,
+            evaluation=evaluation,
+            booking=AsyncMock(),
+        )
+
+        await interactor.chat(
+            MovaChatRequest(message="호프 어때??", history=[], user_id=3, conversation_id=9)
+        )
+
+        # append_message(assistant) 호출의 meta에 payload 전체가 실렸는지
+        assistant_call = conversations.append_message.await_args_list[-1]
+        meta = assistant_call.args[3]
+        self.assertEqual(meta["evaluation"]["review_count"], 5)
+        self.assertEqual(meta["evaluation"]["excerpts"], ["좋다"])

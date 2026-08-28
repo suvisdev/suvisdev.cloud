@@ -98,6 +98,15 @@ class ChatPromptBuilder:
             "\n[태그·DB 카탈로그 — 의도 키워드로 조회된 작품]",
             "반드시 이 목록의 movie_id 중에서만 골라 추천하세요(목록에 없는 영화 추천 금지).",
         ]
+        # 조건 매칭이 전부 실패해 인기작 폴백으로만 채워진 후보를 "엄선했다"고
+        # 포장하면 안 된다(2026-08-28 정직 문구 규칙 — .claude/rules/mova-chat.md §4).
+        if all(item.match_type == "popular_fallback" for item in hits):
+            lines.append(
+                "주의: 이 목록은 요청 조건과 매칭된 결과가 아니라, 조건에 맞는 작품을 "
+                "찾지 못해 인기작에서 고른 폴백 후보입니다. intro에서 '엄선했다'·"
+                "'조건에 맞춰 골랐다'처럼 말하지 말고, '조건에 딱 맞는 작품은 못 찾아 "
+                "인기작 중에서 골라봤다'고 정직하게 밝히세요."
+            )
         for item in hits[:12]:
             kind = "태그" if item.match_type == "keyword" else item.match_type
             lines.append(f"- movie_id={item.id} {item.title} ({item.year or '연도 미상'}) [{kind}]")

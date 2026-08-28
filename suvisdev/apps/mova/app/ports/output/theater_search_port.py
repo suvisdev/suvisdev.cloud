@@ -9,8 +9,11 @@ from mova.app.dtos.market_chat_dto import ChatTheaterDto
 
 class TheaterSearchPort(ABC):
     @abstractmethod
-    async def search_theaters(self, region: str, *, limit: int = 5) -> list[ChatTheaterDto] | None:
-        """지역명 → 근처 영화관 목록(가까운 순).
+    async def search_theaters(
+        self, region: str, *, limit: int = 5, radius_m: int = 10_000
+    ) -> list[ChatTheaterDto] | None:
+        """지역명 → 근처 영화관 목록(가까운 순). radius_m은 이동수단 슬롯이 정한다
+        (도보 3km · 기본 10km · 차량 20km — booking 인터랙터 참조).
 
         None = 지역명을 좌표로 해석하지 못했거나 검색 자체가 실패(키 미설정·
         외부 API 오류 포함) — 호출자는 다른 지역명으로 다시 물어보게 안내한다.

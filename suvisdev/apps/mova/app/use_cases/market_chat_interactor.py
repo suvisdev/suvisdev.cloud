@@ -455,8 +455,15 @@ class ChatInteractor(ChatUseCase):
         recommendations = [result.card] if result.card else []
         assistant_meta: dict = {"recommendations": self._cards_meta(recommendations)}
         if result.evaluation is not None:
-            # 다음 턴의 긍정 반응 신호(_maybe_record_eval_positive)가 참조한다.
-            assistant_meta["evaluation"] = {"movie_id": result.evaluation.movie_id}
+            # movie_id는 다음 턴의 긍정 반응 신호(_maybe_record_eval_positive)가,
+            # 나머지 payload는 스레드 복원 시 프론트 지표 패널 재구성이 쓴다.
+            assistant_meta["evaluation"] = {
+                "movie_id": result.evaluation.movie_id,
+                "review_count": result.evaluation.review_count,
+                "avg_rating": result.evaluation.avg_rating,
+                "tmdb_rating": result.evaluation.tmdb_rating,
+                "excerpts": result.evaluation.excerpts,
+            }
         conversation_id = await self._persist_conversation_turn(
             request=request,
             user_content=request.message,
@@ -518,6 +525,26 @@ class ChatInteractor(ChatUseCase):
             search_filters={},
         )
         recommendations = [result.card] if result.card else []
+        assistant_meta: dict = {"recommendations": self._cards_meta(recommendations)}
+        if result.booking is not None:
+            # 스레드 복원 시 프론트 영화관 패널 재구성용.
+            assistant_meta["booking"] = {
+                "status": result.booking.status,
+                "region": result.booking.region,
+                "theaters": [
+                    {
+                        "name": t.name,
+                        "address": t.address,
+                        "distance_m": t.distance_m,
+                        "place_url": t.place_url,
+                        "phone": t.phone,
+                    }
+                    for t in result.booking.theaters
+                ],
+                "booking_links": [
+                    {"chain": link.chain, "url": link.url} for link in result.booking.booking_links
+                ],
+            }
         conversation_id = await self._persist_conversation_turn(
             request=request,
             user_content=request.message,
@@ -527,7 +554,7 @@ class ChatInteractor(ChatUseCase):
                 "keywords": entities,
             },
             assistant_content=result.reply,
-            assistant_meta={"recommendations": self._cards_meta(recommendations)},
+            assistant_meta=assistant_meta,
         )
         logger.info(
             "[ChatInteractor] trace=%s chat_id=%d intent=booking status=%s booking=%s",

@@ -60,6 +60,35 @@ def pending_title_from_history(history: list[dict[str, str]]) -> str | None:
     return None
 
 
+# 이동수단 슬롯(2026-08-28 사용자 결정: 순위에 영향 주는 상황 변수는 되묻거나
+# 함께 받는다) — 지역 답변에 이동수단이 섞여 오면 파싱해 검색 반경을 조정한다.
+# 예: "강남 차로 갈게" → region="강남", 반경 20km.
+_TRANSPORT_CAR_WORDS = ("차로", "자차", "운전", "자가용", "드라이브")
+_TRANSPORT_WALK_WORDS = ("걸어", "도보")
+_TRANSPORT_FILLER_WORDS = ("갈게", "갈래", "갈거야", "갈", "타고", "이동", "예정", "가요", "감")
+_RADIUS_DEFAULT_M = 10_000
+_RADIUS_CAR_M = 20_000
+_RADIUS_WALK_M = 3_000
+
+
+def _parse_region_transport(text: str) -> tuple[str, int, str | None]:
+    """지역 발화 → (지역명, 검색 반경 m, 이동수단 라벨|None)."""
+    radius, label = _RADIUS_DEFAULT_M, None
+    region_tokens: list[str] = []
+    for token in text.split():
+        if any(w in token for w in _TRANSPORT_CAR_WORDS):
+            radius, label = _RADIUS_CAR_M, "차량"
+            continue
+        if any(w in token for w in _TRANSPORT_WALK_WORDS):
+            radius, label = _RADIUS_WALK_M, "도보"
+            continue
+        if token in _TRANSPORT_FILLER_WORDS:
+            continue
+        region_tokens.append(token)
+    region = " ".join(region_tokens).strip() or text.strip()
+    return region, radius, label
+
+
 def _booking_links(title: str) -> list[ChatBookingLinkDto]:
     q = quote(title)
     return [
@@ -157,7 +186,8 @@ class BookingAssistService:
             status="ok",
             reply=(
                 f"『{detail.title}』 상영관을 찾아드릴게요. "
-                f"{REGION_ASK_MARKER}? (예: 강남, 홍대입구역, 수원)"
+                f"{REGION_ASK_MARKER}? 이동수단까지 알려주시면 더 정확해요 "
+                f"(예: 강남 / 홍대입구역 차로 / 수원 도보)"
             ),
             card=card,
             booking=ChatBookingDto(
@@ -169,6 +199,7 @@ class BookingAssistService:
     async def _assist_with_region(
         self, *, title_term: str, region: str, trace_id: str
     ) -> BookingResult:
+        region, radius_m, transport = _parse_region_transport(region)
         resolution = await resolve_movie_title(
             self._repository, message=title_term, entities=[title_term]
         )
@@ -190,7 +221,7 @@ class BookingAssistService:
             )
         card = self._card(detail, movie_id)
 
-        theaters = await self._theaters.search_theaters(region)
+        theaters = await self._theaters.search_theaters(region, radius_m=radius_m)
         if theaters is None:
             return BookingResult(
                 status="ok",
@@ -205,16 +236,22 @@ class BookingAssistService:
             )
 
         links = _booking_links(detail.title)
+        basis = f"{transport} 기준 반경 {radius_m // 1000}km" if transport else "반경 10km"
         if not theaters:
             reply = (
-                f"'{region}' 근처 10km 안에서 영화관을 찾지 못했어요. "
-                "아래 체인 검색 링크에서 직접 확인해 보시겠어요?"
+                f"'{region}' 근처 {basis} 안에서 영화관을 찾지 못했어요. "
+                + (
+                    "차로 이동하신다면 '강남 차로'처럼 알려주시면 반경을 넓혀 다시 찾아드려요. "
+                    if not transport
+                    else ""
+                )
+                + "아래 체인 검색 링크에서 직접 확인해 보실 수도 있어요."
             )
         else:
             top = theaters[0]
             distance = f"약 {top.distance_m}m" if top.distance_m is not None else "가장 가까움"
             reply = (
-                f"'{region}' 근처 영화관 {len(theaters)}곳을 가까운 순으로 찾았어요. "
+                f"'{region}' 근처({basis}) 영화관 {len(theaters)}곳을 가까운 순으로 찾았어요. "
                 f"가장 가까운 곳은 {top.name}({distance})이에요. 상영 시간표와 예매는 "
                 "각 체인 링크에서 확인해 주세요(시간표는 극장 사정에 따라 달라져요)."
             )
