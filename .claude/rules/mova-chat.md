@@ -89,7 +89,7 @@ paths:
 
 | 규칙 | 구현 |
 |------|------|
-| 대화 영속성 | `sessionStorage` 키 `mova-ai-chat-history-v1`, 탭·세션 단위 |
+| 대화 영속성 | `sessionStorage` 키 `mova-ai-chat-history-v2`(실측 2026-08-28), 탭·세션 단위 |
 | 복원 시 자동 전송 | 히스토리에 user 메시지 있으면 `?q=` 자동 전송 생략(`autoSentRef`) |
 | Enter 전송 | `Shift+Enter` 줄바꿈, IME 조합 중(`isComposing`) 전송 안 함 |
 | 전송 실패 | 사용자 메시지 롤백 + 입력값 복원 + `error` 배너 |
@@ -113,7 +113,7 @@ cd suvisdev && python -m pytest apps/mova/tests -m "not gpu and not ollama" -q
 #   [HubRagInteractor] embed 실패(쿼터 429면 RAG 생략됨) / vector_search hits=
 ```
 
-### 8. 응답 트랙 재설계 방향 (2026-08-28 사용자 결정 5건 반영 — 설계 확정, 구현 전)
+### 8. 응답 3트랙 (2026-08-28 결정 5건 반영 — Phase 1 구현 완료)
 
 **mova는 "영화를 추천하고, 평가하고, 예매까지 돕는" 프로젝트로 재정의됐다**
 (2026-08-28). 현행 "모든 영화 질의 → 추천 카드 3장" 단일 트랙을 인텐트별
@@ -135,8 +135,12 @@ cd suvisdev && python -m pytest apps/mova/tests -m "not gpu and not ollama" -q
   긍정 평가 반응 또는 예매 의지가 확인될 때만 반영. picks는 recommend
   트랙만.
 - **카드 3장 고정을 가정한 코드를 새로 쓰지 않는다** — 응답은
-  `response_type`(recommendation | evaluation | booking) 분기가 될 예정이고,
-  evaluate/booking은 카드 1장+전용 payload다.
+  `response_type`(recommendation | evaluation | booking) 분기이며,
+  evaluate/booking은 카드 1장+전용 payload다(스키마
+  `MovaChatEvaluationSchema`·`MovaChatBookingSchema`).
+- **booking 지역 이어받기는 결정론 마커**(`REGION_ASK_MARKER` + 『제목』)로
+  동작한다 — "강남" 단독 발화는 분류기가 오분류하기 쉬워 분류기를 거치지
+  않는다. 되묻기 문구를 바꿀 때 마커·『』 포맷을 깨뜨리지 말 것.
 - **정직성 규칙이 전 트랙에 적용된다** — 리뷰 표본 부족 명시(evaluate),
   "박스오피스 기준 근사"·시간표 출처 명시(booking). 모르는 것을 아는 척하는
   문구 금지.

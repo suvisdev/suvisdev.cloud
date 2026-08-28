@@ -25,12 +25,12 @@ class QwenIntentClassifierTests(unittest.IsolatedAsyncioTestCase):
 
         destination, entities = await classifier.classify("공포 영화 추천해줘")
 
-        self.assertEqual(destination, "rag")
+        self.assertEqual(destination, "recommend")
         self.assertEqual(entities, ["공포", "영화"])
 
-    async def test_complex_recommendation_phrasing_returns_rag(self) -> None:
+    async def test_complex_recommendation_phrasing_returns_recommend(self) -> None:
         """모델이 few-shot을 따라 올바르게 분류했다고 가정할 때, 복합/이례적
-        추천 요청 문구도 rag 튜플을 그대로 통과시키는지 확인한다(파싱 계약 검증 —
+        추천 요청 문구도 recommend 튜플("rag" 레거시 출력 정규화 포함)을 통과시키는지 확인한다(파싱 계약 검증 —
         실제 모델의 few-shot 추종 여부까지는 이 유닛 테스트로 보장하지 못한다)."""
         cases = [
             "장르별로 4편씩 추천해줘",
@@ -46,7 +46,7 @@ class QwenIntentClassifierTests(unittest.IsolatedAsyncioTestCase):
 
                 destination, _ = await classifier.classify(question)
 
-                self.assertEqual(destination, "rag")
+                self.assertEqual(destination, "recommend")
 
     async def test_non_recommendation_fact_query_returns_general(self) -> None:
         """추천이 아닌 단답/사실질의는 general로 남아야 한다(rag와의 대조 케이스)."""
@@ -98,38 +98,38 @@ class QwenIntentClassifierTests(unittest.IsolatedAsyncioTestCase):
 
         destination, _ = await classifier.classify("재밌는 영화 없냐")
 
-        self.assertEqual(destination, "rag")
+        self.assertEqual(destination, "recommend")
         llm.generate.assert_awaited_once()
 
-    async def test_unparseable_raw_text_falls_back_to_rag(self) -> None:
+    async def test_unparseable_raw_text_falls_back_to_recommend(self) -> None:
         """작은 라우팅 모델이 JSON 대신 질문에 직접 답해버리는 경우 — mova는 추천
-        앱이라 애매하면 general(산문 누수)보다 rag(구조화 카드 실패)가 더 안전하다."""
+        앱이라 애매하면 general(산문 누수)보다 recommend(구조화 카드 실패)가 더 안전하다."""
         llm = AsyncMock()
         llm.generate.return_value = "안드레 카파시는 OpenAI와 Tesla에서 일했던 AI 연구자입니다."
         classifier = QwenIntentClassifier(llm=llm)
 
         destination, entities = await classifier.classify("안드레 카파시가 누구야?")
 
-        self.assertEqual(destination, "rag")
+        self.assertEqual(destination, "recommend")
         self.assertEqual(entities, [])
 
-    async def test_llm_call_failure_falls_back_to_rag(self) -> None:
+    async def test_llm_call_failure_falls_back_to_recommend(self) -> None:
         llm = AsyncMock()
         llm.generate.side_effect = HubRagError(status_code=503, detail="라우터 다운")
         classifier = QwenIntentClassifier(llm=llm)
 
         destination, entities = await classifier.classify("아무 질문")
 
-        self.assertEqual(destination, "rag")
+        self.assertEqual(destination, "recommend")
 
-    async def test_unknown_destination_value_falls_back_to_rag(self) -> None:
+    async def test_unknown_destination_value_falls_back_to_recommend(self) -> None:
         llm = AsyncMock()
         llm.generate.return_value = '{"destination": "unknown_thing", "entities": []}'
         classifier = QwenIntentClassifier(llm=llm)
 
         destination, _ = await classifier.classify("아무 질문")
 
-        self.assertEqual(destination, "rag")
+        self.assertEqual(destination, "recommend")
 
 
 if __name__ == "__main__":

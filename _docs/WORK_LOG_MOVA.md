@@ -70,7 +70,30 @@
   되묻기, ④ **1차 분류기 확장으로 변경**(초안의 mova 내부 2단 분류 폐기,
   destination 5종 — 소비자 mova뿐 실측) + mova 정의를 "추천·평가·예매
   프로젝트"로 재정의(`apps/mova/_docs/CLAUDE.md` 역할 갱신), ⑤ chat_trend
-  조건부 반영(단순 질의 미집계, 긍정 반응·예매 의지 시만). 구현 미착수.
+  조건부 반영(단순 질의 미집계, 긍정 반응·예매 의지 시만).
+- **3트랙 Phase 1 구현 완료**(같은 날 이어서):
+  - 분류기 5종 확장: `qwen_intent_classifier.py` 프롬프트·상수(레거시 "rag"
+    → recommend 정규화, 기본 폴백 recommend), 포트 docstring, semantic
+    router는 신설 3종을 rag 경로 동일 취급.
+  - evaluate 트랙: `MovieEvaluationService` + `ReviewAggregationPort`/pg
+    구현(스포일러 리뷰 발췌 제외) + `TmdbReviewAdapter`(공식 API) + Mycroft
+    (Gemini) 종합 프롬프트(정량/정성 분리·표본 3건 미만 명시).
+  - booking 트랙: `BookingAssistService` — KOFIC 주간 박스오피스로 상영 중
+    근사 판정, 미상영이면 OTT 안내, 상영 중이면 『제목』+`REGION_ASK_MARKER`
+    되묻기 → 다음 턴을 결정론으로 이어받아 카카오 로컬(주소→키워드 폴백
+    지오코딩, 반경 10km 거리순) 영화관 목록 + 체인 3사 검색 딥링크.
+  - chat_trend 조건부 신호: `user_actions`에 `booking_intent`(작품 확정 최초
+    턴, 로그인 한정)·`eval_positive`(직전 평가 meta + 긍정 어휘) 기록,
+    `aggregate_chat_trend`가 click과 함께 집계.
+  - 응답 계약: `response_type` + evaluation/booking payload(DTO·Schema),
+    프론트 `mova-ai-chat-bar.tsx` 타입·파싱·패널 2종(지표 칩+발췌 인용 /
+    영화관 리스트+예매 링크) 렌더 분기.
+  - 테스트: 신규 `test_chat_tracks.py`(22케이스)·`test_intent_classifier_
+    destinations.py`(6케이스), 레거시 분류기 테스트 기대값 갱신 + 프롬프트
+    few-shot 2건 복원. 전체 692 passed(`-m "not gpu and not ollama"`),
+    `pnpm type-check` 통과.
+  - 알려진 한계: 대화 스레드 복원 시 evaluation/booking 패널은 재구성 안 됨
+    (meta에 카드만 저장) — 필요해지면 meta에 payload 추가.
 
 ### 오류·막힌 점
 - 전체 pytest에서 6건 실패로 보였으나 `-m` 미지정으로 ollama 자동 skip이

@@ -15,11 +15,38 @@ import { getConversation, type ConversationMessage } from "@/lib/mova-conversati
 import { getRotatingMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
+type ChatEvaluation = {
+  movie_id: number
+  review_count: number
+  avg_rating: number | null
+  tmdb_rating: number | null
+  excerpts: string[]
+}
+
+type ChatTheater = {
+  name: string
+  address: string
+  distance_m: number | null
+  place_url: string
+  phone: string
+}
+
+type ChatBookingLink = { chain: string; url: string }
+
+type ChatBooking = {
+  status: "showing" | "not_showing" | "need_region"
+  region: string | null
+  theaters: ChatTheater[]
+  booking_links: ChatBookingLink[]
+}
+
 type ChatMessage = {
   role: "user" | "assistant"
   content: string
   intentLabel?: string
   recommendations?: MovaRecommendation[]
+  evaluation?: ChatEvaluation
+  booking?: ChatBooking
 }
 
 type ChatState = {
@@ -347,6 +374,8 @@ export function MovaAiChatBar({
           refined_query?: string
           recommendations?: MovaRecommendation[]
           conversation_id?: number | null
+          evaluation?: ChatEvaluation | null
+          booking?: ChatBooking | null
           detail?: unknown
         }
         if (!res.ok) throw new Error(parseError(data, res.status))
@@ -371,6 +400,8 @@ export function MovaAiChatBar({
             role: "assistant",
             content: content || "추천을 준비하지 못했어요. 다시 질문해 주세요.",
             recommendations,
+            ...(data.evaluation ? { evaluation: data.evaluation } : {}),
+            ...(data.booking ? { booking: data.booking } : {}),
           })
           return { ...prev, messages, loading: false }
         })
@@ -537,6 +568,12 @@ export function MovaAiChatBar({
                   <MovaRecommendationCards items={msg.recommendations} />
                 </div>
               )}
+              {msg.role === "assistant" && msg.evaluation && (
+                <ChatEvaluationPanel evaluation={msg.evaluation} />
+              )}
+              {msg.role === "assistant" && msg.booking && msg.booking.status === "showing" && (
+                <ChatBookingPanel booking={msg.booking} />
+              )}
               {msg.role === "user" && msg.intentLabel && (
                 <p className="max-w-full px-1 text-right text-[10px] break-words text-neutral-500 [overflow-wrap:anywhere]">
                   DB 저장 · <span className="text-mova-accent-bright">{msg.intentLabel}</span>
@@ -621,5 +658,80 @@ export function MovaAiChatBar({
         </div>
       </form>
     </section>
+  )
+}
+
+function ChatEvaluationPanel({ evaluation }: { evaluation: ChatEvaluation }) {
+  const stats: string[] = [`mova 리뷰 ${evaluation.review_count}건`]
+  if (evaluation.avg_rating !== null) stats.push(`자체 평균 ${evaluation.avg_rating}점`)
+  if (evaluation.tmdb_rating !== null) stats.push(`TMDB ${evaluation.tmdb_rating}점`)
+  return (
+    <div className="w-full max-w-full rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-3">
+      <div className="flex flex-wrap gap-1.5">
+        {stats.map((s) => (
+          <span
+            key={s}
+            className="rounded-full border border-mova-border bg-mova-bg px-2.5 py-0.5 text-[11px] text-mova-text"
+          >
+            {s}
+          </span>
+        ))}
+      </div>
+      {evaluation.excerpts.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {evaluation.excerpts.map((text) => (
+            <li
+              key={text}
+              className="border-l-2 border-mova-accent pl-2 text-xs leading-relaxed text-neutral-400 break-words [overflow-wrap:anywhere]"
+            >
+              “{text}”
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
+  return (
+    <div className="w-full max-w-full rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-3">
+      {booking.theaters.length > 0 && (
+        <ul className="space-y-1.5">
+          {booking.theaters.map((t) => (
+            <li key={`${t.name}-${t.address}`} className="text-xs leading-relaxed">
+              <a
+                href={t.place_url || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-mova-text hover:text-mova-accent-bright"
+              >
+                {t.name}
+              </a>
+              <span className="text-neutral-400">
+                {" "}
+                · {t.address}
+                {t.distance_m !== null && ` · 약 ${t.distance_m}m`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {booking.booking_links.length > 0 && (
+        <div className={cn("flex flex-wrap gap-1.5", booking.theaters.length > 0 && "mt-2.5")}>
+          {booking.booking_links.map((link) => (
+            <a
+              key={link.chain}
+              href={link.url}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-mova-border bg-mova-bg px-3 py-1 text-[11px] text-mova-text transition-colors hover:border-mova-accent hover:text-mova-accent-bright"
+            >
+              {link.chain} 예매 검색
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

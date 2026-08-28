@@ -39,6 +39,16 @@ class ChatRepositoryPort(ABC):
         """
 
     @abstractmethod
+    async def search_movies_by_title(
+        self, terms: list[str], limit: int
+    ) -> list[MovaSearchItemSchema]:
+        """제목 부분일치 후보(평점·최신 우선 정렬) — evaluate/booking 트랙의 작품 확정용."""
+
+    @abstractmethod
+    async def record_user_action(self, user_id: int, movie_id: int, action_type: str) -> None:
+        """user_actions 이벤트 기록 — chat_trend 조건부 신호(booking_intent·eval_positive)."""
+
+    @abstractmethod
     async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list:
         """사용자 최근 검색 의도 (MovaChat rows)."""
 

@@ -10,7 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
 from mova.adapter.outbound.orm.market_rankings_orm import MovaRanking
-from mova.adapter.outbound.orm.market_user_actions_orm import ACTION_CLICK, MovaUserAction
+from mova.adapter.outbound.orm.market_user_actions_orm import (
+    ACTION_BOOKING_INTENT,
+    ACTION_CLICK,
+    ACTION_EVAL_POSITIVE,
+    MovaUserAction,
+)
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_rankings_dto import (
     ChatTrendAggRowDto,
@@ -79,6 +84,10 @@ class RankingsPgRepository(RankingsRepositoryPort):
         사용자가 채팅 결과 카드를 실제로 클릭한 경우만 신호로 카운트. 노출
         (picks) 신호는 완전히 제외 — "검색만 하고 순위에 반영되는 건 이상,
         클릭했을 때만 반영해야" 지침 반영.
+
+        2026-08-28 확장: 채팅 3트랙 결정에 따라 예매 의지(booking_intent)와
+        평가 후 긍정 반응(eval_positive)도 신호에 포함한다 — 단순 평가/예매
+        질의 자체는 여전히 미집계(액션이 기록되지 않으므로 자연 배제).
         """
         since = datetime.now(UTC) - timedelta(days=days)
         click_count = func.count(MovaUserAction.id)
@@ -89,7 +98,11 @@ class RankingsPgRepository(RankingsRepositoryPort):
                     MovaUserAction.movie_id.label("movie_id"),
                     click_count.label("click_count"),
                 )
-                .where(MovaUserAction.action_type == ACTION_CLICK)
+                .where(
+                    MovaUserAction.action_type.in_(
+                        (ACTION_CLICK, ACTION_BOOKING_INTENT, ACTION_EVAL_POSITIVE)
+                    )
+                )
                 .where(MovaUserAction.action_at >= since)
                 .group_by(MovaUserAction.movie_id)
                 .order_by(click_count.desc())

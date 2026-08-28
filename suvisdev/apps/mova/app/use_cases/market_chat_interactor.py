@@ -24,6 +24,11 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from mova.app.use_cases.market_chat_booking_interactor import (
+    BookingAssistService,
+    pending_title_from_history,
+)
+from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
@@ -38,6 +43,20 @@ _GENERAL_CHAT_SYSTEM_PROMPT = (
     "자연스럽게 답한다. 추천 요청이면 목록을 나열하지 말고 대화로 안내한다. "
     "[이전 대화]가 주어지면 그 흐름에 이어서 답하고, 사용자가 불만이나 지적을 "
     "하면 인사말 없이 짧게 사과한 뒤 어떻게 다시 요청하면 되는지 한 가지만 안내한다."
+)
+
+# 평가를 들은 뒤의 긍정 반응 — chat_trend 조건부 신호(2026-08-28 결정: 단순
+# 질의는 미집계, 긍정 반응·예매 의지만 반영). 실측 사례가 쌓이면 보강한다.
+_EVAL_POSITIVE_PATTERNS: tuple[str, ...] = (
+    "볼래",
+    "볼게",
+    "봐야겠",
+    "보고 싶",
+    "보고싶",
+    "재밌겠",
+    "기대된다",
+    "기대돼",
+    "예매할래",
 )
 
 
@@ -92,6 +111,8 @@ class ChatInteractor(ChatUseCase):
         conversations: ConversationsRepository | None = None,
         movies: MoviesRepositoryPort | None = None,
         taste_vectors: UserTasteVectorRepositoryPort | None = None,
+        evaluation: MovieEvaluationService | None = None,
+        booking: BookingAssistService | None = None,
     ) -> None:
         self._repo = repository
         self._llm = recommender
@@ -107,6 +128,10 @@ class ChatInteractor(ChatUseCase):
         # 테스트가 두 인자 없이 인스턴스화해도 깨지지 않게 optional로 둔다.
         self._movies = movies
         self._taste_vectors = taste_vectors
+        # 3트랙(2026-08-28): 미주입이면 해당 destination도 기존 추천 경로로
+        # 흘려 하위호환 유지(기존 테스트·부팅 경로 보호).
+        self._evaluation = evaluation
+        self._booking = booking
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
@@ -118,12 +143,38 @@ class ChatInteractor(ChatUseCase):
         #     지정 시에만 조회. 없거나 남의 것이면 여기서 즉시 raise.
         await self._verify_conversation_ownership(request)
 
-        # 0. 시맨틱 인텐트 분류 — 영화와 무관한 잡담/일반 질문(general)은 RAG·추천
-        #    파이프라인을 타지 않고 Gemini(Mycroft)로 바로 위임한다. mova/chat엔 실제
-        #    CRUD 기능이 없으므로(crud는 분류기가 가끔 오분류하는 잡음에 가깝다),
-        #    영화 추천 파이프라인으로 잘못 흘려보내는 대신 general과 동일하게 처리한다.
-        destination, _entities = await self._classifier.classify(request.message)
+        # -0.5. booking 지역 이어받기 — 직전 assistant 응답이 지역 되묻기였으면
+        #       이번 발화는 지역명이다. 분류기를 거치지 않고 결정론으로 잇는다
+        #       ("강남" 단독 발화는 분류기가 general로 오분류하기 쉽다).
+        if self._booking is not None:
+            pending_title = pending_title_from_history(request.history_dicts())
+            if pending_title:
+                logger.info(
+                    "[ChatInteractor] trace=%s booking 지역 이어받기 title=%s",
+                    trace_id,
+                    pending_title,
+                )
+                return await self._reply_booking(
+                    request, trace_id, entities=[], pending_title=pending_title
+                )
+
+        # 0. 시맨틱 인텐트 분류(2026-08-28 5종: recommend/evaluate/booking/general/
+        #    crud) — 영화와 무관한 잡담(general)은 추천 파이프라인을 타지 않고
+        #    Gemini(Mycroft)로 바로 위임한다. mova/chat엔 실제 CRUD 기능이 없으므로
+        #    (crud는 분류기가 가끔 오분류하는 잡음에 가깝다) general과 동일 처리.
+        destination, entities = await self._classifier.classify(request.message)
         logger.info("[ChatInteractor] trace=%s destination=%s", trace_id, destination)
+
+        # 평가 직후의 긍정 반응은 chat_trend 조건부 신호로 기록(발화 자체는
+        # 원래 갈 곳으로 계속 흘린다 — 보통 general).
+        await self._maybe_record_eval_positive(request, trace_id)
+
+        if destination == "evaluate" and self._evaluation is not None:
+            return await self._reply_evaluation(request, trace_id, entities)
+        if destination == "booking" and self._booking is not None:
+            return await self._reply_booking(
+                request, trace_id, entities=entities, pending_title=None
+            )
         if destination in ("general", "crud"):
             return await self._reply_general(request, trace_id)
 
@@ -384,6 +435,151 @@ class ChatInteractor(ChatUseCase):
             len(embeddings_by_id),
         )
         return reranked
+
+    async def _reply_evaluation(
+        self, request: MovaChatRequest, trace_id: str, entities: list[str]
+    ) -> ChatResponseDto:
+        """evaluate 트랙 — 서비스가 만든 평가를 저장·응답 형태로 감싼다."""
+        result = await self._evaluation.evaluate(
+            message=request.message, entities=entities, trace_id=trace_id
+        )
+        chat_id = await self._repo.save_chat(
+            user_id=request.user_id,
+            assistant_id=None,
+            raw_message=request.message,
+            refined_query=request.message,
+            keywords=entities,
+            intent_type="evaluate",
+            search_filters={},
+        )
+        recommendations = [result.card] if result.card else []
+        assistant_meta: dict = {"recommendations": self._cards_meta(recommendations)}
+        if result.evaluation is not None:
+            # 다음 턴의 긍정 반응 신호(_maybe_record_eval_positive)가 참조한다.
+            assistant_meta["evaluation"] = {"movie_id": result.evaluation.movie_id}
+        conversation_id = await self._persist_conversation_turn(
+            request=request,
+            user_content=request.message,
+            user_meta={
+                "intent_type": "evaluate",
+                "refined_query": request.message,
+                "keywords": entities,
+            },
+            assistant_content=result.reply,
+            assistant_meta=assistant_meta,
+        )
+        logger.info(
+            "[ChatInteractor] trace=%s chat_id=%d intent=evaluate status=%s",
+            trace_id,
+            chat_id,
+            result.status,
+        )
+        return ChatResponseDto(
+            chat_id=chat_id,
+            reply=result.reply,
+            refined_query=request.message,
+            keywords=entities,
+            intent_type="evaluate",
+            search_filters={},
+            recommendations=recommendations,
+            conversation_id=conversation_id,
+            response_type="evaluation",
+            evaluation=result.evaluation,
+        )
+
+    async def _reply_booking(
+        self,
+        request: MovaChatRequest,
+        trace_id: str,
+        *,
+        entities: list[str],
+        pending_title: str | None,
+    ) -> ChatResponseDto:
+        """booking 트랙 — 상영 여부·지역 슬롯 필링·영화관 안내."""
+        result = await self._booking.assist(
+            message=request.message,
+            entities=entities,
+            trace_id=trace_id,
+            pending_title=pending_title,
+        )
+        # 예매 의지 신호(chat_trend 조건부 반영) — 작품이 확정된 최초 턴에서만,
+        # 로그인 사용자 한정(user_actions.user_id NOT NULL).
+        if request.user_id and result.resolved_movie_id and pending_title is None:
+            await self._repo.record_user_action(
+                request.user_id, result.resolved_movie_id, "booking_intent"
+            )
+        chat_id = await self._repo.save_chat(
+            user_id=request.user_id,
+            assistant_id=None,
+            raw_message=request.message,
+            refined_query=request.message,
+            keywords=entities,
+            intent_type="booking",
+            search_filters={},
+        )
+        recommendations = [result.card] if result.card else []
+        conversation_id = await self._persist_conversation_turn(
+            request=request,
+            user_content=request.message,
+            user_meta={
+                "intent_type": "booking",
+                "refined_query": request.message,
+                "keywords": entities,
+            },
+            assistant_content=result.reply,
+            assistant_meta={"recommendations": self._cards_meta(recommendations)},
+        )
+        logger.info(
+            "[ChatInteractor] trace=%s chat_id=%d intent=booking status=%s booking=%s",
+            trace_id,
+            chat_id,
+            result.status,
+            result.booking.status if result.booking else "-",
+        )
+        return ChatResponseDto(
+            chat_id=chat_id,
+            reply=result.reply,
+            refined_query=request.message,
+            keywords=entities,
+            intent_type="booking",
+            search_filters={},
+            recommendations=recommendations,
+            conversation_id=conversation_id,
+            response_type="booking",
+            booking=result.booking,
+        )
+
+    @staticmethod
+    def _cards_meta(cards: list) -> list[dict]:
+        return [
+            {
+                "id": r.id,
+                "movie_id": r.movie_id,
+                "title": r.title,
+                "year": r.year,
+                "poster": r.poster,
+                "synopsis": r.synopsis,
+                "platform": r.platform,
+                "hook": r.hook,
+            }
+            for r in cards
+        ]
+
+    async def _maybe_record_eval_positive(self, request: MovaChatRequest, trace_id: str) -> None:
+        """직전 assistant 턴이 평가였고 이번 발화가 긍정 반응이면 chat_trend 신호 기록."""
+        if not (request.user_id and request.conversation_id and self._conversations):
+            return
+        if not any(p in request.message for p in _EVAL_POSITIVE_PATTERNS):
+            return
+        movie_id = await self._conversations.get_last_evaluation_movie_id(request.conversation_id)
+        if movie_id is None:
+            return
+        await self._repo.record_user_action(request.user_id, movie_id, "eval_positive")
+        logger.info(
+            "[ChatInteractor] trace=%s eval_positive 신호 기록 movie_id=%d",
+            trace_id,
+            movie_id,
+        )
 
     async def _reply_general(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
         """영화 지식 조회가 필요 없는 잡담 — RAG·추천 없이 Gemini(Mycroft) 답변만 저장·반환."""

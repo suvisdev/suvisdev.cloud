@@ -35,6 +35,36 @@ class MovaChatRecommendationSchema(BaseModel):
     hook: str = ""
 
 
+class MovaChatEvaluationSchema(BaseModel):
+    """evaluate 트랙 정량 payload — 정성 서술은 reply에 담긴다."""
+
+    movie_id: int
+    review_count: int
+    avg_rating: float | None = None
+    tmdb_rating: float | None = None
+    excerpts: list[str] = Field(default_factory=list)
+
+
+class MovaChatTheaterSchema(BaseModel):
+    name: str
+    address: str = ""
+    distance_m: int | None = None
+    place_url: str = ""
+    phone: str = ""
+
+
+class MovaChatBookingLinkSchema(BaseModel):
+    chain: str
+    url: str
+
+
+class MovaChatBookingSchema(BaseModel):
+    status: Literal["showing", "not_showing", "need_region"]
+    region: str | None = None
+    theaters: list[MovaChatTheaterSchema] = Field(default_factory=list)
+    booking_links: list[MovaChatBookingLinkSchema] = Field(default_factory=list)
+
+
 class MovaChatResponseSchema(BaseModel):
     reply: str
     recommendations: list[MovaChatRecommendationSchema] = Field(default_factory=list)
@@ -47,6 +77,12 @@ class MovaChatResponseSchema(BaseModel):
         description="로그인 사용자에 한해 이 응답이 append된 대화 스레드 id. "
         "요청에 없어서 새로 만든 경우 생성된 id가 여기 담긴다. 비로그인은 항상 null.",
     )
+    response_type: Literal["recommendation", "evaluation", "booking"] = Field(
+        default="recommendation",
+        description="응답 트랙(2026-08-28 3트랙). evaluation/booking이면 해당 payload가 함께 온다.",
+    )
+    evaluation: MovaChatEvaluationSchema | None = None
+    booking: MovaChatBookingSchema | None = None
 
 
 class MarketChatSchema(BaseModel):

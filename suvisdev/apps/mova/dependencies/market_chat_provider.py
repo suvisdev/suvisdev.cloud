@@ -6,6 +6,11 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_mova_db
+from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+from mova.adapter.outbound.http.kakao_local_adapter import KakaoLocalTheaterAdapter
+from mova.adapter.outbound.http.kofic_box_office_adapter import KoficBoxOfficeAdapter
+from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapter
+from mova.adapter.outbound.http.tmdb_review_adapter import TmdbReviewAdapter
 from mova.adapter.outbound.llm.fallback_recommendation_adapter import (
     FallbackRecommendationAdapter,
 )
@@ -20,6 +25,9 @@ from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
 from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
     UserTasteVectorsPgRepository,
 )
+from mova.adapter.outbound.pg.review_aggregation_pg_repository import (
+    ReviewAggregationPgRepository,
+)
 from mova.adapter.outbound.pg.user_preference_pg_repository import (
     UserPreferencePgRepository,
 )
@@ -32,6 +40,8 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from mova.app.use_cases.market_chat_booking_interactor import BookingAssistService
+from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
 from mova.app.use_cases.market_chat_interactor import ChatInteractor
 from mova.dependencies.market_conversations_provider import get_conversations_repository
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
@@ -80,6 +90,37 @@ def get_user_taste_vector_repository(
     return UserTasteVectorsPgRepository(session=db)
 
 
+def get_evaluation_service(
+    db: AsyncSession = Depends(get_mova_db),
+    general: MycroftUseCase = Depends(get_semantic_mycroft_use_case),
+) -> MovieEvaluationService:
+    keymaker = get_keymaker()
+    # TMDB 키 미설정이면 외부 리뷰만 생략 — 평가 트랙 자체는 자체 리뷰로 동작.
+    external = (
+        TmdbReviewAdapter(TmdbAdapter(keymaker.tmdb_api_key)) if keymaker.tmdb_api_key else None
+    )
+    return MovieEvaluationService(
+        repository=ChatPgRepository(session=db),
+        movies=MoviesPgRepository(session=db),
+        reviews=ReviewAggregationPgRepository(session=db),
+        general=general,
+        external_reviews=external,
+    )
+
+
+def get_booking_service(
+    db: AsyncSession = Depends(get_mova_db),
+) -> BookingAssistService:
+    keymaker = get_keymaker()
+    return BookingAssistService(
+        repository=ChatPgRepository(session=db),
+        movies=MoviesPgRepository(session=db),
+        box_office=KoficBoxOfficeAdapter(keymaker.kofic_api_key),
+        # gildle 지오코딩과 같은 키 재사용(mova 자체 어댑터 — 스포크 간 import 금지).
+        theaters=KakaoLocalTheaterAdapter(os.getenv("KAKAO_API_KEY") or ""),
+    )
+
+
 def get_chat_use_case(
     repository: ChatRepositoryPort = Depends(get_chat_repository),
     recommender: RecommendationPort = Depends(get_recommendation_port),
@@ -90,6 +131,8 @@ def get_chat_use_case(
     conversations: ConversationsRepository = Depends(get_conversations_repository),
     movies: MoviesRepositoryPort = Depends(get_movies_repository_for_chat),
     taste_vectors: UserTasteVectorRepositoryPort = Depends(get_user_taste_vector_repository),
+    evaluation: MovieEvaluationService = Depends(get_evaluation_service),
+    booking: BookingAssistService = Depends(get_booking_service),
 ) -> ChatUseCase:
     return ChatInteractor(
         repository=repository,
@@ -101,6 +144,8 @@ def get_chat_use_case(
         conversations=conversations,
         movies=movies,
         taste_vectors=taste_vectors,
+        evaluation=evaluation,
+        booking=booking,
     )
 
 

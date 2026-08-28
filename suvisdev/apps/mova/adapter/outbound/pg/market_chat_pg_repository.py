@@ -12,6 +12,10 @@ from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommen
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
 from mova.adapter.outbound.orm.market_picks_orm import MovaPick
+from mova.adapter.outbound.orm.market_user_actions_orm import (
+    EVENT_ACTION_TYPES,
+    MovaUserAction,
+)
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor
 from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
@@ -168,6 +172,24 @@ class ChatPgRepository(ChatRepositoryPort):
             select(MovaMovie).where(*conds).order_by(*self._recency_first_order()).limit(limit)
         )
         return _to_search_items(list(fallback_rows.scalars().all()), "popular_fallback")
+
+    async def search_movies_by_title(
+        self, terms: list[str], limit: int
+    ) -> list[MovaSearchItemSchema]:
+        ids = await self._movie_ids_by_titles(terms)
+        if not ids:
+            return []
+        rows = await self._movies_by_ids(ids, limit, [])
+        return _to_search_items(rows, "title")
+
+    async def record_user_action(self, user_id: int, movie_id: int, action_type: str) -> None:
+        if action_type not in EVENT_ACTION_TYPES:
+            logger.warning("[ChatPgRepository] 미정의 action_type=%s — 기록 생략", action_type)
+            return
+        self._session.add(
+            MovaUserAction(user_id=user_id, movie_id=movie_id, action_type=action_type)
+        )
+        await self._session.commit()
 
     async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list[MovaChat]:
         rows = (

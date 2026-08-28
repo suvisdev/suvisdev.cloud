@@ -161,6 +161,14 @@ class TmdbAdapter:
         data = await self._get("/search/movie", params={"query": q, "page": max(1, page)})
         return list(data.get("results") or [])
 
+    async def fetch_movie_reviews(self, tmdb_id: int, *, page: int = 1) -> list[dict]:
+        """TMDB 리뷰 목록. 리뷰는 언어별 저장이라 ko-KR엔 거의 없어 en-US로 조회
+        (evaluate 트랙에서 LLM이 한국어로 요약한다, 2026-08-28)."""
+        data = await self._get(
+            f"/movie/{tmdb_id}/reviews", params={"language": "en-US", "page": page}
+        )
+        return list(data.get("results") or [])
+
     async def fetch_movie_detail(self, tmdb_id: int) -> dict:
         return await self._get(
             f"/movie/{int(tmdb_id)}",

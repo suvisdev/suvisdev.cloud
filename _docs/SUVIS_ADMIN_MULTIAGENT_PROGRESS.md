@@ -899,7 +899,16 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 - **TMDB keyword 기반 태그 백필**(슈퍼히어로 등) — franchise_expansion
   사전의 체계적 대체재. `/movie/{id}/keywords`로 태그 생성.
 
-### mova 채팅 응답 트랙 재설계(2026-08-28 — 결정 5건 완료, 구현 착수 가능)
+### mova 채팅 응답 트랙 재설계(2026-08-28 — Phase 1 구현 완료)
+Phase 1(분류기 5종·evaluate·booking·chat_trend 조건부 신호·프론트 패널)
+구현·테스트 완료 — 상세는 `WORK_LOG_MOVA.md` 2026-08-28. 남은 것:
+- **Phase 2 시간표**: 착수 전 체인 3사 약관·robots 실확인(§5 선행 조건).
+- **Phase 3 영화관 리뷰**: 수요 보고 결정(보류).
+- 대화 스레드 복원 시 evaluation/booking 패널 재구성(meta에 payload 저장).
+- 이동수단 슬롯(차량/대중교통) 질문 — 현재는 거리순 고정, 순위 영향 시 되묻기
+  구현은 후속.
+
+### (구) 재설계 결정 기록(2026-08-28 — 완료)
 mova를 "영화를 추천·평가·예매까지 돕는 프로젝트"로 재정의(사용자 확정).
 recommend/evaluate("호프 어때?")/booking("호프 예매하고 싶어") 3트랙 —
 설계·Phase·결정 기록은 `suvisdev/apps/mova/_docs/MOVA_CHAT_INTENT_REDESIGN.md`

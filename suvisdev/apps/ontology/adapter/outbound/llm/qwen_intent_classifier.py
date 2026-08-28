@@ -15,11 +15,14 @@ from ontology.app.ports.output.intent_classifier_port import IntentClassifierPor
 
 logger = logging.getLogger(__name__)
 
-_DESTINATIONS = ("crud", "rag", "general")
+_DESTINATIONS = ("crud", "recommend", "evaluate", "booking", "general")
+# 2026-08-28: mova 재정의(추천·평가·예매)에 따라 rag → recommend/evaluate/booking
+# 3종으로 세분화. 구모델 출력·프롬프트 에코로 "rag"가 나오면 recommend로 정규화.
+_LEGACY_ALIASES = {"rag": "recommend"}
 # 분류 실패(호출 에러·JSON 파싱 실패) 시 general로 보내면 실제 추천 요청이 시스템
 # 프롬프트 없는 Gemini 산문으로 새 버린다(2026-07-31 회귀 실측) — mova는 추천 앱이라
 # "산문으로 새는 것"보다 "구조화 카드 경로에서 실패하는 것"이 사용자 기대에 가깝다.
-_DEFAULT_DESTINATION = "rag"
+_DEFAULT_DESTINATION = "recommend"
 
 # 봇의 직전 행동에 대한 불만·메타 발화 — 추천 파이프라인에 넣으면 빈 카드
 # 응답만 반복된다(2026-08-26 프로덕션 zero-rec 실측: "똑같은 말 반복하지마",
@@ -32,55 +35,75 @@ _META_COMPLAINT_PATTERNS: tuple[str, ...] = (
     "보여줘야지",  # "엄선을 했으면 보여줘야지"
 )
 
-_ROUTING_SYSTEM_PROMPT = """너는 영화 추천 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
+_ROUTING_SYSTEM_PROMPT = """너는 영화를 추천하고, 평가하고, 예매까지 돕는 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
 아래 JSON 스키마로만 응답하고, 다른 설명·인사말·예시는 절대 붙이지 마.
 
 출력 스키마:
-{"destination": "crud" | "rag" | "general", "entities": ["질문 속 핵심 키워드"]}
+{"destination": "crud" | "recommend" | "evaluate" | "booking" | "general", "entities": ["질문 속 핵심 키워드"]}
 
-분류 기준 (중요: 영화·시리즈 추천/검색/정보 요청은 전부 "rag"야. "추천해줘"라는
-표현 자체가 잡담이 아니라 rag를 의미해):
-- rag: 영화·시리즈 추천 요청, 특정 장르·분위기·배우·감독 기반 검색, 특정 작품에 대한
-  질문 등 영화 콘텐츠와 관련된 모든 질문. (예: "슬픈 영화 추천해줘", "공포 영화 뭐 있어?",
-  "톰 크루즈 나온 영화 알려줘")
+분류 기준 (중요: 영화·시리즈 관련 질문은 전부 recommend/evaluate/booking 중 하나야.
+"추천해줘"라는 표현 자체가 잡담이 아니라 recommend를 의미해):
+- recommend: 영화·시리즈 추천 요청, 장르·분위기·배우·감독 기반 검색.
+  (예: "슬픈 영화 추천해줘", "공포 영화 뭐 있어?", "톰 크루즈 나온 영화 알려줘")
+- evaluate: **특정 작품**이 어떤지 평가·평판을 묻는 질문. 작품 제목이 등장하고
+  "어때/볼만해/재밌어/평점/평가" 류의 표현이 함께 온다.
+  (예: "호프 어때?", "인셉션 볼만해?", "듄 평점 어때?")
+- booking: **특정 작품**의 예매·상영관·상영 시간을 묻거나 예매 의사를 밝히는 질문.
+  (예: "호프 예매하고 싶어", "인셉션 어디서 상영해?", "듄 표 끊고 싶은데")
 - crud: 데이터 생성·수정·삭제를 명확히 요구하는 질문 (예: "이 영화 리뷰 삭제해줘")
 - general: 영화와 무관한 인사·잡담·일반 상식 (예: "안녕", "오늘 날씨 어때", "너는 누구야")
 
-주의(사람 이름 질문): 사람 이름이 등장한다고 무조건 배우·감독으로 보고 rag로
+주의(사람 이름 질문): 사람 이름이 등장한다고 무조건 배우·감독으로 보고 recommend로
 보내지 마. "그 사람이 누구야/뭐 하는 사람이야"처럼 인물 자체에 대한 정보를 묻는
 질문은 영화와 무관하면 general이야. 그 인물이 나온/만든 "영화"를 명시적으로
-찾는 질문일 때만 rag야.
+찾는 질문일 때만 recommend야.
+
+주의(evaluate vs recommend): "어때"가 있어도 특정 작품 제목이 없으면 evaluate가
+아니야. "요즘 코미디 어때?"는 recommend야. evaluate·booking의 entities에는 반드시
+작품 제목을 첫 번째로 넣어.
 
 예시:
 질문: "슬픈 영화 추천해줘"
-답변: {"destination": "rag", "entities": ["슬픈", "영화"]}
+답변: {"destination": "recommend", "entities": ["슬픈", "영화"]}
+
+질문: "호프 어때??"
+답변: {"destination": "evaluate", "entities": ["호프"]}
+
+질문: "인셉션 볼만해?"
+답변: {"destination": "evaluate", "entities": ["인셉션"]}
+
+질문: "호프 예매하고 싶어"
+답변: {"destination": "booking", "entities": ["호프"]}
+
+질문: "듄 어디서 상영해?"
+답변: {"destination": "booking", "entities": ["듄"]}
 
 질문: "안녕! 오늘 기분 어때?"
 답변: {"destination": "general", "entities": []}
 
 질문: "공포 영화 하나 알려줘"
-답변: {"destination": "rag", "entities": ["공포", "영화"]}
-
-질문: "안드레 카파시가 누구야?"
-답변: {"destination": "general", "entities": []}
+답변: {"destination": "recommend", "entities": ["공포", "영화"]}
 
 질문: "봉준호가 누구야?"
 답변: {"destination": "general", "entities": []}
 
 질문: "봉준호 감독 영화 추천해줘"
-답변: {"destination": "rag", "entities": ["봉준호"]}
+답변: {"destination": "recommend", "entities": ["봉준호"]}
 
 질문: "장르별로 4편씩 추천해줘"
-답변: {"destination": "rag", "entities": ["장르별", "4편"]}
+답변: {"destination": "recommend", "entities": ["장르별", "4편"]}
 
 질문: "가볍게 볼 만한 한국 영화 몇 개 골라줘"
-답변: {"destination": "rag", "entities": ["가벼운", "한국 영화"]}
+답변: {"destination": "recommend", "entities": ["가벼운", "한국 영화"]}
 
 질문: "주말에 볼 로맨스랑 코미디 하나씩"
-답변: {"destination": "rag", "entities": ["로맨스", "코미디"]}
+답변: {"destination": "recommend", "entities": ["로맨스", "코미디"]}
+
+질문: "요즘 코미디 어때?"
+답변: {"destination": "recommend", "entities": ["코미디"]}
 
 질문: "심각하지 않고 기분 좋아지는 영화"
-답변: {"destination": "rag", "entities": ["기분 좋은"]}
+답변: {"destination": "recommend", "entities": ["기분 좋은"]}
 
 질문: "이 영화 감독 누구야?"
 답변: {"destination": "general", "entities": []}
@@ -118,6 +141,7 @@ class QwenIntentClassifier(IntentClassifierPort):
             return _DEFAULT_DESTINATION, []
 
         destination = data.get("destination")
+        destination = _LEGACY_ALIASES.get(destination, destination)
         if destination not in _DESTINATIONS:
             destination = _DEFAULT_DESTINATION
         entities = [str(e) for e in (data.get("entities") or [])]

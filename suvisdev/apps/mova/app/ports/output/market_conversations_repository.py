@@ -53,3 +53,11 @@ class ConversationsRepository(ABC):
         않도록 후보 필터링에 쓴다. 30건 정도면 실사용 대화에서 충분(한 대화당
         평균 3~5턴 × 3편 ≈ 15편).
         """
+
+    @abstractmethod
+    async def get_last_evaluation_movie_id(self, conversation_id: int) -> int | None:
+        """스레드 마지막 assistant 메시지가 evaluate 응답이면 그 movie_id.
+
+        평가를 듣고 난 사용자의 긍정 반응("볼래" 등)을 chat_trend 신호로
+        기록할 때 어떤 영화에 대한 반응인지 알아내는 용도(2026-08-28 3트랙).
+        """

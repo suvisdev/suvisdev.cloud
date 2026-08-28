@@ -143,3 +143,22 @@ class ConversationsPgRepository(ConversationsRepository):
                     if isinstance(slug, str) and slug:
                         slugs.add(slug)
         return slugs
+
+    async def get_last_evaluation_movie_id(self, conversation_id: int) -> int | None:
+        stmt = (
+            select(MovaConversationMessage.meta)
+            .where(
+                MovaConversationMessage.conversation_id == conversation_id,
+                MovaConversationMessage.role == "assistant",
+            )
+            .order_by(MovaConversationMessage.id.desc())
+            .limit(1)
+        )
+        meta = (await self._session.execute(stmt)).scalar_one_or_none()
+        if not isinstance(meta, dict):
+            return None
+        evaluation = meta.get("evaluation")
+        if not isinstance(evaluation, dict):
+            return None
+        movie_id = evaluation.get("movie_id")
+        return movie_id if isinstance(movie_id, int) else None

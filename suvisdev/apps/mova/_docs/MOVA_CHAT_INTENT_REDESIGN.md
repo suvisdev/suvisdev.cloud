@@ -1,7 +1,6 @@
 # Mova 채팅 응답 알고리즘 재설계 — 인텐트별 응답 트랙
 
-> **상태:** 설계 확정 전 초안(2026-08-28, 사용자 지시로 작성) — 구현 착수 전
-> 미결 결정(§8)을 해소할 것.
+> **상태:** Phase 1 구현 완료(2026-08-28) — §9 체크리스트 1~9 반영, 10은 하네스에 반영됨.
 > **상위:** `.claude/rules/mova-chat.md`(채팅 규칙 하네스 — 이 문서의 요약
 > 규칙이 §8에 있다) · `CLAUDE.md`(같은 폴더, mova SSOT)
 
@@ -193,17 +192,17 @@ destination ∈ { recommend | evaluate | booking | general | crud }
 
 ## 9. 구현 체크리스트 (Phase 1 기준)
 
-1. [ ] Hub 분류기 destination 5종 확장 + `semantic_router_interactor.py`
+1. [x] Hub 분류기 destination 5종 확장 + `semantic_router_interactor.py`
    분기 갱신 + 단위 테스트(booking/evaluate/recommend/제목 없음 4축)
-1-b. [ ] 후속 발화 긍정 반응·예매 의지 판정 → chat_trend 조건부 반영 로직
+1-b. [x] 후속 발화 긍정 반응·예매 의지 판정 → chat_trend 조건부 반영 로직
    + 테스트(§8-5)
-2. [ ] `ReviewAggregationPort` + pg 구현 + 테스트(분포·발췌·스포일러 마스킹)
-3. [ ] `MovieEvaluationInteractor` + 프롬프트(정량/정성 분리·표본 부족 명시)
-4. [ ] `TheaterSearchPort` + 카카오 로컬 어댑터(+ `KAKAO_API_KEY` 재사용) + 테스트
-5. [ ] `BookingAssistInteractor`(상영 중 판정 → 분기) + 테스트
-6. [ ] `ChatResponseDto`/Schema `response_type` 확장(하위호환 확인)
-7. [ ] ChatInteractor 위임 배선 + DI provider
-8. [ ] 프론트 렌더 분기(evaluation·booking 패널)
-9. [ ] `pytest -m "not gpu and not ollama"` + `pnpm type-check` + 프로덕션
+2. [x] `ReviewAggregationPort` + pg 구현 + 테스트(분포·발췌·스포일러 마스킹)
+3. [x] `MovieEvaluationInteractor` + 프롬프트(정량/정성 분리·표본 부족 명시)
+4. [x] `TheaterSearchPort` + 카카오 로컬 어댑터(+ `KAKAO_API_KEY` 재사용) + 테스트
+5. [x] `BookingAssistInteractor`(상영 중 판정 → 분기) + 테스트
+6. [x] `ChatResponseDto`/Schema `response_type` 확장(하위호환 확인)
+7. [x] ChatInteractor 위임 배선 + DI provider
+8. [x] 프론트 렌더 분기(evaluation·booking 패널)
+9. [x] `pytest -m "not gpu and not ollama"` + `pnpm type-check` + 프로덕션
    실호출 검증("호프 어때?"·"호프 예매하고 싶어" 시나리오)
-10. [ ] `.claude/rules/mova-chat.md` §8을 실측 결과로 갱신(설계→관례 승격)
+10. [x] `.claude/rules/mova-chat.md` §8을 실측 결과로 갱신(설계→관례 승격)

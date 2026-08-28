@@ -66,6 +66,9 @@ class SemanticRouterInteractor(SemanticRouterUseCase):
             answer = await self._general.ask(MycroftAskCommand(question=command.question))
             return SemanticRouteDto(destination="general", entities=entities, answer=answer.text)
 
+        # recommend/evaluate/booking(2026-08-28 세분화)은 이 게이트웨이에서는 전부
+        # 기존 rag 경로로 취급한다 — 트랙별 응답은 mova ChatInteractor 소관이고,
+        # 여기는 hub_knowledge 기반 단문 답변 데모 엔드포인트다.
         return await self._answer_with_rag(command.question, entities)
 
     async def _answer_with_rag(self, question: str, entities: list[str]) -> SemanticRouteDto:
