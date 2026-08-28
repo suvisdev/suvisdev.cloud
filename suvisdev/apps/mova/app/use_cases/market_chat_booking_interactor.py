@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 from mova.adapter.outbound.http.kofic_adapter import KoficAdapterError
@@ -233,10 +234,19 @@ class BookingAssistService:
             ),
         )
 
+    @staticmethod
+    def _last_completed_week_date() -> str:
+        """KOFIC 주간 박스오피스는 완결된 주만 데이터가 있다 — 주 중간 날짜로
+        조회하면 빈 목록이 온다(2026-08-28 EC2 실측: 목요일 어제 날짜 → 0건).
+        KST 기준 직전 일요일(항상 오늘보다 과거)을 쓴다."""
+        today_kst = (datetime.now(UTC) + timedelta(hours=9)).date()
+        last_sunday = today_kst - timedelta(days=today_kst.isoweekday())
+        return last_sunday.strftime("%Y%m%d")
+
     async def _is_showing(self, title: str) -> bool:
         """KOFIC 주간 박스오피스 등재 여부로 근사 — 실패 시 상영 중으로 간주하지 않는다."""
         try:
-            entries = await self._box_office.fetch_box_office(None, "0")
+            entries = await self._box_office.fetch_box_office(self._last_completed_week_date(), "0")
         except KoficAdapterError as e:
             logger.warning("[BookingAssistService] 박스오피스 조회 실패 — %s", e)
             return False
