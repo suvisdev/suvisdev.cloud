@@ -94,6 +94,19 @@
     `pnpm type-check` 통과.
   - 알려진 한계: 대화 스레드 복원 시 evaluation/booking 패널은 재구성 안 됨
     (meta에 카드만 저장) — 필요해지면 meta에 payload 추가.
+- **배포 중 발견·수정한 후속 3건**(전부 EC2 실측):
+  - 인텐트 분류 잠복 결함: EC2엔 Ollama(Qwen)가 없어 분류가 **전부 호출
+    실패 → 기본값**으로 새고 있었음(기본값이 rag이던 시절엔 증상이 안 보여
+    발견 못 함). `FallbackHubLlmAdapter`(Qwen→Gemini) 신설로 해결.
+  - 상영 중 판정 0건: 주 중간 날짜로 KOFIC 주간 박스오피스를 조회하면
+    완결 안 된 주라 빈 목록 — KST 직전 일요일로 고정(`_last_completed_week_date`).
+  - EC2 `.env`에 `KAKAO_API_KEY` 미반영(오늘 gildle 작업에서 로컬만 추가) —
+    `KAKAO_CLIENT_ID`와 동일 값으로 등재 후 backend 재생성.
+- **프로덕션 실측(EC2)**: "주토피아 어때?" → evaluation(정량/정성 분리·표본
+  1건 부족 명시·TMDB 리뷰 한국어 요약·payload 발췌), "주토피아 예매하고
+  싶어" → not_showing+디즈니플러스 안내, "오디세이 예매하고 싶어"→"강남"
+  → CGV 청담씨네시티(1,106m) 등 5곳 거리순 + 체인 3사 링크. 커밋
+  a75c060·d42fe7e·b31909c, 프론트는 Vercel 자동 배포.
 
 ### 오류·막힌 점
 - 전체 pytest에서 6건 실패로 보였으나 `-m` 미지정으로 ollama 자동 skip이
