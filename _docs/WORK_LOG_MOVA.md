@@ -55,6 +55,10 @@
   유지·히스토리 병합·dedup 2단·recency-first와 연도 필터 상호보완), 응답 문구
   규칙(0건 정직·다양화·폴백 확신 문구 금지), 실행·보안 규칙, 프론트 UX까지
   통합. `MOVA_CHAT_UX.md`는 흡수 후 삭제, `apps/mova/_docs/CLAUDE.md` 참조 갱신.
+- `mova-header.tsx`: 헤더 테마 토글 제거(사용자 지시 — 토글이 안 먹는 것으로
+  보였고, mova는 `MovaThemeSetter`가 진입 시 다크를 강제하는 다크 전용 설계라
+  토글이 라이트로 빠지는 구멍이었음). 토글 삭제로 mova는 항상 다크 고정.
+  gildle 페이지·공용 `theme-toggle.tsx`는 유지(스코프 밖).
 
 ### 오류·막힌 점
 - 전체 pytest에서 6건 실패로 보였으나 `-m` 미지정으로 ollama 자동 skip이

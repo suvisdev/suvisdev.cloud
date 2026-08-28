@@ -8,7 +8,6 @@ import { MovaLoginButton } from "@/components/mova/mova-login-button"
 import { MovaSuvisHomeLink } from "@/components/mova/mova-suvis-home-link"
 import { MovaLogo } from "@/components/mova/mova-logo"
 import { MovaSearchBar } from "@/components/mova/mova-search-bar"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
@@ -49,7 +48,6 @@ export function MovaHeader() {
           <Suspense fallback={<div className="h-8 w-36 animate-pulse rounded-md bg-mova-surface-2" />}>
             <MovaSearchBar className="relative w-36 shrink-0" onEmptySubmit={goToChatSearch} />
           </Suspense>
-          <ThemeToggle />
           <MovaSuvisHomeLink />
           <MovaLoginButton />
         </div>
@@ -110,7 +108,6 @@ export function MovaHeader() {
               onEmptySubmit={goToChatSearch}
             />
           </Suspense>
-          <ThemeToggle />
           <MovaSuvisHomeLink />
           <MovaLoginButton />
         </div>
