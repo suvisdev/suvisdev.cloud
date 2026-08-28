@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_db
+from ontology.adapter.outbound.llm.fallback_hub_llm_adapter import FallbackHubLlmAdapter
 from ontology.adapter.outbound.llm.gemini_llm_adapter import GeminiLlmAdapter
 from ontology.adapter.outbound.llm.ollama_embedding_adapter import OllamaEmbeddingAdapter
 from ontology.adapter.outbound.llm.qwen_intent_classifier import QwenIntentClassifier
@@ -31,9 +32,12 @@ def get_gemini_llm_port() -> HubLlmPort:
 
 
 def get_intent_classifier(
-    llm: HubLlmPort = Depends(get_qwen_llm_port),
+    qwen: HubLlmPort = Depends(get_qwen_llm_port),
+    gemini: HubLlmPort = Depends(get_gemini_llm_port),
 ) -> IntentClassifierPort:
-    return QwenIntentClassifier(llm=llm)
+    # Qwen(Ollama)은 로컬 GPU 전용 — EC2엔 없어 분류가 전부 기본값으로 새던
+    # 잠복 결함(2026-08-28 실측). Gemini 폴백을 태워 양쪽 환경에서 분류가 산다.
+    return QwenIntentClassifier(llm=FallbackHubLlmAdapter(primary=qwen, fallback=gemini))
 
 
 def get_semantic_hub_rag_use_case(
