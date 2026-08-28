@@ -154,6 +154,12 @@ _COUNTRY_ALIASES: dict[str, str] = {
 _DECADE_RE = re.compile(r"(\d{2,4})\s*년대")
 _YEAR_RE = re.compile(r"(19\d{2}|20\d{2})\s*년(?!대)")
 
+# "클래식 명작 처음 보는 사람용" 실사고(2026-08-28): 시대 어휘가 연도 조건으로
+# 해석되지 않아 하드 필터 0개 → 인기작 폴백(최근 15년 우선)이 클래식 요청에
+# 최신작만 돌려줬다. 명시적 연대·연도가 없을 때만 상한 1999로 근사한다.
+_ERA_WORDS = ("클래식", "고전", "옛날")
+_ERA_YEAR_MAX = 1999
+
 
 def _guess_countries(text: str) -> list[str]:
     hay = text.lower()
@@ -176,6 +182,8 @@ def _guess_year_range(text: str) -> tuple[int | None, int | None]:
     if m:
         year = int(m.group(1))
         return year, year
+    if any(word in text for word in _ERA_WORDS):
+        return None, _ERA_YEAR_MAX
     return None, None
 
 

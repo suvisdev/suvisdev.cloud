@@ -50,6 +50,15 @@ class GuessYearRangeTests(unittest.TestCase):
     def test_no_year(self) -> None:
         self.assertEqual(_guess_year_range("액션 영화"), (None, None))
 
+    def test_era_vocab_maps_to_year_max(self) -> None:
+        """ "클래식" 실사고(2026-08-28): 시대 어휘가 연도 조건이 안 돼 최신 인기작이
+        나왔다 — 명시 연도 없는 시대 어휘는 상한 1999로 근사한다."""
+        self.assertEqual(_guess_year_range("클래식 명작 처음 보는 사람용"), (None, 1999))
+        self.assertEqual(_guess_year_range("고전 영화 추천"), (None, 1999))
+
+    def test_explicit_decade_wins_over_era_vocab(self) -> None:
+        self.assertEqual(_guess_year_range("90년대 클래식 명작"), (1990, 1999))
+
 
 class BuildSearchFiltersTests(unittest.TestCase):
     def test_golden_set_9_shape(self) -> None:
@@ -75,6 +84,14 @@ class BuildSearchFiltersTests(unittest.TestCase):
         )
 
         self.assertEqual(filters["must"]["countries"], [])
+
+    def test_classic_chip_gets_year_max(self) -> None:
+        """제안 칩 원문이 그대로 들어와도 연도 상한이 잡혀 인기작 폴백에서
+        recency-first 정렬 대신 클래식이 후보로 남는다."""
+        _, filters = build_search_filters("클래식 명작 처음 보는 사람용", [], {})
+
+        self.assertIsNone(filters["year_min"])
+        self.assertEqual(filters["year_max"], 1999)
 
     def test_no_country_or_year_leaves_empty(self) -> None:
         _, filters = build_search_filters("재밌는 영화", [], {})

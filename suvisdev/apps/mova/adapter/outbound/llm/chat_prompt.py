@@ -66,6 +66,11 @@ class ChatPromptBuilder:
             and_parts.append(f"장르={genre}")
         for tag_kw in must.get("keywords") or []:
             and_parts.append(f"태그={tag_kw}")
+        # RAG(semantic) 경로는 연도 하드 필터를 SQL로 못 거니 LLM에게라도 알린다
+        # — "클래식" 요청에 최신작이 후보로 와도 LLM이 연도로 거를 수 있게.
+        year_min, year_max = filters.get("year_min"), filters.get("year_max")
+        if year_min is not None or year_max is not None:
+            and_parts.append(f"연도={year_min or ''}~{year_max or ''}")
         and_line = " AND ".join(and_parts) if and_parts else "(없음)"
         anchor = ", ".join(similar.get("actors") or []) or "(없음)"
         return (
