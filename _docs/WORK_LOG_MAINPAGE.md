@@ -28,6 +28,31 @@
 
 ---
 
+## 2026-08-28
+
+### 작업 내용
+- 루트 `_docs/` 문서 분리 재실행(전 세션에서 취소했던 "4번" — 사용자 재결정):
+  `SCRIPTS_EXECUTION_GUIDE.md` → `suvisdev/_docs/`, MOVA 포트폴리오 3건
+  (`MOVA_INTERVIEW_QA.md`·`MOVA_PORTFOLIO_SUMMARY.md`·`MOVA_Portfolio.pptx`) →
+  `suvisdev/apps/mova/_docs/`. 이동에 따른 경로 참조 3곳(README 안내 문구·
+  ROADMAP "같은 폴더" 표기·가이드 내 "루트" 접두사) 동반 수정.
+- `_docs/` 잔여 항목 전수 판정: 워크로그 3종·PROGRESS·README·EXAONE 셋업·
+  `.obsidian/`은 공통/인프라 성격 + CLAUDE.md·훅이 경로 참조라 유지.
+  `ARCHITECTURE_BLUEPRINT.md`는 워크스페이스 공통 기준 문서로 유지.
+
+### 수정/구현
+- 위 이동 4건 + 참조 수정(`_docs/README.md`·`suvisdev/_docs/MOVA_POST_V1_ROADMAP.md`·
+  `suvisdev/_docs/SCRIPTS_EXECUTION_GUIDE.md`).
+
+### 오류·막힌 점
+- 없음(이동은 커밋 전 스테이징 단계 왕복이라 git 이력 영향 없음).
+
+### 데이터
+- 해당 없음.
+
+### 산출물
+- mova 채팅 하네스·오추천 수정은 `WORK_LOG_MOVA.md` 2026-08-28 참고.
+
 ## 2026-08-27
 
 ### 작업 내용

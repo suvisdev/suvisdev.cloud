@@ -1,0 +1,114 @@
+---
+paths:
+  - "suvisdev/apps/mova/**/market_chat*.py"
+  - "suvisdev/apps/mova/**/market_conversations*.py"
+  - "suvisdev/apps/mova/adapter/outbound/llm/**"
+  - "suvisdev/apps/mova/domain/value_objects/mood_expansion.py"
+  - "suvisdev/apps/mova/domain/value_objects/franchise_expansion.py"
+  - "suvis/components/mova/mova-ai-chat-bar.tsx"
+  - "suvis/components/mova/mova-landing-chat-bar.tsx"
+  - "suvis/lib/mova-chat-suggestions.ts"
+  - "suvis/app/api/mova/chat/**"
+---
+
+## mova 채팅 규칙 (백엔드 파이프라인 + 프론트 UX)
+
+`/mova/chat` 추천 채팅에 누적된 결정·불변식의 SSOT. **mova 채팅에만 적용한다**
+— 다른 앱에 채팅이 생겨도 이 문서를 준용하지 않는다(앱별로 새로 정한다).
+전부 실측·실사고 기반이며, 각 항목의 날짜는 `_docs/WORK_LOG_MOVA.md`의 상세
+기록을 가리킨다.
+
+### 1. 파이프라인 순서 (바꾸지 말 것)
+
+```text
+인텐트 분류(classifier) → general/crud면 Mycroft 직행(RAG·추천 안 탐)
+  → 의도 추출(extract_intent, 히스토리 병합)
+  → RAG 시맨틱 검색(hub_rag, k=8) → 실패·0건이면 tag catalog 폴백
+  → dedup(스레드 내 기추천 제거) → LLM 추천 생성(카탈로그 한정)
+  → 취향 벡터 재정렬 → chat+picks 저장 → 2차 dedup → 응답
+```
+
+핵심 파일: `market_chat_interactor.py`(오케스트레이션) ·
+`intent_extraction.py`(결정론 의도 추출) · `chat_prompt.py`(프롬프트) ·
+`market_chat_pg_repository.py`(태그 폴백·인기작 폴백).
+
+### 2. 후보 생성 불변식
+
+- **LLM은 카탈로그의 movie_id 중에서만 고른다.** 후보가 0이면 빈 목록 대신
+  인기작 폴백을 준다 — 빈 후보를 주면 LLM이 movie_id를 지어내고 enrich에서
+  전부 드롭돼 "reply는 자신 있는데 카드 0개"가 된다(2026-08-06 재현).
+- **RAG(임베딩)가 죽어도 채팅은 계속 동작한다.** Gemini/Ollama 임베딩 장애·쿼터
+  429 시 tag catalog 폴백으로 넘어간다. 폴백 제거 금지.
+- **의도 추출은 대화 히스토리를 병합한다**(2026-08-14) — 후속 발화("최근영화로")가
+  이전 조건("코미디")을 삼키지 않게. 각 턴을 독립 추천으로 만들지 말 것.
+- **시대 어휘는 연도 조건으로 해석한다**(2026-08-28 실사고): "클래식·고전·옛날"은
+  명시 연대·연도가 없을 때 `year_max=1999`로 근사한다(`_guess_year_range`).
+  "90년대 클래식"처럼 명시 연대가 있으면 그쪽이 우선. 연도 조건은 SQL 하드
+  필터가 없는 RAG 경로를 위해 프롬프트 의도 섹션에도 `연도=` 로 표기한다.
+- **콜드스타트 인기작 폴백은 최근 15년 우선 + 평점순**(2026-08-25) — 조건 없는
+  질의에 5070년대 작품이 뜨는 것 방지. 연도 하드 필터가 잡히면 이 정렬은
+  자연히 무력화된다. 정렬을 없애지도, 연도 필터를 무시하지도 말 것.
+  (둘 중 하나만 살아 있으면 "클래식 요청에 최신작만" 사고가 재발한다.)
+- **mood 자연어는 장르 태그로 확장**(`mood_expansion`, 2026-08-13), **프랜차이즈
+  언급은 대표작 제목 매칭**(`franchise_expansion`, 2026-08-25)으로 폴백 경로가
+  이해한다. 새 어휘는 이 두 value object에만 추가한다.
+
+### 3. 중복·재추천 방지 (2단)
+
+- 스레드에서 이미 소개한 슬러그는 후보에서 제거한다. dedup으로 후보가 다
+  빠지면 조건 유지한 채 풀만 16→48로 넓혀 한 번 재검색한다(2026-08-26).
+- LLM 응답 뒤 최종 반환 직전에 한 번 더 거른다(2차 안전망) — 후보 필터가
+  뚫려도 같은 영화가 다시 나가지 않게.
+
+### 4. 응답 문구 규칙
+
+- **reply와 카드 수는 어긋나면 안 된다.** 추천 0건이면 reply도 0건임을 정직하게
+  안내한다("추천해 드릴게요" + 카드 0개 금지).
+- **0건 안내는 문구를 다양화한다**(random.choice 변형 풀) — 고정 문구는 재시도마다
+  같은 답이 반복돼 "봇 반복" 불만을 유발했다(2026-08-13 실측).
+- **폴백 추천은 확신 문구로 포장하지 않는다**(2026-08-28 결정): 태그 매칭 실패로
+  인기작 폴백(`popular_fallback`)에서 나온 카드에 "엄선했습니다" 같은 문구 금지 —
+  "조건에 딱 맞는 게 없어 인기작에서 골랐어요" 톤으로 낮춘다.
+  (프롬프트 구현은 백로그 — 신규 문구·프롬프트 작성 시 이 규칙을 따를 것.)
+
+### 5. 실행·보안 규칙
+
+- **CPU-bound(Kiwi 형태소 등)는 `async def` 금지** — 호출 측 `asyncio.to_thread`
+  위임(루트 suvisdev/CLAUDE.md §E.4).
+- `self._repo`와 `self._preferences`는 **같은 DB 세션을 공유**한다 —
+  `asyncio.gather`로 동시에 돌리면 SQLAlchemy가 "concurrent operations"로 막는다.
+  사용자 컨텍스트 조회는 순차 함수로 묶어서 gather에 넣는다.
+- `/mova/chat`은 `optional_user` — 비로그인 허용하되 **Bearer가 왔는데 무효면
+  401 명시**(조용히 익명 처리 금지).
+- 대화 스레드 소유권 검증은 **LLM 호출 전에** 한다(쿼터 소모 전 raise).
+- 대화 저장(threads)·picks 저장·취향 재정렬은 로그인 유저 한정, 포트 미주입이어도
+  채팅 자체는 동작해야 한다(optional 주입 유지).
+- 취향 벡터 재정렬 후 **카드 순서와 picks 저장 순서를 일치**시킨다(2026-08-18).
+
+### 6. 프론트 UX (suvis)
+
+| 규칙 | 구현 |
+|------|------|
+| 대화 영속성 | `sessionStorage` 키 `mova-ai-chat-history-v1`, 탭·세션 단위 |
+| 복원 시 자동 전송 | 히스토리에 user 메시지 있으면 `?q=` 자동 전송 생략(`autoSentRef`) |
+| Enter 전송 | `Shift+Enter` 줄바꿈, IME 조합 중(`isComposing`) 전송 안 함 |
+| 전송 실패 | 사용자 메시지 롤백 + 입력값 복원 + `error` 배너 |
+| 로딩 중 | 전송·힌트 버튼 비활성 |
+| 추천 칩 | 풀 18개(`SUGGESTION_POOL`), 날짜+FNV-1a 해시로 일일 3개 로테이션 |
+| 칩 표시 조건 | `messages`에 user 메시지가 없을 때만 렌더(대화 시작 후 숨김) |
+| 요청 형식 | `{message, history(최대 10턴), model, user_id?}` — 프록시 `suvis/app/api/mova/chat` |
+| 카드 렌더 | `recommendations` 최대 3편, `refined_query`는 말풍선 하단 intentLabel |
+
+문구 추가·수정은 `SUGGESTION_POOL` 배열만 편집한다. 칩 문구를 바꾸면
+백엔드 폴백 어휘(§2의 mood/시대 어휘)가 그 문구를 이해하는지 같이 확인한다
+— "클래식 명작 처음 보는 사람용" 칩이 어느 어휘에도 안 걸려 인기작 폴백으로
+빠진 것이 2026-08-28 실사고다.
+
+### 7. 검증
+
+```bash
+cd suvisdev && python -m pytest apps/mova/tests -m "not gpu and not ollama" -q
+# 라이브 진단: EC2 backend 로그에서 trace 라인 확인
+#   [ChatInteractor] destination= / fallback search_tag_catalog 사용
+#   [HubRagInteractor] embed 실패(쿼터 429면 RAG 생략됨) / vector_search hits=
+```

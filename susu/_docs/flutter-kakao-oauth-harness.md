@@ -64,5 +64,5 @@ susu(Flutter)에 카카오 OAuth 로그인을 붙이되, **유저 검증과 JWT 
 ## Deliverables
 - `kakao_flutter_sdk`, HTTP 클라이언트, secure storage 의존성 추가(pubspec.yaml).
 - susu 카카오 로그인 서비스(access token만 전송, 백엔드 응답의 JWT/refresh token 저장).
-- 작업 로그: `_docs/WORK_LOG.md`에 요약 기록(susu 관련 작업 로그 위치는 저장소
-  루트 `CLAUDE.md` 문서 배치 규칙 참고).
+- 작업 로그: `_docs/WORK_LOG_MAINPAGE.md`에 요약 기록(susu 포함 영역별 워크로그
+  구분은 저장소 루트 `CLAUDE.md` "작업 일지" 참고).

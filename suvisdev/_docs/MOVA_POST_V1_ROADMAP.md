@@ -3,7 +3,7 @@
 ## Meta
 
 **목적**: `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`(현재 백로그 순위)와
-`_docs/WORK_LOG.md`(일자별 실행 기록) 위의 **상위층 문서**. v1 완결 판정 기준,
+`_docs/WORK_LOG_MOVA.md`(일자별 실행 기록) 위의 **상위층 문서**. v1 완결 판정 기준,
 완결 이후 남은 백로그 스냅샷, 신규 사이클 후보, 취업 어필 문서화 트랙을
 한 곳에 모은다.
 
@@ -31,9 +31,9 @@
 | # | 축 | 현 상태 | 판정 | 근거 문서 |
 |---|-----|---------|------|-----------|
 | A-1 | 핵심 UX 루프 폐쇄 (검색→후보→카드→상세→리뷰→취향→재추천) | 취향 벡터 재정렬 배포 완료(2026-08-18). 리뷰 저장 시 BG 임베딩 + taste 재계산 체이닝 + 추천 재정렬까지 폐쇄 루프 | ✅ | PROGRESS "취향 벡터 재정렬(2026-08-18)", "mova 리뷰 이해 파이프라인 β/γ 사이클(2026-08-11)" |
-| A-2 | 데이터 정합성 (크론 3건·백필·HNSW 인덱스·레거시 정리) | movies embedding·review embedding·taste vectors 크론 3건 KST 03:00/30/45 안전망 가동, 잔여 0 확인. HNSW 인덱스 + `enable_seqscan=off` 세션 힌트. 레거시 무태그 12편 삭제 완료 | ✅ | `_docs/SCRIPTS_EXECUTION_GUIDE.md`, PROGRESS "0.5순위 HNSW", "레거시 무태그 12편(2026-08-18)" |
+| A-2 | 데이터 정합성 (크론 3건·백필·HNSW 인덱스·레거시 정리) | movies embedding·review embedding·taste vectors 크론 3건 KST 03:00/30/45 안전망 가동, 잔여 0 확인. HNSW 인덱스 + `enable_seqscan=off` 세션 힌트. 레거시 무태그 12편 삭제 완료 | ✅ | `SCRIPTS_EXECUTION_GUIDE.md`(같은 폴더), PROGRESS "0.5순위 HNSW", "레거시 무태그 12편(2026-08-18)" |
 | A-3 | 보안/인증 하드닝 (mova 리뷰 IDOR·mova/chat user_id 신뢰) | mova 리뷰 Phase A(POST/PATCH `require_user`·IDOR 대조·upsert IntegrityError 구조 해결), watched 게이트, mypage/watchlist/picks feedback IDOR 전수 수정 완료 | ✅ | PROGRESS "mova 리뷰 API 보안 하드닝 Phase A(2026-07-31)", "리뷰 watched 게이트(2026-08-04)"; `.claude/rules/security/auth.md` §5 |
-| A-4 | 운영 관측성 (크론 로그 리다이렉트·백필 idempotent) | 크론 3건 전부 `>> ~/*.log 2>&1` 표준 형태로 등록. 백필 3종 전부 `IS NULL` 필터로 idempotent. 로그 인프라 부재 발견(2026-08-11) 이후 표준 문서화 | ✅ | `_docs/SCRIPTS_EXECUTION_GUIDE.md` §"왜 이 문서가 필요한가" |
+| A-4 | 운영 관측성 (크론 로그 리다이렉트·백필 idempotent) | 크론 3건 전부 `>> ~/*.log 2>&1` 표준 형태로 등록. 백필 3종 전부 `IS NULL` 필터로 idempotent. 로그 인프라 부재 발견(2026-08-11) 이후 표준 문서화 | ✅ | `SCRIPTS_EXECUTION_GUIDE.md`(같은 폴더) §"왜 이 문서가 필요한가" |
 | A-5 | 알려진 결함 관리 (제로가 목표 아님) | PROGRESS.md에 착수·결정 대기 항목이 우선순위와 함께 명시적으로 관리됨. 각 항목이 "왜 남았는지" 결정 축 명시 | ✅ | PROGRESS "다음 / 남은 작업(백로그)" 전 섹션 |
 
 **판정**: 5축 전부 ✅ → **MOVA v1 완결(2026-08-18 시점)**. 다음 사이클부터

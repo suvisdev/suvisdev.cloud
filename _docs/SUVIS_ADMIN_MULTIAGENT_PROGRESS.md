@@ -201,10 +201,10 @@
   미완성 auth 게이트웨이(`auth.suvisdev.cloud`, redirect_uri env var
   자체가 없어 항상 503) 의존을 제거하고 기존 검증된 viewer OAuth/이메일
   로그인(`AuthDialog`)으로 되돌림. 배포 후 백엔드 로그로 실제 Google
-  로그인 왕복 성공 확인. 상세: `WORK_LOG.md` 2026-08-11(추가⑫).
+  로그인 왕복 성공 확인. 상세: `WORK_LOG_MOVA.md` 2026-08-11(추가⑫).
 - **nginx stale DNS 502(2026-08-11)**: backend/auth 재시작으로 IP가
   바뀌었는데 nginx가 옛 IP를 캐시한 채 프록시하던 문제 — `nginx -s
-  reload`로 해결. 상세: `WORK_LOG.md` 2026-08-11(추가⑫).
+  reload`로 해결. 상세: `WORK_LOG_MOVA.md` 2026-08-11(추가⑫).
 - **어드민 대시보드**: 홈/사용자/앱관리/통계/캘린더/설정 전 화면 구현 + 실 연동
   (`suvis/app/admin/*`, `suvis/lib/admin-*-api.ts`). RBAC 가드(`require_admin`,
   `AdminAuthGate`)까지 포함.
@@ -898,6 +898,20 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
   더 큰 셋 가능. `datasets/gen_teacher_dataset.py` 재실행.
 - **TMDB keyword 기반 태그 백필**(슈퍼히어로 등) — franchise_expansion
   사전의 체계적 대체재. `/movie/{id}/keywords`로 태그 생성.
+
+### mova 채팅 클래식 오추천 후속(2026-08-28 실사고, 수정 자체는 완료)
+시대 어휘 연도 매핑·프롬프트 연도 표기는 완료(`WORK_LOG_MOVA.md` 2026-08-28).
+남은 것:
+- **Gemini 임베딩 일일 쿼터 429 대응** — 이번 사고의 직접 원인. 쿼터가 죽으면
+  RAG가 통째로 생략되고 태그 폴백 품질로 떨어진다. 크론 백필(하루 950건)과
+  실시간 채팅이 같은 쿼터를 공유하는 구조 재검토(별도 키/로컬 임베딩 폴백/
+  쿼터 잔량 감지 등 방향 미정).
+- **폴백 정직 문구 프롬프트 구현** — `popular_fallback` 경로일 때 "엄선했습니다"
+  대신 낮춘 톤. 규칙은 `.claude/rules/mova-chat.md` §4에 확정, 프롬프트/reply
+  생성 반영은 미구현.
+- **(선택) RAG 경로 연도 하드 필터** — hub_knowledge에 연도 메타데이터가 없어
+  현재는 프롬프트 표기로만 보완. 시맨틱 검색 결과를 연도로 거르려면 hub 스키마
+  확장 필요.
 
 ### mova 법적 페이지 후속(2026-08-14 티켓 A 후속)
 - 문의 이메일 최종 확정 — 현재 푸터·개인정보 처리방침 모두

@@ -66,5 +66,5 @@ docker compose exec -T backend \
 같은 상황을 다른 스크립트에서 반복하지 않기 위해 이 표준을 문서로 남긴다.
 
 ## 참고
-- 이번 문서를 만든 사이클의 근거·경위: `_docs/WORK_LOG.md` 2026-08-11.
-- 자동화 상태 추적: `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 1-b순위.
+- 이번 문서를 만든 사이클의 근거·경위: 루트 `_docs/WORK_LOG_MOVA.md` 2026-08-11.
+- 자동화 상태 추적: 루트 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 1-b순위.

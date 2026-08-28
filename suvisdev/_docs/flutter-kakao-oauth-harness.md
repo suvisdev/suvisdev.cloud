@@ -123,7 +123,7 @@ susu(Flutter)의 카카오 OAuth 로그인 결과(access token)를 받아 유저
 - 모바일 로그인 엔드포인트(`POST /auth/kakao/mobile`) + use_case + kapi 검증 포트/어댑터
   + Redis 모바일 토큰 포트/어댑터.
 - 테스트: G2/G3 커버.
-- 작업 로그: `_docs/WORK_LOG.md`에 요약 기록.
+- 작업 로그: `_docs/WORK_LOG_MAINPAGE.md`에 요약 기록.
 
 ---
 

@@ -179,7 +179,7 @@ docker compose exec db psql -U $POSTGRES_USER -d $POSTGRES_DB -c "\dt" 2>/dev/nu
 
 - `character_name`은 원래 VARCHAR(50)이었으나 TMDB 실측 데이터(애니메이션
   다역 성우 등, 최댓값 332자)가 넘쳐 2026-08-05 TEXT로 확장(`20260805_0001`).
-  자세한 근거는 마이그레이션 docstring·`_docs/WORK_LOG.md` 2026-08-05 참고.
+  자세한 근거는 마이그레이션 docstring·`_docs/WORK_LOG_MOVA.md` 2026-08-05 참고.
 - **⛔ UNIQUE 게이트 — 작업 전 사용자에게 질문: "1인 다역을 허용하는가?"**
   - 불허 → `UniqueConstraint("movie_id", "actor_id", name="uq_characters_movie_actor")`
   - 허용 → `UniqueConstraint("movie_id", "actor_id", "character_name", name="uq_characters_movie_actor_name")`

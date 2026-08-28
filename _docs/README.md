@@ -11,12 +11,19 @@
 
 | 문서 | 내용 |
 |------|------|
+| [`ARCHITECTURE_BLUEPRINT.md`](ARCHITECTURE_BLUEPRINT.md) | 이 저장소에서 검증된 아키텍처 패턴(모듈러 모놀리식·클린 아키텍처 등)을 새 프로젝트에 그대로 적용할 때의 기준 문서 |
 | [`EXAONE_LOCAL_AI_SETUP.md`](EXAONE_LOCAL_AI_SETUP.md) | 로컬 GPU에 EXAONE Router/Worker(Ollama) + AWQ 직접 서빙 + mova 채팅용 QLoRA 재학습 파이프라인을 새 PC에서 그대로 재현하는 운영 문서 |
 | [`SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`](SUVIS_ADMIN_MULTIAGENT_PROGRESS.md) | 어드민 대시보드 + 멀티에이전트(비전 02~08) 트랙 진행 상황 — 완료됨/백로그, 세션 재개용 |
-| [`WORK_LOG.md`](WORK_LOG.md) | 날짜별 작업 일지(무엇을 왜 했는지, 어디서 막혔는지, 데이터 변화) |
+| [`WORK_LOG_MOVA.md`](WORK_LOG_MOVA.md) | mova(영화 추천·채팅·게임) 날짜별 작업 일지 — 2026-08-19에 구 `WORK_LOG.md`에서 개명(과거 인용 대부분이 이 파일) |
+| [`WORK_LOG_GILDLE.md`](WORK_LOG_GILDLE.md) | gildle(산책 경로) 날짜별 작업 일지 |
+| [`WORK_LOG_MAINPAGE.md`](WORK_LOG_MAINPAGE.md) | 그 외 전부(메인페이지·어드민·인증·susu·인프라) 날짜별 작업 일지 |
 | `.obsidian/` | 이 워크스페이스를 Obsidian 볼트로 열 때의 로컬 설정(심볼릭 링크 등) — 커밋되지만 개인 IDE 상태에 가까움 |
 
-> mova 앱 관련 심층 조사(추천 품질 골든셋 · 오귀속 근본 원인 등)는 성격상 앱별 문서라 [`../suvisdev/apps/mova/_docs/`](../suvisdev/apps/mova/_docs/) 아래에 있다.
+> mova 앱 관련 심층 조사(추천 품질 골든셋 · 오귀속 근본 원인 등)와 포트폴리오
+> 문서(`MOVA_INTERVIEW_QA.md` · `MOVA_PORTFOLIO_SUMMARY.md` · `MOVA_Portfolio.pptx`)는
+> 성격상 앱별 문서라 [`../suvisdev/apps/mova/_docs/`](../suvisdev/apps/mova/_docs/) 아래에 있다.
+> `suvisdev/scripts/` CLI의 EC2 실행 가이드(`SCRIPTS_EXECUTION_GUIDE.md`)도 백엔드 문서라
+> [`../suvisdev/_docs/`](../suvisdev/_docs/)에 있다(2026-08-28 이동).
 
 ---
 

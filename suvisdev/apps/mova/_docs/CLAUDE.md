@@ -2,7 +2,7 @@
 
 > **역할:** 영화 저장·조회·채팅·리뷰·랭킹·TMDB 수입 등 Mova 백엔드 API.  
 > **상위 문서:** [[suvisdev/CLAUDE]]  
-> **프론트:** `suvis/app/mova` · 채팅 UX `MOVA_CHAT_UX.md`  
+> **프론트:** `suvis/app/mova` · 채팅 규칙(백엔드+UX) `.claude/rules/mova-chat.md`(저장소 루트)  
 > **스키마:** `MOVA_ERD.md`
 
 Titanic(James)과 **동일한 레이어 규칙**을 따른다. 본 문서가 Mova `_docs/` 의 **SSOT**이다.
@@ -191,7 +191,7 @@ from core.matrix.grid_oracle_database_manager import get_mova_db
 |------|------|
 | **본 파일** | Mova 백엔드 규칙·진행·API SSOT |
 | `MOVA_ERD.md` | 테이블·FK·ORM |
-| `MOVA_CHAT_UX.md` | 프론트 AI 채팅 UX |
+| 루트 `.claude/rules/mova-chat.md` | 채팅 파이프라인·UX 규칙 (구 `MOVA_CHAT_UX.md` 흡수, 2026-08-28) |
 | [`.cursorrules`](.cursorrules) | Cursor 진입 요약 (본 문서 링크) |
 
 **통합·삭제됨 (내용은 본 문서·ERD·suvis로 이전):**  

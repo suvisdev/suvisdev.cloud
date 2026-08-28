@@ -101,8 +101,18 @@ cloud.suvisdev/
 ## 작업 일지
 
 **의미 있는 작업(코드 수정, 조사·디버깅, 데이터 변경, 문서화 등)을 한
-세션은 끝나기 전에 `_docs/WORK_LOG.md`에 그날 날짜로 기록한다.** 세션
-종료가 트리거다. 파일 상단의 템플릿(작업 내용/수정·구현/오류·막힌 점/
+세션은 끝나기 전에 작업 영역에 맞는 워크로그에 그날 날짜로 기록한다.**
+워크로그는 영역별로 분리돼 있다(2026-08-19 분리, 구 `WORK_LOG.md`는
+`WORK_LOG_MOVA.md`로 개명됨 — 과거 문서의 `WORK_LOG.md` 인용은 대부분
+이 파일을 가리킨다):
+
+| 파일 | 영역 |
+|------|------|
+| `_docs/WORK_LOG_MOVA.md` | mova(영화 추천·채팅·게임) |
+| `_docs/WORK_LOG_GILDLE.md` | gildle(산책 경로) |
+| `_docs/WORK_LOG_MAINPAGE.md` | 그 외 전부(메인페이지·어드민·인증·susu·인프라) |
+
+세션 종료가 트리거다. 파일 상단의 템플릿(작업 내용/수정·구현/오류·막힌 점/
 데이터/산출물)을 따르고, 최신 날짜가 맨 위에 오게 추가한다. 이미 그날
 항목이 있으면 새로 만들지 말고 이어서 보강한다. 단순 질의응답·읽기
 전용 조사만 한 세션은 생략해도 된다.
@@ -249,8 +259,8 @@ docker compose --env-file suvisdev/.env up -d
 ### 훅
 
 `settings.json`의 `UserPromptSubmit` 훅이 프롬프트에 "commit·커밋"이 들어오면
-**`_docs/WORK_LOG.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저 갱신하라**는
-지시를 주입한다. 위 "작업 일지" 규칙을 커밋 시점에 강제하는 장치다.
+**영역별 `_docs/WORK_LOG_*.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저
+갱신하라**는 지시를 주입한다. 위 "작업 일지" 규칙을 커밋 시점에 강제하는 장치다.
 
 ## 커밋 메시지 규칙
 

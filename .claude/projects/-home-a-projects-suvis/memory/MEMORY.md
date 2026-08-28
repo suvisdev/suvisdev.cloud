@@ -21,7 +21,7 @@
 | 문서 | 위치 |
 |------|------|
 | 루트 지침 (Karpathy 원칙 · 명령어 · 환경변수 · 브랜치) | `CLAUDE.md` |
-| 작업 일지 (날짜별 상세) | `_docs/WORK_LOG.md` |
+| 작업 일지 (날짜별 상세, 영역별 분리) | `_docs/WORK_LOG_MOVA.md` · `_docs/WORK_LOG_GILDLE.md` · `_docs/WORK_LOG_MAINPAGE.md` |
 | 어드민·멀티에이전트 진행 상황 · 백로그 | `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` |
 | 경로별 코딩 규칙 | `.claude/rules/` |
 | 프론트엔드 상세 규칙 | `suvis/CLAUDE.md` · `suvis/_docs/react-rules.md` |
