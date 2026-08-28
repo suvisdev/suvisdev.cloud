@@ -1,6 +1,8 @@
 # Mova 앱 — 영화·채팅·랭킹·리뷰 도메인
 
-> **역할:** 영화 저장·조회·채팅·리뷰·랭킹·TMDB 수입 등 Mova 백엔드 API.  
+> **역할:** 영화를 **추천하고, 평가하고, 예매까지 돕는** 서비스의 백엔드 API
+> (2026-08-28 재정의 — 평가·예매 트랙은 `MOVA_CHAT_INTENT_REDESIGN.md` 설계
+> 확정, 구현 전). 영화 저장·조회·채팅·리뷰·랭킹·TMDB 수입 포함.  
 > **상위 문서:** [[suvisdev/CLAUDE]]  
 > **프론트:** `suvis/app/mova` · 채팅 규칙(백엔드+UX) `.claude/rules/mova-chat.md`(저장소 루트)  
 > **스키마:** `MOVA_ERD.md`

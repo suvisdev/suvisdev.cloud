@@ -112,3 +112,31 @@ cd suvisdev && python -m pytest apps/mova/tests -m "not gpu and not ollama" -q
 #   [ChatInteractor] destination= / fallback search_tag_catalog 사용
 #   [HubRagInteractor] embed 실패(쿼터 429면 RAG 생략됨) / vector_search hits=
 ```
+
+### 8. 응답 트랙 재설계 방향 (2026-08-28 사용자 결정 5건 반영 — 설계 확정, 구현 전)
+
+**mova는 "영화를 추천하고, 평가하고, 예매까지 돕는" 프로젝트로 재정의됐다**
+(2026-08-28). 현행 "모든 영화 질의 → 추천 카드 3장" 단일 트랙을 인텐트별
+3트랙으로 확장한다. 상세 설계·Phase·결정 기록은
+`suvisdev/apps/mova/_docs/MOVA_CHAT_INTENT_REDESIGN.md`가 SSOT다.
+채팅 응답 로직을 새로 만지는 세션은 다음 방향과 충돌하지 않게 작업할 것:
+
+- **트랙 3종**: `recommend`(기존, 무변경) · `evaluate`("호프 어때?" → 자체
+  리뷰+TMDB 리뷰 API 집계 기반 객관 평가) · `booking`("호프 예매하고 싶어"
+  → 상영 중 판정+지역명 기반 근처 영화관+예매 경로 안내).
+- **분류는 1차 분류기 확장으로 한다**(2단 분류안 폐기, 사용자 결정) — Hub
+  `IntentClassifierPort` destination을 5종(recommend/evaluate/booking/
+  general/crud)으로 확장. 소비자가 mova뿐임을 실측 확인했고, 확장 시
+  ontology `semantic_router_interactor.py` 분기를 반드시 함께 갱신한다.
+- **외부 리뷰는 TMDB 공식 API만** — 왓챠피디아 등 크롤링 금지(약관 명시
+  금지·DB권 판례 리스크로 제외 확정). booking 시간표(Phase 2)는 진행하되
+  체인 약관 실확인·단건 조회·딥링크 폴백 선행 조건을 지킬 것.
+- **chat_trend는 조건부 반영** — 단순 평가/예매 질의는 미집계, 사용자의
+  긍정 평가 반응 또는 예매 의지가 확인될 때만 반영. picks는 recommend
+  트랙만.
+- **카드 3장 고정을 가정한 코드를 새로 쓰지 않는다** — 응답은
+  `response_type`(recommendation | evaluation | booking) 분기가 될 예정이고,
+  evaluate/booking은 카드 1장+전용 payload다.
+- **정직성 규칙이 전 트랙에 적용된다** — 리뷰 표본 부족 명시(evaluate),
+  "박스오피스 기준 근사"·시간표 출처 명시(booking). 모르는 것을 아는 척하는
+  문구 금지.

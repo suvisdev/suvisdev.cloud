@@ -59,6 +59,18 @@
   보였고, mova는 `MovaThemeSetter`가 진입 시 다크를 강제하는 다크 전용 설계라
   토글이 라이트로 빠지는 구멍이었음). 토글 삭제로 mova는 항상 다크 고정.
   gildle 페이지·공용 `theme-toggle.tsx`는 유지(스코프 밖).
+- 채팅 응답 트랙 재설계 설계서 작성(사용자 지시): 추천 단일 트랙 →
+  recommend/evaluate/booking 3트랙. `MOVA_CHAT_INTENT_REDESIGN.md` 신설
+  (현행 자산 실측 표·evaluate 집계 설계·booking Phase 1~3·레이어 배치·
+  체크리스트), 하네스 `.claude/rules/mova-chat.md` §8에 방향 요약 규칙 추가.
+- 재설계 미결 결정 5건 사용자 인터뷰로 확정: ① 왓챠 리뷰 수집은 약관
+  명시 금지·DB권 판례(사람인–잡코리아 4.5억 배상) 실확인 후 **제외** →
+  TMDB 리뷰 API 대체, ② 시간표 Phase 2 진행(체인 약관 실확인·단건 조회·
+  딥링크 폴백 선행), ③ 위치는 프롬프트 지역명 입력+상황 변수(차량 등)는
+  되묻기, ④ **1차 분류기 확장으로 변경**(초안의 mova 내부 2단 분류 폐기,
+  destination 5종 — 소비자 mova뿐 실측) + mova 정의를 "추천·평가·예매
+  프로젝트"로 재정의(`apps/mova/_docs/CLAUDE.md` 역할 갱신), ⑤ chat_trend
+  조건부 반영(단순 질의 미집계, 긍정 반응·예매 의지 시만). 구현 미착수.
 
 ### 오류·막힌 점
 - 전체 pytest에서 6건 실패로 보였으나 `-m` 미지정으로 ollama 자동 skip이
