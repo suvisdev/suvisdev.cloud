@@ -10,6 +10,7 @@ from mova.app.dtos.market_reviews_dto import (
     ReviewActivityDto,
     ReviewCommentDto,
     ReviewDto,
+    ReviewVoteResultDto,
     ReviewWithUserDto,
 )
 
@@ -63,4 +64,8 @@ class ReviewsUseCase(ABC):
 
     @abstractmethod
     async def get_sentiment_summary(self, movie_id: int) -> MovieSentimentSummaryDto:
+        pass
+
+    @abstractmethod
+    async def toggle_vote(self, review_id: int, user_id: int) -> ReviewVoteResultDto:
         pass

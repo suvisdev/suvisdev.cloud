@@ -101,6 +101,7 @@ export type MovaReviewRow = {
   sentiment_label?: string | null
   sentiment_score?: number | null
   news_source_count?: number | null
+  vote_count?: number
 }
 
 export type MovaRatingSummary = {
@@ -592,7 +593,7 @@ export function movaReviewToComment(row: MovaReviewRow): MovaComment {
     user: row.nickname,
     rating: row.rating,
     text: row.body,
-    likes: 0,
+    likes: row.vote_count ?? 0,
     commentCount: 0,
     spoilerSpans: row.spoiler_spans,
     sentimentLabel: row.sentiment_label,
@@ -638,6 +639,32 @@ export async function fetchMovaSentimentSummary(
   })
   if (!res.ok) return null
   return (await res.json()) as MovaSentimentSummary
+}
+
+export type MovaVoteResult = {
+  review_id: number
+  voted: boolean
+  vote_count: number
+}
+
+export async function toggleReviewVote(
+  reviewId: number,
+): Promise<MovaVoteResult> {
+  const res = await fetch(reviewsFetchUrl(`/${reviewId}/vote`), {
+    method: "POST",
+    headers: { ...authHeader() },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const detail =
+      typeof data === "object" && data !== null && "detail" in data
+        ? (data as { detail?: unknown }).detail
+        : undefined
+    throw new Error(
+      safeApiErrorMessage(detail, `투표 처리 실패 (${res.status})`, res.status),
+    )
+  }
+  return (await res.json()) as MovaVoteResult
 }
 
 export async function addReviewActivity(input: {

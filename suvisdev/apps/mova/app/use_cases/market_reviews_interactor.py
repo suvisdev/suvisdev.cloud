@@ -8,6 +8,7 @@ from mova.app.dtos.market_reviews_dto import (
     ReviewActivityDto,
     ReviewCommentDto,
     ReviewDto,
+    ReviewVoteResultDto,
     ReviewWithUserDto,
 )
 from mova.app.ports.input.market_reviews_use_case import ReviewsUseCase
@@ -83,3 +84,7 @@ class ReviewsInteractor(ReviewsUseCase):
             negative_count=neg,
             total_count=total,
         )
+
+    async def toggle_vote(self, review_id: int, user_id: int) -> ReviewVoteResultDto:
+        voted, count = await self._repository.toggle_vote(review_id, user_id)
+        return ReviewVoteResultDto(review_id=review_id, voted=voted, vote_count=count)

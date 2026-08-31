@@ -133,6 +133,19 @@ async def lifespan(app: FastAPI):
                         logger.warning(
                             "[main] 에디터 리뷰 스케줄러 시작 실패: %s", editor_sched_err
                         )
+                    try:
+                        from mova.adapter.inbound.scheduler.review_sentiment_scheduler import (
+                            run_sentiment_scheduler,
+                        )
+
+                        app.state.sentiment_scheduler = asyncio.create_task(
+                            run_sentiment_scheduler()
+                        )
+                        logger.info("[main] 리뷰 감정분석 스케줄러 시작 (24시간 주기)")
+                    except Exception as sentiment_sched_err:
+                        logger.warning(
+                            "[main] 감정분석 스케줄러 시작 실패: %s", sentiment_sched_err
+                        )
                 else:
                     logger.info(
                         "[main] ENABLE_MOVA_STARTUP=false — mova 부팅 작업"
@@ -172,6 +185,13 @@ async def lifespan(app: FastAPI):
             kofic_scheduler_task.cancel()
             try:
                 await kofic_scheduler_task
+            except asyncio.CancelledError:
+                pass
+        sentiment_task = getattr(app.state, "sentiment_scheduler", None)
+        if sentiment_task is not None:
+            sentiment_task.cancel()
+            try:
+                await sentiment_task
             except asyncio.CancelledError:
                 pass
         await dispose_engine()

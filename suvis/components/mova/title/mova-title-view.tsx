@@ -22,6 +22,7 @@ import {
   fetchMovaSentimentSummary,
   movaReviewToComment,
   removeFromWatchlist,
+  toggleReviewVote,
   type ApiMovieRow,
   type MovaReviewRow,
   type MovaSentimentSummary,
@@ -505,10 +506,29 @@ export function MovaTitleView({
                           <MovaSpoilerBody body={comment.text} spans={comment.spoilerSpans} />
                         </p>
                       ) : null}
-                      <p className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-500">
+                      <button
+                        type="button"
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-neutral-500 transition-colors hover:text-mova-accent-bright disabled:opacity-50"
+                        disabled={!session}
+                        onClick={async () => {
+                          if (!session) return
+                          try {
+                            const result = await toggleReviewVote(Number(comment.id))
+                            setComments((prev) =>
+                              prev.map((c) =>
+                                c.id === comment.id
+                                  ? { ...c, likes: result.vote_count }
+                                  : c,
+                              ),
+                            )
+                          } catch {
+                            // silent fail
+                          }
+                        }}
+                      >
                         <ThumbsUp className="h-3 w-3" />
                         {comment.likes}
-                      </p>
+                      </button>
                       <MovaReviewComments reviewId={Number(comment.id)} session={session} />
                     </li>
                   ))}

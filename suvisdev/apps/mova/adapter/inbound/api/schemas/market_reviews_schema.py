@@ -79,6 +79,13 @@ class ReviewWithUserSchema(BaseModel):
     sentiment_label: str | None = None
     sentiment_score: float | None = None
     news_source_count: int | None = None
+    vote_count: int = 0
+
+
+class ReviewVoteResultSchema(BaseModel):
+    review_id: int
+    voted: bool
+    vote_count: int
 
 
 class ReviewCommentCreateSchema(BaseModel):

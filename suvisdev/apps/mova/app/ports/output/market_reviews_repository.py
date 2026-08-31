@@ -115,3 +115,15 @@ class ReviewsRepositoryPort(ABC):
         self, movie_id: int
     ) -> tuple[int, int, int]:
         """영화별 감정 집계 (긍정 수, 부정 수, 전체 수)."""
+
+    @abstractmethod
+    async def toggle_vote(self, review_id: int, user_id: int) -> tuple[bool, int]:
+        """투표 토글. 반환: (현재 투표 상태, 총 투표 수)."""
+
+    @abstractmethod
+    async def get_vote_count(self, review_id: int) -> int:
+        """리뷰의 투표 수."""
+
+    @abstractmethod
+    async def has_voted(self, review_id: int, user_id: int) -> bool:
+        """사용자가 해당 리뷰에 투표했는지."""

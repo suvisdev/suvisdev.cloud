@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_review_comments_orm import MovaReviewComment
+from mova.adapter.outbound.orm.market_review_votes_orm import MovaReviewVote
 from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
 from mova.adapter.outbound.orm.market_user_actions_orm import (
     ACTION_WATCHED,
@@ -129,9 +130,16 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         )
 
     async def get_by_movie(self, movie_id: int, limit: int, offset: int) -> list[ReviewWithUserDto]:
+        vote_count_sub = (
+            select(func.count(MovaReviewVote.id))
+            .where(MovaReviewVote.review_id == MovaReview.id)
+            .correlate(MovaReview)
+            .scalar_subquery()
+            .label("vote_count")
+        )
         rows = (
             await self._session.execute(
-                select(MovaReview, User.nickname)
+                select(MovaReview, User.nickname, vote_count_sub)
                 .join(User, MovaReview.user_id == User.id)
                 .where(MovaReview.movie_id == movie_id)
                 .order_by(MovaReview.created_at.desc())
@@ -152,8 +160,9 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 sentiment_label=r.sentiment_label,
                 sentiment_score=float(r.sentiment_score) if r.sentiment_score is not None else None,
                 news_source_count=r.news_source_count,
+                vote_count=int(vc or 0),
             )
-            for r, nickname in rows
+            for r, nickname, vc in rows
         ]
 
     async def update_review(
@@ -387,6 +396,46 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             elif label == "부정":
                 negative = int(cnt)
         return positive, negative, positive + negative
+
+    async def toggle_vote(self, review_id: int, user_id: int) -> tuple[bool, int]:
+        existing = (
+            await self._session.execute(
+                select(MovaReviewVote).where(
+                    MovaReviewVote.review_id == review_id,
+                    MovaReviewVote.user_id == user_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            await self._session.delete(existing)
+            await self._session.commit()
+            count = await self.get_vote_count(review_id)
+            return False, count
+        self._session.add(MovaReviewVote(review_id=review_id, user_id=user_id))
+        await self._session.commit()
+        count = await self.get_vote_count(review_id)
+        return True, count
+
+    async def get_vote_count(self, review_id: int) -> int:
+        result = (
+            await self._session.execute(
+                select(func.count(MovaReviewVote.id)).where(
+                    MovaReviewVote.review_id == review_id
+                )
+            )
+        ).scalar_one()
+        return int(result or 0)
+
+    async def has_voted(self, review_id: int, user_id: int) -> bool:
+        row = (
+            await self._session.execute(
+                select(MovaReviewVote.id).where(
+                    MovaReviewVote.review_id == review_id,
+                    MovaReviewVote.user_id == user_id,
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        return row is not None
 
     async def _update_movie_rating(self, movie_id: int) -> None:
         """reviews upsert 후 movies.rating 갱신."""

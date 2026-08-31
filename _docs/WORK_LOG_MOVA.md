@@ -153,6 +153,18 @@
   - 스케줄러: 에디터 리뷰 생성 시 `len(articles)` 저장
   - 프론트: "AI 에디터 ·높음/보통/낮음" 배지 (5건↑=높음, 2~4=보통)
 
+  **4. 감정분석 24시간 자동 스케줄러**
+  - `review_sentiment_scheduler.py`: 24시간 주기로 `sentiment_label IS NULL` 리뷰
+    자동 분석. GPU 없는 환경에서는 연속 2회 실패 시 루프 자동 종료
+  - `main.py` lifespan에 등록 + 종료 시 cleanup
+
+  **5. 리뷰 유용성 투표 (도움돼요)**
+  - ORM: `review_votes` 테이블 (user_id+review_id UNIQUE, CASCADE)
+  - 마이그레이션: `20260831_0003_create_review_votes.py`
+  - 백엔드: `POST /mova/reviews/{review_id}/vote` 토글 엔드포인트 (로그인 필수)
+  - `get_by_movie`에 vote_count 서브쿼리 추가 (리뷰 목록과 함께 반환)
+  - 프론트: ThumbsUp 버튼 클릭으로 투표 토글 + 실시간 카운트 반영
+
 ### 산출물
 - pytest 728 passed, FutureWarning 해소, `import main` 클린
 - genai 마이그레이션 커밋 `2c68503`, EC2 배포 완료

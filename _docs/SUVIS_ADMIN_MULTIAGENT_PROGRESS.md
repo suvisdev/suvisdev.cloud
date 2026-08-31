@@ -9,6 +9,10 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova 리뷰 유용성 투표 + 감정분석 스케줄러 (2026-08-31)** —
+  review_votes 테이블(토글), POST /mova/reviews/{id}/vote 엔드포인트, get_by_movie에
+  vote_count 서브쿼리 추가, 프론트 ThumbsUp 클릭 투표. 감정분석 24시간 자동
+  스케줄러(GPU 없으면 자동 종료). 마이그레이션 1건. 상세: WORK_LOG_MOVA 2026-08-31.
 - **mova 리뷰 감정분석 통합 + 자동별점 + 감정요약 + 신뢰도 태그 (2026-08-31)** —
   Echo EXAONE LoRA 감정분석을 리뷰 시스템에 깊이 통합. ① 에디터 리뷰(rating=NULL)에
   감정→별점 자동 변환(긍정 score→4~5점, 부정→0.5~1.5점), ② taste vector 가중치를

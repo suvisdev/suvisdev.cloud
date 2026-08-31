@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         ReviewActivitySchema,
         ReviewCommentSchema,
         ReviewSchema,
+        ReviewVoteResultSchema,
         ReviewWithUserSchema,
     )
 from datetime import datetime
@@ -74,6 +75,7 @@ class ReviewWithUserDto:
     sentiment_label: str | None = None
     sentiment_score: float | None = None
     news_source_count: int | None = None
+    vote_count: int = 0
 
     def to_schema(self) -> ReviewWithUserSchema:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewWithUserSchema
@@ -90,6 +92,7 @@ class ReviewWithUserDto:
             sentiment_label=self.sentiment_label,
             sentiment_score=self.sentiment_score,
             news_source_count=self.news_source_count,
+            vote_count=self.vote_count,
         )
 
 
@@ -112,6 +115,24 @@ class ReviewCommentDto:
             nickname=self.nickname,
             body=self.body,
             created_at=self.created_at,
+        )
+
+
+@dataclass(frozen=True)
+class ReviewVoteResultDto:
+    review_id: int
+    voted: bool
+    vote_count: int
+
+    def to_schema(self) -> ReviewVoteResultSchema:
+        from mova.adapter.inbound.api.schemas.market_reviews_schema import (
+            ReviewVoteResultSchema,
+        )
+
+        return ReviewVoteResultSchema(
+            review_id=self.review_id,
+            voted=self.voted,
+            vote_count=self.vote_count,
         )
 
 

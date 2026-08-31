@@ -16,6 +16,7 @@ from mova.adapter.inbound.api.schemas.market_reviews_schema import (
     ReviewCreateSchema,
     ReviewSchema,
     ReviewUpdateSchema,
+    ReviewVoteResultSchema,
     ReviewWithUserSchema,
 )
 from mova.app.ports.input.market_reviews_use_case import ReviewsUseCase
@@ -224,6 +225,22 @@ async def delete_review(
         raise HTTPException(status_code=403, detail="본인 리뷰만 삭제할 수 있습니다.")
     await use_case.delete_review(review_id)
     return {"status": "deleted"}
+
+
+@market_reviews_router.post(
+    "/{review_id}/vote", response_model=ReviewVoteResultSchema
+)
+async def toggle_review_vote(
+    review_id: int,
+    principal: UserPrincipal = Depends(require_user),
+    use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+) -> ReviewVoteResultSchema:
+    """리뷰 유용성 투표 토글 — 이미 투표했으면 취소, 아니면 추가."""
+    existing = await use_case.get_by_id(review_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
+    dto = await use_case.toggle_vote(review_id, principal.user_id)
+    return dto.to_schema()
 
 
 @market_reviews_router.get("/{review_id}/comments", response_model=list[ReviewCommentSchema])
