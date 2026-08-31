@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
+    MovieSentimentSummaryDto,
     ReviewActivityDto,
     ReviewCommentDto,
     ReviewDto,
@@ -73,3 +74,12 @@ class ReviewsInteractor(ReviewsUseCase):
 
     async def delete_comment(self, comment_id: int, user_id: int) -> bool:
         return await self._repository.delete_comment(comment_id, user_id)
+
+    async def get_sentiment_summary(self, movie_id: int) -> MovieSentimentSummaryDto:
+        pos, neg, total = await self._repository.get_sentiment_summary(movie_id)
+        return MovieSentimentSummaryDto(
+            movie_id=movie_id,
+            positive_count=pos,
+            negative_count=neg,
+            total_count=total,
+        )

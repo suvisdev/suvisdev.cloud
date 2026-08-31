@@ -98,12 +98,24 @@ export type MovaReviewRow = {
   body: string
   created_at: string
   spoiler_spans?: MovaSpoilerSpan[]
+  sentiment_label?: string | null
+  sentiment_score?: number | null
+  news_source_count?: number | null
 }
 
 export type MovaRatingSummary = {
   movie_id: number
   average_rating: number
   review_count: number
+}
+
+export type MovaSentimentSummary = {
+  movie_id: number
+  positive_count: number
+  negative_count: number
+  total_count: number
+  positive_ratio: number
+  summary: string
 }
 
 const MATCH_LABEL: Record<MovaSearchResult["match_type"], string> = {
@@ -583,6 +595,9 @@ export function movaReviewToComment(row: MovaReviewRow): MovaComment {
     likes: 0,
     commentCount: 0,
     spoilerSpans: row.spoiler_spans,
+    sentimentLabel: row.sentiment_label,
+    sentimentScore: row.sentiment_score,
+    newsSourceCount: row.news_source_count,
   }
 }
 
@@ -613,6 +628,16 @@ export async function fetchMovaRating(movieId: number): Promise<MovaRatingSummar
   if (res.status === 404) return null
   if (!res.ok) return null
   return (await res.json()) as MovaRatingSummary
+}
+
+export async function fetchMovaSentimentSummary(
+  movieId: number
+): Promise<MovaSentimentSummary | null> {
+  const res = await fetch(reviewsFetchUrl(`/sentiment/${movieId}`), {
+    cache: "no-store",
+  })
+  if (!res.ok) return null
+  return (await res.json()) as MovaSentimentSummary
 }
 
 export async function addReviewActivity(input: {

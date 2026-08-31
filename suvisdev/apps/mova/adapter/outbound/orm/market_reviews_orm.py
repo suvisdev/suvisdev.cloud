@@ -51,6 +51,21 @@ class MovaReview(MovaModel):
         onupdate=func.now(),
         nullable=False,
     )
+    sentiment_label: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Echo 감정분석 결과 라벨 (긍정/부정). body=NULL이면 NULL.",
+    )
+    sentiment_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+        comment="Echo 감정분석 신뢰도 (0~1). body=NULL이면 NULL.",
+    )
+    news_source_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="에디터 리뷰 생성 시 참고한 뉴스 기사 수. 일반 유저 리뷰는 NULL.",
+    )
     spoiler_spans: Mapped[list[Any]] = mapped_column(
         JSONB,
         nullable=False,

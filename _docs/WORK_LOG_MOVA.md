@@ -129,6 +129,30 @@
   hub_knowledge 임베딩 어댑터 항목 완료 마킹, genai 마이그레이션·chat-bar 리팩터링
   완료 마킹
 
+- **리뷰 시스템 감정분석 통합 + 자동 별점 + 감정 요약 + 신뢰도 태그**
+
+  **A. 에디터 리뷰 감정분석 → 자동 별점**
+  - `review_sentiment_backfill_interactor.py`: `sentiment_to_rating()` — 긍정:
+    2.5+score×2.5, 부정: 2.5-score×2.0, 0.5단위 반올림
+  - `analyze_one()`에서 감정 저장 후 `rating=NULL`(에디터 리뷰)이면 자동 별점 부여
+  - `market_reviews_pg_repository.py`: `update_rating_if_null()` 구현
+
+  **B. 선호도 점수 = 별점 + 감정 합산**
+  - `platform_user_taste_vector_interactor.py`: `_effective_rating()` 도입 (α=0.3)
+  - 별점과 감정 일치 시 강화, 불일치 시 감쇄. 감정 없으면 원래 별점 그대로
+  - `list_embedded_reviews_by_user` 시그니처 5-tuple 확장 (sentiment 포함)
+
+  **2. 영화별 감정 요약**
+  - 백엔드: `GET /mova/reviews/sentiment/{movie_id}` — 긍정/부정 수·비율·한 줄 요약
+  - `MovieSentimentSummaryDto` + `MovieSentimentSummarySchema` 신규
+  - 프론트: 리뷰 섹션 상단에 긍정/부정 비율 바 + 요약 텍스트
+
+  **3. 에디터 리뷰 신뢰도 태그**
+  - ORM: `reviews.news_source_count` INTEGER 컬럼 추가
+  - 마이그레이션: `20260831_0002_add_reviews_news_source_count.py`
+  - 스케줄러: 에디터 리뷰 생성 시 `len(articles)` 저장
+  - 프론트: "AI 에디터 ·높음/보통/낮음" 배지 (5건↑=높음, 2~4=보통)
+
 ### 산출물
 - pytest 728 passed, FutureWarning 해소, `import main` 클린
 - genai 마이그레이션 커밋 `2c68503`, EC2 배포 완료

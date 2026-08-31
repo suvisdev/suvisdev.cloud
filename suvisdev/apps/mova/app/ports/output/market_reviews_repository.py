@@ -90,8 +90,28 @@ class ReviewsRepositoryPort(ABC):
     @abstractmethod
     async def list_embedded_reviews_by_user(
         self, user_id: int
-    ) -> list[tuple[int, float, list[float]]]:
+    ) -> list[tuple[int, float, list[float], str | None, float | None]]:
         """embedding·rating이 모두 있는 유저 리뷰 — 취향 벡터 계산용.
 
-        반환: [(review_id, rating, embedding), ...]. body는 필요 없어서 뺐다.
+        반환: [(review_id, rating, embedding, sentiment_label, sentiment_score), ...].
         """
+
+    @abstractmethod
+    async def list_missing_sentiment(self, limit: int | None) -> list[tuple[int, str]]:
+        """sentiment_label IS NULL AND body IS NOT NULL인 (id, body) — 감정분석 배치용."""
+
+    @abstractmethod
+    async def update_sentiment(
+        self, review_id: int, label: str, score: float
+    ) -> None:
+        """Echo 감정분석 결과 저장. 존재하지 않으면 조용히 스킵."""
+
+    @abstractmethod
+    async def update_rating_if_null(self, review_id: int, rating: float) -> bool:
+        """rating이 NULL인 리뷰에만 별점 설정. 반환: 실제 갱신 여부."""
+
+    @abstractmethod
+    async def get_sentiment_summary(
+        self, movie_id: int
+    ) -> tuple[int, int, int]:
+        """영화별 감정 집계 (긍정 수, 부정 수, 전체 수)."""

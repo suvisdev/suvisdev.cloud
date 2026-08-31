@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
+    MovieSentimentSummaryDto,
     ReviewActivityDto,
     ReviewCommentDto,
     ReviewDto,
@@ -58,4 +59,8 @@ class ReviewsUseCase(ABC):
 
     @abstractmethod
     async def delete_comment(self, comment_id: int, user_id: int) -> bool:
+        pass
+
+    @abstractmethod
+    async def get_sentiment_summary(self, movie_id: int) -> MovieSentimentSummaryDto:
         pass

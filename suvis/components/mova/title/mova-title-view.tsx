@@ -19,10 +19,12 @@ import {
   createMovaReview,
   fetchMovaRating,
   fetchMovaReviewsByMovie,
+  fetchMovaSentimentSummary,
   movaReviewToComment,
   removeFromWatchlist,
   type ApiMovieRow,
   type MovaReviewRow,
+  type MovaSentimentSummary,
 } from "@/lib/mova-api"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import type { MovaComment, MovaMovie } from "@/lib/mova-movies"
@@ -85,15 +87,17 @@ export function MovaTitleView({
   const [watchedMarking, setWatchedMarking] = useState(false)
   const [watchedMarked, setWatchedMarked] = useState(false)
   const [selectedActorId, setSelectedActorId] = useState<number | null>(null)
+  const [sentimentSummary, setSentimentSummary] = useState<MovaSentimentSummary | null>(null)
   const patchReview = (patch: Partial<FormStatus>) => patchState(setReview, patch)
 
   const canSubmitReview = Boolean(movie.movieDbId)
 
   const refreshReviews = async (currentSession: SuvisSession | null) => {
     if (!movie.movieDbId) return
-    const [rows, summary] = await Promise.all([
+    const [rows, summary, sentiment] = await Promise.all([
       fetchMovaReviewsByMovie(movie.movieDbId),
       fetchMovaRating(movie.movieDbId),
+      fetchMovaSentimentSummary(movie.movieDbId),
     ])
     setComments(rows.map(movaReviewToComment))
     setMyReview(currentSession ? (rows.find((r) => r.user_id === currentSession.id) ?? null) : null)
@@ -101,6 +105,7 @@ export function MovaTitleView({
       setAverageRating(summary.average_rating)
       setReviewCount(summary.review_count)
     }
+    setSentimentSummary(sentiment)
   }
 
   useEffect(() => {
@@ -416,6 +421,31 @@ export function MovaTitleView({
           <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
               <h2 className="mb-3 text-base font-semibold text-mova-text">리뷰</h2>
+              {sentimentSummary && sentimentSummary.total_count > 0 ? (
+                <div className="mb-4 rounded-lg border border-mova-border bg-mova-surface p-3">
+                  <div className="mb-2 flex items-center justify-between text-xs">
+                    <span className="text-mova-muted">{sentimentSummary.summary}</span>
+                    <span className="text-mova-muted">
+                      {sentimentSummary.total_count}건 분석
+                    </span>
+                  </div>
+                  <div className="flex h-2 overflow-hidden rounded-full">
+                    <div
+                      className="bg-emerald-500 transition-all"
+                      style={{ width: `${sentimentSummary.positive_ratio * 100}%` }}
+                    />
+                    <div className="flex-1 bg-red-500/70" />
+                  </div>
+                  <div className="mt-1 flex justify-between text-[10px]">
+                    <span className="text-emerald-400">
+                      긍정 {Math.round(sentimentSummary.positive_ratio * 100)}%
+                    </span>
+                    <span className="text-red-400">
+                      부정 {Math.round((1 - sentimentSummary.positive_ratio) * 100)}%
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               {comments.length === 0 ? (
                 <p className="text-sm text-neutral-400">아직 등록된 리뷰가 없습니다.</p>
               ) : (
@@ -435,6 +465,35 @@ export function MovaTitleView({
                             >
                               수정
                             </a>
+                          ) : null}
+                          {comment.newsSourceCount != null ? (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                comment.newsSourceCount >= 5
+                                  ? "bg-blue-900/40 text-blue-400"
+                                  : comment.newsSourceCount >= 2
+                                    ? "bg-amber-900/40 text-amber-400"
+                                    : "bg-neutral-800/40 text-neutral-400"
+                              }`}
+                            >
+                              AI 에디터{" "}
+                              {comment.newsSourceCount >= 5
+                                ? "·높음"
+                                : comment.newsSourceCount >= 2
+                                  ? "·보통"
+                                  : "·낮음"}
+                            </span>
+                          ) : null}
+                          {comment.sentimentLabel ? (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                comment.sentimentLabel === "긍정"
+                                  ? "bg-emerald-900/40 text-emerald-400"
+                                  : "bg-red-900/40 text-red-400"
+                              }`}
+                            >
+                              {comment.sentimentLabel}
+                            </span>
                           ) : null}
                           {comment.rating > 0 ? (
                             <RatingStars rating={comment.rating} className="text-xs" />

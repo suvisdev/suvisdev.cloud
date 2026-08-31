@@ -16,6 +16,9 @@ export type MovaComment = {
   likes: number
   commentCount: number
   spoilerSpans?: { start: number; end: number; text: string }[]
+  sentimentLabel?: string | null
+  sentimentScore?: number | null
+  newsSourceCount?: number | null
 }
 
 export type MovaMovie = {

@@ -76,6 +76,9 @@ class ReviewWithUserSchema(BaseModel):
     body: str
     created_at: datetime
     spoiler_spans: list[SpoilerSpanSchema] = Field(default_factory=list)
+    sentiment_label: str | None = None
+    sentiment_score: float | None = None
+    news_source_count: int | None = None
 
 
 class ReviewCommentCreateSchema(BaseModel):
@@ -95,6 +98,15 @@ class MovieRatingSummarySchema(BaseModel):
     movie_id: int
     average_rating: float
     review_count: int
+
+
+class MovieSentimentSummarySchema(BaseModel):
+    movie_id: int
+    positive_count: int
+    negative_count: int
+    total_count: int
+    positive_ratio: float
+    summary: str
 
 
 class MarketReviewsSchema(BaseModel):

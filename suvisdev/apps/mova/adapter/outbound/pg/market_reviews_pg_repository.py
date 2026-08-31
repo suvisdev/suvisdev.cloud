@@ -149,6 +149,9 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 body=r.body or "",
                 created_at=r.created_at,
                 spoiler_spans=list(r.spoiler_spans or []),
+                sentiment_label=r.sentiment_label,
+                sentiment_score=float(r.sentiment_score) if r.sentiment_score is not None else None,
+                news_source_count=r.news_source_count,
             )
             for r, nickname in rows
         ]
@@ -165,8 +168,10 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             row.rating = max(0.5, min(5.0, float(rating)))
         if body is not None:
             row.body = body
-            # body가 바뀌면 이전 스포일러 스팬은 무효 — 백그라운드 재감지 전까지 초기화.
+            # body가 바뀌면 이전 스포일러 스팬·감정분석은 무효 — 백그라운드 재감지 전까지 초기화.
             row.spoiler_spans = []
+            row.sentiment_label = None
+            row.sentiment_score = None
         await self._session.commit()
         await self._update_movie_rating(row.movie_id)
         return ReviewDto(
@@ -302,17 +307,86 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
 
     async def list_embedded_reviews_by_user(
         self, user_id: int
-    ) -> list[tuple[int, float, list[float]]]:
+    ) -> list[tuple[int, float, list[float], str | None, float | None]]:
         rows = (
             await self._session.execute(
-                select(MovaReview.id, MovaReview.rating, MovaReview.embedding).where(
+                select(
+                    MovaReview.id,
+                    MovaReview.rating,
+                    MovaReview.embedding,
+                    MovaReview.sentiment_label,
+                    MovaReview.sentiment_score,
+                ).where(
                     MovaReview.user_id == user_id,
                     MovaReview.embedding.is_not(None),
                     MovaReview.rating.is_not(None),
                 )
             )
         ).all()
-        return [(rid, float(rating), list(embedding)) for rid, rating, embedding in rows]
+        return [
+            (
+                rid,
+                float(rating),
+                list(embedding),
+                s_label,
+                float(s_score) if s_score is not None else None,
+            )
+            for rid, rating, embedding, s_label, s_score in rows
+        ]
+
+    async def list_missing_sentiment(self, limit: int | None) -> list[tuple[int, str]]:
+        stmt = (
+            select(MovaReview.id, MovaReview.body)
+            .where(MovaReview.sentiment_label.is_(None), MovaReview.body.is_not(None))
+            .order_by(MovaReview.id)
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows = (await self._session.execute(stmt)).all()
+        return [(rid, body) for rid, body in rows if body and body.strip()]
+
+    async def update_sentiment(self, review_id: int, label: str, score: float) -> None:
+        row = (
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        row.sentiment_label = label
+        row.sentiment_score = score
+        await self._session.commit()
+
+    async def update_rating_if_null(self, review_id: int, rating: float) -> bool:
+        row = (
+            await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))
+        ).scalar_one_or_none()
+        if row is None or row.rating is not None:
+            return False
+        row.rating = max(0.5, min(5.0, float(rating)))
+        await self._session.commit()
+        await self._update_movie_rating(row.movie_id)
+        return True
+
+    async def get_sentiment_summary(
+        self, movie_id: int
+    ) -> tuple[int, int, int]:
+        rows = (
+            await self._session.execute(
+                select(MovaReview.sentiment_label, func.count(MovaReview.id))
+                .where(
+                    MovaReview.movie_id == movie_id,
+                    MovaReview.sentiment_label.is_not(None),
+                )
+                .group_by(MovaReview.sentiment_label)
+            )
+        ).all()
+        positive = 0
+        negative = 0
+        for label, cnt in rows:
+            if label == "긍정":
+                positive = int(cnt)
+            elif label == "부정":
+                negative = int(cnt)
+        return positive, negative, positive + negative
 
     async def _update_movie_rating(self, movie_id: int) -> None:
         """reviews upsert 후 movies.rating 갱신."""

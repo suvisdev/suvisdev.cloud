@@ -6,7 +6,14 @@
 - **CLI 크론**: 매일 KST 03:45. BG task가 실패했거나 유실된 유저를 잡는
   안전망. 리뷰 임베딩 백필(03:00)·리뷰 임베딩 CLI(03:30) 뒤 15분 시차.
 
-계산: `sum(rating_i * embedding_i) / sum(rating_i)` — 별점 가중 평균.
+계산: `sum(effective_rating_i * embedding_i) / sum(effective_rating_i)`
+
+effective_rating = rating × (1 + α × alignment)
+  - 감정 라벨이 별점 방향과 일치하면 alignment 양수(강화)
+  - 불일치하면 alignment 음수(감쇄)
+  - 감정분석 결과가 없으면 rating 그대로 사용
+  - α = 0.3 (감정 반영 강도)
+
 정규화는 안 한다 — 조회 경로가 cosine 거리 기반이라 스케일 불변이고,
 필요 시 조회 쪽에서 후처리하는 게 저장값을 흐리지 않는다.
 """
@@ -25,6 +32,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SessionFactory = Callable[[], "AsyncSession"]
+
+_SENTIMENT_ALPHA = 0.3
+
+
+def _effective_rating(
+    rating: float,
+    sentiment_label: str | None,
+    sentiment_score: float | None,
+) -> float:
+    """별점 + 감정 alignment로 effective_rating 산출."""
+    if sentiment_label is None or sentiment_score is None:
+        return rating
+    is_positive_rating = rating >= 3.0
+    is_positive_sentiment = sentiment_label == "긍정"
+    aligned = is_positive_rating == is_positive_sentiment
+    alignment = sentiment_score if aligned else -sentiment_score * 0.5
+    return max(0.1, rating * (1 + _SENTIMENT_ALPHA * alignment))
 
 
 class UserTasteVectorRecomputeInteractor:
@@ -47,16 +71,20 @@ class UserTasteVectorRecomputeInteractor:
             reviews = await reviews_repo.list_embedded_reviews_by_user(user_id)
             taste_repo = UserTasteVectorsPgRepository(session=session)
 
-            weights_sum = sum(rating for _, rating, _ in reviews)
+            eff_ratings = [
+                _effective_rating(rating, s_label, s_score)
+                for _, rating, _, s_label, s_score in reviews
+            ]
+            weights_sum = sum(eff_ratings)
             if not reviews or weights_sum <= 0:
                 await taste_repo.upsert(user_id, None, 0)
                 return "cleared"
 
             dim = len(reviews[0][2])
             weighted = [0.0] * dim
-            for _, rating, embedding in reviews:
+            for (_, _rating, embedding, _sl, _ss), eff_r in zip(reviews, eff_ratings):
                 for i, x in enumerate(embedding):
-                    weighted[i] += rating * x
+                    weighted[i] += eff_r * x
             avg = [x / weights_sum for x in weighted]
 
             await taste_repo.upsert(user_id, avg, len(reviews))

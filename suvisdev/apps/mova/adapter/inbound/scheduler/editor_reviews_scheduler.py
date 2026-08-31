@@ -134,7 +134,13 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
 
         async with factory() as session:
             session.add(
-                MovaReview(user_id=editor_id, movie_id=movie_id, rating=None, body=body[:1000])
+                MovaReview(
+                    user_id=editor_id,
+                    movie_id=movie_id,
+                    rating=None,
+                    body=body[:1000],
+                    news_source_count=len(articles),
+                )
             )
             await session.commit()
         created += 1
