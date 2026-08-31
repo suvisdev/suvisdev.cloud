@@ -87,8 +87,25 @@ class TitleResolverTests(unittest.IsolatedAsyncioTestCase):
     async def test_no_match_is_not_found(self) -> None:
         repo = AsyncMock()
         repo.search_movies_by_title.return_value = []
+        repo.fuzzy_search_movies_by_title.return_value = []
         res = await resolve_movie_title(repo, message="없는영화 어때", entities=[])
         self.assertEqual(res.status, "not_found")
+
+    async def test_particle_stripped_from_title(self) -> None:
+        """'더문은 쩸 쓰나' → 조사 '은' 제거 → '더문'이 검색어에 포함."""
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(10, "더 문")]
+        await resolve_movie_title(repo, message="더문은 쩸 쓰나", entities=["더문은 쩸 쓰나"])
+        terms = repo.search_movies_by_title.await_args.args[0]
+        self.assertIn("더문", terms)
+
+    async def test_particle_stripped_ga(self) -> None:
+        """'인셉션이 재밌어' → 조사 '이' 제거 → '인셉션'."""
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(11, "인셉션")]
+        await resolve_movie_title(repo, message="인셉션이 재밌어", entities=[])
+        terms = repo.search_movies_by_title.await_args.args[0]
+        self.assertTrue(any("인셉션" in t for t in terms))
 
 
 class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -136,6 +153,7 @@ class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_not_found_returns_honest_reply(self) -> None:
         service, _ = self._service()
         service._repository.search_movies_by_title.return_value = []
+        service._repository.fuzzy_search_movies_by_title.return_value = []
         result = await service.evaluate(message="없는영화 어때", entities=[], trace_id="t")
         self.assertEqual(result.status, "not_found")
         self.assertIsNone(result.card)

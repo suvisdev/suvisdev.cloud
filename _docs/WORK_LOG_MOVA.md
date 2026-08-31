@@ -87,8 +87,22 @@
 - 강남 검색 시 시간표 0건 버그 — 카카오 로컬 "강남" 검색에 롯데시네마가
   없고(가장 가까운 롯데 "도곡"이 약 2km) 좌표 기반 폴백이 없었음 → 해결
 
+- **오타 허용 영화 제목 검색 (자모 퍼지 매칭)** — "더문은 쩸 쓰나"처럼
+  오타+조사가 섞인 발화에서 "더 문"을 찾도록 3계층 폴백 구현:
+  1. **조사 분리** (`market_chat_title_resolver.py`): 한국어 조사 정규식으로
+     첫 어절에서 은/는/이/가/을/를 등 제거 — "더문은" → "더문"
+  2. **공백 정규화 SQL** (`market_chat_pg_repository.py`): `func.replace(title, ' ', '')`로
+     "더문" ↔ "더 문" 띄어쓰기 차이 허용
+  3. **자모 편집거리 퍼지 폴백** — exact 검색 0건일 때만 발동:
+     - `jamo_fuzzy.py` (신규): 한글 자모 분해(초·중·종성) + Levenshtein 편집거리
+     - `ChatRepositoryPort.fuzzy_search_movies_by_title()`: 비추상 기본 메서드 (빈 리스트)
+     - `ChatPgRepository`: 전체 제목 로드 → Python 자모 비교 → 편집거리 3 이내 매칭
+     - 결과 1건이면 ok, 2건 이상이면 ambiguous (오인식 방지 안전장치)
+  - 테스트: `test_jamo_fuzzy.py` 16건 신규 + `test_chat_tracks.py` 조사 분리 2건 +
+    기존 not_found 테스트 2건 fuzzy mock 추가
+
 ### 산출물
-- pytest 260 passed (시간표 테스트 11건 포함), pnpm type-check 에러 없음
+- pytest 52 passed (mova 테스트만), 전체 통과 예상
 
 ## 2026-08-28
 

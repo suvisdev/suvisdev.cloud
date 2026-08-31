@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommendationSchema
@@ -52,11 +52,23 @@ class ChatPgRepository(ChatRepositoryPort):
         return {r[0] for r in rows}
 
     async def _movie_ids_by_titles(self, title_terms: list[str]) -> set[int]:
-        """프랜차이즈 확장 제목(어벤져스, 스파이더맨 등) → 제목 부분일치 영화."""
+        """프랜차이즈 확장 제목(어벤져스, 스파이더맨 등) → 제목 부분일치 영화.
+
+        공백 제거 매칭 포함 — "더문" ↔ "더 문" 등 띄어쓰기 차이를 허용한다.
+        """
         if not title_terms:
             return set()
-        cond = or_(*[MovaMovie.title.ilike(f"%{t}%") for t in title_terms[:15]])
-        rows = await self._session.execute(select(MovaMovie.id).where(cond).distinct())
+        terms = title_terms[:15]
+        conds = []
+        title_no_space = func.replace(MovaMovie.title, " ", "")
+        for t in terms:
+            conds.append(MovaMovie.title.ilike(f"%{t}%"))
+            stripped = t.replace(" ", "")
+            if stripped != t:
+                conds.append(title_no_space.ilike(f"%{stripped}%"))
+            else:
+                conds.append(title_no_space.ilike(f"%{stripped}%"))
+        rows = await self._session.execute(select(MovaMovie.id).where(or_(*conds)).distinct())
         return {r[0] for r in rows}
 
     async def _movie_ids_by_actors(self, actor_names: list[str]) -> set[int]:
@@ -181,6 +193,37 @@ class ChatPgRepository(ChatRepositoryPort):
             return []
         rows = await self._movies_by_ids(ids, limit, [])
         return _to_search_items(rows, "title")
+
+    async def fuzzy_search_movies_by_title(
+        self, terms: list[str], limit: int
+    ) -> list[MovaSearchItemSchema]:
+        """자모 편집거리 기반 퍼지 검색 — 전체 제목을 로드해 Python에서 비교."""
+        from mova.domain.value_objects.jamo_fuzzy import fuzzy_match_titles
+
+        rows = await self._session.execute(select(MovaMovie.id, MovaMovie.title))
+        all_titles = [(r[0], r[1]) for r in rows if r[1]]
+
+        candidates: list[tuple[int, str, int]] = []
+        for term in terms[:4]:
+            candidates.extend(fuzzy_match_titles(term, all_titles, max_distance=3))
+
+        seen: set[int] = set()
+        unique: list[tuple[int, str, int]] = []
+        for mid, title, dist in sorted(candidates, key=lambda x: x[2]):
+            if mid not in seen:
+                seen.add(mid)
+                unique.append((mid, title, dist))
+            if len(unique) >= limit:
+                break
+
+        if not unique:
+            return []
+        ids = {mid for mid, _, _ in unique}
+        rows2 = await self._movies_by_ids(list(ids), limit, [])
+        items = _to_search_items(rows2, "fuzzy")
+        id_dist = {mid: dist for mid, _, dist in unique}
+        items.sort(key=lambda i: id_dist.get(int(i.id), 99))
+        return items
 
     async def record_user_action(self, user_id: int, movie_id: int, action_type: str) -> None:
         if action_type not in EVENT_ACTION_TYPES:

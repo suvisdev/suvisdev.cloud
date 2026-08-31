@@ -22,12 +22,23 @@ _TRAILING_PATTERN = re.compile(
 )
 _CANDIDATE_LIMIT = 5
 
+# 한국어 조사·어미 — 발화에서 제목을 분리할 때 쓴다.
+# "더문은" → "더문", "인셉션이" → "인셉션"
+_PARTICLES = re.compile(
+    r"(에서의|에서|한테서|한테|으로|이랑|에게|처럼|까지|부터|마저|조차"
+    r"|는|은|이|가|을|를|도|의|에|와|과|랑|로)$"
+)
+
 
 @dataclass(frozen=True)
 class TitleResolution:
     status: str  # "ok" | "not_found" | "ambiguous"
     item: MovaSearchItemSchema | None
     candidates: list[MovaSearchItemSchema]
+
+
+def _strip_particle(word: str) -> str:
+    return _PARTICLES.sub("", word)
 
 
 def _title_terms(message: str, entities: list[str]) -> list[str]:
@@ -40,7 +51,17 @@ def _title_terms(message: str, entities: list[str]) -> list[str]:
         stripped = _TRAILING_PATTERN.sub("", stripped).strip()
     if stripped and stripped not in terms:
         terms.append(stripped)
-    return terms[:4]
+
+    # 조사 분리 — "더문은 쩸 쓰나"에서 첫 어절 "더문은" → "더문"
+    extra: list[str] = []
+    for t in terms:
+        words = t.split()
+        if words:
+            stem = _strip_particle(words[0])
+            if stem and stem != words[0] and stem not in terms:
+                extra.append(stem)
+    terms.extend(extra)
+    return terms[:6]
 
 
 def _normalize(title: str) -> str:
@@ -56,7 +77,13 @@ async def resolve_movie_title(
 
     items = await repository.search_movies_by_title(terms, _CANDIDATE_LIMIT)
     if not items:
-        return TitleResolution(status="not_found", item=None, candidates=[])
+        # 퍼지 폴백 — 자모 편집거리로 가장 유사한 제목을 찾는다.
+        items = await repository.fuzzy_search_movies_by_title(terms, _CANDIDATE_LIMIT)
+        if not items:
+            return TitleResolution(status="not_found", item=None, candidates=[])
+        if len(items) == 1:
+            return TitleResolution(status="ok", item=items[0], candidates=items)
+        return TitleResolution(status="ambiguous", item=None, candidates=items[:3])
 
     # 정확 일치(공백·대소문자 무시)가 있으면 그중 첫 항목(평점·최신 우선 정렬).
     normalized_terms = {_normalize(t) for t in terms}

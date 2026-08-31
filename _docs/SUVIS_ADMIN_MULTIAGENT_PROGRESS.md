@@ -9,6 +9,10 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova 오타 허용 제목 검색 — 조사 분리·공백 정규화·자모 퍼지 매칭 (2026-08-31)** —
+  "더문은 쩸 쓰나" → "더 문" 매칭. 조사 정규식 분리 + SQL 공백 제거 매칭 +
+  자모 편집거리 퍼지 폴백(exact 0건일 때만, 1건 ok / 다수 ambiguous).
+  jamo_fuzzy.py 신규 + 테스트 20건. 상세: WORK_LOG_MOVA 2026-08-31.
 - **mova booking Phase 2 — 롯데시네마 시간표 + 좌표 기반 폴백 (2026-08-31)** —
   ShowtimePort ABC + LotteCinemaAdapter(CinemaData/TicketingData JSON 엔드포인트,
   24h 극장 캐시, 카카오 place_name 매칭) + DTO·Schema 확장 + BookingAssistService
