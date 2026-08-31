@@ -33,11 +33,26 @@ type ChatTheater = {
 
 type ChatBookingLink = { chain: string; url: string }
 
+type ShowtimeSlot = {
+  screen: string
+  start_time: string
+  end_time: string
+  film_type: string
+  seats_available: number
+  seats_total: number
+}
+
+type CinemaShowtime = {
+  cinema_name: string
+  slots: ShowtimeSlot[]
+}
+
 type ChatBooking = {
   status: "showing" | "not_showing" | "need_region"
   region: string | null
   theaters: ChatTheater[]
   booking_links: ChatBookingLink[]
+  showtimes: CinemaShowtime[]
 }
 
 type ChatMessage = {
@@ -206,11 +221,36 @@ function normalizeBooking(raw: unknown): ChatBooking | null {
           : []
       })
     : []
+  const showtimes: CinemaShowtime[] = Array.isArray(o.showtimes)
+    ? o.showtimes.flatMap((cs) => {
+        if (!cs || typeof cs !== "object") return []
+        const c = cs as Record<string, unknown>
+        if (typeof c.cinema_name !== "string") return []
+        const slots: ShowtimeSlot[] = Array.isArray(c.slots)
+          ? c.slots.flatMap((s) => {
+              if (!s || typeof s !== "object") return []
+              const sl = s as Record<string, unknown>
+              return typeof sl.start_time === "string"
+                ? [{
+                    screen: typeof sl.screen === "string" ? sl.screen : "",
+                    start_time: sl.start_time,
+                    end_time: typeof sl.end_time === "string" ? sl.end_time : "",
+                    film_type: typeof sl.film_type === "string" ? sl.film_type : "",
+                    seats_available: typeof sl.seats_available === "number" ? sl.seats_available : 0,
+                    seats_total: typeof sl.seats_total === "number" ? sl.seats_total : 0,
+                  }]
+                : []
+            })
+          : []
+        return slots.length > 0 ? [{ cinema_name: c.cinema_name, slots }] : []
+      })
+    : []
   return {
     status: o.status,
     region: typeof o.region === "string" ? o.region : null,
     theaters,
     booking_links: bookingLinks,
+    showtimes,
   }
 }
 
@@ -779,8 +819,39 @@ function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
           ))}
         </ul>
       )}
+      {booking.showtimes.length > 0 && (
+        <div className={cn("space-y-2", booking.theaters.length > 0 && "mt-3")}>
+          {booking.showtimes.map((cs) => (
+            <div key={cs.cinema_name}>
+              <p className="mb-1 text-[11px] font-semibold text-mova-accent">
+                {cs.cinema_name} 시간표
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {cs.slots.map((s) => (
+                  <span
+                    key={`${s.screen}-${s.start_time}`}
+                    className="inline-flex items-center gap-1 rounded-md border border-mova-border bg-mova-bg px-2 py-0.5 text-[11px] text-mova-text"
+                  >
+                    <span className="font-medium">{s.start_time}</span>
+                    <span className="text-neutral-500">{s.screen}</span>
+                    {s.film_type && s.film_type !== "2D" && (
+                      <span className="text-mova-accent">{s.film_type}</span>
+                    )}
+                    {s.seats_total > 0 && (
+                      <span className="text-neutral-500">
+                        {s.seats_available}/{s.seats_total}석
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="text-[10px] text-neutral-500">롯데시네마 기준 · 실시간 좌석은 다를 수 있어요</p>
+        </div>
+      )}
       {booking.booking_links.length > 0 && (
-        <div className={cn("flex flex-wrap gap-1.5", booking.theaters.length > 0 && "mt-2.5")}>
+        <div className={cn("flex flex-wrap gap-1.5", (booking.theaters.length > 0 || booking.showtimes.length > 0) && "mt-2.5")}>
           {booking.booking_links.map((link) => (
             <a
               key={link.chain}

@@ -28,6 +28,54 @@
 
 ---
 
+## 2026-08-31
+
+### 작업 내용
+- **Phase 2 상영시간표 구현 (설계서 §5, 롯데시네마 단독)** — booking 트랙에
+  롯데시네마 내부 JSON 엔드포인트를 통한 실시간 시간표 조회 기능 추가.
+  robots.txt 재실확인(롯데 전체 허용, 메가박스 전체 차단, CGV AI봇 차단).
+
+### 수정/구현
+- **ShowtimePort ABC** (`mova/app/ports/output/showtime_port.py`): `fetch_showtimes(cinema_name, movie_title, date?)` → `CinemaShowtimeDto | None`
+- **LotteCinemaAdapter** (`mova/adapter/outbound/http/lotte_cinema_adapter.py`):
+  - `CinemaData.aspx` `GetCinemaItems`로 극장 237곳 목록 조회 (24시간 캐시)
+  - `TicketingData.aspx` `GetPlaySequence`로 극장+날짜별 시간표 조회
+  - 카카오 place_name → 롯데시네마 매칭 (접두사 제거 + 정규화 부분 문자열)
+  - 영화 제목 매칭 (상호 부분 문자열 포함)
+  - 좌석: `seats_available = max(total - booked, 0)`
+- **DTO 확장** (`mova/app/dtos/market_chat_dto.py`):
+  - `ShowtimeSlotDto` (screen, start_time, end_time, film_type, seats_available, seats_total)
+  - `CinemaShowtimeDto` (cinema_name, slots)
+  - `ChatBookingDto.showtimes` 필드 추가 (default_factory=list, 하위호환)
+- **Schema 확장** (`mova/adapter/inbound/api/schemas/market_chat_schema.py`):
+  - `MovaChatShowtimeSlotSchema`, `MovaChatCinemaShowtimeSchema`, `MovaChatBookingSchema.showtimes`
+- **BookingAssistService 연동** (`mova/app/use_cases/market_chat_booking_interactor.py`):
+  - `_fetch_lotte_showtimes()`: 근처 영화관 중 "롯데" 포함 극장에 시간표 조회 (최대 2곳)
+  - 응답 문구에 "롯데시네마 기준 오늘 상영 시간표 N회차를 찾았어요" 포함
+  - ShowtimePort optional 주입 — 미주입 시 빈 리스트 (Phase 1 폴백)
+- **DI 배선** (`mova/dependencies/market_chat_provider.py`): `get_booking_service`에 `showtimes=LotteCinemaAdapter()` 추가
+- **ChatInteractor meta 저장** (`mova/app/use_cases/market_chat_interactor.py`): `_reply_booking`에 showtimes 직렬화
+- **프론트 패널 렌더** (`suvis/components/mova/mova-ai-chat-bar.tsx`):
+  - `ShowtimeSlot`, `CinemaShowtime` 타입 추가
+  - `ChatBookingPanel`에 시간표 칩 렌더 (시작 시간, 상영관, 2D 아닌 상영 타입, 좌석)
+  - "롯데시네마 기준 · 실시간 좌석은 다를 수 있어요" 안내 문구
+- **테스트 8건** (`mova/tests/test_chat_tracks.py`):
+  - `test_lotte_theater_gets_showtimes`: mock ShowtimePort로 롯데시네마 시간표 응답 포함 확인
+  - `test_non_lotte_theater_skips_showtime_fetch`: 비롯데 극장은 조회 안 함 확인
+  - `test_no_showtime_port_returns_empty`: ShowtimePort 미주입 시 빈 리스트 확인
+  - `test_showtime_exception_is_swallowed`: 시간표 조회 예외 시 graceful 폴백
+  - `test_max_two_cinemas_cap`: 롯데시네마 3곳 → 최대 2곳만 조회 확인
+  - `test_showtime_none_result_excluded`: fetch_showtimes None 반환 시 결과 미포함
+  - `test_showtime_reply_includes_slot_count`: 응답에 회차 수 포함 확인
+  - `test_response_dto_to_schema_includes_showtimes`: ChatResponseDto.to_schema() 시간표 직렬화
+
+### 오류·막힌 점
+- EC2 SSH 자동 명령 일부가 classifier에 의해 차단됨 (단순 읽기 명령은 통과)
+- hub_knowledge ingest cron 제거 미완 (차단으로 인해 — 2972/2972 완료라 무해)
+
+### 산출물
+- pytest 257 passed (시간표 테스트 8건 포함), pnpm type-check 에러 없음
+
 ## 2026-08-28
 
 ### 작업 내용

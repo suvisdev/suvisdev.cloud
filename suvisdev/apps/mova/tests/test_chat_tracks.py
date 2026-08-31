@@ -392,6 +392,288 @@ class RegionTransportParsingTests(unittest.TestCase):
         self.assertEqual((region, radius, label), ("수원", 10_000, None))
 
 
+class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
+    """Phase 2 — 롯데시네마 시간표 연동."""
+
+    def _service_with_showtimes(
+        self, *, showtimes_result: object | None = "default"
+    ) -> BookingAssistService:
+        from mova.app.dtos.market_chat_dto import CinemaShowtimeDto, ShowtimeSlotDto
+
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(7, "호프")]
+        movies = AsyncMock()
+        movies.find_by_id.return_value = _detail(7, "호프")
+        box_office = AsyncMock()
+        entry = AsyncMock()
+        entry.title = "호프"
+        box_office.fetch_box_office.return_value = [entry]
+        theaters = AsyncMock()
+        showtime_port = AsyncMock()
+        if showtimes_result == "default":
+            showtime_port.fetch_showtimes.return_value = CinemaShowtimeDto(
+                cinema_name="롯데시네마 강남",
+                slots=[
+                    ShowtimeSlotDto(
+                        screen="1관",
+                        start_time="14:00",
+                        end_time="16:00",
+                        film_type="2D",
+                        seats_available=50,
+                        seats_total=120,
+                    )
+                ],
+            )
+        else:
+            showtime_port.fetch_showtimes.return_value = showtimes_result
+        return BookingAssistService(
+            repository=repo,
+            movies=movies,
+            box_office=box_office,
+            theaters=theaters,
+            showtimes=showtime_port,
+        )
+
+    async def test_lotte_theater_gets_showtimes(self) -> None:
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남", address="서울", distance_m=200, place_url="", phone=""
+            )
+        ]
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(len(result.booking.showtimes), 1)
+        self.assertEqual(result.booking.showtimes[0].cinema_name, "롯데시네마 강남")
+        self.assertEqual(result.booking.showtimes[0].slots[0].screen, "1관")
+        self.assertIn("롯데시네마 기준", result.reply)
+
+    async def test_non_lotte_theater_skips_showtime_fetch(self) -> None:
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(name="CGV 강남", address="서울", distance_m=300, place_url="", phone="")
+        ]
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(result.booking.showtimes, [])
+        service._showtimes.fetch_showtimes.assert_not_awaited()
+
+    async def test_no_showtime_port_returns_empty(self) -> None:
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(7, "호프")]
+        movies = AsyncMock()
+        movies.find_by_id.return_value = _detail(7, "호프")
+        box_office = AsyncMock()
+        entry = AsyncMock()
+        entry.title = "호프"
+        box_office.fetch_box_office.return_value = [entry]
+        theaters = AsyncMock()
+        theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남", address="서울", distance_m=200, place_url="", phone=""
+            )
+        ]
+        service = BookingAssistService(
+            repository=repo, movies=movies, box_office=box_office, theaters=theaters
+        )
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(result.booking.showtimes, [])
+
+    async def test_showtime_exception_is_swallowed(self) -> None:
+        """시간표 조회 예외 시 크래시 없이 빈 리스트로 폴백한다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._showtimes.fetch_showtimes.side_effect = RuntimeError("network")
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 건대입구", address="서울", distance_m=500, place_url="", phone=""
+            )
+        ]
+        result = await service.assist(
+            message="건대", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(result.booking.showtimes, [])
+        self.assertEqual(result.status, "ok")
+
+    async def test_max_two_cinemas_cap(self) -> None:
+        """롯데시네마가 3곳이어도 시간표는 최대 2곳만 조회한다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto, CinemaShowtimeDto, ShowtimeSlotDto
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남", address="서울", distance_m=100, place_url="", phone=""
+            ),
+            ChatTheaterDto(
+                name="롯데시네마 건대", address="서울", distance_m=200, place_url="", phone=""
+            ),
+            ChatTheaterDto(
+                name="롯데시네마 홍대", address="서울", distance_m=300, place_url="", phone=""
+            ),
+        ]
+        call_count = 0
+
+        async def _side_effect(name: str, title: str, **kw: object) -> CinemaShowtimeDto:
+            nonlocal call_count
+            call_count += 1
+            return CinemaShowtimeDto(
+                cinema_name=name,
+                slots=[
+                    ShowtimeSlotDto(
+                        screen="1관",
+                        start_time="14:00",
+                        end_time="16:00",
+                        film_type="2D",
+                        seats_available=50,
+                        seats_total=100,
+                    )
+                ],
+            )
+
+        service._showtimes.fetch_showtimes.side_effect = _side_effect
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(len(result.booking.showtimes), 2)
+        self.assertEqual(call_count, 2)
+
+    async def test_showtime_none_result_excluded(self) -> None:
+        """fetch_showtimes가 None을 반환하면 결과에 포함되지 않는다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes(showtimes_result=None)
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남", address="서울", distance_m=200, place_url="", phone=""
+            )
+        ]
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(result.booking.showtimes, [])
+
+    async def test_showtime_reply_includes_slot_count(self) -> None:
+        """시간표가 있으면 응답에 회차 수가 포함된다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto, CinemaShowtimeDto, ShowtimeSlotDto
+
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(7, "호프")]
+        movies = AsyncMock()
+        movies.find_by_id.return_value = _detail(7, "호프")
+        box_office = AsyncMock()
+        entry = AsyncMock()
+        entry.title = "호프"
+        box_office.fetch_box_office.return_value = [entry]
+        theaters = AsyncMock()
+        theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남", address="서울", distance_m=200, place_url="", phone=""
+            ),
+        ]
+        showtime_port = AsyncMock()
+        showtime_port.fetch_showtimes.return_value = CinemaShowtimeDto(
+            cinema_name="롯데시네마 강남",
+            slots=[
+                ShowtimeSlotDto(
+                    screen="1관",
+                    start_time="14:00",
+                    end_time="16:00",
+                    film_type="2D",
+                    seats_available=50,
+                    seats_total=120,
+                ),
+                ShowtimeSlotDto(
+                    screen="2관",
+                    start_time="17:00",
+                    end_time="19:00",
+                    film_type="IMAX",
+                    seats_available=30,
+                    seats_total=80,
+                ),
+            ],
+        )
+        service = BookingAssistService(
+            repository=repo,
+            movies=movies,
+            box_office=box_office,
+            theaters=theaters,
+            showtimes=showtime_port,
+        )
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertIn("2회차", result.reply)
+
+
+class ShowtimeDtoSerializationTests(unittest.TestCase):
+    def test_response_dto_to_schema_includes_showtimes(self) -> None:
+        """ChatResponseDto.to_schema()가 booking 시간표를 정상 직렬화한다."""
+        from mova.app.dtos.market_chat_dto import (
+            ChatBookingDto,
+            ChatBookingLinkDto,
+            ChatResponseDto,
+            CinemaShowtimeDto,
+            ShowtimeSlotDto,
+        )
+
+        dto = ChatResponseDto(
+            chat_id=1,
+            reply="테스트",
+            refined_query="",
+            keywords=[],
+            intent_type="booking",
+            search_filters={},
+            recommendations=[],
+            response_type="booking",
+            booking=ChatBookingDto(
+                status="showing",
+                region="강남",
+                theaters=[],
+                booking_links=[ChatBookingLinkDto(chain="CGV", url="http://cgv")],
+                showtimes=[
+                    CinemaShowtimeDto(
+                        cinema_name="롯데시네마 강남",
+                        slots=[
+                            ShowtimeSlotDto(
+                                screen="1관",
+                                start_time="14:00",
+                                end_time="16:00",
+                                film_type="2D",
+                                seats_available=50,
+                                seats_total=120,
+                            )
+                        ],
+                    )
+                ],
+            ),
+        )
+        schema = dto.to_schema()
+
+        self.assertEqual(len(schema.booking.showtimes), 1)
+        self.assertEqual(schema.booking.showtimes[0].cinema_name, "롯데시네마 강남")
+        self.assertEqual(len(schema.booking.showtimes[0].slots), 1)
+        self.assertEqual(schema.booking.showtimes[0].slots[0].screen, "1관")
+        self.assertEqual(schema.booking.showtimes[0].slots[0].seats_available, 50)
+
+
 class BookingTransportRadiusTests(unittest.IsolatedAsyncioTestCase):
     async def test_region_with_car_passes_wider_radius(self) -> None:
         repo = AsyncMock()

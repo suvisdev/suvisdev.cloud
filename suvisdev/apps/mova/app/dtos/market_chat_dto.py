@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field as dataclasses_field
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,26 @@ class ChatTheaterDto:
 
 
 @dataclass(frozen=True)
+class ShowtimeSlotDto:
+    """롯데시네마 단일 상영 회차."""
+
+    screen: str
+    start_time: str
+    end_time: str
+    film_type: str
+    seats_available: int
+    seats_total: int
+
+
+@dataclass(frozen=True)
+class CinemaShowtimeDto:
+    """극장 1곳의 특정 영화 시간표."""
+
+    cinema_name: str
+    slots: list[ShowtimeSlotDto]
+
+
+@dataclass(frozen=True)
 class ChatBookingLinkDto:
     chain: str
     url: str
@@ -60,6 +81,7 @@ class ChatBookingDto:
     region: str | None
     theaters: list[ChatTheaterDto]
     booking_links: list[ChatBookingLinkDto]
+    showtimes: list[CinemaShowtimeDto] = dataclasses_field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -82,9 +104,11 @@ class ChatResponseDto:
         from mova.adapter.inbound.api.schemas.market_chat_schema import (
             MovaChatBookingLinkSchema,
             MovaChatBookingSchema,
+            MovaChatCinemaShowtimeSchema,
             MovaChatEvaluationSchema,
             MovaChatRecommendationSchema,
             MovaChatResponseSchema,
+            MovaChatShowtimeSlotSchema,
             MovaChatTheaterSchema,
         )
 
@@ -116,6 +140,23 @@ class ChatResponseDto:
                 booking_links=[
                     MovaChatBookingLinkSchema(chain=link.chain, url=link.url)
                     for link in self.booking.booking_links
+                ],
+                showtimes=[
+                    MovaChatCinemaShowtimeSchema(
+                        cinema_name=cs.cinema_name,
+                        slots=[
+                            MovaChatShowtimeSlotSchema(
+                                screen=s.screen,
+                                start_time=s.start_time,
+                                end_time=s.end_time,
+                                film_type=s.film_type,
+                                seats_available=s.seats_available,
+                                seats_total=s.seats_total,
+                            )
+                            for s in cs.slots
+                        ],
+                    )
+                    for cs in self.booking.showtimes
                 ],
             )
             if self.booking

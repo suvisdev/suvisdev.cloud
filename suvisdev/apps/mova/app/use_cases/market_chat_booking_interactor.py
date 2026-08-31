@@ -17,11 +17,14 @@ from mova.app.dtos.market_chat_dto import (
     ChatBookingDto,
     ChatBookingLinkDto,
     ChatRecommendationDto,
+    ChatTheaterDto,
+    CinemaShowtimeDto,
 )
 from mova.app.dtos.studio_movies_dto import MovieDetailDto
 from mova.app.ports.output.box_office_port import BoxOfficePort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
+from mova.app.ports.output.showtime_port import ShowtimePort
 from mova.app.ports.output.theater_search_port import TheaterSearchPort
 from mova.app.use_cases.market_chat_title_resolver import resolve_movie_title
 
@@ -101,6 +104,9 @@ def _normalize(title: str) -> str:
     return "".join(title.split()).lower()
 
 
+_MAX_SHOWTIME_CINEMAS = 2
+
+
 class BookingAssistService:
     def __init__(
         self,
@@ -109,11 +115,13 @@ class BookingAssistService:
         movies: MoviesRepositoryPort,
         box_office: BoxOfficePort,
         theaters: TheaterSearchPort,
+        showtimes: ShowtimePort | None = None,
     ) -> None:
         self._repository = repository
         self._movies = movies
         self._box_office = box_office
         self._theaters = theaters
+        self._showtimes = showtimes
 
     async def assist(
         self,
@@ -236,6 +244,7 @@ class BookingAssistService:
             )
 
         links = _booking_links(detail.title)
+        cinema_showtimes = await self._fetch_lotte_showtimes(theaters, detail.title)
         basis = f"{transport} 기준 반경 {radius_m // 1000}km" if transport else "반경 10km"
         if not theaters:
             reply = (
@@ -252,22 +261,37 @@ class BookingAssistService:
             distance = f"약 {top.distance_m}m" if top.distance_m is not None else "가장 가까움"
             reply = (
                 f"'{region}' 근처({basis}) 영화관 {len(theaters)}곳을 가까운 순으로 찾았어요. "
-                f"가장 가까운 곳은 {top.name}({distance})이에요. 상영 시간표와 예매는 "
-                "각 체인 링크에서 확인해 주세요(시간표는 극장 사정에 따라 달라져요)."
+                f"가장 가까운 곳은 {top.name}({distance})이에요."
             )
+            if cinema_showtimes:
+                total_slots = sum(len(cs.slots) for cs in cinema_showtimes)
+                reply += (
+                    f" 롯데시네마 기준 오늘 상영 시간표 {total_slots}회차를 찾았어요."
+                    " 다른 체인은 아래 예매 링크에서 확인해 주세요."
+                )
+            else:
+                reply += (
+                    " 상영 시간표와 예매는 각 체인 링크에서 확인해 주세요"
+                    "(시간표는 극장 사정에 따라 달라져요)."
+                )
         logger.info(
-            "[BookingAssistService] trace=%s movie_id=%d region=%s theaters=%d",
+            "[BookingAssistService] trace=%s movie_id=%d region=%s theaters=%d showtimes=%d",
             trace_id,
             movie_id,
             region,
             len(theaters),
+            len(cinema_showtimes),
         )
         return BookingResult(
             status="ok",
             reply=reply,
             card=card,
             booking=ChatBookingDto(
-                status="showing", region=region, theaters=theaters, booking_links=links
+                status="showing",
+                region=region,
+                theaters=theaters,
+                booking_links=links,
+                showtimes=cinema_showtimes,
             ),
         )
 
@@ -293,6 +317,31 @@ class BookingAssistService:
             for entry in entries
             if entry.title
         )
+
+    async def _fetch_lotte_showtimes(
+        self, theaters: list[ChatTheaterDto], movie_title: str
+    ) -> list[CinemaShowtimeDto]:
+        """근처 영화관 중 롯데시네마에 대해 시간표를 조회한다(최대 2곳)."""
+        if self._showtimes is None:
+            return []
+        results: list[CinemaShowtimeDto] = []
+        for theater in theaters:
+            if "롯데" not in theater.name:
+                continue
+            try:
+                cs = await self._showtimes.fetch_showtimes(theater.name, movie_title)
+            except Exception:
+                logger.warning(
+                    "[BookingAssistService] 시간표 조회 예외 theater=%s",
+                    theater.name,
+                    exc_info=True,
+                )
+                continue
+            if cs is not None and cs.slots:
+                results.append(cs)
+            if len(results) >= _MAX_SHOWTIME_CINEMAS:
+                break
+        return results
 
     @staticmethod
     def _card(detail: MovieDetailDto, movie_id: int) -> ChatRecommendationDto:

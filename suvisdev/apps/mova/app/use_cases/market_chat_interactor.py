@@ -544,6 +544,23 @@ class ChatInteractor(ChatUseCase):
                 "booking_links": [
                     {"chain": link.chain, "url": link.url} for link in result.booking.booking_links
                 ],
+                "showtimes": [
+                    {
+                        "cinema_name": cs.cinema_name,
+                        "slots": [
+                            {
+                                "screen": s.screen,
+                                "start_time": s.start_time,
+                                "end_time": s.end_time,
+                                "film_type": s.film_type,
+                                "seats_available": s.seats_available,
+                                "seats_total": s.seats_total,
+                            }
+                            for s in cs.slots
+                        ],
+                    }
+                    for cs in result.booking.showtimes
+                ],
             }
         conversation_id = await self._persist_conversation_turn(
             request=request,

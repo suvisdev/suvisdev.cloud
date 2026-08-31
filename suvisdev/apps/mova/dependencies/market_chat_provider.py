@@ -111,6 +111,8 @@ def get_evaluation_service(
 def get_booking_service(
     db: AsyncSession = Depends(get_mova_db),
 ) -> BookingAssistService:
+    from mova.adapter.outbound.http.lotte_cinema_adapter import LotteCinemaAdapter
+
     keymaker = get_keymaker()
     return BookingAssistService(
         repository=ChatPgRepository(session=db),
@@ -118,6 +120,7 @@ def get_booking_service(
         box_office=KoficBoxOfficeAdapter(keymaker.kofic_api_key),
         # gildle 지오코딩과 같은 키 재사용(mova 자체 어댑터 — 스포크 간 import 금지).
         theaters=KakaoLocalTheaterAdapter(os.getenv("KAKAO_API_KEY") or ""),
+        showtimes=LotteCinemaAdapter(),
     )
 
 

@@ -9,6 +9,14 @@
 
 ## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
 
+- **mova booking Phase 2 — 롯데시네마 시간표 (2026-08-31)** — ShowtimePort
+  ABC + LotteCinemaAdapter(CinemaData/TicketingData JSON 엔드포인트, 24h 극장
+  캐시, 카카오 place_name 매칭) + DTO·Schema 확장 + BookingAssistService 연동
+  (롯데 극장만 최대 2곳 조회, 실패 시 Phase 1 딥링크 폴백) + ChatInteractor
+  meta 저장 + 프론트 시간표 칩 렌더("롯데시네마 기준" 안내). 테스트 3건(롯데
+  조회·비롯데 스킵·미주입 빈 리스트·예외 폴백·2곳 제한·None 제외·회차 수
+  포함·DTO 직렬화), pytest 257 passed, type-check 클린.
+  상세: WORK_LOG_MOVA 2026-08-31.
 - **Gildle 여름 그늘 경로 (2026-08-27)** — 뚜벅 방식 `summer_shade` 모드:
   건물 245,885동(OSM, 높이 결측 75.7%는 250m 격자 중앙값 imputation) 그림자
   폴리곤을 13슬롯(07~19시) 사전 계산(17MB)해 햇빛 구간 5배 페널티 라우팅.

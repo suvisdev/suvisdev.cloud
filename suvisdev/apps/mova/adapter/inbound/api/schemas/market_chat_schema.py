@@ -58,11 +58,26 @@ class MovaChatBookingLinkSchema(BaseModel):
     url: str
 
 
+class MovaChatShowtimeSlotSchema(BaseModel):
+    screen: str
+    start_time: str
+    end_time: str
+    film_type: str = ""
+    seats_available: int = 0
+    seats_total: int = 0
+
+
+class MovaChatCinemaShowtimeSchema(BaseModel):
+    cinema_name: str
+    slots: list[MovaChatShowtimeSlotSchema] = Field(default_factory=list)
+
+
 class MovaChatBookingSchema(BaseModel):
     status: Literal["showing", "not_showing", "need_region"]
     region: str | None = None
     theaters: list[MovaChatTheaterSchema] = Field(default_factory=list)
     booking_links: list[MovaChatBookingLinkSchema] = Field(default_factory=list)
+    showtimes: list[MovaChatCinemaShowtimeSchema] = Field(default_factory=list)
 
 
 class MovaChatResponseSchema(BaseModel):
