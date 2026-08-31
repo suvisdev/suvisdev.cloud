@@ -69,12 +69,26 @@
   - `test_showtime_reply_includes_slot_count`: 응답에 회차 수 포함 확인
   - `test_response_dto_to_schema_includes_showtimes`: ChatResponseDto.to_schema() 시간표 직렬화
 
+- **좌표 기반 최근접 롯데시네마 폴백** — 카카오 결과에 롯데시네마가 없을 때
+  (예: "강남" 검색 → CGV·메가박스만 5곳) 첫 극장의 좌표로 가장 가까운
+  롯데시네마를 자동 탐색(haversine 거리 계산, 반경 10km):
+  - `ChatTheaterDto`에 `lat`/`lng` 필드 추가
+  - `KakaoLocalTheaterAdapter`: 카카오 응답의 `x`(lng)/`y`(lat) 채우기
+  - `_LotteCinema`에 `lat`/`lng` 추가, `_ensure_cinemas`에서 `Latitude`/`Longitude` 저장
+  - `LotteCinemaAdapter._find_nearest_cinema()`: haversine 최근접 검색
+  - `LotteCinemaAdapter.fetch_nearest_showtimes()`: 좌표 기반 시간표 조회
+  - `ShowtimePort.fetch_nearest_showtimes()`: 기본 메서드 (None 반환, 비추상)
+  - `BookingAssistService._fetch_lotte_showtimes()`: 롯데 0곳일 때 좌표 기반 폴백
+  - 테스트 3건 추가: 폴백 호출 확인 / 롯데 있으면 폴백 안 함 / 좌표 없으면 폴백 스킵
+
 ### 오류·막힌 점
 - EC2 SSH 자동 명령 일부가 classifier에 의해 차단됨 (단순 읽기 명령은 통과)
 - hub_knowledge ingest cron 제거 미완 (차단으로 인해 — 2972/2972 완료라 무해)
+- 강남 검색 시 시간표 0건 버그 — 카카오 로컬 "강남" 검색에 롯데시네마가
+  없고(가장 가까운 롯데 "도곡"이 약 2km) 좌표 기반 폴백이 없었음 → 해결
 
 ### 산출물
-- pytest 257 passed (시간표 테스트 8건 포함), pnpm type-check 에러 없음
+- pytest 260 passed (시간표 테스트 11건 포함), pnpm type-check 에러 없음
 
 ## 2026-08-28
 

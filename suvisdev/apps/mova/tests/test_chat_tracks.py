@@ -622,6 +622,85 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("2회차", result.reply)
 
+    async def test_nearest_fallback_when_no_lotte_in_kakao(self) -> None:
+        """카카오 결과에 롯데가 없으면 좌표 기반 최근접 롯데시네마를 찾는다."""
+        from mova.app.dtos.market_chat_dto import (
+            ChatTheaterDto,
+            CinemaShowtimeDto,
+            ShowtimeSlotDto,
+        )
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="CGV 강남",
+                address="서울",
+                distance_m=300,
+                place_url="",
+                phone="",
+                lat=37.498,
+                lng=127.028,
+            )
+        ]
+        service._showtimes.fetch_nearest_showtimes.return_value = CinemaShowtimeDto(
+            cinema_name="롯데시네마 도곡",
+            slots=[
+                ShowtimeSlotDto(
+                    screen="1관",
+                    start_time="15:00",
+                    end_time="17:00",
+                    film_type="2D",
+                    seats_available=40,
+                    seats_total=100,
+                )
+            ],
+        )
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        service._showtimes.fetch_nearest_showtimes.assert_awaited_once()
+        self.assertEqual(len(result.booking.showtimes), 1)
+        self.assertEqual(result.booking.showtimes[0].cinema_name, "롯데시네마 도곡")
+
+    async def test_nearest_fallback_not_called_when_lotte_found(self) -> None:
+        """카카오 결과에 롯데가 있으면 최근접 폴백은 호출하지 않는다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남",
+                address="서울",
+                distance_m=200,
+                place_url="",
+                phone="",
+                lat=37.498,
+                lng=127.028,
+            )
+        ]
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(len(result.booking.showtimes), 1)
+        service._showtimes.fetch_nearest_showtimes.assert_not_awaited()
+
+    async def test_nearest_fallback_skipped_without_coords(self) -> None:
+        """좌표 없는 극장만 있으면 최근접 폴백을 시도하지 않는다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(name="CGV 강남", address="서울", distance_m=300, place_url="", phone="")
+        ]
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+
+        self.assertEqual(result.booking.showtimes, [])
+        service._showtimes.fetch_nearest_showtimes.assert_not_awaited()
+
 
 class ShowtimeDtoSerializationTests(unittest.TestCase):
     def test_response_dto_to_schema_includes_showtimes(self) -> None:

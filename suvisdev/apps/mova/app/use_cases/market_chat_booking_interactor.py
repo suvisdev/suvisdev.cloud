@@ -321,7 +321,11 @@ class BookingAssistService:
     async def _fetch_lotte_showtimes(
         self, theaters: list[ChatTheaterDto], movie_title: str
     ) -> list[CinemaShowtimeDto]:
-        """근처 영화관 중 롯데시네마에 대해 시간표를 조회한다(최대 2곳)."""
+        """근처 영화관 중 롯데시네마에 대해 시간표를 조회한다(최대 2곳).
+
+        카카오 결과에 롯데시네마가 없으면 첫 극장의 좌표로 최근접 롯데시네마를
+        찾아 시간표를 조회한다(좌표 기반 폴백).
+        """
         if self._showtimes is None:
             return []
         results: list[CinemaShowtimeDto] = []
@@ -341,6 +345,25 @@ class BookingAssistService:
                 results.append(cs)
             if len(results) >= _MAX_SHOWTIME_CINEMAS:
                 break
+
+        if not results and theaters:
+            anchor = next((t for t in theaters if t.lat and t.lng), None)
+            if anchor is not None:
+                try:
+                    cs = await self._showtimes.fetch_nearest_showtimes(
+                        anchor.lat,
+                        anchor.lng,
+                        movie_title,  # type: ignore[arg-type]
+                    )
+                except Exception:
+                    logger.warning(
+                        "[BookingAssistService] 최근접 시간표 조회 예외",
+                        exc_info=True,
+                    )
+                    cs = None
+                if cs is not None and cs.slots:
+                    results.append(cs)
+
         return results
 
     @staticmethod

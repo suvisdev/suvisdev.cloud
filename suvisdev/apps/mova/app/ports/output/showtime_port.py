@@ -17,3 +17,15 @@ class ShowtimePort(ABC):
         date가 None이면 오늘(KST). 조회 실패·미지원 극장이면 None.
         롯데시네마만 지원(Phase 2) — CGV·메가박스는 robots.txt/약관으로 배제.
         """
+
+    async def fetch_nearest_showtimes(
+        self,
+        lat: float,
+        lng: float,
+        movie_title: str,
+        *,
+        date: str | None = None,
+        max_km: float = 10.0,
+    ) -> CinemaShowtimeDto | None:
+        """좌표 기반 최근접 극장 시간표. 구현체가 지원하지 않으면 None."""
+        return None

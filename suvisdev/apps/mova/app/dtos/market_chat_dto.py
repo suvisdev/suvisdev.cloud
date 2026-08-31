@@ -45,6 +45,8 @@ class ChatTheaterDto:
     distance_m: int | None
     place_url: str
     phone: str
+    lat: float | None = None
+    lng: float | None = None
 
 
 @dataclass(frozen=True)

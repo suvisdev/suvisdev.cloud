@@ -8,6 +8,7 @@ robots.txt 전체 허용(2026-08-28·08-31 실확인). 설계서 §5 완화책 �
 from __future__ import annotations
 
 import logging
+import math
 import time
 from dataclasses import dataclass
 
@@ -31,6 +32,8 @@ class _LotteCinema:
     division_code: int
     detail_division_code: str
     name: str
+    lat: float = 0.0
+    lng: float = 0.0
 
 
 def _normalize(s: str) -> str:
@@ -113,6 +116,39 @@ class LotteCinemaAdapter(ShowtimePort):
         slots.sort(key=lambda s: s.start_time)
         return CinemaShowtimeDto(cinema_name=f"롯데시네마 {cinema.name}", slots=slots)
 
+    async def fetch_nearest_showtimes(
+        self,
+        lat: float,
+        lng: float,
+        movie_title: str,
+        *,
+        date: str | None = None,
+        max_km: float = 10.0,
+    ) -> CinemaShowtimeDto | None:
+        cinema = await self._find_nearest_cinema(lat, lng, max_km=max_km)
+        if cinema is None:
+            return None
+        fake_name = f"롯데시네마 {cinema.name}"
+        return await self.fetch_showtimes(fake_name, movie_title, date=date)
+
+    async def _find_nearest_cinema(
+        self, lat: float, lng: float, *, max_km: float = 10.0
+    ) -> _LotteCinema | None:
+        await self._ensure_cinemas()
+        best: _LotteCinema | None = None
+        best_dist = float("inf")
+        for c in self._cinemas:
+            if c.lat == 0.0 and c.lng == 0.0:
+                continue
+            d = _haversine_km(lat, lng, c.lat, c.lng)
+            if d < best_dist:
+                best_dist = d
+                best = c
+        if best is not None and best_dist <= max_km:
+            logger.info("[LotteCinemaAdapter] 최근접 극장=%s dist=%.1fkm", best.name, best_dist)
+            return best
+        return None
+
     async def _match_cinema(self, kakao_name: str) -> _LotteCinema | None:
         """카카오 place_name → 롯데시네마 매칭. "롯데시네마" 접두사를 떼고 비교."""
         if "롯데" not in kakao_name:
@@ -174,11 +210,24 @@ class LotteCinemaAdapter(ShowtimePort):
                     division_code=int(item.get("DivisionCode") or 1),
                     detail_division_code=str(item.get("DetailDivisionCode") or "0001"),
                     name=str(name),
+                    lat=float(item.get("Latitude") or 0),
+                    lng=float(item.get("Longitude") or 0),
                 )
             )
         self._cinemas = cinemas
         self._cinemas_fetched_at = time.monotonic()
         logger.info("[LotteCinemaAdapter] 극장 목록 캐시 갱신: %d곳", len(cinemas))
+
+
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    r = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+    )
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def _to_json(d: dict) -> str:

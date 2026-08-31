@@ -69,6 +69,8 @@ class KakaoLocalTheaterAdapter(TheaterSearchPort):
                 distance_m=int(d) if (d := str(doc.get("distance") or "")).isdigit() else None,
                 place_url=str(doc.get("place_url") or ""),
                 phone=str(doc.get("phone") or ""),
+                lat=float(doc["y"]) if doc.get("y") else None,
+                lng=float(doc["x"]) if doc.get("x") else None,
             )
             for doc in documents
             if doc.get("place_name")
