@@ -27,11 +27,12 @@ def gemini_reply(prompt: str, model_key: Literal["flash", "flash15", "pro"] | No
         raise LLMUnavailableError(
             "GEMINI_API_KEY가 설정되지 않았습니다. suvisdev/.env 에 키를 설정하세요."
         )
-    gemini = keymaker.get_gemini_model(model_key)
-    if gemini is None:
+    client = keymaker.genai_client
+    if client is None:
         raise LLMUnavailableError("Gemini 모델을 초기화할 수 없습니다.")
+    model_id = keymaker.resolve_model_id(model_key)
     try:
-        response = gemini.generate_content(prompt)
+        response = client.models.generate_content(model=model_id, contents=prompt)
     except Exception as e:
         err = str(e)
         if not _is_quota_error(err):
@@ -39,7 +40,7 @@ def gemini_reply(prompt: str, model_key: Literal["flash", "flash15", "pro"] | No
         logger.warning("[gemini] 할당량 초과, %.1f초 후 1회 재시도", _RETRY_SLEEP_SECONDS)
         time.sleep(_RETRY_SLEEP_SECONDS)
         try:
-            response = gemini.generate_content(prompt)
+            response = client.models.generate_content(model=model_id, contents=prompt)
         except Exception as retry_error:
             raise LLMError(
                 "Gemini 할당량이 초과되었습니다. 잠시 후 다시 시도하세요.",

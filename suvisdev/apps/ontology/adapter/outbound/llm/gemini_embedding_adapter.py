@@ -23,34 +23,49 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
     (`scripts/ingest_hub_knowledge.py --embedding-backend gemini --reset`).
     """
 
-    def __init__(self, *, model: str = _DEFAULT_MODEL, dimensions: int = EMBEDDING_DIM) -> None:
+    def __init__(
+        self,
+        *,
+        model: str = _DEFAULT_MODEL,
+        dimensions: int = EMBEDDING_DIM,
+        client: object | None = None,
+    ) -> None:
         self._model = model
         self._dimensions = dimensions
+        self._client = client
 
-    def _embed_sync(self, text: str) -> list[float]:
+    def _get_client(self):
+        if self._client is not None:
+            return self._client
         from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 
         keymaker = get_keymaker()
         if not keymaker.gemini_ready:
             raise HubRagError("GEMINI_API_KEY가 설정되지 않았습니다.", status_code=503)
+        client = keymaker.genai_client
+        if client is None:
+            raise HubRagError("GEMINI_API_KEY가 설정되지 않았습니다.", status_code=503)
+        return client
 
-        # Keymaker가 import 시점에 genai.configure(api_key=...)를 이미 끝냈다.
-        import google.generativeai as genai
+    def _embed_sync(self, text: str) -> list[float]:
+        from google.genai import types
 
+        client = self._get_client()
         try:
-            result = genai.embed_content(
+            result = client.models.embed_content(
                 model=self._model,
-                content=text,
-                output_dimensionality=self._dimensions,
+                contents=text,
+                config=types.EmbedContentConfig(output_dimensionality=self._dimensions),
             )
         except Exception as e:
             raise HubRagError(f"Gemini 임베딩 호출 실패: {e!s}", status_code=502) from e
 
-        vector = result.get("embedding")
+        if not result.embeddings:
+            raise HubRagError("Gemini가 빈 임베딩을 반환했습니다.", status_code=502)
+        vector = result.embeddings[0].values
         if not vector:
             raise HubRagError("Gemini가 빈 임베딩을 반환했습니다.", status_code=502)
         return list(vector)
 
     async def embed(self, text: str) -> list[float]:
-        # genai.embed_content는 동기 호출 — 이벤트 루프를 막지 않도록 스레드로 위임한다.
         return await asyncio.to_thread(self._embed_sync, text)

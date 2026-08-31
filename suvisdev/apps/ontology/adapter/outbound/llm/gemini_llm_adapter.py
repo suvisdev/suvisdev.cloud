@@ -25,13 +25,14 @@ class GeminiLlmAdapter(HubLlmPort):
                 "GEMINI_API_KEY가 설정되지 않았습니다. suvisdev/.env 에 키를 설정하세요.",
                 status_code=503,
             )
-        gemini = keymaker.get_gemini_model(None)
-        if gemini is None:
+        client = keymaker.genai_client
+        if client is None:
             raise HubRagError("Gemini 모델을 초기화할 수 없습니다.", status_code=503)
 
+        model_id = keymaker.resolve_model_id(None)
         content = f"{system}\n\n{prompt}" if system else prompt
         try:
-            response = gemini.generate_content(content)
+            response = client.models.generate_content(model=model_id, contents=content)
         except Exception as e:
             err = str(e)
             if "429" in err or "quota" in err.lower() or "resource_exhausted" in err.lower():

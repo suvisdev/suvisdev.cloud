@@ -72,12 +72,12 @@ class Keymaker:
         self.aws_region: str = (os.getenv("AWS_REGION") or "ap-northeast-2").strip()  # 서울
         self.vision_s3_bucket: str = (os.getenv("VISION_S3_BUCKET") or "").strip()
 
-        self._gemini_models: dict[str, object] = {}
+        self._genai_client: object | None = None
 
         if self.gemini_api_key:
-            import google.generativeai as genai
+            from google import genai
 
-            genai.configure(api_key=self.gemini_api_key)
+            self._genai_client = genai.Client(api_key=self.gemini_api_key)
 
     def resolve_model_id(self, model_key: str | None) -> str:
         """프론트 `model` 키 또는 .env `GEMINI_MODEL` → 실제 모델 ID."""
@@ -88,17 +88,16 @@ class Keymaker:
             return _normalize_model_id(env_id)
         return GEMINI_MODEL_MAP[DEFAULT_MODEL_KEY]
 
+    @property
+    def genai_client(self):
+        """google.genai.Client 인스턴스. API 키 미설정 시 None."""
+        return self._genai_client
+
     def get_gemini_model(self, model_key: str | None = None):
-        """키가 없으면 `None`. `model_key`에 맞는 `GenerativeModel`(캐시)을 반환."""
+        """하위 호환 — genai_client + resolve_model_id 조합을 권장."""
         if not self.gemini_api_key:
             return None
-
-        import google.generativeai as genai
-
-        model_id = self.resolve_model_id(model_key)
-        if model_id not in self._gemini_models:
-            self._gemini_models[model_id] = genai.GenerativeModel(model_id)
-        return self._gemini_models[model_id]
+        return self.resolve_model_id(model_key)
 
     @property
     def gemini_model(self):

@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[3]
 APPS = ROOT / "apps"
@@ -51,7 +51,7 @@ class EmbeddingBackendSwitchTests(unittest.TestCase):
 class GeminiEmbeddingAdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_missing_api_key_raises_hub_rag_error(self) -> None:
         adapter = GeminiEmbeddingAdapter()
-        fake_keymaker = type("_K", (), {"gemini_ready": False})()
+        fake_keymaker = type("_K", (), {"gemini_ready": False, "genai_client": None})()
 
         with patch(
             "core.matrix.vauly_keymaker_secret_manager.get_keymaker",
@@ -64,57 +64,44 @@ class GeminiEmbeddingAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_requests_column_dimension(self) -> None:
         """저장 컬럼이 Vector(768)이라 output_dimensionality를 반드시 넘겨야 한다."""
-        adapter = GeminiEmbeddingAdapter()
-        fake_keymaker = type("_K", (), {"gemini_ready": True})()
         captured: dict = {}
 
-        def _fake_embed_content(**kwargs):
-            captured.update(kwargs)
-            return {"embedding": [0.1] * EMBEDDING_DIM}
+        def _fake_embed_content(*, model, contents, config=None):
+            if config:
+                captured["output_dimensionality"] = config.output_dimensionality
+            embedding = MagicMock()
+            embedding.values = [0.1] * EMBEDDING_DIM
+            result = MagicMock()
+            result.embeddings = [embedding]
+            return result
 
-        with (
-            patch(
-                "core.matrix.vauly_keymaker_secret_manager.get_keymaker",
-                return_value=fake_keymaker,
-            ),
-            patch("google.generativeai.embed_content", _fake_embed_content),
-        ):
-            vector = await adapter.embed("감동적인 드라마")
+        fake_client = MagicMock()
+        fake_client.models.embed_content = _fake_embed_content
+
+        adapter = GeminiEmbeddingAdapter(client=fake_client)
+        vector = await adapter.embed("감동적인 드라마")
 
         self.assertEqual(len(vector), EMBEDDING_DIM)
         self.assertEqual(captured["output_dimensionality"], EMBEDDING_DIM)
 
     async def test_empty_embedding_raises(self) -> None:
-        adapter = GeminiEmbeddingAdapter()
-        fake_keymaker = type("_K", (), {"gemini_ready": True})()
+        fake_client = MagicMock()
+        result = MagicMock()
+        result.embeddings = []
+        fake_client.models.embed_content = MagicMock(return_value=result)
 
-        with (
-            patch(
-                "core.matrix.vauly_keymaker_secret_manager.get_keymaker",
-                return_value=fake_keymaker,
-            ),
-            patch("google.generativeai.embed_content", lambda **kw: {"embedding": []}),
-        ):
-            with self.assertRaises(HubRagError):
-                await adapter.embed("감동적인 드라마")
+        adapter = GeminiEmbeddingAdapter(client=fake_client)
+        with self.assertRaises(HubRagError):
+            await adapter.embed("감동적인 드라마")
 
     async def test_api_exception_becomes_hub_rag_error(self) -> None:
         """어댑터 밖으로 raw 예외가 새면 HubRagInteractor의 폴백이 안 걸린다."""
-        adapter = GeminiEmbeddingAdapter()
-        fake_keymaker = type("_K", (), {"gemini_ready": True})()
+        fake_client = MagicMock()
+        fake_client.models.embed_content = MagicMock(side_effect=RuntimeError("quota exceeded"))
 
-        def _boom(**kwargs):
-            raise RuntimeError("quota exceeded")
-
-        with (
-            patch(
-                "core.matrix.vauly_keymaker_secret_manager.get_keymaker",
-                return_value=fake_keymaker,
-            ),
-            patch("google.generativeai.embed_content", _boom),
-        ):
-            with self.assertRaises(HubRagError):
-                await adapter.embed("감동적인 드라마")
+        adapter = GeminiEmbeddingAdapter(client=fake_client)
+        with self.assertRaises(HubRagError):
+            await adapter.embed("감동적인 드라마")
 
 
 if __name__ == "__main__":

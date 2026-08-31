@@ -873,8 +873,10 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
   훅에서 임시 비활성(`.pre-commit-config.yaml` 주석 참조). 대부분 ORM
   Any-서브클래싱(sqlalchemy mypy 플러그인 미설정 의심)·테스트 미주석.
   플러그인 설정 → ORM부터 단계적으로 갚고 재활성화.
-- **`google.generativeai` → `google.genai` 마이그레이션** — 구 패키지
-  지원 종료(부팅 시 FutureWarning). 동작은 정상.
+- ~~**`google.generativeai` → `google.genai` 마이그레이션**~~ — **완료(2026-08-31)**:
+  전역 `genai.configure()` → `genai.Client` 인스턴스 기반으로 전환, 호출자 4곳 +
+  임베딩 어댑터 + 백필 스크립트 3곳 + 테스트 3파일 갱신. FutureWarning 해소.
+  상세: WORK_LOG_MOVA 2026-08-31.
 - **mova-ai-chat-bar useCallback 의존성 리팩터링** — sendMessage가
   conversationId·dbMode·onConversationChanged를 클로저로 잡는 구조.
   자동 전송(?q=) 트리거가 sendMessage 재생성에 묶여 있어 단순 deps 추가

@@ -46,26 +46,34 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 async def _run(args: argparse.Namespace) -> None:
+    from core.matrix.grid_oracle_database_manager import get_mova_session_factory
     from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 
-    # backfill_movie_embeddings_cli.py와 동일 순서 — get_keymaker()가 .env
-    # 로드 부작용을 갖는다. 세션 팩토리·프로바이더보다 먼저 호출.
     get_keymaker()
-    # 크론 백필 쿼터 분리(2026-08-28) — backfill_movie_embeddings_cli.py와 동일.
+
+    from mova.app.use_cases.review_embedding_backfill_interactor import (
+        ReviewEmbeddingBackfillInteractor,
+    )
+    from ontology.adapter.outbound.llm.gemini_embedding_adapter import GeminiEmbeddingAdapter
+
     backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()
+    backfill_client = None
     if backfill_key:
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=backfill_key)
+        backfill_client = genai.Client(api_key=backfill_key)
 
-    from mova.dependencies.review_embedding_provider import (
-        get_review_embedding_backfill_use_case,
+    embedder = (
+        GeminiEmbeddingAdapter(client=backfill_client)
+        if backfill_client
+        else GeminiEmbeddingAdapter()
+    )
+    use_case = ReviewEmbeddingBackfillInteractor(
+        session_factory=get_mova_session_factory(),
+        embedder=embedder,
     )
 
-    use_case = get_review_embedding_backfill_use_case()
-
     if args.dry_run:
-        # dry-run은 카운트만 — 백필 자체를 돌리지 않는다.
         from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
 
         factory = use_case._session_factory  # noqa: SLF001 — CLI 전용 진입점

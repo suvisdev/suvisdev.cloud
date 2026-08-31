@@ -453,14 +453,14 @@ class IntentExtractionService:
         keymaker = get_keymaker()
         if _has_hard_signal(deterministic):
             parsed = deterministic
-        elif keymaker.is_gemini_ready():
+        elif keymaker.is_gemini_ready() and keymaker.genai_client is not None:
             try:
-                gemini = keymaker.get_gemini_model("flash")
-                if gemini is not None:
-                    response = gemini.generate_content(
-                        EXTRACT_PROMPT.format(message=fence_user_text(composed_text))
-                    )
-                    parsed = self._parse_json(response.text or "")
+                model_id = keymaker.resolve_model_id("flash")
+                response = keymaker.genai_client.models.generate_content(
+                    model=model_id,
+                    contents=EXTRACT_PROMPT.format(message=fence_user_text(composed_text)),
+                )
+                parsed = self._parse_json(response.text or "")
             except Exception:
                 logger.exception("[IntentExtractionService] Gemini 추출 실패, fallback 사용")
 

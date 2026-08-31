@@ -95,17 +95,28 @@ async def main(args: argparse.Namespace) -> None:
     # 대량 재임베딩도 크론 백필과 같은 이유로 별도 키 사용(2026-08-28 쿼터 분리)
     # — backfill_movie_embeddings_cli.py 주석 참고. 미설정이면 기존 키 그대로.
     backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()
+    backfill_client = None
     if backfill_key:
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=backfill_key)
+        backfill_client = genai.Client(api_key=backfill_key)
+
+    def _build_embed():
+        if args.embedding_backend == "gemini":
+            return (
+                GeminiEmbeddingAdapter(client=backfill_client)
+                if backfill_client
+                else GeminiEmbeddingAdapter()
+            )
+        return OllamaEmbeddingAdapter()
+
     factory = get_mova_session_factory()
     async with factory() as session:
         movies_repo = MoviesPgRepository(session)
         chars_repo = CharactersPgRepository(session)
         hub = HubRagInteractor(
             repository=HubKnowledgeRepository(session),
-            embedding=_build_embedding(args.embedding_backend),
+            embedding=_build_embed(),
         )
 
         if args.reset:

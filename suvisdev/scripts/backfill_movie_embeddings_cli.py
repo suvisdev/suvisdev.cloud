@@ -101,12 +101,17 @@ async def _run(args: argparse.Namespace) -> None:
     # 프로젝트)로 분리한다. CLI는 서버와 별개 프로세스라 전역 재설정이 안전하고,
     # 미설정이면 기존 키 그대로 동작한다.
     backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()
+    backfill_client = None
     if backfill_key:
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=backfill_key)
+        backfill_client = genai.Client(api_key=backfill_key)
     factory = get_mova_session_factory()
-    embedder = GeminiEmbeddingAdapter()
+    embedder = (
+        GeminiEmbeddingAdapter(client=backfill_client)
+        if backfill_client
+        else GeminiEmbeddingAdapter()
+    )
 
     stats = {"succeeded": 0, "failed": 0, "skipped": 0}
 

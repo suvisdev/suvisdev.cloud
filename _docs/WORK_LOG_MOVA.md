@@ -101,8 +101,22 @@
   - 테스트: `test_jamo_fuzzy.py` 16건 신규 + `test_chat_tracks.py` 조사 분리 2건 +
     기존 not_found 테스트 2건 fuzzy mock 추가
 
+- **`google.generativeai` → `google.genai` 마이그레이션** — 구 패키지 지원
+  종료(FutureWarning) 대응. 전역 `genai.configure()` → 인스턴스 기반
+  `genai.Client(api_key=...)` 패턴으로 전환:
+  - **Keymaker** (`vauly_keymaker_secret_manager.py`): `genai_client` 프로퍼티 추가,
+    `genai.configure()` + `GenerativeModel` 캐시 제거
+  - **호출자 4곳**: `gemini_llm_adapter.py`, `gemini_client.py`, `intent_extraction.py`,
+    `media/ocr.py` — `client.models.generate_content(model=..., contents=...)` 호출로 변경
+  - **임베딩 어댑터**: `client.models.embed_content()` + `EmbedContentConfig` 사용,
+    `client` 생성자 주입 지원 (백필 스크립트에서 별도 API 키 클라이언트 전달)
+  - **백필 스크립트 3곳**: `genai.Client(api_key=backfill_key)` 인스턴스를
+    `GeminiEmbeddingAdapter(client=...)` 로 전달 (전역 상태 제거)
+  - **테스트 3파일**: mock 경로를 새 API에 맞게 갱신
+  - **requirements.txt**: `google-generativeai==0.8.6` → `google-genai>=1.0.0`
+
 ### 산출물
-- pytest 52 passed (mova 테스트만), 전체 통과 예상
+- pytest 728 passed, FutureWarning 해소, `import main` 클린
 
 ## 2026-08-28
 
