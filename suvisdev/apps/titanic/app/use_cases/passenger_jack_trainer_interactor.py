@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 
 class JackTrainerInteractor(JackTrainerUseCase):
-    def __init__(self, repository: JackTrainerPort, strategies: dict) -> None:
+    def __init__(self, repository: JackTrainerPort, strategies: dict[str, Any]) -> None:
         self.repository = repository
         self._strategy_classes = strategies
-        self._trained_strategies: dict = {}
+        self._trained_strategies: dict[str, Any] = {}
 
     def _preprocess_features(self, df: pd.DataFrame) -> list[list[float]]:
         """survived 컬럼 없는 DataFrame을 모델 입력 피처 리스트로 변환"""
@@ -76,7 +76,7 @@ class JackTrainerInteractor(JackTrainerUseCase):
         drop_cols = ["name", "age", "fare", "ticket", "cabin", "passenger_id"]
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
 
-        return df.values.tolist()
+        return cast(list[list[float]], df.values.tolist())
 
     def _run_training(
         self, train_set: pd.DataFrame, test_set: pd.DataFrame | None = None

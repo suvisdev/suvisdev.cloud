@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.llm.chat_reply import ChatReplyService
@@ -51,14 +52,16 @@ class ChatPromptBuilder:
         keywords: list[str],
         *,
         intent_type: str = "mood",
-        search_filters: dict | None = None,
+        search_filters: dict[str, Any] | None = None,
     ) -> str:
         if not refined_query and not keywords:
             return ""
         kw = ", ".join(keywords) if keywords else "(없음)"
         filters = search_filters if isinstance(search_filters, dict) else {}
-        must = filters.get("must") if isinstance(filters.get("must"), dict) else {}
-        similar = filters.get("similar_to") if isinstance(filters.get("similar_to"), dict) else {}
+        _must_val = filters.get("must")
+        must: dict[str, Any] = _must_val if isinstance(_must_val, dict) else {}
+        _sim_val = filters.get("similar_to")
+        similar: dict[str, Any] = _sim_val if isinstance(_sim_val, dict) else {}
         and_parts: list[str] = []
         for actor in must.get("actors") or []:
             and_parts.append(f"배우={actor}")
@@ -128,7 +131,7 @@ class ChatPromptBuilder:
         refined_query: str = "",
         keywords: list[str] | None = None,
         intent_type: str = "mood",
-        search_filters: dict | None = None,
+        search_filters: dict[str, Any] | None = None,
         past_intents: list[MovaChat] | None = None,
         tag_catalog: list[MovaSearchItemSchema] | None = None,
         user_nickname: str | None = None,
@@ -164,5 +167,5 @@ class ChatPromptBuilder:
         parts.append("JSON:")
         return "\n".join(parts)
 
-    def parse_structured_reply(self, raw: str):
+    def parse_structured_reply(self, raw: str) -> tuple[str, list[Any]]:
         return self.reply_service.parse_gemini_reply(raw)

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -33,7 +34,7 @@ class Tank:
         self._client = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """boto3 S3 클라이언트(캐시). 자격증명은 기본 체인이 해결하며, 없으면
         호출 시점에 boto3가 NoCredentialsError를 던진다.
 
@@ -85,7 +86,8 @@ class Tank:
         target = self._resolve_bucket(bucket)
         try:
             response = self.client.get_object(Bucket=target, Key=key)
-            return response["Body"].read()
+            result: bytes = response["Body"].read()
+            return result
         except (BotoCoreError, ClientError) as e:
             logger.exception("[Tank] S3 다운로드 실패 | bucket=%s key=%s", target, key)
             raise RuntimeError(f"S3 다운로드 실패: {e}") from e
@@ -113,11 +115,12 @@ class Tank:
         """객체 조회용 사전 서명 URL(기본 1시간)."""
         target = self._resolve_bucket(bucket)
         try:
-            return self.client.generate_presigned_url(
+            url: str = self.client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": target, "Key": key},
                 ExpiresIn=expires_in,
             )
+            return url
         except (BotoCoreError, ClientError) as e:
             logger.exception("[Tank] presigned URL 생성 실패 | bucket=%s key=%s", target, key)
             raise RuntimeError(f"presigned URL 생성 실패: {e}") from e

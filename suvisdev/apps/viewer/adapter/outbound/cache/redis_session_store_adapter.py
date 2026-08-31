@@ -74,7 +74,10 @@ class RedisSessionStoreAdapter(SessionStorePort):
         if raw is None:
             return None
         self._client.delete(key)
-        user_id_str, username, nickname, role, token = raw.split("\t", 4)
+        parts = raw.split(b"\t", 4) if isinstance(raw, bytes) else raw.split("\t", 4)
+        user_id_str, username, nickname, role, token = (
+            p.decode() if isinstance(p, bytes) else p for p in parts
+        )
         return SessionPayloadDto(
             user_id=int(user_id_str), username=username, nickname=nickname, token=token, role=role
         )

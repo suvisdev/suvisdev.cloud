@@ -2,7 +2,7 @@ from pathlib import Path
 
 import cv2
 import ultralytics
-from ultralytics import YOLO
+from ultralytics import YOLO  # type: ignore[attr-defined]
 
 
 def main() -> None:

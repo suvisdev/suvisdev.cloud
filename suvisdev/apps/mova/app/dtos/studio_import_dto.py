@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.studio_import_schema import MovieImportResultSchema
 
 
 @dataclass(frozen=True)
@@ -99,7 +103,7 @@ class MovieImportResultDto:
     rankings_updated: bool = False
     message: str = ""
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> MovieImportResultSchema:
         from mova.adapter.inbound.api.schemas.studio_import_schema import MovieImportResultSchema
 
         return MovieImportResultSchema(

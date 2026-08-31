@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -65,7 +66,7 @@ class MovaConversationMessage(MovaModel):
         comment="user | assistant",
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    meta: Mapped[dict] = mapped_column(
+    meta: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         default=dict,

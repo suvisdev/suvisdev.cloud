@@ -114,9 +114,25 @@
     `GeminiEmbeddingAdapter(client=...)` 로 전달 (전역 상태 제거)
   - **테스트 3파일**: mock 경로를 새 API에 맞게 갱신
   - **requirements.txt**: `google-generativeai==0.8.6` → `google-genai>=1.0.0`
+  - **EC2 배포**: auth·backend 컨테이너 재빌드(디스크 부족 3회 → auth 중지+prune로
+    19GB 확보 후 성공), health 200 확인, Gemini API 정상 응답
+
+- **mova-ai-chat-bar useCallback 의존성 리팩터링** — `sendMessage` useCallback이
+  `conversationId`·`dbMode`·`onConversationChanged`를 클로저로 잡아 stale closure
+  발생 가능한 구조 수정:
+  - `chatRef`·`conversationIdRef`·`dbModeRef`·`onConversationChangedRef` 도입으로
+    최신 값을 ref에서 읽도록 변경
+  - deps를 `[]`로 비워 sendMessage 재생성 방지
+  - `dbModeRef` 선언 위치 문제(선언 전 사용) 수정 → `pnpm type-check`·`pnpm lint` 클린
+
+- **PROGRESS.md 정비** — `EMBEDDING_BACKEND=gemini` 전환 완료 확인(EC2 printenv),
+  hub_knowledge 임베딩 어댑터 항목 완료 마킹, genai 마이그레이션·chat-bar 리팩터링
+  완료 마킹
 
 ### 산출물
 - pytest 728 passed, FutureWarning 해소, `import main` 클린
+- genai 마이그레이션 커밋 `2c68503`, EC2 배포 완료
+- `pnpm type-check`·`pnpm lint` 에러 0건
 
 ## 2026-08-28
 

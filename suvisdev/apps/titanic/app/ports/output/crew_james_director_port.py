@@ -6,7 +6,6 @@ from titanic.app.dtos.crew_james_director_dto import (
     BookingCommand,
     JamesIntroduceQuery,
     JamesIntroduceResponse,
-    JamesResponse,
     PassengerCommand,
 )
 
@@ -19,7 +18,7 @@ class JamesPort(ABC):
         self,
         person_commands: list[PassengerCommand],
         booking_commands: list[BookingCommand],
-    ) -> JamesResponse:
+    ) -> int:
         pass
 
     @abstractmethod

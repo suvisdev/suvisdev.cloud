@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from typing import Any
 
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 
@@ -58,9 +59,9 @@ def _parse_spoiler_phrases(raw: str) -> list[str]:
     return out
 
 
-def _to_spans(body: str, phrases: list[str]) -> list[dict]:
+def _to_spans(body: str, phrases: list[str]) -> list[dict[str, Any]]:
     """phrase 리스트를 body에서 실제 위치로 매핑. 중복·겹침은 정리."""
-    spans: list[dict] = []
+    spans: list[dict[str, Any]] = []
     seen_ranges: list[tuple[int, int]] = []
     for phrase in phrases:
         if not phrase:
@@ -80,7 +81,7 @@ def _to_spans(body: str, phrases: list[str]) -> list[dict]:
     return spans
 
 
-def detect_spoiler_spans(body: str) -> list[dict]:
+def detect_spoiler_spans(body: str) -> list[dict[str, Any]]:
     """리뷰 본문에서 스포일러 스팬 리스트를 반환. 실패해도 [] 반환."""
     text = (body or "").strip()
     if not text or len(text) < 8:

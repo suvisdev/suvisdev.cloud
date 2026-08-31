@@ -56,7 +56,7 @@ class AdressRepository(AdressPort):
             .on_conflict_do_nothing(index_elements=["email"])
         )
         result = await self._session.execute(stmt)
-        saved = result.rowcount
+        saved: int = result.rowcount  # type: ignore[attr-defined]
         await self._session.flush()
         logger.info("[AdressRepository] %d개 주소록 저장 (중복 제외)", saved)
         return saved

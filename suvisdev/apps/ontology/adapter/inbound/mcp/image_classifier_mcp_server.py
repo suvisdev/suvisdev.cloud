@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import os
+from typing import Any, cast
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -24,7 +25,7 @@ _CLASSES_PATH = "/api/vision/genre/classes"
 
 
 @mcp.tool()
-async def classify_image(image_b64: str) -> dict:
+async def classify_image(image_b64: str) -> dict[str, Any]:
     """영화 포스터 이미지를 분류해 top-3 장르와 신뢰도를 반환한다.
     사용자가 '이 포스터 무슨 장르야', '이 사진 뭐야' 등 이미지 내용을
     물을 때 사용한다. image_b64는 base64 인코딩된 이미지 바이트다."""
@@ -45,7 +46,7 @@ async def list_supported_classes() -> list[str]:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{_INFERENCE_URL}{_CLASSES_PATH}")
         resp.raise_for_status()
-    return resp.json()
+    return cast(list[str], resp.json())
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from sqlalchemy import Integer, and_, cast, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,7 +138,7 @@ def _is_korean_movie(movie: MovaMovie) -> bool:
     return False
 
 
-def _common_conditions():
+def _common_conditions() -> list[Any]:
     """모든 게임 풀 공통: title/poster 있음, 한글 포함, 시리즈 후속편 배제,
     청소년 관람불가(청불) 등급 제외. "청불"만 뽑으면 성인/에로 영화가
     게임 풀에 섞여 나오는 문제(2026-08-14 사용자 지적: "유부녀의 사정일지"
@@ -152,7 +153,7 @@ def _common_conditions():
     ]
 
 
-def _has_korean_actor():
+def _has_korean_actor() -> Any:
     """해당 영화에 한국어 이름 배우가 1명 이상 있는지 EXISTS 서브쿼리."""
     return exists(
         select(1)
@@ -165,7 +166,7 @@ def _has_korean_actor():
     )
 
 
-def _kr_pool_conditions(min_rating: float):
+def _kr_pool_conditions(min_rating: float) -> list[Any]:
     """한국 영화 풀. age_rating/platforms 필터 제외 — TMDB가 한국 영화에 이
     두 필드를 대체로 안 채워주기 때문(실측 2026-08-13: KR 게임 풀 1919 → 29 →
     20편으로 축소됨). rating 최소 3.3 강제(2026-08-14 사용자 재지적:
@@ -186,7 +187,7 @@ def _kr_pool_conditions(min_rating: float):
     ]
 
 
-def _foreign_pool_conditions(min_rating: float):
+def _foreign_pool_conditions(min_rating: float) -> list[Any]:
     """외국 영화 풀. 사용자 지시(2026-08-13): "유명하고 인기 있는 영화만".
     엄격 필터 유지 — rating 3.0+ · age_rating 있음(KR 심의 통과) · KR OTT
     플랫폼 하나 이상. 한국 영화(original_language='ko') 제외. 청불 배제는
@@ -204,7 +205,7 @@ def _foreign_pool_conditions(min_rating: float):
 # 2026-08-13 이전 단일 필터. 남겨두면 다른 곳(카드 뒤집기)이 여전히 참조.
 # 여기서는 두 풀의 합집합 개념으로 유지 — 카드 뒤집기는 category 개념 없으므로
 # 기존 엄격 조건(외국) 그대로 쓰되 한국 영화도 원산지·평점 낮은 것까지 포함.
-def _pool_conditions(min_rating: float):
+def _pool_conditions(min_rating: float) -> list[Any]:
     """카드 뒤집기·기타 용도의 통합 풀 — KR 완화 조건과 외국 엄격 조건의 합집합.
 
     카드 뒤집기는 카테고리 개념이 없어 두 풀을 OR로 합쳐 다양성 확보.
@@ -238,7 +239,7 @@ class GamesPgRepository(GamesRepositoryPort):
 
         exclude_ids = exclude_ids or []
 
-        async def _try(conds: list) -> MovaMovie | None:
+        async def _try(conds: list[Any]) -> MovaMovie | None:
             all_conds = list(conds)
             if exclude_ids:
                 all_conds.append(MovaMovie.id.notin_(exclude_ids))
@@ -347,9 +348,9 @@ class GamesPgRepository(GamesRepositoryPort):
                 MovaGameScore.played_at.asc(),
             )
         else:  # memory 통합
-            metric = MovaGameScore.stage * 1000 + func.greatest(0, 500 - MovaGameScore.score)
+            metric = MovaGameScore.stage * 1000 + func.greatest(0, 500 - MovaGameScore.score)  # type: ignore[assignment]
             metric_order = metric.desc()
-            best_row_order = (metric_order, MovaGameScore.played_at.asc())
+            best_row_order = (metric_order, MovaGameScore.played_at.asc())  # type: ignore[assignment]
 
         row_number = (
             func.row_number()
@@ -383,7 +384,7 @@ class GamesPgRepository(GamesRepositoryPort):
                 best_subq.c.played_at.asc(),
             )
         else:
-            overall_order = (desc(best_subq.c.metric), best_subq.c.played_at.asc())
+            overall_order = (desc(best_subq.c.metric), best_subq.c.played_at.asc())  # type: ignore[assignment]
 
         overall_rank = func.row_number().over(order_by=overall_order).label("overall_rank")
         ranked = (
@@ -439,7 +440,7 @@ class GamesPgRepository(GamesRepositoryPort):
             user_ids.add(int(me_row.user_id))
         nicknames = await get_viewer_user_nicknames(user_ids)
 
-        def _mk(r) -> LeaderboardEntryDto:
+        def _mk(r: Any) -> LeaderboardEntryDto:
             return LeaderboardEntryDto(
                 rank=int(r.overall_rank),
                 user_id=int(r.user_id),
@@ -461,4 +462,4 @@ class GamesPgRepository(GamesRepositoryPort):
 
 # `cast`·`Integer` import는 향후 partition rank 계산 확장 여지로 남긴다.
 _ = cast
-_ = Integer
+_ = Integer  # type: ignore[assignment]

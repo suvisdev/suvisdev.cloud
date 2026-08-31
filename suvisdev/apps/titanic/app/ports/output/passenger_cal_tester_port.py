@@ -9,5 +9,5 @@ class CalTesterPort(ABC):
     """passenger_cal_tester output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: CalTesterQuery) -> CalTesterResponse:
+    async def introduce_myself(self, query: CalTesterQuery) -> CalTesterResponse:
         pass

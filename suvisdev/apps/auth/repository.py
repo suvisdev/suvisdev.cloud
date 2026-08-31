@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from dataclasses import dataclass
+from typing import Any
 
 import bcrypt
 from sqlalchemy import ForeignKey, String, select
@@ -41,7 +42,7 @@ class UserMirror(AuthMirrorBase):
     # signup(INSERT)에 필요 — users 테이블에 NOT NULL 제약이 있어 반드시 채워야 함.
     nickname: Mapped[str] = mapped_column(String(50))
     gender: Mapped[str] = mapped_column(String(16), default=_DEFAULT_GENDER)
-    preferred_genres: Mapped[list] = mapped_column(JSONB, default=list)
+    preferred_genres: Mapped[list[Any]] = mapped_column(JSONB, default=list)
     bio: Mapped[str] = mapped_column(String(255), default="")
 
 
@@ -131,15 +132,15 @@ class UserRepository:
                     return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
                 return None
 
-            row = (
+            admin_row = (
                 await session.execute(
                     select(AdminMirror, GroupMirror.code)
                     .join(GroupMirror, AdminMirror.group_id == GroupMirror.id)
                     .where(AdminMirror.username == username)
                 )
             ).one_or_none()
-            if row is not None:
-                admin, group_code = row
+            if admin_row is not None:
+                admin, group_code = admin_row
                 if _verify_password(password, admin.password_hash):
                     return User(user_id=admin.id, username=admin.username, roles=[Role(group_code)])
             return None

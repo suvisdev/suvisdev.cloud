@@ -4,7 +4,7 @@ import io
 from pathlib import Path
 
 from PIL import Image
-from ultralytics import YOLO
+from ultralytics import YOLO  # type: ignore[attr-defined]
 
 from ontology.app.dtos.face_dto import FacePredictResult, FaceTrainResult
 from ontology.app.ports.output.yolo_port import YoloPort
@@ -48,9 +48,9 @@ class UltralyticsYoloAdapter(YoloPort):
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         results = model.predict(source=image, verbose=False)
 
-        probs = results[0].probs
-        top1_index = int(probs.top1)
+        probs = results[0].probs  # type: ignore[index, union-attr]
+        top1_index = int(probs.top1)  # type: ignore[union-attr]
         return FacePredictResult(
             predicted_name=model.names[top1_index],
-            confidence=float(probs.top1conf),
+            confidence=float(probs.top1conf),  # type: ignore[union-attr]
         )

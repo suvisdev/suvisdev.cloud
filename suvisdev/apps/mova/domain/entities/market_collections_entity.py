@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from mova.domain.value_objects.market_collections_vo import (
     CollectionDescription,
@@ -21,7 +22,7 @@ class CollectionEntity:
     description: CollectionDescription
 
     @classmethod
-    def from_orm(cls, orm: object) -> CollectionEntity:
+    def from_orm(cls, orm: Any) -> CollectionEntity:
         return cls(
             id=orm.id,
             slug=CollectionSlug(orm.slug),

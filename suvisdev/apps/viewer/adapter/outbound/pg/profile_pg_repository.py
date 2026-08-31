@@ -75,7 +75,7 @@ class ProfilePgRepository(ProfileRepository):
     async def _delete_in_session(self, session: AsyncSession, user_id: int) -> bool:
         result = await session.execute(delete(User).where(User.id == user_id))
         await session.commit()
-        return (result.rowcount or 0) > 0
+        return (result.rowcount or 0) > 0  # type: ignore[attr-defined]
 
     async def _get_linked_providers(self, user_id: int) -> list[str]:
         if self._session is not None:

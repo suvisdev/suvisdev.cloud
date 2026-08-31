@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.studio_search_schema import SearchResultSchema
 
 from mova.app.dtos.studio_movies_dto import MovieListItemDto
 
@@ -15,7 +19,7 @@ class SearchResultDto:
     limit: int
     offset: int
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> SearchResultSchema:
         from mova.adapter.inbound.api.schemas.studio_search_schema import SearchResultSchema
 
         return SearchResultSchema(

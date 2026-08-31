@@ -2,6 +2,7 @@
 
 import re
 from datetime import datetime
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
@@ -40,7 +41,7 @@ class MovaMovie(MovaModel):
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     poster_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     synopsis: Mapped[str | None] = mapped_column(Text, nullable=True)
-    platforms: Mapped[list] = mapped_column(
+    platforms: Mapped[list[Any]] = mapped_column(
         JSONB,
         nullable=False,
         default=list,
@@ -58,7 +59,7 @@ class MovaMovie(MovaModel):
         index=True,
         comment="TMDB original_language(ISO 639-1). 카탈로그/추천 언어 필터용",
     )
-    origin_country: Mapped[list | None] = mapped_column(
+    origin_country: Mapped[list[Any] | None] = mapped_column(
         JSONB,
         nullable=True,
         comment='TMDB origin_country(ISO 3166-1 alpha-2 배열). 공동제작이면 ["US","GB"]',

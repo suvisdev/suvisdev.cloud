@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ontology.adapter.inbound.api.schemas.semantic_router_schema import SemanticAskSchema
+    from ontology.adapter.inbound.api.schemas.semantic_router_schema import (
+        SemanticAskSchema,
+        SemanticRouteResponseSchema,
+    )
 
 
 @dataclass(frozen=True)
@@ -24,7 +27,7 @@ class SemanticRouteDto:
     entities: list[str]
     answer: str
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> SemanticRouteResponseSchema:
         from ontology.adapter.inbound.api.schemas.semantic_router_schema import (
             SemanticRouteResponseSchema,
         )

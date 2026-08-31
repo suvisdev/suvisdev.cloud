@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -37,7 +38,7 @@ class User(ViewerModel):
         index=True,
     )
     birth_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    preferred_genres: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    preferred_genres: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     bio: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     # S3 객체 key만 담는다(URL 아님) — 버킷이 비공개라 표시용 URL은 1시간짜리
     # presigned라 저장해 두면 낡는다. 조회할 때마다 key로 새로 발급한다.
@@ -74,7 +75,7 @@ async def get_viewer_user_nicknames(user_ids: set[int]) -> dict[int, str]:
         return {row.id: row.nickname for row in result.all()}
 
 
-async def get_viewer_user_profile(user_id: int) -> dict:
+async def get_viewer_user_profile(user_id: int) -> dict[str, Any]:
     factory = get_viewer_session_factory()
     async with factory() as session:
         row = (

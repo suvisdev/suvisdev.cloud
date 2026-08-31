@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -178,7 +179,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             spoiler_spans=list(row.spoiler_spans or []),
         )
 
-    async def update_spoiler_spans(self, review_id: int, spans: list[dict]) -> None:
+    async def update_spoiler_spans(self, review_id: int, spans: list[dict[str, Any]]) -> None:
         """백그라운드 감지 결과 반영 — 실패해도 리뷰 저장 자체는 이미 성공."""
         row = (
             await self._session.execute(select(MovaReview).where(MovaReview.id == review_id))

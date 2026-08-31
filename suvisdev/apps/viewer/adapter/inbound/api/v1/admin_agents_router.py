@@ -9,6 +9,7 @@ image-classifier뿐이나, 대시보드 API 형태를 통일하기 위해 지금
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -16,7 +17,7 @@ from shared.security.require_admin import AdminPrincipal, require_admin
 
 admin_agents_router = APIRouter(prefix="/admin/agents", tags=["admin"])
 
-_AGENTS: dict[str, dict] = {
+_AGENTS: dict[str, dict[str, Any]] = {
     "image-classifier": {
         "name": "포스터 장르 분류기",
         "description": "ConvNeXt-Nano — 영화 포스터 이미지를 6개 장르로 분류",
@@ -95,7 +96,7 @@ class LogEntrySchema(BaseModel):
     message: str
 
 
-def _get_agent_or_404(agent_id: str) -> dict:
+def _get_agent_or_404(agent_id: str) -> dict[str, Any]:
     agent = _AGENTS.get(agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail=f"에이전트를 찾을 수 없습니다: {agent_id}")
@@ -151,6 +152,8 @@ async def get_agent_logs(
 
 
 @admin_agents_router.get("/{agent_id}/model", response_model=dict)
-async def get_agent_model(agent_id: str, _: AdminPrincipal = Depends(require_admin)) -> dict:
+async def get_agent_model(
+    agent_id: str, _: AdminPrincipal = Depends(require_admin)
+) -> dict[str, Any]:
     a = _get_agent_or_404(agent_id)
     return {"id": agent_id, "model": a["model"], "status": a["status"]}

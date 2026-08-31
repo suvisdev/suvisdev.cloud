@@ -82,7 +82,9 @@ class MoviesPgRepository(MoviesRepositoryPort):
             len(tags),
         )
         genres = [t.label for t in tags if t.tag_kind == TAG_KIND_GENRE]
-        return MovieDetailDto.from_orm(movie, char_actors, tags, genres, director_actors)
+        return MovieDetailDto.from_orm(
+            movie, list(char_actors), tags, genres, list(director_actors)
+        )
 
     async def find_by_title(self, title: str) -> MovieDetailDto | None:
         movie_q = await self._session.execute(
@@ -140,27 +142,27 @@ class MoviesPgRepository(MoviesRepositoryPort):
             count_stmt = count_stmt.where(cond)
 
         if query.release_year_min is not None:
-            cond = MovaMovie.release_year >= query.release_year_min
+            cond = MovaMovie.release_year >= query.release_year_min  # type: ignore[assignment]
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
         if query.release_year_max is not None:
-            cond = MovaMovie.release_year <= query.release_year_max
+            cond = MovaMovie.release_year <= query.release_year_max  # type: ignore[assignment]
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
         if query.min_rating is not None:
-            cond = MovaMovie.rating >= query.min_rating
+            cond = MovaMovie.rating >= query.min_rating  # type: ignore[assignment]
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
         if query.age_rating:
-            cond = MovaMovie.age_rating == query.age_rating
+            cond = MovaMovie.age_rating == query.age_rating  # type: ignore[assignment]
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
         if query.platform:
-            cond = MovaMovie.platforms.contains([{"provider": query.platform}])
+            cond = MovaMovie.platforms.contains([{"provider": query.platform}])  # type: ignore[assignment]
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 

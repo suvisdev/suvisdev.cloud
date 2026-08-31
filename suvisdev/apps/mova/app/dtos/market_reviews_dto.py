@@ -3,6 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.market_reviews_schema import (
+        MovieRatingSummarySchema,
+        ReviewActivitySchema,
+        ReviewCommentSchema,
+        ReviewSchema,
+        ReviewWithUserSchema,
+    )
 from datetime import datetime
 
 
@@ -14,7 +24,7 @@ class ReviewActivityDto:
     action_type: str
     action_at: datetime
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ReviewActivitySchema:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewActivitySchema
 
         return ReviewActivitySchema(
@@ -34,9 +44,9 @@ class ReviewDto:
     rating: float
     body: str
     action_at: datetime
-    spoiler_spans: list[dict] = field(default_factory=list)
+    spoiler_spans: list[dict[str, Any]] = field(default_factory=list)
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ReviewSchema:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewSchema
 
         return ReviewSchema(
@@ -59,9 +69,9 @@ class ReviewWithUserDto:
     rating: float
     body: str
     created_at: datetime
-    spoiler_spans: list[dict] = field(default_factory=list)
+    spoiler_spans: list[dict[str, Any]] = field(default_factory=list)
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ReviewWithUserSchema:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewWithUserSchema
 
         return ReviewWithUserSchema(
@@ -85,7 +95,7 @@ class ReviewCommentDto:
     body: str
     created_at: datetime
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ReviewCommentSchema:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import ReviewCommentSchema
 
         return ReviewCommentSchema(
@@ -104,7 +114,7 @@ class MovieRatingSummaryDto:
     average_rating: float
     review_count: int
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> MovieRatingSummarySchema:
         from mova.adapter.inbound.api.schemas.market_reviews_schema import MovieRatingSummarySchema
 
         return MovieRatingSummarySchema(

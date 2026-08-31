@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import os
+from typing import Any, cast
 
 import httpx
 
@@ -26,17 +27,17 @@ _SYSTEM_PROMPT = """너는 이미지 분류 에이전트다.
 - 결과는 짧고 자연스럽게 설명한다."""
 
 
-async def _classify_via_api(image_bytes: bytes) -> list[dict]:
+async def _classify_via_api(image_bytes: bytes) -> list[dict[str, Any]]:
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{_INFERENCE_URL}/api/vision/genre/classify",
             files={"file": ("image.jpg", image_bytes, "image/jpeg")},
         )
         resp.raise_for_status()
-    return resp.json()
+    return cast(list[dict[str, Any]], resp.json())
 
 
-async def _summarize_with_llm(user_message: str, predictions: list[dict]) -> str:
+async def _summarize_with_llm(user_message: str, predictions: list[dict[str, Any]]) -> str:
     top1_confidence = predictions[0]["confidence"] if predictions else 0.0
     uncertain = top1_confidence < _CONFIDENCE_THRESHOLD
 
@@ -61,7 +62,7 @@ async def _summarize_with_llm(user_message: str, predictions: list[dict]) -> str
             },
         )
         resp.raise_for_status()
-    return resp.json()["message"]["content"]
+    return cast(str, resp.json()["message"]["content"])
 
 
 async def answer_image_question(user_message: str, image_bytes: bytes) -> str:

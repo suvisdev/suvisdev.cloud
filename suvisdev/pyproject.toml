@@ -57,9 +57,12 @@ indent-style = "space"
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+explicit_package_bases = true
 mypy_path = ["apps"]
 exclude = [
     "tests/",
+    "test/",
     "scripts/",
     "alembic/",
+    "_docs/",
 ]

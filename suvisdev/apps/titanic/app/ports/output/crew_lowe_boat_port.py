@@ -9,5 +9,5 @@ class LoweBoatPort(ABC):
     """crew_lowe_boat output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: LoweBoatQuery) -> LoweBoatResponse:
+    async def introduce_myself(self, query: LoweBoatQuery) -> LoweBoatResponse:
         pass

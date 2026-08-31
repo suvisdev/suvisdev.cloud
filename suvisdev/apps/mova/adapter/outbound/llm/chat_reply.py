@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
@@ -249,13 +250,13 @@ class ChatReplyService:
         except Exception:
             return ""
 
-    def _extract_json(self, raw: str) -> dict | None:
+    def _extract_json(self, raw: str) -> dict[str, Any] | None:
         text = raw.strip()
         if text.startswith("```"):
             text = re.sub(r"^```(?:json)?\s*", "", text)
             text = re.sub(r"\s*```$", "", text)
         try:
-            return json.loads(text)
+            return json.loads(text)  # type: ignore[no-any-return]
         except json.JSONDecodeError:
             pass
 
@@ -266,7 +267,7 @@ class ChatReplyService:
         if start != -1:
             try:
                 data, _ = json.JSONDecoder().raw_decode(text, start)
-                return data
+                return data  # type: ignore[no-any-return]
             except json.JSONDecodeError:
                 pass
 

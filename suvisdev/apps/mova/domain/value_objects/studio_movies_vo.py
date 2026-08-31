@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 # ── canonical slug 매핑 (기존 유지) ─────────────────────────────────────────
 TITLE_TO_CANONICAL_SLUG: dict[str, str] = {
@@ -60,14 +61,14 @@ class PlatformEntry:
     type: str | None = None
 
     @classmethod
-    def from_dict(cls, d: dict) -> PlatformEntry:
+    def from_dict(cls, d: dict[str, Any]) -> PlatformEntry:
         return cls(
             provider=d.get("provider", ""),
             url=d.get("url"),
             type=d.get("type"),
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {"provider": self.provider, "url": self.url, "type": self.type}
 
 

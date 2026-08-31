@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mova.adapter.outbound.http.tmdb_adapter import build_image_url
 from mova.app.dtos.studio_import_dto import (
     TmdbCastMemberDto,
@@ -32,11 +34,11 @@ def tmdb_release_year(release_date: str | None) -> int:
         return 0
 
 
-def map_genre_ids(genre_ids: list[object], genre_map: dict[int, str]) -> list[str]:
+def map_genre_ids(genre_ids: list[Any], genre_map: dict[int, str]) -> list[str]:
     names: list[str] = []
     for raw in genre_ids:
         try:
-            gid = int(raw)  # type: ignore[arg-type]
+            gid = int(raw)
         except (TypeError, ValueError):
             continue
         name = genre_map.get(gid)
@@ -135,7 +137,7 @@ def map_credits(credits: object, *, cast_limit: int = 10) -> TmdbCreditsDto:
 
 
 def map_tmdb_row(
-    row: dict,
+    row: dict[str, Any],
     *,
     genre_map: dict[int, str],
     poster_url: str,
@@ -180,7 +182,7 @@ _KR_CERTIFICATION_MAP = {
 }
 
 
-def map_kr_certification(release_dates: dict | None) -> str | None:
+def map_kr_certification(release_dates: dict[str, Any] | None) -> str | None:
     """TMDB `release_dates`(append_to_response) → KR 등급. KR 자체가 없거나
     certification이 매핑 밖이면 None(억지로 추측하지 않음)."""
     if not release_dates:
@@ -202,7 +204,7 @@ def _normalize_provider_key(name: str) -> str:
     return "".join(ch for ch in name.lower() if ch.isalnum())
 
 
-def map_kr_watch_providers(watch_providers: dict | None) -> list[dict[str, str | None]]:
+def map_kr_watch_providers(watch_providers: dict[str, Any] | None) -> list[dict[str, str | None]]:
     """TMDB `watch/providers`(append_to_response) → PlatformDto 호환 dict 리스트.
 
     TMDB는 provider별 개별 딥링크를 주지 않는다 — 국가 단위 링크(JustWatch 경유)
@@ -230,7 +232,7 @@ def map_kr_watch_providers(watch_providers: dict | None) -> list[dict[str, str |
     return platforms
 
 
-def map_youtube_trailer(videos: dict | None) -> str | None:
+def map_youtube_trailer(videos: dict[str, Any] | None) -> str | None:
     """TMDB `videos`(append_to_response, `include_video_language=ko,en,null`로
     요청해 한국어 트레일러가 없어도 폴백이 있게 함) → YouTube video key 하나.
 
@@ -245,7 +247,7 @@ def map_youtube_trailer(videos: dict | None) -> str | None:
     if not results:
         return None
 
-    def _rank(v: dict) -> tuple[int, int, int]:
+    def _rank(v: dict[str, Any]) -> tuple[int, int, int]:
         return (
             0 if v.get("type") == "Trailer" else 1,
             0 if v.get("official") else 1,

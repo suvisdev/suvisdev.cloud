@@ -1,6 +1,7 @@
 """@see suvisdev/_claude/ENTITY_RULE.md — Mova AI 채팅 검색·취향 의도 로그."""
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -31,7 +32,7 @@ class MovaChat(MovaModel):
     )
     raw_message: Mapped[str] = mapped_column(Text, nullable=False)
     refined_query: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    keywords: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    keywords: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, default=list)
     intent_type: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
@@ -39,7 +40,7 @@ class MovaChat(MovaModel):
         index=True,
         comment="filter_and | similar_person | mood",
     )
-    search_filters: Mapped[dict] = mapped_column(
+    search_filters: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         nullable=False,
         default=dict,

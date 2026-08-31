@@ -17,7 +17,7 @@ class LoweBoatInteractor(LoweBoatUseCase):
     def __init__(self, repository: LoweBoatPort) -> None:
         self._repository = repository
 
-    def feature_engineering(self, train_set):
+    def feature_engineering(self, train_set: pd.DataFrame) -> tuple[list[list[float]], list[int]]:
         train = train_set.copy()
 
         y_label = train["survived"].astype(int).tolist()

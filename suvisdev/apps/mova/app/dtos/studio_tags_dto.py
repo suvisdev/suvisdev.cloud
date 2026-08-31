@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.studio_tags_schema import TagGroupSchema, TagSchema
 
 
 @dataclass(frozen=True)
@@ -16,7 +20,7 @@ class TagDto:
     description: str
 
     @classmethod
-    def from_orm(cls, orm: object) -> TagDto:
+    def from_orm(cls, orm: Any) -> TagDto:
         return cls(
             id=orm.id,
             movie_id=orm.movie_id,
@@ -27,14 +31,14 @@ class TagDto:
             description=getattr(orm, "description", "") or "",
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> TagSchema:
         from mova.adapter.inbound.api.schemas.studio_tags_schema import TagSchema
 
         return TagSchema(
             id=self.id,
             movie_id=self.movie_id,
             character_id=self.character_id,
-            tag_kind=self.tag_kind,
+            tag_kind=self.tag_kind,  # type: ignore[arg-type]
             slug=self.slug,
             label=self.label,
             description=self.description,
@@ -59,7 +63,7 @@ class TagGroupDto:
             cast=[t for t in tags if t.tag_kind == "cast"],
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> TagGroupSchema:
         from mova.adapter.inbound.api.schemas.studio_tags_schema import TagGroupSchema
 
         return TagGroupSchema(

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatResponseSchema
 from dataclasses import field as dataclasses_field
 
 
@@ -93,7 +97,7 @@ class ChatResponseDto:
     refined_query: str
     keywords: list[str]
     intent_type: str
-    search_filters: dict
+    search_filters: dict[str, Any]
     recommendations: list[ChatRecommendationDto]
     conversation_id: int | None = None
     # 2026-08-28 3트랙: recommendation(기존) | evaluation | booking.
@@ -102,7 +106,7 @@ class ChatResponseDto:
     evaluation: ChatEvaluationDto | None = None
     booking: ChatBookingDto | None = None
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> MovaChatResponseSchema:
         from mova.adapter.inbound.api.schemas.market_chat_schema import (
             MovaChatBookingLinkSchema,
             MovaChatBookingSchema,
@@ -127,7 +131,7 @@ class ChatResponseDto:
         )
         booking = (
             MovaChatBookingSchema(
-                status=self.booking.status,
+                status=self.booking.status,  # type: ignore[arg-type]
                 region=self.booking.region,
                 theaters=[
                     MovaChatTheaterSchema(
@@ -184,7 +188,7 @@ class ChatResponseDto:
             intent_type=self.intent_type,
             search_filters=self.search_filters,
             conversation_id=self.conversation_id,
-            response_type=self.response_type,
+            response_type=self.response_type,  # type: ignore[arg-type]
             evaluation=evaluation,
             booking=booking,
         )

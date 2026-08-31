@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
 from ontology.app.dtos.ai_review_dto import (
     AiReviewBatchReport,
@@ -35,7 +36,7 @@ _RATING_RE = re.compile(r"(\d(?:\.\d)?)")
 
 def load_materials_from_jsonl(directory: Path) -> dict[str, MovieMaterial]:
     """crawled/ 디렉터리의 JSONL 파일들을 읽어 영화 제목별로 소스 데이터를 묶는다."""
-    buckets: dict[str, dict] = {}
+    buckets: dict[str, dict[str, Any]] = {}
 
     for jsonl_path in sorted(directory.glob("*.jsonl")):
         for line in jsonl_path.read_text(encoding="utf-8").splitlines():

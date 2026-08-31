@@ -31,13 +31,13 @@ class TimmConvnextAdapter(ImageClassifierPort):
 
     def classify(self, image: bytes) -> list[Prediction]:
         import timm
-        from timm.data import create_transform, resolve_data_config
+        from timm.data import create_transform, resolve_data_config  # type: ignore[attr-defined]
 
         model = timm.create_model(_MODEL_NAME, pretrained=False, num_classes=len(self._classes))
         model.load_state_dict(torch.load(self._weights_path, map_location="cpu"))
         model.eval().to(self._device)
 
-        data_cfg = resolve_data_config({}, model=model)
+        data_cfg = resolve_data_config({}, model=model)  # type: ignore[no-untyped-call]
         transform = create_transform(**data_cfg, is_training=False)
 
         pil_image = Image.open(io.BytesIO(image)).convert("RGB")

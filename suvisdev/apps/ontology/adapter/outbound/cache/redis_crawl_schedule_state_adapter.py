@@ -21,7 +21,7 @@ class RedisCrawlScheduleStateAdapter(CrawlScheduleStatePort):
 
     def get_last_run(self, site_id: str) -> datetime | None:
         value = self._client.get(self._key(site_id))
-        return datetime.fromisoformat(value) if value else None
+        return datetime.fromisoformat(str(value)) if value else None
 
     def set_last_run(self, site_id: str, at: datetime) -> None:
         self._client.set(self._key(site_id), at.isoformat())

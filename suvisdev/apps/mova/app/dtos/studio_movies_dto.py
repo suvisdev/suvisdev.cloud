@@ -3,6 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.studio_movies_schema import (
+        MovieDetailSchema,
+        MovieListItemSchema,
+        MovieListSchema,
+    )
 
 # ── 중첩 DTO ─────────────────────────────────────────────────────────────────
 
@@ -14,7 +22,7 @@ class PlatformDto:
     type: str | None
 
     @classmethod
-    def from_dict(cls, d: dict) -> PlatformDto:
+    def from_dict(cls, d: dict[str, Any]) -> PlatformDto:
         return cls(provider=d.get("provider", ""), url=d.get("url"), type=d.get("type"))
 
 
@@ -69,11 +77,11 @@ class MovieDetailDto:
     @classmethod
     def from_orm(
         cls,
-        movie: object,
-        char_actor_rows: list,
-        tag_rows: list,
+        movie: Any,
+        char_actor_rows: list[Any],
+        tag_rows: list[Any],
         genres: list[str],
-        director_actor_rows: list | None = None,
+        director_actor_rows: list[Any] | None = None,
     ) -> MovieDetailDto:
         platforms = [
             PlatformDto.from_dict(p)
@@ -131,7 +139,7 @@ class MovieDetailDto:
             trailer_key=movie.trailer_key,
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> MovieDetailSchema:
         from mova.adapter.inbound.api.schemas.studio_movies_schema import (
             ActorInMovieSchema,
             MovieDetailSchema,
@@ -157,7 +165,7 @@ class MovieDetailDto:
                     character_id=a.character_id,
                     actor_id=a.actor_id,
                     name=a.name,
-                    role_type=a.role_type,
+                    role_type=a.role_type,  # type: ignore[arg-type]
                     profile_photo_url=a.profile_photo_url,
                     character_name=a.character_name,
                 )
@@ -166,7 +174,7 @@ class MovieDetailDto:
             tags=[
                 TagInMovieSchema(
                     id=t.id,
-                    tag_kind=t.tag_kind,
+                    tag_kind=t.tag_kind,  # type: ignore[arg-type]
                     slug=t.slug,
                     label=t.label,
                     description=t.description,
@@ -195,7 +203,7 @@ class MovieListItemDto:
     genres: list[str]
 
     @classmethod
-    def from_orm(cls, movie: object, genres: list[str] | None = None) -> MovieListItemDto:
+    def from_orm(cls, movie: Any, genres: list[str] | None = None) -> MovieListItemDto:
         platforms = [
             PlatformDto.from_dict(p)
             if isinstance(p, dict)
@@ -214,7 +222,7 @@ class MovieListItemDto:
             genres=list(genres or []),
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> MovieListItemSchema:
         from mova.adapter.inbound.api.schemas.studio_movies_schema import (
             MovieListItemSchema,
             PlatformSchema,
@@ -242,7 +250,7 @@ class MovieListDto:
     limit: int
     offset: int
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> MovieListSchema:
         from mova.adapter.inbound.api.schemas.studio_movies_schema import MovieListSchema
 
         return MovieListSchema(

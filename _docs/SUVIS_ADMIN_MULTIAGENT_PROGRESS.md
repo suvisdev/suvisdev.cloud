@@ -869,19 +869,20 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 ## 다음 / 남은 작업 (백로그)
 
 ### 코드 품질 부채 (2026-08-26 전체 검증에서 실측)
-- **mypy 재활성화** — pre-commit 복구 시 전체 실측 1,327건(485 파일)이라
-  훅에서 임시 비활성(`.pre-commit-config.yaml` 주석 참조). 대부분 ORM
-  Any-서브클래싱(sqlalchemy mypy 플러그인 미설정 의심)·테스트 미주석.
-  플러그인 설정 → ORM부터 단계적으로 갚고 재활성화.
+- ~~**mypy 재활성화**~~ — **완료(2026-08-31)**: 415건(1079파일 대상) → 0건.
+  5단계(설정 보정 → from_orm Any → to_schema 타입 → titanic async 통일 →
+  개별 타입 수정) + exclude 패턴 수정(`test/`, `_docs/` 추가). 118파일 수정.
+  `.pre-commit-config.yaml` mypy 훅 재활성화. pytest 728 passed, 0 failed.
+  상세: WORK_LOG_MAINPAGE 2026-08-31.
 - ~~**`google.generativeai` → `google.genai` 마이그레이션**~~ — **완료(2026-08-31)**:
   전역 `genai.configure()` → `genai.Client` 인스턴스 기반으로 전환, 호출자 4곳 +
   임베딩 어댑터 + 백필 스크립트 3곳 + 테스트 3파일 갱신. FutureWarning 해소.
   상세: WORK_LOG_MOVA 2026-08-31.
-- **mova-ai-chat-bar useCallback 의존성 리팩터링** — sendMessage가
-  conversationId·dbMode·onConversationChanged를 클로저로 잡는 구조.
-  자동 전송(?q=) 트리거가 sendMessage 재생성에 묶여 있어 단순 deps 추가
-  금지 — 부모 콜백 useCallback + ref 참조 + 트리거 재설계로 함께 수정
-  (eslint 경고 1건 의도적 보존 중).
+- ~~**mova-ai-chat-bar useCallback 의존성 리팩터링**~~ — **완료(2026-08-31)**:
+  sendMessage useCallback이 conversationId·dbMode·onConversationChanged를
+  클로저로 잡던 stale closure 문제를 ref 참조 패턴으로 해결. deps를 `[]`로
+  비워 sendMessage 재생성을 방지, type-check·lint 클린.
+  상세: WORK_LOG_MOVA 2026-08-31.
 
 ### 엔티티 매칭(편집거리·초성 유사·수사 변환) — 보류, 재검토 트리거 명시 (2026-08-26)
 - ATS 팀프로젝트의 엔티티 해석 레이어를 mova 채팅에 이식할지 프로덕션
@@ -978,14 +979,10 @@ recommend/evaluate("호프 어때?")/booking("호프 예매하고 싶어") 3트�
 - **이미 끝난 것**: `GeminiEmbeddingAdapter` + `EMBEDDING_BACKEND` 스위치
   구현·머지·EC2 배포 완료(PR #55). `source_ref` 불일치(아래 완료됨)도 이
   작업의 선행조건이라 함께 해결됨.
-- ⚠️ **전제 정정(2026-08-10 실측)**: 이 항목은 "EC2 `.env`에
-  `EMBEDDING_BACKEND=gemini` 설정 완료"라고 적고 있었으나 **실제 값은
-  `ollama`다**(compose 오버라이드 없음). 프로덕션 로그에 지금도
-  `embed 실패, 검색 생략` → `fallback search_tag_catalog 사용`이 찍힌다 —
-  즉 **벡터 검색은 여전히 한 번도 돌지 않았다**. 재임베딩보다
-  **스위치를 켜는 게 먼저**다(`.env` 한 줄 + 백엔드 재기동).
-- **남은 것 ①**: `EMBEDDING_BACKEND=gemini`로 바꾸고 백엔드 재기동
-  (위 정정 참고 — 이게 선행이다).
+- ✅ **EMBEDDING_BACKEND=gemini 전환 완료(2026-08-31 재확인)**: EC2
+  `printenv`에서 `EMBEDDING_BACKEND=gemini` 확인, 프로덕션 로그에
+  `embed 실패` 없음 — 벡터 검색이 정상 작동 중.
+- ~~**남은 것 ①**~~: 완료.
 - **남은 것 ②**: 재임베딩 실행. Ollama(nomic)와 Gemini는 의미 공간이 달라
   벡터가 호환되지 않으므로(차원은 768로 같아 에러도 안 남) 기존 2014행을
   지우고 다시 채워야 한다 — **프로덕션 데이터 삭제가 걸려 사용자 판단으로
@@ -1153,19 +1150,9 @@ recommend/evaluate("호프 어때?")/booking("호프 예매하고 싶어") 3트�
 - ~~mova 추천 — reply 텍스트와 picks 개수 불일치~~ — **완료(2026-08-12, PR #93)**:
   `ChatInteractor`에서 recs=0 확정 시 reply를 정직한 문구로 대체
   (이미 소개해 필터됨 vs 카탈로그에 없음 구분 안내). WORK_LOG 2026-08-12 사이클 N.
-- **EC2 hub_knowledge 임베딩 어댑터 — 코드는 있고 스위치가 꺼져 있음
-  (2026-08-04 신규 → 2026-08-10 실측 재정의)**: 원래 문제("EC2엔 Ollama가
-  없는데 `OllamaEmbeddingAdapter`를 호출해 매 영화마다 조용히 실패";
-  2026-08-05 배치 1000편에서 WARNING 1000건 1:1로 실증)는
-  `GeminiEmbeddingAdapter` + `EMBEDDING_BACKEND` 스위치(PR #55, 2026-08-07)로
-  **코드 레벨에선 해결됐다**. 그런데 **2026-08-10 실측 결과 EC2 `.env`가
-  `EMBEDDING_BACKEND=ollama`였다**(compose 오버라이드 없음). WORK_LOG
-  2026-08-07은 "EC2 `.env`에 gemini 설정 완료"라고 적었지만 현재 값은
-  ollama다 — 되돌아간 것인지 애초에 반영이 안 된 것인지는 확인 불가.
-  프로덕션 로그에 지금도 `[HubRagInteractor] embed 실패, 검색 생략` →
-  `fallback search_tag_catalog 사용`, `[QwenIntentClassifier] 라우팅 호출
-  실패, rag로 폴백`이 찍힌다. **남은 일은 어댑터 구현이 아니라 `.env`
-  한 줄 변경 + 재기동**이며, 이게 아래 1순위(재임베딩)의 실질 선행조건이다.
+- ~~**EC2 hub_knowledge 임베딩 어댑터 — 코드는 있고 스위치가 꺼져 있음**~~ —
+  **완료 확인(2026-08-31)**: `EMBEDDING_BACKEND=gemini` 설정 완료, 프로덕션
+  로그에 `embed 실패` 0건 — 벡터 검색 정상 작동 중.
 - **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback — 조사
   종결(2026-08-05)**: 원래 418건 도미노는 76~84행 자체가 아니라 credits
   백필 except(92~96행, `characters.character_name` truncation)에서 시작돼

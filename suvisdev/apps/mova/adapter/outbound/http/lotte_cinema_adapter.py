@@ -11,6 +11,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -230,7 +231,7 @@ def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def _to_json(d: dict) -> str:
+def _to_json(d: dict[str, Any]) -> str:
     import json
 
     return json.dumps(d, ensure_ascii=False)

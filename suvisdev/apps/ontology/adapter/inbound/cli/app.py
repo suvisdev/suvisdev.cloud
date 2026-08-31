@@ -15,13 +15,15 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from ontology.adapter.outbound.scraper.registry import SITE_REGISTRY
+from ontology.adapter.outbound.scraper.registry import SITE_REGISTRY as SITE_REGISTRY
 from ontology.app.dtos.scrape_dto import ScrapeTarget
 from ontology.dependencies.harvester_provider import (
     build_crawl_schedule_use_case,
     build_scrape_dataset_use_case,
-    build_site_scraper,
     default_scrape_out_path,
+)
+from ontology.dependencies.harvester_provider import (
+    build_site_scraper as build_site_scraper,
 )
 
 app = typer.Typer(help="사이트+키워드로 데이터셋을 수집하는 스크래퍼 CLI")
@@ -114,7 +116,7 @@ def generate_reviews(
     started = time.monotonic()
     try:
         with console.status("AI 리뷰 생성 중..."):
-            report = asyncio.run(generator.generate_from_directory(data_dir))
+            report = asyncio.run(generator.generate_from_directory(data_dir))  # type: ignore[attr-defined]
     except KeyboardInterrupt:
         console.print("\n[yellow]중단됨.[/yellow]")
         raise typer.Exit(code=130) from None

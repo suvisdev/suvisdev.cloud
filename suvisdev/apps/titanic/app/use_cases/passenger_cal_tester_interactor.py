@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from titanic.adapter.inbound.api.schemas.passenger_cal_tester_schema import CalTesterSchema
 from titanic.app.dtos.passenger_cal_tester_dto import (
@@ -28,13 +29,13 @@ class CalTesterInteractor(CalTesterUseCase):
         )
 
     async def test_model(
-        self, test_set=None, train_result: dict | None = None
+        self, test_set: Any = None, train_result: dict[str, Any] | None = None
     ) -> TestmodelResponse:
         """1등 모델로 test_set 예측 실행 후 최고 전략 선정"""
         result = train_result or {}
-        accuracies: dict = result.get("accuracies", {})
-        trained_strategies: dict = result.get("trained_strategies", {})
-        X_test: list = result.get("X_test", [])
+        accuracies: dict[str, Any] = result.get("accuracies", {})
+        trained_strategies: dict[str, Any] = result.get("trained_strategies", {})
+        X_test: list[Any] = result.get("X_test", [])
         train_samples: int = result.get("train_samples", 0)
 
         leaderboard = [

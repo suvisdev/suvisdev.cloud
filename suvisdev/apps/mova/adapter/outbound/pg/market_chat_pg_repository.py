@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,7 +90,7 @@ class ChatPgRepository(ChatRepositoryPort):
         )
         return {r[0] for r in cast_rows} | {r[0] for r in director_rows}
 
-    def _language_cond(self):
+    def _language_cond(self) -> Any:
         return or_(
             MovaMovie.original_language.is_(None),
             MovaMovie.original_language.in_(ALLOWED_ORIGINAL_LANGUAGES),
@@ -97,7 +98,7 @@ class ChatPgRepository(ChatRepositoryPort):
 
     def _hard_conds(
         self, countries: list[str] | None, year_min: int | None, year_max: int | None
-    ) -> list:
+    ) -> list[Any]:
         """국가·연도 하드 조건 — 태그 매칭 결과와 인기작 폴백 양쪽에 똑같이 건다."""
         # 언어 허용목록(ko·en)은 "맥락 없는 외국어 영화 노출 방지"가 목적이라,
         # 사용자가 국가를 명시한 요청("일본 애니메이션")에는 적용하지 않는다 —
@@ -114,14 +115,16 @@ class ChatPgRepository(ChatRepositoryPort):
         return conds
 
     @staticmethod
-    def _recency_first_order() -> list:
+    def _recency_first_order() -> list[Any]:
         """최근 15년 작품 우선, 그 안에서 평점순 — 콜드 스타트(취향 데이터 없음)
         추천에 1950~70년대 작품이 뜬금없이 뜨는 것 방지(2026-08-25 사용자 지적).
         연도 필터를 명시한 질의는 conds가 이미 좁혀서 이 정렬의 영향이 없다."""
         cutoff = datetime.now(UTC).year - 15
         return [(MovaMovie.release_year >= cutoff).desc(), MovaMovie.rating.desc()]
 
-    async def _movies_by_ids(self, movie_ids: set[int], limit: int, conds: list) -> list[MovaMovie]:
+    async def _movies_by_ids(
+        self, movie_ids: set[int], limit: int, conds: list[Any]
+    ) -> list[MovaMovie]:
         rows = await self._session.execute(
             select(MovaMovie)
             .where(MovaMovie.id.in_(movie_ids), *conds)
@@ -219,7 +222,7 @@ class ChatPgRepository(ChatRepositoryPort):
         if not unique:
             return []
         ids = {mid for mid, _, _ in unique}
-        rows2 = await self._movies_by_ids(list(ids), limit, [])
+        rows2 = await self._movies_by_ids(ids, limit, [])
         items = _to_search_items(rows2, "fuzzy")
         id_dist = {mid: dist for mid, _, dist in unique}
         items.sort(key=lambda i: id_dist.get(int(i.id), 99))
@@ -258,7 +261,7 @@ class ChatPgRepository(ChatRepositoryPort):
         refined_query: str,
         keywords: list[str],
         intent_type: str,
-        search_filters: dict,
+        search_filters: dict[str, Any],
     ) -> int:
         chat = MovaChat(
             user_id=user_id,

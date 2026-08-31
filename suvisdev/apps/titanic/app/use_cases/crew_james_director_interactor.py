@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from io import StringIO
+from typing import Any
 
 from titanic.adapter.inbound.api.schemas.crew_james_director_schema import (
     JamesIntroduceSchema,
@@ -24,7 +25,7 @@ class JamesInteractor(JamesUseCase):
     def __init__(self, repository: JamesPort) -> None:
         self._repository = repository
 
-    def _normalize_row(self, row: dict) -> dict:
+    def _normalize_row(self, row: dict[str, Any]) -> dict[str, Any]:
         normalized: dict[str, str] = {}
         for raw_key, value in row.items():
             if raw_key is None:

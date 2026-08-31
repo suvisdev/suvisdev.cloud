@@ -21,7 +21,7 @@ class SmithCaptainRepository(SmithCaptainPort):
 
     async def chat(self, command: SmithCaptainChatCommand) -> SmithChatResponse:
         logger.info(f"[SmithCaptainRepository] chat | messages={len(command.messages)}개")
-        last = command.messages[-1].content if command.messages else ""
+        last = command.messages[-1].content if command.messages else ""  # type: ignore[attr-defined]
         return SmithChatResponse(reply=f"(임시 응답) 질문을 받았습니다: {last}")
 
     async def introduce_myself(self, query: SmithCaptainQuery) -> SmithCaptainResponse:

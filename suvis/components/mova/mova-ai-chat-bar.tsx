@@ -312,6 +312,10 @@ export function MovaAiChatBar({
   const heroInputRef = useRef<HTMLTextAreaElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
+  const chatRef = useRef(chat)
+  chatRef.current = chat
+  const conversationIdRef = useRef(conversationId)
+  conversationIdRef.current = conversationId
   // 하이드레이션은 상태로 관리한다. ref로만 두면 hydration effect 실행 시
   // auto-send effect가 stale sendMessage(chat.messages=[])로 먼저 발화해
   // 히스토리가 빈 채로 서버에 요청이 나가는 race가 있다.
@@ -342,6 +346,10 @@ export function MovaAiChatBar({
 
   // DB 모드(로그인 + 상위에서 prop 지정) vs sessionStorage 모드(비로그인)
   const dbMode = conversationIdProp !== undefined
+  const dbModeRef = useRef(dbMode)
+  dbModeRef.current = dbMode
+  const onConversationChangedRef = useRef(onConversationChanged)
+  onConversationChangedRef.current = onConversationChanged
 
   useEffect(() => {
     if (dbMode) {
@@ -434,10 +442,10 @@ export function MovaAiChatBar({
   const sendMessage = useCallback(
     async (text: string): Promise<boolean> => {
       const trimmed = text.trim()
-      if (!trimmed || chat.loading) return false
+      if (!trimmed || chatRef.current.loading) return false
 
       patchChat({ error: null })
-      const history = chat.messages
+      const history = chatRef.current.messages
       const userMsg: ChatMessage = { role: "user", content: trimmed }
       setChat((prev) => ({
         ...prev,
@@ -450,7 +458,7 @@ export function MovaAiChatBar({
         message: trimmed,
         history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
         model: "flash15",
-        conversation_id: conversationId,
+        conversation_id: conversationIdRef.current,
       })
       const doFetch = (withAuth: boolean) =>
         fetch("/api/mova/chat", {
@@ -507,11 +515,10 @@ export function MovaAiChatBar({
           })
           return { ...prev, messages, loading: false }
         })
-        // 로그인 사용자: 서버가 준 conversation_id를 상위에 반영(사이드바 목록 갱신)
-        if (dbMode) {
+        if (dbModeRef.current) {
           const nextConvId = typeof data.conversation_id === "number" ? data.conversation_id : null
           setConversationId(nextConvId)
-          onConversationChanged?.(nextConvId)
+          onConversationChangedRef.current?.(nextConvId)
         }
         return true
       } catch (e) {
@@ -526,7 +533,7 @@ export function MovaAiChatBar({
         return false
       }
     },
-    [chat.loading, chat.messages],
+    [],
   )
 
   useEffect(() => {

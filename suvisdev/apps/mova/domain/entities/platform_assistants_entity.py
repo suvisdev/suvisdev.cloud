@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from mova.domain.value_objects.platform_assistants_vo import AssistantSlug
 
@@ -18,7 +19,7 @@ class AssistantEntity:
     is_active: bool
 
     @classmethod
-    def from_orm(cls, row: object) -> AssistantEntity:
+    def from_orm(cls, row: Any) -> AssistantEntity:
         return cls(
             id=row.id,
             slug=AssistantSlug(row.slug),

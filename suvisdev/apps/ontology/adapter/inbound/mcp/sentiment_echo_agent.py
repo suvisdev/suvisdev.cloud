@@ -15,6 +15,7 @@ Echo는 긍정/부정 2-클래스만 학습됐고(H2, NSMC에 중립 라벨 없�
 from __future__ import annotations
 
 import os
+from typing import Any, cast
 
 import httpx
 
@@ -29,17 +30,17 @@ _SYSTEM_PROMPT = """너는 감정 분석 에이전트 Echo다.
 - 결과는 짧고 자연스럽게 설명한다."""
 
 
-async def _analyze_via_api(text: str) -> dict:
+async def _analyze_via_api(text: str) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
             f"{_INFERENCE_URL}/api/nlp/sentiment/analyze",
             json={"text": text},
         )
         resp.raise_for_status()
-    return resp.json()
+    return cast(dict[str, Any], resp.json())
 
 
-async def _summarize_with_llm(user_message: str, result: dict) -> str:
+async def _summarize_with_llm(user_message: str, result: dict[str, Any]) -> str:
     uncertain = result["score"] < _CONFIDENCE_THRESHOLD
 
     prompt = (
@@ -62,7 +63,7 @@ async def _summarize_with_llm(user_message: str, result: dict) -> str:
             },
         )
         resp.raise_for_status()
-    return resp.json()["message"]["content"]
+    return cast(str, resp.json()["message"]["content"])
 
 
 async def answer_sentiment_question(text: str) -> str:

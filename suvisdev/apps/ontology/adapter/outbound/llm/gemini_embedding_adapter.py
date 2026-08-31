@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from typing import Any
 
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.app.ports.output.knowledge_embedding_port import EMBEDDING_DIM, EmbeddingPort
@@ -34,7 +35,7 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
         self._dimensions = dimensions
         self._client = client
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         if self._client is not None:
             return self._client
         from core.matrix.vauly_keymaker_secret_manager import get_keymaker

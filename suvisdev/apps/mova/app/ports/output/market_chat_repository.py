@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Any
 
 from mova.adapter.inbound.api.schemas.market_chat_schema import (
     MovaChatRecommendationSchema,
@@ -55,7 +56,7 @@ class ChatRepositoryPort(ABC):
         """user_actions 이벤트 기록 — chat_trend 조건부 신호(booking_intent·eval_positive)."""
 
     @abstractmethod
-    async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list:
+    async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list[Any]:
         """사용자 최근 검색 의도 (MovaChat rows)."""
 
     @abstractmethod
@@ -68,7 +69,7 @@ class ChatRepositoryPort(ABC):
         refined_query: str,
         keywords: list[str],
         intent_type: str,
-        search_filters: dict,
+        search_filters: dict[str, Any],
     ) -> int:
         """chat 저장 → chat.id 반환."""
 

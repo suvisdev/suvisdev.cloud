@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import os
+from typing import Any, cast
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -24,7 +25,7 @@ _DETECT_PATH = "/api/vision/sentinel/detect"
 
 
 @mcp.tool()
-async def detect_anomaly(image_b64: str) -> dict:
+async def detect_anomaly(image_b64: str) -> dict[str, Any]:
     """이미지가 정상 영화 포스터인지, 화질(블러)에 문제가 없는지 판정한다.
     포스터 여부(is_poster/poster_confidence)와 블러 여부(is_blurry/sharpness_score)를
     반환한다. 수집·업로드된 이미지가 포스터가 맞는지, 흐리지 않은지 검수할 때
@@ -37,7 +38,7 @@ async def detect_anomaly(image_b64: str) -> dict:
             files={"file": ("image.jpg", image_bytes, "image/jpeg")},
         )
         resp.raise_for_status()
-    return resp.json()
+    return cast(dict[str, Any], resp.json())
 
 
 if __name__ == "__main__":

@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.platform_user_taste_vector_schema import (
+        UserTasteVectorSchema,
+    )
 
 
 @dataclass(frozen=True)
@@ -13,7 +19,7 @@ class UserTasteVectorDto:
     review_count: int
     updated_at: datetime
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> UserTasteVectorSchema:
         from mova.adapter.inbound.api.schemas.platform_user_taste_vector_schema import (
             UserTasteVectorSchema,
         )

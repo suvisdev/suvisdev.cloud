@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.market_rankings_schema import (
+        HotRankingDisplaySchema,
+        HotRankingListSchema,
+    )
 from datetime import date
 
 
@@ -47,7 +54,7 @@ class RankingItemDto:
     poster: str
     genres: list[str]
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> HotRankingDisplaySchema:
         from mova.adapter.inbound.api.schemas.market_rankings_schema import HotRankingDisplaySchema
 
         return HotRankingDisplaySchema(
@@ -75,7 +82,7 @@ class RankingListDto:
     items: list[RankingItemDto]
     source: str
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> HotRankingListSchema:
         from mova.adapter.inbound.api.schemas.market_rankings_schema import HotRankingListSchema
 
         return HotRankingListSchema(

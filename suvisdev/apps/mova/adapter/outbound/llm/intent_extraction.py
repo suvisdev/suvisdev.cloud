@@ -311,8 +311,10 @@ def build_search_filters(
     parsed = parsed or {}
     cleaned = _FILLER.sub("", message).strip()
 
-    must_raw = parsed.get("must") if isinstance(parsed.get("must"), dict) else {}
-    similar_raw = parsed.get("similar_to") if isinstance(parsed.get("similar_to"), dict) else {}
+    _must_val = parsed.get("must")
+    must_raw: dict[str, Any] = _must_val if isinstance(_must_val, dict) else {}
+    _sim_val = parsed.get("similar_to")
+    similar_raw: dict[str, Any] = _sim_val if isinstance(_sim_val, dict) else {}
 
     must_actors = merge_keyword_lists(
         _coerce_str_list(must_raw.get("actors")),

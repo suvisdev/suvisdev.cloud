@@ -9,5 +9,5 @@ class JackTrainerPort(ABC):
     """passenger_jack_trainer output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: JackTrainerQuery) -> JackTrainerResponse:
+    async def introduce_myself(self, query: JackTrainerQuery) -> JackTrainerResponse:
         pass

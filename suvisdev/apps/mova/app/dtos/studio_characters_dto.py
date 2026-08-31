@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.studio_characters_schema import (
+        CastListSchema,
+        CharacterWithActorSchema,
+    )
 
 
 @dataclass(frozen=True)
@@ -24,7 +31,7 @@ class CharacterDto:
     actor_id: int
 
     @classmethod
-    def from_orm(cls, orm: object) -> CharacterDto:
+    def from_orm(cls, orm: Any) -> CharacterDto:
         return cls(id=orm.id, movie_id=orm.movie_id, actor_id=orm.actor_id)
 
 
@@ -40,7 +47,7 @@ class CharacterWithActorDto:
     profile_photo_url: str
 
     @classmethod
-    def from_orm(cls, char: object, actor: object) -> CharacterWithActorDto:
+    def from_orm(cls, char: Any, actor: Any) -> CharacterWithActorDto:
         return cls(
             id=char.id,
             movie_id=char.movie_id,
@@ -50,7 +57,7 @@ class CharacterWithActorDto:
             profile_photo_url=actor.profile_photo_url or "",
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CharacterWithActorSchema:
         from mova.adapter.inbound.api.schemas.studio_characters_schema import (
             CharacterWithActorSchema,
         )
@@ -60,7 +67,7 @@ class CharacterWithActorDto:
             movie_id=self.movie_id,
             actor_id=self.actor_id,
             actor_name=self.actor_name,
-            role_type=self.role_type,
+            role_type=self.role_type,  # type: ignore[arg-type]
             profile_photo_url=self.profile_photo_url,
         )
 
@@ -72,7 +79,7 @@ class CastListDto:
     movie_id: int
     cast: list[CharacterWithActorDto]
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CastListSchema:
         from mova.adapter.inbound.api.schemas.studio_characters_schema import CastListSchema
 
         return CastListSchema(

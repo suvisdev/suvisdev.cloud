@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import statistics
 from pathlib import Path
+from typing import Any
 
 import torch
 from transformers import AutoTokenizer
@@ -20,12 +21,12 @@ MODEL_ID = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
 DATA_DIR = Path(__file__).resolve().parents[1] / "resources" / "echo_sentiment_train"
 
 
-def load_jsonl(path: Path) -> list[dict]:
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open(encoding="utf-8") as f:
         return [json.loads(line) for line in f]
 
 
-def format_prompt(tokenizer, record: dict) -> str:
+def format_prompt(tokenizer, record: dict[str, Any]) -> str:
     messages = [
         {"role": "user", "content": f"{record['instruction']}\n\n{record['input']}"},
         {"role": "assistant", "content": record["output"]},

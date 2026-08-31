@@ -36,7 +36,7 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
         scraper = FakeDedupingSiteScraper(
             fetcher=None,
             rate_limiter=None,
-            visited_store=visited_store,  # type: ignore[arg-type]
+            visited_store=visited_store,
         )
         policy = CrawlPolicy(
             site_id="fake-dedup", keywords=("k",), interval_minutes=interval_minutes
@@ -94,7 +94,7 @@ class CrawlScheduleInteractorTest(unittest.TestCase):
             scraper = FakeDedupingSiteScraper(
                 fetcher=None,
                 rate_limiter=None,
-                visited_store=visited_store,  # type: ignore[arg-type]
+                visited_store=visited_store,
             )
             publisher = FakeCrawlEventPublisher()
             interactor = CrawlScheduleInteractor(

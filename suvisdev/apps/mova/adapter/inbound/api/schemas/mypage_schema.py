@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -29,7 +30,7 @@ class MyReviewSchema(BaseModel):
     rating: float | None
     body: str | None
     updated_at: datetime
-    spoiler_spans: list[dict] = []
+    spoiler_spans: list[dict[str, Any]] = []
 
 
 class ActivitySummarySchema(BaseModel):

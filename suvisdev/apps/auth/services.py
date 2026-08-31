@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from auth.kakao_mobile_verifier import KakaoMobileTokenVerifier
 from auth.mobile_refresh_store import MobileRefreshTokenStore
 from auth.oauth_adapters import OAuthError
@@ -41,7 +43,7 @@ class AuthService:
         user_repository: UserRepository | None = None,
         token_issuer: JwtAdapter | None = None,
         refresh_store: RefreshTokenStore | None = None,
-        oauth_adapters: dict[str, object] | None = None,
+        oauth_adapters: dict[str, Any] | None = None,
         oauth_state_store: OAuthStateStore | None = None,
         oauth_handoff_store: OAuthHandoffStore | None = None,
         kakao_mobile_verifier: KakaoMobileTokenVerifier | None = None,
@@ -62,7 +64,8 @@ class AuthService:
 
     def build_authorize_url(self, provider: str, state: str) -> str:
         adapter = self._get_oauth_adapter(provider)
-        return adapter.build_authorize_url(state)
+        url: str = adapter.build_authorize_url(state)
+        return url
 
     def start_oauth_login(self, provider: str, aud: str, return_to: str | None = None) -> str:
         """provider 검증(미지원 시 OAuthError 404) + CSRF state 발급(aud/return_to 포함
@@ -71,7 +74,8 @@ class AuthService:
         return_to는 호출자(router)가 이미 화이트리스트 검증을 마친 값이어야 한다."""
         adapter = self._get_oauth_adapter(provider)
         state = self._oauth_state.issue(aud=aud, return_to=return_to)
-        return adapter.build_authorize_url(state)
+        url: str = adapter.build_authorize_url(state)
+        return url
 
     async def login_with_password(self, username: str, password: str, aud: str) -> TokenResponse:
         user = await self._users.find_by_credentials(username, password)
@@ -193,7 +197,7 @@ class AuthService:
             expires_in=_ACCESS_TTL_MIN * 60,
         )
 
-    def _get_oauth_adapter(self, provider: str) -> object:
+    def _get_oauth_adapter(self, provider: str) -> Any:
         adapter = self._oauth_adapters.get(provider)
         if adapter is None:
             raise OAuthError(f"지원하지 않는 provider: {provider}", status_code=404)

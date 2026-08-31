@@ -55,7 +55,7 @@ class TmdbAdapter:
     def poster_url(self, poster_path: str | None) -> str:
         return build_image_url(poster_path)
 
-    async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict:
+    async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
         query = {"api_key": self.api_key, "language": self.language}
         if params:
             query.update(params)
@@ -65,7 +65,8 @@ class TmdbAdapter:
                 async with httpx.AsyncClient(timeout=20.0) as client:
                     response = await client.get(url, params=query)
                     response.raise_for_status()
-                    return response.json()
+                    result: dict[str, Any] = response.json()
+                    return result
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429 and attempt < _RATE_LIMIT_MAX_RETRIES:
                     wait = _rate_limit_wait_seconds(e.response, attempt)
@@ -95,15 +96,17 @@ class TmdbAdapter:
         data = await self._get("/genre/movie/list")
         return {int(g["id"]): str(g["name"]) for g in data.get("genres", []) if g.get("id")}
 
-    async def fetch_popular(self, *, page: int = 1) -> list[dict]:
+    async def fetch_popular(self, *, page: int = 1) -> list[dict[str, Any]]:
         data = await self._get("/movie/popular", params={"page": max(1, page)})
         return list(data.get("results") or [])
 
-    async def fetch_top_rated(self, *, page: int = 1) -> list[dict]:
+    async def fetch_top_rated(self, *, page: int = 1) -> list[dict[str, Any]]:
         data = await self._get("/movie/top_rated", params={"page": max(1, page)})
         return list(data.get("results") or [])
 
-    async def fetch_upcoming(self, *, page: int = 1, region: str | None = None) -> list[dict]:
+    async def fetch_upcoming(
+        self, *, page: int = 1, region: str | None = None
+    ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {"page": max(1, page)}
         if region:
             params["region"] = region
@@ -123,7 +126,7 @@ class TmdbAdapter:
         region: str | None = None,
         with_release_type: str | None = None,
         release_date_lte: str | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """TMDB /discover/movie — region/genre 등 필터를 걸어 대량 수집할 때 사용.
 
         `include_adult`는 기본 False(성인 영화 제외). `vote_count_gte`로 최소
@@ -154,14 +157,14 @@ class TmdbAdapter:
         data = await self._get("/discover/movie", params=params)
         return list(data.get("results") or [])
 
-    async def search_movies(self, query: str, *, page: int = 1) -> list[dict]:
+    async def search_movies(self, query: str, *, page: int = 1) -> list[dict[str, Any]]:
         q = query.strip()
         if not q:
             return []
         data = await self._get("/search/movie", params={"query": q, "page": max(1, page)})
         return list(data.get("results") or [])
 
-    async def fetch_movie_reviews(self, tmdb_id: int, *, page: int = 1) -> list[dict]:
+    async def fetch_movie_reviews(self, tmdb_id: int, *, page: int = 1) -> list[dict[str, Any]]:
         """TMDB 리뷰 목록. 리뷰는 언어별 저장이라 ko-KR엔 거의 없어 en-US로 조회
         (evaluate 트랙에서 LLM이 한국어로 요약한다, 2026-08-28)."""
         data = await self._get(
@@ -169,7 +172,7 @@ class TmdbAdapter:
         )
         return list(data.get("results") or [])
 
-    async def fetch_movie_detail(self, tmdb_id: int) -> dict:
+    async def fetch_movie_detail(self, tmdb_id: int) -> dict[str, Any]:
         return await self._get(
             f"/movie/{int(tmdb_id)}",
             params={

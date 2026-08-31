@@ -3,6 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.platform_assistants_schema import (
+        AssistantListSchema,
+        AssistantSchema,
+    )
 
 
 @dataclass(frozen=True)
@@ -16,7 +23,7 @@ class AssistantDto:
     is_active: bool
 
     @classmethod
-    def from_orm(cls, row: object) -> AssistantDto:
+    def from_orm(cls, row: Any) -> AssistantDto:
         return cls(
             id=row.id,
             slug=row.slug,
@@ -27,7 +34,7 @@ class AssistantDto:
             is_active=bool(row.is_active),
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> AssistantSchema:
         from mova.adapter.inbound.api.schemas.platform_assistants_schema import AssistantSchema
 
         return AssistantSchema(
@@ -45,7 +52,7 @@ class AssistantDto:
 class AssistantListDto:
     items: list[AssistantDto]
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> AssistantListSchema:
         from mova.adapter.inbound.api.schemas.platform_assistants_schema import AssistantListSchema
 
         return AssistantListSchema(items=[item.to_schema() for item in self.items])

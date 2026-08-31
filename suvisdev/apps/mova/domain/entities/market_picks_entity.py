@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from mova.domain.value_objects.market_picks_vo import Feedback, PickRank
 
@@ -28,7 +29,7 @@ class PickEntity:
     feedback: Feedback | None
 
     @classmethod
-    def from_orm(cls, orm: object) -> PickEntity:
+    def from_orm(cls, orm: Any) -> PickEntity:
         """SQLAlchemy ORM row(MovaPick) → Entity. ORM import는 이 팩토리 안에서만."""
         return cls(
             id=orm.id,

@@ -128,7 +128,7 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
             "tokens": [(t.form, str(t.tag)) for t in tokens],
         }
 
-    def generate_reply(self, question: str, ml_context: dict) -> str:
+    def generate_reply(self, question: str, ml_context: dict[str, Any]) -> str:
         """ML 예측 결과를 받아 Kiwi entity 추출 기반으로 응답 문자열을 반환"""
         analysis = self.analyze_intent(question)
         intent = analysis["intent"]
@@ -315,7 +315,12 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         )
 
     def _predict_hypothetical(
-        self, question: str, ml_context: dict, age_match, gender_kw, pclass_match
+        self,
+        question: str,
+        ml_context: dict[str, Any],
+        age_match: re.Match[str] | None,
+        gender_kw: str | None,
+        pclass_match: re.Match[str] | None,
     ) -> str:
         best_model = ml_context.get("best_model", "unknown")
         trained_strategies = ml_context.get("trained_strategies", {})
@@ -382,7 +387,7 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         )
         return f"{desc} 승객의 ML 예측 생존 확률: {proba:.1%}\n" f"→ {verdict}. ({best_model} 기준)"
 
-    def _feature_importance_reply(self, ml_context: dict, best_model: str) -> str:
+    def _feature_importance_reply(self, ml_context: dict[str, Any], best_model: str) -> str:
         trained_strategies = ml_context.get("trained_strategies", {})
         strategy = trained_strategies.get(best_model)
         estimator = getattr(strategy, "_estimator", None)

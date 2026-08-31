@@ -1,6 +1,7 @@
 """@see suvisdev/_claude/ENTITY_RULE.md — 사용자↔영화 별점·감상평 리뷰(단일 테이블 `reviews`)."""
 
 from datetime import datetime
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, func
@@ -50,7 +51,7 @@ class MovaReview(MovaModel):
         onupdate=func.now(),
         nullable=False,
     )
-    spoiler_spans: Mapped[list] = mapped_column(
+    spoiler_spans: Mapped[list[Any]] = mapped_column(
         JSONB,
         nullable=False,
         default=list,

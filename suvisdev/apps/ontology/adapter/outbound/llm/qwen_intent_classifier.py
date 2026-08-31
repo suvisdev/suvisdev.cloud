@@ -140,8 +140,10 @@ class QwenIntentClassifier(IntentClassifierPort):
             )
             return _DEFAULT_DESTINATION, []
 
-        destination = data.get("destination")
-        destination = _LEGACY_ALIASES.get(destination, destination)
+        raw_dest = data.get("destination")
+        destination = (
+            _LEGACY_ALIASES.get(str(raw_dest), str(raw_dest)) if raw_dest else _DEFAULT_DESTINATION
+        )
         if destination not in _DESTINATIONS:
             destination = _DEFAULT_DESTINATION
         entities = [str(e) for e in (data.get("entities") or [])]

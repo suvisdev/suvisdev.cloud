@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from mova.adapter.inbound.api.schemas.mypage_schema import MypageSchema
@@ -40,7 +40,7 @@ class MyReviewItem:
     rating: float | None
     body: str | None
     updated_at: datetime
-    spoiler_spans: list[dict] = field(default_factory=list)
+    spoiler_spans: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass

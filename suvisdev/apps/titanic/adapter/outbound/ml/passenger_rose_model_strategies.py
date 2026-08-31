@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import numpy as np
 from catboost import CatBoostClassifier
 from lightgbm import LGBMClassifier
@@ -20,7 +22,7 @@ from titanic.app.ports.output.passenger_rose_model_strategy import RoseModelStra
 class _SklearnStrategy(RoseModelStrategy):
     """fit/predict_proba를 갖춘 sklearn 호환 추정기를 감싸는 공통 베이스."""
 
-    def __init__(self, estimator) -> None:
+    def __init__(self, estimator: Any) -> None:
         self._estimator = estimator
 
     def fit(self, X: list[list[float]], y: list[int]) -> None:
@@ -28,7 +30,7 @@ class _SklearnStrategy(RoseModelStrategy):
 
     def predict_proba(self, X: list[list[float]]) -> list[float]:
         proba = self._estimator.predict_proba(np.asarray(X))
-        return proba[:, 1].tolist()
+        return cast(list[float], proba[:, 1].tolist())
 
 
 class XGBoostStrategy(_SklearnStrategy):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from pandas import DataFrame
 
@@ -54,7 +55,7 @@ class SmithCaptainInteractor(SmithCaptainUseCase):
 
         train_set: DataFrame = await self.walter.get_train_set()
         test_set: DataFrame = await self.walter.get_test_set()
-        train_result: dict = await self.jack.train_model(train_set, test_set)
+        train_result: dict[str, Any] = await self.jack.train_model(train_set, test_set)
         test_result = await self.cal.test_model(test_set, train_result)
 
         ml_context = {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from mova.domain.value_objects.studio_characters_vo import CharacterLink
 
@@ -19,7 +20,7 @@ class CharacterEntity:
     link: CharacterLink
 
     @classmethod
-    def from_orm(cls, orm: object) -> CharacterEntity:
+    def from_orm(cls, orm: Any) -> CharacterEntity:
         return cls(
             id=orm.id,
             link=CharacterLink(movie_id=orm.movie_id, actor_id=orm.actor_id),

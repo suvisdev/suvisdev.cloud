@@ -28,6 +28,42 @@
 
 ---
 
+## 2026-08-31
+
+### 작업 내용
+- **mypy 재활성화 — 415건 → 0건 전량 해소, pre-commit 훅 복구**. 2026-08-26에
+  1,327건(485파일)으로 비활성화됐던 mypy를 exclude 보정(134→415 실측) 후 5단계로
+  전부 수정. 전 앱(mova·titanic·ontology·auth·dispatch·gildle·viewer) + `core/` 대상.
+
+### 수정/구현
+- **Phase 1 — 설정 보정**: `pyproject.toml` `[tool.mypy]`에 `explicit_package_bases = true`
+  추가(모듈 이름 충돌 해소). exclude에 `"test/"`, `"_docs/"` 패턴 추가(기존 `"tests/"`만
+  있어 s 없는 테스트 폴더·임시 스크립트가 검사에 포함되던 문제).
+- **Phase 2A — `from_orm(orm: object)` → `orm: Any`** (12파일): Clean Architecture 경계의
+  ORM 역직렬화 메서드. `[attr-defined]` ~81건 해소.
+- **Phase 2B — `to_schema() -> object` → 구체 반환 타입** (10+파일): `TYPE_CHECKING` 블록 +
+  lazy import 패턴. `[return-value]` ~33건 해소.
+- **Phase 2C — Titanic 포트 ABC `async def` 통일** (8파일): I/O 메서드 `def` → `async def`.
+  `[override]` ~29건 해소.
+- **Phase 3-4 — 개별 타입 수정** (~40파일): SQLAlchemy `ColumnElement`/`Exists` 타입 불일치
+  `# type: ignore[assignment]`, Optional 접근 None 가드, `no-any-return`에 `cast()`,
+  외부 라이브러리(ultralytics·timm·boto3) `# type: ignore`, 함수 시그니처 타입 추가 등.
+- **Phase 5 — `.pre-commit-config.yaml`**: mypy 훅 주석 해제(재활성화).
+- **총 수정 파일**: 118개(`.pre-commit-config.yaml` + `pyproject.toml` + `core/` 3파일 +
+  `apps/` 112파일 + 워크로그·PROGRESS 2파일).
+
+### 오류·막힌 점
+- Phase 3-4 포크가 한 번 monthly spend limit에 걸려 중단(134→122건 부분 해소).
+  리밋 리셋 후 재시도로 나머지 전량 해소.
+- `core/matrix/` 3파일이 `apps/` 밖이라 포크 스코프에서 빠짐 — 직접 수정(7건).
+
+### 산출물
+- `python -m mypy ... apps/` → **Success: no issues found in 1079 source files**
+- `pytest -m "not gpu and not ollama"` → **728 passed, 0 failed**
+- `python -c "import main"` → OK
+
+---
+
 ## 2026-08-28
 
 ### 작업 내용

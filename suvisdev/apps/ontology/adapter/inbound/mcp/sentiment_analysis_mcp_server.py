@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import os
+from typing import Any, cast
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -23,13 +24,13 @@ _ANALYZE_PATH = "/api/nlp/sentiment/analyze"
 
 
 @mcp.tool()
-async def analyze_sentiment(text: str) -> dict:
+async def analyze_sentiment(text: str) -> dict[str, Any]:
     """텍스트의 감정을 분석해 극성(긍정/부정)과 신뢰도를 반환한다.
     리뷰·댓글·문장의 감정을 물을 때 사용한다."""
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(f"{_INFERENCE_URL}{_ANALYZE_PATH}", json={"text": text})
         resp.raise_for_status()
-    return resp.json()
+    return cast(dict[str, Any], resp.json())
 
 
 if __name__ == "__main__":

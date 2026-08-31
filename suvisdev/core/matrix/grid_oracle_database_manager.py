@@ -6,6 +6,7 @@ import logging
 import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -251,7 +252,7 @@ async def verify_connection() -> tuple[bool, str | None]:
 # --- Schema Management (2.0 Style) ---
 
 
-async def _drop_legacy_mova_users_table(conn) -> None:
+async def _drop_legacy_mova_users_table(conn: Any) -> None:
     # 2.0 스타일의 결과 집합 처리
     query = text(
         "SELECT column_name FROM information_schema.columns "

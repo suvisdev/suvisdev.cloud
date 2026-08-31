@@ -45,7 +45,7 @@ class LoraRecommendationAdapter(RecommendationPort):
         message: str,
         intent: dict[str, Any],
         tag_catalog: list[MovaSearchItemSchema],
-        past_intents: list,
+        past_intents: list[Any],
         user_nickname: str | None,
         preferred_genres: list[str],
         model: Literal["flash", "flash15", "pro"] | None,

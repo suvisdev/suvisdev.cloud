@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from dotenv import load_dotenv
 
@@ -82,25 +82,25 @@ class Keymaker:
     def resolve_model_id(self, model_key: str | None) -> str:
         """프론트 `model` 키 또는 .env `GEMINI_MODEL` → 실제 모델 ID."""
         if model_key and model_key in GEMINI_MODEL_MAP:
-            return GEMINI_MODEL_MAP[model_key]  # type: ignore[index]
+            return GEMINI_MODEL_MAP[model_key]
         env_id = (os.getenv("GEMINI_MODEL") or "").strip()
         if env_id:
             return _normalize_model_id(env_id)
         return GEMINI_MODEL_MAP[DEFAULT_MODEL_KEY]
 
     @property
-    def genai_client(self):
+    def genai_client(self) -> Any:
         """google.genai.Client 인스턴스. API 키 미설정 시 None."""
         return self._genai_client
 
-    def get_gemini_model(self, model_key: str | None = None):
+    def get_gemini_model(self, model_key: str | None = None) -> str | None:
         """하위 호환 — genai_client + resolve_model_id 조합을 권장."""
         if not self.gemini_api_key:
             return None
         return self.resolve_model_id(model_key)
 
     @property
-    def gemini_model(self):
+    def gemini_model(self) -> str | None:
         return self.get_gemini_model(None)
 
     @property

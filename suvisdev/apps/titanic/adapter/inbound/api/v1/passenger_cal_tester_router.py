@@ -19,4 +19,4 @@ async def introduce_myself(
 async def get_test_model(
     cal: CalTesterUseCase = Depends(get_cal_tester_use_case),
 ) -> TestmodelResponse:
-    return await cal.get_test_model()
+    return await cal.test_model()

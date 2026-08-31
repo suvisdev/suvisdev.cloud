@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from mova.app.dtos.market_reviews_dto import (
     MovieRatingSummaryDto,
@@ -50,7 +51,7 @@ class ReviewsRepositoryPort(ABC):
         (백그라운드 재감지 전까지 이전 스팬을 그대로 두면 텍스트와 안 맞을 수 있어서)."""
 
     @abstractmethod
-    async def update_spoiler_spans(self, review_id: int, spans: list[dict]) -> None:
+    async def update_spoiler_spans(self, review_id: int, spans: list[dict[str, Any]]) -> None:
         """AI 감지 결과 반영(백그라운드 태스크에서 호출). 없으면 조용히 스킵."""
 
     @abstractmethod

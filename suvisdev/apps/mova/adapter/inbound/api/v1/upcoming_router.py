@@ -68,8 +68,8 @@ async def get_upcoming_detail(
     catalog: TmdbCatalogAdapter = Depends(_get_catalog),
 ) -> UpcomingDetailSchema:
     """TMDB 영화 상세 — DB에 없는 개봉 예정작도 트레일러·출연진을 볼 수 있게 한다."""
+    from mova.adapter.outbound.http.tmdb_adapter import build_image_url
     from mova.adapter.outbound.http.tmdb_mapper import (
-        build_image_url,
         map_tmdb_row,
         tmdb_slug,
     )

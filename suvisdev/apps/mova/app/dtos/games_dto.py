@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.games_schema import (
+        ChosungQuestionSchema,
+        LeaderboardSchema,
+        MemoryDeckSchema,
+    )
 
 
 @dataclass(frozen=True)
@@ -16,7 +24,7 @@ class ChosungQuestionDto:
     cast_names: list[str]
     poster_url: str
 
-    def to_schema(self):
+    def to_schema(self) -> ChosungQuestionSchema:
         from mova.adapter.inbound.api.schemas.games_schema import ChosungQuestionSchema
 
         return ChosungQuestionSchema(
@@ -42,7 +50,7 @@ class MemoryDeckDto:
     stage: int
     pairs: list[MemoryDeckPairDto]
 
-    def to_schema(self):
+    def to_schema(self) -> MemoryDeckSchema:
         from mova.adapter.inbound.api.schemas.games_schema import (
             MemoryDeckPairSchema,
             MemoryDeckSchema,
@@ -88,7 +96,7 @@ class LeaderboardDto:
     top: list[LeaderboardEntryDto]
     me: LeaderboardEntryDto | None
 
-    def to_schema(self):
+    def to_schema(self) -> LeaderboardSchema:
         from mova.adapter.inbound.api.schemas.games_schema import (
             LeaderboardEntrySchema,
             LeaderboardSchema,

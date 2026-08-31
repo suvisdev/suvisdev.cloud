@@ -182,7 +182,7 @@ def _resolve_slot(departure_time: str | None, slots: list[int]) -> int | None:
     return min(max(slot, slots[0]), slots[-1])
 
 
-class _FullShadeLookup(dict):
+class _FullShadeLookup(dict[str, Any]):
     """밤 시간대: 해가 없으므로 모든 간선을 그늘(1.0)로 취급 → 순수 최단 경로."""
 
     def get(self, key: Any, default: Any = None) -> float:
@@ -225,7 +225,7 @@ def navigate(
         slot = _resolve_slot(request.departure_time, slots)
         if slot is None:
             night = True
-            shade_lookup = _FullShadeLookup()
+            shade_lookup = _FullShadeLookup()  # type: ignore[assignment]
         elif shade_data is not None:
             shade_lookup = _build_shade_lookup(slot)
 
@@ -299,7 +299,7 @@ def _get_scored_edges_raw() -> list[dict[str, Any]]:
     if _scored_edges_cache is None or mtime != _scored_edges_mtime:
         _scored_edges_cache = json.loads(scored_path.read_text(encoding="utf-8"))
         _scored_edges_mtime = mtime
-    return _scored_edges_cache  # type: ignore[return-value]
+    return _scored_edges_cache
 
 
 @route_router.get("/graph-edges")

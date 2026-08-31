@@ -6,6 +6,7 @@ import asyncio
 import logging
 import math
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest
@@ -73,10 +74,10 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _rerank_by_taste_cosine(
-    recs: list,
+    recs: list[ChatRecommendationDto],
     taste_vector: list[float],
     embeddings_by_id: dict[int, list[float]],
-) -> list:
+) -> list[ChatRecommendationDto]:
     """recs를 taste vector와의 cosine 유사도(내림차순)로 재정렬.
 
     embedding이 없는(dict에 missing) rec은 cosine=-1로 취급해 뒤로 밀리지만,
@@ -84,9 +85,9 @@ def _rerank_by_taste_cosine(
     수준이라 순수 Python으로 충분(pgvector <=>를 SQL로 태울 규모 아님).
     """
 
-    def _key(rec_with_idx: tuple[int, object]) -> tuple[float, int]:
+    def _key(rec_with_idx: tuple[int, Any]) -> tuple[float, int]:
         original_idx, rec = rec_with_idx
-        vec = embeddings_by_id.get(getattr(rec, "movie_id", None))
+        vec = embeddings_by_id.get(getattr(rec, "movie_id", None))  # type: ignore[arg-type]
         if vec is None:
             # embedding 없는 rec은 재정렬 대상 밖 — 뒤로. 큰 key로 밀되
             # 자기들끼리는 original_idx로 원래 순서 유지.
@@ -193,9 +194,11 @@ class ChatInteractor(ChatUseCase):
             # self._repo·self._preferences는 둘 다 get_mova_db() 세션을 공유하므로
             # (FastAPI가 요청당 Depends 결과를 캐싱) 서로 동시에 돌리면 SQLAlchemy가
             # "concurrent operations are not permitted"로 막는다 — 순차 실행으로 묶는다.
-            async def _user_context() -> tuple[list, object]:
-                intents = await self._repo.get_recent_intents_by_user(request.user_id, limit=3)
-                prefs = await self._preferences.get_preferences(request.user_id)
+            _uid: int = request.user_id  # narrowed by `if request.user_id:` guard
+
+            async def _user_context() -> tuple[list[Any], Any]:
+                intents = await self._repo.get_recent_intents_by_user(_uid, limit=3)
+                prefs = await self._preferences.get_preferences(_uid)
                 return intents, prefs
 
             hits, (past_intents, prefs) = await asyncio.gather(catalog_task, _user_context())
@@ -231,7 +234,7 @@ class ChatInteractor(ChatUseCase):
 
             expanded_keywords = expand_mood_keywords(intent["keywords"])[:12]
 
-            async def _search_catalog(limit: int):
+            async def _search_catalog(limit: int) -> list[MovaSearchItemSchema]:
                 return await self._repo.search_tag_catalog(
                     expanded_keywords,
                     limit=limit,
@@ -294,7 +297,7 @@ class ChatInteractor(ChatUseCase):
         #      다시 잡는다. 재정렬 후 순서로 save_picks까지 반영해 UI 카드
         #      배치와 저장 순서가 일치하게 한다. 별점 결합(alpha 튜닝)은
         #      별도 백로그.
-        recs = await self._rerank_recommendations(request.user_id, recs, trace_id)
+        recs = await self._rerank_recommendations(request.user_id, recs, trace_id)  # type: ignore[arg-type,assignment]
 
         # 4. chat + picks 저장
         batch_at = datetime.now(UTC)
@@ -391,7 +394,9 @@ class ChatInteractor(ChatUseCase):
             conversation_id=conversation_id,
         )
 
-    async def _rerank_recommendations(self, user_id: int | None, recs: list, trace_id: str) -> list:
+    async def _rerank_recommendations(
+        self, user_id: int | None, recs: list[ChatRecommendationDto], trace_id: str
+    ) -> list[ChatRecommendationDto]:
         """taste vector가 있으면 movies.embedding과의 cosine으로 recs 재정렬.
 
         스킵 조건(전부 debug 로그만): 비로그인, 두 port 중 하나 미주입,
@@ -419,7 +424,7 @@ class ChatInteractor(ChatUseCase):
             return recs
 
         movie_ids = [r.movie_id for r in recs if getattr(r, "movie_id", None) is not None]
-        embeddings_by_id = await self._movies.list_embeddings_by_ids(movie_ids)
+        embeddings_by_id = await self._movies.list_embeddings_by_ids(movie_ids)  # type: ignore[arg-type]
         if not embeddings_by_id:
             logger.debug(
                 "[ChatInteractor] trace=%s rerank skip: movies.embedding 전량 없음", trace_id
@@ -440,6 +445,7 @@ class ChatInteractor(ChatUseCase):
         self, request: MovaChatRequest, trace_id: str, entities: list[str]
     ) -> ChatResponseDto:
         """evaluate 트랙 — 서비스가 만든 평가를 저장·응답 형태로 감싼다."""
+        assert self._evaluation is not None
         result = await self._evaluation.evaluate(
             message=request.message, entities=entities, trace_id=trace_id
         )
@@ -453,7 +459,7 @@ class ChatInteractor(ChatUseCase):
             search_filters={},
         )
         recommendations = [result.card] if result.card else []
-        assistant_meta: dict = {"recommendations": self._cards_meta(recommendations)}
+        assistant_meta: dict[str, Any] = {"recommendations": self._cards_meta(recommendations)}
         if result.evaluation is not None:
             # movie_id는 다음 턴의 긍정 반응 신호(_maybe_record_eval_positive)가,
             # 나머지 payload는 스레드 복원 시 프론트 지표 패널 재구성이 쓴다.
@@ -503,6 +509,7 @@ class ChatInteractor(ChatUseCase):
         pending_title: str | None,
     ) -> ChatResponseDto:
         """booking 트랙 — 상영 여부·지역 슬롯 필링·영화관 안내."""
+        assert self._booking is not None
         result = await self._booking.assist(
             message=request.message,
             entities=entities,
@@ -525,7 +532,7 @@ class ChatInteractor(ChatUseCase):
             search_filters={},
         )
         recommendations = [result.card] if result.card else []
-        assistant_meta: dict = {"recommendations": self._cards_meta(recommendations)}
+        assistant_meta: dict[str, Any] = {"recommendations": self._cards_meta(recommendations)}
         if result.booking is not None:
             # 스레드 복원 시 프론트 영화관 패널 재구성용.
             assistant_meta["booking"] = {
@@ -594,7 +601,7 @@ class ChatInteractor(ChatUseCase):
         )
 
     @staticmethod
-    def _cards_meta(cards: list) -> list[dict]:
+    def _cards_meta(cards: list[ChatRecommendationDto]) -> list[dict[str, Any]]:
         return [
             {
                 "id": r.id,
@@ -736,9 +743,9 @@ class ChatInteractor(ChatUseCase):
         *,
         request: MovaChatRequest,
         user_content: str,
-        user_meta: dict,
+        user_meta: dict[str, Any],
         assistant_content: str,
-        assistant_meta: dict,
+        assistant_meta: dict[str, Any],
     ) -> int | None:
         """로그인 사용자에 한해 대화 스레드에 user+assistant 두 메시지 append.
         conversation_id가 없으면 새 스레드 생성(title = 첫 user 메시지 앞 40자).

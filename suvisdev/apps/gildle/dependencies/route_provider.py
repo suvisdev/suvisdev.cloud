@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from gildle.adapter.outbound.geocoding.kakao_geocoding_adapter import (
     KakaoGeocodingAdapter,
@@ -74,7 +75,7 @@ def get_walk_graph_port() -> WalkGraphPort:
     return OsmWalkGraphAdapter(cache_dir=None)
 
 
-def _get_gildle_session_factory():
+def _get_gildle_session_factory() -> Any:
     """gildle 전용 sync SQLAlchemy 세션 팩토리. postgres 모드에서만 호출."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from mova.domain.value_objects.studio_actors_vo import ActorName, RoleType
 
@@ -17,7 +18,7 @@ class ActorEntity:
     profile_photo_url: str
 
     @classmethod
-    def from_orm(cls, orm: object) -> ActorEntity:
+    def from_orm(cls, orm: Any) -> ActorEntity:
         return cls(
             id=orm.id,
             name=ActorName(orm.name),

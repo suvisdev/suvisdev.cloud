@@ -348,12 +348,12 @@ class BookingAssistService:
 
         if not results and theaters:
             anchor = next((t for t in theaters if t.lat and t.lng), None)
-            if anchor is not None:
+            if anchor is not None and anchor.lat is not None and anchor.lng is not None:
                 try:
                     cs = await self._showtimes.fetch_nearest_showtimes(
                         anchor.lat,
                         anchor.lng,
-                        movie_title,  # type: ignore[arg-type]
+                        movie_title,
                     )
                 except Exception:
                     logger.warning(

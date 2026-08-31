@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.market_conversations_schema import (
+        ConversationDetailSchema,
+        ConversationMessageSchema,
+        ConversationSummarySchema,
+    )
 
 
 @dataclass(frozen=True)
@@ -15,7 +22,7 @@ class ConversationMessageDto:
     meta: dict[str, Any]
     created_at: datetime
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ConversationMessageSchema:
         from mova.adapter.inbound.api.schemas.market_conversations_schema import (
             ConversationMessageSchema,
         )
@@ -36,7 +43,7 @@ class ConversationSummaryDto:
     updated_at: datetime
     message_count: int
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ConversationSummarySchema:
         from mova.adapter.inbound.api.schemas.market_conversations_schema import (
             ConversationSummarySchema,
         )
@@ -57,7 +64,7 @@ class ConversationDetailDto:
     updated_at: datetime
     messages: list[ConversationMessageDto] = field(default_factory=list)
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ConversationDetailSchema:
         from mova.adapter.inbound.api.schemas.market_conversations_schema import (
             ConversationDetailSchema,
         )
@@ -67,5 +74,5 @@ class ConversationDetailDto:
             title=self.title,
             created_at=self.created_at,
             updated_at=self.updated_at,
-            messages=[m.to_schema() for m in self.messages],  # type: ignore[misc]
+            messages=[m.to_schema() for m in self.messages],
         )

@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -64,7 +65,7 @@ class GeminiEmbeddingAdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_requests_column_dimension(self) -> None:
         """저장 컬럼이 Vector(768)이라 output_dimensionality를 반드시 넘겨야 한다."""
-        captured: dict = {}
+        captured: dict[str, Any] = {}
 
         def _fake_embed_content(*, model, contents, config=None):
             if config:

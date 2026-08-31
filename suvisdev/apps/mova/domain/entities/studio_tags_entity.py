@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from mova.domain.value_objects.studio_tags_vo import TagKind, TagSlug
 
@@ -20,7 +21,7 @@ class TagEntity:
     description: str
 
     @classmethod
-    def from_orm(cls, orm: object) -> TagEntity:
+    def from_orm(cls, orm: Any) -> TagEntity:
         return cls(
             id=orm.id,
             movie_id=orm.movie_id,

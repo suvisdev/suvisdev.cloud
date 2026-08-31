@@ -9,5 +9,5 @@ class MollyScalerPort(ABC):
     """passenger_molly_scaler output port."""
 
     @abstractmethod
-    def introduce_myself(self, query: MollyScalerQuery) -> MollyScalerResponse:
+    async def introduce_myself(self, query: MollyScalerQuery) -> MollyScalerResponse:
         pass

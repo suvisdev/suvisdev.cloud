@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import cast
 
 import httpx
 
@@ -44,4 +45,4 @@ class OllamaEmbeddingAdapter(EmbeddingPort):
         embeddings = r.json().get("embeddings")
         if not embeddings or not embeddings[0]:
             raise DispatchError("Ollama가 빈 임베딩을 반환했습니다.", status_code=502)
-        return embeddings[0]
+        return cast(list[float], embeddings[0])

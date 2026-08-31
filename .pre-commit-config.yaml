@@ -12,19 +12,17 @@ repos:
       - id: ruff-format
         files: ^suvisdev/
 
-  # 2. mypy — 정적 타입 검사. 2026-08-26 전체 실측 결과 레거시 1,327건
-  #    (485 파일, ORM Any-서브클래싱·미주석 테스트가 대부분)이라 켜면 모든
-  #    백엔드 커밋이 막힘. 부채를 단계적으로 갚은 뒤 재활성화할 것 —
-  #    PROGRESS.md 백로그 참조.
-  # - repo: https://github.com/pre-commit/mirrors-mypy
-  #   rev: v1.10.0
-  #   hooks:
-  #     - id: mypy
-  #       additional_dependencies:
-  #         - pydantic
-  #         - sqlalchemy[mypy]
-  #       args: [--config-file=suvisdev/pyproject.toml]
-  #       files: ^suvisdev/
+  # 2. mypy — 정적 타입 검사 (2026-08-31 재활성화: 415→0건 해소)
+  #    mirrors-mypy는 변경 파일만 개별 전달해 base class를 Any로 해석하는
+  #    false positive가 대량 발생 — import-linter와 동일하게 로컬 훅으로 전체 실행.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: "mypy — strict type check"
+        entry: bash -c 'cd suvisdev && python -m mypy --config-file pyproject.toml --explicit-package-bases apps/'
+        language: system
+        pass_filenames: false
+        files: ^suvisdev/
 
   # 3. import-linter — 스타-토폴로지 의존 규칙 강제
   - repo: local

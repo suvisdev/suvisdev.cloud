@@ -29,6 +29,7 @@ class RoseModelRepository(RoseModelPort):
         return response
 
     async def list_training_rows(self) -> list[RoseModelFeatureRow]:
+        assert self._session is not None
         stmt = select(JackTrainerOrm, RoseModelOrm).join(
             RoseModelOrm,
             RoseModelOrm.passenger_id == JackTrainerOrm.passenger_id,

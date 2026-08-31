@@ -26,7 +26,7 @@ async def list_conversations(
 ) -> list[ConversationSummarySchema]:
     """본인 대화 목록(사이드바). updated_at DESC 정렬."""
     dtos = await use_case.list_mine(principal.user_id)
-    return [d.to_schema() for d in dtos]  # type: ignore[misc]
+    return [d.to_schema() for d in dtos]
 
 
 @market_conversations_router.get("/{conversation_id}", response_model=ConversationDetailSchema)
@@ -40,7 +40,7 @@ async def get_conversation(
         dto = await use_case.get_mine(conversation_id, principal.user_id)
     except (ConversationNotFoundError, ConversationForbiddenError) as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail) from e
-    return dto.to_schema()  # type: ignore[return-value]
+    return dto.to_schema()
 
 
 @market_conversations_router.delete("/{conversation_id}", status_code=200)

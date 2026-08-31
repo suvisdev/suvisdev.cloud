@@ -87,6 +87,6 @@ class SentinelAnomalyAdapter(AnomalyDetectionPort):
         return poster_confidence >= _POSTER_PROB_THRESHOLD, poster_confidence
 
     def _check_blur(self, image: Image.Image) -> tuple[bool, float]:
-        gray = np.array(image.convert("L").resize(_BLUR_RESIZE, Image.BILINEAR))
+        gray = np.array(image.convert("L").resize(_BLUR_RESIZE, Image.BILINEAR))  # type: ignore[attr-defined]
         sharpness_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
         return sharpness_score < _BLUR_THRESHOLD, sharpness_score

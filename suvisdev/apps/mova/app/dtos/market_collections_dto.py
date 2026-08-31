@@ -3,6 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.market_collections_schema import (
+        CollectionAssignResultSchema,
+        CollectionDetailSchema,
+        CollectionListItemSchema,
+        CollectionListSchema,
+        CollectionMoviesSchema,
+    )
 
 from mova.app.dtos.studio_movies_dto import MovieListItemDto
 from mova.domain.entities.market_collections_entity import CollectionEntity
@@ -31,7 +41,7 @@ class CollectionDetailDto:
             movie_count=movie_count,
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CollectionDetailSchema:
         from mova.adapter.inbound.api.schemas.market_collections_schema import (
             CollectionDetailSchema,
         )
@@ -75,7 +85,7 @@ class CollectionMoviesDto:
             offset=offset,
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CollectionMoviesSchema:
         from mova.adapter.inbound.api.schemas.market_collections_schema import (
             CollectionMoviesSchema,
         )
@@ -109,7 +119,7 @@ class CollectionListItemDto:
             movie_count=movie_count,
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CollectionListItemSchema:
         from mova.adapter.inbound.api.schemas.market_collections_schema import (
             CollectionListItemSchema,
         )
@@ -130,7 +140,7 @@ class CollectionListDto:
     limit: int
     offset: int
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CollectionListSchema:
         from mova.adapter.inbound.api.schemas.market_collections_schema import (
             CollectionListSchema,
         )
@@ -155,7 +165,7 @@ class CollectionAssignResultDto:
     skipped_ids: list[int]  # 배정: DB에 없는 movie_id, 해제: 이 컬렉션에 없던 movie_id
     moved_from_other_collection: int  # 배정 전용, 해제 시 0
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> CollectionAssignResultSchema:
         from mova.adapter.inbound.api.schemas.market_collections_schema import (
             CollectionAssignResultSchema,
         )

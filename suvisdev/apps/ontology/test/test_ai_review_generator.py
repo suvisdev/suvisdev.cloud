@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
 APPS = ROOT / "apps"
@@ -41,7 +42,7 @@ class _FakeWriter(AiReviewWriterPort):
         self._movies: dict[str, int] = {}
         self._reviews: dict[tuple[int, int], int] = {}
         self._next_review_id = 1
-        self.saved: list[dict] = []
+        self.saved: list[dict[str, Any]] = []
 
     def add_movie(self, title: str, movie_id: int) -> None:
         self._movies[title.lower()] = movie_id
@@ -65,7 +66,7 @@ class _FakeWriter(AiReviewWriterPort):
         return rid
 
 
-def _write_jsonl(directory: Path, filename: str, records: list[dict]) -> None:
+def _write_jsonl(directory: Path, filename: str, records: list[dict[str, Any]]) -> None:
     path = directory / filename
     with path.open("w", encoding="utf-8") as f:
         for rec in records:

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from mova.adapter.inbound.api.schemas.studio_actors_schema import ActorDetailSchema
 
 
 @dataclass(frozen=True)
@@ -40,7 +44,7 @@ class ActorDetailDto:
     filmography: list[MovieInActorDto]
 
     @classmethod
-    def from_orm(cls, actor: object, movie_rows: list) -> ActorDetailDto:
+    def from_orm(cls, actor: Any, movie_rows: list[Any]) -> ActorDetailDto:
         filmography = [
             MovieInActorDto(
                 character_id=char.id,
@@ -64,7 +68,7 @@ class ActorDetailDto:
             filmography=filmography,
         )
 
-    def to_schema(self) -> object:
+    def to_schema(self) -> ActorDetailSchema:
         from mova.adapter.inbound.api.schemas.studio_actors_schema import (
             ActorDetailSchema,
             MovieInActorSchema,
@@ -73,7 +77,7 @@ class ActorDetailDto:
         return ActorDetailSchema(
             id=self.id,
             name=self.name,
-            role_type=self.role_type,
+            role_type=self.role_type,  # type: ignore[arg-type]
             profile_photo_url=self.profile_photo_url,
             filmography=[
                 MovieInActorSchema(
