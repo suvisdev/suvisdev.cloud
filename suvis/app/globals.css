@@ -189,3 +189,44 @@
     opacity: 0;
   }
 }
+
+/* ── 전역 스크롤바: 스크롤 중(.is-scrolling — ScrollbarAutohide가 토글)에만 표시 ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.is-scrolling {
+  scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
+}
+
+.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
+}
+
+/* ── 콘텐츠 무단 복제 억제: 입력 요소 밖 텍스트 선택 차단 (ContentGuard와 짝) ── */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}

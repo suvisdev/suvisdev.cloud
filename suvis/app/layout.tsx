@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Barlow_Condensed, Geist } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { ContentGuard } from '@/components/content-guard'
+import { ScrollbarAutohide } from '@/components/scrollbar-autohide'
 import { SiteChrome } from '@/components/site-chrome'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
@@ -46,6 +48,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${displayCondensed.variable} font-sans antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <ScrollbarAutohide />
+          <ContentGuard />
           <SiteChrome>{children}</SiteChrome>
           {process.env.NODE_ENV === 'production' && <Analytics />}
         </ThemeProvider>

@@ -28,6 +28,40 @@
 
 ---
 
+## 2026-09-01
+
+### 작업 내용
+- **전 페이지 스크롤바 자동 숨김** — 사용자 요청(처음엔 mova 영화 탭만 →
+  전체 확장). 스크롤 중에만 스크롤바가 보이게.
+- **도메인 전체 스크래핑·복사 방지** — 사용자 요청. 클라이언트 억제책 +
+  robots 차단.
+
+### 수정/구현
+- `components/scrollbar-autohide.tsx` 신규: 문서 캡처 단계 scroll 리스너
+  하나로 모든 스크롤 요소(세로 본문 포함)에 `.is-scrolling` 토글(0.8초).
+  요소별 개별 리스너 방식(1차 구현)은 전체 확장 시점에 걷어내고 이 전역
+  방식으로 교체 — `drag-scroll-row.tsx`·`movies/page.tsx`는 원상 복구.
+- `app/globals.css`: 전역 `*` 스크롤바 평소 투명(트랙 공간은 유지 —
+  레이아웃 흔들림 없음), `.is-scrolling`일 때만 회색 썸.
+  `app/mova/mova.css`: `.mova-row-scroll` 브랜드 색 썸을 `.is-scrolling`
+  조건부로 변경.
+- `components/content-guard.tsx` 신규: 입력 요소 밖 복사·잘라내기·우클릭
+  차단. `globals.css` 전역 `user-select: none`(input·textarea·
+  contenteditable 예외).
+- `app/robots.ts` 신규: AI 학습·대량 수집 크롤러 17종(GPTBot·ClaudeBot·
+  CCBot·Bytespider·PerplexityBot 등) 전체 차단 + `/admin/`·`/api/` 봇
+  차단. 구글·네이버 등 검색 색인은 유지(전부 막으면 검색 노출 소멸).
+- 루트 `app/layout.tsx`에 두 컴포넌트 마운트.
+
+### 오류·막힌 점
+- 없음. 한계 인지 사항: 복사 차단은 devtools/소스 보기까지는 못 막는
+  억제책이고, robots.txt는 신사협정(악성 봇 무시) — 실효 차단은 Cloudflare
+  Bot Fight Mode(대시보드, 사용자 조치) 병행 필요.
+
+### 산출물
+- `pnpm type-check`·`lint`·`build` 통과, robots.txt 생성 확인.
+- 커밋·Vercel 배포 (해시는 커밋 시점 기록).
+
 ## 2026-08-31
 
 ### 작업 내용

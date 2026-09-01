@@ -32,11 +32,11 @@ html:not(.dark) .mova-app {
   --mova-text: #1a0f0a;
 }
 
-html:not(.dark) .mova-row-scroll {
+html:not(.dark) .mova-row-scroll.is-scrolling {
   scrollbar-color: rgba(120, 60, 20, 0.25) transparent;
 }
 
-html:not(.dark) .mova-row-scroll::-webkit-scrollbar-thumb {
+html:not(.dark) .mova-row-scroll.is-scrolling::-webkit-scrollbar-thumb {
   background: rgba(120, 60, 20, 0.25);
 }
 
@@ -69,14 +69,17 @@ html:not(.dark) .mova-cinema-bg {
 
 .mova-row-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .mova-row-scroll::-webkit-scrollbar {
   height: 4px;
 }
 
-.mova-row-scroll::-webkit-scrollbar-thumb {
+.mova-row-scroll.is-scrolling {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.mova-row-scroll.is-scrolling::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
