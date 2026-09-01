@@ -205,9 +205,18 @@ docker compose --env-file suvisdev/.env up -d
 
 ## 주의사항
 
-- **VRAM**: `lora-server`(EXAONE-2.4B AWQ)가 상시 기동 중이다. 모델 학습 전
-  `systemctl --user stop lora-server`, 학습 후 `start` + `:8200/health` 확인.
-  `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
+- **VRAM**: `lora-server`(EXAONE-3.5-2.4B fp16, hf 백엔드)가 데스크톱
+  DESKTOP-IOAQ7L7의 systemd 유저 서비스로 기동된다(2026-09-01 노트북→
+  데스크톱 이전, AWQ→fp16 전환). 모델 학습 전 `systemctl --user stop
+  lora-server`, 학습 후 `start` + `:8200/health` 확인. `nvidia-smi`의
+  free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
+- **데스크톱은 상시 서버가 아니다** — PC가 꺼지면 lora-server·터널도
+  내려가고, EC2는 Gemini 자동 폴백으로 무중단 유지된다(2026-08-26 배선,
+  09-01 실증). 켜져 있는 날만 LoRA 경로가 사는 게 정상 운영 상태이니
+  터널 530을 장애로 오판하지 말 것. **구 노트북의 lora-server/터널
+  (`lora-notebook`)은 다시 켜지 않는다** — `lora.suvisdev.cloud` DNS가
+  데스크톱 신규 터널(`lora-desktop`)로 이관됨(구 터널은 계정에서 삭제
+  예정, PROGRESS 백로그).
 - 배포 환경이 둘이다 — 집(GPU/EXAONE)과 EC2(GPU 없음/Gemini). Ollama에 의존하는
   mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끌 수 있다(기본 true).
 - **EC2 디스크는 30GB로 작다** — `backend`·`auth`가 완전히 동일한(무거운
