@@ -18,16 +18,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-import gptqmodel.nn_modules.qlinear.gemm_awq as _gemm_awq
 import torch
 from fastapi import Depends, FastAPI, Header, HTTPException
 from peft import PeftModel
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# peft==0.19.1이 gptqmodel의 최신 클래스명을 못 따라가는 업스트림 버그 우회
-# (backend와 무관하게 peft의 LoRA 디스패처가 항상 AWQ 체커부터 먼저 시도함).
-_gemm_awq.AwqGEMMQuantLinear = _gemm_awq.AwqGEMMLinear
 
 _LATEST_FILE = Path(
     os.getenv("LORA_ADAPTERS_ROOT", str(Path.home() / "lora_adapters"))
@@ -55,14 +50,24 @@ def _load(adapter_dir: str | None, backend: str, base_model_path: str) -> None:
     tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
 
     if backend == "awq_gptqmodel":
+        # gptqmodel은 transformers v5를 요구해 v4 환경(hf 백엔드)에서는 임포트
+        # 자체가 실패하므로 이 분기 안에서만 지연 임포트한다.
+        import gptqmodel.nn_modules.qlinear.gemm_awq as _gemm_awq
         from gptqmodel import BACKEND, GPTQModel
+
+        # peft==0.19.1이 gptqmodel의 최신 클래스명을 못 따라가는 업스트림 버그 우회
+        # (backend와 무관하게 peft의 LoRA 디스패처가 항상 AWQ 체커부터 먼저 시도함).
+        _gemm_awq.AwqGEMMQuantLinear = _gemm_awq.AwqGEMMLinear
 
         base = GPTQModel.load(
             base_model_path, device="cuda:0", trust_remote_code=True, backend=BACKEND.EXLLAMA_V2
         ).model
     else:
         base = AutoModelForCausalLM.from_pretrained(
-            base_model_path, dtype=torch.float16, device_map="cuda:0"
+            base_model_path,
+            torch_dtype=torch.float16,
+            device_map="cuda:0",
+            trust_remote_code=True,
         )
 
     model = PeftModel.from_pretrained(base, adapter_dir) if adapter_dir else base

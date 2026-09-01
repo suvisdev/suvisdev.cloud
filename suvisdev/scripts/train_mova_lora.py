@@ -25,15 +25,9 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-import gptqmodel.nn_modules.qlinear.gemm_awq as _gemm_awq
 import torch
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# peft==0.19.1이 gptqmodel의 최신 클래스명을 못 따라가는 업스트림 버그 우회.
-# backend와 무관하게 peft의 LoRA 디스패처가 항상 AWQ 체커부터 먼저 시도하므로
-# plain(비양자화) 모델을 쓸 때도 이 import가 필요하다.
-_gemm_awq.AwqGEMMQuantLinear = _gemm_awq.AwqGEMMLinear
 
 _BACKEND = Path(__file__).resolve().parents[1]
 _REPO_ROOT = _BACKEND.parent
@@ -48,14 +42,23 @@ _TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj
 
 def _load_base_model():
     if _TRAIN_BACKEND == "awq_gptqmodel":
+        # gptqmodel은 transformers v5를 요구해 v4 환경에서는 임포트 자체가
+        # 실패하므로 이 분기 안에서만 지연 임포트한다(설치도 이 분기 사용 시에만).
+        import gptqmodel.nn_modules.qlinear.gemm_awq as _gemm_awq
         from gptqmodel import BACKEND, GPTQModel
+
+        # peft==0.19.1이 gptqmodel의 최신 클래스명을 못 따라가는 업스트림 버그 우회.
+        _gemm_awq.AwqGEMMQuantLinear = _gemm_awq.AwqGEMMLinear
 
         model = GPTQModel.load(
             _BASE_MODEL_PATH, device="cuda:0", trust_remote_code=True, backend=BACKEND.TORCH
         )
         return model.model
     return AutoModelForCausalLM.from_pretrained(
-        _BASE_MODEL_PATH, dtype=torch.float16, device_map="cuda:0"
+        _BASE_MODEL_PATH,
+        torch_dtype=torch.float16,
+        device_map="cuda:0",
+        trust_remote_code=True,
     )
 
 
@@ -66,15 +69,19 @@ def _load_dataset(path: Path) -> list[dict]:
 
 def _build_example(tokenizer, prompt: str, completion: str) -> dict[str, torch.Tensor]:
     """prompt 부분은 label=-100으로 마스킹해 completion에 대해서만 loss를 계산한다."""
-    # 이 transformers 버전은 apply_chat_template(return_tensors="pt")가 순수 텐서가
-    # 아니라 BatchEncoding(dict형)을 반환한다 — ["input_ids"]로 실제 텐서를 꺼내야 한다.
+    # transformers 버전에 따라 apply_chat_template(return_tensors="pt")의 반환형이
+    # 순수 텐서/BatchEncoding으로 갈리므로 return_dict=True를 명시해 통일한다.
     prompt_ids = tokenizer.apply_chat_template(
-        [{"role": "user", "content": prompt}], add_generation_prompt=True, return_tensors="pt"
+        [{"role": "user", "content": prompt}],
+        add_generation_prompt=True,
+        return_tensors="pt",
+        return_dict=True,
     )["input_ids"]
     full_ids = tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt}, {"role": "assistant", "content": completion}],
         add_generation_prompt=False,
         return_tensors="pt",
+        return_dict=True,
     )["input_ids"]
     prompt_len = prompt_ids.shape[1]
     labels = full_ids.clone()
@@ -100,11 +107,10 @@ def main(dataset_path: Path, epochs: int) -> None:
         task_type="CAUSAL_LM",
     )
     peft_model = get_peft_model(base, lora_config)
-    if _TRAIN_BACKEND == "awq_gptqmodel":
-        base.enable_input_require_grads()
-        peft_model.gradient_checkpointing_enable(
-            gradient_checkpointing_kwargs={"use_reentrant": False}
-        )
+    # 8GB VRAM에서는 fp16 2.4B(plain)도 긴 프롬프트 활성값으로 OOM이 나므로
+    # 백엔드와 무관하게 gradient checkpointing을 켠다.
+    base.enable_input_require_grads()
+    peft_model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     peft_model.print_trainable_parameters()
     peft_model.train()
 
@@ -117,7 +123,7 @@ def main(dataset_path: Path, epochs: int) -> None:
             input_ids = batch["input_ids"].to("cuda:0")
             labels = batch["labels"].to("cuda:0")
 
-            kwargs = {"use_cache": False} if _TRAIN_BACKEND == "awq_gptqmodel" else {}
+            kwargs = {"use_cache": False}  # gradient checkpointing과 호환(공통 적용)
             out = peft_model(input_ids=input_ids, labels=labels, **kwargs)
             out.loss.backward()
             opt.step()

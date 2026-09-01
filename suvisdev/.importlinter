@@ -86,6 +86,7 @@ ignore_imports =
     mova.adapter.outbound.orm.market_conversations_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_game_scores_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.market_review_comments_orm -> viewer.adapter.outbound.orm.user_orm
+    mova.adapter.outbound.orm.market_review_votes_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.orm.platform_user_taste_vectors_orm -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.outbound.pg.games_pg_repository -> viewer.adapter.outbound.orm.user_orm
     mova.adapter.inbound.scheduler.editor_reviews_scheduler -> viewer.adapter.outbound.orm.user_orm

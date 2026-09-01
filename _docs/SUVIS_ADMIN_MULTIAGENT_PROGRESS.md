@@ -879,6 +879,24 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 
 ## 다음 / 남은 작업 (백로그)
 
+### mova 리뷰 감정분석 — 프로덕션 데이터 0건, GPU 실행 경로 필요 (2026-09-01 실측)
+- **현황**: 8/31 배포된 감정분석 통합(자동 별점·감정 요약·신뢰도 태그)의
+  **읽기 경로는 전부 라이브**이나, 프로덕션 reviews 166건 중
+  `sentiment_label` 채워진 것 **0건**(rating NULL 에디터 리뷰 160건 대기).
+  분석을 실제로 돌린 적이 한 번도 없다 — 표시 기능은 빈 데이터로 동작 중.
+- **EC2 에러 원인 규명 완료**: `'frozenset' object has no attribute 'discard'`는
+  transformers 4.47.1 업스트림 버그(`integrations/bitsandbytes.py:498` —
+  `get_available_devices()`가 FrozenSet 반환인데 CPU 전용 분기에서
+  `.discard("cpu")` 호출). **CPU 전용 머신에서만 타는 분기**라 GPU 머신은
+  무관하고, 버그가 없었어도 EC2는 "bitsandbytes 미지원 디바이스" RuntimeError로
+  실패하는 게 의도된 경로 — EC2 측 조치 불필요(스케줄러는 2주기 후 자동 종료).
+- **남은 것**: Echo LoRA 어댑터(`apps/ontology/runs/echo_sentiment/adapter`)가
+  **GPU 노트북에만 존재**(현 세션 호스트는 RTX 3050은 있으나 runs/ 없음).
+  노트북에서 프로덕션 DB를 대상으로 `scripts/backfill_review_sentiment_cli.py`
+  실행이 필요 — lora-server 재기동(위 5순위)과 같은 물리 접근 블로커.
+  실행 후 `GET /mova/reviews/sentiment/{id}` 실데이터 확인 + 에디터 리뷰
+  자동 별점 부여 확인까지가 완결 조건.
+
 ### 코드 품질 부채 (2026-08-26 전체 검증에서 실측)
 - ~~**mypy 재활성화**~~ — **완료(2026-08-31)**: 415건(1079파일 대상) → 0건.
   5단계(설정 보정 → from_orm Any → to_schema 타입 → titanic async 통일 →
@@ -947,11 +965,11 @@ recommend/evaluate("호프 어때?")/booking("호프 예매하고 싶어") 3트�
 ### mova 채팅 클래식 오추천 후속(2026-08-28 실사고, 수정 자체는 완료)
 시대 어휘 연도 매핑·프롬프트 연도 표기는 완료(`WORK_LOG_MOVA.md` 2026-08-28).
 남은 것:
-- ~~**Gemini 임베딩 일일 쿼터 429 대응**~~ — **코드 완료(2026-08-28)**: 임베딩
-  백필 3종(movies·reviews·ingest)이 `GEMINI_BACKFILL_API_KEY`(별도 Google
-  프로젝트 키)를 쓰도록 분리. 로컬 임베딩 폴백은 의미 공간 불일치(재임베딩
-  필요)라 배제. **남은 것: 사용자가 두 번째 프로젝트에서 키 발급 →
-  로컬·EC2 `.env`에 `GEMINI_BACKFILL_API_KEY` 등재**(미설정 시 기존 동작).
+- ~~**Gemini 임베딩 일일 쿼터 429 대응**~~ — **완결 확인(2026-09-01)**: 코드
+  완료(2026-08-28)에 이어 `GEMINI_BACKFILL_API_KEY`가 로컬·EC2 `.env` 양쪽에
+  이미 등재돼 있음을 실측 확인. EC2 야간 cron도 이 경로로 정상 작동 중
+  (backfill_movie 대상 0편=전량 완료, backfill_review succeeded=3, 09-01 로그).
+  항목 종결.
 - ~~**폴백 정직 문구 프롬프트 구현**~~ — 완료(2026-08-28, `chat_prompt.py`).
 - **(선택) RAG 경로 연도 하드 필터** — hub_knowledge에 연도 메타데이터가 없어
   현재는 프롬프트 표기로만 보완. 시맨틱 검색 결과를 연도로 거르려면 hub 스키마
@@ -1008,16 +1026,28 @@ recommend/evaluate("호프 어때?")/booking("호프 예매하고 싶어") 3트�
 위 "완료됨" 참고. 정식 TMDB 정품 row가 이미 있는 10편 + 대체 없는 2편
 (조제·패터슨) 전부 삭제. picks 12건 CASCADE(익명·피드백 없음, 손실 없음).
 
-💤 **5순위: 노트북 GPU/Cloudflare Tunnel 복구 + `RECOMMENDATION_BACKEND` 원복 판단**
-- 이유: 2026-08-06 현재 EC2가 `gemini`로 수동 폴백된 상태(기본값은
-  `lora`) — 노트북 GPU `lora-server`/터널(`lora.suvisdev.cloud`)이
-  Cloudflare 530(완전 무응답)이라 즉시 조치했음. 복구 여부·되돌릴지는
-  판단 필요.
-- 시작 조건: 노트북에서 `lora-server` systemd 상태 + Cloudflare Tunnel
-  Public Hostname 상태 확인(이 세션이 도는 호스트에선 `lora-server.service`
-  자체가 없어 원격 조치 불가 — 노트북에 직접 접근 필요).
-- 예상 소요: 원인이 단순 종료라면 재기동 5분 이내, 터널 설정 문제면
-  `_docs/lora-remote-gpu-ops.md` 절차 재확인 필요.
+~~💤 **5순위: 노트북 GPU/Cloudflare Tunnel 복구**~~ — **완료(2026-09-01,
+데스크톱으로 이전 재구축)**: 구 노트북 대신 데스크톱(DESKTOP-IOAQ7L7,
+RTX 3050 8GB, WSL2)에 lora-server를 새로 세팅. LoRA 어댑터·AWQ 백엔드는
+이 머신에 없어 **fp16 hf 백엔드 + 베이스 EXAONE-3.5-2.4B**로 기동
+(`/mnt/d/models/`, D 드라이브). gptqmodel 최신(7.x)이 transformers v5
+강제라 EXAONE 구식 remote code와 비호환 → serve.py의 gptqmodel 임포트를
+AWQ 분기 지연 임포트로 이동 + hf 분기에 `trust_remote_code`/`torch_dtype`
+수정(미사용이던 경로 정비). systemd 유저 서비스 2개(`lora-server`,
+`cloudflared-lora`) + linger 등록, 신규 터널 `lora-desktop`
+(7e1038e9-...)으로 `lora.suvisdev.cloud` CNAME 덮어쓰기. **EC2 왕복 실증**:
+`/mova/chat` → `POST https://lora.suvisdev.cloud/generate 200`, LoRA 경로
+복귀 확인. **같은 날 LoRA 재학습까지 완결**: EC2 프로덕션 DB로 교사
+데이터셋 재생성(65건 — 그라운딩 55 + no-pick 10, 스킵 49건은 주제형 질의의
+교사 그라운딩 한계) → EXAONE fp16에 plain LoRA 3에폭(loss 0.88→0.51,
+VRAM 7.9/8GB, gradient checkpointing 공통 적용으로 확장) →
+`mova_20260901_025206` 어댑터 서빙 반영 → EC2 채팅 E2E 정상 추천 3편
+(추격자·범죄와의 전쟁·범죄도시) 확인, 베이스 전용 시절의 깨진 제목
+('Actor:eal') 해소. `train_mova_lora.py` 수정 3건(gptqmodel 지연 임포트,
+EXAONE 로드 인자, `apply_chat_template` `return_dict=True` 버전 호환) —
+serve.py 수정 2건과 함께 **미커밋**. venv에서 gptqmodel 제거(transformers
+v5 강제라 사용 불가, AWQ 백엔드 재사용 시 재설치 필요).
+구 `lora-notebook` 터널(97489360)은 죽은 채 계정에 남아 있음(정리 가능).
 
 ~~💤 **7순위: 영화-컬렉션 배정 API/CLI 신설**~~ — **완료(2026-08-18)**:
 위 "완료됨" 참고. API(require_admin) + CLI 둘 다 신설. 8순위(컬렉션

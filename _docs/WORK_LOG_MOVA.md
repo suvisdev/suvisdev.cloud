@@ -28,6 +28,70 @@
 
 ---
 
+## 2026-09-01
+
+### 작업 내용
+- **8/31 배포 실측 마무리** — EC2 코드 `5e38138` 최신, alembic
+  `20260831_0003 (head)`, 신규 엔드포인트 라이브 확인(감정 요약 200,
+  투표 미인증 401). hub_knowledge 색인 2,972/2,972 전량 완료 실측,
+  ingest cron 라인은 이미 제거돼 있었음(고아 주석만 잔존 — 정리 안내).
+- **백로그 최신화 실측 2건** — `GEMINI_BACKFILL_API_KEY`는 로컬·EC2 양쪽에
+  이미 등재돼 있었고 야간 cron도 정상(움직일 것 없이 항목 종결).
+  `RECOMMENDATION_BACKEND=lora` + 터널 530 상태에서 Gemini 자동 폴백
+  체인이 프로덕션 실호출로 정상 작동함을 실증.
+- **감정분석 스케줄러 EC2 에러 원인 규명** — `'frozenset' object has no
+  attribute 'discard'`는 transformers 4.47.1 업스트림 버그
+  (`integrations/bitsandbytes.py:498`, `get_available_devices()`가
+  FrozenSet인데 CPU 전용 분기에서 `.discard` 호출). GPU 머신은 이 분기를
+  안 탐 — EC2 측 조치 불필요. **프로덕션 reviews 166건 중 감정 데이터
+  0건**(에디터 리뷰 160건 자동별점 대기) 발견 — Echo 어댑터가 있는 GPU
+  머신에서의 백필 실행이 백로그로 등재됨.
+- **lora-server 데스크톱(DESKTOP-IOAQ7L7) 재구축 + EC2 왕복 복구** —
+  8/6부터 끊겨 있던 LoRA 경로 복원. 사용자 요청으로 모델 가중치는
+  D 드라이브(`/mnt/d/models/`) 배치.
+- **LoRA 파인튜닝 완주** — 교사 데이터셋 재생성(EC2 prod DB) → 학습 →
+  서빙 반영 → E2E 검증까지. 베이스 전용 시절 깨진 제목('Actor:eal') 해소.
+
+### 수정/구현
+- `model_servers/lora_server/serve.py`: gptqmodel 임포트를 AWQ 분기 지연
+  임포트로 이동(transformers v4 환경에서 hf 백엔드 사용 가능), hf 분기에
+  `trust_remote_code=True` + `torch_dtype` 정정(미사용이던 경로 정비).
+- `suvisdev/scripts/train_mova_lora.py`: 동일 지연 임포트 + EXAONE 로드
+  인자 정정 + `apply_chat_template`에 `return_dict=True` 명시(버전별
+  반환형 차이 호환) + gradient checkpointing을 plain 백엔드에도 공통 적용
+  (fp16 2.4B가 8GB VRAM에서 OOM 없이 돌게 — 실측 7.9/8GB).
+- 인프라: `~/.venv-exaone`(system-site-packages, gptqmodel은 transformers
+  v5 강제라 제거), `~/.config/systemd/user/{lora-server,cloudflared-lora}.service`,
+  linger 활성화, cloudflared 사용자 영역 설치(`~/.local/bin`, sudo 불필요),
+  신규 터널 `lora-desktop`(7e1038e9) 생성 + `lora.suvisdev.cloud` CNAME
+  덮어쓰기(사용자 실행).
+
+### 오류·막힌 점
+- gptqmodel 7.x가 transformers>=5.14 강제 ↔ EXAONE 구식 remote code는
+  v5 비호환(`get_input_embeddings` NotImplementedError) → AWQ 경로 포기,
+  fp16 hf 백엔드로 전환(비양자화라 품질 손해 없음, VRAM 5.5GB).
+- transformers 4.47에서 `apply_chat_template(return_tensors="pt")`가 순수
+  텐서 반환 → 스크립트의 `["input_ids"]` 인덱싱이 IndexError →
+  `return_dict=True`로 통일.
+- 분류기 차단 3건(원격 crontab 덮어쓰기, DNS 라우팅, sudo linger)은
+  사용자가 직접 실행. `cloudflared tunnel login` cert가 브라우저 다운로드
+  (바탕화면)로 떨어져 수동 복사로 해결.
+- `pkill -f "uvicorn serve:app"`이 명령 자신을 매칭해 셸 자살 —
+  `serve:ap[p]` 패턴으로 회피.
+
+### 데이터
+- 교사 데이터셋 60→65건(그라운딩 55 + no-pick 10). 스킵 49건 대부분
+  "no grounded picks" — 주제형 질의(좀비·요리·재난 등)에서 태그 검색
+  후보와 교사 추천 불일치. TMDB keyword 태그 백필이 되면 개선 여지.
+- D 드라이브: EXAONE fp16 9GB 배치, 미사용 AWQ 2.1GB·pip 캐시 2.2GB 삭제.
+- LoRA 어댑터 `~/lora_adapters/mova_20260901_025206`(3에폭, loss
+  0.88→0.65→0.51), LATEST 갱신.
+
+### 산출물
+- E2E 검증: 프로덕션 `/mova/chat` → `lora.suvisdev.cloud/generate 200` →
+  "긴장감 넘치는 범죄 스릴러" = 추격자·범죄와의 전쟁·범죄도시.
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신(백로그 3건 종결·1건 신규).
+
 ## 2026-08-31
 
 ### 작업 내용
