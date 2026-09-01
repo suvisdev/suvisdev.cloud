@@ -13,6 +13,7 @@ from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
 from mova.adapter.outbound.orm.studio_movies_orm import ALLOWED_ORIGINAL_LANGUAGES, MovaMovie
 from mova.adapter.outbound.orm.studio_tags_orm import TAG_KIND_GENRE, MovaTag, slugify_tag
+from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.dtos.studio_import_dto import MovieUpsertCommand
 from mova.app.dtos.studio_movies_dto import (
     MovieDetailDto,
@@ -167,7 +168,9 @@ class MoviesPgRepository(MoviesRepositoryPort):
             count_stmt = count_stmt.where(cond)
 
         if query.sort == "rating":
-            stmt = stmt.order_by(MovaMovie.rating.desc())
+            # 순수 rating desc는 소수평가 5.0 노이즈가 최상단을 점령한다 —
+            # vote_count 가중 평점으로 정렬하고 표시 rating은 원본 유지.
+            stmt = stmt.order_by(weighted_rating_expr().desc(), MovaMovie.rating.desc())
         elif query.sort == "popular":
             # "인기순" = AI 채팅에서 픽된 횟수(=사용자 검색·질의 결과로 노출된 횟수)
             # 내림차순, 동점이면 평점 내림차순. picks가 0건인 영화는 rating으로만 순위.
@@ -180,7 +183,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
             stmt = stmt.outerjoin(pick_count_sub, pick_count_sub.c.movie_id == MovaMovie.id)
             stmt = stmt.order_by(
                 func.coalesce(pick_count_sub.c.pick_count, 0).desc(),
-                MovaMovie.rating.desc(),
+                weighted_rating_expr().desc(),
                 MovaMovie.id.desc(),
             )
         else:
@@ -418,6 +421,7 @@ class MoviesPgRepository(MoviesRepositoryPort):
                 title=command.title,
                 release_year=command.release_year,
                 rating=command.rating,
+                vote_count=command.vote_count,
                 poster_url=command.poster_url,
                 platforms=list(command.platforms or []),
                 age_rating=command.age_rating,
@@ -438,6 +442,8 @@ class MoviesPgRepository(MoviesRepositoryPort):
         existing.title = command.title
         existing.release_year = command.release_year
         existing.rating = command.rating
+        if command.vote_count:  # 0=미수집 — 기존 수집값을 지우지 않는다
+            existing.vote_count = command.vote_count
         if command.poster_url:
             existing.poster_url = command.poster_url
         if command.genres:

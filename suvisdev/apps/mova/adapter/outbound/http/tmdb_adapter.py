@@ -172,6 +172,11 @@ class TmdbAdapter:
         )
         return list(data.get("results") or [])
 
+    async def fetch_movie_vote_count(self, tmdb_id: int) -> int:
+        """vote_count만 필요할 때의 경량 조회 — append_to_response 없는 기본 상세."""
+        data = await self._get(f"/movie/{int(tmdb_id)}")
+        return int(data.get("vote_count") or 0)
+
     async def fetch_movie_keywords(self, tmdb_id: int) -> list[str]:
         """TMDB 키워드 이름 목록(영어 소문자) — 키워드 태그 백필용."""
         data = await self._get(f"/movie/{int(tmdb_id)}/keywords")

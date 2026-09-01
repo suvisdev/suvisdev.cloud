@@ -12,6 +12,7 @@ from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.adapter.outbound.orm.studio_tags_orm import MovaTag
+from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.dtos.studio_movies_dto import MovieListItemDto
 from mova.app.dtos.studio_search_dto import SearchResultDto
 from mova.app.ports.output.studio_search_repository import SearchRepositoryPort
@@ -74,7 +75,7 @@ class SearchPgRepository(SearchRepositoryPort):
                 await self._session.execute(
                     select(MovaMovie)
                     .where(MovaMovie.id.in_(select(matching_ids.c.id)))
-                    .order_by(match_score, MovaMovie.rating.desc())
+                    .order_by(match_score, weighted_rating_expr().desc())
                     .limit(limit)
                     .offset(offset)
                 )

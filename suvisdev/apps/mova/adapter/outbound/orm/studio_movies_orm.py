@@ -39,6 +39,12 @@ class MovaMovie(MovaModel):
     title: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     release_year: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    vote_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="TMDB vote_count — rating 노이즈 완화용 가중 정렬 시그널 (0=미수집)",
+    )
     poster_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     synopsis: Mapped[str | None] = mapped_column(Text, nullable=True)
     platforms: Mapped[list[Any]] = mapped_column(

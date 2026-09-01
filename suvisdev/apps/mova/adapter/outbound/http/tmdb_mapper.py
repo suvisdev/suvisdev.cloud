@@ -156,6 +156,7 @@ def map_tmdb_row(
         title=title,
         release_year=tmdb_release_year(str(row.get("release_date") or "")),
         rating=tmdb_rating(row.get("vote_average")),
+        vote_count=int(row.get("vote_count") or 0),
         poster_url=poster_url,
         genres=genres,
         overview=str(row.get("overview") or "").strip(),

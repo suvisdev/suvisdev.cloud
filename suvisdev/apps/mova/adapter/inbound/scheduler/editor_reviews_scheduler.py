@@ -92,6 +92,7 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
     from mova.adapter.outbound.llm.gemini_client import gemini_reply
     from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
     from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
+    from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 
     editor_id = await _ensure_editor_user()
     factory = get_mova_session_factory()
@@ -105,7 +106,7 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
                         select(MovaReview.movie_id).where(MovaReview.user_id == editor_id)
                     ),
                 )
-                .order_by(MovaMovie.rating.desc())
+                .order_by(weighted_rating_expr().desc())
                 .limit(limit)
             )
         ).all()

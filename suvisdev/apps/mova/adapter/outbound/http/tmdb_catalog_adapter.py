@@ -144,6 +144,7 @@ class TmdbCatalogAdapter(TmdbCatalogPort):
                 title=mapped.title,
                 release_year=mapped.release_year,
                 rating=mapped.rating,
+                vote_count=mapped.vote_count,
                 poster_url=mapped.poster_url,
                 genres=map_genre_objects(list(row.get("genres") or [])),
                 overview=mapped.overview,

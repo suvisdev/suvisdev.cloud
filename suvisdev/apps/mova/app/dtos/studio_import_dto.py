@@ -30,6 +30,8 @@ class TmdbMovieSnapshotDto:
     rating: float
     poster_url: str
     genres: list[str]
+    # TMDB vote_count — rating 노이즈 완화 가중 정렬 시그널 (목록 응답에도 포함됨).
+    vote_count: int = 0
     # Hub(ontology) RAG 색인(hub_rag.ingest_movie)과 movies.synopsis 양쪽에 쓰인다.
     overview: str = ""
     cast: list[str] = field(default_factory=list)
@@ -78,6 +80,7 @@ class MovieUpsertCommand:
     rating: float
     poster_url: str
     genres: list[str]
+    vote_count: int = 0
     age_rating: str | None = None
     platforms: list[dict[str, str | None]] = field(default_factory=list)
     synopsis: str | None = None

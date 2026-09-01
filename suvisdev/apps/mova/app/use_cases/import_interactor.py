@@ -204,6 +204,7 @@ class ImportInteractor(ImportUseCase):
             title=snap.title,
             release_year=snap.release_year,
             rating=snap.rating,
+            vote_count=snap.vote_count,
             poster_url=snap.poster_url,
             genres=snap.genres,
             synopsis=snap.overview,

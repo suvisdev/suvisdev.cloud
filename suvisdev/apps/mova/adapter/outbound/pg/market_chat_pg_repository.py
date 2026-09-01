@@ -22,6 +22,7 @@ from mova.adapter.outbound.orm.studio_characters_orm import MovaCharacter
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector
 from mova.adapter.outbound.orm.studio_movies_orm import ALLOWED_ORIGINAL_LANGUAGES, MovaMovie
 from mova.adapter.outbound.orm.studio_tags_orm import MovaTag
+from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,8 @@ class ChatPgRepository(ChatRepositoryPort):
         추천에 1950~70년대 작품이 뜬금없이 뜨는 것 방지(2026-08-25 사용자 지적).
         연도 필터를 명시한 질의는 conds가 이미 좁혀서 이 정렬의 영향이 없다."""
         cutoff = datetime.now(UTC).year - 15
-        return [(MovaMovie.release_year >= cutoff).desc(), MovaMovie.rating.desc()]
+        # rating 단독 desc는 소수평가 5.0 노이즈가 후보를 오염 — 가중 평점 사용.
+        return [(MovaMovie.release_year >= cutoff).desc(), weighted_rating_expr().desc()]
 
     async def _movies_by_ids(
         self, movie_ids: set[int], limit: int, conds: list[Any]
