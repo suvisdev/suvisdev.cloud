@@ -65,7 +65,9 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         factory = _make_session_factory()
         reviews_repo = MagicMock()
         # rating 0짜리만 있으면 weights_sum <= 0 → cleared
-        reviews_repo.list_embedded_reviews_by_user = AsyncMock(return_value=[(1, 0.0, [1.0, 2.0])])
+        reviews_repo.list_embedded_reviews_by_user = AsyncMock(
+            return_value=[(1, 0.0, [1.0, 2.0], None, None)]
+        )
         taste_repo = MagicMock()
         taste_repo.upsert = AsyncMock()
 
@@ -83,7 +85,7 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         factory = _make_session_factory()
         reviews_repo = MagicMock()
         reviews_repo.list_embedded_reviews_by_user = AsyncMock(
-            return_value=[(1, 4.0, [1.0, 2.0]), (2, 2.0, [3.0, 4.0])]
+            return_value=[(1, 4.0, [1.0, 2.0], None, None), (2, 2.0, [3.0, 4.0], None, None)]
         )
         taste_repo = MagicMock()
         taste_repo.upsert = AsyncMock()

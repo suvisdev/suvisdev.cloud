@@ -91,6 +91,16 @@
 - E2E 검증: 프로덕션 `/mova/chat` → `lora.suvisdev.cloud/generate 200` →
   "긴장감 넘치는 범죄 스릴러" = 추격자·범죄와의 전쟁·범죄도시.
 - `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신(백로그 3건 종결·1건 신규).
+- 지킬 포스트 `2026-09-01-mova-lora-desktop-rebuild` 배포(Pages 빌드 성공).
+- **후속 테스트 정리** — 전체 pytest에서 8/31 커밋의 드리프트 2건 발견·수정:
+  `list_embedded_reviews_by_user`가 5-tuple(sentiment 포함)로 확장됐는데
+  `test_platform_user_taste_vector.py` mock이 3-tuple로 남아 있었음(sentiment
+  None 추가, 기대값 불변). 리뷰 라우터 3건 실패는 이 데스크톱에 로컬 DB가
+  없어서였음 — `docker compose up -d db redis` + 빈 DB에 `alembic upgrade
+  head`(20260831_0003까지 전체 체인 무결 확인)로 로컬 개발 DB 세팅 후
+  **728 passed, 0 failed**(8/31 기준선과 동일). 8/31 커밋에서
+  `market_review_votes_orm`의 importlinter 예외 누락도 발견·등재(커밋
+  `1449dbc`에 포함).
 
 ## 2026-08-31
 
