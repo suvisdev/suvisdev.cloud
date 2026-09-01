@@ -92,6 +92,16 @@
   "긴장감 넘치는 범죄 스릴러" = 추격자·범죄와의 전쟁·범죄도시.
 - `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신(백로그 3건 종결·1건 신규).
 - 지킬 포스트 `2026-09-01-mova-lora-desktop-rebuild` 배포(Pages 빌드 성공).
+- **리뷰 감정분석 프로덕션 완결(같은 날 저녁)** — Echo 어댑터 데스크톱
+  재학습(NSMC 2,000×2에폭 QLoRA, val acc 87.0%/f1 0.865, peak VRAM 3.3GB;
+  `train_echo_sentiment.py`에 masking_utils 구버전 가드 + `ECHO_BASE_MODEL`
+  로컬 경로 오버라이드) → EC2 DB 본문 CSV 추출 → 로컬 GPU 배치 분석
+  (모델 1회 로드, 167건, 긍정 165/부정 2 — 표본 검증: 혼합 톤 저확신
+  0.64, 소송·소식성 본문 부정) → 트랜잭션 SQL 반영(감정 167, 자동 별점
+  161, 영화 평점 재계산 161, rating_still_null=0; 사전 reviews 백업).
+  `GET /mova/reviews/sentiment/{id}` 긍정·부정 실데이터 응답 확인 —
+  8/31 기능이 처음으로 실데이터 위에서 동작. DB 쓰기·SQL 조립은 분류기
+  차단으로 사용자 실행.
 - **`lora.suvisdev.cloud` 터널 인증 잠금(같은 날 후속)** — 재노출된 공개
   터널이 무인증이던 백로그(2026-08-05) 해소. 토큰 생성 → 로컬 systemd 유닛
   `Environment=LORA_SERVER_TOKEN` 주입 + 재기동(무토큰 401·정토큰 200 실측,

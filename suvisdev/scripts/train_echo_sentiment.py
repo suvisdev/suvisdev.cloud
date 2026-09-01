@@ -22,6 +22,7 @@ Usage (suvisdev 폴더에서, GPU 필요 — 실행 전 lora-server 등 다른 G
 from __future__ import annotations
 
 import json
+import os
 import types
 from pathlib import Path
 
@@ -30,7 +31,8 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-MODEL_ID = "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct"
+# 로컬에 받아둔 체크포인트(예: 4.47 호환 고정 리비전 디렉터리)로 대체 가능.
+MODEL_ID = os.getenv("ECHO_BASE_MODEL", "LGAI-EXAONE/EXAONE-3.5-2.4B-Instruct")
 DATA_DIR = (
     Path(__file__).resolve().parents[1] / "apps" / "ontology" / "resources" / "echo_sentiment_train"
 )
@@ -49,35 +51,39 @@ GRAD_ACCUM = 4
 EPOCHS = 2
 LEARNING_RATE = 2e-4
 
-print(
-    "=== patching transformers.masking_utils.create_causal_mask (EXAONE remote code signature drift) ==="
-)
-import transformers.masking_utils as _masking_utils
+# transformers 4.53+ 전용 모듈 — 구버전(4.47)에는 없고, 고정 리비전(e949c91)
+# remote code는 create_causal_mask를 아예 안 쓰므로 패치 없이 그대로 돈다.
+try:
+    import transformers.masking_utils as _masking_utils
+except ModuleNotFoundError:
+    _masking_utils = None
 
-_original_create_causal_mask = _masking_utils.create_causal_mask
-
-
-def _compat_create_causal_mask(
-    *,
-    config,
-    input_embeds=None,
-    inputs_embeds=None,
-    attention_mask=None,
-    cache_position=None,
-    past_key_values=None,
-    position_ids=None,
-    **_ignored,
-):
-    return _original_create_causal_mask(
-        config=config,
-        inputs_embeds=input_embeds if input_embeds is not None else inputs_embeds,
-        attention_mask=attention_mask,
-        past_key_values=past_key_values,
-        position_ids=position_ids,
+if _masking_utils is not None:
+    print(
+        "=== patching transformers.masking_utils.create_causal_mask (EXAONE remote code signature drift) ==="
     )
+    _original_create_causal_mask = _masking_utils.create_causal_mask
 
+    def _compat_create_causal_mask(
+        *,
+        config,
+        input_embeds=None,
+        inputs_embeds=None,
+        attention_mask=None,
+        cache_position=None,
+        past_key_values=None,
+        position_ids=None,
+        **_ignored,
+    ):
+        return _original_create_causal_mask(
+            config=config,
+            inputs_embeds=input_embeds if input_embeds is not None else inputs_embeds,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
+        )
 
-_masking_utils.create_causal_mask = _compat_create_causal_mask
+    _masking_utils.create_causal_mask = _compat_create_causal_mask
 
 
 def load_jsonl(path: Path) -> list[dict]:

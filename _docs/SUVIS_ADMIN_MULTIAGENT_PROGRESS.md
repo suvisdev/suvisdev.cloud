@@ -879,23 +879,22 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 
 ## 다음 / 남은 작업 (백로그)
 
-### mova 리뷰 감정분석 — 프로덕션 데이터 0건, GPU 실행 경로 필요 (2026-09-01 실측)
-- **현황**: 8/31 배포된 감정분석 통합(자동 별점·감정 요약·신뢰도 태그)의
-  **읽기 경로는 전부 라이브**이나, 프로덕션 reviews 166건 중
-  `sentiment_label` 채워진 것 **0건**(rating NULL 에디터 리뷰 160건 대기).
-  분석을 실제로 돌린 적이 한 번도 없다 — 표시 기능은 빈 데이터로 동작 중.
-- **EC2 에러 원인 규명 완료**: `'frozenset' object has no attribute 'discard'`는
-  transformers 4.47.1 업스트림 버그(`integrations/bitsandbytes.py:498` —
-  `get_available_devices()`가 FrozenSet 반환인데 CPU 전용 분기에서
-  `.discard("cpu")` 호출). **CPU 전용 머신에서만 타는 분기**라 GPU 머신은
-  무관하고, 버그가 없었어도 EC2는 "bitsandbytes 미지원 디바이스" RuntimeError로
-  실패하는 게 의도된 경로 — EC2 측 조치 불필요(스케줄러는 2주기 후 자동 종료).
-- **남은 것**: Echo LoRA 어댑터(`apps/ontology/runs/echo_sentiment/adapter`)가
-  **GPU 노트북에만 존재**(현 세션 호스트는 RTX 3050은 있으나 runs/ 없음).
-  노트북에서 프로덕션 DB를 대상으로 `scripts/backfill_review_sentiment_cli.py`
-  실행이 필요 — lora-server 재기동(위 5순위)과 같은 물리 접근 블로커.
-  실행 후 `GET /mova/reviews/sentiment/{id}` 실데이터 확인 + 에디터 리뷰
-  자동 별점 부여 확인까지가 완결 조건.
+### ~~mova 리뷰 감정분석 — 프로덕션 데이터 0건~~ — **완결(2026-09-01 저녁)**
+- **Echo 어댑터 데스크톱 재학습**: `train_echo_sentiment.py`를 이 머신 환경에
+  맞춤(masking_utils 구버전 가드 + `ECHO_BASE_MODEL` 로컬 경로 오버라이드)
+  후 NSMC 2,000건 × 2에폭 QLoRA — **val acc 87.0%, f1 0.865**(노트북 기준선
+  87.75%와 동등). 어댑터는 `runs/echo_sentiment/adapter`(gitignore, 이 머신
+  로컬).
+- **프로덕션 백필 완료**: EC2 DB에서 본문 추출 → 로컬 GPU 배치 분석(모델
+  1회 로드, 어댑터 per-call 로드 설계 대신 일회성 배치 스크립트) → 트랜잭션
+  SQL로 반영(감정 167건 = 긍정 165/부정 2, 에디터 리뷰 자동 별점 161건,
+  영화 평균 평점 재계산 161편, `rating_still_null=0`). 반영 전 reviews 전체
+  CSV 백업. DB 쓰기 단계는 분류기 차단으로 사용자 실행.
+- **라이브 검증**: `GET /mova/reviews/sentiment/{id}` 긍정·부정 케이스 모두
+  실데이터 응답 확인. frozenset 에러는 transformers 4.47.1 업스트림 버그
+  (CPU 전용 분기)로 규명 — EC2 측 조치 불필요.
+- **후속 참고**: 향후 신규 리뷰 감정분석도 이 데스크톱에서 실행(EC2는 GPU
+  없음). 반복 시 이번 배치 절차(CSV 왕복) 또는 SSH 터널+CLI 경로 정비 검토.
 
 ### 코드 품질 부채 (2026-08-26 전체 검증에서 실측)
 - ~~**mypy 재활성화**~~ — **완료(2026-08-31)**: 415건(1079파일 대상) → 0건.
