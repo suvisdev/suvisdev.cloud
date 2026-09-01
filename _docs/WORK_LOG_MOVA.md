@@ -92,6 +92,14 @@
   "긴장감 넘치는 범죄 스릴러" = 추격자·범죄와의 전쟁·범죄도시.
 - `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 갱신(백로그 3건 종결·1건 신규).
 - 지킬 포스트 `2026-09-01-mova-lora-desktop-rebuild` 배포(Pages 빌드 성공).
+- **`lora.suvisdev.cloud` 터널 인증 잠금(같은 날 후속)** — 재노출된 공개
+  터널이 무인증이던 백로그(2026-08-05) 해소. 토큰 생성 → 로컬 systemd 유닛
+  `Environment=LORA_SERVER_TOKEN` 주입 + 재기동(무토큰 401·정토큰 200 실측,
+  `/health`만 공개 유지), `docker-compose.yaml`에
+  `LORA_SERVER_TOKEN=${LORA_SERVER_TOKEN:-}` 매핑 추가(**compose 미매핑이면
+  .env에 넣어도 컨테이너에 안 들어가는 8/5 LORA_SERVER_URL 함정과 동일
+  구조를 선제 차단**). EC2 `.env` 등재는 분류기 차단으로 사용자 실행,
+  이후 backend 재생성·E2E 재검증.
 - **후속 테스트 정리** — 전체 pytest에서 8/31 커밋의 드리프트 2건 발견·수정:
   `list_embedded_reviews_by_user`가 5-tuple(sentiment 포함)로 확장됐는데
   `test_platform_user_taste_vector.py` mock이 3-tuple로 남아 있었음(sentiment
