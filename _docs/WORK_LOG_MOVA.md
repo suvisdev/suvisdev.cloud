@@ -102,6 +102,15 @@
   `GET /mova/reviews/sentiment/{id}` 긍정·부정 실데이터 응답 확인 —
   8/31 기능이 처음으로 실데이터 위에서 동작. DB 쓰기·SQL 조립은 분류기
   차단으로 사용자 실행.
+- **TMDB keyword 기반 태그 백필 구현(같은 날 밤)** — 백로그(2026-08-25,
+  franchise_expansion의 체계적 대체재) 착수. 채팅 태그 매칭이
+  `tags.label ILIKE %한국어%`라서 영어 키워드를 그대로 넣으면 무의미 —
+  **선별 EN→KO 매핑 사전**(`tmdb_keyword_map.py`, 164 엔트리: 좀비·타임루프·
+  법정·요리·재난 등 교사 데이터셋 스킵 49건 주제 실측 기반)으로 변환해
+  tags(kind=mood)에 적재. `TmdbAdapter.fetch_movie_keywords()` 신규 +
+  `scripts/backfill_tmdb_keyword_tags.py`(--limit/--dry-run,
+  ON CONFLICT DO NOTHING 멱등, RETURNING 카운트 — 벌크 rowcount -1 이슈
+  회피). 로컬 실검증: 부산행 → 기차·전염병·좀비 자동 태깅, 재실행 신규 0.
 - **`lora.suvisdev.cloud` 터널 인증 잠금(같은 날 후속)** — 재노출된 공개
   터널이 무인증이던 백로그(2026-08-05) 해소. 토큰 생성 → 로컬 systemd 유닛
   `Environment=LORA_SERVER_TOKEN` 주입 + 재기동(무토큰 401·정토큰 200 실측,

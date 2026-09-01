@@ -172,6 +172,11 @@ class TmdbAdapter:
         )
         return list(data.get("results") or [])
 
+    async def fetch_movie_keywords(self, tmdb_id: int) -> list[str]:
+        """TMDB 키워드 이름 목록(영어 소문자) — 키워드 태그 백필용."""
+        data = await self._get(f"/movie/{int(tmdb_id)}/keywords")
+        return [str(k["name"]).strip().lower() for k in data.get("keywords") or [] if k.get("name")]
+
     async def fetch_movie_detail(self, tmdb_id: int) -> dict[str, Any]:
         return await self._get(
             f"/movie/{int(tmdb_id)}",
