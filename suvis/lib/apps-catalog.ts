@@ -50,4 +50,15 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     image: "/apps-seuk.jpg",
     team: "Team Seuk",
   },
+  {
+    id: "arda",
+    titleKo: "ARDA",
+    titleEn: "AI Recruitment Assistant",
+    href: "https://arda.seuk.cloud",
+    available: true,
+    imageFirst: false,
+    gradient: "from-violet-500 via-purple-600 to-indigo-700",
+    icon: "💼",
+    team: "Team Seuk",
+  },
 ]

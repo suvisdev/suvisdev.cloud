@@ -309,6 +309,7 @@ export function MovaAiChatBar({
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
 
   const listRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
   const heroInputRef = useRef<HTMLTextAreaElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
@@ -430,7 +431,9 @@ export function MovaAiChatBar({
 
   useEffect(() => {
     if (isInitial) return
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" })
+    requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    })
   }, [chat.messages, chat.loading, isInitial])
 
   // 히어로 → 채팅 모드 전환 후 채팅 입력창에 자동 포커스
@@ -722,6 +725,7 @@ export function MovaAiChatBar({
             </div>
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
 
       {chat.error && (
