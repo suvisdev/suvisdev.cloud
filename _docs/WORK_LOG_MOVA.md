@@ -107,6 +107,80 @@
   ("좀 ", "지금 ", "오늘 ") 제거는 유지. 회귀 테스트 3건
   (`FillerWordBoundaryTests`).
 
+### 작업 내용 (후속 3 — 교사 데이터셋 재생성 + LoRA 재학습 완주, 오후)
+- 태그 백필(9/1 프로덕션 완주)과 `_FILLER` 수정(9/2 오전)의 마무리 학습.
+  EC2 backend 컨테이너에서 `gen_teacher_dataset.py` 재실행(분류기 차단으로
+  기동 명령은 사용자가 `!`로 실행, 기존 jsonl은 `.bak-20260901` 백업) —
+  **92건**(그라운딩 82 + no-pick 10), 스킵 49→17건. 좀비·타임루프·요리·
+  재난 등 주제형이 대부분 부활(잔여 17건은 catalog empty 3 + 배우명·형사물
+  등 no grounded picks 14 — 태그 사전 확장 여지).
+- 데스크톱 재학습: EXAONE fp16 + plain LoRA 3에폭, loss 0.84→0.64→0.52
+  (92건 기준 약 15분, VRAM 8.0/8.2GB). 어댑터 `mova_20260902_055400`,
+  LATEST 갱신 → lora-server 재기동.
+- **학습 직후 서버 기동 시 감속 재현·해소** — 학습 종료 직후 바로 start하면
+  구 프로세스/학습 VRAM의 지연 반환과 겹쳐 로드가 스필돼 256tok 31~34s
+  (≈8tok/s)로 열화. stop → VRAM 반환 확인 → start 순서로 재기동하니
+  워밍업 후 **8.7s**로 기준선(8.5s) 회복. 운영 수칙: 학습 후 서버 기동은
+  `nvidia-smi`로 VRAM이 내려간 것을 보고 나서 할 것.
+- **프로덕션 E2E**: "좀비 영화 추천해줘" → 군체·부산행·곡성,
+  "타임루프 소재 영화 추천해줘" → 엣지 오브 투모로우·하루·소스 코드.
+  lora-server 액세스 로그에 EC2 IP(3.38.102.241)발 `/generate 200` 확인 —
+  LoRA 경로 실사용 검증.
+
+### 작업 내용 (후속 4 — lora-server llama.cpp GGUF 전환, 저녁)
+- 채팅 응답 속도 개선(사용자 요청). E2E 분해 결과 LoRA 생성이 지배 요인이라
+  서빙을 transformers fp16 → **llama.cpp Q5_K_M GGUF**로 전환.
+- **파이프라인**: `scripts/export_mova_gguf.py` 신규 — LATEST 어댑터를
+  베이스에 병합(GPU) → `convert_hf_to_gguf.py` f16 변환 → `llama-quantize`
+  Q5_K_M(1.7GB, fp16 4.8GB 대비 1/3) → `~/lora_adapters/LATEST_GGUF` 갱신.
+  재학습 날은 train → export → /reload 세트가 됨.
+- **서빙**: `model_servers/lora_server/serve_gguf.py` 신규 — llama-server
+  (CUDA 빌드)를 자식 프로세스(:8201)로 관리하고 /health·/generate·/reload
+  계약을 serve.py와 동일하게 유지하는 파사드. `/generate`는 OpenAI
+  /v1/chat/completions로 변환(temperature=0, HF greedy와 동치). **EC2
+  orchestrator·백엔드 변경 0건.** systemd 유닛만 serve_gguf:app으로 교체
+  (구 serve.py는 롤백용 보존). 기동 100초 → 12초, VRAM 5.5GB → 2.7GB.
+- **환경 구축**: cmake + nvidia-cuda-toolkit(우분투 26.04 repo, CUDA 12.4)
+  사용자 설치, gcc-13 호스트 컴파일러로 llama.cpp CUDA 빌드(compute 8.6).
+  llama.cpp master의 EXAONE 변환 회귀 발견 — conversion/exaone.py 리팩터링
+  과정에서 RMS eps 키가 non-RMS 키(`layer_norm_epsilon`)로 기록돼
+  llama-quantize가 `exaone.attention.layer_norm_rms_epsilon` 없음 에러.
+  ~/llama.cpp에 한 줄 로컬 패치(add_layer_norm_rms_eps 명시)로 해결 —
+  **llama.cpp 업데이트 시 패치 유실 주의**(재적용 필요할 수 있음).
+- **실측**: 서버 경유 256tok 8.7s → **3.2s**(디코드 83tok/s, 프리필
+  2,000tok/s). 프로덕션 E2E 좀비·타임루프·인사 3종 정상(픽이 fp16과 동일 —
+  Q5 양자화 품질 손실 없음 확인). E2E 총 6.8s의 분해: 분류기 Gemini
+  2.06s + 의도 추출 Gemini 0.91s + 임베딩 0.39s + DB 0.04s + **LoRA 생성
+  2.41s**(전환 전 ~6s) — **병목이 생성에서 분류기 Gemini 호출로 이동**.
+  후속 개선 후보: 분류기와 (의도 추출→RAG) 체인의 투기적 병렬화(E2E
+  ~4.5s 예상, 비추천 트랙에서 Gemini 쿼터 낭비 트레이드오프).
+- **운영 노트**: 노트북·데스크톱 이중 서빙 요청(사용자) — 같은
+  `lora-desktop` 터널 자격증명을 노트북에도 배치하는 replica 방식으로
+  가능(살아있는 커넥터로만 라우팅, 코드·DNS 변경 없음). GGUF 단일 파일
+  (1.7GB)이라 동기화도 S3 경유로 간단. 노트북 세팅은 저녁(집) 예정.
+
+### 작업 내용 (후속 5 — mova 전체 점검 + DB 정비, 사용자 요청)
+- **전수 점검 결과(이상 보고 후 사용자 지시로 정비 착수)**: pytest 287
+  passed · import-linter 6 KEPT · mypy 295파일 0건 · EC2 코드 드리프트
+  없음. DB(전부 읽기 전용): 고아 FK 0(tags·picks·reviews·votes·characters),
+  태그/slug 중복 0, 평점 범위 위반 0, movies·hub 임베딩 누락 0, 태그
+  커버리지 3,356/3,411편(98.4%). hub 2,972→2,963은 purge v2 9편과 정합.
+  ruff 6건은 핀(v0.4.9) 대비 로컬 0.16.4 신규 룰 노이즈로 판정(기존 파일,
+  이상 없음 — 사용자 확인).
+- **발견 3건 중 정비 대상 2건 실행**(`scripts/run_db_maintenance_20260902.sh`,
+  프로덕션 쓰기는 분류기 차단으로 사용자 실행, SSH 터널 15432 경유):
+  ① 9/1 이후 자동 생성된 에디터 리뷰 41건 감정분석+자동별점+영화평점
+  재계산(정식 CLI `backfill_review_sentiment_cli.py` 재사용 — 이 CLI가
+  update_rating_if_null→_update_movie_rating까지 부르는 완결 경로임을 확인),
+  ② vote_count=0 신규 인입분 백필(멱등), ③ TMDB 삭제 404 영화 id=2769
+  (ARTMS: Icarus, 유저 데이터 0건 사전 확인) CASCADE 삭제. 커밋 시점
+  기준 ①이 진행 중(건당 모델 로드라 41건 ≈ 30분) — 완료 카운트는 로그
+  (`~/db_maintenance_20260902.log`)로 검증 예정.
+- **접속 방법 메모**: 데스크톱→프로덕션 DB는 `ssh -f -N -L 15432:localhost:5432
+  aws` 터널 + `.env`의 `MOVA_DATABASE_URL` 포트만 임시 15432로 변경(백업
+  `.env.bak-sentiment-backfill`, 작업 후 원복). 로컬 CLI가 keymaker를 임포트하지
+  않는 경우 `MOVA_DATABASE_URL` 셸 export 필요. 9/1의 CSV 왕복보다 간단.
+
 ### 오류·막힌 점
 - 없음. mypy를 테스트 파일에 직접 걸면 나오는 2건은 수정 전부터 있던
   기존 에러(프로젝트 mypy는 tests 제외 — 8/31 재활성화 설정 그대로).
@@ -115,7 +189,9 @@
   재발 감시 필요(재발 시 lora-server 재시작이 응급 처치).
 
 ### 데이터
-- 변경 없음(코드·테스트·규칙 문서만).
+- 교사 데이터셋 65→92건(`suvisdev/datasets/chat_teacher_dataset.jsonl`,
+  EC2 원본 백업 `.bak-20260901`). LoRA 어댑터
+  `~/lora_adapters/mova_20260902_055400`(3에폭, loss 0.84→0.52).
 
 ### 산출물
 - RAG 합집합: 커밋 `9c146d5`, `apps/mova/tests` 281 passed, import-linter
