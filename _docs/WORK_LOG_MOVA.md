@@ -190,6 +190,32 @@
   엑스 마키나·혹성탈출: 진화의 시작(전부 SF+드라마 교집합 작품),
   로그 `RAG+태그 합집합 후보 16편(태그 keyword)` recs=3.
 
+### 작업 내용 (후속 5 — "최신영화 알려줘" booking 오분류 실사고)
+- 배포 직후 사용자 실사용 보고: "최신영화 알려줘" → "비슷한 제목이 여러
+  편이에요: 간신(2015) / 변신(2012) / 실(2020). 어떤 작품을 예매하시려나요?"
+  카드 0개. 프로덕션 로그 추적(trace=8b0789b7·621b25e4): destination=booking,
+  status=ambiguous — 3중 결함 규명. ① **주원인**: 후속 2에서 booking 기준을
+  넓힌 프롬프트 예시("요즘 상영작 알려줘")와 표면이 거의 같아(요즘≈최신 +
+  "알려줘") LLM이 booking으로 오분류, 예매 어휘가 전혀 없어도 막는 가드
+  부재. ② booking 트랙에서 `_DISCOVERY_PATTERN` 미매칭 → 제목 해석기
+  직행 → "최신"이 간신/변신/실에 자모 퍼지 매칭 → ambiguous 되묻기.
+  ③ recommend로 갔어도 `_guess_year_range`에 최신 어휘 매핑이 없어(클래식
+  →year_max만 존재) 최신작 필터가 안 걸렸을 것.
+
+### 수정/구현 (후속 5)
+- `qwen_intent_classifier.py`: ① `_BOOKING_VOCAB` 결정론 가드 — LLM이
+  booking을 반환해도 예매·예약·티켓·표 끊·상영·극장·영화관·보러·시간표·
+  어디서가 하나도 없으면 recommend로 교정(기존 `_META_COMPLAINT_PATTERNS`
+  가드와 같은 패턴). ② 프롬프트에 반례 명시 + "최신영화 알려줘"→recommend
+  예시 추가.
+- `intent_extraction.py` `_guess_year_range`: 최신·신작 → `year_min=올해-1`,
+  최근 → `year_min=올해-5`(클래식→1999의 대칭). 명시 연대·연도 우선 유지.
+- 테스트 6건 신규(분류기 가드 3 + 연도 매핑 3), `.claude/rules/mova-chat.md`
+  §8·§2 불변식 반영.
+
+### 산출물 (후속 5)
+- mova+분류기 316 passed, mypy 변경 파일 2건 클린.
+
 ### 작업 내용
 - **8/31 배포 실측 마무리** — EC2 코드 `5e38138` 최신, alembic
   `20260831_0003 (head)`, 신규 엔드포인트 라이브 확인(감정 요약 200,

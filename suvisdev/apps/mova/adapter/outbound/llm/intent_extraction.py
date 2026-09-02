@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
@@ -163,6 +164,13 @@ _YEAR_RE = re.compile(r"(19\d{2}|20\d{2})\s*년(?!대)")
 _ERA_WORDS = ("클래식", "고전", "옛날")
 _ERA_YEAR_MAX = 1999
 
+# "최신영화 알려줘" 실사고(2026-09-02): 클래식과 대칭으로 최신 어휘도 연도
+# 조건으로 해석한다 — 최신·신작은 올해-1(진짜 신작 기대), 최근은 올해-5.
+_RECENT_STRICT_WORDS = ("최신", "신작")
+_RECENT_STRICT_SPAN = 1
+_RECENT_LOOSE_WORDS = ("최근",)
+_RECENT_LOOSE_SPAN = 5
+
 
 def _guess_countries(text: str) -> list[str]:
     hay = text.lower()
@@ -187,6 +195,10 @@ def _guess_year_range(text: str) -> tuple[int | None, int | None]:
         return year, year
     if any(word in text for word in _ERA_WORDS):
         return None, _ERA_YEAR_MAX
+    if any(word in text for word in _RECENT_STRICT_WORDS):
+        return datetime.now(UTC).year - _RECENT_STRICT_SPAN, None
+    if any(word in text for word in _RECENT_LOOSE_WORDS):
+        return datetime.now(UTC).year - _RECENT_LOOSE_SPAN, None
     return None, None
 
 

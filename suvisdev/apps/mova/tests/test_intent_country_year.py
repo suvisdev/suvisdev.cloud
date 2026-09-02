@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -58,6 +59,20 @@ class GuessYearRangeTests(unittest.TestCase):
 
     def test_explicit_decade_wins_over_era_vocab(self) -> None:
         self.assertEqual(_guess_year_range("90년대 클래식 명작"), (1990, 1999))
+
+    def test_recent_vocab_maps_to_year_min(self) -> None:
+        """"최신영화 알려줘" 실사고(2026-09-02): 최신·신작이 연도 조건으로
+        해석되지 않았다 — 클래식→year_max의 대칭으로 하한을 올해-1로 근사."""
+        this_year = datetime.now(UTC).year
+        self.assertEqual(_guess_year_range("최신영화 알려줘"), (this_year - 1, None))
+        self.assertEqual(_guess_year_range("신작 뭐 나왔어"), (this_year - 1, None))
+
+    def test_loose_recent_vocab_maps_to_wider_year_min(self) -> None:
+        this_year = datetime.now(UTC).year
+        self.assertEqual(_guess_year_range("최근 코미디 영화"), (this_year - 5, None))
+
+    def test_explicit_year_wins_over_recent_vocab(self) -> None:
+        self.assertEqual(_guess_year_range("2015년 최신 리마스터"), (2015, 2015))
 
 
 class BuildSearchFiltersTests(unittest.TestCase):

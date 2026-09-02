@@ -7,6 +7,7 @@ semantic_router_interactor(독립 게이트웨이 엔드포인트)와 mova ChatI
 from __future__ import annotations
 
 import logging
+import re
 
 from ontology.adapter.outbound.llm.json_extract import extract_first_json
 from ontology.app.ports.output.hub_llm_port import HubLlmPort
@@ -35,6 +36,12 @@ _META_COMPLAINT_PATTERNS: tuple[str, ...] = (
     "보여줘야지",  # "엄선을 했으면 보여줘야지"
 )
 
+# 예매 의도 어휘 — 하나도 없는 질문을 모델이 booking으로 보내면 recommend로
+# 교정한다("최신영화 알려줘" 실사고 2026-09-02: 프롬프트의 '요즘 상영작 알려줘'
+# 예시와 표면이 비슷해 booking으로 새고, 제목 퍼지 매칭이 간신/변신/실 같은
+# 무관 후보로 "어떤 작품을 예매하시려나요?" 되물었다).
+_BOOKING_VOCAB = re.compile(r"예매|예약|티켓|표\s*끊|상영|극장|영화관|보러|시간표|어디서")
+
 _ROUTING_SYSTEM_PROMPT = """너는 영화를 추천하고, 평가하고, 예매까지 돕는 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
 아래 JSON 스키마로만 응답하고, 다른 설명·인사말·예시는 절대 붙이지 마.
 
@@ -52,6 +59,8 @@ _ROUTING_SYSTEM_PROMPT = """너는 영화를 추천하고, 평가하고, 예매�
   (예: "호프 예매하고 싶어", "인셉션 어디서 상영해?", "듄 표 끊고 싶은데")
   제목이 없어도 "지금 예매/상영 중인 영화"를 찾는 질문은 booking이야
   (예: "지금 예매할 수 있는 영화 뭐 있어?", "요즘 상영작 알려줘").
+  단, 예매·상영·극장 표현이 전혀 없이 영화를 소개해 달라는 질문은
+  recommend야 ("최신영화 알려줘", "신작 뭐 나왔어"는 recommend).
 - crud: 데이터 생성·수정·삭제를 명확히 요구하는 질문 (예: "이 영화 리뷰 삭제해줘")
 - general: 영화와 무관한 인사·잡담·일반 상식 (예: "안녕", "오늘 날씨 어때", "너는 누구야")
 
@@ -79,6 +88,9 @@ _ROUTING_SYSTEM_PROMPT = """너는 영화를 추천하고, 평가하고, 예매�
 
 질문: "지금 예매할 수 있는 영화 뭐 있어?"
 답변: {"destination": "booking", "entities": []}
+
+질문: "최신영화 알려줘"
+답변: {"destination": "recommend", "entities": ["최신", "영화"]}
 
 질문: "듄 어디서 상영해?"
 답변: {"destination": "booking", "entities": ["듄"]}
@@ -151,5 +163,8 @@ class QwenIntentClassifier(IntentClassifierPort):
         )
         if destination not in _DESTINATIONS:
             destination = _DEFAULT_DESTINATION
+        if destination == "booking" and not _BOOKING_VOCAB.search(question):
+            logger.info("[QwenIntentClassifier] 예매 어휘 없음 → booking을 recommend로 교정 (결정론 가드)")
+            destination = "recommend"
         entities = [str(e) for e in (data.get("entities") or [])]
         return destination, entities

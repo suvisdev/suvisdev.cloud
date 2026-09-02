@@ -60,6 +60,25 @@ class IntentClassifierDestinationTests(unittest.IsolatedAsyncioTestCase):
         destination, _ = await clf.classify("똑같은 말 반복하지마")
         self.assertEqual(destination, "general")
 
+    async def test_booking_without_booking_vocab_corrected_to_recommend(self) -> None:
+        """"최신영화 알려줘" 실사고(2026-09-02): 예매·상영 어휘가 전혀 없는
+        질문을 모델이 booking으로 보내면 recommend로 교정한다(결정론 가드) —
+        '요즘 상영작 알려줘' 예시와 표면이 비슷해 booking으로 새고, 제목 퍼지
+        매칭이 간신/변신/실 같은 무관 후보로 되물었다."""
+        clf = _classifier('{"destination": "booking", "entities": []}')
+        destination, _ = await clf.classify("최신영화 알려줘")
+        self.assertEqual(destination, "recommend")
+
+    async def test_booking_with_showing_vocab_kept(self) -> None:
+        clf = _classifier('{"destination": "booking", "entities": []}')
+        destination, _ = await clf.classify("요즘 상영작 알려줘")
+        self.assertEqual(destination, "booking")
+
+    async def test_booking_with_ticket_vocab_kept(self) -> None:
+        clf = _classifier('{"destination": "booking", "entities": ["듄"]}')
+        destination, _ = await clf.classify("듄 표 끊고 싶은데")
+        self.assertEqual(destination, "booking")
+
 
 if __name__ == "__main__":
     unittest.main()
