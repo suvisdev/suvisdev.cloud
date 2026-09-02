@@ -235,11 +235,14 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
             match_type=match_type,
         )
 
-    async def test_real_tag_matches_unioned_after_rag_hits(self) -> None:
-        rag_hits = [Mock(source_ref="1", title="비와 당신의 이야기")]
+    async def test_real_tag_matches_come_first_with_dedup(self) -> None:
+        rag_hits = [
+            Mock(source_ref="1", title="비와 당신의 이야기"),
+            Mock(source_ref="3", title="무관 시맨틱"),
+        ]
         tag_items = [
-            self._tag_item("1", "비와 당신의 이야기", "keyword"),  # RAG와 중복 → 제거
             self._tag_item("2", "부산행", "keyword"),
+            self._tag_item("1", "비와 당신의 이야기", "keyword"),  # RAG와 중복
         ]
         interactor, repo, recommender = self._build(rag_hits=rag_hits, tag_items=tag_items)
 
@@ -248,9 +251,10 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         # 태그 검색은 mood 확장 없이 원시 키워드로 호출된다
         self.assertEqual(repo.search_tag_catalog.await_args.args[0], ["좀비"])
         catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
-        self.assertEqual([c.id for c in catalog], ["1", "2"])  # RAG 우선 + dedup
-        self.assertEqual(catalog[0].match_type, "semantic")
-        self.assertEqual(catalog[1].match_type, "keyword")
+        # 태그 실매칭 우선, 중복 시맨틱("1")은 제거되고 나머지 시맨틱이 뒤에 붙는다
+        self.assertEqual([c.id for c in catalog], ["2", "1", "3"])
+        self.assertEqual(catalog[0].match_type, "keyword")
+        self.assertEqual(catalog[2].match_type, "semantic")
 
     async def test_popular_fallback_tag_results_discarded(self) -> None:
         """태그 실매칭이 없으면(popular_fallback) 합치지 않는다 — 순수 mood 질의는
@@ -264,7 +268,7 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
         self.assertEqual([c.id for c in catalog], ["1"])
 
-    async def test_union_capped_at_16(self) -> None:
+    async def test_union_capped_at_16_with_tag_head_10(self) -> None:
         rag_hits = [Mock(source_ref=str(i), title=f"시맨틱{i}") for i in range(8)]
         tag_items = [self._tag_item(str(100 + i), f"태그{i}", "keyword") for i in range(16)]
         interactor, _repo, recommender = self._build(rag_hits=rag_hits, tag_items=tag_items)
@@ -273,7 +277,9 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
 
         catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
         self.assertEqual(len(catalog), 16)
-        self.assertEqual([c.id for c in catalog[:8]], [str(i) for i in range(8)])
+        # 태그 상한 10 + 시맨틱 보충 6
+        self.assertEqual([c.id for c in catalog[:10]], [str(100 + i) for i in range(10)])
+        self.assertEqual([c.id for c in catalog[10:]], [str(i) for i in range(6)])
 
 
 class ChatInteractorHistoryForwardTests(unittest.IsolatedAsyncioTestCase):

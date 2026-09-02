@@ -68,9 +68,15 @@ def _load(adapter_dir: str | None, backend: str, base_model_path: str) -> None:
             torch_dtype=torch.float16,
             device_map="cuda:0",
             trust_remote_code=True,
+            # eager 대비 실측 소폭 개선 + 긴 컨텍스트에서 안정적 (2026-09-02 벤치)
+            attn_implementation="sdpa",
         )
 
     model = PeftModel.from_pretrained(base, adapter_dir) if adapter_dir else base
+    if adapter_dir and backend != "awq_gptqmodel":
+        # 서빙 표준: LoRA 가중치를 베이스에 병합해 per-token 어댑터 matmul 제거.
+        # 실측(2026-09-02, RTX 3050): 17.8 → 26.1 tok/s (sdpa 포함).
+        model = model.merge_and_unload()
     model.eval()
 
     _state["tokenizer"] = tokenizer

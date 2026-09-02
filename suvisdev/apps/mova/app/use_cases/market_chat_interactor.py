@@ -243,14 +243,19 @@ class ChatInteractor(ChatUseCase):
             # RAG 히트가 태그 실매칭을 가리는 갭(2026-09-01 실측, trace=81b08f57):
             # "좀비 영화"처럼 태그가 실재해도 시맨틱이 무관 히트를 물어오면 태그
             # 검색을 아예 안 타 recs=0이 됐다. 시맨틱 히트가 있어도 태그 검색을
-            # 함께 돌려 실매칭이 있으면 합집합(RAG 우선, 캡 16)으로 후보를 넓힌다.
-            # mood 확장은 여기선 안 쓴다 — 순수 mood 질의는 태그 실매칭이 없어
-            # popular_fallback으로 떨어지고, 그건 버려서 현행(RAG 단독)이 유지된다.
+            # 함께 돌려 실매칭이 있으면 합집합(캡 16)으로 후보를 넓힌다.
+            # 순서는 태그 실매칭 우선 — 결정론 신호(키워드·배우·제목 매칭)가
+            # 시맨틱 저유사 히트보다 정확하고, 2.4B LoRA가 목록 앞쪽 후보에
+            # 끌리는 것을 프로덕션에서 실측(2026-09-02: RAG 우선 순서일 때
+            # 좀비 태그 후보를 두고 무관 시맨틱 1편을 픽). mood 확장은 여기선
+            # 안 쓴다 — 순수 mood 질의는 태그 실매칭이 없어 popular_fallback으로
+            # 떨어지고, 그건 버려서 현행(RAG 단독)이 유지된다.
             tag_items = await _search_tags(intent["keywords"], 16)
             real_matches = [t for t in tag_items if t.match_type != "popular_fallback"]
             if real_matches:
-                seen_ids = {c.id for c in catalog}
-                catalog = (catalog + [t for t in real_matches if t.id not in seen_ids])[:16]
+                head = real_matches[:10]  # 시맨틱 보충 여지를 남기는 상한
+                head_ids = {t.id for t in head}
+                catalog = (head + [c for c in catalog if c.id not in head_ids])[:16]
                 logger.info(
                     "[ChatInteractor] trace=%s RAG+태그 합집합 후보 %d편(태그 %s)",
                     trace_id,

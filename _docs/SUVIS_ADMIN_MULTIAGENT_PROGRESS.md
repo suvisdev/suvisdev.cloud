@@ -885,6 +885,22 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 
 ## 다음 / 남은 작업 (백로그)
 
+### EC2 전체 재빌드 불가 (2026-09-02 실측)
+- pip 레이어 빌드 캐시 소실(과거 builder prune) 상태에서 torch 스택 전체
+  재설치는 피크 ~15G+가 필요해 30GB 디스크에 구조적으로 안 들어감
+  (`[Errno 28]` 실측). 현재는 requirements 불변일 때 **파생 빌드**
+  (`FROM suvisdev-app:latest` + `COPY . .`)로 배포 가능(2026-09-02 실증).
+- requirements/Dockerfile이 바뀌는 날의 선택지: ① EBS 증설, ② 데스크톱
+  로컬 빌드 후 `docker save | ssh docker load` 전송. 결정 필요.
+- 관련: auth 이미지 드리프트는 auto-deploy 기본값(backend만)이 원인 —
+  재빌드 배포 시 `./auto-deploy.sh backend auth`로 둘 다 지정할 것.
+
+### lora-server 프로세스 열화 재발 감시 (2026-09-02)
+- 오래 뜬 서버가 동일 구성 오프라인 대비 5배 감속(3.2 vs 17.8tok/s)하는
+  현상 실측 — 단편화→WDDM 공유메모리 스필 추정, 근본 원인 미확정.
+  재발 시 응급 처치는 `systemctl --user restart lora-server`.
+  serve.py merge+sdpa 반영 후 기준선은 256tok ≈ 8.5s(서버 경유).
+
 ### ~~mova 채팅 — RAG 히트가 태그 검색을 가리는 갭~~ — **완결(2026-09-02)**
 - RAG 히트가 있어도 태그 검색을 원시 키워드(mood 확장 없이)로 함께 돌려
   실매칭(popular_fallback 제외)만 RAG 뒤에 합집합(dedup, 캡 16). 순수 mood
