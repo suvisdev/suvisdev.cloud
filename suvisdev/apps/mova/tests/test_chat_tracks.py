@@ -18,9 +18,11 @@ from mova.adapter.inbound.api.schemas.market_chat_schema import (  # noqa: E402
 from mova.adapter.inbound.api.schemas.studio_search_schema import (  # noqa: E402
     MovaSearchItemSchema,
 )
+from mova.adapter.outbound.http.kofic_adapter import KoficAdapterError  # noqa: E402
 from mova.app.dtos.market_chat_dto import ReviewAggregateDto  # noqa: E402
 from mova.app.dtos.studio_movies_dto import MovieDetailDto, PlatformDto  # noqa: E402
 from mova.app.use_cases.market_chat_booking_interactor import (  # noqa: E402
+    _DISCOVERY_PATTERN,
     REGION_ASK_MARKER,
     BookingAssistService,
     pending_title_from_history,
@@ -219,6 +221,58 @@ class BookingAssistServiceTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(pending_title_from_history(history), "호프")
         self.assertIsNone(pending_title_from_history([{"role": "assistant", "content": "안녕"}]))
+
+
+class BookingDiscoveryTests(unittest.IsolatedAsyncioTestCase):
+    """제목 없는 탐색형 예매 질의("뭐 있어")는 title resolver 대신 박스오피스
+    상영작 목록으로 답한다(2026-09-02 실사용 — "영화"가 제목 퍼지 매칭돼
+    무관 후보로 되묻던 오류)."""
+
+    def _service(
+        self, *, titles: list[str] | None = None, kofic_error: bool = False
+    ) -> tuple[BookingAssistService, AsyncMock]:
+        repo = AsyncMock()
+        box_office = AsyncMock()
+        if kofic_error:
+            box_office.fetch_box_office.side_effect = KoficAdapterError("down")
+        else:
+            entries = []
+            for t in titles or []:
+                entry = AsyncMock()
+                entry.title = t
+                entries.append(entry)
+            box_office.fetch_box_office.return_value = entries
+        service = BookingAssistService(
+            repository=repo, movies=AsyncMock(), box_office=box_office, theaters=AsyncMock()
+        )
+        return service, repo
+
+    async def test_discovery_query_lists_box_office_without_title_resolution(self) -> None:
+        service, repo = self._service(titles=["귀멸의 칼날", "F1 더 무비"])
+        result = await service.assist(
+            message="지금 바로 예매할 수 있는 영화 뭐있어", entities=["영화"], trace_id="t"
+        )
+
+        self.assertEqual(result.status, "ok")
+        self.assertIn("박스오피스", result.reply)
+        self.assertIn("귀멸의 칼날", result.reply)
+        self.assertIsNone(result.card)
+        self.assertIsNone(result.booking)
+        repo.search_movies_by_title.assert_not_awaited()
+
+    async def test_discovery_kofic_failure_gets_honest_fallback(self) -> None:
+        service, repo = self._service(kofic_error=True)
+        result = await service.assist(message="상영 중인 영화 뭐 있어?", entities=[], trace_id="t")
+
+        self.assertIn("불러오지 못했어요", result.reply)
+        repo.search_movies_by_title.assert_not_awaited()
+
+    async def test_title_queries_do_not_match_discovery_pattern(self) -> None:
+        """제목 지정 질의는 탐색 패턴에 안 걸려 기존 title 경로가 유지된다."""
+        self.assertIsNone(_DISCOVERY_PATTERN.search("호프 예매하고 싶어"))
+        self.assertIsNone(_DISCOVERY_PATTERN.search("인셉션 어디서 상영해?"))
+        self.assertIsNotNone(_DISCOVERY_PATTERN.search("지금 바로 예매할 수 있는 영화 뭐있어"))
+        self.assertIsNotNone(_DISCOVERY_PATTERN.search("요즘 상영작 알려줘"))
 
 
 class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):

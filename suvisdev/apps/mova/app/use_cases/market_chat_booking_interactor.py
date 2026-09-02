@@ -8,6 +8,7 @@ Phase 1(설계서 §5): 상영 중 판정은 KOFIC 주간 박스오피스 등재
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
@@ -33,6 +34,15 @@ logger = logging.getLogger(__name__)
 # 지역 되묻기 응답의 결정론 마커 — 다음 턴을 지역 입력으로 이어 받는 근거.
 # 제목은 『』로 감싸 넣어 다음 턴에서 그대로 복원한다(비로그인도 history만으로 동작).
 REGION_ASK_MARKER = "어느 지역에서 보실 계획인가요"
+
+# 제목 없는 탐색형 예매 질의("지금 예매할 수 있는 영화 뭐있어") 감지 —
+# 이걸 title resolver로 보내면 "영화" 같은 일반어가 제목 퍼지 매칭돼
+# 무관 후보로 되묻는 오류가 났다(2026-09-02 실사용). 결정론 패턴으로
+# 먼저 갈라 상영작 목록(박스오피스 근사)으로 답한다.
+_DISCOVERY_PATTERN = re.compile(
+    r"뭐\s*(?:가\s*)?(?:있|볼|봐|나왔)|무슨\s*영화|어떤\s*(?:영화|작품)|상영작|상영\s*중인"
+)
+_DISCOVERY_LIST_LIMIT = 8
 
 # 체인 공식 검색 딥링크 — 시간표를 아는 척하지 않고 검색 페이지로 위임한다.
 _BOOKING_LINK_TEMPLATES = (
@@ -136,6 +146,9 @@ class BookingAssistService:
                 title_term=pending_title, region=message.strip(), trace_id=trace_id
             )
 
+        if _DISCOVERY_PATTERN.search(message):
+            return await self._discovery_reply(trace_id)
+
         resolution = await resolve_movie_title(self._repository, message=message, entities=entities)
         if resolution.status == "not_found":
             return BookingResult(
@@ -203,6 +216,34 @@ class BookingAssistService:
             ),
             resolved_movie_id=movie_id,
         )
+
+    async def _discovery_reply(self, trace_id: str) -> BookingResult:
+        """제목 없는 탐색형 질의 — 주간 박스오피스 상영작을 나열하고 작품 선택을
+        유도한다. 정직성 규칙: 출처(박스오피스 근사)를 명시한다."""
+        try:
+            entries = await self._box_office.fetch_box_office(self._last_completed_week_date(), "0")
+        except KoficAdapterError as e:
+            logger.warning(
+                "[BookingAssistService] trace=%s 상영작 목록 조회 실패 — %s", trace_id, e
+            )
+            entries = []
+        titles = [entry.title for entry in entries if entry.title][:_DISCOVERY_LIST_LIMIT]
+        if not titles:
+            reply = (
+                "지금 상영작 목록을 불러오지 못했어요. 예매하실 작품 제목을 "
+                "알려주시면 상영 여부부터 확인해 드릴게요."
+            )
+        else:
+            reply = (
+                f"최근 주간 박스오피스 기준 현재 상영작이에요: {' / '.join(titles)}. "
+                "이 중 예매하실 작품을 알려주시면 근처 상영관을 찾아드릴게요."
+            )
+        logger.info(
+            "[BookingAssistService] trace=%s 탐색형 예매 질의 → 상영작 %d편 안내",
+            trace_id,
+            len(titles),
+        )
+        return BookingResult(status="ok", reply=reply, card=None, booking=None)
 
     async def _assist_with_region(
         self, *, title_term: str, region: str, trace_id: str
