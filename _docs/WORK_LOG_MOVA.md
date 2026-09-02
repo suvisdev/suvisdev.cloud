@@ -184,6 +184,11 @@
 
 ### 산출물 (후속 4)
 - `apps/mova/tests` 295 passed(신규 8건 포함), mypy 대상 파일 클린.
+- 커밋 `9b0e26d`, EC2 파생 빌드 배포(9/2 방식 재현 — `/tmp/Dockerfile.derived`
+  `FROM suvisdev-app:latest` + `COPY . .`, backend·auth 동시 재생성, 디스크
+  75% 불변). **프로덕션 E2E 실측**: "SF 드라마 추천해줘" → 인터스텔라·
+  엑스 마키나·혹성탈출: 진화의 시작(전부 SF+드라마 교집합 작품),
+  로그 `RAG+태그 합집합 후보 16편(태그 keyword)` recs=3.
 
 ### 작업 내용
 - **8/31 배포 실측 마무리** — EC2 코드 `5e38138` 최신, alembic
