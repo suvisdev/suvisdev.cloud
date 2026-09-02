@@ -125,6 +125,33 @@
   로그), "지금 예매할 수 있는 영화 뭐있어" 박스오피스 목록 응답
   (`탐색형 예매 질의 → 상영작 N편 안내` 로그).
 
+### 작업 내용 (후속 3 — 노트북 세션: 구 터널 삭제·lora-nb 신설·미커밋분 정리)
+- git pull 후 백로그 점검 중, 이 노트북(teagy)에서 systemd enabled 잔존으로
+  구 lora-server·cloudflared-lora(`lora-notebook` 터널)가 부팅 시 자동
+  기동돼 있던 것을 발견. 처음엔 문서 결정("다시 켜지 않는다")대로
+  stop+disable했으나, **사용자 결정 변경: 노트북도 상시 서빙**으로 전환.
+- 구 `lora-notebook` 터널은 **원격 관리형**(엣지 ingress가
+  `lora.suvisdev.cloud` 고정, 로컬 config.yml 무시)이라 새 호스트네임을
+  로컬에서 못 붙임 → 대시보드 없이 해결하기 위해 터널을 삭제하고 **로컬
+  관리형 `lora-nb` 터널을 CLI로 신설**하는 경로 선택.
+
+### 수정/구현 (후속 3)
+- `cloudflared tunnel delete lora-notebook`(97489360) — PROGRESS 백로그
+  "구 터널 계정에서 삭제 예정" 항목 완료.
+- `cloudflared tunnel create lora-nb`(54f7f631) + `route dns
+  lora-nb.suvisdev.cloud`(구 터널 삭제 후에야 CNAME 이전 성공 —
+  `--overwrite-dns`는 자기 계정 터널을 가리키는 레코드는 덮어쓰지 않음).
+- `~/.cloudflared/config.yml`(터널 ID·자격증명·hostname)과 systemd 유닛
+  (`cloudflared-lora.service` ExecStart)을 lora-nb로 갱신, enable 유지.
+- E2E: `lora-nb.suvisdev.cloud/health` 200(노트북, AWQ·08-25 어댑터) +
+  `lora.suvisdev.cloud/health` 200(데스크톱, GGUF) — 상호 영향 없음 확인.
+  EC2 프로덕션은 여전히 `lora.suvisdev.cloud`(데스크톱)만 호출.
+- **이전 세션 미커밋분 정리 커밋**: `mova-ai-chat-bar.tsx` 채팅 스크롤
+  하단 고정(`listRef.scrollTo` → `bottomRef.scrollIntoView` + rAF),
+  `apps-catalog.ts` ARDA 카드(WORK_LOG_MAINPAGE 참조), 8/31 산출물 보강.
+  검증: `npx tsc --noEmit` 통과(이 노트북엔 eslint 의존성 미설치라 lint
+  스킵 — 데스크톱에서 실행 가능).
+
 ## 2026-09-01
 
 ### 작업 내용
@@ -417,7 +444,10 @@
 ### 산출물
 - pytest 728 passed, FutureWarning 해소, `import main` 클린
 - genai 마이그레이션 커밋 `2c68503`, EC2 배포 완료
+- 감정분석+자동별점+감정요약+신뢰도 태그 커밋 `be1f055`
+- 투표+감정분석 스케줄러 커밋 `5e38138`, EC2 배포 완료 (마이그레이션 3건 적용)
 - `pnpm type-check`·`pnpm lint` 에러 0건
+- 지킬 포스트 `2026-08-31-mova-review-sentiment-voting.markdown` push 완료
 
 ## 2026-08-28
 

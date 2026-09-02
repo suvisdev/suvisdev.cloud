@@ -1079,7 +1079,12 @@ VRAM 7.9/8GB, gradient checkpointing 공통 적용으로 확장) →
 EXAONE 로드 인자, `apply_chat_template` `return_dict=True` 버전 호환) —
 serve.py 수정 2건과 함께 **미커밋**. venv에서 gptqmodel 제거(transformers
 v5 강제라 사용 불가, AWQ 백엔드 재사용 시 재설치 필요).
-구 `lora-notebook` 터널(97489360)은 죽은 채 계정에 남아 있음(정리 가능).
+구 `lora-notebook` 터널(97489360)은 **2026-09-02 계정에서 삭제 완료** —
+사용자 결정 변경으로 노트북도 상시 서빙하기로 하여, 로컬 관리형 신규 터널
+`lora-nb`(54f7f631) + `lora-nb.suvisdev.cloud`로 재구축(구 터널은 원격
+관리형이라 로컬 config.yml이 무시돼 재사용 불가였음). EC2 프로덕션은
+여전히 `lora.suvisdev.cloud`(데스크톱)만 호출. 상세: WORK_LOG_MOVA
+2026-09-02 후속 3.
 
 ~~💤 **7순위: 영화-컬렉션 배정 API/CLI 신설**~~ — **완료(2026-08-18)**:
 위 "완료됨" 참고. API(require_admin) + CLI 둘 다 신설. 8순위(컬렉션
