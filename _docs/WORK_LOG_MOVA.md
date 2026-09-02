@@ -152,7 +152,38 @@
   검증: `npx tsc --noEmit` 통과(이 노트북엔 eslint 의존성 미설치라 lint
   스킵 — 데스크톱에서 실행 가능).
 
-## 2026-09-01
+### 작업 내용 (후속 4 — 다중 장르 AND 검색 결함 수정)
+- 백로그 잔여 결함(QUALITY_PHASE1 §9 계열, "키워드끼리의 AND 결합"):
+  `_movie_ids_by_tags`가 키워드 전부를 OR로 묶어 "SF 드라마"가 교집합이
+  아닌 합집합으로 검색되고, `_movies_by_ids`의 평점순 limit 16 컷에서
+  두 태그를 다 가진 영화가 통째로 밀릴 수 있던 구조.
+
+### 수정/구현 (후속 4)
+- `market_chat_pg_repository.py`: ① `_movie_ids_by_tags`가 태그 label을
+  함께 조회해 키워드별 매칭 집합을 만들고 `(합집합, 교집합)` 반환 —
+  매칭 0건 키워드("영화" 등 비태그 어휘)는 교집합 판정에서 제외, 실매칭
+  키워드 2개 미만이면 교집합은 빈 set. ② `search_tag_catalog`의 keyword
+  경로에서 **교집합 우선 + 합집합 보충**: 교집합 영화를 limit까지 먼저
+  조회하고 남는 자리만 나머지 합집합으로 채움(2.4B LoRA가 목록 앞쪽
+  후보를 선호하는 9/2 실측과 정합). 순수 AND로 안 바꾼 이유: mood 확장
+  (공포·스릴러 = 동의어 OR)이 깨짐 — 보충 경로로 후보 풀 크기·폴백·
+  dedup 확장 동작 전부 불변. `actor+keyword`(배우+태그 교집합) 경로는
+  기존 동작 유지(이미 해소된 축).
+- `apps/mova/tests/test_search_tag_catalog_and.py` 신규 8건 —
+  키워드별 그룹핑(교집합·비태그 제외·단일 키워드·빈 입력) 4건 +
+  오케스트레이션(교집합 우선 2회 조회·합집합 단독 1회 유지·교집합=합집합
+  스킵·actor+keyword 불변) 4건.
+- `.claude/rules/mova-chat.md` §2: 교집합 우선+합집합 보충 불변식 추가.
+
+### 오류·막힌 점 (후속 4)
+- 이 노트북에 백엔드 테스트 환경이 없어(`suvisdev/.venv`는 gildle/OSM
+  전용 39패키지) uv 임시 venv(`/tmp/mova-test`)에 pytest·sqlalchemy·
+  fastapi·google-genai·PyJWT·psycopg[binary] 등을 설치해 검증.
+  reviews 라우터 테스트 9건이 "Mova URL이 설정되지 않았습니다"로 깨진
+  것은 psycopg 미설치가 진짜 원인(에러 메시지가 오도) — 설치 후 전량 통과.
+
+### 산출물 (후속 4)
+- `apps/mova/tests` 295 passed(신규 8건 포함), mypy 대상 파일 클린.
 
 ### 작업 내용
 - **8/31 배포 실측 마무리** — EC2 코드 `5e38138` 최신, alembic

@@ -46,12 +46,32 @@ class ChatPgRepository(ChatRepositoryPort):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def _movie_ids_by_tags(self, keywords: list[str]) -> set[int]:
+    async def _movie_ids_by_tags(self, keywords: list[str]) -> tuple[set[int], set[int]]:
+        """키워드별 태그 매칭 → (합집합, 전 키워드 교집합).
+
+        교집합은 매칭 0건 키워드("영화" 같은 비태그 어휘)를 빼고, 실제 태그에
+        걸린 키워드가 2개 이상일 때만 계산한다(아니면 빈 set) — "SF 드라마"처럼
+        장르를 여러 개 함께 말한 질의에서 둘 다 가진 영화를 우선하기 위한
+        신호다(2026-09-02 다중 장르 AND 결함 수정).
+        """
         if not keywords:
-            return set()
-        cond = or_(*[MovaTag.label.ilike(f"%{kw}%") for kw in keywords[:6]])
-        rows = await self._session.execute(select(MovaTag.movie_id).where(cond).distinct())
-        return {r[0] for r in rows}
+            return set(), set()
+        terms = keywords[:6]
+        cond = or_(*[MovaTag.label.ilike(f"%{kw}%") for kw in terms])
+        rows = await self._session.execute(
+            select(MovaTag.movie_id, MovaTag.label).where(cond).distinct()
+        )
+        union: set[int] = set()
+        per_kw: dict[str, set[int]] = {kw: set() for kw in terms}
+        for movie_id, label in rows:
+            union.add(movie_id)
+            low = (label or "").lower()
+            for kw in terms:
+                if kw.lower() in low:
+                    per_kw[kw].add(movie_id)
+        matched = [ids for ids in per_kw.values() if ids]
+        inter = set.intersection(*matched) if len(matched) >= 2 else set()
+        return union, inter
 
     async def _movie_ids_by_titles(self, title_terms: list[str]) -> set[int]:
         """프랜차이즈 확장 제목(어벤져스, 스파이더맨 등) → 제목 부분일치 영화.
@@ -160,7 +180,7 @@ class ChatPgRepository(ChatRepositoryPort):
             if rows:
                 return _to_search_items(rows, "title")
 
-        tag_ids = await self._movie_ids_by_tags(keywords)
+        tag_ids, tag_and_ids = await self._movie_ids_by_tags(keywords)
         actor_ids = await self._movie_ids_by_actors(actor_names or [])
 
         if tag_ids and actor_ids:
@@ -177,7 +197,17 @@ class ChatPgRepository(ChatRepositoryPort):
         # 하드 조건만 만족하는 인기작으로 간다 — "2020년대 한국 액션"에서 액션
         # 태그가 헐리우드만 물어와도 한국 2020년대 인기작이 후보로 남는다.
         if ids:
-            rows = await self._movies_by_ids(ids, limit, conds)
+            # 다중 장르 AND 우선(2026-09-02): "SF 드라마"의 교집합 영화를 먼저
+            # 조회해 앞에 두고 남는 자리만 합집합으로 보충한다 — 합집합 단독으로
+            # 평점순 limit을 자르면 두 태그를 다 가진 영화가 통째로 밀릴 수 있다.
+            # mood 확장(동의어 OR)은 보충 경로가 살아 있어 그대로 동작한다.
+            prio = (tag_and_ids & ids) if match_type == "keyword" else set()
+            if prio and prio != ids:
+                rows = await self._movies_by_ids(prio, limit, conds)
+                if len(rows) < limit:
+                    rows += await self._movies_by_ids(ids - prio, limit - len(rows), conds)
+            else:
+                rows = await self._movies_by_ids(ids, limit, conds)
             if rows:
                 return _to_search_items(rows, match_type)
 
