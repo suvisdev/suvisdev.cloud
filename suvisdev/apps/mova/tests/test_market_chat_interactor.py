@@ -14,6 +14,9 @@ from mova.adapter.inbound.api.schemas.market_chat_schema import (  # noqa: E402
     MovaChatRecommendationSchema,
     MovaChatRequest,
 )
+from mova.adapter.inbound.api.schemas.studio_search_schema import (  # noqa: E402
+    MovaSearchItemSchema,
+)
 from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
     _GENERAL_CHAT_SYSTEM_PROMPT,
     ChatInteractor,
@@ -178,6 +181,99 @@ class ChatInteractorSearchTagCatalogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["countries"], ["KR"])
         self.assertEqual(kwargs["year_min"], 2020)
         self.assertEqual(kwargs["year_max"], 2029)
+
+
+class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
+    """RAG 히트가 있어도 태그 실매칭이 있으면 합집합으로 후보를 넓힌다
+    (2026-09-01 실측 갭 — "좀비 영화"에서 무관 시맨틱 히트가 태그 검색을 가림)."""
+
+    def _build(
+        self, *, rag_hits: list[Mock], tag_items: list[MovaSearchItemSchema]
+    ) -> tuple[ChatInteractor, AsyncMock, AsyncMock]:
+        repo = AsyncMock()
+        repo.save_chat.return_value = 1
+        repo.search_tag_catalog.return_value = tag_items
+        classifier = AsyncMock()
+        classifier.classify.return_value = ("rag", [])
+        hub_rag = AsyncMock()
+        hub_rag.search_movies.return_value = rag_hits
+
+        recommender = AsyncMock()
+        recommender.extract_intent = Mock(
+            return_value={
+                "refined_query": "좀비 영화",
+                "keywords": ["좀비"],
+                "intent_type": "mood",
+                "search_filters": {
+                    "must": {"actors": [], "genres": [], "keywords": [], "countries": []},
+                    "similar_to": {"actors": []},
+                    "year_min": None,
+                    "year_max": None,
+                },
+            }
+        )
+        recommender.generate_recommendation.return_value = ("답변입니다.", [])
+
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=recommender,
+            preferences=AsyncMock(),
+            hub_rag=hub_rag,
+            classifier=classifier,
+            general=AsyncMock(),
+        )
+        return interactor, repo, recommender
+
+    @staticmethod
+    def _tag_item(movie_id: str, title: str, match_type: str) -> MovaSearchItemSchema:
+        return MovaSearchItemSchema(
+            id=movie_id,
+            title=title,
+            year="2016",
+            rating=4.0,
+            poster="",
+            match_type=match_type,
+        )
+
+    async def test_real_tag_matches_unioned_after_rag_hits(self) -> None:
+        rag_hits = [Mock(source_ref="1", title="비와 당신의 이야기")]
+        tag_items = [
+            self._tag_item("1", "비와 당신의 이야기", "keyword"),  # RAG와 중복 → 제거
+            self._tag_item("2", "부산행", "keyword"),
+        ]
+        interactor, repo, recommender = self._build(rag_hits=rag_hits, tag_items=tag_items)
+
+        await interactor.chat(MovaChatRequest(message="좀비 영화 추천해줘", history=[]))
+
+        # 태그 검색은 mood 확장 없이 원시 키워드로 호출된다
+        self.assertEqual(repo.search_tag_catalog.await_args.args[0], ["좀비"])
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["1", "2"])  # RAG 우선 + dedup
+        self.assertEqual(catalog[0].match_type, "semantic")
+        self.assertEqual(catalog[1].match_type, "keyword")
+
+    async def test_popular_fallback_tag_results_discarded(self) -> None:
+        """태그 실매칭이 없으면(popular_fallback) 합치지 않는다 — 순수 mood 질의는
+        현행(RAG 단독) 유지."""
+        rag_hits = [Mock(source_ref="1", title="식객")]
+        tag_items = [self._tag_item("9", "인기작", "popular_fallback")]
+        interactor, _repo, recommender = self._build(rag_hits=rag_hits, tag_items=tag_items)
+
+        await interactor.chat(MovaChatRequest(message="요리 소재 영화", history=[]))
+
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["1"])
+
+    async def test_union_capped_at_16(self) -> None:
+        rag_hits = [Mock(source_ref=str(i), title=f"시맨틱{i}") for i in range(8)]
+        tag_items = [self._tag_item(str(100 + i), f"태그{i}", "keyword") for i in range(16)]
+        interactor, _repo, recommender = self._build(rag_hits=rag_hits, tag_items=tag_items)
+
+        await interactor.chat(MovaChatRequest(message="좀비 영화 추천해줘", history=[]))
+
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual(len(catalog), 16)
+        self.assertEqual([c.id for c in catalog[:8]], [str(i) for i in range(8)])
 
 
 class ChatInteractorHistoryForwardTests(unittest.IsolatedAsyncioTestCase):

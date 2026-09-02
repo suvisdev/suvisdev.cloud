@@ -208,6 +208,26 @@ class ChatInteractor(ChatUseCase):
             past_intents, nickname, preferred_genres = [], None, []
 
         search_wider = None  # RAG(semantic) 경로에는 풀 확장 재검색이 없다
+        must = intent["search_filters"].get("must") or {}
+        similar = intent["search_filters"].get("similar_to") or {}
+        actor_names = [*must.get("actors", []), *similar.get("actors", [])]
+        from mova.domain.value_objects.franchise_expansion import (
+            expand_franchise_titles,
+        )
+        from mova.domain.value_objects.mood_expansion import expand_mood_keywords
+
+        async def _search_tags(keywords: list[str], limit: int) -> list[MovaSearchItemSchema]:
+            return await self._repo.search_tag_catalog(
+                keywords,
+                limit=limit,
+                actor_names=actor_names,
+                countries=must.get("countries") or [],
+                year_min=intent["search_filters"].get("year_min"),
+                year_max=intent["search_filters"].get("year_max"),
+                # "마블" 같은 프랜차이즈 언급 → 대표작 제목 매칭 (2026-08-25)
+                title_terms=expand_franchise_titles(intent["keywords"]),
+            )
+
         if hits:
             catalog = [
                 MovaSearchItemSchema(
@@ -220,31 +240,31 @@ class ChatInteractor(ChatUseCase):
                 )
                 for h in hits
             ]
+            # RAG 히트가 태그 실매칭을 가리는 갭(2026-09-01 실측, trace=81b08f57):
+            # "좀비 영화"처럼 태그가 실재해도 시맨틱이 무관 히트를 물어오면 태그
+            # 검색을 아예 안 타 recs=0이 됐다. 시맨틱 히트가 있어도 태그 검색을
+            # 함께 돌려 실매칭이 있으면 합집합(RAG 우선, 캡 16)으로 후보를 넓힌다.
+            # mood 확장은 여기선 안 쓴다 — 순수 mood 질의는 태그 실매칭이 없어
+            # popular_fallback으로 떨어지고, 그건 버려서 현행(RAG 단독)이 유지된다.
+            tag_items = await _search_tags(intent["keywords"], 16)
+            real_matches = [t for t in tag_items if t.match_type != "popular_fallback"]
+            if real_matches:
+                seen_ids = {c.id for c in catalog}
+                catalog = (catalog + [t for t in real_matches if t.id not in seen_ids])[:16]
+                logger.info(
+                    "[ChatInteractor] trace=%s RAG+태그 합집합 후보 %d편(태그 %s)",
+                    trace_id,
+                    len(catalog),
+                    real_matches[0].match_type,
+                )
         else:
             logger.info("[ChatInteractor] trace=%s fallback search_tag_catalog 사용", trace_id)
-            must = intent["search_filters"].get("must") or {}
-            similar = intent["search_filters"].get("similar_to") or {}
-            actor_names = [*must.get("actors", []), *similar.get("actors", [])]
             # mood 자연어("오싹오싹한" 등)를 대중 장르 태그로 확장 (2026-08-13).
             # Ollama 임베딩이 안 붙는 환경에서 tag catalog 폴백이 mood를 이해하도록.
-            from mova.domain.value_objects.franchise_expansion import (
-                expand_franchise_titles,
-            )
-            from mova.domain.value_objects.mood_expansion import expand_mood_keywords
-
             expanded_keywords = expand_mood_keywords(intent["keywords"])[:12]
 
             async def _search_catalog(limit: int) -> list[MovaSearchItemSchema]:
-                return await self._repo.search_tag_catalog(
-                    expanded_keywords,
-                    limit=limit,
-                    actor_names=actor_names,
-                    countries=must.get("countries") or [],
-                    year_min=intent["search_filters"].get("year_min"),
-                    year_max=intent["search_filters"].get("year_max"),
-                    # "마블" 같은 프랜차이즈 언급 → 대표작 제목 매칭 (2026-08-25)
-                    title_terms=expand_franchise_titles(intent["keywords"]),
-                )
+                return await _search_tags(expanded_keywords, limit)
 
             search_wider = _search_catalog  # dedup 소진 시 재검색용 (폴백 경로만)
             catalog = await _search_catalog(16)
