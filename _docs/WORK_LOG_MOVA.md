@@ -173,9 +173,11 @@
   재계산(정식 CLI `backfill_review_sentiment_cli.py` 재사용 — 이 CLI가
   update_rating_if_null→_update_movie_rating까지 부르는 완결 경로임을 확인),
   ② vote_count=0 신규 인입분 백필(멱등), ③ TMDB 삭제 404 영화 id=2769
-  (ARTMS: Icarus, 유저 데이터 0건 사전 확인) CASCADE 삭제. 커밋 시점
-  기준 ①이 진행 중(건당 모델 로드라 41건 ≈ 30분) — 완료 카운트는 로그
-  (`~/db_maintenance_20260902.log`)로 검증 예정.
+  (ARTMS: Icarus, 유저 데이터 0건 사전 확인) CASCADE 삭제. **완주 실측**:
+  ① succeeded=41/41 failed=0 → reviews_no_sentiment=0·null_rating=0,
+  ② 갱신 0(대상 190 중 189는 TMDB 실제 투표 0, 1은 404=③ 삭제분;
+  잔여 vote0 200 = 실제 0표 189 + 비tmdb 수동등록 11 — 전부 정상,
+  가중 정렬이 중립 처리), ③ deleted rows=1. `.env` 원복 완료.
 - **접속 방법 메모**: 데스크톱→프로덕션 DB는 `ssh -f -N -L 15432:localhost:5432
   aws` 터널 + `.env`의 `MOVA_DATABASE_URL` 포트만 임시 15432로 변경(백업
   `.env.bak-sentiment-backfill`, 작업 후 원복). 로컬 CLI가 keymaker를 임포트하지
