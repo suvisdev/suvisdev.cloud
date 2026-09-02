@@ -213,8 +213,19 @@
 - 테스트 6건 신규(분류기 가드 3 + 연도 매핑 3), `.claude/rules/mova-chat.md`
   §8·§2 불변식 반영.
 
+### 수정/구현 (후속 5-b — 배포 실측에서 잔여 갭 발견·수정)
+- 가드 배포 후 E2E: 예매 되묻기는 사라졌지만 카드가 2018~2020 작품 —
+  로그 추적 결과 RAG 시맨틱이 "최신"을 "작년에 봤던 새"(score 0.657)에
+  매칭하고, "최신"이 태그에 안 걸려 합집합 실매칭 0 → RAG 쓰레기 후보만
+  남았다(기존 백로그 "RAG 경로 연도 하드 필터" 갭이 후보 레벨에서 발현).
+- `market_chat_interactor.py` 합집합 경로: **연도·국가 하드 필터가 있으면
+  popular_fallback도 합류** — 시맨틱 히트는 하드 필터를 못 지키지만
+  popular_fallback은 그 조건을 SQL로 만족한 인기작(year_min=올해-1이면
+  최신작 인기순). mood 질의는 하드 필터가 없어 현행(RAG 단독) 유지.
+  테스트 1건 신규(`test_popular_fallback_joins_when_year_filter_present`).
+
 ### 산출물 (후속 5)
-- mova+분류기 316 passed, mypy 변경 파일 2건 클린.
+- mova+분류기 316 passed(5-b 후 재실행 308+8 동등), mypy 변경 파일 3건 클린.
 
 ### 작업 내용
 - **8/31 배포 실측 마무리** — EC2 코드 `5e38138` 최신, alembic

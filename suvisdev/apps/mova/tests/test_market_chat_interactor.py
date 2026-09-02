@@ -188,7 +188,11 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
     (2026-09-01 실측 갭 — "좀비 영화"에서 무관 시맨틱 히트가 태그 검색을 가림)."""
 
     def _build(
-        self, *, rag_hits: list[Mock], tag_items: list[MovaSearchItemSchema]
+        self,
+        *,
+        rag_hits: list[Mock],
+        tag_items: list[MovaSearchItemSchema],
+        year_min: int | None = None,
     ) -> tuple[ChatInteractor, AsyncMock, AsyncMock]:
         repo = AsyncMock()
         repo.save_chat.return_value = 1
@@ -207,7 +211,7 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
                 "search_filters": {
                     "must": {"actors": [], "genres": [], "keywords": [], "countries": []},
                     "similar_to": {"actors": []},
-                    "year_min": None,
+                    "year_min": year_min,
                     "year_max": None,
                 },
             }
@@ -267,6 +271,25 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
 
         catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
         self.assertEqual([c.id for c in catalog], ["1"])
+
+    async def test_popular_fallback_joins_when_year_filter_present(self) -> None:
+        """연도 하드 필터가 있으면 popular_fallback도 합류한다(2026-09-02
+        "최신영화 알려줘" 실사고): hub에 연도 메타데이터가 없어 시맨틱 히트는
+        하드 필터를 못 지키는데, popular_fallback은 그 조건을 SQL로 만족한
+        인기작이라 무관 시맨틱보다 정확하다."""
+        rag_hits = [Mock(source_ref="1", title="작년에 봤던 새")]
+        tag_items = [
+            self._tag_item("9", "2026 신작 A", "popular_fallback"),
+            self._tag_item("8", "2026 신작 B", "popular_fallback"),
+        ]
+        interactor, _repo, recommender = self._build(
+            rag_hits=rag_hits, tag_items=tag_items, year_min=2025
+        )
+
+        await interactor.chat(MovaChatRequest(message="최신영화 알려줘", history=[]))
+
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["9", "8", "1"])
 
     async def test_union_capped_at_16_with_tag_head_10(self) -> None:
         rag_hits = [Mock(source_ref=str(i), title=f"시맨틱{i}") for i in range(8)]

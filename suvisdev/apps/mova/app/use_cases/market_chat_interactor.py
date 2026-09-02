@@ -251,7 +251,22 @@ class ChatInteractor(ChatUseCase):
             # 안 쓴다 — 순수 mood 질의는 태그 실매칭이 없어 popular_fallback으로
             # 떨어지고, 그건 버려서 현행(RAG 단독)이 유지된다.
             tag_items = await _search_tags(intent["keywords"], 16)
-            real_matches = [t for t in tag_items if t.match_type != "popular_fallback"]
+            # 연도·국가 하드 필터가 있으면 popular_fallback도 실후보로 인정한다
+            # (2026-09-02 "최신영화 알려줘" 실사고): hub에 연도 메타데이터가 없어
+            # 시맨틱 히트는 하드 필터를 못 지키는데("최신"→"작년에 봤던 새" 매칭),
+            # popular_fallback은 그 조건을 SQL로 만족한 인기작이다. mood 질의는
+            # 하드 필터가 없어 현행(RAG 단독)이 그대로 유지된다.
+            filters = intent["search_filters"]
+            has_hard_filter = (
+                bool(must.get("countries"))
+                or filters.get("year_min") is not None
+                or filters.get("year_max") is not None
+            )
+            real_matches = [
+                t
+                for t in tag_items
+                if t.match_type != "popular_fallback" or has_hard_filter
+            ]
             if real_matches:
                 head = real_matches[:10]  # 시맨틱 보충 여지를 남기는 상한
                 head_ids = {t.id for t in head}
