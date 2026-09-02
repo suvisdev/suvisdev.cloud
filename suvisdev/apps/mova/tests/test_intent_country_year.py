@@ -101,5 +101,38 @@ class BuildSearchFiltersTests(unittest.TestCase):
         self.assertIsNone(filters["year_max"])
 
 
+class FillerWordBoundaryTests(unittest.TestCase):
+    """문두 담화어 제거는 공백이 뒤따를 때만 — \\s*였을 때 "좀비 영화"의 "좀"이
+    잘려 "비 영화"(rain)로 RAG·태그 검색이 전부 오염됐다(2026-09-02 실측,
+    9/1 "좀비 recs=0" 사고의 진짜 뿌리)."""
+
+    def _extract(self, message: str) -> dict:
+        import unittest.mock as m
+
+        from mova.adapter.outbound.llm.intent_extraction import IntentExtractionService
+
+        with m.patch("mova.adapter.outbound.llm.intent_extraction.get_keymaker") as k:
+            k.return_value.is_gemini_ready.return_value = False
+            return IntentExtractionService().extract(message, [])
+
+    def test_zombie_survives_leading_filler_strip(self) -> None:
+        intent = self._extract("좀비 영화 추천해줘")
+        self.assertIn("좀비", intent["keywords"])
+        self.assertIn("좀비", intent["refined_query"])
+
+    def test_standalone_filler_still_stripped(self) -> None:
+        intent = self._extract("좀 신나는 영화 보여줘")
+        self.assertNotIn("좀", intent["keywords"])
+        self.assertTrue(intent["refined_query"].startswith("신나는"))
+
+    def test_other_leading_fillers_unaffected(self) -> None:
+        for message, kept in (
+            ("지금 볼만한 스릴러", "스릴러"),
+            ("오늘 기분전환용 코미디", "코미디"),
+        ):
+            intent = self._extract(message)
+            self.assertIn(kept, intent["keywords"], message)
+
+
 if __name__ == "__main__":
     unittest.main()
