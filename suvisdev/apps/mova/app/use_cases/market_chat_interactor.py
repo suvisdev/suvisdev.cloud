@@ -240,6 +240,28 @@ class ChatInteractor(ChatUseCase):
                 )
                 for h in hits
             ]
+            # RAG 히트는 hub에 연도 메타데이터가 없어 연도 하드 필터를 못
+            # 지킨다(2026-09-03 "클래식 명작 처음 보는 사람용" 실사고,
+            # trace=f4552cee: year_max=1999 요청에 시맨틱 tail의 2003·2007년작이
+            # 유입돼 LoRA가 그쪽을 픽 → '식객' 무관 추천). 연도 조건이 있으면
+            # 히트의 movie_id를 movies.release_year로 재검증해 위반을 제거한다.
+            # 연도 조건이 없는 질의(좀비 등)는 이 경로를 아예 안 탄다.
+            year_min = intent["search_filters"].get("year_min")
+            year_max = intent["search_filters"].get("year_max")
+            if year_min is not None or year_max is not None:
+                hit_ids = [int(c.id) for c in catalog if str(c.id).isdigit()]
+                valid_ids = await self._repo.filter_movie_ids_by_year(hit_ids, year_min, year_max)
+                before = len(catalog)
+                catalog = [c for c in catalog if str(c.id).isdigit() and int(c.id) in valid_ids]
+                if len(catalog) != before:
+                    logger.info(
+                        "[ChatInteractor] trace=%s RAG 연도 필터 %d→%d편 (%s~%s)",
+                        trace_id,
+                        before,
+                        len(catalog),
+                        year_min or "",
+                        year_max or "",
+                    )
             # RAG 히트가 태그 실매칭을 가리는 갭(2026-09-01 실측, trace=81b08f57):
             # "좀비 영화"처럼 태그가 실재해도 시맨틱이 무관 히트를 물어오면 태그
             # 검색을 아예 안 타 recs=0이 됐다. 시맨틱 히트가 있어도 태그 검색을
@@ -263,9 +285,7 @@ class ChatInteractor(ChatUseCase):
                 or filters.get("year_max") is not None
             )
             real_matches = [
-                t
-                for t in tag_items
-                if t.match_type != "popular_fallback" or has_hard_filter
+                t for t in tag_items if t.match_type != "popular_fallback" or has_hard_filter
             ]
             if real_matches:
                 head = real_matches[:10]  # 시맨틱 보충 여지를 남기는 상한

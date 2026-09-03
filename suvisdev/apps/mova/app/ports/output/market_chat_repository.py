@@ -40,6 +40,21 @@ class ChatRepositoryPort(ABC):
         """
 
     @abstractmethod
+    async def filter_movie_ids_by_year(
+        self,
+        movie_ids: list[int],
+        year_min: int | None,
+        year_max: int | None,
+    ) -> set[int]:
+        """주어진 영화 id 중 연도 하드 조건을 만족하는 id만 돌려준다.
+
+        RAG 시맨틱 히트는 hub에 연도 메타데이터가 없어 year_min/max를 못
+        지키므로(2026-09-03 "클래식 명작" 실사고 — 1999 이하 요청에 2003·2007년
+        작이 후보로 유입), 히트의 movie_id를 movies.release_year로 재검증할 때
+        쓴다. release_year=0(미상)은 판정 불가라 조건이 있으면 탈락시킨다.
+        """
+
+    @abstractmethod
     async def search_movies_by_title(
         self, terms: list[str], limit: int
     ) -> list[MovaSearchItemSchema]:

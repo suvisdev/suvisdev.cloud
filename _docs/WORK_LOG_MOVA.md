@@ -50,8 +50,24 @@
   zero-rec 통계에 안 잡히는 **무관 픽(관련성) 표본 1건 신규 발견**, 백로그
   등재(다음 케이스: 트레이스로 식객의 유입 경로 규명).
 
+### 수정/구현 (오후 — 무관 픽 '식객' 근본 수정: RAG 연도 재검증)
+- **원인 규명**(trace=f4552cee): "클래식"이 시대 어휘 매핑(8/28)으로
+  `year_max=1999`가 되고, 태그 쪽은 연도 충족 인기작 10편이 head를 차지했는데
+  **RAG 시맨틱 히트는 hub에 연도 메타가 없어 필터를 못 지킴** — tail로 들어온
+  클래식(2003)·식객(2007)을 LoRA가 픽. 백로그의 "(선택) RAG 경로 연도 하드
+  필터"가 실사고로 승격된 케이스.
+- **수정**: hub 스키마 확장 없이 **movies.release_year 재검증**으로 해결 —
+  `ChatRepositoryPort.filter_movie_ids_by_year(ids, year_min, year_max)` 신설
+  (release_year=0 미상은 조건 존재 시 탈락), 인터랙터에서 연도 조건이 있을
+  때만 RAG 히트를 재검증해 위반 제거(무조건 질의는 경로 자체를 안 탐).
+- **테스트**: `test_year_filter_drops_violating_semantic_hits`(식객 케이스
+  재현) + `test_no_year_filter_skips_revalidation` 신규, 어젯밤 연도
+  popular_fallback 합류 테스트는 취지에 맞게 기대값 갱신(위반 시맨틱 탈락).
+  mova 301 passed·mypy 클린·계약 6 KEPT. `.claude/rules/mova-chat.md` §2
+  불변식 추가(재검증 제거 금지).
+
 ### 데이터
-- 변경 없음(읽기 전용 재실측).
+- 변경 없음(읽기 전용 재실측 + 코드 수정).
 
 ### 산출물
 - 백로그 갱신(아래 PROGRESS), 지킬 Arda 페이지는 WORK_LOG_MAINPAGE 참조.

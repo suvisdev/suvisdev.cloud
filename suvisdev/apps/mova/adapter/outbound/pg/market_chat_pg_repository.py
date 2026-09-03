@@ -220,6 +220,23 @@ class ChatPgRepository(ChatRepositoryPort):
         )
         return _to_search_items(list(fallback_rows.scalars().all()), "popular_fallback")
 
+    async def filter_movie_ids_by_year(
+        self,
+        movie_ids: list[int],
+        year_min: int | None,
+        year_max: int | None,
+    ) -> set[int]:
+        if not movie_ids:
+            return set()
+        # release_year=0(미상)은 판정 불가 — 연도 조건이 있으면 탈락시킨다.
+        conds = [MovaMovie.id.in_(movie_ids), MovaMovie.release_year != 0]
+        if year_min is not None:
+            conds.append(MovaMovie.release_year >= year_min)
+        if year_max is not None:
+            conds.append(MovaMovie.release_year <= year_max)
+        rows = await self._session.execute(select(MovaMovie.id).where(*conds))
+        return {int(r) for r in rows.scalars().all()}
+
     async def search_movies_by_title(
         self, terms: list[str], limit: int
     ) -> list[MovaSearchItemSchema]:

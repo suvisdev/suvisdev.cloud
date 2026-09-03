@@ -193,10 +193,13 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         rag_hits: list[Mock],
         tag_items: list[MovaSearchItemSchema],
         year_min: int | None = None,
+        year_valid_ids: set[int] | None = None,
     ) -> tuple[ChatInteractor, AsyncMock, AsyncMock]:
         repo = AsyncMock()
         repo.save_chat.return_value = 1
         repo.search_tag_catalog.return_value = tag_items
+        # 연도 필터가 있을 때 RAG 히트 재검증 결과(2026-09-03) — 기본은 전부 탈락
+        repo.filter_movie_ids_by_year.return_value = year_valid_ids or set()
         classifier = AsyncMock()
         classifier.classify.return_value = ("rag", [])
         hub_rag = AsyncMock()
@@ -289,7 +292,43 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         await interactor.chat(MovaChatRequest(message="최신영화 알려줘", history=[]))
 
         catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
-        self.assertEqual([c.id for c in catalog], ["9", "8", "1"])
+        # 연도 위반 시맨틱("작년에 봤던 새")은 재검증에서 탈락한다(2026-09-03) —
+        # 연도 충족 popular_fallback만 남는 게 이 테스트의 취지와 정합.
+        self.assertEqual([c.id for c in catalog], ["9", "8"])
+
+    async def test_year_filter_drops_violating_semantic_hits(self) -> None:
+        """연도 하드 필터가 있으면 RAG 히트를 movies.release_year로 재검증한다
+        (2026-09-03 "클래식 명작 처음 보는 사람용" 실사고, trace=f4552cee:
+        year_max=1999 요청에 2003·2007년작 시맨틱이 유입돼 '식객' 무관 픽)."""
+        rag_hits = [
+            Mock(source_ref="1", title="식객"),  # 2007 — 위반
+            Mock(source_ref="2", title="시네마 천국"),  # 1988 — 통과
+        ]
+        tag_items = [self._tag_item("9", "1999 인기작", "popular_fallback")]
+        interactor, repo, recommender = self._build(
+            rag_hits=rag_hits,
+            tag_items=tag_items,
+            year_min=1999,  # has_hard_filter 발동용 — 검증 대상은 재검증 호출 자체
+            year_valid_ids={2},
+        )
+
+        await interactor.chat(MovaChatRequest(message="클래식 명작", history=[]))
+
+        repo.filter_movie_ids_by_year.assert_awaited_once()
+        self.assertEqual(repo.filter_movie_ids_by_year.await_args.args[0], [1, 2])
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["9", "2"])
+
+    async def test_no_year_filter_skips_revalidation(self) -> None:
+        """연도 조건이 없는 질의(좀비 등)는 재검증 경로를 아예 안 탄다."""
+        rag_hits = [Mock(source_ref="1", title="부산행")]
+        interactor, repo, recommender = self._build(rag_hits=rag_hits, tag_items=[])
+
+        await interactor.chat(MovaChatRequest(message="좀비 영화 추천해줘", history=[]))
+
+        repo.filter_movie_ids_by_year.assert_not_awaited()
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["1"])
 
     async def test_union_capped_at_16_with_tag_head_10(self) -> None:
         rag_hits = [Mock(source_ref=str(i), title=f"시맨틱{i}") for i in range(8)]
