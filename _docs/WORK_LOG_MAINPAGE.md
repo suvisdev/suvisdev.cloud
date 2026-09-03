@@ -30,7 +30,31 @@
 
 ## 2026-09-03
 
-### 작업 내용 (서브도메인 이사 — 방법 2 착수)
+### 작업 내용 (저녁 — 개인 앱 서브도메인 이사 되돌림, 팀만 진행)
+- **결정 변경(사용자)**: mova·gildle은 서브도메인으로 옮기지 않고 기존
+  경로 유지, **seuk 팀 프로젝트만** 서브도메인 이사. 근거: 개인 포트폴리오
+  용도에 별도 앱·배포 계획이 없어 서빙 실익이 "예쁜 주소"뿐인데 비용은
+  실재 — ① JWT localStorage라 세션 도메인별 분리, ② 백엔드 OAuth 복귀가
+  `FRONTEND_URL` 단일값이라(viewer `oauth_router.py`·auth `router.py`)
+  서브도메인에서 소셜 로그인하면 apex로 돌아와 세션이 엉뚱한 origin에
+  저장됨(계획서에 없던 갭 — 콘솔 콜백 추가는 불필요했고, 이 코드 갭이
+  진짜 문제), ③ 중복 URL 관리. 짧은 주소가 필요하면 Cloudflare 301
+  리다이렉트로 충분.
+- **되돌림**: `git revert --no-commit 0bef4f3` → `suvis/next.config.mjs`
+  리라이트 24줄 제거(원 상태 복원 확인). 커밋·푸시 대기 — Vercel에는
+  푸시돼야 반영됨.
+- **PROGRESS 전면 정리**: 1396줄→178줄. 완료 항목 상세를 워크로그 날짜
+  인덱스로 압축, 워크로그 대조로 이미 완결된 백로그(재임베딩·HNSW·Gemini
+  레이트리밋·rating 노이즈·감정 축·터널 잠금·RAG 연도 필터 등) 제거.
+- **GitHub 실측**: 조직 `Team-Seuk` 존재(Arda·_template 등), 사용자 역할
+  member. 조직 owner 명의 확인이 팀 이전의 선행 과제 — 계획서에 저장소
+  신설/조직 이전 절차 기록.
+
+### 산출물 (저녁)
+- `_docs/SUBDOMAIN_MIGRATION_PLAN.md` 재작성(seuk 전용 + 되돌린 이유 +
+  GitHub 절차), PROGRESS 정리, `suvis/next.config.mjs` 원복. 미커밋.
+
+### 작업 내용 (서브도메인 이사 — 방법 2 착수, 오후 — 저녁에 개인 앱 부분 되돌림)
 - **mova·gildle 서브도메인 서빙**(사용자 결정): `suvis/next.config.mjs`에
   호스트 기반 rewrite — `mova/gildle.suvisdev.cloud`가 각 섹션을 루트로
   서빙(`/`→`/mova`, 그 외 경로 접두). `/api`(Next 프록시)·`/_next`·확장자

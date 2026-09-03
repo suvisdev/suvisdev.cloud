@@ -5,881 +5,56 @@
 - `suvisdev/_docs/RBAC_agent_dashboard.md` (RBAC + 어드민 대시보드 H0~H4)
 - `suvisdev/apps/ontology/_docs/00_COMMON_conventions.md` + `01~08_*.md` (에이전트별 지시서)
 
+2026-09-03 정리: 완료 항목의 상세 서술은 전부 삭제하고 워크로그 포인터만
+남김(중복 제거). 상세는 `WORK_LOG_MOVA.md` / `WORK_LOG_MAINPAGE.md` /
+`WORK_LOG_GILDLE.md`의 해당 날짜 참고.
+
 ---
 
-## 완료됨 (상세는 각 문서 참고, 여기선 재기록 안 함)
+## 완료됨 (워크로그 날짜 인덱스 — 상세는 재기록 안 함)
 
-- **mova booking 탐색형 질의 오응답 수정 (2026-09-02)** — "지금 예매할 수
-  있는 영화 뭐있어"가 제목 퍼지 매칭으로 새서 무관 후보로 되묻던 것을,
-  title resolver 선행 결정론 패턴 분기 + KOFIC 주간 박스오피스 상영작
-  나열로 수정. 분류기 프롬프트 예시 보강. 테스트 3건, 299 passed.
-  상세: WORK_LOG_MOVA 2026-09-02.
+날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
-- **mova 리뷰 유용성 투표 + 감정분석 스케줄러 (2026-08-31)** —
-  review_votes 테이블(토글), POST /mova/reviews/{id}/vote 엔드포인트, get_by_movie에
-  vote_count 서브쿼리 추가, 프론트 ThumbsUp 클릭 투표. 감정분석 24시간 자동
-  스케줄러(GPU 없으면 자동 종료). 마이그레이션 1건. 상세: WORK_LOG_MOVA 2026-08-31.
-- **mova 리뷰 감정분석 통합 + 자동별점 + 감정요약 + 신뢰도 태그 (2026-08-31)** —
-  Echo EXAONE LoRA 감정분석을 리뷰 시스템에 깊이 통합. ① 에디터 리뷰(rating=NULL)에
-  감정→별점 자동 변환(긍정 score→4~5점, 부정→0.5~1.5점), ② taste vector 가중치를
-  effective_rating(별점×감정 alignment, α=0.3)으로 개선, ③ 영화 상세 페이지에
-  긍정/부정 비율 바+한 줄 요약 표시(GET /mova/reviews/sentiment/{id}),
-  ④ 에디터 리뷰에 뉴스 기사 수 기반 신뢰도 배지("AI 에디터 ·높음/보통/낮음").
-  마이그레이션 2건(sentiment, news_source_count). 상세: WORK_LOG_MOVA 2026-08-31.
-- **mova 오타 허용 제목 검색 — 조사 분리·공백 정규화·자모 퍼지 매칭 (2026-08-31)** —
-  "더문은 쩸 쓰나" → "더 문" 매칭. 조사 정규식 분리 + SQL 공백 제거 매칭 +
-  자모 편집거리 퍼지 폴백(exact 0건일 때만, 1건 ok / 다수 ambiguous).
-  jamo_fuzzy.py 신규 + 테스트 20건. 상세: WORK_LOG_MOVA 2026-08-31.
-- **mova booking Phase 2 — 롯데시네마 시간표 + 좌표 기반 폴백 (2026-08-31)** —
-  ShowtimePort ABC + LotteCinemaAdapter(CinemaData/TicketingData JSON 엔드포인트,
-  24h 극장 캐시, 카카오 place_name 매칭) + DTO·Schema 확장 + BookingAssistService
-  연동(롯데 극장만 최대 2곳 조회, 실패 시 Phase 1 딥링크 폴백) + ChatInteractor
-  meta 저장 + 프론트 시간표 칩 렌더("롯데시네마 기준" 안내). 카카오 결과에
-  롯데시네마가 없을 때 좌표 기반 최근접 롯데시네마 자동 탐색 폴백(haversine,
-  반경 10km). 테스트 11건, pytest 260 passed, type-check 클린.
-  상세: WORK_LOG_MOVA 2026-08-31.
-- **Gildle 여름 그늘 경로 (2026-08-27)** — 뚜벅 방식 `summer_shade` 모드:
-  건물 245,885동(OSM, 높이 결측 75.7%는 250m 격자 중앙값 imputation) 그림자
-  폴리곤을 13슬롯(07~19시) 사전 계산(17MB)해 햇빛 구간 5배 페널티 라우팅.
-  밤은 실제 태양 고도로 자동 판정(일출·일몰 연동). 시간 선택 UI + 그늘/햇빛
-  경로 색 구분 + 그늘 비율 표시. E2E: 시간대별로 실제 경로 변화 확인.
-  상세: WORK_LOG_GILDLE 2026-08-27. **후속 백로그**: 그림자 convex hull →
-  벽면별 정확 스윕(오목 건물 과대 해소), relation(복합 폴리곤) 건물 수집,
-  구간별 통과 시각 세분화(현재는 출발 시각 단일 슬롯).
-- **LLM 챗 3종 require_admin 잠금 + EC2 배포 스크립트 재작성 (2026-08-27)** —
-  titanic smith·execsuite langchain·contents soccer 챗의 백엔드 무인증 공개
-  (2026-08-04 백로그)를 잠금(사용자 결정: mova 챗 제외 전부). langchain을
-  쓰던 공개 플로팅 챗 위젯(SuvisChatPanel)은 관리자 전용 노출로 전환.
-  3계층 토큰 전달 배선 + 테스트 6건. EC2 `~/auto-deploy.sh`를 현행 절차
-  (up -d --build + `--env-file` + nginx reload)로 재작성해 nginx 구 IP 캐시
-  502 재발 방지. 상세: WORK_LOG_MAINPAGE 2026-08-27.
-- **mova 채팅 실측 개선 3종 + RAG 부활 (2026-08-26 오후)** — zero-rec
-  로그 실측에서 출발: ① 국가 명시 요청의 언어 허용목록 과차단 수정
-  (일본 애니 0건→3건), ② dedup 소진 시 풀 16→48 확장 재검색, ③ 불만·
-  메타 발화 결정론 general 가드 + general 응답에 히스토리 전달. RAG는
-  EC2 임베딩 gemini 전환으로 부활(시맨틱 실증: 우주 생존→그래비티·
-  라이프), 색인 979/2,972 — Gemini 무료 쿼터(1,000/일)로 EC2 cron이
-  매일 16:10 KST 자동 재개, **전량 완료 확인 후 cron 제거 필요**.
-  ingest 조용한 실패 삼킴도 구조 수정. 상세: WORK_LOG_MOVA 2026-08-26.
-- **헤더 레이아웃 통합 + 닉네임 깜빡임 해소 (2026-08-26)** — MovaHeader를
-  mova layout으로 이동(리마운트 제거), 로그인 버튼 hydration 가드 +
-  localStorage 닉네임 캐시. 상세: WORK_LOG_MOVA 2026-08-26.
-- **전체 검증 파이프라인 복구 + 테스트·린트 그린화 (2026-08-26)** —
-  pytest 수집 충돌(scripts 패키지 섀도잉)·테스트 드리프트/격리 6건·
-  lint-imports 실행 불능·프론트 eslint 부재를 모두 복구. 최종: pytest
-  626 passed, lint-imports 6 계약 KEPT, eslint 0 errors, `pnpm build` 통과.
-  상세: WORK_LOG_MOVA·WORK_LOG_MAINPAGE 2026-08-26.
-- **배포 실측 확인 + 지킬 블로그 8/26 포스트 + 로컬 suvisjk 재연결 (2026-08-26)** —
-  `edc1de6`까지 EC2(코드·alembic head)·Vercel(장르 탭 번들)·DB(뮤지컬 65건)
-  배포 확인. 지킬 8/26 포스트 푸시(Pages 자동 배포). 모노레포 안 `suvisjk/`가
-  레포 분리 전 낡은 사본이었던 것을 원격 클론으로 재연결(push는 HTTPS/gh).
-  상세: WORK_LOG_MOVA 2026-08-26.
-- **mova 채팅 Gemini 자동 폴백 DI 연결 + 로딩 영상 크롭 수정 (2026-08-26)** —
-  8/25 폴백 어댑터가 DI 미연결이라 LoRA 다운 시 502가 그대로 노출되던 것을
-  `market_chat_provider.get_recommendation_port()`에서 조립하도록 수정
-  (서킷 쿨다운 후 LoRA 자동 복귀). 채팅 로딩 클래퍼보드 하단 문구 잘림은
-  CSS 크롭 제거로 해결. 상세: WORK_LOG_MOVA 2026-08-26.
-- **mova 대규모 정비 (2026-08-25 오후)** — ① LoRA 재학습(Gemini 교사 증류,
-  채팅 recs 복구), ② 폴백 어댑터+서킷 브레이커, ③ DB 정리(성인물 672 +
-  미개봉 400 + 고아 배우 3,938 삭제, trash 백업), ④ TMDB KR 최신 1,000편
-  수집, ⑤ 터널 이중 접속 502 근본 해결, ⑥ 프랜차이즈 검색+최신 우선 정렬,
-  ⑦ 프론트 UX 10건. 상세: WORK_LOG_MOVA 2026-08-25.
-- **EC2 mova 추천 lora 복구 + EXAONE 베이스 실측 확인 (2026-08-25)** —
-  EC2 `.env` `RECOMMENDATION_BACKEND` gemini→lora 전환, 터널 경유 `/generate`
-  엔드투엔드 200 확인. 베이스는 EXAONE-3.5-2.4B-Instruct-AWQ(Qwen 기술은
-  구정보). 상세: WORK_LOG_MOVA 2026-08-25.
-- **EC2 이미지 통합 + gildle 데이터 바인드 마운트 (2026-08-25)** —
-  backend·auth가 `suvisdev-app:latest` 단일 이미지 공유(중복 9.23GB 해제,
-  재빌드 디스크 부족 문제 해소). gildle `data/` 호스트 마운트로 scored_edges
-  갱신 시 재빌드 불필요. 상세: WORK_LOG_GILDLE 2026-08-25.
-
-- **Jekyll GitHub Pages 배포 + 메인 About 링크 변경 + Mova 랭킹 기본값 (2026-08-25)** —
-  suvisjk → `suvisdev/suvisjk` 레포 분리, GitHub Actions Jekyll 빌드,
-  `jk.suvisdev.cloud` 커스텀 도메인. 헤더 Apps·Blog·Resume·Contact 4탭 구성.
-  Resume 페이지 신규(사이드바+5섹션, amber-400 악센트). devlog 탭 필터링 + 포스트 8건.
-  Mova 랭킹 탭 박스오피스 우선. 상세: WORK_LOG_MAINPAGE 2026-08-25.
-- **Gildle 서울 전역 확장 + OSM 나무/공원 점수 통합 + 줌 간소화 + 경로 좌표·위치 버튼 (2026-08-25)** —
-  ① 보행 그래프 영등포구(1,616) → 서울 전체(233,964 edges) 확장.
-  ② Overpass API로 나무 6,851·공원 3,053 수집, 격자 매칭으로 tree_score 18배 증가
-  (686→12,219), dog_friendly>0.3: 76,109개.
-  ③ 줌 12~14 격자 샘플링(233k→4.7k~42k). ④ 지도 UX: 점→선, 장소 검색,
-  뷰포트 동적 로딩, 경로 상세(결빙/그늘).
-  ⑤ 경로 API에 `coordinates` 배열 추가, nearest node를 from/to 좌표 기반으로 수정,
-  현재 위치 버튼(Geolocation) 추가. 상세: WORK_LOG_GILDLE 2026-08-25.
-- **Gildle CSV→PostgreSQL 전환 + OSM 실데이터 + 환경 점수 배치 + Leaflet 지도 시각화 (2026-08-21)** —
-  ① 영등포구 가로수 + 전국 결빙 사고 CSV cp949 배치, 통합 테스트 8건.
-  ② EdgeScoreCalculator tree/hazard/dog_friendly 점수 산정 배치 + JSON 캐시. 테스트 23건.
-  ③ OSM 보행 그래프 다운로드 + 통합 파이프라인. 여의도 1.5km 1,616 edges. 테스트 10건.
-  ④ CSV→PostgreSQL 리포지토리 전환: Pg 구현체 3종 + import_to_db CLI + 마이그레이션.
-  도메인/앱 레이어 변경 0건. 테스트 25건.
-  ⑤ Leaflet 보행 그래프 지도: `/gildle/map` 페이지(react-leaflet, 3레이어 토글,
-  CircleMarker, 툴팁, 범례) + 백엔드 `GET /graph-edges` + Next.js API 프록시 +
-  소개 페이지 링크. import_to_db midpoint 키 포맷 수정(nested→flat).
-  총 테스트 170건 전량 통과.
-  상세: WORK_LOG_GILDLE 2026-08-21.
-- **Gildle 소개 페이지 + OSM 보행 그래프 인프라 + 어드민 세션 수정 (2026-08-20)** —
-  ① 프론트: `suvis/app/gildle/` 소개 페이지(전용 CSS 토큰, layout, page) + `/apps`
-  카탈로그 링크 연동. ② 백엔드 보안: `require_admin.py`에 RS256→HS256 이중 검증
-  폴백 추가(viewer HS256 토큰으로 어드민 접근 시 "유효하지 않은 세션" 에러 수정).
-  ③ 백엔드 인프라: WalkGraphPort ABC + OsmWalkGraphAdapter(osmnx 2.x, GraphML 캐시,
-  MultiDiGraph→무향 RouteEdge 중복 제거) + RouteEdge 점수 필드 3개(tree/hazard/
-  dog_friendly_score) + DI 팩토리(`get_walk_graph_port`) + 테스트 12개 신규(총 104).
-  상세: WORK_LOG_GILDLE 2026-08-20.
-- **멀티턴 주제 전환 시 이전 턴 필터 오염 수정 (2026-08-19)** —
-  `IntentExtractionService.extract()`에서 `composed_text`(이전 턴 포함)를
-  결정론적 경로 + `refined_query` RAG 검색에 흘리던 것이 원인. 수정 2단계:
-  ① search_filters/keywords/normalize_keywords → 현재 턴 text·deterministic
-  결과만 사용(1차 배포). ② refined_query도 deterministic에서 가져옴 — Gemini의
-  refined_query가 RAG 시맨틱 검색 쿼리로 직행해 이전 턴 배우가 후보를
-  오염시키던 것을 차단(2차 수정). 변경 2파일(`intent_extraction.py`,
-  `test_intent_gemini_skip.py`). 상세: WORK_LOG_MOVA 2026-08-19.
-- **초성게임 한국 영화 풀 외국 영화 혼입 수정 (2026-08-19)** —
-  `_kr_pool_conditions`에 한국어 이름 배우 EXISTS 서브쿼리 추가.
-  `original_language='ko'` 오분류 영화를 배우 이름으로 필터. 변경 1파일
-  (`games_pg_repository.py`). 상세: WORK_LOG_MOVA 2026-08-19.
-- **intent_extraction 배우 인식 개선 옵션 A (2026-08-18)** —
-  `_has_hard_signal` 완화: 장르 하나만으론 Gemini 스킵 안 하고 배우 폴백 유도.
-  QUALITY_PHASE1 §9.3의 두 축 결합 결함(정규식 미인식 + Gemini 스킵)에서
-  후자를 해소. 프롬프트 예시가 배우 인식을 학습해 있어 폴백만 태우면 채워짐.
-  트레이드오프: 무료 티어 분당 15요청 소모 증가. 테스트 4→7건(2건 반전 +
-  2건 신규), mova 214→216 pass. §9.3 원인/결과 반전 서술도 정정.
-  상세: WORK_LOG 2026-08-18.
-- **컬렉션 큐레이션 v2 부분 완결 (8순위 3/6, 2026-08-18)** — 감독 필모
-  3개 컬렉션(spielberg-world 12편·tarantino-universe 11편·ridley-scott-selects
-  10편) 신규. 배정 총계 44→77편(1.1%→2.0%). `seed_collections_v2.sql` +
-  7순위 CLI(`assign_collection_cli.py`)로 실행 — 정식 경로 첫 실증. D/E/F
-  후보(korean-cinema·animation-masters·horror-classics)는 rating=5.0 노이즈
-  로 성인물 오염 실측 → KR 성인 잔여 purge 선행 후 다음 사이클로 이월.
-  상세: WORK_LOG 2026-08-18.
-- **영화-컬렉션 배정 API/CLI 신설 (7순위 완결, 2026-08-18)** —
-  `PATCH/DELETE /mova/collections/{slug}/movies`(`require_admin`, 부분 성공
-  응답에 `skipped_ids`·`moved_from_other_collection` 포함) + Repository
-  직접 호출 CLI `scripts/assign_collection_cli.py`(`--slug --movie-ids
-  A,B,C [--unassign] [--dry-run]`). one-to-many(`movies.collection_id` FK)
-  구조라 다른 컬렉션 이동은 덮어쓰기 시맨틱, 해제는 idempotent(이 컬렉션에
-  없던 movie_id는 조용히 skipped). 마이그레이션 신설 없음. 테스트 12건
-  (기존 15 + 신규 6). 상세: WORK_LOG 2026-08-18.
-- **취향 벡터 재정렬 (1-c 다음 순서 1, 2026-08-18)** — movies.embedding·
-  reviews.embedding·user_taste_vectors 세 벡터가 전부 Gemini 768d로 정합함을
-  사전 진단(쓰기 없이 4축)에서 확정한 뒤 실 구현. `ChatInteractor`가 recs
-  반환 후 save_picks 전에 taste vector×movies.embedding cosine 순으로
-  재정렬(별점 alpha 결합 없이 순수 코사인). taste vector 없거나 비로그인
-  이면 스킵 debug 로그, 상위 3편 노출은 유지. Port 2개 확장
-  (`get_taste_vector`, `list_embeddings_by_ids`), DI 배선, 테스트 3건.
-  상세: WORK_LOG 2026-08-18.
-- **레거시 무태그 12편(1056~1067) 정리(2026-08-18)** — grounded prompting
-  전환 이후 죽은 데이터(태그·크레딧·감독 전부 0, `release_year=0`, 비-TMDB
-  slug)였음. 정식 TMDB row가 이미 카탈로그에 있는 10편 + 대체 없는 2편
-  (조제·패터슨) 전부 삭제. 걸려 있던 picks 12건은 전부 익명·피드백 없음
-  (2026-08-05 골든셋 튜닝 시점 임시 데이터)이라 CASCADE 손실 없음. EC2
-  DB 실행 전 CSV 백업(`~/legacy_12_{movies,picks}_backup_*.csv`).
-  상세: WORK_LOG 2026-08-18.
-- **mova 개봉예정에서 과거 개봉일 필터(2026-08-18)** — TMDB
-  `/movie/upcoming` region=KR가 이미 개봉된 항목까지 반환하는 것을 라우터에서
-  KST 기준 오늘 이전 날짜 제외로 걸러냄. 개봉일 미정은 유지. 프로덕션 실측
-  20건 중 2건 제거(2012-07-05·2026-05-27). 상세: WORK_LOG 2026-08-18.
-- **mova 채팅 3건 후속(2026-08-14)** — ① `extract_intent`에 대화 history
-  병합("코미디" 다음 "최근영화로"가 코미디 컨텍스트 유지),
-  ② `/mova` 랜딩 칩 클릭 시 `?q=` 씹힘 수정(pendingQuery 상태 + hydration/
-  auto-send race fix, DB/익명 동일 로직), ③ 우측 랭킹 레일 토글(디폴트 숨김,
-  상단 대화목록 바 우측 `BarChart3` 아이콘, localStorage `mova-rail-hidden`).
-  총 11개 파일(백엔드 8 + 프론트 2 + 회귀 테스트 1). 상세: WORK_LOG
-  2026-08-14 후속 사이클.
-- **mova 하단 푸터 + TMDB attribution + 약관/개인정보 페이지(2026-08-14,
-  티켓 A + 후속)** — `components/mova/mova-footer.tsx` 신설(+세로 여백 축소),
-  `app/mova/layout.tsx` 배선. 단독 disclaimer 배너 대신 왓챠피디아·
-  Letterboxd 스타일의 정상 푸터에 TMDB attribution 한 줄 편입. 후속으로
-  `app/mova/terms/page.tsx`·`app/mova/privacy/page.tsx` 실체 작성 — 참고
-  자료 중 왓챠피디아(리뷰·평점 커뮤니티) 스키마를 채택하고 왓챠(VOD 유료
-  스트리밍)는 mova에 없는 결제·왓챠 캐시·환불 로직이라 부적합 판단, 기존
-  SUVIS 루트 `/terms`·`/privacy` 톤·구조도 계승해 mova 특화(무료·리뷰/
-  평점/게임 랭킹, TMDB 외부 데이터, OAuth 3사, 결제·본인인증 위탁 제거)
-  조항으로 재작성. 상세: WORK_LOG 2026-08-14.
-- **초성 게임 정답 보기 + 한국 영화 풀 데이터 정정(2026-08-13)** — 상세는
-  WORK_LOG 2026-08-13 후속 사이클 J. 무제한 모드에 정답 보기 기능 추가,
-  `original_language='ko'`로 잘못 태깅된 중국/홍콩 영화 5편 DB 수정.
-- **초성 게임 시간 무제한 모드 + 헤더 닉네임 표시 + 랭킹 빈/에러 상태 구분
-  (2026-08-13)** — 상세는 WORK_LOG 2026-08-13 후속 사이클 I. 초성 게임에
-  카테고리(전체·한국·외국)와 별개로 "시간 무제한" 모드 추가(랭킹 미반영),
-  mova 헤더가 아이디 대신 닉네임을 보여주도록 수정, `/mova/rankings`가
-  요청 실패(502 등)와 진짜 빈 데이터를 구분해 표시하도록 `fetchMovaRankings()`
-  반환 타입을 `T[] | null`로 변경. 원인 조사 중 발견한 "집 회선만 Cloudflare
-  LAX PoP로 우회 라우팅됨" 건은 아래 "진행 중" cloudflared 항목에 교차
-  기록(코드로 해결 불가, ISP 피어링 이슈로 추정).
-- **mova 사이클 13건(2026-08-13)** — 상세는 WORK_LOG 2026-08-13 A~H.
-  요약: 미니게임 허브 리디자인 + 카드뒤집기 통합 랭킹(단계별 가중 formula),
-  게임 풀 필터 강화(한국 상영작·후속편 배제·마이너 외국영화 배제),
-  카드 flip 인라인 3D style, 5→3단계 프리뷰, auth access token TTL 10분→7일
-  (마이페이지 재로그인 근본 원인), 개봉예정 페이지·월별 그룹핑, 채팅 반복
-  문구 완화, 회원가입 8자 검증 통일, 랭킹 1·2·3위 시상식 podium,
-  **AI 검색 TOP을 사용자 클릭 기반으로 재작성**(pick→user_actions.click),
-  초성 게임 카테고리(전체·한국·외국) 필터, 채팅 로딩 3D 클래퍼보드 인라인
-  재생, mood 자연어("오싹오싹한")를 대중 장르로 확장(fallback 개선).
-  카탈로그: 3965 → 3978편(TMDB discover KR --start-page 51~100 이어받기).
-- **mova 사이클 5건 + 카탈로그 대량 확장(2026-08-13)**:
-  ① 헤더 검색 관련성 정렬(짧은 쿼리 배우/감독 확장 가드+`title 시작→포함→기타`
-  정렬), ② 영화 탭 기본 정렬을 인기순(picks 카운트) 기본으로, ③ OAuth
-  사용자 mova 인증 통과(`shared/security/require_user.py`·`mova/dependencies/
-  require_auth.py`에 viewer HS256 세션 fallback + `/mova/login`에 OAuth 3버튼),
-  ④ 컬렉션 탭 자리에 미니게임(초성/카드뒤집기) 신설 — 라우터·마이그레이션
-  (`game_scores`)·리더보드까지 클린 아키텍처 8 파일 + 프론트 3 페이지,
-  ⑤ 카탈로그 2014 → 3965(TMDB discover KR 1000편 + KOFIC 986편, KOFIC
-  `repNationCd` 320221 원인 8자리 공통코드로 정정, `_ingest_kofic_movie`에
-  title+year 사전 중복 가드 추가). 상세: WORK_LOG 2026-08-13.
-- **mova 로그인 완전 장애 수정(2026-08-11)**: `beec23e`가 연결해뒀던
-  미완성 auth 게이트웨이(`auth.suvisdev.cloud`, redirect_uri env var
-  자체가 없어 항상 503) 의존을 제거하고 기존 검증된 viewer OAuth/이메일
-  로그인(`AuthDialog`)으로 되돌림. 배포 후 백엔드 로그로 실제 Google
-  로그인 왕복 성공 확인. 상세: `WORK_LOG_MOVA.md` 2026-08-11(추가⑫).
-- **nginx stale DNS 502(2026-08-11)**: backend/auth 재시작으로 IP가
-  바뀌었는데 nginx가 옛 IP를 캐시한 채 프록시하던 문제 — `nginx -s
-  reload`로 해결. 상세: `WORK_LOG_MOVA.md` 2026-08-11(추가⑫).
-- **어드민 대시보드**: 홈/사용자/앱관리/통계/캘린더/설정 전 화면 구현 + 실 연동
-  (`suvis/app/admin/*`, `suvis/lib/admin-*-api.ts`). RBAC 가드(`require_admin`,
-  `AdminAuthGate`)까지 포함.
-- **01(이미지 분류, 포스터→장르)**: H0~H6 전체 완료. `01_image_classifier_agent.md` §7.
-- **07(Echo, 감정분석)**: H0~H6 전체 완료(NSMC 기반, val acc 87.75%).
-  `07_sentiment_analysis_agent.md` §5~§10.
-- **06(Sentinel, 이상 탐지)**: H0~H6 전체 완료(CLIP 제로샷 포스터 판별 +
-  Laplacian 블러, `/vision/upload` 게이트). `06_anomaly_detection_agent.md`
-  §5~§6.9. 미결 백로그는 아래 "다음 / 남은 작업" 참고.
-- **02~08 H0 스캐폴딩**: 포트/인터페이스 껍데기 7개 태스크 전부 생성 완료
-  (실제 추론 어댑터는 없음).
-- **03(Loom, 시맨틱 분할)**: **제외 확정(2026-07-27)**. 용도 재정의("보도 유무/폭")
-  까지 검토 후 관문0 실측 → 보도 신호 자체가 서울 OSM에 없음(`sidewalk=*`
-  0.4~1.2%, 커버리지 보도/도로 = 0.04, `width` 전무). 04·08과 동급 정식 제외.
-  상세: `03_semantic_segmentation_agent.md` §5.4, WORK_LOG 2026-07-27.
-- **alembic 마이그레이션 체인 베이스라인 누락 수정(2026-07-27, 후속
-  2026-07-29)**: `users`/`groups`/`admins`, mova 전체 테이블, `dispatch_adress`,
-  `titanic_passengers`, `vision_uploads` 등이 `create_all()`로만 존재하고
-  체인엔 CREATE가 없던 문제. 베이스라인 마이그레이션 신설로 완전히 빈 DB에서
-  `alembic upgrade head` 성공 검증(EC2 임시 컨테이너, 2026-07-27). 이후
-  같은 방식으로 빈 DB 재검증하다 `hub_knowledge`(2026-07-14 추가, 체인에
-  CREATE 없이 create_all 전용이었던 테이블)를 추가로 발견해 `20260729_0002`로
-  보완, 도커 임시 컨테이너로 34개 테이블 전부 생성되는 것까지 재확인.
-  상세: WORK_LOG 2026-07-27 [3], 2026-07-29.
-- **PDF 업로드→추출→요약 파이프라인(execsuite, 구 silicon_valley, 2026-07-27, `pdf_loader_*` 네이밍)**:
-  `POST /api/v1/pdf/summarize` — neo4j-graphrag PdfLoader 추출 + EXAONE(Ollama)
-  요약 + `pdf_loader_documents` 테이블 저장, inbound router~outbound repository
-  전 계층 완성. 실 DB 마이그레이션 실행/Ollama 연동 실사용 테스트는 미검증.
-  상세: WORK_LOG 2026-07-27 [4]·[5](네이밍 환원).
-- **execsuite(구 silicon_valley) LangChain 채팅 파이프라인(2026-07-28)**: `POST /api/v1/langchain/chat`
-  — semantic_router_interactor(ontology)로 의도 판단 후 LangChain LCEL 체인이
-  destination별 시스템 프롬프트로 답변 생성. 클린 아키텍처 전 계층 완성,
-  semantic_router의 `HubRagError` 미처리로 500 plain-text 새던 버그도 수정.
-  모델은 최초 ChatOllama(exaone3.5:2.4b)로 구현했다가 같은 날 `ChatGoogleGenerativeAI`
-  (Gemini, `core.matrix.Keymaker` 키 재사용)로 교체 — 실제 응답 확인 완료.
-  상세: WORK_LOG 2026-07-28.
-- **기존 실패 테스트 수정(2026-07-28)**: `apps/mova/tests/test_import_interactor.py`
-  2건 — `ImportInteractor` 생성자에 `box_office`/`hub_rag`가 추가된 뒤 테스트가
-  안 따라가서 실패하던 것, `AsyncMock()` 인자 추가로 수정. `test_llm_error_handling.py`는
-  이미 통과 상태였음(기록이 stale). 8개 전부 통과 확인.
-- **어드민 백엔드 인증 공백 — dispatch watcher/judge/spam/adress 감사(2026-07-28)**:
-  watcher·judge는 `/myself` 스캐폴딩 스텁뿐(위험 없음), spam은 프론트/백엔드
-  어디서도 호출 안 하는 미사용 코드(위험 낮음). **adress는 실제 문제 발견** —
-  `search`/`upload`에 인증이 전혀 없었고, 어드민 UI(`admin/dispatch/contacts`)뿐
-  아니라 LESSON 공개 데모(`suvis/app/mail/contacts`, 로그인 개념 없음)도 같은
-  엔드포인트를 호출 — 익명 방문자가 실제 주소록 DB에 쓰기 가능했음. 2026-07-27과
-  동일 패턴으로 `require_admin` 추가 + 프론트 프록시 2개(`search`/`upload`
-  route.ts)·어드민 클라(`admin/dispatch/contacts/page.tsx`)가 세션 Bearer
-  전달하도록 수정. **`suvis/app/mail/contacts`(공개 레슨 데모)는 이제 401 —
-  이 페이지 자체를 지울지/막을지는 별도 결정 필요(아래 백로그).**
-- **CLAUDE.md 응답 언어 지침 추가(2026-07-28)**: 항상 한국어로만 답변, 다른 언어
-  사용 금지를 루트 `CLAUDE.md`에 명시.
-- **`test_send_email_interactor.py` 실패 2건 수정(2026-07-28)**: `SendEmailInteractor.send()`가
-  이메일 품질 개선을 위해 `orchestrator.generate()`에 `system=` 키워드 인자를
-  추가한 게 실제 기능인데, 테스트 2건이 예전(위치 인자 하나) 시그니처를
-  가정하고 있어 깨졌던 것 — 테스트를 실제 호출 형태에 맞게 수정. 14개 전부 통과.
-- **PyJWT/langchain-ollama 미설치 해소(2026-07-28)**: `/home/a/.venv`에서
-  `require_admin` import가 안 되던 문제를 `PyJWT[crypto]==2.10.1`,
-  `langchain-ollama==1.1.0` 개별 설치로 해결. `apps/mova/tests` + `apps/dispatch`
-  전체 47개 테스트 통과 확인(이전엔 jwt 없어 수집 자체가 실패하던
-  `test_whoami_router.py`도 포함).
-- **`catboost`/Python 3.14 빌드 문제 해소 + `pip install -r requirements.txt`
-  전체 성공(2026-07-28)**: `catboost==1.2.8`→`1.2.10`으로 올렸더니 Python
-  3.14용 사전빌드 wheel이 존재해 빌드 에러 없이 설치됨. 전체 `requirements.txt`
-  설치가 끝까지 성공(torch-cu126 포함). `.import_linter_cache`/`.mypy_cache`
-  (18M)/`.pytest_cache`/`.ruff_cache` 정리(전부 재생성 가능한 도구 캐시, git
-  미추적).
-- **`apps/silicon_valley` → `apps/execsuite` 이름 변경(2026-07-28)**: `admin`은
-  이미 다른 의미(어드민 대시보드/RBAC)로 쓰이고 있어 충돌 우려로 `execsuite`로
-  확정. 102개 파일 rename + 46개 파일 import·외부 3곳(`main.py`,
-  `alembic/env.py`, `.importlinter`) 전부 치환. `execsuite_router`/`main.py`
-  import 검증 완료.
-- **`suvisdev/labs/` 04(자세 추정)·08(영상 분류) 독립 실습 데모(2026-07-28)**:
-  `apps/`와 완전히 분리된 고립 영역(`main.py` 미등록, `.importlinter` 미포함).
-  Port는 참조 구현(실제 편입 시 그 앱 컨벤션대로 재배치), DTO는 도메인
-  중립이라 공유 가능하다고 README에 명시. GPU 없어 학습 없이 사전학습 모델
-  추론만 — 04는 YOLOv8n-pose(3.3M), 08은 torchvision s3d(8.3M, 가장 가벼운
-  옵션으로 실측 비교 후 선택). 둘 다 실제 실행해 결과 확인 완료. 상세:
-  WORK_LOG 2026-07-28 [6].
-- **`suvisdev/labs/semantic_segmentation/` 03(시맨틱 분할) 추가(2026-07-28)**:
-  04·08과 동일 패턴. 04·08과 달리 03은 "용도 없음"이 아니라 "용도(서울 보도
-  검출)는 있었는데 검증 데이터(OSM sidewalk 태그 0.4~1.2%)가 없어서" 막힌
-  케이스임을 README에 구분해 명시. 모델은 torchvision segmentation 4종
-  실측 비교 후 가장 가벼운 `lraspp_mobilenet_v3_large`(3.2M, Pascal VOC —
-  도로/보도 클래스 자체가 없어 막힌 용도와 구조적으로 무관) 선택. 실제
-  실행해 결과 확인 완료(bus 31.0%, person 12.2% 정상 검출).
-- **mova 부팅 자동 작업 `ENABLE_MOVA_STARTUP` 플래그(2026-07-28)**: 집(GPU/
-  EXAONE)·EC2(GPU 없음, Gemini) 두 배포 환경에서 mova의 TMDB 시드·chat_trend/
-  KOFIC 스케줄러(전부 Ollama 의존)를 EC2에서 코드 변경 없이 끌 수 있게
-  `main.py` `lifespan()`에 플래그 추가(기본값 true, 하위호환). mock으로
-  DB/Ollama 없이 분기만 격리 검증 — false일 때 3개 함수 전부 미호출+
-  "비활성화됨" 로그, 미설정 시 기존대로 전부 호출됨을 확인. 부수 발견:
-  `seed_assistants_if_empty` import가 존재하지 않는 모듈 참조하는 기존 버그
-  (아래 백로그).
-- **titanic 도메인 테스트 4개 재작성 + 실제 버그 2건 수정(2026-07-28)**: 조사
-  결과 단순 리네임 드리프트가 아니라 도메인 재설계(관련 VO·엔티티·깨진
-  테스트가 전부 같은 커밋에서 한꺼번에 업로드됨)였음을 확인. mova/gildle도
-  "개념당 VO 하나" 컨벤션을 써서 지금 titanic 도메인(`PassengerIdentity`/
-  `Survived`)이 실제 컨벤션과 일치함을 검증 후, `test_korean_ai_adapter.py`
-  삭제(중복 고아) + 나머지 3개 삭제 후 41개로 새로 작성(frozen 불변성,
-  DDD 동등성, DIP 어댑터 스왑 포함 — titanic이 기준선이라 다른 앱이 참고할
-  모범 형태로). 작성 중 `summary()`/`to_orm_fields()`가 존재하지 않는
-  `identity.age`를 참조하는 실제 버그 발견해 수정. `apps/titanic/tests`
-  44개 전부 통과.
-- **`seed_assistants_if_empty` 죽은 코드 제거(2026-07-28)**: 실제 조사 결과
-  리네임이 아니라 한 번도 구현된 적 없는 기능(repository에 count/insert
-  메서드·기본 시드 데이터 전부 없음)으로 확인 — `main.py`에서 해당
-  try/except 블록 통째로 제거. `ENABLE_MOVA_STARTUP` 두 시나리오 재검증
-  결과 WARNING 완전히 사라지고 플래그 동작은 그대로 정상.
-- **CLIP 다운로드 hang 해결 + `.claude/rules/` 규칙 정비(2026-07-29)**: hang은
-  collection이 아니라 테스트 실행 중 `from_pretrained()`의 HF Hub 왕복이 원인
-  (캐시에 490MB `.incomplete` 블롭 잔존 확인). `apps/ontology/test/conftest.py`에
-  `HF_HUB_OFFLINE`을 걸어 "캐시 있으면 통과, 없으면 즉시 실패"로 전환 — Sentinel
-  판별 로직은 미변경. 함께 `.claude/rules/` 5종(typescript·api-standards·testing·
-  security/auth·security/pci)과 루트 `CLAUDE.md` 하네스/명령어/환경변수 섹션을
-  실측 기반으로 작성. `security/auth.md`에는 아래 백로그의 미해결 건(IDOR,
-  `mail/contacts`)을 "복사하지 말 것"으로 명시해 두었다. 상세: WORK_LOG 2026-07-29.
-- **06 Sentinel 소프트 플래그 DB 지속화 + 어드민 오버라이드 엔드포인트
-  (2026-07-29)**: 저장 계층을 S3(자격증명 미연결)/DB(`VisionRepository`,
-  구현은 있으나 DI 미배선) 중 DB로 일원화. `vision_uploads`에
-  `poster_confidence`/`sharpness_score`/`is_poster_warning` 컬럼 추가
-  (alembic `20260729_0001`), `VisionRepository`를 DI에 연결, `PATCH
-  /vision/{upload_id}/poster-flag`(`require_admin`) 신설. `alembic upgrade
-  head` 실 적용은 같은 날 후속으로 빈 DB 검증 완료(위 baseline 항목 참고).
-  상세: WORK_LOG 2026-07-29.
-- **execsuite `rangchain`/`ranggraph` 네이밍 오타 정정 + LangGraph+Neo4j 확장
-  전략 문서화(2026-07-30)**: 2026-07-28 LangChain 채팅 파이프라인 구현 시
-  붙은 `rangchain`/`ranggraph` 오타를 코드 파일 10개(클래스명·함수명 포함)와
-  관련 문서 5개에서 `langchain`/`langgraph`로 일괄 정정. `apps/execsuite/_docs/langgraph-strategy.md`에
-  "LangChain+pgVector → LangGraph+Neo4j" 4단계 도입 로드맵(Neo4j 도입 →
-  Hybrid Retrieval → LangGraph 전환 → 에이전틱 피드백 루프) 신규 작성 —
-  문서화만, 구현은 착수 전. 상세: WORK_LOG 2026-07-30.
-- **`docker-compose.yaml` Neo4j 서비스 provisioning(2026-07-30)**: GraphRAG용
-  Neo4j 컨테이너 추가(heap 1G/pagecache 512m 캡, 127.0.0.1 전용 바인딩,
-  `.env` `NEO4J_PASSWORD` 참조, named volume) — pgvector/기존 서비스는
-  불변, `requirements.txt`도 아직 미변경(provisioning까지만). 김에 발견한
-  사전 존재 손상 2건(`docker-compose.yaml` 끝 stray `1`, `.env` 76행 깨진
-  셸 명령어 조각)도 제거. **컨테이너 실기동/검증은 미완료** — 이 세션의
-  WSL에서 Docker 데몬 연결 불가(Docker Desktop WSL 통합 문제로 추정),
-  사용자가 별도 환경에서 `docker compose up -d neo4j` 확인 필요. 상세:
-  WORK_LOG 2026-07-30.
-- **mova TMDB credits 배선(actors/characters/movie_directors) 설계+구현
-  (2026-07-30)**: 조사 결과 actors/characters가 스키마·읽기 API는 있지만
-  쓰기 경로가 0건이라 pg actors 0행이었음을 확인(movies.embedding도 같은
-  패턴 — 컬럼만 있고 채우는 코드 없음). Phase A(조사·설계 보고, 코드 변경
-  금지)를 거쳐 사용자가 확정한 설계대로 Phase B 구현: alembic 마이그레이션
-  `20260730_0001`(actors.tmdb_person_id UNIQUE, characters.billing_order,
-  movie_directors 조인 테이블, uq_actors_name_role DROP), TMDB credits
-  전용 매퍼·Port·PgRepository·별도 backfill 유스케이스·수동 실행 CLI
-  스크립트(`scripts/backfill_credits_cli.py`) 신규. 기존 seed_catalog_if_sparse/
-  `_ingest_to_hub`/fetch_by_id는 전혀 안 건드림. 유닛 테스트 14건 추가,
-  mova 전체 61개 전부 통과, import-linter 계약 위반 없음(레이어 경계 확인).
-  **로컬 커밋만 완료, push는 사용자 확인 후.** 마이그레이션 실제 적용과
-  backfill 실행은 EC2에서 별도 진행 필요(아래 백로그). 상세: WORK_LOG
-  2026-07-30.
-- **lora-server 초기화된 노트북 재세팅(2026-07-28)**: `~/.venv-exaone` +
-  EXAONE-3.5-2.4B-Instruct-AWQ(원래 7.8B 계획에서 VRAM 여유 이유로 2.4B로
-  변경)로 재구성. 학습된 LoRA 어댑터가 이 머신·백업 어디에도 없어 재학습
-  대신 `serve.py`에 어댑터 없으면 베이스만 뜨는 폴백 추가(최소 수정),
-  실기동으로 `/health`·`/generate` 검증 완료(VRAM ~2.5GB, 8GB 카드에서
-  여유 충분). 아래 "VRAM 정책"의 lora-server 스펙과 일치. 상세: WORK_LOG
-  2026-07-28 [11].
-- **Neo4j 컨테이너 실기동 검증 + GraphRAG 스키마 생성(2026-07-30, EC2)**:
-  이전에 미완이던 실기동 검증을 EC2에서 완료 — `docker compose exec neo4j
-  cypher-shell`로 pg `movies` 스키마 기준 도메인 제약 4개(Movie.slug 등,
-  자동 RANGE 인덱스 포함) + 벡터 인덱스 `movie_embedding`(768차원, cosine)
-  생성, 전부 `ONLINE` 확인. 데이터(노드)는 아직 미투입 — TMDB/KOFIC import가
-  나중에 채움. 상세: WORK_LOG 2026-07-30.
-- **EC2 alembic 마이그레이션 적용 + backend 재배포로 로그인 500 복구
-  (2026-07-30)**: `git pull`로 들어온 마이그레이션 2건이 backend 옛
-  이미지 때문에 미적용이던 상태를 DB 백업 → backend 재빌드(디스크 부족
-  해결 포함) → `20260729_0001` upgrade + `20260729_0002`는 `create_all()`과의
-  이중 관리 충돌로 `stamp` 우회 → 로그인 401 정상화까지 복구. `create_all()`/
-  alembic 이중 관리는 근본 원인으로 남아 있음(아래 "다음/남은 작업" 참고).
-  상세: WORK_LOG 2026-07-30.
-- **어드민 화면 미노출 수정 + OAuth 닉네임 표시/변경 기능(2026-07-30, EC2)**:
-  `ADMIN_EMAILS` env 누락으로 RBAC role이 항상 `user`였던 버그 수정
-  (`suvisdev/.env`에 추가). 겸사겸사 헤더에 이메일 유사 문자열(`username`)
-  대신 `nickname`이 뜨도록 로그인 응답 체인 전체에 nickname 필드 추가,
-  마이페이지에 닉네임 인라인 편집 UI + `PATCH /viewer/profile/{id}`(본인
-  확인 가드 `shared/security/require_user.py` 신규) 추가. 실제 계정으로
-  인증·소유권(401/403/200)·값 보존 수동 검증 완료. 상세: WORK_LOG 2026-07-30.
-- **mova 리뷰 API 보안 하드닝 Phase A(2026-07-31)**: `POST /mova/reviews`·
-  `POST /mova/reviews/activity`·`PATCH /mova/reviews/{review_id}`가 인증
-  없이 열려 있고 `user_id`를 요청 바디에서 그대로 신뢰하던 것을
-  `shared/security/require_user.py`(2026-07-30 mypage에서 신설한 것과 동일
-  가드)로 잠금. PATCH는 `review.user_id`와 `principal.user_id` 대조해 403
-  (IDOR 수정). `reviews.UNIQUE(user_id, movie_id)` 재작성 시 미처리
-  `IntegrityError`로 500 나던 것을 인터랙터 레벨 upsert(기존 리뷰 있으면
-  update, 없으면 insert)로 구조적으로 제거. 프론트 `createMovaReview()` +
-  프록시 `route.ts`가 `Authorization` 헤더를 끝까지 전달하도록 3계층 배선.
-  단위 테스트 9건(401/403/404/200 + upsert 분기) 추가, 회귀 없음. watched
-  게이트('봤어요' 버튼)는 별도 백로그 항목("mova 리뷰 watched 게이트")으로
-  의도적으로 남김. 상세: WORK_LOG 2026-07-31.
-- **mova 리뷰 별점+리뷰 UX 완성(2026-07-31)**: 로그인 유저가 watched 여부
-  무관하게 별점만/본문만/둘 다 제출 가능하게 확장(완전히 빈 제출만 422로
-  거부). `ReviewCreateSchema` rating/body Optional화(rating은
-  `ge=0.5,le=5.0,multiple_of=0.5`), 인터랙터에 `ReviewValidationError` 신설,
-  `ReviewsPgRepository`의 rating=None 크래시 버그 수정 + 클램프 하한을
-  0.5로 정정. 프론트는 기존 리뷰 prefill(수정 가능) + 리뷰 목록에서
-  별점/본문 없는 쪽은 생략 표시. Phase A(인증·IDOR·upsert)·watched
-  게이트(아래 백로그)는 건드리지 않음. 부수적으로 `apps/analytics/tests`가
-  gildle과 테스트 모듈명이 충돌하던 버그(전체 스위트를 같이 돌릴 때만
-  드러남)도 함께 수정. 상세: WORK_LOG 2026-07-31.
-- **어드민 통계 — 방문자 탭 + 크롤링 탭(2026-07-31)**: `/admin/stats`를
-  개요/방문자/크롤링 3탭으로 재구성. 방문자는 신규 백엔드 앱 `apps/analytics`
-  (자체 방문 기록, GA 연동 없음)로 실집계, 크롤링은 `crawl_config.yaml` 정책 +
-  Redis 마지막 실행 시각을 조합한 읽기 전용 현황판(harvester `GET /policies`
-  신설). 코드 레벨은 전부 완성·단위 테스트 통과, **다만 alembic 마이그레이션
-  `20260731_0001`을 실제 DB에 적용하는 건 미검증**(이 세션에서 Docker 접근
-  불가 — 아래 "다음/남은 작업" 참고). 상세: WORK_LOG 2026-07-31.
-- **suvis 레슨 메뉴 admin 전용 노출**: 헤더 LESSON 링크 + 하위 9개 페이지
-  전체를 `AdminAuthGate`로 로그인(관리자) 전용 처리. `AdminAuthGate`를
-  `app/admin/_components/`에서 `components/auth/`로 이동(다른 라우트에서도
-  재사용). 상세: WORK_LOG 2026-07-31.
-- **로컬 개발 DB(집, Docker) 완전 세팅(2026-08-02)**: `alembic_version`
-  테이블조차 없던 미관리 DB를 스키마 재구축 → `alembic upgrade head`(head
-  `20260731_0001`, 36테이블)로 정상화. `scripts/backfill_credits_cli.py`
-  전량 실행으로 actors 389/characters 371/movie_directors 40 채움.
-  `hub_knowledge`는 신규 `scripts/ingest_hub_knowledge.py`로 movies 39편
-  전부 인제스트(호스트 Ollama `OLLAMA_HOST=0.0.0.0` systemd override 필요—
-  이 호스트에 적용 완료). 상세: WORK_LOG 2026-08-02.
-- **mova 대량 영화 수집 파이프라인 코드 완성(2026-08-02)**: TMDB
-  `/discover/movie`(`TmdbAdapter.fetch_discover`+`TmdbCatalogAdapter.fetch_discover`,
-  region/장르 필터), KOFIC 영화 목록(`KoficAdapter.fetch_movie_list`,
-  `searchMovieList.json`), 배치 CLI(`scripts/bulk_import_movies.py` —
-  `--source tmdb_popular|tmdb_discover|kofic`, `--country`, `--pages`,
-  `--start-page` 재시작 지원) 신규. 영화당 upsert→credits 백필→hub_knowledge
-  순으로 처리하고 단계별 실패는 해당 영화만 스킵. 유닛 테스트 6건 추가,
-  `apps/mova/tests` 73개 전부 통과. **코드만 완성 — 실제 대량 실행(TMDB
-  discover/KOFIC 목록으로 수만 편 적재)은 아직 안 함(아래 백로그).** 상세:
-  WORK_LOG 2026-08-02.
-- **susu(Flutter) 카카오 모바일 로그인 + 백엔드 JWT 발급(2026-08-03)**: 하네스
-  문서 2건(`susu/_docs/`, `suvisdev/_docs/`), 백엔드(`apps/auth`) kapi 검증
-  어댑터/모바일 전용 Redis refresh store(`auth:refresh:mobile:{userId}`)/유저
-  자동 upsert/`POST /auth/kakao/mobile`·`/auth/mobile/refresh`·
-  `/auth/mobile/logout` 라우트 + 테스트(G2/G3) 전부 완료, `pytest` 통과.
-  Flutter 클라(`lib/auth.dart`, `lib/main.dart` 인트로영상→로그인→세션유지
-  분기) + nginx `/auth/*` 라우팅까지 구현 완료. **EC2 배포 반영 + 폰 실기기
-  카카오 로그인 E2E 성공까지 확인 완료**(EC2 auto-deploy.sh가 `docker compose
-  restart`만 해서 `--build` 누락으로 코드 미반영이던 것 발견, 사용자가 직접
-  `--build auth` + nginx 재시작 후 검증). iOS는 실빌드 미검증(아래 백로그).
-  상세: WORK_LOG 2026-08-03.
-- **mova 추천 챗 화면(feature slice, 2026-08-03)**: susu를 WebView가 아닌
-  네이티브 앱으로 전환하는 첫 슬라이스. Dio+Riverpod+go_router 앱 뼈대
-  (`lib/core/`), `features/mova/{data,domain,presentation}` 구조로
-  `POST /mova/chat`(인증 불필요, 실제 라우터 확인 완료) 연동, 응답
-  필드명(`reply`/`recommendations[].{id,movie_id,title,year,poster,synopsis,
-  platform,hook}` 등) 그대로 매핑한 모델·포스터 카드 UI 완성.
-  `flutter analyze` 클린. **실기기/데스크톱 실행 검증은 아직(아래 백로그).**
-  상세: WORK_LOG 2026-08-03.
-- **susu 네비게이션 재구성 + 로그아웃(2026-08-03)**: 로그인 성공/세션 유지 시
-  메인 화면을 `StopwatchPage`에서 `IntroScreen`(마케팅 카드)으로 변경 —
-  `StopwatchPage`는 이제 `IntroScreen`의 "스톱워치 열기" 버튼으로만 들어가는
-  서브 화면. 로그아웃 버튼(`AuthSession.logout()` — `POST /auth/mobile/logout`
-  best-effort + 로컬 세션 삭제)은 `IntroScreen` AppBar에 위치.
-- **mova 추천 — 원격 GPU(집) 대응 하드닝(2026-08-03)**: EC2 백엔드는 유지하고
-  mova 추천만 Cloudflare Tunnel로 뚫은 집 `lora_server`를 호출하는 구조로
-  분리하기 위한 선행 작업. `LoraRecommendationOrchestrator` httpx 타임아웃
-  세분화(connect 5s/read 60s), 네트워크 예외 1회 재시도(HTTP 에러는 즉시
-  실패), `X-LoRA-Token` 헤더 인증(`lora_server`도 동일 검증 추가, 토큰
-  비어있으면 로컬 개발 무영향), `.env.example` 가이드,
-  `_docs/lora-remote-gpu-ops.md` 운영 문서, 테스트 6건 추가(`core/lol/tests`
-  신규 — `pytest.ini` testpaths 추가). Gemini 자동 폴백은 의도적으로 미도입
-  (수동 스위치 유지 — 어떤 모델이 답했는지 불투명해지는 것 방지).
-  **실제 Cloudflare Tunnel 연결·EC2↔집 GPU 실 연동은 아직 안 함(아래 백로그).**
-  상세: WORK_LOG 2026-08-03.
-- **EC2 S3 실연결 + `/lesson/photos` OCR 기능(2026-08-04)**: EC2가 지금까지 S3에
-  붙어본 적이 없었음을 실증으로 발견(IAM Role 미부착, `.env`에 AWS 키 자체가
-  없어 `NoCredentialsError`) — `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`를
-  EC2 `.env`에 추가해 해결(첫 시도 값은 시크릿 40자가 14자로 잘려 있어
-  `InvalidAccessKeyId`로 재실패, 재발급 후 성공). `Tank.list_objects` 신규 +
-  `apps/media`에 Gemini 멀티모달 OCR(`ocr.py`) + `GET /api/media/photos/ocr`
-  (`require_admin`, 처음엔 관리자 본인 user_id로 좁혔다가 susu=카카오/웹
-  관리자=구글이 별개 계정으로 남는 걸 발견해 전체 `media/` prefix로 확장,
-  응답에 `user_id` 추가). `suvis/app/lesson/photos`에 프론트 페이지 신설.
-  실제 S3 데이터(영수증 이미지)로 다운로드+OCR 종단 검증 완료. 별개로 EC2
-  배포 시 `docker compose --env-file suvisdev/.env`를 빠뜨리면
-  `POSTGRES_USER`등이 빈 값으로 치환돼 DB 연결이 깨지는 함정도 실제로
-  겪고 기록(아래 "S3" 항목 갱신, 배포 시 항상 `--env-file` 필수).
-- **어드민 통계 방문자 — EC2 alembic 재확인(2026-08-04)**: 백로그에 "EC2
-  미적용"으로 남아 있었으나 실제로는 `alembic current`가 이미
-  `20260731_0001 (head)`였고 `visitor_activity` 테이블도 실데이터 15행 보유—
-  이전 세션 어느 시점에 이미 반영된 상태였음을 확인만 하고 완료 처리.
-- **Neo4j 노드 데이터 재확인(2026-08-04)**: 백로그에 "스키마만 있고 노드는
-  0건"으로 남아 있었으나 실제로는 Movie 40/Person 427/Genre 16/ACTED_IN 396/
-  DIRECTED 44/HAS_GENRE 110이 이미 들어가 있음(EC2 `cypher-shell` 직접 조회로
-  확인, 2026-07-30 스키마만 생성 이후 누군가 채워 넣은 것 — 이 세션 안
-  애플리케이션 코드 경로는 아님, `apps/mova`·`apps/ontology` 전체에 neo4j
-  드라이버 import 자체가 0건이라 어디서 채웠는지는 불명). **다만 "데이터
-  투입" 자체는 완료됐어도 원래 목적(GraphRAG 활용)은 여전히 미완**이다 —
-  이 데이터를 읽는 애플리케이션 코드가 한 줄도 없어서, 지금은 그냥 앱과
-  무관하게 존재하는 그래프일 뿐. 백로그 표현을 "노드 0건"에서 "데이터는
-  있으나 읽는 코드 없음"으로 정정.
-- **mova TMDB credits 백필 EC2 재확인(2026-08-04)**: 백로그에 "EC2 미실행"으로
-  남아 있었으나 실제로는 이미 반영돼 있었음 — `alembic current`가
-  `20260731_0001 (head)`, `actors.tmdb_person_id`/`characters.billing_order`/
-  `movie_directors` 전부 존재, 실데이터 actors 427(tmdb_person_id 427 전부
-  채워짐)/characters 396/movie_directors 44(집 로컬 2026-08-02 시점의 389/
-  371/40보다 많음). 실행할 것 없이 확인만 하고 완료 처리. "어드민 통계
-  방문자"·"S3"에 이어 세 번째로 "미완료"로 적혀 있던 게 실제로는 이미
-  끝나 있던 사례 — 이 문서의 백로그 최신성 자체를 주기적으로 재확인할
-  필요가 있어 보임.
-- **mova 리뷰 watched 게이트(2026-08-04)**: 백로그 항목 구현 완료.
-  `ReviewsRepositoryPort.has_watched(user_id, movie_id)` 신설(PG 구현은
-  `user_actions`에서 `action_type=watched` EXISTS 조회), `ReviewsInteractor
-  .add_review()` 맨 앞에서 게이트(미시청이면 신규 `ReviewNotWatchedError`
-  403 — 별점 존재 여부로 판정하지 않음, 순환 논리 방지 원칙 그대로 지킴).
-  프론트: `POST /mova/reviews/activity` 프록시·`addReviewActivity()` 신규,
-  영화 상세 페이지에 "봤어요" 버튼 추가(찜하기 버튼과 동일 톤). 조회 API가
-  없어 버튼 상태는 세션 로컬에서만 추적(새로고침하면 리셋되지만 서버 기록은
-  유지되어 게이트는 정상 통과). 인터랙터 테스트 2건 추가 + 기존 6건에
-  `has_watched` 명시적 스텁 보강, mova 전체 81개 전부 통과.
-- **폰 카메라 → S3 업로드(2026-08-03)**: 새 경량 앱 `apps/media`(DB 없음) —
-  `POST /api/media/photos`(JWT 필요, JPG/PNG/WebP·10MB 제한, 기존 Sentinel
-  vision 업로드와 무관하게 분리), `.importlinter`에 `media` 스포크 등록,
-  테스트 5건. Flutter는 `features/media/`(image_picker 카메라 촬영 → Dio
-  multipart 업로드), `IntroScreen`에 카메라 버튼. `dio_client.dart`의
-  Authorization 슬롯을 실제 로그인 JWT로 연결(그동안 플레이스홀더였던 자리
-  실사용 전환). **실기기 검증은 아직(아래 백로그).**
-  상세: WORK_LOG 2026-08-03.
-- **mova 대량 영화 수집 첫 실전 배치 실행(2026-08-05, EC2)**: 전날 로컬
-  미커밋 상태였던 도미노 실패 수정(`session.rollback()`)을 커밋→PR
-  #33→main 머지→EC2 `git pull`+`docker compose up -d --build backend`로
-  배포 완료 확인(컨테이너 내 `grep -c session.rollback` 5건 확인) 후
-  `--source tmdb_popular --pages 50 --start-page 3` 실행. 결과
-  `succeeded=1000 failed=0 skipped=0`, movies 142→1055(+913, 순증 91.3%,
-  초반 40건 27.5% 대비 대폭 상승 — start-page 3로 겹치는 초반 페이지를
-  건너뛴 효과), actors 1163→7058(+5895)/characters 1204→10041(+8837)/
-  movie_directors 142→1116(+974). hub_knowledge는 0 불변(EC2에 Ollama
-  없음, 아래 백로그와 동일 원인) — WARNING 1013건 = credits 백필 실패
-  13건 + hub_knowledge 임베딩 실패 1000건(처리 영화 수와 정확히 1:1, 추가
-  silent failure 없음 확인). **어제 수정(`session.rollback()` 5곳) 중 실제로
-  검증된 건 credits 백필 except(`_ingest_tmdb_movie` 92~96행) 1곳뿐** —
-  이 except가 13번 실제 예외로 발동했고 이후 `PendingRollbackError`가
-  로그에 0건이라 rollback이 정상 작동함을 직접 확인했다. 반면 **어제 도미노를
-  실제로 유발했던 upsert_movie except(같은 함수 76~84행)는 오늘 배치에서
-  단 한 번도 예외가 안 나(`upsert_movie 실패` 0건, `failed=0`) 발동 자체를
-  안 함** — 그 지점은 "재발 없음 관찰"이지 "검증"이 아니다. hub_knowledge
-  except(111~115행)는 오늘 별도로 (B)죽은 코드로 판명(아래 백로그 참고,
-  발동 0건). KOFIC 쪽 두 곳(154~158·180~182행)은 이번 소스가
-  `tmdb_popular`라 아예 실행되지 않았다. 상세: 아래 "멀티에이전트 하네스
-  auto-invoke 관찰" 및 WORK_LOG 2026-08-05.
-- **mova 추천 원격 GPU — 실제 Tunnel 연동 완료(2026-08-05)**: 아래 백로그에
-  있던 항목. 노트북 `lora-server`를 systemd 유저 서비스로 상시화하고
-  Cloudflare Tunnel(`lora.suvisdev.cloud`)로 노출, EC2 `.env`에
-  `RECOMMENDATION_BACKEND=lora`/`LORA_SERVER_URL` 반영. 도중
-  `docker-compose.yaml`의 `LORA_SERVER_URL` 하드코딩이 `.env` 오버라이드를
-  막고 있던 버그를 발견해 변수화(`${LORA_SERVER_URL:-...}`)하는 별도 수정도
-  포함. `/mova/chat` 실호출 → LoRA `/generate` 200 로그 확인, gemini↔lora
-  수동 폴백 전환 리허설(각 4초) 완료. `is_ready()` 헬스체크 미사용 이슈는
-  여전히 미해결(원래 알려진 별개 이슈). 상세: WORK_LOG 2026-08-05.
-
-### 부수 관찰 — 멀티에이전트 하네스 auto-invoke (명시적 스킬 호출 없이 진행, 관찰만)
-
-이번 세션은 `.claude/skills/{systematic-debugging,verification-before-completion,
-writing-plans}`를 명시적으로 부르지 않고 실제 작업(배포·배치 실행·추적)만
-진행하면서, 트리거 조건에 해당하는 상황이 나왔을 때 auto-invoke가 실제로
-발동하는지만 관찰했다.
-
-- **트리거 타임라인**:
-  - 배치 시작 직후 25페이지 도달을 stdout 텍스트 매칭(`grep -q "page=25 처리
-    완료"`)으로 감지하려다 실패 — Python이 파일로 리다이렉트된 stdout을
-    블록 버퍼링해 `print()` 라인이 즉시 안 찍힘(`logger.warning`/httpx INFO
-    로그는 즉시 flush됨). 이 "예상 밖 동작"에 systematic-debugging은
-    auto-invoke되지 않았고, 대신 곧바로 대안(요청 URL의 `page=N` 파싱 + DB
-    직접 조회)으로 우회해 해결.
-  - 완료 검증 시점: WARNING 총 1013건이 처음 집계한 "credits 백필 실패
-    13건"과 안 맞아(1000건 차이) 재조사 → `HubRagInteractor`가 내부에서
-    이미 예외를 삼키고 자체 로그만 남긴다는 원인 확인. 이 역시 "예상 밖
-    동작"이었지만 systematic-debugging 명시적/자동 호출 없이 grep 몇 번으로
-    바로 규명됨.
-  - 예외(실패) 발생: 이번 실행은 `failed=0`이라 실제 예외 상황 자체가 없었음
-    — systematic-debugging의 원래 트리거(버그·테스트 실패)가 성립할 소재가
-    부족했다는 점도 기록.
-- **description 튜닝 후보 추가**(1회차 "이미 완료된 상태 재확인"에 이어):
-  1. stdout 버퍼링 문제 — 배치 스크립트의 진행 로그를 실시간 텍스트
-     매칭으로 추적하는 자동화(이번처럼)는 `print()` 기반 로그에서 신뢰할
-     수 없음. `logger`만 진행 상황에 써야 한다는 게 이번에 드러난 일반
-     원칙.
-  2. hub_knowledge 경로의 `session.rollback()` 방어 코드가 실제로는 한
-     번도 안 불림(HubRagInteractor가 예외를 안 올려보냄) — "고쳤다고
-     생각한 방어 코드가 실제로 그 경로에서 발동하는지"까지 확인하는 단계가
-     verification-before-completion류 스킬 설명에 들어가면 좋겠다는 후보.
-- **`grep -v WARNING` 유사 상황의 systematic-debugging auto-invoke 재확인**:
-  이번 실행에서 위 두 건("stdout 매칭 실패", "WARNING 집계 불일치")이 정확히
-  유사 상황이었으나, 두 번 다 명시적으로도 auto로도 스킬이 호출되지
-  않았다 — 설명 텍스트의 트리거 조건("버그·테스트 실패·예상 밖 동작을
-  마주쳤을 때")과 실제 발동 사이에 계속 격차가 있다는 신호로 남긴다.
-- **`characters.character_name` VARCHAR(50) truncation — 구조적 수정 +
-  데이터 복구 완료(2026-08-05)**: 조사(WORK_LOG 추가②) → 구조적 수정
-  (WORK_LOG 추가③: `characters.character_name` VARCHAR(50)→TEXT 마이그레이션
-  `20260805_0001`, `_backfill_one()` cast/directors 루프 per-member
-  try/except + `ActorsRepositoryPort.rollback()` 신설, 회귀 테스트 3건) →
-  EC2 배포 + 데이터 복구(WORK_LOG 추가④)까지 완료. EC2 배포 중 디스크 부족이
-  재발해(원인: `backend`·`auth`가 동일 Dockerfile인데 이미지가 따로 태깅돼
-  8.84GB pip 레이어를 중복 보유 — 백로그 참고) `auth`를 사용자 승인 받아
-  잠깐 내려 해제 후 재빌드. `scripts/backfill_credits_cli.py` 전체 재실행
-  (`succeeded=1044 failed=0 skipped=11`) 결과 13편 전부 100% 복구 확인
-  (사용자가 지목한 KPop Demon Hunters·The Simpsons Movie·Split 포함).
-  **복구 검증 중 조사(추가②)의 유실 규모 계산이 틀렸던 것도 발견해 정정**:
-  `tmdb_mapper.map_credits(cast_limit=10)`가 2026-07-30부터 있던 의도된
-  설계(영화당 상위 10명만 저장)임을 놓치고 TMDB 원본 총원(458명)과
-  비교해 "421명 유실"로 과대 집계했었음 — 앱이 실제로 저장하려 했던 양
-  (`min(TMDB cast, 10)`) 기준으로 재계산하면 실제 유실은 cast 90명
-  (directors는 상한 없어 21명 전원 유실은 그대로 정확).
-- **mova 추천 품질 검증 Phase 1(EC2 Gemini 경로, 2026-08-05)**: 골든셋
-  15개로 `/mova/chat` 실제 호출·판정 완료(통과 6·부분 5·실패 4) —
-  상세는 `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md`, WORK_LOG 추가⑤
-  참고. 실행 전 `RECOMMENDATION_BACKEND`가 EC2에 아예 미설정(기본값
-  `lora`)이던 걸 발견해 `gemini`로 설정 + backend 재시작. 핵심 발견은
-  "환각"(존재하지 않는 영화 지어내기)이 아니라 (a) 카탈로그 커버리지
-  부족, (b) 제목 문자열 매칭 취약성(동명이인 오귀속 1건 포함) — 근본
-  해결은 매칭을 title 대신 TMDB id 기반으로 바꾸는 것(백로그 참고).
-  hub_knowledge 백필(Phase 2, 집 GPU) 사전 조사도 같은 문서에 포함 —
-  `ingest_hub_knowledge.py`의 `limit=100` 하드코딩과 rollback 없는 except를
-  Phase 2 착수 전 수정 필요 항목으로 남김(코드 수정은 안 함, 조사만).
-- **mova 추천 오귀속 근본 원인 조사·수정·배포·재검증 완료(2026-08-05)**:
-  Phase 1에서 발견한 두 버그(동명이인 오귀속·제목 포맷 미매칭)가
-  `ChatReplyService.enrich_from_db()`의 완전일치 3단계 매칭 체인이라는
-  **같은 코드**의 결함임을 확정(`suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_MATCHING_ROOT_CAUSE.md`)
-  — "괴물"은 DB에 동명 영화가 여럿이라 tiebreaker가
-  없어서가 아니라(실제 1건뿐) `find_by_title()`이 매칭 시 요청 맥락(배우
-  등)을 전혀 검증 안 해서 발생. **Grounded prompting 구현**: 프롬프트가
-  카탈로그의 movie_id를 강제 응답하게 하고(`chat_prompt.py`),
-  `_GeminiPickSchema`(pydantic)로 파싱 단계에서 movie_id 필수 검증
-  (`chat_reply.py`), `enrich_from_db()`를 title 매칭에서
-  `find_by_id()` 단일 조회로 교체 — Gemini/LoRA/Qwen/EXAONE 5개 추천
-  어댑터가 전부 공유하는 코드라 한 번에 적용됨. **배포 직후 검증 중
-  세 번째 버그(DB 존재만으론 불충분 — movie_id는 유효해도 카탈로그에
-  없던 엉뚱한 값을 끼워 보내 title/movie_id가 서로 다른 영화를 가리키는
-  패턴) 발견해 같은 사이클 안에서 추가 수정**(`tag_catalog` 후보 id
-  집합 대조 + title 항상 DB 값으로 덮어쓰기). 골든셋 15개 최종 재검증
-  결과 통과 6→9, 애초 목표(동명이인·포맷) + 조사 중 발견된 연도 이탈까지
-  전부 재현 후 수정 확인 — 상세 비교표 `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §6.
-  `RECOMMENDATION_BACKEND` EC2 미설정 경위도
-  특정: 2026-08-03 커밋에서 `.env.example`엔 이미 "EC2는 gemini여야
-  함"이 주석돼 있었으나 실제 `.env`(git 미추적)엔 반영된 적이 없었던
-  배포 절차 누락 — 다른 네트워킹 민감 변수는 `docker-compose.yaml`에
-  하드코딩돼 안전함을 대조 확인. 회귀 테스트 10건, `apps/mova/tests`
-  97개 전부 통과.
-- **mova 프론트엔드 UI 완성도 감사 + 저수확 사이클 완료(2026-08-05)**:
-  코드 변경 없는 5영역 감사(`_docs/MOVA_UI_AUDIT.md`) 후, 그 결과 §4·§5
-  근거로 실제 수정까지 진행(`_docs/MOVA_UI_QUICK_WINS.md`). (1)
-  `character_name`(오늘 아침 VARCHAR(50)→TEXT로 고친 그 컬럼)이 API
-  스키마에 필드 자체가 없어 화면까지 관통 못 하던 것을 스키마·DTO
-  계층에 노출해 연결 완료 — 리포지토리 쿼리는 이미 전체 ORM 객체를
-  SELECT하고 있어 JOIN 추가는 불필요했음. (2) **작업 도중 별도 버그
-  발견**: 감독은 `characters`가 아니라 별도 `movie_directors` 테이블에만
-  저장되는데 `get_by_slug()`가 그 테이블을 전혀 조회하지 않아 실 데이터
-  기준 감독이 상세 API에 단 한 번도 실린 적이 없었음(실측:
-  `tmdb-1368337` 크리스토퍼 놀란 확인) — 사용자 확인 후 같은 사이클에서
-  `movie_directors LEFT JOIN` 추가로 수정. (3) `synopsis`는 `movies`
-  테이블에 컬럼 자체가 없음을 확인(TMDB `overview`는 이미 수집하지만
-  hub_knowledge 텍스트에만 쓰이고 저장 안 됨) — 사용자 확인 후 이번
-  사이클 범위 밖으로 보류, 백로그로 이관(아래). (4) 죽은 컴포넌트 4개
-  전수 판정: `MovaHeroBanner`(a-배선, `/mova/main`에 연결)·
-  `MovaFeaturedRow`/`MovaQuickActions`(b-삭제, 하드코딩 가짜 콘텐츠·
-  onClick 없는 미완성 버튼)·`MovaGenreCatalog`(c-유보, 카탈로그 확장과
-  묶어야 함, 아래). 회귀 테스트 3건 추가(`test_studio_movies_dto.py`),
-  `apps/mova/tests` 100개 전부 통과, `pnpm type-check` 클린.
-- **mova 카탈로그 확장 실행 + 골든셋 재검증 → 확장 트랙 종결(2026-08-06)**:
-  `bulk_import_movies.py --source tmdb_popular --start-page 53 --pages 50`를
-  EC2 백그라운드로 실행(시험 배치 2페이지 선행 확인 후 본배치, 진행 중
-  print() stdout 버퍼링 때문에 완료 마커 대기 로직이 한 번 오탐(캐치된
-  예외의 Traceback 텍스트에 걸림)했다가 재대기로 정정) — `succeeded=960
-  failed=0`, movies 1067→2014/actors 7148→11945/characters 10152→19348/
-  movie_directors 1141→2193. 이어서 EC2 `RECOMMENDATION_BACKEND`을
-  Gemini로 임시 전환(원래 lora, 2026-08-05 이후 기본값 변경됨 — 작업 후
-  lora로 원복)해 Phase 1과 동일 조건으로 골든셋 15개 재검증한 결과
-  **기존 실패 6건이 하나도 안 풀림**(통과 9→8, #14가 "reply/picks 불일치"
-  버그 실제 발현으로 실패 재분류) — 원인 조사 결과
-  `market_chat_pg_repository.py::search_tag_catalog()`가 배우 이름을
-  전혀 검색하지 않고(장르/무드 태그만) top-12 rating 컷까지 있어, 카탈로그
-  크기와 무관하게 구조적으로 막혀 있었음을 확정(#6 "송강호 스릴러" 통과도
-  실은 우연이었음을 함께 발견). 부수 발견: 골든셋 실패 대상 영화들이
-  이미 레거시 무태그 로우 12편(id 1056~1067)으로 DB에 존재했으나 태그가
-  없어 후보에서 배제되고 있었음. **카탈로그 확장 트랙은 이 실증으로
-  종결** — 레버리지는 `search_tag_catalog()` 개선·레거시 로우 정리·
-  `origin_country` 컬럼 신설로 이동(아래 백로그). 상세:
-  `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_QUALITY_PHASE1.md` §7, WORK_LOG 2026-08-06.
-- **`MovaGenreCatalog` `/mova/main` 홈 피드 배선(2026-08-06)**: 죽은
-  컴포넌트 4개 중 마지막 미판정 건. 최초 커밋(2026-07-08)부터 한 번도
-  import된 적 없었지만 `groups: MovaGenreGroup[]` 실 데이터 계약을 받는
-  완성도 있는 컴포넌트였고, 필요한 파이프라인(`fetchMovaMoviesFromApi()`→
-  `apiMovieToMovaMovie()`→`groupMovaMoviesByGenre()`)도 이미 전부 존재해
-  신규 코드 없이 페이지 배선만으로 연결. `/mova/movies` "전체" 탭(무필터
-  flat grid)과 기능 중복 없음을 확인 후 `/mova/main` 하단(히어로·AI챗바
-  아래)에 배치, `Promise.all`로 기존 `fetchHotRankings`와 병렬 fetch(두
-  fetch가 서로 다른 백엔드 엔드포인트라 병합 불가 확인). DB 실측
-  (`tags` 장르 라벨 19종, 편중 상위 8개만 노출하도록 슬라이스 — 전부
-  노출 시 홈 스크롤이 지나치게 길어짐). 로컬 `pnpm dev`를
-  `NEXT_PUBLIC_API_URL=https://api.suvisdev.cloud`로 프로덕션 API를
-  겨냥해 기동, SSR HTML에서 8개 장르 행·포스터 카드 렌더 확인.
-  `pnpm type-check` 클린. **(같은 날 후속: 이 항목의 "히어로·AI챗바 아래"
-  배치 언급 중 히어로 배너는 이후 사용자 요청으로 삭제됨, 아래 참고.)**
-- **mova 챗 502 긴급 수정 + `MovaHeroBanner` 삭제(2026-08-06)**: 실사용
-  중 신고된 두 건 처리 — (1) `/mova/chat`이 502를 반환, 원인은
-  `LoraRecommendationOrchestrator`가 호출하는 `https://lora.suvisdev.cloud
-  /generate`가 Cloudflare 530(터널/오리진 무응답) — 노트북 GPU
-  `lora-server`가 꺼져 있거나 터널이 끊긴 상태로 진단. 문서화된 수동
-  폴백(`RECOMMENDATION_BACKEND=gemini` 전환 + backend 재기동)으로 즉시
-  복구, curl로 200·추천 3건 확인. (2) `MovaHeroBanner`("오늘의 픽" 기생충
-  카드) 섹션을 사용자가 삭제 요청 — 다른 사용처 없음 확인 후 페이지
-  배선 제거 + 컴포넌트 파일 삭제. `pnpm type-check` 클린. 부수적으로
-  **synopsis 백필 프로세스가 backend 컨테이너 재기동(위 gemini 전환
-  작업) 도중 중단된 사고 발생**(WORK_LOG 추가② 참고, 데이터 손상 없이
-  이어받기 재실행).
-- **`movies.synopsis` 컬럼 신설 + 백필 + 프론트 연결 완료(2026-08-06)**:
-  character_name TEXT 마이그레이션(2026-08-05) 패턴 재사용 — 마이그레이션
-  `20260806_0001`(TEXT NULL), ORM 컬럼, `MovieUpsertCommand`/
-  `MovieDetailDto`/`MovieDetailSchema`에 필드 배선,
-  `bulk_import_movies.py`·`import_interactor.py`(수동 TMDB import)
-  양쪽 TMDB upsert 경로에 `synopsis=snap.overview` 저장 배선(포스터
-  갱신 전용인 `chat_reply.py` upsert는 TMDB 재조회가 없어 의도적으로
-  미배선). 신규 `scripts/backfill_synopsis_cli.py`(`--limit`/`--dry-run`,
-  영화 1편 처리 로직을 `_backfill_one()`으로 분리해 AsyncMock으로
-  dry-run 단위 테스트 가능하게 구성 — `bulk_import_movies.py`식 인라인
-  오케스트레이션과 차별화). EC2 배포(alembic upgrade) 후 백필 실행 중
-  컨테이너 재기동으로 한 번 중단(1991편 중 209편 시점, idempotent라
-  이어받기로 해결) — 최종 `succeeded=1578 failed=3 skipped=201`,
-  누적 1787/1991 반영(나머지는 TMDB `overview` 자체가 빈 정상 케이스
-  201건 + fetch 실패 3건). 프론트 `fetchMovaTitle()`의
-  `synopsis: ""` 하드코딩을 `row.synopsis ?? ""`로 교체(목록 매퍼는
-  스키마에 필드가 없어 의도적으로 미변경), `MovaTitleView.tsx`는 이미
-  조건부 렌더가 돼 있어 코드 변경 불필요. 로컬 `pnpm dev`(프로덕션 API
-  겨냥)로 SSR HTML에 실제 시놉시스 렌더 확인. `apps/mova/tests` 108개
-  통과(synopsis 관통 회귀 2건 + backfill CLI 6건 신규),
-  `pnpm type-check` 클린.
-- **mova 챗 0추천 실사용 버그 — 진단만(2026-08-06, 수정은 다음 세션)**:
-  "주말에 몰아볼 시리즈 느낌 영화" 요청에서 reply는 "준비했습니다"인데
-  카드 0개인 걸 사용자가 실사용 중 신고 — 원인은 오늘 §7.3에서 찾은
-  `search_tag_catalog()` 구조적 결함과 동일(무드 키워드가 태그에 안
-  걸려 후보 0개 → Gemini가 자기 지식으로 만든 movie_id가 안전장치에
-  걸려 드롭). 사용자 판단으로 수정은 다음 세션(위 1순위)으로 미룸.
-- **`/mova/movies` 필터 UI 확장 완료(2026-08-06)**: 연도(구간 드롭다운)·
-  평점·정렬 3개 실효 필터 + age_rating/platform 흔적용 비활성 select.
-  사전 조사에서 계획과 실제 시스템의 불일치 2건을 구현 전에 잡음 — (1)
-  백엔드 `release_year`가 정확 일치만 지원해 연대 드롭다운이 불가능하던
-  것을 `release_year_min`/`release_year_max`로 확장(유일한 호출부만
-  영향, `apps/mova/tests` 108개 통과), (2) 계획된 평점 버킷(7.0+/8.0+/
-  9.0+)이 실제 0~5 스케일과 안 맞아(실측 `min=0 max=5 avg=3.33`)
-  3.5+/4.0+/4.5+로 교정. 프론트: 장르 탭까지 포함해 URL query param
-  sync 신규 추가(기존엔 장르 탭도 URL에 없었음 — `useSearchParams`/
-  `router.replace()`, `Suspense` 경계 포함), "필터 초기화" 버튼.
-  `pnpm type-check` 클린, 로컬 `pnpm dev`(프로덕션 API) 스모크 확인.
-  이걸로 "mova UX 완성 저수확 3건" 트랙 최종 종결.
-- **`search_tag_catalog()` 개선 — 1순위 완료(2026-08-06)**: 배우 이름
-  매칭 신설(characters/movie_directors를 actors와 JOIN), 태그+배우
-  교집합 우선(0건이면 합집합 완화), 아무 후보도 없으면 평점순 인기작
-  폴백. 후보 개수 12→16. EC2 배포 후 실 쿼리 재검증: "키아누 리브스
-  액션"이 실패→통과로 전환(top-12 컷에 가려졌던 "스피드"까지 포함해
-  3/3 grounded), "송강호 스릴러"는 이제 우연이 아니라 배우 매칭으로
-  정당하게 근거 있음, 실사용 신고 버그("주말에 몰아볼 시리즈" — reply는
-  자신있는데 카드 0개)도 인기작 폴백으로 카드 3개 정상 반환 확인.
-  "전지현 코미디"는 여전히 실패(정직한 0개) — 원인이 다름(4순위 레거시
-  무태그 로우가 배우 크레딧 자체가 없어서, 별도 백로그). 순수 다중
-  장르 AND(§7.3 결함 3번)는 스코프 밖으로 명시적 보류. `apps/mova/tests`
-  110개 통과, import-linter mova 위반 0건. 상세: WORK_LOG 추가⑤.
-- **mova 랜딩(`/mova`) 상단 네비 추가 + "마이" 로그인 게이트(2026-08-06)**:
-  `/mova`가 자체 헤더를 써서 홈/영화/컬렉션/랭킹/마이 네비가 아예 없던
-  것을 `MOVA_NAV` 재사용으로 추가(`lg:` 이상 헤더 인라인, 미만은
-  `MovaHeader`와 동일한 모바일 가로 스크롤 행 패턴). `MovaHeader`·
-  `/mova` 양쪽에서 `getSuvisSession()`으로 "마이" 항목을 로그인 시에만
-  노출하도록 변경(기존엔 로그인 여부 무관 항상 노출). 상세: WORK_LOG
-  추가⑥.
-- **`/mova/collections`·`/mova/rankings` 실태 조사 + 컬렉션 시드 5개
-  (2026-08-06)**: 조사 결과 컬렉션은 클린 아키텍처 전 레이어(라우터
-  포함) 완성돼 있었으나 데이터 0(영화→컬렉션 배정 API/CLI 자체가
-  없었음), 랭킹은 이미 정상 작동(chat_trend/box_office 둘 다 실 데이터)
-  — 랭킹은 손댈 것 없음. 컬렉션은 SQL 직접(`scripts/seed_collections.sql`
-  신규)로 5개 큐레이션(놀란 전 필모그래피 12편 + 90년대 로맨스·SF
-  클래식·가족·액션 각 8편 = 44편). `collection_id` 단일 FK 제약으로
-  발견된 겹침 3건을 우선순위(감독 기반 > 시대+장르 > 장르 단독)로 해소,
-  TMDB 한글 타이틀 미확보작(한자 원제 노출)도 정찰 중 발견해 제외.
-  실행 직후 count 검증(12/8/8/8/8 정확 일치) + 로컬 SSR 렌더 확인까지
-  완료. 상세: WORK_LOG 추가⑦.
-- **hub_knowledge Phase 2 데이터 백필 — 구 1순위 완료(2026-08-06)**:
-  `scripts/ingest_hub_knowledge.py`의 `limit=100` 하드코딩을 페이지네이션
-  루프로 교체, `HubKnowledgeRepository.upsert()`가 flush만 하고 commit을
-  안 하는 구조라 원래 코드가 전체를 한 트랜잭션에 넣고 있었던 걸 발견해
-  영화 1편 성공마다 개별 커밋(+실패 시 그 1건만 rollback)으로 격리.
-  이 세션이 실제로 노트북(GPU) 위에서 돌고 있던 걸 확인해 로컬 Ollama로
-  임베딩·SSH 터널로 EC2 DB에 직접 백필 — `hub_knowledge` 0→2014(전량,
-  embedding non-null), `succeeded=2014/2014 failed=0`. 상세: WORK_LOG
-  2026-08-06(추가⑪).
-- **`movies.original_language` 컬럼 신설 + 카탈로그/추천 언어 필터
-  (2026-08-07)**: 사용자가 "태국어 같은 한국어/영어 아닌 영화는 제외해야
-  할 것 같다"고 제기 — TMDB `original_language`가 지금까지 저장된 적
-  없었음을 확인 후 마이그레이션 `20260807_0001` + synopsis와 동일 패턴의
-  백필 CLI(`backfill_original_language_cli.py`) 신설, `list_movies()`·
-  `search_tag_catalog()` 후보 쿼리에 `ko`/`en` 외 제외 필터 적용(백필 전
-  NULL은 노출 유지). EC2 배포 후 2014편 전량 백필 완료 — 최종 en 1677/
-  ja 56/ko 35/fr 33/es 31/zh 28/it 26/기타, **279편 제외**. NULL 23편은
-  전부 `tmdb-` 슬러그가 아닌 레거시 수동 등록 영화(아래 3순위와 동일
-  그룹, 백필 대상 자체가 아니었음)로 노출 유지 확인. `GET /mova/movies`
-  총계 2014→1735 프로덕션 반영 확인. 상세: WORK_LOG 2026-08-07.
-- **하네스·문서 정비(2026-08-07)**: 백엔드 `CLAUDE.md`가 실제 문서가 아니라
-  Windows 경로 문자열만 든 61바이트 파일(깨진 심볼릭 링크)이라 **백엔드
-  아키텍처 규칙이 에이전트 컨텍스트에 한 번도 로드된 적이 없던 것**을 발견해
-  복구. `.claude/rules/orm-columns.md`(컬럼 타입·길이 정책) 신설,
-  `scripts/check_env_drift.py`(.env.example 키 누락 감지) 신설,
-  `CLAUDE.md` 테스트 명령을 `-m "not gpu and not ollama"`로 정정
-  (conftest의 ollama 자동 skip이 markexpr이 빌 때만 걸려 기존 명령으론
-  ollama 테스트가 실행돼 실패했다). 상세: WORK_LOG 2026-08-07(추가①).
-- **mova 마이페이지 3종 + UI 감사 §6 종결(2026-08-07)**: 활동 요약(본 영화·
-  리뷰 수·평균 별점 — `user_actions`가 행동 로그라 `distinct movie_id`로
-  집계), 내 리뷰 목록(최근 20건), 취향(`preferred_genres`) 편집(별도
-  엔드포인트 대신 기존 `PATCH /viewer/profile/{id}`를 부분 수정으로 확장 —
-  프록시가 이미 바디를 그대로 넘겨 신규 프록시가 불필요했다). `/mova` 랜딩
-  헤더 네비를 공통 `MovaHeader`와 같은 좌측 정렬로 통일. 상세: WORK_LOG
-  2026-08-07(추가②).
-- **선호 장르 온보딩(UI 감사 §1-a, 2026-08-07)**: 실사용자 4명 중 0명이
-  취향 미설정이라 개인화가 전혀 안 걸리던 항목. **가입 폼이 아니라 로그인 후
-  홈 카드로 붙였다** — 4명 중 2명이 카카오·구글 OAuth 가입자라 회원가입 폼을
-  아예 거치지 않기 때문(실측). 장르 칩은 `MovaGenrePicker`로 공용화해
-  마이페이지 편집과 같은 목록을 쓴다. 상세: WORK_LOG 2026-08-07(추가④).
-- **🔴 무인증·IDOR 5건 발견·수정(2026-08-07)**: 하루에 같은 유형
-  (`user_id`를 받는데 소유권 검증 없음)이 반복돼 라우터 60개를 전수 조사.
-  `/mova/mypage/{user_id}`(닉네임·추천 기록·검색 기록),
-  `/viewer/profile/{user_id}`(**이메일 노출**), `/mova/watchlist/*`
-  (**읽기+쓰기** — 남의 찜을 조회·추가·삭제 가능, 가장 심각),
-  `PATCH /mova/picks/{pick_id}/feedback`(IDOR, 코드 TODO로 남아 있던 항목),
-  `POST /mova/chat`(바디 `user_id`를 신뢰해 남의 이력에 기록). 전부 수정 후
-  프로덕션에서 401 전환·익명 처리 확인. 비로그인 사용이 의도된 챗은
-  `optional_user` 가드를 신설해 기능을 유지했다. `.claude/rules/security/
-  auth.md` §5도 갱신(참고 구현 2종 + `optional_user` 지침). 상세:
-  WORK_LOG 2026-08-07(추가②·④·⑤).
+- `[M]` 09-03 무관 픽 '식객' RAG 연도 재검증 · 회귀 하네스 신설 · 키워드 사전 11엔트리 백필 · 분류기 추천 확정 가드 · general 429→200 강등
+- `[M]` 09-02 RAG∪태그 합집합 + `_FILLER` 정규식 수정 · booking 탐색형 질의 · 다중 장르 AND · "최신영화" booking 오분류 · 교사 데이터셋 92건 재학습 · llama.cpp GGUF 전환 · 전체 점검 + DB 정비 · lora-nb 터널
+- `[M]` 09-01 데스크톱 lora-server 재구축 + LoRA 재학습 · 컬렉션 v3 · 키워드 태그 백필 완주 · vote_count 베이지안 가중 정렬 · 터널 토큰 잠금 · 감정분석 프로덕션 백필
+- `[M]` 08-31 리뷰 유용성 투표 + 감정분석 스케줄러 · 감정분석 통합/자동별점/감정요약/신뢰도 배지 · 오타 허용 제목 검색 · booking Phase 2 롯데시네마 시간표
+- `[P]` 08-31 mypy 재활성화(415→0) · `google.genai` 마이그레이션 · 챗바 useCallback 리팩터링
+- `[M]` 08-28 채팅 응답 트랙 재설계 Phase 1(분류기 5종·evaluate·booking) · 클래식 시대 어휘 연도 매핑 · 폴백 정직 문구 · Gemini 백필 키 분리
+- `[G]` 08-27 여름 그늘 경로
+- `[P]` 08-27 LLM 챗 3종 require_admin 잠금 · EC2 auto-deploy 재작성(nginx reload) · `/mail` 관리자 전용 전환
+- `[M]` 08-26 zero-rec 실측 + 언어 허용목록 · RAG 부활(EMBEDDING_BACKEND=gemini, 재임베딩) · 불만 발화 general 라우팅 · dedup 소진 대안 · Gemini 자동 폴백 DI · 헤더 통합 · 검증 파이프라인 복구 · 지킬 블로그
+- `[M]` 08-25 대규모 정비(LoRA 재학습 등) · EC2 lora 복구 · EC2 이미지 통합 · Jekyll 배포 · 에디터 리뷰 배치 + 24h 스케줄러
+- `[G]` 08-25 서울 전역 확장 + OSM 나무/공원 점수 · 08-21 CSV→PostgreSQL + Leaflet · 08-20 소개 페이지 + 보행 그래프
+- `[M]` 08-19 멀티턴 필터 오염 수정 · 초성게임 외국 영화 혼입 수정
+- `[M]` 08-18 취향 벡터 재정렬 · 배우 인식 옵션 A · 컬렉션 배정 API/CLI · 컬렉션 v2 · 레거시 12편 정리 · 개봉예정 과거 필터 · cloudflared 24h 관찰 종결
+- `[M]` 08-14 채팅 3건 후속 · 푸터 + TMDB attribution + 약관/개인정보 · TMDB KR 356편 수집 + 성인물 130편 purge
+- `[M]` 08-13 사이클 A~J(초성 게임 정답·무제한 모드·랭킹·개봉예정·auth TTL·카탈로그 대량 확장)
+- `[M]` 08-12 만료 세션 fix · 대화 스레드 저장 v1 · 사용자 리포트 C~R
+- `[M]` 08-11 로그인 장애 · nginx stale DNS · HNSW 인덱스 + planner 힌트 · reviews.embedding · 취향 벡터 γ · movies.embedding 크론 백필 · 정식 이미지 재빌드
+- `[M]` 08-10 Gemini 호출 2→1회 + 429 재시도 · `.env` 단독 `1` 제거 + drift 탐지
+- `[M]` 08-07 하네스·문서 정비 · 마이페이지 3종 · 선호 장르 온보딩 · 무인증·IDOR 5건 수정 · `original_language`
+- `[M]` 08-06 카탈로그 확장 종결 · 홈 피드 배선 · 챗 502 수정 · synopsis · 필터 UI · `search_tag_catalog` 개선 · 랜딩 네비 · 컬렉션 시드 · hub_knowledge Phase 2 백필
+- `[M]` 08-05 수집 첫 실전 배치 · Tunnel 연동 · `character_name` truncation · 품질 검증 Phase 1 · 오귀속 수정 · UI 감사
+- `[P]` 08-04 EC2 S3 실연결 + OCR · 방문자 alembic 재확인 · Neo4j 노드 재확인 · credits 백필 재확인 · 리뷰 watched 게이트
+- `[P]` 08-03 susu 카카오 로그인 + JWT · 추천 챗 화면 · 네비게이션/로그아웃 · 폰 카메라→S3 · 원격 GPU 하드닝
+- `[P]` 08-02 로컬 개발 DB 세팅 · 수집 파이프라인 코드
+- `[P]` 07-31 리뷰 보안 Phase A · 리뷰 UX · 어드민 통계 방문자/크롤링 탭 · 레슨 메뉴 admin 전용
+- `[P]` 07-30 Neo4j provisioning + 스키마 · EC2 alembic 로그인 500 복구 · 어드민 미노출 + OAuth 닉네임 · TMDB credits 배선 · Sentinel 소프트 플래그 · execsuite 네이밍 정정
+- `[P]` 07-28~29 execsuite 이름 변경 + LangChain 채팅 · 테스트 수정 다수 · 인증 공백 감사 · `ENABLE_MOVA_STARTUP` · labs 03·04·08 · CLIP hang · lora-server 노트북 재세팅
+- `[P]` 07-27 alembic 베이스라인 · PDF 파이프라인 · 03 Loom 제외 확정
+- `[P]` ~07-27 어드민 대시보드 전 화면 · 01 이미지 분류 · 06 Sentinel · 07 Echo (H0~H6) · 02~08 H0 스캐폴딩
 
 ---
 
 ## 진행 중 (현재 액티브)
 
-✅ **cloudflared `api.suvisdev.cloud` 관찰 종결(2026-08-18 판정)** — 6.7일
-9538 샘플 실측, FAIL 620건 중 초일(08-11) 527·08-13 연속구간 87·08-14 1건.
-**08-15~08-18 4일간 FAIL 0건**, 컨테이너 uptime 12일 재시작 0회, 응답 60ms
-안정. PROGRESS 서술 "hostname 하나만 문제, 자연 해소" 패턴 재현. 실사용자
-영향 없이 자연 해소로 확정 — 관찰 종결. sysctl `nf_conntrack_udp_timeout_stream`
-런타임 600 상태는 원복 없이 그대로 둠(반증 데이터로 원인 기각이라 영구화
-불필요, 원복도 재부팅에 자동 초기화되니 추가 조치 없음). 로그 파일
-(`~/cf_monitor.{log,detail.log}`) EC2 홈에 보존. 관련 08-13 실사용자 회선
-LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이미 종결됨.
-상세: WORK_LOG 2026-08-18.
-
-(03 제외 확정 + cloudflared 관찰 종결로 이번 트랙의 액티브 조사 종료.
-착수 대기 항목은 아래 "다음 / 남은 작업" 참고.)
+### 서브도메인 이사 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
+- **개인 앱(mova·gildle)은 이사 안 함** — 서빙 실익 없음(세션 분리·OAuth
+  복귀 갭·중복 URL). 리라이트 `0bef4f3` 되돌림(저녁 세션, 푸시 대기).
+- 남은 것은 **seuk 팀 인프라 이전**(팀 Vercel 도메인+CNAME, 새 AWS 계정,
+  GitHub 조직 owner 확인 후 저장소 신설/이전). **전체 계획·순서·검증 기준:
+  `_docs/SUBDOMAIN_MIGRATION_PLAN.md`**.
 
 ---
 
@@ -887,491 +62,98 @@ LAX PoP 우회 건도 앱/인프라 범위 밖(ISP 피어링 추정)으로 이�
 
 ### 우선순위 방향 (2026-09-02, 사용자 결정)
 **당분간 신규 기능보다 mova 채팅 품질 향상에 주력한다** — 실사용 오답·
-오분류·무관 추천 감소가 우선, 새 트랙·새 기능은 보류. 9/2 실사고 2건
-("좀비" 필러 오염, "최신영화" booking 오분류)처럼 로그 추적 → 근본 원인 →
-결정론 가드+테스트 패턴으로 진행. 아래 백로그 중 품질 직결 항목
-(LoRA 교사 데이터셋 확대, zero-rec 로그 재실측 등)을 우선 소화한다.
+오분류·무관 추천 감소가 우선, 새 트랙·새 기능은 보류. 로그 추적 → 근본
+원인 → 결정론 가드+테스트 패턴으로 진행. 회귀 하네스
+(`scripts/eval_chat_queries.py`, 23질의)는 상시 사용.
 
-### EC2 전체 재빌드 불가 (2026-09-02 실측)
-- pip 레이어 빌드 캐시 소실(과거 builder prune) 상태에서 torch 스택 전체
-  재설치는 피크 ~15G+가 필요해 30GB 디스크에 구조적으로 안 들어감
-  (`[Errno 28]` 실측). 현재는 requirements 불변일 때 **파생 빌드**
-  (`FROM suvisdev-app:latest` + `COPY . .`)로 배포 가능(2026-09-02 실증).
-- requirements/Dockerfile이 바뀌는 날의 선택지: ① EBS 증설, ② 데스크톱
-  로컬 빌드 후 `docker save | ssh docker load` 전송. 결정 필요.
-- 관련: auth 이미지 드리프트는 auto-deploy 기본값(backend만)이 원인 —
-  재빌드 배포 시 `./auto-deploy.sh backend auth`로 둘 다 지정할 것.
-
-### lora-server 프로세스 열화 재발 감시 (2026-09-02)
-- 오래 뜬 서버가 동일 구성 오프라인 대비 5배 감속(3.2 vs 17.8tok/s)하는
-  현상 실측 — 단편화→WDDM 공유메모리 스필 추정, 근본 원인 미확정.
-  재발 시 응급 처치는 `systemctl --user restart lora-server`.
-  serve.py merge+sdpa 반영 후 기준선은 256tok ≈ 8.5s(서버 경유).
-- (2026-09-02 추가 관찰) **학습 직후 바로 start하면 동일 증상 재현** —
-  구 프로세스/학습 VRAM 지연 반환과 겹쳐 로드가 스필돼 31~34s로 열화.
-  stop → `nvidia-smi`로 VRAM 하강 확인 → start 순서면 8.7s로 정상.
-  학습 후 재기동 수칙으로 고정.
-- (2026-09-02 저녁) **서빙을 llama.cpp Q5_K_M GGUF로 전환**(serve_gguf.py
-  파사드, 계약 불변) — 256tok 3.2s·VRAM 2.7GB·기동 12s로 개선돼 열화
-  재발 여지도 축소. 구 serve.py는 롤백용 보존. 상세: WORK_LOG_MOVA 09-02.
-
-### mova 채팅 무관 픽 — 정치 스릴러 잔여 (2026-09-03 재평가)
-- 태그 확장으로 유럽 로맨스·뉴욕 배경은 교정 완료. **"정치 스릴러 영화"만
-  미개선**(캐시트럭·미션임파서블 픽) — 정치 태그 42건 실재하는데 '스릴러'
-  토큰 물량이 압도하는 것으로 추정. 트레이스로 후보 조립(교집합 우선 발동
-  여부) 규명 필요. 회귀 하네스(`eval_chat_queries.py`)는 상시 사용.
-- 의도 추출 Gemini 구간이 쿼터 압박 시 SDK 429 재시도로 3.7~5s까지 출렁
-  (평시 0.9s) — 후속 옵션: 재시도 상한/타임아웃 단축 or 결정론 우선.
-
-### ~~mova 채팅 E2E 잔여 병목 — 분류기 Gemini 호출~~ — **완결(2026-09-03)**
-- 추천 확정 어휘 결정론 가드(d5bc233)로 명백한 추천 질의는 LLM 라우터
-  생략 — 분류 구간 2.06s→0ms 타임스탬프 실증, Gemini 쿼터 소모도 감소.
-  비지름길 질의(평가·예매 어휘 혼재)는 기존 LLM 판정 유지.
-
-### (구) mova 채팅 E2E 잔여 병목 — 분류기 Gemini 호출 (2026-09-02 실측)
-- GGUF 전환 후 E2E 6.8s 분해: **분류기 2.06s** + 의도 추출 0.91s +
-  임베딩 0.39s + DB 0.04s + LoRA 생성 2.41s. 생성 병목은 해소, 다음
-  레버는 분류기∥(의도→RAG) **투기적 병렬화**(E2E ~4.5s 예상) — 비추천
-  트랙 질의에서 Gemini 무료 쿼터 낭비가 트레이드오프라 결정 필요.
-- 노트북+데스크톱 이중 서빙(같은 터널 replica)은 사용자 승인됨 —
-  노트북 쪽 세팅(cloudflared 자격증명 복사 + llama.cpp CPU/CUDA 서빙 +
-  GGUF 파일 동기화)은 저녁 집에서 진행 예정. 구 `lora-notebook` 터널
-  삭제 백로그는 유효(별개 터널이라 충돌 없음).
-
-### ~~mova 채팅 무관 픽(관련성) — '식객' 케이스~~ — **완결·배포 실측(2026-09-03)**
-- 규명: "클래식"→year_max=1999인데 **RAG 히트가 연도 필터를 못 지켜**(hub
-  연도 메타 부재) 2003·2007년작이 tail 유입 → LoRA 픽. 백로그의 "(선택)
-  RAG 연도 하드 필터"가 실사고로 승격된 케이스.
-- 수정: hub 스키마 확장 없이 `filter_movie_ids_by_year`(movies.release_year
-  재검증, 미상 0 탈락) — 연도 조건 있을 때만 발동. 테스트 2건, 301 passed,
-  규칙 §2 불변식 추가. **배포 실측**: 동일 질의 → 그린 마일(1999)·파이트
-  클럽(1999)·포레스트 검프(1994), 로그 `RAG 연도 필터 8→3편`. 커밋 865be6d.
-  상세: WORK_LOG_MOVA 2026-09-03.
-- 엔티티 매칭(오타 허용)은 이번에도 오타 질의 0건 — 보류 유지.
-- (관찰) 파생 빌드 COPY 레이어가 배포마다 누적돼 이미지 9.78→10.3GB↑ —
-  정식 재빌드(EBS 증설 or 로컬 빌드 전송) 결정의 압력 증가.
+### mova 채팅 품질 잔여
+- **"정치 스릴러 영화" 무관 픽**(캐시트럭·미션임파서블) — 정치 태그 42건
+  실재하는데 '스릴러' 토큰 물량이 압도하는 것으로 추정. 트레이스로 후보
+  조립(교집합 우선 발동 여부) 규명 필요. 유럽 로맨스·뉴욕 배경은 09-03
+  태그 확장으로 교정 완료.
+- **의도 추출 Gemini 429 재시도 지연** — 쿼터 압박 시 SDK 재시도로
+  3.7~5s까지 출렁(평시 0.9s). 옵션: 재시도 상한/타임아웃 단축 or 결정론
+  우선. E2E 절대값은 쿼터 회복 후 재실측이 공정.
+- **취향 재정렬 후속(08-18 신규)**: alpha 별점 결합 튜닝(현재 순수 코사인),
+  후보 window 확대(taste vector 있는 유저에게 limit 16 이상 — 프롬프트
+  토큰·Gemini 요금 트레이드오프).
+- **엔티티 매칭(편집거리·초성·수사 변환) — 보류**: 프로덕션 로그 오타 질의
+  0건(08-26, 09-03 재확인). 재검토 트리거: ① zero-rec 재실측에서 제목/배우
+  오타·음차 질의가 쌓일 때 ② 검색창·초성 게임 판정 등 UX 직접 개선 지점
+  ③ 채팅 제목 직접 언급 증가. 도입 시 ATS 순수 Python 구현 복사(의존 금지)
+  → `intent_extraction` 결정론 경로.
 
 ### LoRA 재학습 배치 큐 (2026-09-03 사용자 결정 — 매 변경마다 학습 금지)
 - **원칙**: 상류 변경(태그 사전·후보 조립·프롬프트 입력)은 계속 쌓되,
   재학습은 진짜 트리거(출력 계약 변경 / 생성 단계 체계적 실패 / 데이터셋
   유의미 증분)가 모였을 때 **한 번에**: 데이터셋 재생성 → 학습 → GGUF
-  변환(export_mova_gguf.py) → /reload. 9/1~9/2 연속 학습은 환경 격변
-  (베이스 교체·데이터셋 부활)의 예외였음.
-- **현재 큐**: ① 9/3 태그 확장(뉴욕·유럽·직장·정치)으로 살아날 교사 예제
-  +5~10건 ② hook 길이 다이어트 120→80자(응답 속도 — 출력 계약 변경이라
-  재학습 필수, 단독 실행 수지 안 맞아 대기) ③ 이후 사전 확장분.
+  변환(`export_mova_gguf.py`) → /reload.
+- **현재 큐**: ① 09-03 태그 확장(뉴욕·유럽·직장·정치)으로 살아날 교사 예제
+  +5~10건 ② hook 길이 다이어트 120→80자(출력 계약 변경이라 재학습 필수,
+  단독 실행 수지 안 맞아 대기) ③ 이후 사전 확장분. 잔여 교사 스킵 17건
+  (배우명·형사물 등)은 실서비스 정상이라 태그 사전 확장 여지로만 남김.
 
-### 서브도메인 이사 — mova·gildle·seuk (2026-09-03 착수, 저녁 집에서 계속)
-- 코드(리라이트 `0bef4f3`)는 배포 완료. 남은 것은 콘솔 작업(개인 Vercel
-  도메인+CNAME, 소셜 콜백)과 **seuk 팀 인프라 이전**(별개 AWS 계정 —
-  이탈자 명의 계정 리스크 해소 겸). **전체 계획·순서·검증 기준:
-  `_docs/SUBDOMAIN_MIGRATION_PLAN.md`** — 저녁 세션은 이 문서부터 읽을 것.
+### EC2 전체 재빌드 불가 (2026-09-02 실측)
+- pip 레이어 캐시 소실 상태에서 torch 스택 재설치는 피크 ~15G+라 30GB
+  디스크에 구조적으로 안 들어감(`[Errno 28]`). 현재는 requirements 불변일 때
+  **파생 빌드**(`FROM suvisdev-app:latest` + `COPY . .`)로만 배포.
+- 파생 빌드 COPY 레이어가 배포마다 누적돼 이미지 9.78→10.3GB↑(09-03) —
+  결정 압력 증가. 선택지: ① EBS 증설 ② 데스크톱 로컬 빌드 후
+  `docker save | ssh docker load`. **결정 필요.**
+- auth 이미지 드리프트는 auto-deploy 기본값(backend만)이 원인 — 재빌드
+  배포 시 `./auto-deploy.sh backend auth`로 둘 다 지정할 것.
 
-### 에디터 리뷰 감정분석 — 주기 백필 루틴 필요 (2026-09-02 점검에서 실측)
+### lora-server 운영 수칙·감시 (2026-09-02)
+- 학습 직후 바로 start하면 VRAM 지연 반환과 겹쳐 5배 열화(31~34s) 재현 —
+  **stop → `nvidia-smi` VRAM 하강 확인 → start** 순서 고정. 재발 시 응급
+  처치 `systemctl --user restart lora-server`.
+- GGUF 전환(serve_gguf.py, 256tok 3.2s·VRAM 2.7GB) 후 기준선. 구 serve.py는
+  롤백용 보존. 열화 근본 원인(단편화→WDDM 스필 추정)은 미확정.
+- `is_ready()` 헬스체크가 코드 어디서도 안 불림(08-05부터 알려진 별개 이슈).
+
+### 에디터 리뷰 감정분석 — 주기 백필 루틴 필요 (2026-09-02)
 - 일 15편 자동 에디터 리뷰가 EC2(GPU 없음)에서 sentiment/rating NULL로
-  쌓임 — 9/1 이후 이틀 만에 41건. 데스크톱 백필(터널 15432 +
-  `backfill_review_sentiment_cli.py`)을 **주 1회쯤 루틴화**할 것.
-- CLI 개선 백로그: 현재 건당 Echo 모델 로드/해제라 41건 ≈ 30분 —
-  **모델 1회 로드 배치화**하면 2~3분. 반복 루틴이 되면 우선 처리.
+  쌓임(이틀 41건). 데스크톱 백필(터널 15432 +
+  `backfill_review_sentiment_cli.py`)을 **주 1회쯤 루틴화**할 것. 접속 방법은
+  WORK_LOG_MOVA 09-02 후속 5 메모.
+- CLI 개선: 건당 모델 로드/해제라 41건 ≈ 30분 — **모델 1회 로드 배치화**하면
+  2~3분. 반복 루틴이 되면 우선 처리.
 
-### ~~mova 채팅 — RAG 히트가 태그 검색을 가리는 갭~~ — **완결·배포 실측(2026-09-02)**
-- 3중 수정으로 완결: ① 합집합(원시 키워드 태그 검색, popular_fallback 제외,
-  캡 16), ② 순서 태그 실매칭 우선(상한 10) — 2.4B LoRA가 앞쪽 후보에 끌리는
-  실측 반영, ③ **진짜 뿌리였던 `_FILLER` 정규식 수정** — 문두 "좀비"의
-  "좀"이 담화어로 잘려 "비 영화"(rain)로 RAG·태그가 전부 오염되고 있었음
-  (9/1 트레이스의 무관 히트 미스터리 해명). **프로덕션 E2E 확인**:
-  "좀비 영화 추천해줘" → 좀비딸·좀비스쿨·#살아있다(LoRA 경로, 합집합
-  15편). 테스트 신규 6건, mova 287 passed, `.claude/rules/mova-chat.md`
-  §1·§2 반영. 상세: WORK_LOG_MOVA 2026-09-02. 관련 잔여였던 다중 장르
-  AND 결함도 같은 날 해소(아래 취향 재정렬 후속 백로그 참고).
-
-### ~~mova 리뷰 감정분석 — 프로덕션 데이터 0건~~ — **완결(2026-09-01 저녁)**
-- **Echo 어댑터 데스크톱 재학습**: `train_echo_sentiment.py`를 이 머신 환경에
-  맞춤(masking_utils 구버전 가드 + `ECHO_BASE_MODEL` 로컬 경로 오버라이드)
-  후 NSMC 2,000건 × 2에폭 QLoRA — **val acc 87.0%, f1 0.865**(노트북 기준선
-  87.75%와 동등). 어댑터는 `runs/echo_sentiment/adapter`(gitignore, 이 머신
-  로컬).
-- **프로덕션 백필 완료**: EC2 DB에서 본문 추출 → 로컬 GPU 배치 분석(모델
-  1회 로드, 어댑터 per-call 로드 설계 대신 일회성 배치 스크립트) → 트랜잭션
-  SQL로 반영(감정 167건 = 긍정 165/부정 2, 에디터 리뷰 자동 별점 161건,
-  영화 평균 평점 재계산 161편, `rating_still_null=0`). 반영 전 reviews 전체
-  CSV 백업. DB 쓰기 단계는 분류기 차단으로 사용자 실행.
-- **라이브 검증**: `GET /mova/reviews/sentiment/{id}` 긍정·부정 케이스 모두
-  실데이터 응답 확인. frozenset 에러는 transformers 4.47.1 업스트림 버그
-  (CPU 전용 분기)로 규명 — EC2 측 조치 불필요.
-- **후속 참고**: 향후 신규 리뷰 감정분석도 이 데스크톱에서 실행(EC2는 GPU
-  없음). 반복 시 이번 배치 절차(CSV 왕복) 또는 SSH 터널+CLI 경로 정비 검토.
-
-### 코드 품질 부채 (2026-08-26 전체 검증에서 실측)
-- ~~**mypy 재활성화**~~ — **완료(2026-08-31)**: 415건(1079파일 대상) → 0건.
-  5단계(설정 보정 → from_orm Any → to_schema 타입 → titanic async 통일 →
-  개별 타입 수정) + exclude 패턴 수정(`test/`, `_docs/` 추가). 118파일 수정.
-  `.pre-commit-config.yaml` mypy 훅 재활성화. pytest 728 passed, 0 failed.
-  상세: WORK_LOG_MAINPAGE 2026-08-31.
-- ~~**`google.generativeai` → `google.genai` 마이그레이션**~~ — **완료(2026-08-31)**:
-  전역 `genai.configure()` → `genai.Client` 인스턴스 기반으로 전환, 호출자 4곳 +
-  임베딩 어댑터 + 백필 스크립트 3곳 + 테스트 3파일 갱신. FutureWarning 해소.
-  상세: WORK_LOG_MOVA 2026-08-31.
-- ~~**mova-ai-chat-bar useCallback 의존성 리팩터링**~~ — **완료(2026-08-31)**:
-  sendMessage useCallback이 conversationId·dbMode·onConversationChanged를
-  클로저로 잡던 stale closure 문제를 ref 참조 패턴으로 해결. deps를 `[]`로
-  비워 sendMessage 재생성을 방지, type-check·lint 클린.
-  상세: WORK_LOG_MOVA 2026-08-31.
-
-### 엔티티 매칭(편집거리·초성 유사·수사 변환) — 보류, 재검토 트리거 명시 (2026-08-26)
-- ATS 팀프로젝트의 엔티티 해석 레이어를 mova 채팅에 이식할지 프로덕션
-  로그로 실측한 결과 **현재 수요 0건**이라 도입 보류 — 배우명 정타,
-  연도 숫자 입력, 제목 오타 로그 없음. 상세: WORK_LOG_MOVA 2026-08-26.
-  (사전 기반 정규화 계열은 mood/franchise/country alias로 이미 존재.)
-- **재검토 트리거**: ① zero-rec 로그 재실측에서 제목/배우 오타·음차
-  질의가 실제로 쌓이기 시작할 때(실측 방법은 WORK_LOG 8/26에 기록됨),
-  ② 검색창·초성 게임 답안 판정 등 오타 허용이 UX를 직접 개선하는
-  지점을 손댈 때, ③ 채팅에 제목 직접 언급 패턴이 늘어날 때.
-- 도입 시 ATS의 순수 Python 구현을 복사(의존 금지)해
-  `intent_extraction`의 결정론 경로에 연결한다.
-
-### 뉴스 기반 자동 리뷰 작성 (2026-08-25 사용자 요청)
-- 현재 Google News 스크레이퍼는 제목+요약만 수집해 **hub_knowledge(RAG)에만
-  적재** — reviews 테이블에 리뷰를 자동 작성하는 기능은 없다. 크롤링도
-  어드민 harvester 수동 트리거뿐(마지막 실행 8/20, 상시 스케줄 없음).
-- **①·② 완료(2026-08-25 밤)**: generate_editor_reviews 배치 + 24시간
-  스케줄러(main.py lifespan, 기본 15편/일) 상시화. 남은 것: 에디터 리뷰
-  전용 UI 뱃지·출처 링크 표시(현재는 닉네임 "Mova 에디터"로만 구분).
-
-### mova 채팅·배포 운영 후속(2026-08-25)
-- ~~**backend 컨테이너 재생성 후 nginx 리로드 필요**~~ — **완료(2026-08-27)**:
-  EC2 `~/auto-deploy.sh` 재작성으로 배포 시 nginx reload 항상 실행.
-  위 "완료됨" 참고.
-- ~~**LoRA 교사 데이터셋 확대**~~ — **완결(2026-09-02 오후)**: 태그 백필 +
-  `_FILLER` 수정 반영 상태로 재생성 → 65→**92건**(그라운딩 82 + no-pick 10),
-  스킵 49→17건. 재학습(loss 0.84→0.52, `mova_20260902_055400`) + 서빙 반영 +
-  프로덕션 E2E(좀비·타임루프 질의 정상, EC2발 /generate 200) 완료.
-  잔여 스킵 17건(배우명·형사물 등)은 태그 사전 확장 여지로만 남김.
-  상세: WORK_LOG_MOVA 2026-09-02.
-- ~~**TMDB keyword 기반 태그 백필**~~ — **완결(2026-09-01 프로덕션 완주)**:
-  EN→KO 선별 사전 164 엔트리, 3,295태그/1,848편(54%). 이 항목이 백로그에
-  미결로 남아 있던 것은 기록 누락(9/2 정리). 상세: WORK_LOG_MOVA 2026-09-01.
-
-### mova 채팅 응답 트랙 재설계(2026-08-28 — Phase 1 구현 완료)
-Phase 1(분류기 5종·evaluate·booking·chat_trend 조건부 신호·프론트 패널)
-구현·테스트 완료 — 상세는 `WORK_LOG_MOVA.md` 2026-08-28. 남은 것:
-- **Phase 2 시간표**: 착수 전 체인 3사 약관·robots 실확인(§5 선행 조건).
+### 채팅 응답 트랙 재설계 잔여 (설계: `suvisdev/apps/mova/_docs/MOVA_CHAT_INTENT_REDESIGN.md`)
+- **Phase 2 시간표 확장**: 현재 롯데시네마만. 타 체인 추가 시 약관·robots
+  실확인 선행(§5).
 - **Phase 3 영화관 리뷰**: 수요 보고 결정(보류).
-- ~~대화 스레드 복원 시 evaluation/booking 패널 재구성~~ — 완료(2026-08-28).
-- ~~이동수단 슬롯~~ — 완료(2026-08-28): 지역 답변에서 "차로/도보" 파싱해
-  반경 3/10/20km 조정, 되묻기 문구에 예시 포함.
 
-### (구) 재설계 결정 기록(2026-08-28 — 완료)
-mova를 "영화를 추천·평가·예매까지 돕는 프로젝트"로 재정의(사용자 확정).
-recommend/evaluate("호프 어때?")/booking("호프 예매하고 싶어") 3트랙 —
-설계·Phase·결정 기록은 `suvisdev/apps/mova/_docs/MOVA_CHAT_INTENT_REDESIGN.md`
-(§8 결정 5건: ① 외부 리뷰는 왓챠 제외(약관·판례)·TMDB 리뷰 API로,
-② 시간표 Phase 2 진행(체인 약관 실확인 선행), ③ 위치는 프롬프트 지역명+
-상황 변수는 되묻기, ④ 1차 분류기 destination 5종 확장(2단 분류안 폐기),
-⑤ chat_trend 조건부 반영(긍정 반응·예매 의지 시만)). 방향 요약은
-`.claude/rules/mova-chat.md` §8. 구현 순서는 설계서 §9 체크리스트.
+### 뉴스 기반 에디터 리뷰 잔여 (2026-08-25)
+- 에디터 리뷰 출처(뉴스) 링크 표시 — 신뢰도 배지는 08-31 완료, 출처 링크는
+  미구현. 크롤링은 어드민 harvester 수동 트리거뿐(상시 스케줄 없음).
 
-### mova 채팅 클래식 오추천 후속(2026-08-28 실사고, 수정 자체는 완료)
-시대 어휘 연도 매핑·프롬프트 연도 표기는 완료(`WORK_LOG_MOVA.md` 2026-08-28).
-남은 것:
-- ~~**Gemini 임베딩 일일 쿼터 429 대응**~~ — **완결 확인(2026-09-01)**: 코드
-  완료(2026-08-28)에 이어 `GEMINI_BACKFILL_API_KEY`가 로컬·EC2 `.env` 양쪽에
-  이미 등재돼 있음을 실측 확인. EC2 야간 cron도 이 경로로 정상 작동 중
-  (backfill_movie 대상 0편=전량 완료, backfill_review succeeded=3, 09-01 로그).
-  항목 종결.
-- ~~**폴백 정직 문구 프롬프트 구현**~~ — 완료(2026-08-28, `chat_prompt.py`).
-- **(선택) RAG 경로 연도 하드 필터** — hub_knowledge에 연도 메타데이터가 없어
-  현재는 프롬프트 표기로만 보완. 시맨틱 검색 결과를 연도로 거르려면 hub 스키마
-  확장 필요.
+### mova 법적 페이지 후속 (2026-08-14)
+- 문의 이메일 최종 확정 — 푸터·개인정보 처리방침 모두 `ssuvisdev@gmail.com`,
+  전용 support 주소로 바꿀지 결정 필요.
+- (선택) 시행일 변경 시 `/mova/terms`·`/mova/privacy` 부칙·개정 이력 섹션.
 
-### mova 법적 페이지 후속(2026-08-14 티켓 A 후속)
-- 문의 이메일 최종 확정 — 현재 푸터·개인정보 처리방침 모두
-  `ssuvisdev@gmail.com` 사용, 전용 support 주소로 바꿀지 결정 필요.
-- (선택) 시행일 변경 시 `/mova/terms`·`/mova/privacy` 부칙 및 개정 이력
-  섹션 추가 여부.
+### TMDB KR 카탈로그 확장 잔여 (2026-08-14)
+- vote_count≥100 상위는 이미 카탈로그에 대부분 있어 신규 확보량 낮음.
+  규모를 진짜 늘리려면 `--vote-count-gte 50` 또는 `20` — 무명작·저평점 유입
+  트레이드오프(초성 게임 품질). 베이지안 가중 정렬(09-01)로 노이즈 방어는
+  생겼음.
 
-### TMDB KR 유명 영화 대량 수집 후속(2026-08-14 완료 + 남은 것)
-- **완료(vote_count≥100, 356편, 실 신규 +13편)**: EC2 SSH → backend 재빌드
-  후 실행. 상세 WORK_LOG 2026-08-14. include_adult=false + 청불 배제 필터
-  원천 적용 → 이후 seed에 성인물 유입 리스크 제거.
-- **KR 성인·저품질 130편 DB purge 실행**(2026-08-14): 키워드 regex + rating<4.0
-  로 130편 삭제. KR 카탈로그 1965 → 1835편. 게임 필터(`rating ≥ 3.3`)와
-  이중 방어. 상세 WORK_LOG.
-- **남은 것**: 신규 확보량이 낮음(vote_count≥100 상위는 이미 카탈로그에
-  대부분 있어서). 카탈로그 규모 진짜로 늘리려면 필터 완화 필요:
-  `--vote-count-gte 50` 또는 `20`으로 재실행하면 무명작·저평점 영화가 유입될
-  수 있음(트레이드오프: 초성 게임 품질 저하 가능).
-- **hub_knowledge 벡터 색인**: EC2 미인덱스 상태 계속(0 증가). 벡터 검색 자체가
-  프로덕션에서 안 도는 상태 유지 — 별건 백로그 "hub_knowledge 재임베딩"
-  참고.
-
-### 다음 세션 후보 (2026-08-05 세션 마무리 정리, 우선순위 순)
-
-🔥 **1순위: hub_knowledge 재임베딩 실행(2026-08-07 재정의 — 조사로 전제가
-뒤집힘)**
-- **2026-08-07 조사 결과**: "품질 비교만 남았다"는 기존 전제가 틀렸다.
-  EC2엔 Ollama가 없어 **쿼리 임베딩이 매번 실패**, 벡터 검색 경로가 한
-  번도 작동한 적 없음(프로덕션 로그 실측: `embed 실패, 검색 생략` →
-  `fallback search_tag_catalog 사용`). 노트북에서 백필한 2014편은 전혀
-  안 읽히고 있었다. 상세: WORK_LOG 2026-08-07(추가① 1).
-- **이미 끝난 것**: `GeminiEmbeddingAdapter` + `EMBEDDING_BACKEND` 스위치
-  구현·머지·EC2 배포 완료(PR #55). `source_ref` 불일치(아래 완료됨)도 이
-  작업의 선행조건이라 함께 해결됨.
-- ✅ **EMBEDDING_BACKEND=gemini 전환 완료(2026-08-31 재확인)**: EC2
-  `printenv`에서 `EMBEDDING_BACKEND=gemini` 확인, 프로덕션 로그에
-  `embed 실패` 없음 — 벡터 검색이 정상 작동 중.
-- ~~**남은 것 ①**~~: 완료.
-- **남은 것 ②**: 재임베딩 실행. Ollama(nomic)와 Gemini는 의미 공간이 달라
-  벡터가 호환되지 않으므로(차원은 768로 같아 에러도 안 남) 기존 2014행을
-  지우고 다시 채워야 한다 — **프로덕션 데이터 삭제가 걸려 사용자 판단으로
-  보류 중**. 실행 명령은 준비돼 있음:
-  `python scripts/ingest_hub_knowledge.py --embedding-backend gemini --reset`
-  (먼저 `--limit 5`로 시험 권장). 재임베딩 대상은 언어 필터 통과분 1735편.
-- 그 다음: 재임베딩 후에야 원래 하려던 3파이프라인(카탈로그 키워드/벡터
-  검색/LLM 자체 지식) 품질 비교가 가능해진다.
-- 실행 환경: EC2에서 전부 가능(노트북 불필요 — Gemini API 사용).
-
-~~💤 **3순위: 레거시 무태그 로우 12편 정리(짜투리)**~~ — **완료(2026-08-18)**:
-위 "완료됨" 참고. 정식 TMDB 정품 row가 이미 있는 10편 + 대체 없는 2편
-(조제·패터슨) 전부 삭제. picks 12건 CASCADE(익명·피드백 없음, 손실 없음).
-
-~~💤 **5순위: 노트북 GPU/Cloudflare Tunnel 복구**~~ — **완료(2026-09-01,
-데스크톱으로 이전 재구축)**: 구 노트북 대신 데스크톱(DESKTOP-IOAQ7L7,
-RTX 3050 8GB, WSL2)에 lora-server를 새로 세팅. LoRA 어댑터·AWQ 백엔드는
-이 머신에 없어 **fp16 hf 백엔드 + 베이스 EXAONE-3.5-2.4B**로 기동
-(`/mnt/d/models/`, D 드라이브). gptqmodel 최신(7.x)이 transformers v5
-강제라 EXAONE 구식 remote code와 비호환 → serve.py의 gptqmodel 임포트를
-AWQ 분기 지연 임포트로 이동 + hf 분기에 `trust_remote_code`/`torch_dtype`
-수정(미사용이던 경로 정비). systemd 유저 서비스 2개(`lora-server`,
-`cloudflared-lora`) + linger 등록, 신규 터널 `lora-desktop`
-(7e1038e9-...)으로 `lora.suvisdev.cloud` CNAME 덮어쓰기. **EC2 왕복 실증**:
-`/mova/chat` → `POST https://lora.suvisdev.cloud/generate 200`, LoRA 경로
-복귀 확인. **같은 날 LoRA 재학습까지 완결**: EC2 프로덕션 DB로 교사
-데이터셋 재생성(65건 — 그라운딩 55 + no-pick 10, 스킵 49건은 주제형 질의의
-교사 그라운딩 한계) → EXAONE fp16에 plain LoRA 3에폭(loss 0.88→0.51,
-VRAM 7.9/8GB, gradient checkpointing 공통 적용으로 확장) →
-`mova_20260901_025206` 어댑터 서빙 반영 → EC2 채팅 E2E 정상 추천 3편
-(추격자·범죄와의 전쟁·범죄도시) 확인, 베이스 전용 시절의 깨진 제목
-('Actor:eal') 해소. `train_mova_lora.py` 수정 3건(gptqmodel 지연 임포트,
-EXAONE 로드 인자, `apply_chat_template` `return_dict=True` 버전 호환) —
-serve.py 수정 2건과 함께 **미커밋**. venv에서 gptqmodel 제거(transformers
-v5 강제라 사용 불가, AWQ 백엔드 재사용 시 재설치 필요).
-구 `lora-notebook` 터널(97489360)은 **2026-09-02 계정에서 삭제 완료** —
-사용자 결정 변경으로 노트북도 상시 서빙하기로 하여, 로컬 관리형 신규 터널
-`lora-nb`(54f7f631) + `lora-nb.suvisdev.cloud`로 재구축(구 터널은 원격
-관리형이라 로컬 config.yml이 무시돼 재사용 불가였음). EC2 프로덕션은
-여전히 `lora.suvisdev.cloud`(데스크톱)만 호출. 상세: WORK_LOG_MOVA
-2026-09-02 후속 3.
-
-~~💤 **7순위: 영화-컬렉션 배정 API/CLI 신설**~~ — **완료(2026-08-18)**:
-위 "완료됨" 참고. API(require_admin) + CLI 둘 다 신설. 8순위(컬렉션
-큐레이션 확장)의 실질 창구 확보.
-
-~~💤 **8순위: 컬렉션 큐레이션 지속 확장**~~ — **v3 완결(2026-09-01)**:
-선행 조건이던 KR 성인 잔여 purge v2(9편 삭제, 비밀애 보존, KR 1,188편)
-완료 후 D korean-cinema 10편 · E animation-masters 6편 · F horror-classics
-6편 배정. 후보는 picks 인터랙션 + 수동 검수로 rating=5.0 노이즈 배제.
-컬렉션 총 11개, 배정 99편. 상세: WORK_LOG_MOVA 2026-09-01.
-**남은 관련 백로그**: rating 노이즈 근본 완화(vote_count/인터랙션 가중
-재정렬) — 이번에도 수동 검수로 우회했을 뿐 정렬 자체는 미해결.
-
-🔥 **신규 1-b순위: `movies.embedding` 백필 완결(2026-08-11 자동화 등록)**
-- 08-10 중단 원인 **재검증 완료(2026-08-11)** — 문서 기록 그대로 Gemini
-  무료 티어 EmbedContent 일일 쿼터 소진. 코드/데이터 문제 아님, 스크립트
-  `HubRagError` catch로 idempotent(개별 movie로 죽는 경로 코드상 없음).
-  근거: WORK_LOG 2026-08-11.
-- **로그 인프라 부재 발견**: 이전 실행 stderr/stdout이 EC2 어디에도 안
-  남음(`docker compose exec`가 컨테이너 stdout에 안 붙는 구조). 이번
-  자동화에서 `>> ~/backfill_embeddings.log 2>&1` 리다이렉트 필수 포함.
-- **이번 사이클 조치**:
-  1. 08-11 즉시 대량 실행(`--limit 950`, 오늘 쿼터 창 활용) —
-     결과·최종 카운트는 WORK_LOG 2026-08-11 참조.
-  2. EC2 `ec2-user` crontab에 매일 KST 03:00(= PDT 자정 이후 새 쿼터)
-     실행 등록: `0 3 * * * cd ~/suvisdev.cloud && docker compose exec -T
-     backend python scripts/backfill_movie_embeddings_cli.py --limit 950
-     >> ~/backfill_embeddings.log 2>&1`. 신규 영화가 들어와도 자동 커버.
-- 남은 확인: 익일 첫 자동화 로그 성공 확인, remaining=0 도달, 랜덤 movie
-  `GET /mova/movies/{slug}/similar` 실측(회귀 없는지). 여기까진 사람이
-  로그만 한 번 보면 되는 사후 확인이라 백로그에서 뺀다.
-- **주의(변함없음)**: 이 쿼터는 프로젝트 단위라 1순위(hub_knowledge
-  재임베딩)와 같은 날 돌리면 서로 잡아먹는다. hub_knowledge 재임베딩을
-  실행할 때는 crontab 라인을 하루 임시 비활성화할 것.
-
-📋 **1-c순위: MOVA 리뷰 이해 파이프라인 — 인프라 완료(2026-08-11), 추천 반영 남음**
-- 진단 결과 **A** — 별점만 추천에 (간접) 반영되고 **리뷰 텍스트는 UI 표시
-  전용**이다. 지금 동작하는 유일한 리뷰 소비 경로: `reviews.rating` 평균
-  → `movies.rating` → 추천 후보 `ORDER BY rating DESC`. 사용자 취향 벡터는
-  없고, 개인화 신호는 `users.preferred_genres` + 최근 질의 3건뿐.
-- ✅ **완료(2026-08-11)** — `reviews.embedding Vector(768)` + HNSW 리비전
-  `20260811_0002`, 저장 시 BackgroundTasks + 크론 백필 안전망(`30 3 * * *`).
-  세부: WORK_LOG 2026-08-11 β 사이클.
-- ✅ **γ 사이클 완료(2026-08-11)**: `mova.user_taste_vectors` 테이블 +
-  Repository + `UserTasteVectorRecomputeInteractor`(`recompute_for_user`/
-  `recompute_missing`/`get_for_user`) + POST/PATCH 리뷰 BG task 체이닝 +
-  `GET /mova/taste/me` 조회 API(원본 벡터 비노출, 메타데이터만) +
-  `backfill_taste_vectors_cli.py` + crontab(`45 3 * * *`) + 인터랙터
-  단위테스트 6건 + EC2 반영(alembic `20260811_0003` head, docker cp) +
-  BackgroundTasks 실 API 왕복 검증(리뷰 작성 → embed → recompute →
-  `GET /mova/taste/me` 반영, DB 768차원 확인, 흔적 정리 완료) + **main 병합
-  후 EC2 backend/auth 정식 이미지 재빌드까지 완료**(docker cp 임시 반영
-  아님). 세부: WORK_LOG 2026-08-11 γ 사이클 + 후속 사이클 + 배포 사이클.
-- 다음 순서:
-  1. ~~**mova 추천 후보 정렬에 취향-영화 코사인 결합**~~ — **완료(2026-08-18)**:
-     위 "완료됨" 참고. 순수 코사인 정렬로 착수, 아래 세 후속은 별도 트랙.
-  2. **감정 축** — ontology `echo_sentiment_adapter`를 Spoke→Hub 포트로 연결.
-
-**취향 재정렬 후속 백로그(2026-08-18 신규)**:
-- **alpha 별점 결합 튜닝** — 현재는 순수 코사인만. `α·cosine + (1-α)·norm(rating)`
-  같은 결합식으로 실측 A/B 후 alpha 결정. 별점이 이미 후보 12편 압축 시점에
-  적용된 상태라 이중 계산 회피가 우선순위였고, 재정렬은 카드 3편 안에서만
-  순서가 바뀌므로 지금은 순수 코사인이 정직함.
-- **후보 window 확대** — 현재 `search_tag_catalog(limit=16)` + LLM이 3편 pick.
-  taste vector가 있는 유저에게 window를 늘려 재정렬 여지를 넓힐지 검토(트레이드오프:
-  프롬프트 토큰↑ · Gemini 요금).
-- ~~**`search_tag_catalog` 후보 생성 개선** — 배우 필터~~ **배우 조인은
-  2026-08-06 26adfec로 이미 해소·2026-08-18 재확인**(QUALITY_PHASE1 §9).
-  `origin_country`도 2026-08-07 b07c64b로 해소. ~~(3) 키워드끼리의 AND
-  결합~~ — **완료(2026-09-02)**: 교집합 우선 + 합집합 보충 방식으로 해소
-  (순수 AND는 mood 동의어 확장을 깨서 채택 안 함). 매칭 0건 키워드는
-  교집합 판정 제외. 테스트 8건, mova 295 passed. 상세: WORK_LOG_MOVA
-  2026-09-02 후속 4. **이 항목 전체 종결.**
-- ~~**intent_extraction 배우 인식 개선**~~ — **옵션 A 완료(2026-08-18)**:
-  위 "완료됨" 참고. `_has_hard_signal` 완화로 배우가 안 잡혔으면 Gemini
-  폴백을 태우도록 변경. 프로덕션 실측(#5·#7 카드 반환 여부)은 배포 후
-  확인 예정. 옵션 B(정규식 확장)·C(actors.name DB lookup)는 실측 결과
-  부족하면 추가 트랙으로 검토.
-
-📋 **0.5순위(2026-08-11 인프라 완료, 코드 힌트 후속)**: HNSW 벡터 인덱스
-- 리비전 `20260811_0001` 신설: `movies.embedding`·`hub_knowledge.embedding`
-  둘 다 `USING hnsw (embedding vector_cosine_ops) WITH (m=16, ef_construction=64)`.
-  로컬 docker 미가용이라 EC2 backend 컨테이너에 직접 반영 → upgrade →
-  downgrade → upgrade 왕복 검증까지 완료. 인덱스 크기: movies 7.7MB,
-  hub_knowledge 8.0MB.
-- **정직한 벤치마크**(실 라우터 경로 `GET /mova/movies/{slug}/similar` × 20회):
-  | 지표 | Before(seq scan) | After(planner default) |
-  |---|---|---|
-  | median | 37.5ms | 30ms |
-  | p95 | 269ms | 73ms |
-  | max | 842ms | 117ms |
-- **Planner 힌트 적용 완료(2026-08-11 후속 사이클)**: planner가 2014행
-  규모에선 cost 오판(HNSW cost=860 > Seq cost=416)으로 인덱스 스캔 자동
-  선택을 안 하는 문제를 `movies_pg_repository.find_similar_movies`에서
-  `SET LOCAL enable_seqscan = off` 세션 힌트로 해결. EXPLAIN 재확인:
-  `Index Scan using idx_movies_embedding_hnsw` + Execution Time 1.214ms.
-  실 API 20회 재측정: **p95 73ms → 33ms(약 55% 개선)**, median 30ms(변화
-  미미 — 네트워크 RTT dominant). Before(인덱스 없음)와 비교: **p95 269ms
-  → 33ms(약 87% 개선)**.
-- **EC2 이미지 상태**: ✅ **2026-08-11 정식 이미지 재빌드로 해소** — main
-  병합(`08f1a17`) 후 EC2에서 `git reset --hard origin/main` +
-  `docker compose up -d --build backend auth`로 전체 재빌드. 이 HNSW 힌트
-  코드뿐 아니라 β(리뷰 임베딩)·γ(취향 벡터) `docker cp` 임시 반영분도 전부
-  이 재빌드로 정식 이미지에 포함됨. 세부: WORK_LOG 2026-08-11.
-
-⚡ **9순위: Gemini 무료 티어 레이트 리밋(2026-08-07 → 2026-08-10 (b) 완료)**
-- 이유: 골든셋을 1초 간격으로 돌리다 발견 — `Quota exceeded ... limit: 15,
-  model: gemini-3.1-flash-lite`(분당 15요청). **`/mova/chat` 1건이 Gemini를
-  2회 호출**한다(의도 추출 + 추천 생성). 즉 **분당 7명만 써도 한도**.
-- 실제로 이것 때문에 골든셋 측정이 한 번 오염됐다(0카드 8건 → 간격 13초로
-  늘리니 정상).
-- ⚠️ **전제 정정(2026-08-10 실측)**: "초과하면 `recs=0`으로 조용히 나가
-  사용자에겐 장애로 안 보인다"는 **사실이 아니었다**. 추천 생성 호출의
-  429는 `gemini_client` → `LLMError(429)` → 라우터 `HTTPException` →
-  프론트 `safeApiErrorMessage`까지 **그대로 전달돼** "Gemini 할당량이
-  초과되었습니다. 잠시 후 다시 시도하세요."로 표시된다(코드 전 경로 확인).
-  삼켜지는 건 **의도 추출 호출뿐**인데 그건 정규식 폴백으로 이어지는
-  의도된 설계다. 따라서 "안내 구분"은 이미 돼 있었다.
-- ✅ **(b) 코드 완화책 2026-08-10 완료**:
-  - **Gemini 호출 2회 → 1회**: 결정론적 추출을 먼저 돌려 장르·배우·국가·연도
-    같은 **하드 조건**이 잡히면 의도 추출 호출을 건너뛴다
-    (`_has_hard_signal()`). "2020년대 한국 액션" 같은 질의는 이제 Gemini를
-    1회만 쓴다 → 수용 인원 분당 7명 → 15명. **키워드만 잡힌 무드 질의
-    ("요즘 지치는데 볼만한 거")는 그대로 Gemini를 쓴다** — 정규식으로
-    처리하면 품질이 떨어지므로 일부러 남겼다.
-  - **429 재시도 1회**(2초): 분당 한도는 고정 윈도우라 창이 막 넘어가는
-    순간 걸린 요청은 구제된다. 하루 한도엔 소용없으므로 1회로 끝낸다 —
-    사용자를 40초씩 붙잡지 않기 위해서.
-  - 테스트 9건 추가(`test_gemini_quota_retry.py` 4 + `test_intent_gemini_skip.py` 5).
-- **(a) 결정 완료(2026-08-27, 사용자)**: **유료 티어 전환 안 함** — 무료
-  티어 제약(임베딩 하루 1000건, 분당 15요청)을 전제로 운영을 계속한다.
-  이 항목 종결.
-
-**선택은 다음 세션 시작 시 판단.**
-
----
-
-- ~~mova 추천 — reply 텍스트와 picks 개수 불일치~~ — **완료(2026-08-12, PR #93)**:
-  `ChatInteractor`에서 recs=0 확정 시 reply를 정직한 문구로 대체
-  (이미 소개해 필터됨 vs 카탈로그에 없음 구분 안내). WORK_LOG 2026-08-12 사이클 N.
-- ~~**EC2 hub_knowledge 임베딩 어댑터 — 코드는 있고 스위치가 꺼져 있음**~~ —
-  **완료 확인(2026-08-31)**: `EMBEDDING_BACKEND=gemini` 설정 완료, 프로덕션
-  로그에 `embed 실패` 0건 — 벡터 검색 정상 작동 중.
-- **`bulk_import_movies.py`의 upsert_movie except(76~84행) rollback — 조사
-  종결(2026-08-05)**: 원래 418건 도미노는 76~84행 자체가 아니라 credits
-  백필 except(92~96행, `characters.character_name` truncation)에서 시작돼
-  다음 영화로 오염이 상속되던 것 — 92~96행에 rollback이 생기면서 이
-  전파 경로는 구조적으로 막힘(그대로 둠). 76~84행은 `upsert_movie()`
-  자신의 독립적 실패 대비용으로 유효하니 제거하지 않음, 재현 시험은
-  우선순위 낮음. 상세: WORK_LOG 2026-08-05(추가①).
-- ~~**LLM 챗 엔드포인트 3개 무인증+무 rate-limit(2026-08-04 신규)**~~ —
-  **완료(2026-08-27)**: 셋 다 `require_admin`으로 잠금(사용자 결정), 공개
-  플로팅 챗 위젯은 관리자 전용 노출로 전환. 위 "완료됨" 참고.
-- **mova만 백엔드 `/api` prefix 없이 마운트됨(2026-08-04 신규)**: `suvisdev/main.py`에서
-  `titanic`/`gildle`/`execsuite`/`dispatch`/`contents`/`vision`/`ontology`/`nlp`/
-  `analytics`/`media`는 전부 `/api` 또는 `/api/v1`로 마운트되는데 `mova_router`만
-  prefix 없이 `/mova/...`로 마운트됨. `suvis/next.config.mjs`의 캐치올 리라이트
-  (`/api/:path* → ${backendUrl}/api/:path*`)가 이 불일치 때문에 mova 동적 세그먼트
-  프록시(`/api/mova/mypage/[user_id]` 등)를 엉뚱한 백엔드 경로로 흘려보내 404가
-  나던 근본 원인이었음(조사 완료, 수정은 `route.ts` 신설 후 리라이트 삭제로 진행
-  예정 — 별도 스레드). **이번 스코프엔 미포함** — 나중에 mova도 다른 앱처럼 `/api`
-  prefix로 통일하는 마이그레이션을 고려할 것(susu/모바일이 `/mova/...`를 직접
-  호출하는 곳들도 같이 바뀌어야 해서 블라스트 레이디어스가 큼 — 별도 계획 필요).
-- **폰 카메라 → S3 업로드 실기기 검증(2026-08-03 신규, 코드는 완성)**: 폰
-  adb 연결이 계속 끊겨 `flutter run`으로 실제 촬영→업로드 확인 못 함
-  (`pytest`/`flutter analyze`만 확인). access token 10분 TTL 만료 시 자동
-  재발급(refresh)도 미구현 — 만료되면 401, 재로그인 필요.
-- **mova 추천 — CF Tunnel public 상태를 Zero Trust Access로 잠그기
-  (2026-08-05 신규)**: `lora.suvisdev.cloud`는 현재 인증 없이 URL만 알면
-  누구나 호출 가능(public tunnel, 왕복 검증 목적으로 의도적으로 열어둠).
-  `is_ready()` 헬스체크가 코드 어디서도 안 불리는 문제도 미해결(별도
-  이슈 — 지금은 실패가 실제 `/generate` 호출 타임아웃/에러로만 드러남).
-- **susu 카카오 모바일 로그인 — iOS 실빌드 검증(2026-08-03 신규)**: Android는
-  EC2 배포 반영 후 실기기 E2E 성공 확인 완료. iOS는 Info.plist를 공식 문서
-  기준 표준값으로만 넣어뒀고 실제 빌드 검증은 전혀 안 함. 상세: WORK_LOG
-  2026-08-03.
-- **mova 추천 챗 화면 — 실기기/데스크톱 실행 검증(2026-08-03 신규, 코드는
-  완성)**: 폰 무선 adb 연결이 끊겨(`adb devices` 빈 목록) `flutter run`을
-  못 돌려봄. `flutter analyze`만 클린 확인한 상태로 커밋(사용자 지시로 검증
-  보다 커밋 우선). 폰 재연결 또는 `flutter run -d linux`(데스크톱, 이 화면은
-  카카오 SDK 의존이 없어 데스크톱에서도 검증 가능하나 IntroScreen 진입에
-  카카오 로그인을 거쳐야 하는 현재 네비게이션 구조상 데스크톱에선 로그인
-  단계가 막힘 — 임시 진입 경로 필요 여부 검토)로 실제 `/mova/chat` 응답·
-  포스터 카드 렌더링 확인 필요. 상세: WORK_LOG 2026-08-03.
-- **Neo4j GraphRAG 활용 코드 부재(2026-08-04 재정의 — 예전 "노드 0건"은 stale,
-  위 완료됨 참고)**: 노드 데이터(Movie 40 등)는 이미 있지만 `apps/mova`·
-  `apps/ontology` 어디에도 이걸 읽는 코드가 없음. 어느 앱이 언제 어떻게
-  쓸지(ontology hub_rag 확장? mova 추천 보강?) 설계부터 필요 — 착수 전.
-- **단독 `1` 문자 삽입 — 2026-08-10 실제로 살아 있는 것을 발견·제거**:
-  로컬·EC2 **양쪽** `suvisdev/.env` 29번째 줄(`GEMINI_API_KEY` 바로 다음)에
-  단독 `1`이 그대로 남아 있었다(2026-07-29·07-30 발견분과 같은 자리). 양쪽 다
-  백업(`.env.bak-20260810`) 후 그 줄만 제거, `docker compose config`·컨테이너
-  키 주입 정상 확인. 편집기 확장이 원인이라는 추정은 그대로다(플레인 `.env`와
-  마크다운 양쪽에서 나왔으므로 파일 타입 문제가 아님).
-  **재발 탐지를 자동화**: `scripts/check_env_drift.py`가 이제 `KEY=`도 주석도
-  아닌 줄을 잡아 줄번호와 함께 출력하고 exit 1을 낸다(백업본으로 실제 탐지 확인).
-  근본 원인(어떤 익스텐션인지)은 여전히 미확인 — 재발하면 그때 확인.
-- **비전 02·05**(아래 감사표): 02 용도 결정, 05 용도+VRAM 전략(외부 GPU 분리?) 필요.
-- **시크릿 (a)**: pydantic-settings 도입 시 mova·ontology 키 접근 함께 이관
-  (단독 실행 금지 — WORK_LOG 2026-07-24 [2순위](a)).
-  **2026-08-10 확인**: 이건 착수할 작업이 아니라 **다른 결정에 붙은 조건**이다.
-  2026-07-24 조사 결론이 "두 곳이 같은 env 이름을 읽어 값 divergence 없음(상태
-  중복이 아니라 코드 중복), 현재는 무해"였고, 지금 accessor를 신설하면
-  pydantic-settings 이관 때 또 뜯게 된다. **app별 Settings 도입 여부가 먼저
-  결정돼야 열리는 항목.**
-- ~~**`suvis/app/mail/contacts` 공개 레슨 데모 처리(2026-07-28 신규)**~~ —
-  **완료(2026-08-27)**: 사용자 결정으로 `/mail` 전체를 `AdminAuthGate`
-  관리자 전용으로 전환(`app/mail/layout.tsx` 신설, 레슨 레이아웃과 동일
-  패턴). mail·mail/contacts 페이지가 `authHeader()`로 세션 토큰을 보내도록
-  배선해 관리자 사용 시 401도 해소. 상세: WORK_LOG_MAINPAGE 2026-08-27.
+### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
+- **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
+  `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
+  `/mova/...`를 직접 호출하는 곳까지 같이 바뀌어 블라스트 레이디어스가 큼 —
+  별도 계획 필요.
+- **Neo4j GraphRAG 활용 코드 부재(08-04)**: 노드 데이터(Movie 40 등)는
+  있지만 읽는 코드가 없음. 어느 앱이 어떻게 쓸지 설계부터.
+- **susu 실기기 검증 미완(08-03)**: ① 폰 카메라→S3 업로드 실촬영 검증
+  + access token 10분 만료 시 refresh 미구현 ② 카카오 로그인 iOS 실빌드
+  검증(Android만 E2E 완료) ③ 추천 챗 화면 `flutter run` 검증(adb 끊김,
+  `flutter analyze`만 클린).
+- **비전 02(Argus)·05(Prisma)**: 02 용도 결정, 05 용도+VRAM 전략 필요 —
+  제품 결정 전까지 착수 안 함.
+- **시크릿 (a)**: app별 pydantic-settings 도입이 결정될 때만 mova·ontology
+  키 접근을 함께 이관(단독 실행 금지, WORK_LOG_MAINPAGE 2026-07-24).
 
 ---
 
@@ -1391,6 +173,7 @@ v5 강제라 사용 불가, AWQ 백엔드 재사용 시 재설치 필요).
 
 ## 참고: VRAM 정책 (확정, `00_COMMON_conventions.md` §1.1)
 
-`lora-server`(mova 채팅용 EXAONE-2.4B AWQ)가 상시 기동 → **모든 학습 전
-`systemctl --user stop lora-server`**, 학습 후 `start` + `:8200/health` 확인 필수.
-`nvidia-smi` free 수치만 믿지 말 것(WSL2 계측 불안정, 290MB↔7975MB 편차 사례).
+`lora-server`(mova 채팅용 EXAONE-2.4B, 현재 llama.cpp GGUF)가 상시 기동 →
+**모든 학습 전 `systemctl --user stop lora-server`**, 학습 후 VRAM 하강
+확인 → `start` + `:8200/health` 확인 필수. `nvidia-smi` free 수치만 믿지
+말 것(WSL2 계측 불안정, 290MB↔7975MB 편차 사례).
