@@ -129,6 +129,20 @@ TMDB_KEYWORD_TO_LABEL: dict[str, str] = {
     "olympics": "올림픽",
     "sports": "스포츠",
     # 장소·상황
+    # 도시·지역(2026-09-03 평가셋 실측 — "뉴욕 배경"·"유럽 배경 로맨스" 무관 픽):
+    # 채팅 질의가 도시 단위보다 "유럽" 같은 권역 표현이라 유럽 도시는 권역
+    # 라벨로 합친다. 뉴욕은 질의에 그대로 등장해 도시 라벨 유지.
+    "new york city": "뉴욕",
+    "manhattan": "뉴욕",
+    "brooklyn, new york city": "뉴욕",
+    "paris, france": "유럽",
+    "london, england": "유럽",
+    "rome, italy": "유럽",
+    "berlin, germany": "유럽",
+    "venice, italy": "유럽",
+    "office": "직장",
+    "workplace": "직장",
+    "political thriller": "정치",
     "sea": "바다",
     "ocean": "바다",
     "island": "섬",
