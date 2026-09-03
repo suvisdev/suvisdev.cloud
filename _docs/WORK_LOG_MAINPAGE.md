@@ -48,10 +48,18 @@
   `toc.markdown` 5번 항목 추가·번호 재정렬. `jekyll build` 통과.
 - 커밋 `7ccbf46`. 참고: suvisjk CLAUDE.md가 낡음(minima/ats 기술 —
   실제는 just-the-docs/jk) — 정리 후보.
+- **(방침 변경으로 revert)** 사용자 결정: 개인 지킬에는 개인 프로젝트만 —
+  팀 README의 "개인 레포 배치" 지시보다 본인 방침 우선. `7ccbf46`을
+  revert(`ef64d06`)해 개인 사이트에서 Arda 제거.
+- **Arda 시각 자료는 팀 문서 사이트(ats.suvisdev.cloud)에 반영** —
+  `about.markdown` 아키텍처 섹션에 다이어그램 SVG+흐름 설명, ERD 섹션
+  신설(9테이블·복합 UNIQUE 2건·ai_summary 컬럼), 화면 프로토타입 2장.
+  커밋 `99da3e9`, Pages 배포 success·이미지 200 확인.
 
 ### 산출물
-- suvisjk 커밋 `7ccbf46`(푸시 시 Pages 자동 배포). 모노레포 쪽 재실측
-  기록은 WORK_LOG_MOVA 2026-09-03.
+- suvisjk `7ccbf46`→revert `ef64d06`(개인 사이트 원상복구),
+  ats.suvisdev.cloud `99da3e9`(시각 자료 보강, 라이브 확인).
+  모노레포 쪽 재실측 기록은 WORK_LOG_MOVA 2026-09-03.
 
 ## 2026-09-02
 
