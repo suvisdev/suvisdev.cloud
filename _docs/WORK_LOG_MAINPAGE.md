@@ -30,6 +30,24 @@
 
 ## 2026-09-03
 
+### 작업 내용 (서브도메인 이사 — 방법 2 착수)
+- **mova·gildle 서브도메인 서빙**(사용자 결정): `suvis/next.config.mjs`에
+  호스트 기반 rewrite — `mova/gildle.suvisdev.cloud`가 각 섹션을 루트로
+  서빙(`/`→`/mova`, 그 외 경로 접두). `/api`(Next 프록시)·`/_next`·확장자
+  있는 정적 파일·이미 접두된 경로는 제외해 이중 접두·에셋 깨짐 방지.
+  기존 `suvisdev.cloud/mova` 경로도 그대로 유지(기존 링크 안 깨짐).
+  빌드 통과, 커밋 `0bef4f3`(푸시 → Vercel 자동 배포).
+- **백엔드 CORS는 무변경** — `allow_origins=["*"]` 실측 확인.
+- **남은 사용자 콘솔 작업**: ① Vercel 프로젝트에 도메인 2개 추가
+  ② Cloudflare CNAME(mova·gildle → cname.vercel-dns.com) ③ 소셜 로그인
+  redirect URI에 서브도메인 추가(카카오·네이버·구글 콘솔). 유의: JWT가
+  localStorage라 로그인 세션은 도메인별 분리(주 사용 주소 정하면 무해).
+- **팀프로젝트(arda) 서브도메인**: 앱이 팀 Vercel(arda.seuk.cloud)에 있어
+  ⓐ 팀 Vercel 프로젝트에 arda.suvisdev.cloud 도메인 추가(+CNAME) 또는
+  ⓑ Cloudflare 리다이렉트 중 택1 — 팀 합의 필요, 대기.
+- **AWS 분리 질문 결정**: 서브도메인 이사는 프론트 표면만 — 백엔드는
+  api.suvisdev.cloud 공유 유지(모놀리스 해체는 YAGNI, 필요 시점에 재검토).
+
 ### 작업 내용
 - **지킬(suvisjk)에 Arda(ATS) 프로젝트 페이지 추가** — 팀 배포 데이터
   (`_data/project.yml` + 이미지 4종)와 데스크톱 문서 4건(소개·핸드북·현황·
