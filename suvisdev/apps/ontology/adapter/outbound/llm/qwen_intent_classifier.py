@@ -42,6 +42,14 @@ _META_COMPLAINT_PATTERNS: tuple[str, ...] = (
 # 무관 후보로 "어떤 작품을 예매하시려나요?" 되물었다).
 _BOOKING_VOCAB = re.compile(r"예매|예약|티켓|표\s*끊|상영|극장|영화관|보러|시간표|어디서")
 
+# 추천 확정 어휘 — "추천"·"뭐 있"이 있고 예매·평가 어휘가 없으면 LLM 라우터를
+# 건너뛰고 recommend로 확정한다(2026-09-03 속도 개선: 분류기 Gemini 호출이
+# E2E 병목 2.06s 실측 — 명백한 추천 질의가 실트래픽의 다수인데 매번 LLM을
+# 태울 이유가 없다). 평가·예매 어휘가 섞이면("호프 어때? 추천해줄만해?")
+# 기존대로 LLM이 판정한다.
+_RECOMMEND_FAST_VOCAB = re.compile(r"추천|뭐\s*있")
+_EVALUATE_VOCAB = re.compile(r"어때|볼만|볼 만|평점|평가|재밌(어|나|니)|후기|리뷰|어떤가")
+
 _ROUTING_SYSTEM_PROMPT = """너는 영화를 추천하고, 평가하고, 예매까지 돕는 챗봇 'Mova'의 라우터야. 사용자 질문의 의도를 분류해.
 아래 JSON 스키마로만 응답하고, 다른 설명·인사말·예시는 절대 붙이지 마.
 
@@ -138,6 +146,14 @@ class QwenIntentClassifier(IntentClassifierPort):
             logger.info("[QwenIntentClassifier] 불만·메타 발화 감지 → general (결정론 가드)")
             return "general", []
 
+        if (
+            _RECOMMEND_FAST_VOCAB.search(question)
+            and not _BOOKING_VOCAB.search(question)
+            and not _EVALUATE_VOCAB.search(question)
+        ):
+            logger.info("[QwenIntentClassifier] 추천 어휘 감지 → recommend (결정론 가드, LLM 생략)")
+            return "recommend", []
+
         try:
             raw = await self._llm.generate(question, system=_ROUTING_SYSTEM_PROMPT)
         except HubRagError as e:
@@ -164,7 +180,9 @@ class QwenIntentClassifier(IntentClassifierPort):
         if destination not in _DESTINATIONS:
             destination = _DEFAULT_DESTINATION
         if destination == "booking" and not _BOOKING_VOCAB.search(question):
-            logger.info("[QwenIntentClassifier] 예매 어휘 없음 → booking을 recommend로 교정 (결정론 가드)")
+            logger.info(
+                "[QwenIntentClassifier] 예매 어휘 없음 → booking을 recommend로 교정 (결정론 가드)"
+            )
             destination = "recommend"
         entities = [str(e) for e in (data.get("entities") or [])]
         return destination, entities

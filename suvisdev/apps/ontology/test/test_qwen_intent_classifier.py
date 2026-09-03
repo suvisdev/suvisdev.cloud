@@ -23,7 +23,7 @@ class QwenIntentClassifierTests(unittest.IsolatedAsyncioTestCase):
         llm.generate.return_value = '{"destination": "rag", "entities": ["공포", "영화"]}'
         classifier = QwenIntentClassifier(llm=llm)
 
-        destination, entities = await classifier.classify("공포 영화 추천해줘")
+        destination, entities = await classifier.classify("공포 영화 보고 싶어")
 
         self.assertEqual(destination, "recommend")
         self.assertEqual(entities, ["공포", "영화"])
