@@ -59,6 +59,20 @@ class ChatInteractorGeneralRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.reply, "답변입니다.")
         self.assertEqual(response.recommendations, [])
 
+    async def test_general_llm_failure_degrades_to_honest_notice(self) -> None:
+        """Gemini 429/장애가 500으로 새지 않고 정직한 안내 200으로 강등된다
+        (2026-09-03 실측: "안녕" → 쿼터 429 → HubRagError 미포착 → 500)."""
+        from ontology.app.ports.output.hub_rag_errors import HubRagError
+
+        interactor, repo, general = _build_interactor(classifier_destination="general")
+        general.ask.side_effect = HubRagError("쿼터 초과", status_code=429)
+
+        response = await interactor.chat(MovaChatRequest(message="안녕", history=[]))
+
+        self.assertIn("잠시", response.reply)
+        self.assertEqual(response.recommendations, [])
+        repo.save_chat.assert_awaited_once()  # 안내도 대화 기록은 남긴다
+
     async def test_general_includes_recent_history_in_question(self) -> None:
         """불만·후속 발화가 맥락 없이 인사말로 답변되던 것 방지(2026-08-26) —
         히스토리가 있으면 [이전 대화] 블록으로 질문에 인라인된다."""

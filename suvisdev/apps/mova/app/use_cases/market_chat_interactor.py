@@ -33,6 +33,7 @@ from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluation
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
+from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.app.ports.output.intent_classifier_port import IntentClassifierPort
 
 logger = logging.getLogger(__name__)
@@ -707,9 +708,24 @@ class ChatInteractor(ChatUseCase):
             question = f"[이전 대화]\n{context}\n\n[현재 발화]\n{request.message}"
         else:
             question = request.message
-        answer = await self._general.ask(
-            MycroftAskCommand(question=question, system=_GENERAL_CHAT_SYSTEM_PROMPT)
-        )
+        # LLM 장애·쿼터 429가 500으로 새지 않게 정직한 안내로 강등한다
+        # (2026-09-03 실측: "안녕" → Gemini 429 → HubRagError 미포착 → 500).
+        # 추천 트랙은 LoRA+폴백 체인이 받지만 general은 이 호출이 유일한 경로다.
+        try:
+            answer = await self._general.ask(
+                MycroftAskCommand(question=question, system=_GENERAL_CHAT_SYSTEM_PROMPT)
+            )
+            reply_text = answer.text
+        except HubRagError as e:
+            logger.warning(
+                "[ChatInteractor] trace=%s general LLM 실패 → 정직 안내 강등 | %s",
+                trace_id,
+                e.detail,
+            )
+            reply_text = (
+                "지금 대화 응답이 혼잡해서 잠시 답변이 어려워요. "
+                "조금 뒤에 다시 말을 걸어주시거나, 원하는 영화 분위기를 알려주시면 추천은 바로 도와드릴 수 있어요."
+            )
         chat_id = await self._repo.save_chat(
             user_id=request.user_id,
             assistant_id=None,
@@ -723,18 +739,18 @@ class ChatInteractor(ChatUseCase):
             "[ChatInteractor] trace=%s chat_id=%d intent=general reply_chars=%d recs=0",
             trace_id,
             chat_id,
-            len(answer.text),
+            len(reply_text),
         )
         conversation_id = await self._persist_conversation_turn(
             request=request,
             user_content=request.message,
             user_meta={"intent_type": "general", "refined_query": request.message, "keywords": []},
-            assistant_content=answer.text,
+            assistant_content=reply_text,
             assistant_meta={"recommendations": []},
         )
         return ChatResponseDto(
             chat_id=chat_id,
-            reply=answer.text,
+            reply=reply_text,
             refined_query=request.message,
             keywords=[],
             intent_type="general",
