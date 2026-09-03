@@ -50,9 +50,90 @@
   member. 조직 owner 명의 확인이 팀 이전의 선행 과제 — 계획서에 저장소
   신설/조직 이전 절차 기록.
 
+### 작업 내용 (저녁 2 — seuk GitHub 조직 신설 + Arda mirror 이전)
+- 구 `Team-Seuk` owner는 woojeongalex 1명, 사용자는 member라 Transfer
+  불가 → 새 조직 `Seuk-Team` 생성(사용자 owner). 이름은 `Team_Seuk`(밑줄
+  불가)·`TeamSeuk`(구 조직과 혼동) 대신 확정. 팀원 3명 초대, 기본 저장소
+  권한 write(`gh api PATCH orgs/Seuk-Team`).
+- 이전 방식 결정: 인프라(Vercel·AWS)를 새로 연결하므로 mirror의 단점
+  (재연결)이 사라져 **mirror push** 채택. 히스토리는 포트폴리오 증빙(커밋
+  작성자)·팀원 로컬 호환 때문에 유지 — 빈 저장소에 새로 올리는 방식은
+  기각. 나중에 Transfer를 받으면 그때 대체.
+- `Seuk-Team/Arda`(public) 사용자가 화면에서 생성 — `gh repo create`·
+  `gh api POST`가 분류기에 차단됨. `git clone --mirror` → `git push
+  --mirror`. **검증**: 브랜치 13/13 SHA 일치, main 366 커밋, 기본 main.
+  `refs/pull/*` 거부는 정상.
+- `main` 브랜치 보호(`gh api PUT .../branches/main/protection`): PR 승인 1
+  필수·stale 승인 무효·force push/삭제 금지, enforce_admins=false.
+- enforce_admins는 사용자 요청으로 **켬**(owner도 PR 필수).
+- **옛 브랜치 12개 정리**: `git rev-list`로 main 대비 앞/뒤 커밋 수,
+  `merge-tree`로 충돌, 구 저장소 `gh pr list --head`로 PR 이력 대조.
+  main 포함 4개 / 충돌 8개(전부 100~300커밋 뒤처짐). 8개 중 살린 건
+  `fix/agent-test-tool-count` 1개 — 도구 카운트는 main이 12개로 앞서 폐기,
+  쓰기 도구 테스트 목록의 `create_schedule_proposal` 누락만 남겨
+  `rebase/fix-agent-test-tool-count` → **Seuk-Team/Arda PR #1**. 나머지는
+  대체(09-02 모바일 개편)·본인 폐기(#154)·팀 닫음(#26·#120·#126·#133)·
+  stale docs로 삭제 대상. 브랜치 삭제 `gh api DELETE`는 분류기 차단 —
+  사용자 실행용 명령 전달.
+- 옛 브랜치 12개 사용자가 삭제 실행 → 남은 브랜치 main + PR #1 브랜치.
+
+### 작업 내용 (저녁 3 — Vercel 새 프로젝트 + seuk.suvisdev.cloud)
+- 순서 결정: **Vercel 먼저, AWS 병렬(SES 신청부터)** — 프론트는 정적이라
+  기존 백엔드를 그대로 불러 즉시 동작, AWS는 SES 샌드박스 해제(08-27
+  거절 이력)가 병목.
+- Arda 인프라 실측: `frontend/app`(Vite, `VITE_API_BASE`로 API 주소,
+  `.env.production`에 `api.arda.seuk.cloud`), `infra/`에 prod compose
+  (db·api·worker·caddy)+Caddyfile, `backend/.env.example`에 AWS·SES·SQS·
+  Anthropic·CORS_ORIGINS 키. 07-deploy: 기존 EC2·AWS 접근자는 woojeongalex뿐.
+- 사용자 콘솔 진행(안내): Vercel GitHub 앱을 Seuk-Team에 Arda만 허용 설치
+  → 프로젝트 `arda`(Root `frontend/app`, `VITE_API_BASE`) 배포 →
+  `arda-teal.vercel.app` 200 → 도메인 `seuk.suvisdev.cloud` 추가 +
+  Cloudflare CNAME → HTTPS 200·인증서 정상 확인(curl).
+- **CORS 실측**: 기존 백엔드 preflight — 새 origin 2개 400, 기존
+  `arda-nu.vercel.app` 200. 새 주소에서 화면은 뜨나 API 호출 차단.
+  해결 A(woojeongalex `CORS_ORIGINS`+S3 CORS 추가) / B(Vercel rewrite PR)
+  결정 대기.
+- 남은 것: CORS 결정, AWS 이전, 팀원 remote 교체, 구 저장소 Archive,
+  두 번째 owner, PR #1 승인 — 계획서에 기록.
+
+### 작업 내용 (저녁 4 — AWS 계정 방침 변경 → 개인 백엔드 노트북 이전)
+- **방침**: 새 AWS 계정은 동일 명의라 프리티어 불가 → 개인 계정 하나.
+  EC2 실측: m7i-flex.large(8GB, 크레딧 월 ~70$), 메모리 4GB 여유, Neo4j
+  1.3GB(읽는 코드 없음), 디스크 6.6GB 여유·이미지 10.9GB 정리 가능.
+  "Arda 동거"를 권했으나 사용자 결정은 **개인 백엔드를 노트북으로 내리고
+  EC2는 Arda 전용**(크레딧을 팀에만).
+- **사고 아님**: 세션 중 EC2 22/80/443 무응답·api 530 — 사용자가 크레딧
+  절약차 일부러 중지한 것. 재시작 후 공인 IP 변경(Elastic IP 아님) →
+  `~/.ssh/config` 13.125.14.24로 갱신, 터널 자동 복구(api 200).
+- **이전 실행**(상세 순서·검증값은 SUBDOMAIN_MIGRATION_PLAN.md "개인
+  백엔드 EC2 → 노트북 이전"): EC2 전체 덤프·env·crontab 백업 → 로컬
+  개발 DB(영화 47편) 드롭 후 프로덕션 덤프 복원(3,410편 등 EC2 일치) →
+  `.env` 병합(단독 `1` 줄 재발견·제거, 5키 추가, lora 직결) → crontab
+  3건 등록 → 이미지 재빌드 → backend·auth 기동 → **컷오버 완료 23:35**.
+- **컷오버 중 502 사고(약 1분)**: 노트북 cloudflared가 같은 토큰으로
+  터널에 합류하자 Cloudflare가 신규 커넥터를 우선해 공개 요청 8/8건이
+  노트북으로 왔는데, 터널 원본이 `http://nginx:80`이라 nginx 없는 노트북에서
+  `lookup nginx ... server misbehaving` → 502. 즉시 replica 정지로 복구,
+  `docker compose up -d nginx`(repo `nginx/conf.d/app.conf`, HTTP only) 후
+  재합류 → 12/12 200 → EC2 cloudflared 정지 → 8/8 200·jwks 200.
+  교훈: **remote-managed 터널의 원본 주소는 대시보드에만 있다** — replica를
+  추가하기 전에 원본 서비스명(nginx)이 그 호스트에도 뜨는지 확인할 것.
+- 현재 노트북 컨테이너: nginx·backend·auth·db·redis·cloudflared(pgadmin
+  정지). EC2 개인 스택은 아직 떠 있음(cloudflared만 정지) — 하루 안정
+  확인 후 down·축소·Arda 배포.
+- 발견: 노트북 lora-server는 08-25 AWQ 어댑터(데스크톱 09-02 GGUF보다
+  구버전) — 후속 동기화 필요. backend 부팅 시 감정분석 스케줄러가
+  `frozenset` 오류로 리뷰 전건 실패 로그를 찍음(transformers 4.47.1 기존
+  버그, 무해).
+
 ### 산출물 (저녁)
+- `_docs/ARDA_AWS_DEPLOY_GUIDE.md` 신설 — S3·SQS·SES·IAM → EC2(Elastic IP·
+  t3.small·Arda compose·alembic·create_admin) → DNS·Vercel 전환 → 검증
+  체크리스트. 다음날 학원 세션 실행용.
 - `_docs/SUBDOMAIN_MIGRATION_PLAN.md` 재작성(seuk 전용 + 되돌린 이유 +
-  GitHub 절차), PROGRESS 정리, `suvis/next.config.mjs` 원복. 미커밋.
+  GitHub 이전 완료 기록), PROGRESS 정리, `suvis/next.config.mjs` 원복
+  (커밋 `7f346f2`·`1534590` 푸시됨). GitHub: `Seuk-Team` 조직 +
+  `Seuk-Team/Arda` 저장소.
 
 ### 작업 내용 (서브도메인 이사 — 방법 2 착수, 오후 — 저녁에 개인 앱 부분 되돌림)
 - **mova·gildle 서브도메인 서빙**(사용자 결정): `suvis/next.config.mjs`에

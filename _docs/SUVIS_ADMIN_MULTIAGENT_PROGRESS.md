@@ -49,12 +49,24 @@
 
 ## 진행 중 (현재 액티브)
 
+### 개인 백엔드 EC2 → 노트북 이전 — 컷오버 완료(2026-09-03 밤)
+- `api.`/`auth.suvisdev.cloud`는 이제 **노트북(teagy)** compose(nginx·
+  backend·auth·db·redis·cloudflared)가 서빙. 터널 `suvisdev.cloud`의
+  커넥터는 노트북 단독. 프로덕션 DB는 EC2 덤프(09-03) 복원본.
+- **남은 것**: ① 하루 안정 확인 후 EC2 개인 스택 `down`·prune·Elastic IP·
+  `t3.small` 축소 ② 노트북 lora-server 어댑터 동기화(현재 08-25 AWQ) ③
+  브라우저 실사용 검증(카카오 로그인·채팅·gildle) ④ 루트 CLAUDE.md의
+  "EC2=Gemini 폴백" 서술 갱신 필요. 상세: SUBDOMAIN_MIGRATION_PLAN.md.
+
 ### 서브도메인 이사 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
 - **개인 앱(mova·gildle)은 이사 안 함** — 서빙 실익 없음(세션 분리·OAuth
   복귀 갭·중복 URL). 리라이트 `0bef4f3` 되돌림(저녁 세션, 푸시 대기).
-- 남은 것은 **seuk 팀 인프라 이전**(팀 Vercel 도메인+CNAME, 새 AWS 계정,
-  GitHub 조직 owner 확인 후 저장소 신설/이전). **전체 계획·순서·검증 기준:
-  `_docs/SUBDOMAIN_MIGRATION_PLAN.md`**.
+- **GitHub 이전 완료(09-03 저녁)**: 새 조직 `Seuk-Team` + `Seuk-Team/Arda`
+  mirror(브랜치 13/13 일치) + main 보호. 남은 것: 팀원 remote 교체·구 저장소
+  Archive·Vercel 연결·Secrets·두 번째 owner, 그리고 **팀 인프라 이전**(팀 Vercel
+  도메인+CNAME, 새 AWS 계정). **전체 계획·순서·검증 기준:
+  `_docs/SUBDOMAIN_MIGRATION_PLAN.md`**, 실행 체크리스트
+  `_docs/ARDA_AWS_DEPLOY_GUIDE.md`(09-04 학원 세션용).
 
 ---
 

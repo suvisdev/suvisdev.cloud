@@ -197,6 +197,68 @@ CLAUDE.md 규칙이 "완료 항목은 상세 대신 WORK_LOG 날짜만 남긴다
 근거 없이 지우면 재개 문서가 거짓말을 한다.
 </details>
 
+### 14. 옛 브랜치 12개 중 1개만 살렸다. "합칠 수 있는 건 다 합쳐 달라"는 요청에 왜 그렇게 답했나?
+
+<details><summary>답 확인</summary>
+
+세 가지 근거를 대조했다. ① `git rev-list main..branch`로 main에 없는 커밋
+수, ② `git merge-tree`로 충돌 여부, ③ 구 저장소 `gh pr list --head`로 PR
+이력. 4개는 main에 전부 포함(삭제만), 8개는 전부 100~300커밋 뒤처져 충돌.
+그 8개 중 5개는 팀이 PR을 닫은 것이라 지금 합치면 팀 결정을 뒤집는 셈이고,
+프론트 브랜치는 main의 09-02 모바일 개편이 대체했다. 살릴 만한 건 한 줄
+(`create_schedule_proposal` 테스트 누락)뿐이라 rebase 후 PR #1로 올렸다.
+"합칠 수 있는가"는 기술적 충돌만이 아니라 **팀이 이미 내린 판단**까지 포함한다.
+</details>
+
+### 15. Vercel 프론트를 새 주소로 띄웠더니 화면은 뜨는데 로그인이 안 된다. 어디가 문제이고 GitHub 연결과 무슨 관계인가?
+
+<details><summary>답 확인</summary>
+
+CORS다. 백엔드 `CORS_ORIGINS`에 옛 프론트 주소만 있어 새 origin의 preflight가
+400(허용 헤더 없음)으로 떨어진다 — curl로 옛 origin은 200, 새 origin은 400을
+직접 대조했다. GitHub 연결은 "코드를 어디서 가져와 빌드하느냐"이고 CORS는
+"빌드된 화면이 백엔드와 통신할 수 있느냐"라 별개다. 정적 프론트는 잘 떴고,
+데이터 호출만 브라우저가 막는다. 해결은 백엔드 허용 목록 수정(5분)이지만
+그 서버 접근자가 한 명뿐이라 사람 문제가 병목이다.
+</details>
+
+### 16. "AWS 계정을 따로 만들자"에서 "개인 백엔드를 노트북으로 내리자"까지 결정이 세 번 바뀌었다. 각 전환의 사실 근거는?
+
+<details><summary>답 확인</summary>
+
+① 별도 계정 → 같은 명의라 프리티어 불가(사용자 실측). ② 같은 계정에 별도
+EC2 → 기존 EC2가 m7i-flex.large(8GB, 4GB 여유)라 "동거"가 낫다고 제안했으나
+③ 현금이 아니라 **신규 크레딧**으로 내고 있다는 정정 → 크레딧은 잔고라
+서버가 클수록 빨리 바닥나므로, 팀 프로젝트에만 크레딧을 쓰려면 개인은
+내리는 게 맞다(사용자 결정). 매 단계 내 가정(현금 과금)이 틀렸을 때 바로
+계산을 다시 했다는 점이 핵심이다.
+</details>
+
+### 17. EC2→노트북 컷오버에서 새 터널을 안 만들고 어떻게 옮겼나? 그리고 왜 1분간 502가 났나?
+
+<details><summary>답 확인</summary>
+
+로컬 `.env`에 EC2와 **같은 `TUNNEL_TOKEN`**이 있었다. 같은 토큰으로 띄우면
+같은 터널의 두 번째 replica가 되어 DNS·터널 변경 없이 EC2 replica를 끄는
+것만으로 컷오버된다. 502는 터널의 공개 호스트 원본이 대시보드에서
+`http://nginx:80`으로 잡혀 있었는데 노트북엔 nginx가 안 떠 있어서
+(`lookup nginx ... server misbehaving`). Cloudflare가 신규 커넥터를 우선해
+8/8건이 노트북으로 왔다. 즉시 replica 정지로 복구 → 로컬 nginx 기동 →
+재합류. 교훈: remote-managed 터널의 원본 주소는 코드에 없다 — replica
+추가 전에 그 서비스명이 새 호스트에서도 해석되는지 확인할 것.
+</details>
+
+### 18. 로컬 DB에 영화가 47편뿐이었다. TMDB 수집분은 어디 갔고, 복원 후 무엇으로 검증했나?
+
+<details><summary>답 확인</summary>
+
+47편은 노트북 개발용 DB(프로덕션 데이터가 들어온 적 없음)였고 수집분
+3,410편은 EC2에 있었다. `pg_dumpall`(92MB)로 받아 로컬 DB를 드롭 후 복원,
+검증은 movies/users/reviews/chat/picks 건수를 EC2와 1:1 대조(3,410/9/258/
+414/668), hub_knowledge 2,963, alembic 리비전, pgvector 확장 존재까지.
+"role already exists" 오류 하나는 무해로 판정. 복원 전 로컬 DB도 백업했다.
+</details>
+
 ## 2026-09-02
 
 ### 5. lora-server를 llama.cpp GGUF로 바꿨더니 왜 3배 가까이 빨라졌나?
