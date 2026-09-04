@@ -28,6 +28,97 @@
 
 ---
 
+## 2026-09-04
+
+### 작업 내용 (Arda AWS 이전 실행 — 계획서를 하루 만에 완주)
+- 어제 확정한 `ARDA_AWS_DEPLOY_GUIDE.md`를 실제 실행. 아침에 기간(~10/27)·
+  예산($400)·GPU 분리·깃 권한 이관이 추가돼 가이드를 증보한 뒤, 오후에
+  사용자(콘솔)·Claude(서버 SSH) 분담으로 배포 완료.
+- **결정 변경 2건**: ① 개인 EC2 재활용 → **신규 `arda-api`(t3.small) 생성**
+  (팀 열람 인프라라 개인 잔재와 분리, 개인 EC2는 중지 보관). ② 저장소
+  정본을 **Seuk-Team/Arda**(신 org)로 — 구 Team-Seuk은 사용자가 삭제 예정.
+- **로컬 클론 실측으로 가이드 오류 2건 교정**: org 이름(Seuk-Team↔Team-Seuk
+  혼선), compose `${DB_PASSWORD:?}`가 env_file이 아닌 **프로젝트 루트 `.env`**
+  에서 치환되는 함정(`ln -s backend/.env .env`로 해결 — mova의 `--env-file`
+  누락 사고와 같은 계열, Arda는 `:?` 가드라 시끄럽게 죽는 차이).
+
+### 수정/구현
+- **AWS(사용자 콘솔)**: S3 `arda-resumes-seuk`(+CORS) · SQS `arda-mail` ·
+  SES `seuk.suvisdev.cloud`(DKIM, 프로덕션 신청) · IAM `arda-server`(축소
+  정책 키) · `arda-viewers` 그룹(ViewOnlyAccess, 팀원 minahdev) · 루트 MFA
+  후 admin IAM 유저 체제 전환 · G/VT vCPU 쿼터 4 신청 · Budgets $200/월.
+- **EC2 `arda-api`**: Ubuntu 24.04, t3.small, Elastic IP 16.184.62.242,
+  스왑 2G, 도커, Arda 클론, production `.env`(비밀값 비노출 전송), db →
+  create_all → alembic 0008 stamp, admin 계정. Caddy로 Let's Encrypt 발급,
+  `api.seuk.suvisdev.cloud` 개통.
+- **CD 신설**: `deploy-arda.sh` + systemd `arda-deploy.timer`(2분 폴링,
+  fetch→ff-merge→build→up→health, 로그 `~/deploy.log`). 실배포 2회 검증.
+- **저장소 이관**: Team-Seuk 최신 main(8a66545, ADR-0028 블록체인 커밋
+  5개)과 브랜치 13개를 Seuk-Team으로 푸시. **PR #2**(인프라 반영 —
+  Caddyfile·vite 프록시·CORS 기본값·07-deploy 이전 공지·09-handover 2차
+  인수인계) 생성·머지. 서버 remote를 Seuk-Team으로 전환.
+- **DB**: ADR-0028 리비전 0006~0008을 팀 방식(수동 DDL + stamp)으로 적용 —
+  무결성 원장 추가 전용 트리거(STRICT)·TRUNCATE 차단·PUBLIC 권한 회수·
+  빈 ots_* 컬럼 드랍(0행이라 무손실).
+- **Vercel**: `VITE_API_BASE`를 Config 타입으로 재생성(Production+Preview),
+  재배포로 번들에 새 주소 반영 확인.
+
+### 오류·막힌 점
+- SES 자격 증명 생성 "Invalid identity configuration" → 고급 DKIM 설정
+  (Easy DKIM·RSA_2048_BIT) 미선택이 원인.
+- CD 첫 자동 실행이 ff-merge 거부 — 셋업 때 서버 트리의 `infra/Caddyfile`을
+  sed로 직접 고친 잔재. checkout으로 되돌려 해결. 교훈: **서버 트리는
+  저장소 경유로만 수정**.
+- alembic이 운영 이미지에 없음(`--no-dev`) — 새 DB는 앱 create_all이
+  스키마를 만들고 stamp만 손으로 남기는 팀 관례를 따름.
+- Vercel 환경변수 3연속 헛발: Secret 타입은 `VITE_` 공개 접두사와 충돌해
+  저장 거부 → 삭제 후 Config로 재생성하려니 "already exists for preview"
+  (앞 시도가 Preview에만 저장돼 있었고 목록 필터가 Production이라 안 보였음)
+  → Production 스코프로 별도 생성해 해결.
+- 프론트 로그인 검증 시 404 — 실제 경로는 `/api/v1/auth/login`.
+- 권한 분류기가 브랜치 보호 API·gh pr merge를 차단 → 사용자 UI 토글 후
+  일반 git 머지 푸시로 대체.
+
+### 데이터
+- 운영 DB 새로 구축(빈 상태). admin 1명(`ssuvisdev@gmail.com`). 옛 팀 서버
+  데이터는 미이관(과정용). S3·SQS 빈 상태에서 시작.
+
+### 작업 내용 (오후 — 팀 운영 개통·더미 리허설·지킬 이전)
+- **PR 4건 머지**: #3 거짓말 탐지(`ai/lie-detection/`, 팀원 작업) · #1 테스트
+  수정(어제 CI 실패는 옛 main 기준 낡은 결과 — 브랜치 업데이트 후 통과) ·
+  #4 S3 presign 버그픽스 · #5 pytest-timeout. 팀 규칙 확정: **main 직접 푸시
+  금지, 브랜치→PR, 승인 0(각자 머지)** — 관리자 우회 허용으로 전환.
+- **더미 지원자 15명 실플로우 업로드**(공고 2건 생성 → presign → S3 PUT →
+  제출, 대조표 메타 포함). 첫 시도 전멸이 **실제 프로덕션 버그**로 판명 —
+  presign이 S3 글로벌 호스트로 서명돼 새 버킷에서 307→서명 불일치 403.
+  리전 엔드포인트 명시로 수정(PR #4) 후 15/15 성공. S3 30객체·DB 15건 검증.
+  무결성 원장은 제출 시점엔 0행(오염 없음).
+- **팀 지킬 이전**: `suvisdev/ats.suvisdev.cloud` → **`Seuk-Team/jekyll`**
+  (transfer+개명). Pages·커스텀 도메인 설정이 이전을 그대로 살아남아 DNS
+  변경 불필요, 사이트 무중단. `_config.yml` 링크 갱신. 로컬 클론 remote 전환
+  (C드라이브 클론은 미커밋 수정이 있어 pull 보류 — 정리 후 pull 필요).
+- **서비스 admin 4명 체제**: 이우정·김민아·박소연 계정 생성(로그인 검증),
+  초기 비번 공유 후 각자 변경 안내.
+- 로컬 pytest 24분 hang(다른 세션) 원인은 Docker Desktop 다운 — 재발 방지로
+  pytest-timeout 60초를 dev 그룹에 잠금(PR #5, CI 58초로 무부작용 검증).
+- **지킬 콘텐츠 전수 최신화(저녁)**: 낡은 주소·규칙 제거(트렁크 직push →
+  PR 셀프 머지, Aurora → 실제 비용 통제), 신규 기능 반영(무결성 원장·거짓말
+  탐지), **정적 페이지는 완성형 서술** 원칙 적용(상태 딱지는 일정·로그 몫),
+  누락 기능 3행 추가(AI 요약·아르 채팅·일정 조율), 09-04 인프라 이전 devlog
+  포스트, 피드백 트래커에 멘토링 숙제(기능 설계·아키텍처 구체화) 접수.
+- **학습 문서 「Arda 구조 해부」 제작**(아티팩트 + 바탕화면 HTML): 왕초보
+  눈높이 아키텍처 해설 — 기초 개념 10·조감도·시나리오 4·Caddy/worker 깊이
+  보기(프록시·생산자-소비자 패턴)·도구별 명칭 사전 21종·설계 문답. 사용자
+  질문마다 증축하는 방식으로 운영.
+
+### 산출물
+- Seuk-Team/Arda main(PR #2~#5 머지, 팀원 셋업 `docs/00_overview/10-team-setup.md`,
+  브랜치 규칙 명문화), Seuk-Team/jekyll(이전 완료), 바탕화면
+  `ARDA_INFRA_HANDOFF.md`(타 Claude 세션 인계용), 가이드
+  `ARDA_AWS_DEPLOY_GUIDE.md` 대폭 증보(계정 체계·GPU 5단계·부록 Q&A·철거).
+- 남은 것: SES 프로덕션 승인 오면 `MAIL_DRY_RUN=0`, GPU 쿼터 승인 오면
+  `arda-gpu` 생성, 바탕화면 키 csv 삭제, PNG 증명사진 15장 용처 결정.
+
 ## 2026-09-03
 
 ### 작업 내용 (저녁 — 개인 앱 서브도메인 이사 되돌림, 팀만 진행)

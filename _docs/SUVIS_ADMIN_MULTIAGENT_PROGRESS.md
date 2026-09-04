@@ -61,12 +61,18 @@
 ### 서브도메인 이사 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
 - **개인 앱(mova·gildle)은 이사 안 함** — 서빙 실익 없음(세션 분리·OAuth
   복귀 갭·중복 URL). 리라이트 `0bef4f3` 되돌림(저녁 세션, 푸시 대기).
-- **GitHub 이전 완료(09-03 저녁)**: 새 조직 `Seuk-Team` + `Seuk-Team/Arda`
-  mirror(브랜치 13/13 일치) + main 보호. 남은 것: 팀원 remote 교체·구 저장소
-  Archive·Vercel 연결·Secrets·두 번째 owner, 그리고 **팀 인프라 이전**(팀 Vercel
-  도메인+CNAME, 새 AWS 계정). **전체 계획·순서·검증 기준:
-  `_docs/SUBDOMAIN_MIGRATION_PLAN.md`**, 실행 체크리스트
-  `_docs/ARDA_AWS_DEPLOY_GUIDE.md`(09-04 학원 세션용).
+- **팀 인프라 이전 완료(09-04, `[P]` 09-04 상세)**: 개인 AWS에 EC2
+  `arda-api`(t3.small, 16.184.62.242) + S3·SQS·SES·IAM 분리 + Caddy HTTPS
+  (`api.seuk.suvisdev.cloud`) + CD(2분 폴링) + DB alembic 0008 정합 +
+  Vercel `VITE_API_BASE` 전환. Seuk-Team/Arda main 동기화·PR #2 머지,
+  서버 remote 전환 완료.
+- **남은 것(Arda)**: ① SES 프로덕션 승인 → `MAIL_DRY_RUN=0` + api·worker
+  재기동 ② GPU 쿼터 승인 → `arda-gpu`(g4dn.xlarge) 생성 + CloudWatch 자동
+  중지(가이드 5단계) ③ 사용자 몫: main 보호 토글 복구·Team-Seuk/Arda 삭제
+  (Vercel이 Seuk-Team에 연결된 것 확인 후)·바탕화면 키 csv 삭제 ④ 팀 실데이터
+  UI 검증(공고→지원→메일) ⑤ 팀원 admin 계정 발급(`POST /api/v1/auth/signup`)
+  ⑥ 10/27 철거 체크리스트(가이드 맨 아래). 실행 기록·Q&A:
+  `_docs/ARDA_AWS_DEPLOY_GUIDE.md`.
 
 ---
 

@@ -7,6 +7,96 @@
 
 ---
 
+## 2026-09-04
+
+### 1. 서버 `.env` 키를 관리자 IAM 키로 쓰지 않고 `arda-server` 유저를 따로 만든 이유는?
+
+<details><summary>답 확인</summary>
+
+권한은 합집합이라 admin 유저에 축소 정책을 "추가"해도 여전히 전체 권한이다.
+서버에 들어가는 키는 **서버가 뚫렸을 때 잃는 범위**를 정의한다 — admin 키면
+계정 전체(개인 리소스·IAM 조작 포함), `arda-server` 키면 Arda 버킷·큐·SES
+발송뿐. 최소 권한 원칙은 "동작하냐"가 아니라 **사고 시 폭발 반경**의 문제다.
+같은 이유로 루트는 MFA만 걸고 보관, 콘솔 작업은 admin IAM 유저, 팀원은
+ViewOnlyAccess 그룹(이력서 객체 다운로드 불가)으로 3단 분리했다.
+</details>
+
+### 2. compose가 `DB_PASSWORD`를 `backend/.env`(env_file)에서 못 읽는 이유는? mova 사고와 뭐가 같고 뭐가 달랐나?
+
+<details><summary>답 확인</summary>
+
+`env_file:`은 **컨테이너 안 환경변수**를 넣는 것이고, compose 파일 자체의
+`${VAR}` 치환은 **compose를 실행하는 셸/프로젝트 루트 `.env`**에서만 온다 —
+전혀 다른 두 단계다. 그래서 `ln -s backend/.env .env`가 필요했다. mova의
+`--env-file suvisdev/.env` 누락 사고와 같은 계열이지만, mova는 빈 문자열로
+**조용히** db가 재생성돼 502가 났고, Arda는 `${DB_PASSWORD:?set in .env}`
+가드 덕에 **기동 자체가 시끄럽게 실패**한다. 치환 실패를 침묵 대신 오류로
+만드는 `:?` 한 글자가 사고를 장애에서 즉발 진단으로 바꾼다.
+</details>
+
+### 3. 새 DB인데 왜 `alembic upgrade`를 안 돌리고 create_all + stamp로 갔나?
+
+<details><summary>답 확인</summary>
+
+운영 이미지는 `uv sync --no-dev`라 alembic이 아예 없다(런타임 의존이 아니라는
+팀 설계). Arda는 **새 DB는 앱 기동 시 create_all이 세우고, 기존 DB의 변경만
+alembic이 맡는** 이원 구조다. 단 create_all은 테이블만 만들지 트리거·권한·
+컬럼 변경(0006~0008)은 못 만들므로, 그 DDL만 손 SQL로 적용하고
+`alembic_version`에 stamp를 남겼다 — 팀이 09-01 운영 전환 때 쓴 방식 그대로.
+stamp는 "이 상태다"라는 선언이라 실측과 다르면 차이가 영구히 숨는다는 점이
+핵심 위험이다(팀도 실측 먼저 하고 stamp했다).
+</details>
+
+### 4. CD를 GitHub Actions push 방식이 아니라 서버 폴링(pull) 방식으로 만든 이유는?
+
+<details><summary>답 확인</summary>
+
+push 방식은 GitHub 러너가 서버에 들어와야 해서 ① SSH 22를 넓은 IP 대역에
+열거나 ② SSM/OIDC IAM 배선이 필요하다. 폴링은 서버가 밖으로 fetch만 하므로
+**인바운드 구멍 0, 시크릿 0, GitHub 설정 0**이고, 2분 지연은 이 규모에서
+무의미하다. 스크립트는 fetch→`merge --ff-only`→build→up→health 순서인데,
+build와 up을 나눈 건 빌드가 깨져도 돌던 컨테이너를 죽이지 않기 위함(팀
+07-deploy의 실전 교훈). 첫 자동 실행이 서버 트리의 sed 잔재 때문에 ff-merge
+거부로 멈춘 것도 배웠다 — CD가 있는 서버의 작업 트리는 항상 깨끗해야 한다.
+</details>
+
+### 5. Vercel 환경변수에서 세 번 막혔다. 각각의 원인은?
+
+<details><summary>답 확인</summary>
+
+① `VITE_` 접두사는 빌드 시 번들에 박히는 **공개 값**인데 Secret 타입과
+의미 충돌이라 저장이 거부됐다(경고가 곧 차단 조건). ② Secret→Config 전환은
+불가(Secret은 write-only)라 삭제 후 재생성해야 했다. ③ "already exists for
+preview" — 앞 시도가 Preview 스코프에만 저장됐는데 목록 필터가 Production
+이라 눈에 안 보였던 것. 마지막으로 환경변수는 **빌드 시점에 박히므로**
+저장만으론 무효고 재배포(캐시 미사용)까지 해야 번들이 바뀐다 — 번들 파일명
+해시가 같으면 반영 안 된 것이라는 판별법도 얻었다.
+</details>
+
+### 6. Team-Seuk/Arda를 바로 삭제하면 안 됐던 이유와, 삭제 가능해진 조건은?
+
+<details><summary>답 확인</summary>
+
+실측 결과 "새" org(Seuk-Team)가 하루 뒤처진 복사본이었고 팀은 계속 옛 org에
+커밋 중이었다(오늘 블록체인 커밋 포함). 즉 삭제하면 최신 코드 유실 + CD·
+Vercel 즉사. 순서를 바꿔 **동기화 먼저**(모든 브랜치 push + main은 보호 토글
+해제 후 머지 커밋 푸시로 PR #2 반영) → 서버 remote 전환·CD 재검증 → Vercel
+연결 확인, 그 뒤에야 삭제가 안전해진다. 저장소 이전의 일반 원칙: **소비자
+(배포·CI·팀원 클론)를 전부 새 주소로 돌린 것을 검증한 뒤에 원본을 지운다.**
+</details>
+
+### 7. GPU 인스턴스를 24시간 켜두면 안 되는 근거를 숫자로 대면?
+
+<details><summary>답 확인</summary>
+
+기간 53일 ≈ 1,272h. g4dn.xlarge 서울 온디맨드 ~$0.65/h → 상시 가동 ~$820로
+예산($400)의 2배. 백엔드 고정비 ~$50을 빼면 GPU 몫은 ~$350 = **~540h,
+하루 평균 ~10h**가 상한이다. 그래서 "쓸 때만 켜기"가 운영 전제고, 사람의
+기억 대신 CloudWatch 유휴 자동 중지 알람 + Budgets 50/80/100% 경보를
+안전장치로 건다. 쿼터 신청값 4도 근거가 있다 — G 계열 최소 단위(g4dn.xlarge)
+가 4 vCPU라 4면 정확히 1대, 작게 부를수록 자동 승인이 잘 된다.
+</details>
+
 ## 2026-09-03
 
 ### 0. '식객' 무관 픽의 근본 원인은? hub 스키마를 안 바꾸고 어떻게 고쳤나?
