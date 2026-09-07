@@ -18,6 +18,12 @@ spec:
       labels:
         app: cloudflared
     spec:
+      # 터널 라우트 중 ssh.suvisdev.cloud → ssh://host.docker.internal:22 가 호스트를 가리킨다.
+      # backend.yaml과 동일하게 flannel cni0 게이트웨이(10.42.0.1 = 호스트)로 별칭을 잡는다.
+      hostAliases:
+        - ip: "10.42.0.1"
+          hostnames:
+            - host.docker.internal
       containers:
         - name: cloudflared
           image: cloudflare/cloudflared:latest

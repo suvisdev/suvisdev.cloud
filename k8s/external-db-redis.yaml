@@ -1,0 +1,54 @@
+# 노트북(프로덕션) 1단계 전용 — db·redis를 클러스터 밖(기존 도커 컨테이너)에 두고
+# 셀렉터 없는 Service + EndpointSlice로 연결한다. (deploy.sh --external-db 가 db.yaml·
+# redis.yaml 대신 이 파일을 apply한다.)
+#
+# - Service 이름을 db/redis로 두면 backend/auth의 연결 문자열(@db:5432, redis://redis:6379)이
+#   compose 시절 그대로라 앱 수정이 없다.
+# - 10.42.0.1 = flannel cni0 게이트웨이 = 이 WSL 호스트 자신. 도커 db/redis가 호스트 포트를
+#   0.0.0.0으로 노출하고 있어야 파드에서 붙는다(`docker port suvisdev-db-1`로 확인).
+# - ExternalName은 CNAME 방식이라 IP를 못 가리키므로 쓰지 않는다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: suvisdev
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: db-1
+  namespace: suvisdev
+  labels:
+    kubernetes.io/service-name: db
+addressType: IPv4
+ports:
+  - port: 5432
+endpoints:
+  - addresses: ["10.42.0.1"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: suvisdev
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: redis-1
+  namespace: suvisdev
+  labels:
+    kubernetes.io/service-name: redis
+addressType: IPv4
+ports:
+  - port: 6379
+endpoints:
+  - addresses: ["10.42.0.1"]

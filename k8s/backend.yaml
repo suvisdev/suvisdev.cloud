@@ -5,6 +5,8 @@
 #
 # 바인드 마운트(datasets·crawled·gildle/data)는 compose와 동일하게 hostPath —
 # k3s 노드가 이 WSL 배포판 자체라 저장소 경로를 그대로 마운트할 수 있다.
+# __REPO_ROOT__ 는 deploy.sh가 apply 시점에 저장소 루트로 치환한다(머신마다 경로가 달라
+# 하드코딩하면 다른 머신에서 DirectoryOrCreate가 빈 폴더를 만들며 조용히 뜬다).
 # (gildle scored_edges.json 77MB도 기존 위치 그대로 사용, 별도 복사 불필요)
 apiVersion: apps/v1
 kind: Deployment
@@ -89,15 +91,15 @@ spec:
       volumes:
         - name: datasets
           hostPath:
-            path: /home/a/suvisdev.cloud/suvisdev/datasets
+            path: __REPO_ROOT__/suvisdev/datasets
             type: DirectoryOrCreate
         - name: crawled
           hostPath:
-            path: /home/a/suvisdev.cloud/suvisdev/apps/ontology/resources/crawled
+            path: __REPO_ROOT__/suvisdev/apps/ontology/resources/crawled
             type: DirectoryOrCreate
         - name: gildle-data
           hostPath:
-            path: /home/a/suvisdev.cloud/suvisdev/apps/gildle/data
+            path: __REPO_ROOT__/suvisdev/apps/gildle/data
             type: DirectoryOrCreate
 ---
 apiVersion: v1

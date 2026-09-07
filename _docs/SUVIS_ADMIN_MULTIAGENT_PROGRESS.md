@@ -159,11 +159,12 @@
   생겼음.
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
-- **노트북(프로덕션) k3s 컷오버(09-07 계획 수립)**: 데스크톱은 전환 완료,
-  노트북은 아직 compose. 단계별 계획은 `k8s/README.md`(1단계 앱만 k3s —
-  db·redis는 셀렉터 없는 Service+EndpointSlice). 노트북에서 pull은 해도
-  되지만 **직후 `git show c8e09fa:docker-compose.yaml > docker-compose.yaml`로
-  compose를 로컬 복구할 것**(안 하면 이후 배포 명령이 깨짐, k8s/README 참고).
+- **노트북(프로덕션) k3s 컷오버 1단계 — 완료(09-07, WORK_LOG_MAINPAGE 09-07)**:
+  backend·auth·cloudflared 파드, db·redis는 도커 유지(`external-db-redis.yaml`),
+  터널 라우트는 `nginx-alias.yaml`(ExternalName→Traefik)로 대시보드 무변경.
+  배포는 `./k8s/deploy.sh --external-db [--build]`. 남은 단계: 2단계 redis 이관,
+  3단계 db는 밖에 둬도 무방(README). 도커 backend·auth·nginx는 안정 확인 후 stop
+  (`down` 금지, 롤백용).
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
   `/mova/...`를 직접 호출하는 곳까지 같이 바뀌어 블라스트 레이디어스가 큼 —

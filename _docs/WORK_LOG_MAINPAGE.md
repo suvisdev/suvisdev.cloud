@@ -99,6 +99,76 @@
 
 ---
 
+### 노트북(프로덕션) k3s 1단계 준비 — 같은 날 노트북 세션 (teagy)
+- 계기: 노트북에서 main pull 후 "이 노트북도 쿠버 진행해도 되는지" 확인 요청.
+  환경은 조건 충족(systemd PID 1, RAM 15GB/가용 10GB, 디스크 862GB 여유, 도커
+  네이티브, db·redis `0.0.0.0` 노출, lora-server·Ollama `0.0.0.0`, `.env` 따옴표
+  없음, `suvisdev-app:latest` 빌드돼 있음). 그러나 **데스크톱용 매니페스트를
+  그대로 `deploy.sh` 하면 프로덕션 사고**가 나는 지점 3개를 찾아 먼저 고침.
+- 발견한 문제:
+  1. `deploy.sh`가 db.yaml·redis.yaml을 무조건 apply → 빈 pgvector StatefulSet +
+     셀렉터 있는 `db` Service가 생겨 backend 파드가 **빈 DB**에 붙음(프로덕션
+     데이터는 도커 볼륨에 남지만 서비스는 빈 데이터로 응답).
+  2. `backend.yaml` hostPath가 데스크톱 절대경로(`/home/a/suvisdev.cloud`).
+     노트북은 `/home/suteagy/projects/suvisdev`라 `DirectoryOrCreate`가 빈 폴더를
+     만들며 조용히 뜸 → gildle `scored_edges.json`·harvester 출력 유실.
+  3. Cloudflare 터널 라우트(원격 관리형, 대시보드 우선)가 도커 서비스명을 가리킴:
+     `api → http://nginx:80`(k3s에 nginx 없음), `ssh → host.docker.internal:22`
+     (cloudflared.yaml에 hostAliases 없음). `auth → http://auth:9000`은 k8s
+     Service로 해석돼 그대로 OK. 또 `deploy.sh`가 ingress.yaml을 제외하며 주석은
+     "ingress-nginx 설치 후"라는 낡은 문구(README는 Traefik 내장).
+- 부수 확인: 이 WSL엔 sshd가 안 떠 있어 ssh 라우트는 compose 시절부터 이미
+  죽어 있던 상태. k3s ServiceLB가 80/443(nginx)·5432/6379(도커)와 포트를 다투므로
+  노트북은 `--disable servicelb`로 설치하기로(cloudflared→Traefik→backend가 전부
+  ClusterIP라 동작 무관, LAN 노출도 사라짐).
+
+### 수정/구현 (노트북 세션)
+- `k8s/external-db-redis.yaml` 신설: 셀렉터 없는 Service `db`/`redis` +
+  EndpointSlice(`10.42.0.1`). README에 YAML로만 적혀 있던 1단계 계획을 실제
+  파일로.
+- `k8s/deploy.sh`: 인자 루프(`--build`·`--external-db` 조합 가능). `--external-db`면
+  db.yaml·redis.yaml 대신 external-db-redis.yaml + ingress.yaml apply. backend.yaml은
+  `sed`로 `__REPO_ROOT__`를 저장소 루트로 치환해 apply. 낡은 ingress 주석 정정.
+- `k8s/backend.yaml`: hostPath 3곳 `/home/a/suvisdev.cloud` → `__REPO_ROOT__`
+  플레이스홀더(데스크톱에서도 deploy.sh 치환으로 동일 결과).
+- `k8s/cloudflared.yaml`: `host.docker.internal → 10.42.0.1` hostAliases 추가.
+- `k8s/README.md`: "노트북 1단계 실행 절차" 신설 — k3s 설치(`--disable
+  servicelb`)→이미지 import→`deploy.sh --external-db`→Traefik ClusterIP+Host
+  헤더로 사전 검증→대시보드 라우트 변경 표→도커 cloudflared stop·파드 scale 1→
+  롤백 역순→안정 후 `stop backend auth nginx`(`down` 금지).
+- `CLAUDE.md` 인프라 문단: "pull 하지 말 것" → compose 로컬 복구 + `--external-db`
+  안내로 교체.
+- 루트 `docker-compose.yaml`을 `git show c8e09fa:`로 로컬 복구(untracked, 커밋
+  안 함). `docker compose ps`로 기존 컨테이너 6개가 다시 compose 관리 하에
+  잡히는 것 확인.
+- 검증: `bash -n deploy.sh`, 4개 YAML `yaml.safe_load_all` 통과, 치환 후 hostPath
+  3경로가 노트북에 실제 존재함을 `ls -d`로 확인.
+
+### 오류·막힌 점 (노트북 세션)
+- k3s 설치·이미지 import는 sudo 대화형 인증이 필요해 에이전트 세션에선 실행
+  불가 → **1단계 실제 실행은 사용자 수동**(README 절차대로). iptables FORWARD
+  정책도 같은 이유로 미확인.
+- 컷오버 실행(사용자 sudo): k3s `--disable servicelb` 설치 → 이미지 import →
+  `deploy.sh --external-db` → auth 17초·backend 27초 만에 `1/1 Running`. Traefik
+  ClusterIP+Host 헤더로 `/mova/movies`(프로덕션 데이터)·`/.well-known/jwks.json`
+  사전 검증 통과, `10.42.0.1:8200` lora-server 도달 확인.
+- **사고(약 6분 502)**: 도커 cloudflared stop → 파드 scale 1까지 했는데 대시보드
+  라우트가 여전히 `api → http://nginx:80`(config version=15 동일). k8s 안에 `nginx`가
+  없어 `lookup nginx on 10.43.0.10:53` 실패로 api만 502(auth는 `auth` Service로
+  해석돼 200). 대시보드 대신 **`k8s/nginx-alias.yaml`(ExternalName `nginx` →
+  `traefik.kube-system.svc.cluster.local`)** 을 apply해 즉시 200 복구. ExternalName은
+  CNAME이라 IP는 못 가리키지만 대상이 호스트명이라 여기선 적합(db·redis는 IP라
+  EndpointSlice). 이 방식이면 대시보드를 영영 안 건드려도 되고 롤백도 도커
+  cloudflared start 한 줄이라 계획을 이쪽으로 바꿈 — deploy.sh `--external-db`가
+  별칭을 함께 apply하도록 수정(재발 방지).
+- 컷오버 후 검증: `api.suvisdev.cloud` `/mova/movies` 200·jwks 200, backend 파드
+  로그에 cloudflared 파드(10.42.0.7)발 요청 확인, 별칭 이후 cloudflared ERR 0건.
+- 에이전트 권한 정책이 `kubectl exec`·`kubectl apply`를 차단해 파드 내부 검증과
+  별칭 apply는 사용자가 직접 실행(조회성 `kubectl get/logs`·curl은 가능).
+- 6단계 완료: `docker compose --env-file suvisdev/.env stop backend auth nginx`.
+  도커엔 db·redis만 남고(healthy), 정지 후 api·auth 외부 200 재확인. 가용 RAM
+  9.5GB.
+
 ## 2026-09-04
 
 ### 작업 내용 (Arda AWS 이전 실행 — 계획서를 하루 만에 완주)

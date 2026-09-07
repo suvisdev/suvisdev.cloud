@@ -161,8 +161,11 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 **구 `docker-compose.yaml`은 삭제됐다(2026-09-07)** — 데스크톱은 k8s가 대체.
 `suvisdev/.env`는 deploy.sh가 매번 Secret으로 변환해 주입하므로 compose 시절
 `--env-file` 누락 사고(빈 자격증명 502, 2026-07-30·08-04)는 구조적으로 재발
-불가(.env 없으면 스크립트가 즉시 실패). **노트북 프로덕션은 아직 compose** —
-자체 k3s 컷오버 전까지 이 변경분을 노트북에서 pull 하지 말 것.
+불가(.env 없으면 스크립트가 즉시 실패). **노트북 프로덕션도 09-07 k3s 1단계로
+컷오버됨** — backend·auth·cloudflared는 파드, db·redis는 도커 컨테이너 유지.
+노트북 배포는 `./k8s/deploy.sh --external-db [--build]`. 노트북엔 db·redis
+운영·롤백용으로 `docker-compose.yaml`이 로컬 복구돼 있다(untracked). 절차·롤백은
+`k8s/README.md`.
 
 ## 테스트
 

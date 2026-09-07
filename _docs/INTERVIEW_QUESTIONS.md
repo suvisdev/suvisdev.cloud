@@ -154,6 +154,84 @@ import가 끝나면 파드 재생성 없이 자동으로 기동된다.
 
 ---
 
+### 13. 데스크톱용 deploy.sh를 노트북(프로덕션)에서 그대로 돌리면 데이터는 안 지워지는데도 "사고"라고 판단했다. 무슨 일이 벌어지나?
+
+<details><summary>답 확인</summary>
+
+db.yaml이 무조건 apply돼 **빈** pgvector StatefulSet과 셀렉터 있는 Service `db`가
+생긴다. backend 파드의 연결 문자열은 `@db:5432`라 클러스터 DNS가 그 빈 DB로
+풀린다. 프로덕션 데이터는 도커 볼륨에 그대로 있지만 서비스는 빈 데이터로
+응답하고, 쓰기 요청이 오면 두 DB로 갈라진다. "데이터 손실 없음"과 "서비스
+정상"은 다른 문제다.
+</details>
+
+### 14. 도커 컨테이너로 남겨둔 db·redis를 k8s 파드에서 쓰려고 ExternalName Service가 아니라 "셀렉터 없는 Service + EndpointSlice"를 골랐다. 왜?
+
+<details><summary>답 확인</summary>
+
+ExternalName은 DNS CNAME을 돌려주는 방식이라 **호스트 이름**만 가리킬 수 있고
+IP(10.42.0.1)는 못 가리킨다. 셀렉터 없는 Service는 kube-proxy가 EndpointSlice의
+주소로 그대로 부하분산해 주므로 IP·포트를 직접 지정할 수 있다. 이름을
+`db`/`redis`로 두면 앱 연결 문자열 수정도 없다.
+</details>
+
+### 15. hostPath 경로를 매니페스트에 하드코딩하지 않고 `__REPO_ROOT__` 플레이스홀더 + sed 치환으로 바꿨다. `DirectoryOrCreate`가 이 문제를 더 위험하게 만든 이유는?
+
+<details><summary>답 확인</summary>
+
+경로가 틀려도 `DirectoryOrCreate`는 에러 대신 **빈 디렉터리를 만들어** 파드를
+정상 기동시킨다. 즉 gildle `scored_edges.json`이나 harvester 출력이 사라져도
+`get pods`는 Running이라 배포 시점에 알아챌 수 없다. 조용한 실패가 시끄러운
+실패보다 위험하다. 대안은 `Directory` 타입(없으면 기동 실패)인데, 데스크톱에서
+폴더가 없을 수 있어 치환 방식을 택했다.
+</details>
+
+### 16. Cloudflare 터널의 `auth.suvisdev.cloud → http://auth:9000` 라우트는 대시보드를 안 바꿔도 k8s에서 그대로 동작한다고 봤다. 근거는? 그리고 `api → http://nginx:80`은 왜 안 되나?
+
+<details><summary>답 확인</summary>
+
+cloudflared 파드는 `suvisdev` 네임스페이스에서 돌고, 파드의 resolv.conf 검색
+도메인이 `suvisdev.svc.cluster.local`이라 `auth`가 k8s Service `auth`로 풀린다.
+도커에서는 같은 이름이 compose 서비스로 풀렸을 뿐, 이름 해석 주체만 바뀐 것.
+반면 `nginx`는 k8s에 그 이름의 Service가 없어 NXDOMAIN이다. 그래서 api
+라우트만 Traefik(`traefik.kube-system.svc.cluster.local:80`)으로 바꾼다.
+</details>
+
+### 17. 노트북 k3s는 `--disable servicelb`로 설치하기로 했다. 이유와, 그러면 LoadBalancer 타입 Service들은 어떻게 되나?
+
+<details><summary>답 확인</summary>
+
+ServiceLB(Klipper)는 노드 호스트 포트를 직접 점유한다. 노트북엔 nginx(80/443)와
+도커 db·redis(5432/6379)가 이미 그 포트를 쓰고 있어 svclb 파드가 크래시 루프를
+돈다. 끄면 LoadBalancer Service는 EXTERNAL-IP `<pending>`으로 남지만, 트래픽
+경로가 cloudflared→Traefik→backend로 **전부 ClusterIP**라 동작에 영향이 없고
+LAN 노출도 사라진다(compose 시절에도 8000/9000 포트 제거가 목표였다).
+</details>
+
+### 18. 트래픽 전환 시 "대시보드 라우트 변경 → 도커 cloudflared stop → 파드 scale 1" 순서로 수 초 단절을 감수했다. 무단절 대안은 무엇이었고 왜 기각했나?
+
+<details><summary>답 확인</summary>
+
+k8s에 `nginx`라는 셀렉터 없는 Service(→10.42.0.1:80, 도커 nginx)를 미리 만들면
+k8s cloudflared도 기존 라우트로 도커 스택을 서빙할 수 있어, 커넥터를 먼저
+둘 다 붙인 뒤 라우트를 바꾸는 식으로 단절 없이 넘어갈 수 있다. 하지만
+일회성 컷오버를 위해 리소스와 절차가 하나 더 늘고, 개인 프로젝트에서 수 초
+단절은 허용 범위라 과설계로 봤다. 규모가 커지면 판단이 뒤집힌다.
+</details>
+
+### 19. 컷오버 직후 api만 502이고 auth는 200이었다. 원인을 어떻게 좁혔고, 대시보드 라우트를 바꾸는 대신 ExternalName Service를 택한 이유는?
+
+<details><summary>답 확인</summary>
+
+cloudflared 파드 로그에 `lookup nginx on 10.43.0.10:53` 실패가 찍혔고 config
+version이 전과 같아 라우트가 안 바뀐 걸 알았다. auth 라우트는 대상이 `auth`라
+k8s Service로 해석돼 살아 있었으니, 문제는 "이름 해석"뿐임이 확정됐다. 해결은
+k8s에 `nginx`라는 이름을 만들어 주면 되는데, 대상이 Traefik의 **호스트명**이라
+ExternalName(CNAME)이 딱 맞는다(db·redis처럼 IP였다면 EndpointSlice). 대시보드
+변경보다 나은 점: 매니페스트에 남아 재현 가능하고, 롤백이 도커 cloudflared
+start 한 줄이며, 다른 머신에서 같은 절차를 돌려도 대시보드를 몰라도 된다.
+</details>
+
 ## 2026-09-04
 
 ### 1. 서버 `.env` 키를 관리자 IAM 키로 쓰지 않고 `arda-server` 유저를 따로 만든 이유는?

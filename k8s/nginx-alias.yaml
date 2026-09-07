@@ -1,0 +1,16 @@
+# 노트북(프로덕션) 전용 — Cloudflare 터널 라우트 `api.suvisdev.cloud → http://nginx:80`
+# 호환용 별칭. 원격 관리형 터널의 라우트는 대시보드에 있어 매니페스트로 못 바꾸므로,
+# 클러스터 안에서 `nginx`라는 이름을 k3s 내장 Traefik으로 넘겨 대시보드를 안 건드리고
+# 컷오버한다(cloudflared 파드 → nginx(CNAME) → Traefik → ingress.yaml → backend/auth).
+#
+# ExternalName은 CNAME 방식이라 IP는 못 가리키지만 여기선 대상이 호스트명이라 적합.
+# (db·redis는 IP 대상이라 external-db-redis.yaml에서 EndpointSlice를 쓴 것과 대비.)
+# 대시보드 라우트를 traefik.kube-system.svc.cluster.local:80 으로 바꾸면 이 파일은 불필요.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: suvisdev
+spec:
+  type: ExternalName
+  externalName: traefik.kube-system.svc.cluster.local
