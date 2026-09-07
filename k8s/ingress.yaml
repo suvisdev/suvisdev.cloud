@@ -1,0 +1,42 @@
+# 구 nginx/conf.d/app.conf의 k8s 대체물 — api.suvisdev.cloud 라우팅.
+#   /                     → backend:8000
+#   /auth/                → auth:9000  (경로 유지 — 구 nginx도 rewrite 없이 그대로 전달)
+#   /.well-known/jwks.json → auth:9000
+#
+# k3s는 Traefik ingress 컨트롤러를 내장하므로 별도 설치 없이 바로 apply 가능.
+# (구 nginx의 client_max_body_size 10M 이슈는 Traefik엔 기본 본문 크기 제한이
+#  없어 해당 없음 — media 10MB 업로드 그대로 통과.)
+# 로컬 개발은 이 파일 없이 localhost:8000/9000 (ServiceLB)으로 충분하다.
+# 프로덕션 컷오버 시 cloudflared의 대상 주소를 이 Ingress(:80)로 잡는다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: suvisdev
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.suvisdev.cloud
+      http:
+        paths:
+          - path: /auth/
+            pathType: Prefix
+            backend:
+              service:
+                name: auth
+                port:
+                  number: 9000
+          - path: /.well-known/jwks.json
+            pathType: Exact
+            backend:
+              service:
+                name: auth
+                port:
+                  number: 9000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000

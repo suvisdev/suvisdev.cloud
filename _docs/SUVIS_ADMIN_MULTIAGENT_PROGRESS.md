@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 09-07 데스크톱 인프라 compose→k3s 전환 완주(`k8s/` 매니페스트 9종·deploy.sh · Docker Desktop `/Docker/host` 마운트發 kubelet 크래시 해결(systemd drop-in) · 구 compose 볼륨 DB 이전·검증)
 - `[M]` 09-03 무관 픽 '식객' RAG 연도 재검증 · 회귀 하네스 신설 · 키워드 사전 11엔트리 백필 · 분류기 추천 확정 가드 · general 429→200 강등
 - `[M]` 09-02 RAG∪태그 합집합 + `_FILLER` 정규식 수정 · booking 탐색형 질의 · 다중 장르 AND · "최신영화" booking 오분류 · 교사 데이터셋 92건 재학습 · llama.cpp GGUF 전환 · 전체 점검 + DB 정비 · lora-nb 터널
 - `[M]` 09-01 데스크톱 lora-server 재구축 + LoRA 재학습 · 컬렉션 v3 · 키워드 태그 백필 완주 · vote_count 베이지안 가중 정렬 · 터널 토큰 잠금 · 감정분석 프로덕션 백필
@@ -158,6 +159,10 @@
   생겼음.
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
+- **노트북(프로덕션) k3s 컷오버(09-07 계획 수립)**: 데스크톱은 전환 완료,
+  노트북은 아직 compose. 단계별 계획은 `k8s/README.md`(1단계 앱만 k3s —
+  db·redis는 셀렉터 없는 Service+EndpointSlice). **컷오버 전까지 노트북에서
+  main pull 금지**(compose 파일 삭제돼 배포 깨짐).
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
   `/mova/...`를 직접 호출하는 곳까지 같이 바뀌어 블라스트 레이디어스가 큼 —

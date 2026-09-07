@@ -1,0 +1,28 @@
+# Cloudflare Tunnel — 프로덕션(노트북) 전용. 기본 replicas: 0.
+#
+# ⚠️ 데스크톱에서 절대 replicas를 올리지 말 것: suvisdev/.env의 TUNNEL_TOKEN은
+# api./auth.suvisdev.cloud 터널 토큰이라, 여기서 켜면 프로덕션 트래픽이
+# 이 데스크톱 클러스터로 빨려 들어온다. 노트북 k8s 컷오버 때만 사용한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: suvisdev
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          args: ["tunnel", "run", "--token", "$(TUNNEL_TOKEN)"]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: TUNNEL_TOKEN }

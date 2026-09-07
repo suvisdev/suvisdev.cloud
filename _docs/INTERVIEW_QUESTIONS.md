@@ -7,6 +7,153 @@
 
 ---
 
+## 2026-09-07
+
+### 1. 단일 노드인데 쿠버네티스로 전환하면 운영상 얻는 게 거의 없다고 결론 내렸다. 그런데도 전환한 이유와, 그 판단이 뒤집히는 조건은?
+
+<details><summary>답 확인</summary>
+
+k8s의 핵심 가치(스케줄링·자가 치유·롤링 업데이트·오토스케일)는 노드가 여러
+대일 때 나온다. 단일 노드에선 compose 대비 운영 이득이 거의 없고 RAM
+오버헤드만 늘어난다. 그래도 전환한 건 **학습·이력서 가치**라는 별도 목적이
+있어서다 — 목적이 다르면 같은 기술의 채택 결론도 달라진다. 판단이 뒤집히는
+조건: 노드가 2대 이상이 되거나(데스크톱+노트북 클러스터링), 무중단 배포가
+실제 요구사항이 될 때.
+</details>
+
+### 2. 서브도메인 분리(mova.suvisdev.cloud 등)는 왜 k8s 전환과 무관하다고 봤나?
+
+<details><summary>답 확인</summary>
+
+서브도메인은 **URL 레이어**의 문제(OAuth redirect URI 재등록, 쿠키 도메인
+분리, 세션 갈라짐)고, k8s가 다루는 건 **배포 단위**의 문제다. Ingress
+라우팅 학습은 이미 있는 api./auth. 두 호스트로 충분하다. 09-03에 서빙
+실익이 없어 원복했던 결정의 사유가 오케스트레이터를 바꿔도 그대로 살아
+있다 — 레이어가 다른 결정은 서로를 강제하지 않는다.
+</details>
+
+### 3. Dockerfile은 남기고 docker-compose.yaml만 지웠다. 두 파일의 역할 차이는?
+
+<details><summary>답 확인</summary>
+
+Dockerfile은 **이미지를 만드는** 빌드 명세, compose는 **컨테이너를 띄우고
+엮는** 오케스트레이션 명세다. k8s는 후자만 대체한다 — 파드가 돌릴
+`suvisdev-app:latest`는 여전히 Dockerfile로 빌드한다. "도커 파일 전부
+제거"라는 요구를 문자 그대로 수행하면 시스템이 돌 수 없는 이유가 이
+역할 분리에 있다.
+</details>
+
+### 4. compose의 `depends_on: service_healthy`를 k8s에선 어떻게 대체했고, 왜 k8s에는 depends_on이 없나?
+
+<details><summary>답 확인</summary>
+
+initContainer(`until nc -z db 5432`)로 대체했다. k8s에 기동 순서 개념이
+없는 건 철학 차이다 — 파드는 언제든 죽고 재스케줄될 수 있으므로 "순서
+보장"이 아니라 **"의존 대상이 없어도 견디다 재시도"**가 정답이라고 본다.
+initContainer는 그 재시도를 크래시 루프 대신 조용한 대기로 바꾸는 완충일
+뿐, 본질적 해법은 앱의 재연결 내성이다.
+</details>
+
+### 5. db·redis 접근을 NodePort가 아니라 LoadBalancer 타입으로 만든 이유는? 클라우드도 아닌데 LoadBalancer가 동작하는 이유는?
+
+<details><summary>답 확인</summary>
+
+LoadBalancer는 원래 클라우드가 L4 LB를 프로비저닝해 채우는 타입인데,
+k3s는 **ServiceLB(Klipper)**를 내장해 그 자리를 채운다 — svclb 데몬셋
+파드가 노드(이 WSL 호스트)의 해당 포트를 직접 바인딩한다. 덕분에
+alembic·psql이 compose 시절과 동일하게 `localhost:5432`로 붙는다 —
+개발 UX를 바꾸지 않는 게 목적. NodePort는 30000~32767 대역이라 포트가
+바뀌어 기존 도구·습관이 다 깨진다.
+</details>
+
+### 8. k3s 파드에서 호스트(WSL)의 Ollama·lora-server에 어떻게 접근하나? compose의 host.docker.internal은 왜 안 되나?
+
+<details><summary>답 확인</summary>
+
+host.docker.internal은 **Docker Desktop이 주입하는 매직 DNS**라 k3s엔 없다.
+대신 flannel CNI의 브리지(cni0) 게이트웨이 `10.42.0.1`이 곧 노드(=이 WSL
+호스트)이므로, 파드 스펙의 hostAliases로 host.docker.internal→10.42.0.1을
+매핑해 기존 env 값을 안 바꾸고 해결했다. 전제 조건은 호스트 프로세스가
+0.0.0.0에 바인딩돼 있을 것 — 127.0.0.1에만 물려 있으면 cni0 쪽 요청을
+못 받는다.
+</details>
+
+### 6. .env를 ConfigMap이 아니라 Secret으로 넣었다. 그리고 Secret인데도 왜 커밋하면 안 되나?
+
+<details><summary>답 확인</summary>
+
+내용이 자격증명(DB 비밀번호·API 키·터널 토큰)이라 의미상 Secret이 맞다.
+하지만 k8s Secret은 기본이 **base64 인코딩일 뿐 암호화가 아니다** —
+매니페스트로 만들어 커밋하면 평문 커밋과 같다. 그래서 deploy.sh가 배포
+시점에 `--from-env-file`로 생성하고, 저장소에는 .env도 Secret 매니페스트도
+남기지 않는다. compose 시절 ".env는 이미지·저장소에 안 넣는다" 원칙의
+k8s 버전.
+</details>
+
+### 7. cloudflared 매니페스트를 만들어 두고 replicas: 0으로 박아둔 이유는?
+
+<details><summary>답 확인</summary>
+
+`.env`의 TUNNEL_TOKEN은 api./auth.suvisdev.cloud **프로덕션 터널** 토큰이다.
+데스크톱에서 켜는 순간 Cloudflare가 이 커넥터로도 실트래픽을 흘려
+프로덕션 요청이 개발 클러스터로 들어온다. 매니페스트는 노트북 k3s 컷오버
+때 재사용할 자산이라 만들어 두되, 기본값을 "안전한 꺼짐"으로 — 실수 한
+번(apply)으로는 사고가 안 나고 명시적 scale-up이 있어야만 켜지는 구조다.
+</details>
+
+### 9. k3s가 `wrong number of fields (expected 6, got 7)`로 죽었다. 이 에러에서 어떻게 `/proc/mounts`를 의심했고, 재설치가 무효인 이유는?
+
+<details><summary>답 확인</summary>
+
+"fields"를 세는 파서는 정형 텍스트를 읽는 코드다. kubelet이 ContainerManager
+기동 시 검증하는 6필드 정형 파일이 `/proc/mounts`(장치·마운트점·타입·옵션·
+dump·pass)다. `awk 'NF!=6' /proc/mounts`로 실측하니 Docker Desktop WSL
+통합의 `/Docker/host`(9p) 라인 하나가 7필드 — 옵션 안의
+`path=C:\Program Files\...` 공백이 원인이었다(커널은 경로의 공백은 `\040`으로
+이스케이프하지만 9p **옵션 문자열** 안의 공백은 그대로 둔다). 재설치가
+무효인 이유: 에러의 주체가 k3s 바이너리가 아니라 **호스트의 마운트 테이블**
+이라서다. 환경 원인 오류는 소프트웨어를 다시 깔아도 재현된다.
+</details>
+
+### 10. 마운트 해제를 한 번 하고 끝내지 않고 systemd drop-in의 `ExecStartPre`로 넣은 이유는? `ExecStartPre=-`의 `-`는 뭘 하나?
+
+<details><summary>답 확인</summary>
+
+`/Docker/host`는 Docker Desktop이 재시작할 때마다 다시 마운트한다. 한 번의
+umount는 다음 부팅에서 같은 크래시 루프를 재현시키므로, "k3s가 시작되기
+직전마다 자동으로 풀리는" 위치인 유닛의 `ExecStartPre`에 넣어야 구조적으로
+재발이 막힌다. drop-in(`k3s.service.d/*.conf`)으로 한 이유는 본 유닛 파일은
+k3s 설치 스크립트가 재설치 때 덮어쓰기 때문 — 실제로 이날 재설치가 한 번
+있었고 drop-in은 살아남는다. `-` 접두사는 "이 명령이 실패해도(이미 풀려
+있어도) 유닛 기동을 계속하라"는 뜻이다.
+</details>
+
+### 11. 파드가 `ErrImageNeverPull`이었다. 도커에 이미지가 분명히 있는데 왜 k3s는 못 찾고, 이 상태가 "정상 경유지"였던 이유는?
+
+<details><summary>답 확인</summary>
+
+도커 데몬과 k3s의 containerd는 **이미지 저장소가 완전히 분리**돼 있다.
+`docker build` 결과는 도커 쪽에만 있으므로 `docker save | k3s ctr images
+import`로 명시적으로 옮겨야 한다. 매니페스트가 `imagePullPolicy: Never`라
+레지스트리 pull 시도 대신 "로컬에 없음" 에러가 난 것 — 이건 실패가 아니라
+import가 끝나기를 기다리는 대기 상태고, kubelet이 sync 루프마다 재확인하므로
+import가 끝나면 파드 재생성 없이 자동으로 기동된다.
+</details>
+
+### 12. 구 DB 데이터를 복원할 때 backend·auth를 replicas 0으로 내리고 했다. 왜 필요했고, 복원 검증은 뭘 봤나?
+
+<details><summary>답 확인</summary>
+
+앱이 살아 있으면 복원 도중 스키마가 절반만 생긴 DB에 쓰기·마이그레이션이
+끼어들어 일관성이 깨질 수 있다. 복원은 "쓰는 사람이 없는 상태"에서 하는 게
+원칙이라 컴퓨트만 잠시 내렸다(StatefulSet db는 그대로). 검증은 세 층위 —
+① 스키마: 테이블 42개·`alembic_version`이 덤프와 일치, ② 데이터: groups
+2행·movies 199행 실측, ③ 동작: 재기동한 backend 로그에 `UndefinedTable`
+부재 + `/docs` 200. "복원 스크립트가 안 죽었다"는 검증이 아니다.
+</details>
+
+---
+
 ## 2026-09-04
 
 ### 1. 서버 `.env` 키를 관리자 IAM 키로 쓰지 않고 `arda-server` 유저를 따로 만든 이유는?

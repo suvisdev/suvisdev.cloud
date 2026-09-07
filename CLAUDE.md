@@ -152,14 +152,17 @@ python scripts/check_env_drift.py # .env.example 키가 .env에 다 있는지(�
 # 모바일 (susu/)
 flutter run
 
-# 인프라 (루트) — postgres(pgvector) · redis · pgadmin · cloudflared
-docker compose --env-file suvisdev/.env up -d
+# 인프라 (루트) — k8s로 전환됨(2026-09-07, 데스크톱). WSL2에 k3s 직접 설치.
+./k8s/deploy.sh            # Secret(.env→suvisdev-env) 갱신 + 전체 apply
+./k8s/deploy.sh --build    # 이미지 재빌드 + rollout restart 포함
+kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 ```
 
-**`--env-file suvisdev/.env`를 빠뜨리지 말 것** — 이거 없이 `up -d --build`를
-돌리면 `${POSTGRES_USER}` 등이 compose 파일 안에서 빈 문자열로 치환되고,
-`db` 컨테이너가 빈 자격증명으로 재생성돼 백엔드 전체가 502로 죽는다(실제
-겪은 사고, 2026-07-30·08-04).
+**구 `docker-compose.yaml`은 삭제됐다(2026-09-07)** — 데스크톱은 k8s가 대체.
+`suvisdev/.env`는 deploy.sh가 매번 Secret으로 변환해 주입하므로 compose 시절
+`--env-file` 누락 사고(빈 자격증명 502, 2026-07-30·08-04)는 구조적으로 재발
+불가(.env 없으면 스크립트가 즉시 실패). **노트북 프로덕션은 아직 compose** —
+자체 k3s 컷오버 전까지 이 변경분을 노트북에서 pull 하지 말 것.
 
 ## 테스트
 

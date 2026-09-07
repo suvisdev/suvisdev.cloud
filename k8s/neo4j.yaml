@@ -1,0 +1,70 @@
+# Neo4j — GraphRAG용. 읽는 코드가 아직 없어(백로그) 기본 replicas: 0.
+# 켜기: kubectl -n suvisdev scale deploy/neo4j --replicas=1
+# 구 compose처럼 인터넷 노출 없음 — ClusterIP라 필요 시 port-forward로 접근:
+#   kubectl -n suvisdev port-forward svc/neo4j 7474:7474 7687:7687
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: neo4j-data
+  namespace: suvisdev
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j
+  namespace: suvisdev
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:5.26-community
+          ports:
+            - containerPort: 7474
+            - containerPort: 7687
+          env:
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: NEO4J_PASSWORD }
+            - name: NEO4J_AUTH
+              value: "neo4j/$(NEO4J_PASSWORD)"
+            - name: NEO4J_server_memory_heap_initial__size
+              value: 1G
+            - name: NEO4J_server_memory_heap_max__size
+              value: 1G
+            - name: NEO4J_server_memory_pagecache_size
+              value: 512m
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neo4j-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neo4j
+  namespace: suvisdev
+spec:
+  type: ClusterIP
+  selector:
+    app: neo4j
+  ports:
+    - name: http
+      port: 7474
+    - name: bolt
+      port: 7687

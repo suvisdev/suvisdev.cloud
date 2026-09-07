@@ -1,0 +1,81 @@
+# PostgreSQL + pgvector — 구 compose의 db 서비스.
+# 접속 정보는 suvisdev-env Secret(suvisdev/.env에서 생성, deploy.sh 참고)에서 주입한다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-init
+  namespace: suvisdev
+data:
+  # 구 db/init/001_create_vector_extension.sql — 최초 기동 시 1회 실행
+  001_create_vector_extension.sql: |
+    CREATE EXTENSION IF NOT EXISTS vector;
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: suvisdev
+spec:
+  serviceName: db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: pgvector/pgvector:pg16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_USER }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_PASSWORD }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_DB }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+      volumes:
+        - name: init
+          configMap:
+            name: db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+# LoadBalancer — k3s 내장 ServiceLB(Klipper)가 노드(이 WSL 호스트) 포트로 열어
+# 주므로 alembic 등을 compose 시절과 동일하게 localhost:5432로 쓸 수 있다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: suvisdev
+spec:
+  type: LoadBalancer
+  selector:
+    app: db
+  ports:
+    - port: 5432
+      targetPort: 5432

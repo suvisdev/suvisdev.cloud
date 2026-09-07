@@ -1,0 +1,114 @@
+# backend(FastAPI) — 구 compose의 backend 서비스.
+# 이미지는 로컬 빌드 후 k3s containerd로 import 한 것을 쓴다(deploy.sh --build):
+#   docker build -t suvisdev-app:latest ./suvisdev
+#   docker save suvisdev-app:latest | sudo k3s ctr images import -
+#
+# 바인드 마운트(datasets·crawled·gildle/data)는 compose와 동일하게 hostPath —
+# k3s 노드가 이 WSL 배포판 자체라 저장소 경로를 그대로 마운트할 수 있다.
+# (gildle scored_edges.json 77MB도 기존 위치 그대로 사용, 별도 복사 불필요)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: suvisdev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # k3s엔 host.docker.internal이 없다 — flannel cni0 게이트웨이(10.42.0.1)가
+      # 곧 호스트(WSL)라서 그 IP로 별칭을 만들어 compose 시절 주소를 그대로 쓴다.
+      # (호스트 프로세스가 0.0.0.0 바인딩이어야 함 — Ollama는 OLLAMA_HOST=0.0.0.0 확인됨)
+      hostAliases:
+        - ip: "10.42.0.1"
+          hostnames:
+            - host.docker.internal
+      initContainers:
+        # compose의 depends_on(condition: service_healthy) 대체
+        - name: wait-db
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z db 5432; do sleep 2; done"]
+        - name: wait-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z redis 6379; do sleep 2; done"]
+      containers:
+        - name: backend
+          image: suvisdev-app:latest
+          imagePullPolicy: Never   # 로컬 빌드 이미지만 사용(레지스트리 pull 금지)
+          ports:
+            - containerPort: 8000
+          envFrom:
+            # suvisdev/.env 전체 — deploy.sh가 Secret으로 만들어 준다
+            - secretRef:
+                name: suvisdev-env
+          env:
+            # env(아래)가 envFrom(.env)보다 우선한다 — compose의 environment: 덮어쓰기와 동일
+            - name: ENV
+              value: production
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_USER }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_PASSWORD }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_DB }
+            # .env의 localhost:5432(호스트 alembic용)를 클러스터 내 db 서비스로 덮어쓴다
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)"
+            - name: MOVA_DATABASE_URL
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)"
+            - name: REDIS_URL
+              value: redis://redis:6379/0
+            # 호스트(WSL)의 systemd 프로세스들 — 위 hostAliases가 10.42.0.1(호스트)로 매핑
+            - name: OLLAMA_BASE_URL
+              value: http://host.docker.internal:11434
+            - name: AWQ_SERVER_URL
+              value: http://host.docker.internal:8100
+            - name: LORA_SERVER_URL
+              value: http://host.docker.internal:8200
+          volumeMounts:
+            - name: datasets
+              mountPath: /suvisdev/datasets
+            - name: crawled
+              mountPath: /suvisdev/apps/ontology/resources/crawled
+            - name: gildle-data
+              mountPath: /suvisdev/apps/gildle/data
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - name: datasets
+          hostPath:
+            path: /home/a/suvisdev.cloud/suvisdev/datasets
+            type: DirectoryOrCreate
+        - name: crawled
+          hostPath:
+            path: /home/a/suvisdev.cloud/suvisdev/apps/ontology/resources/crawled
+            type: DirectoryOrCreate
+        - name: gildle-data
+          hostPath:
+            path: /home/a/suvisdev.cloud/suvisdev/apps/gildle/data
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: suvisdev
+spec:
+  type: LoadBalancer   # k3s ServiceLB — 호스트에서 localhost:8000 으로 접근
+  selector:
+    app: backend
+  ports:
+    - port: 8000
+      targetPort: 8000

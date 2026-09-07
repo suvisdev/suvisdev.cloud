@@ -28,6 +28,77 @@
 
 ---
 
+## 2026-09-07
+
+### 작업 내용 (데스크톱 로컬 인프라 docker compose → 쿠버네티스 전환)
+- k8s 학습 목적(사용자 결정)으로 개인 프로젝트 인프라를 쿠버네티스로 전환
+  시작. 서브도메인 분리 재검토는 기각(09-03 원복 사유 그대로 유효) — URL은
+  유지하고 **배포 단위만** k8s로 옮기는 방향 확정.
+- 적용 범위는 **데스크톱(DESKTOP-IOAQ7L7) 로컬 개발 환경만**. 노트북
+  프로덕션(api./auth.)은 compose 유지 — 자체 k3s 컷오버 전까지 이 변경분을
+  노트북에서 pull 하면 안 됨(compose 파일이 삭제돼 배포가 깨짐).
+- 런타임은 **WSL2에 k3s 직접 설치**(사용자 결정 — 처음엔 스크린샷의 Docker
+  Desktop 토글 경로로 잡았다가, "진짜 k3s를 만지는 경험"을 위해 변경).
+  Docker Desktop Kubernetes 토글은 사용 안 함. k3s는 Traefik·ServiceLB·
+  local-path 내장이라 별도 컨트롤러 설치가 없고, 대신 도커와 이미지
+  저장소가 분리돼 빌드 후 `docker save | k3s ctr images import` 필요.
+
+### 수정/구현
+- **`k8s/` 신설**: namespace, db(StatefulSet+PVC+init ConfigMap), redis,
+  backend(initContainer로 db/redis 대기, 바인드 마운트 3종은 hostPath 유지 —
+  k3s 노드가 이 WSL이라 compose와 동일하게 저장소 경로 직마운트,
+  host.docker.internal은 hostAliases→10.42.0.1(flannel cni0=호스트)로 매핑),
+  auth(동일 이미지 command 교체), pgadmin·neo4j·cloudflared(기본 replicas 0 —
+  cloudflared는 프로덕션 토큰이라 데스크톱에서 켜면 실트래픽 유입, 경고 주석),
+  ingress.yaml(구 nginx app.conf 라우팅 3개 → k3s 내장 Traefik),
+  deploy.sh(.env→Secret 변환 + apply + --build 시 빌드→containerd import→
+  rollout), README.md(설치·대응표·데이터 이전·주의사항).
+- **삭제**: `docker-compose.yaml`(k8s로 대체), `suvis/Dockerfile`·
+  `.dockerignore`(참조처 없음 확인 후). `suvisdev/Dockerfile`은 유지 —
+  k8s가 돌릴 `suvisdev-app:latest` 이미지의 빌드 수단.
+- **루트 CLAUDE.md**: 인프라 명령 블록을 deploy.sh 기준으로 교체, compose
+  `--env-file` 누락 사고 경고를 Secret 구조 설명으로 대체.
+- compose 대비 의도적 차이: `ports:` → LoadBalancer(k3s ServiceLB가 노드
+  포트 바인딩 — alembic은 여전히 localhost:5432), `depends_on` →
+  initContainer, `--env-file` 주입 → deploy.sh의 Secret 갱신.
+
+- **노트북 컷오버 단계별 계획을 README에 추가**(사용자가 타 프로젝트에서 받은
+  조언 검증 후 반영): 프로덕션은 컴퓨트·상태 동시 이동 금지 — 1단계 앱만
+  k3s(도커 db·redis는 셀렉터 없는 Service+EndpointSlice로 연결, ExternalName은
+  IP 불가), 2단계 redis 이관, 3단계 pgvector는 안 옮겨도 무방. Service 이름을
+  `db`/`redis`로 유지해 연결 문자열 무수정이 핵심.
+- **WSL 메모리 상향**: 호스트 16GB 실측 후 `.wslconfig` memory 6GB→8GB
+  (사용자 "그대로 진행" 결정에 따름, `wsl --shutdown` 후 적용됨).
+
+### 오류·막힌 점
+- 데스크톱에 `suvisdev-app` 이미지가 없어 전체 빌드 필요(torch 스택) —
+  백그라운드 빌드로 진행. 사양 우려로 중단 검토했으나 호스트 RAM 여유
+  확인 후 계속 진행 결정.
+- 구 compose 볼륨(`suvisdevcloud_db_data` 등)은 삭제하지 않고 보존 —
+  필요 시 덤프/복원 절차를 k8s/README.md에 기록.
+- **(재개 세션) k3s 기동 실패 재시작 루프**: kubelet이
+  `system validation failed - wrong number of fields (expected 6, got 7)`로
+  죽음. `/proc/mounts` 실측으로 원인 특정 — Docker Desktop WSL 통합이 거는
+  `/Docker/host`(9p) 마운트의 옵션 문자열에 `path=C:\Program Files\...`의
+  **이스케이프 안 된 공백**이 있어 kubelet 마운트 파서(6필드 기대)가 깨짐.
+  k3s 재설치는 당연히 무효(같은 에러 재현). 해결: `umount /Docker/host` +
+  systemd drop-in(`k3s.service.d/10-umount-docker-host.conf`의
+  `ExecStartPre`)으로 부팅마다 k3s 시작 전 자동 해제. docker CLI 영향 없음.
+- **빈 DB로 인한 admin API 503**: 첫 기동 후 backend가
+  `relation "groups" does not exist` — 새 PVC라 스키마 없음(예상된 상태).
+  README 절차대로 구 볼륨을 임시 컨테이너(pgvector:pg16)로 띄워
+  `pg_dumpall`(670KB, 42테이블) → backend·auth replicas 0으로 내리고
+  `kubectl exec -i db-0 -- psql`로 복원 → 재기동. groups 2행·movies
+  199행·alembic `20260901_0001` 확인, `/docs` 200 응답으로 검증 완료.
+
+### 산출물
+- `k8s/` 9개 파일, CLAUDE.md 인프라 섹션 갱신, compose·suvis 도커 파일 삭제.
+- k3s 클러스터 가동: 파드 4종(backend·auth·db-0·redis) 전부 Ready,
+  구 compose DB 데이터 이전 완료. systemd drop-in
+  `/etc/systemd/system/k3s.service.d/10-umount-docker-host.conf` 신설.
+
+---
+
 ## 2026-09-04
 
 ### 작업 내용 (Arda AWS 이전 실행 — 계획서를 하루 만에 완주)

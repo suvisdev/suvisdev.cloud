@@ -1,0 +1,60 @@
+# pgAdmin — db 조회용 웹 UI. 평소엔 안 쓰므로 기본 replicas: 0.
+# 켜기: kubectl -n suvisdev scale deploy/pgadmin --replicas=1
+# 접속: http://localhost:5050 (서버 추가 시 Host=db, Port=5432, 계정은 suvisdev/.env의 POSTGRES_*)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgadmin-data
+  namespace: suvisdev
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+  namespace: suvisdev
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+    spec:
+      containers:
+        - name: pgadmin
+          image: dpage/pgadmin4:latest
+          ports:
+            - containerPort: 80
+          env:
+            # compose 기본값과 동일 — 바꾸려면 여기 수정
+            - name: PGADMIN_DEFAULT_EMAIL
+              value: admin@admin.com
+            - name: PGADMIN_DEFAULT_PASSWORD
+              value: admin
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgadmin
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pgadmin-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgadmin
+  namespace: suvisdev
+spec:
+  type: LoadBalancer   # 호스트에서 localhost:5050
+  selector:
+    app: pgadmin
+  ports:
+    - port: 5050
+      targetPort: 80

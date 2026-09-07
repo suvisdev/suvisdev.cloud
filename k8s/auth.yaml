@@ -1,0 +1,75 @@
+# auth 게이트웨이 — RS256 JWT 발급 전용. backend와 동일 이미지, command만 다르다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: suvisdev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      initContainers:
+        - name: wait-db
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z db 5432; do sleep 2; done"]
+        - name: wait-redis
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z redis 6379; do sleep 2; done"]
+      containers:
+        - name: auth
+          image: suvisdev-app:latest
+          imagePullPolicy: Never
+          command: ["uvicorn", "auth_main:app", "--host", "0.0.0.0", "--port", "9000"]
+          ports:
+            - containerPort: 9000
+          envFrom:
+            - secretRef:
+                name: suvisdev-env
+            # 구 compose의 env_file: .env.auth — 파일이 있으면 deploy.sh가 만들고,
+            # 없으면 optional이라 그냥 무시된다.
+            - secretRef:
+                name: suvisdev-env-auth
+                optional: true
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_USER }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_PASSWORD }
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: { name: suvisdev-env, key: POSTGRES_DB }
+            # backend와 동일하게 둘 다 덮어써야 한다 — get_viewer_session_factory()가
+            # MOVA_DATABASE_URL을 우선 참조(하나만 덮으면 컨테이너 안에서 localhost로 붙다 실패)
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)"
+            - name: MOVA_DATABASE_URL
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@db:5432/$(POSTGRES_DB)"
+            - name: REDIS_URL
+              value: redis://redis:6379/0
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  namespace: suvisdev
+spec:
+  type: LoadBalancer   # 호스트에서 localhost:9000 으로 접근
+  selector:
+    app: auth
+  ports:
+    - port: 9000
+      targetPort: 9000
