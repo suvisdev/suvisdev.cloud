@@ -161,8 +161,9 @@
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
 - **노트북(프로덕션) k3s 컷오버(09-07 계획 수립)**: 데스크톱은 전환 완료,
   노트북은 아직 compose. 단계별 계획은 `k8s/README.md`(1단계 앱만 k3s —
-  db·redis는 셀렉터 없는 Service+EndpointSlice). **컷오버 전까지 노트북에서
-  main pull 금지**(compose 파일 삭제돼 배포 깨짐).
+  db·redis는 셀렉터 없는 Service+EndpointSlice). 노트북에서 pull은 해도
+  되지만 **직후 `git show c8e09fa:docker-compose.yaml > docker-compose.yaml`로
+  compose를 로컬 복구할 것**(안 하면 이후 배포 명령이 깨짐, k8s/README 참고).
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
   `/mova/...`를 직접 호출하는 곳까지 같이 바뀌어 블라스트 레이디어스가 큼 —

@@ -125,5 +125,12 @@ kubectl -n suvisdev exec -i db-0 -- psql -U <POSTGRES_USER> -d postgres < /tmp/o
 - **RAM**: k3s 자체가 상시 ~600MB+를 쓴다(WSL 총 5.8GB). 안 쓸 땐
   `sudo systemctl stop k3s`로 내려도 된다(파드 상태는 재기동 시 복원).
 - **⚠️ 노트북 프로덕션은 아직 compose다** — 이 전환은 데스크톱에만 적용된 상태.
-  노트북에서 이 변경분을 pull 하면 compose 파일이 사라져 배포가 깨진다.
-  노트북은 자체 k3s 컷오버 전까지 현재 커밋에 머물 것.
+  노트북에서 pull 해도 실행 중인 컨테이너는 안 죽지만, compose 파일이
+  사라져 이후 배포 명령이 깨진다. **pull 직후 compose 파일을 로컬로 복구할 것**
+  (untracked로 남아 커밋에 안 딸려 들어감):
+
+  ```bash
+  git show c8e09fa:docker-compose.yaml > docker-compose.yaml
+  ```
+
+  자체 k3s 컷오버 날 이 로컬 파일을 지우면 된다.
