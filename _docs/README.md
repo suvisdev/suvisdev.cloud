@@ -12,7 +12,10 @@
 | 문서 | 내용 |
 |------|------|
 | [`ARCHITECTURE_BLUEPRINT.md`](ARCHITECTURE_BLUEPRINT.md) | 이 저장소에서 검증된 아키텍처 패턴(모듈러 모놀리식·클린 아키텍처 등)을 새 프로젝트에 그대로 적용할 때의 기준 문서 |
-| [`EXAONE_LOCAL_AI_SETUP.md`](EXAONE_LOCAL_AI_SETUP.md) | 로컬 GPU에 EXAONE Router/Worker(Ollama) + AWQ 직접 서빙 + mova 채팅용 QLoRA 재학습 파이프라인을 새 PC에서 그대로 재현하는 운영 문서 |
+| [`ARDA_AWS_DEPLOY_GUIDE.md`](ARDA_AWS_DEPLOY_GUIDE.md) | Arda(seuk 팀 프로젝트) AWS 이전 실행 체크리스트 — 2026-09-04 완주, 잔여(SES·GPU 승인 등)는 PROGRESS 참고 |
+| [`EXAONE_LOCAL_AI_SETUP.md`](EXAONE_LOCAL_AI_SETUP.md) | 로컬 GPU에 EXAONE Router/Worker(Ollama) + AWQ 직접 서빙 + mova 채팅용 QLoRA 재학습 파이프라인을 새 PC에서 그대로 재현하는 운영 문서(서빙 경로는 09-02 GGUF 전환 — 문서 상단 배너 참고) |
+| [`INTERVIEW_QUESTIONS.md`](INTERVIEW_QUESTIONS.md) | 날짜별 학습·면접 대비 질문지 — 워크로그와 짝, 세션 마무리 때 그날 작업으로 5~10문항 추가 |
+| [`SUBDOMAIN_MIGRATION_PLAN.md`](SUBDOMAIN_MIGRATION_PLAN.md) | 서브도메인 이사(seuk 전용) 결정 경위 + 개인 백엔드 EC2→노트북 이전 실행 기록 — 팀 이전은 09-04 완주(역사 기록) |
 | [`SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`](SUVIS_ADMIN_MULTIAGENT_PROGRESS.md) | 어드민 대시보드 + 멀티에이전트(비전 02~08) 트랙 진행 상황 — 완료됨/백로그, 세션 재개용 |
 | [`WORK_LOG_MOVA.md`](WORK_LOG_MOVA.md) | mova(영화 추천·채팅·게임) 날짜별 작업 일지 — 2026-08-19에 구 `WORK_LOG.md`에서 개명(과거 인용 대부분이 이 파일) |
 | [`WORK_LOG_GILDLE.md`](WORK_LOG_GILDLE.md) | gildle(산책 경로) 날짜별 작업 일지 |

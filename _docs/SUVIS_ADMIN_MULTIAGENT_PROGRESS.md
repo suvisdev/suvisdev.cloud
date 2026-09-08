@@ -16,6 +16,7 @@
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
 - `[P]` 09-07 데스크톱 인프라 compose→k3s 전환 완주(`k8s/` 매니페스트 9종·deploy.sh · Docker Desktop `/Docker/host` 마운트發 kubelet 크래시 해결(systemd drop-in) · 구 compose 볼륨 DB 이전·검증)
+- `[P]` 09-07 노트북 프로덕션 k3s 1단계 컷오버(backend·auth·cloudflared 파드 · db·redis 도커 외부 연결 `external-db-redis.yaml` · `nginx-alias.yaml`로 502 복구 · 도커 backend·auth·nginx stop 보존)
 - `[M]` 09-03 무관 픽 '식객' RAG 연도 재검증 · 회귀 하네스 신설 · 키워드 사전 11엔트리 백필 · 분류기 추천 확정 가드 · general 429→200 강등
 - `[M]` 09-02 RAG∪태그 합집합 + `_FILLER` 정규식 수정 · booking 탐색형 질의 · 다중 장르 AND · "최신영화" booking 오분류 · 교사 데이터셋 92건 재학습 · llama.cpp GGUF 전환 · 전체 점검 + DB 정비 · lora-nb 터널
 - `[M]` 09-01 데스크톱 lora-server 재구축 + LoRA 재학습 · 컬렉션 v3 · 키워드 태그 백필 완주 · vote_count 베이지안 가중 정렬 · 터널 토큰 잠금 · 감정분석 프로덕션 백필
@@ -51,13 +52,17 @@
 ## 진행 중 (현재 액티브)
 
 ### 개인 백엔드 EC2 → 노트북 이전 — 컷오버 완료(2026-09-03 밤)
-- `api.`/`auth.suvisdev.cloud`는 이제 **노트북(teagy)** compose(nginx·
-  backend·auth·db·redis·cloudflared)가 서빙. 터널 `suvisdev.cloud`의
-  커넥터는 노트북 단독. 프로덕션 DB는 EC2 덤프(09-03) 복원본.
-- **남은 것**: ① 하루 안정 확인 후 EC2 개인 스택 `down`·prune·Elastic IP·
-  `t3.small` 축소 ② 노트북 lora-server 어댑터 동기화(현재 08-25 AWQ) ③
-  브라우저 실사용 검증(카카오 로그인·채팅·gildle) ④ 루트 CLAUDE.md의
-  "EC2=Gemini 폴백" 서술 갱신 필요. 상세: SUBDOMAIN_MIGRATION_PLAN.md.
+- `api.`/`auth.suvisdev.cloud`는 **노트북(teagy)**이 서빙 — 09-07 k3s 1단계
+  컷오버로 backend·auth·cloudflared는 파드, db·redis는 도커 컨테이너
+  (`deploy.sh --external-db`). 터널 `suvisdev.cloud`의 커넥터는 노트북 단독.
+  프로덕션 DB는 EC2 덤프(09-03) 복원본.
+- ~~EC2 개인 스택 down·Elastic IP·t3.small 축소~~ — **09-04 결정 변경으로
+  폐기**: Arda는 신규 `arda-api`를 생성했고, 개인 EC2는 **중지 보관**
+  (EBS 월 ~$3, 필요 없다고 확정되면 종료. ARDA_AWS_DEPLOY_GUIDE 표 참고).
+- **남은 것**: ① 노트북 lora-server 어댑터 동기화(현재 08-25 AWQ —
+  데스크톱 09-02 GGUF와 격차) ② 브라우저 실사용 검증(카카오 로그인·채팅·
+  gildle). ~~루트 CLAUDE.md 낡은 EC2 서술 갱신~~(09-08 완료 — 노트북
+  k3s·EC2 중지 보관 기준으로 교체). 상세: SUBDOMAIN_MIGRATION_PLAN.md.
 
 ### 서브도메인 이사 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
 - **개인 앱(mova·gildle)은 이사 안 함** — 서빙 실익 없음(세션 분리·OAuth
@@ -112,15 +117,11 @@
   단독 실행 수지 안 맞아 대기) ③ 이후 사전 확장분. 잔여 교사 스킵 17건
   (배우명·형사물 등)은 실서비스 정상이라 태그 사전 확장 여지로만 남김.
 
-### EC2 전체 재빌드 불가 (2026-09-02 실측)
-- pip 레이어 캐시 소실 상태에서 torch 스택 재설치는 피크 ~15G+라 30GB
-  디스크에 구조적으로 안 들어감(`[Errno 28]`). 현재는 requirements 불변일 때
-  **파생 빌드**(`FROM suvisdev-app:latest` + `COPY . .`)로만 배포.
-- 파생 빌드 COPY 레이어가 배포마다 누적돼 이미지 9.78→10.3GB↑(09-03) —
-  결정 압력 증가. 선택지: ① EBS 증설 ② 데스크톱 로컬 빌드 후
-  `docker save | ssh docker load`. **결정 필요.**
-- auth 이미지 드리프트는 auto-deploy 기본값(backend만)이 원인 — 재빌드
-  배포 시 `./auto-deploy.sh backend auth`로 둘 다 지정할 것.
+### ~~EC2 전체 재빌드 불가~~ — 폐기(개인 백엔드 노트북 이전으로 무의미)
+- 09-03 노트북 이전 + 09-04 개인 EC2 중지 보관 확정으로 30GB 디스크·
+  파생 빌드 누적·auto-deploy 드리프트 이슈 전부 소멸. 노트북은 전체
+  재빌드 가능(09-03 pip 레이어 재설치 14.6GB 실증). "EBS 증설 vs 로컬 빌드
+  전송" 결정 건도 함께 폐기.
 
 ### lora-server 운영 수칙·감시 (2026-09-02)
 - 학습 직후 바로 start하면 VRAM 지연 반환과 겹쳐 5배 열화(31~34s) 재현 —
@@ -159,12 +160,10 @@
   생겼음.
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
-- **노트북(프로덕션) k3s 컷오버 1단계 — 완료(09-07, WORK_LOG_MAINPAGE 09-07)**:
-  backend·auth·cloudflared 파드, db·redis는 도커 유지(`external-db-redis.yaml`),
-  터널 라우트는 `nginx-alias.yaml`(ExternalName→Traefik)로 대시보드 무변경.
-  배포는 `./k8s/deploy.sh --external-db [--build]`. 남은 단계: 2단계 redis 이관,
-  3단계 db는 밖에 둬도 무방(README). 도커 backend·auth·nginx는 안정 확인 후 stop
-  (`down` 금지, 롤백용).
+- **노트북 k3s 잔여 단계**(1단계는 09-07 완료 — 완료됨 인덱스 참고):
+  2단계 redis 이관, 3단계 db(pgvector)는 밖에 둬도 무방(`k8s/README.md`).
+  도커 backend·auth·nginx는 stop 상태로 롤백용 보존(`down` 금지). 배포는
+  `./k8s/deploy.sh --external-db [--build]`.
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
   `/mova/...`를 직접 호출하는 곳까지 같이 바뀌어 블라스트 레이디어스가 큼 —

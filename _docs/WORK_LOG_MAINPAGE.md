@@ -28,6 +28,52 @@
 
 ---
 
+## 2026-09-08
+
+### 작업 내용 (_docs 전수 감사·정합성 복원)
+- 사용자 요청("_docs 보고 정리")으로 루트 `_docs/` 10개 문서를 전수 감사.
+  진단: 문서 배치 자체는 규칙대로였고, **09-03~09-07 급변**(개인 백엔드
+  노트북 이전 → Arda 신규 `arda-api` → 노트북 k3s 1단계)을 문서들이 따라가지
+  못한 정합성 붕괴가 문제. 특히 매 세션 자동 로드되는 루트 `CLAUDE.md`가
+  "EC2=개인 프로덕션" 전제(compose 폴백 명령·30GB 디스크 대응 등)를 그대로
+  갖고 있어 에이전트 오작동 소지가 컸음.
+- 파일 단위 삭제도 검토(사용자 추가 요청) — **삭제 대상 없음** 판정.
+  유일한 후보였던 `SUBDOMAIN_MIGRATION_PLAN.md`는 워크로그 09-03이 노트북
+  이전 상세(검증값·원복 절차)를 "계획서 참고"로 위임하는 유일 기록이라
+  존치. 대신 파일 안에서 완전 대체된 절만 삭제(아래).
+
+### 수정/구현
+- `_docs/README.md`: 인덱스 표에 누락돼 있던 3건 추가(`ARDA_AWS_DEPLOY_GUIDE`
+  ·`SUBDOMAIN_MIGRATION_PLAN`·`INTERVIEW_QUESTIONS`).
+- `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`: ① "EC2 개인 스택 down·t3.small
+  축소"를 09-04 결정 변경(개인 EC2 중지 보관) 기준 폐기 표시 ② 노트북 k3s
+  1단계를 백로그의 "완료" 딱지에서 완료됨 인덱스로 이동, 백로그엔 잔여
+  (2단계 redis)만 ③ "EC2 전체 재빌드 불가" 백로그(EBS 증설 결정 건 포함)를
+  노트북 이전으로 무의미해져 폐기 한 줄로 압축 ④ 노트북 서빙 서술
+  compose→k3s 현행화.
+- `_docs/SUBDOMAIN_MIGRATION_PLAN.md`: 상단에 "이행 완료·역사 기록" 상태
+  배너. **"팀 인프라 이전: 순서" 절(초안 1~6) 삭제** — ARDA 가이드가 확정본
+  으로 대체했고 초안의 "개인 EC2 재활용" 전제가 오정보 함정이라서.
+- `_docs/EXAONE_LOCAL_AI_SETUP.md`: 8장 lora-server 서빙 서술이 08-19
+  기준(fp16 hf)이라 09-02 llama.cpp GGUF 전환(`serve_gguf.py`·
+  `export_mova_gguf.py`) 안내 배너 추가. 설치 절차 본문은 유효해 무변경.
+- **루트 `CLAUDE.md` 낡은 EC2 서술 4곳 현행화**(PROGRESS "남은 것"에 09-03
+  부터 걸려 있던 건): ① `RECOMMENDATION_BACKEND` 문단 — 프로덕션(노트북
+  k3s)이 자체 lora-server 직결(`host.docker.internal:8200`, hostAliases→
+  `10.42.0.1`), 수동 Gemini 전환은 compose 명령 대신 `deploy.sh
+  --external-db`+`kubectl rollout restart`(deploy.sh 실측: 일반 실행은
+  rollout 없음) ② VRAM 항목 fp16 hf→GGUF Q5_K_M(구 serve.py 롤백용) ③
+  데스크톱 비상시 — 프로덕션이 노트북 직결이라 데스크톱 꺼짐 무영향 ④
+  "배포 환경 둘(집·EC2)"+"EC2 디스크 30GB" 두 항목을 노트북 프로덕션·EC2
+  중지 보관 체제로 통합(30GB 항목은 대상 소멸로 삭제).
+
+### 오류·막힌 점
+- 없음(읽기·문서 편집만). 판단 근거는 전부 워크로그 09-03/09-04/09-07과
+  `k8s/deploy.sh`·`k8s/README.md` 실측 대조.
+
+### 산출물
+- 본 커밋(CLAUDE.md + _docs 5개 파일). INTERVIEW_QUESTIONS 09-08 5문항 추가.
+
 ## 2026-09-07
 
 ### 작업 내용 (데스크톱 로컬 인프라 docker compose → 쿠버네티스 전환)

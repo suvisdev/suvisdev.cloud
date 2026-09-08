@@ -3,6 +3,13 @@
 > 이 문서 하나만 보고 새 PC(WSL2 + NVIDIA GPU)에서 그대로 재현할 수 있도록 작성함.
 > sudo 없이 설치 가능한 방법만 사용한다 (WSL Docker Desktop 통합이 꺼져있어도 무관).
 
+> **⚠️ 8장 lora-server 서빙 서술은 2026-08-19 기준으로 구식.** 이후
+> 09-01 데스크톱 이전 + EXAONE-3.5-2.4B fp16 재구축, 09-02 **llama.cpp
+> GGUF 전환**(`serve_gguf.py`, 재학습 후 `export_mova_gguf.py` 필수)으로
+> 서빙 경로가 바뀜(구 `serve.py`는 롤백용 보존). 최신 상태는 루트
+> `CLAUDE.md` "주의사항"과 `WORK_LOG_MOVA.md` 09-01·09-02 참고.
+> Router/Worker(Ollama)·AWQ 설치 절차 자체는 여전히 유효.
+
 ## 0. 아키텍처 개요
 
 - **Router model**: `exaone3.5:7.8b` — 라우팅/판단

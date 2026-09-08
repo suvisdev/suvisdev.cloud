@@ -196,17 +196,18 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   것이었다** — S3 경로를 타는 코드는 정상 동작한다는 전제로 작업할 것.
   버킷은 **비공개**라 객체 공개 URL은 403이다. 표시에는
   `Tank.generate_presigned_url()`(기본 1시간)을 쓴다.
-- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: EC2는 기본
-  `lora`를 쓴다 — 노트북 GPU의 `lora-server`(systemd, `:8200`)를 Cloudflare
-  Tunnel로 노출한 `LORA_SERVER_URL=https://lora.suvisdev.cloud`를 호출한다
-  (2026-08-05, `docker-compose.yaml`의 `LORA_SERVER_URL`을
-  `${LORA_SERVER_URL:-http://host.docker.internal:8200}`로 변수화해 `.env`
-  오버라이드가 실제로 먹도록 고침 — 전에는 하드코딩 때문에 `.env`를 고쳐도
-  무시됐다). 노트북이 꺼져 있거나 터널이 끊기면 `RECOMMENDATION_BACKEND=gemini`로
-  바꾸고 `docker compose --env-file suvisdev/.env up -d --force-recreate --no-deps backend`로
-  수동 폴백한다(전환 왕복 약 8초 확인됨). EC2 배포 후엔 항상
-  `docker exec <backend> printenv | grep -E 'RECOMMENDATION_BACKEND|LORA_SERVER_URL'`로
-  확인할 것.
+- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: 프로덕션(노트북
+  teagy, k3s)은 기본 `lora`를 쓴다 —
+  `LORA_SERVER_URL=http://host.docker.internal:8200`으로 노트북 자체
+  `lora-server`(systemd, `:8200`)를 직결한다(2026-09-03 노트북 이전 때 설정.
+  k3s에선 hostAliases가 `host.docker.internal`→`10.42.0.1`로 매핑, 09-07
+  도달 확인). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
+  받친다. 수동 전환이 필요하면 `suvisdev/.env`에서
+  `RECOMMENDATION_BACKEND=gemini`로 바꾸고 `./k8s/deploy.sh --external-db`
+  (Secret 갱신) + `kubectl -n suvisdev rollout restart deploy/backend`.
+  배포 후 확인: `kubectl -n suvisdev exec deploy/backend -- printenv |
+  grep -E 'RECOMMENDATION_BACKEND|LORA_SERVER_URL'`. 데스크톱 GGUF 서버를
+  쓰려면 `LORA_SERVER_URL=https://lora.suvisdev.cloud`로 전환(현재 미사용).
 
 ## 브랜치 전략
 
@@ -216,27 +217,25 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 
 ## 주의사항
 
-- **VRAM**: `lora-server`(EXAONE-3.5-2.4B fp16, hf 백엔드)가 데스크톱
+- **VRAM**: `lora-server`(EXAONE-3.5-2.4B, llama.cpp GGUF Q5_K_M —
+  2026-09-02 전환, 구 fp16 hf `serve.py`는 롤백용)가 데스크톱
   DESKTOP-IOAQ7L7의 systemd 유저 서비스로 기동된다(2026-09-01 노트북→
-  데스크톱 이전, AWQ→fp16 전환). 모델 학습 전 `systemctl --user stop
-  lora-server`, 학습 후 `start` + `:8200/health` 확인. `nvidia-smi`의
-  free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
-- **데스크톱은 상시 서버가 아니다** — PC가 꺼지면 lora-server·터널도
-  내려가고, EC2는 Gemini 자동 폴백으로 무중단 유지된다(2026-08-26 배선,
-  09-01 실증). 켜져 있는 날만 LoRA 경로가 사는 게 정상 운영 상태이니
-  터널 530을 장애로 오판하지 말 것. **노트북도 lora-server를 상시
-  서빙한다(2026-09-02 결정 변경)** — `lora-nb.suvisdev.cloud`(로컬 관리형
-  터널 `lora-nb`)로 노출되며, EC2 프로덕션은 여전히 `lora.suvisdev.cloud`
-  (데스크톱 `lora-desktop`)만 호출한다. 원격 관리형이던 구 `lora-notebook`
-  터널은 계정에서 삭제 완료(2026-09-02).
-- 배포 환경이 둘이다 — 집(GPU/EXAONE)과 EC2(GPU 없음/Gemini). Ollama에 의존하는
+  데스크톱 이전). 모델 학습 전 `systemctl --user stop lora-server`, 학습 후
+  `start` + `:8200/health` 확인. 재학습 후엔 `export_mova_gguf.py`로 GGUF
+  변환 필수. `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
+- **데스크톱은 상시 서버가 아니다** — PC가 꺼지면 데스크톱 lora-server·
+  터널(`lora.suvisdev.cloud`)도 내려가지만, **프로덕션(노트북)은 자체
+  lora-server를 직결하므로 영향 없다** — 터널 530을 장애로 오판하지 말 것.
+  노트북 lora-server도 상시 서빙(2026-09-02 결정)이며
+  `lora-nb.suvisdev.cloud`(로컬 관리형 터널 `lora-nb`)로 노출된다. 단
+  노트북 어댑터는 08-25 AWQ 구버전 — 데스크톱 09-02 GGUF와 동기화 잔여
+  (`_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` "남은 것").
+- 개인 배포 환경: **프로덕션은 노트북(teagy, RTX 4060) k3s 1단계**(backend·
+  auth·cloudflared 파드, db·redis 도커, 2026-09-07 컷오버), 데스크톱은 개발·
+  학습용 k3s. 구 개인 EC2(m7i-flex.large)는 **중지 보관**(09-04 결정 — Arda는
+  별도 인스턴스 `arda-api`가 서빙). 노트북이 꺼지면 개인 사이트 API 전부
+  다운(프론트 Vercel만 생존)이 감수한 트레이드오프다. Ollama에 의존하는
   mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끌 수 있다(기본 true).
-- **EC2 디스크는 30GB로 작다** — `backend`·`auth`가 완전히 동일한(무거운
-  torch+CUDA) Dockerfile인데 이미지가 따로 태깅돼 있어, 재빌드 중 디스크가
-  자주 부족해진다(2026-08-05 반복 경험). 막히면 `docker system df`로 확인
-  후 `docker builder prune -a`, 그래도 부족하면 둘 중 하나를 잠깐 내려
-  중복 레이어를 해제하고 재빌드 — 근본 해결(이미지 통합)은 아직 안 함,
-  `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` 백로그 참고.
 
 ## 하네스 설정 (`.claude/`)
 

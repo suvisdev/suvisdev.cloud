@@ -1,5 +1,13 @@
 # 서브도메인 이사 계획 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
 
+> **상태(2026-09-08): 사실상 이행 완료 — 역사 기록으로 보존.**
+> 팀(seuk) 인프라 이전은 09-04 완주. 단, 아래 "순서"의 **개인 EC2 재활용
+> (t3.small 변경) 서술은 09-04 결정 변경으로 폐기** — 신규 `arda-api`
+> (t3.small)를 생성했고 개인 EC2는 중지 보관. 실행 체크리스트·기록은
+> `ARDA_AWS_DEPLOY_GUIDE.md`와 `WORK_LOG_MAINPAGE.md` 09-04, 잔여 작업은
+> `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`가 최신. 노트북 개인 백엔드는 09-07
+> k3s 1단계로 재편됨(compose 서술은 당시 기준, 현행은 `k8s/README.md`).
+
 **2026-09-03 저녁 결정 변경(사용자)**: 개인 앱(mova·gildle)은 서브도메인으로
 옮기지 않고 기존 경로(`suvisdev.cloud/mova`·`/gildle`)를 그대로 쓴다.
 서브도메인 이사는 **팀 프로젝트 seuk만** 진행한다.
@@ -120,61 +128,16 @@ Arda 배포(아래 2부). 개인 DB 볼륨은 1주일 뒤 `-v`로 삭제.
 - backend/auth는 호스트 포트 미노출 — 로컬 검증은 `docker compose exec`
   또는 터널 경유.
 
-## 팀(seuk) 인프라 이전: 순서
+## 팀(seuk) 인프라 이전
 
-> **실행용 체크리스트는 `_docs/ARDA_AWS_DEPLOY_GUIDE.md`** (2026-09-04, 학원에서 이 문서만 보고 진행).
+계획 초안(순서 1~6)은 **09-04 실행 완주로 폐기·삭제(09-08)** — 초안의 "개인
+EC2 재활용" 전제가 09-04 결정 변경(신규 `arda-api` 생성)으로 뒤집혀 오정보가
+됐기 때문. 확정 절차·계정 체계·실행 기록은 `ARDA_AWS_DEPLOY_GUIDE.md`,
+당일 상세는 `WORK_LOG_MAINPAGE.md` 09-04가 정본이다.
 
-1. ~~**프론트**~~ — **완료(2026-09-03 저녁)**: 새 Vercel 프로젝트 `arda`
-   (suvisdev Hobby 계정, `Seuk-Team/Arda` 연결, Root `frontend/app`, Vite,
-   `VITE_API_BASE=https://api.arda.seuk.cloud`). 기본 주소
-   `arda-teal.vercel.app`, 커스텀 도메인 **`seuk.suvisdev.cloud`** 연결·
-   HTTPS 200 확인. Vercel GitHub 앱은 Seuk-Team 조직에 Arda만 허용으로 설치.
-   **막힌 것 — CORS**: 기존 백엔드 preflight가 새 origin 두 개
-   (`seuk.suvisdev.cloud`, `arda-teal.vercel.app`)에 400(기존 `arda-nu.
-   vercel.app`은 200). 해결 A(권장): woojeongalex가 EC2 `backend/.env`
-   `CORS_ORIGINS` + S3 버킷 CORS AllowedOrigins에 두 주소 추가 후 api
-   재시작. 해결 B: `vercel.json` API rewrite + `VITE_API_BASE` 비움(S3 직접
-   업로드는 못 우회, 새 백엔드 뜨면 폐기). 결정 대기.
-2. **AWS 리소스(개인 계정, 서울)** — 상세 절차는 2026-09-03 밤 세션 답변
-   기준. ① S3 `arda-resumes-seuk`(퍼블릭 차단 유지, CORS: PUT / Origins
-   `seuk.suvisdev.cloud`·`arda-teal.vercel.app`·`localhost:5173` / Headers *)
-   ② SQS Standard `arda-mail`(URL 기록) ③ SES 도메인 identity
-   `seuk.suvisdev.cloud` + Easy DKIM CNAME 3개 Cloudflare 등록 → 발신
-   `no-reply@seuk.suvisdev.cloud`; **production access 신청**(개인 계정은
-   샌드박스, 팀 계정은 09-01 승인 이력 — 트랜잭션 메일·지원자 본인 입력·
-   SNS 바운스 처리·일 100통 미만으로 기술) ④ IAM 유저 `arda-server`
-   (콘솔 없음) + `arda-server-policy`(그 버킷 s3:Put/Get/Delete/List, 그
-   큐 sqs Send/Receive/Delete/GetQueueAttributes, ses:SendEmail/SendRawEmail)
-   → 액세스 키 발급.
-3. **EC2 준비**: Elastic IP 할당·연결(먼저!) → 중지 상태에서 `t3.small`로
-   변경 → 시작 → SG 80/443 0.0.0.0/0 확인 → 새 IP로 `~/.ssh/config` 갱신.
-   서버: `cd ~/suvisdev.cloud && docker compose down`(볼륨 유지) →
-   `docker system prune -af` → `git clone Seuk-Team/Arda ~/arda` →
-   `backend/.env` 작성 → `infra/Caddyfile` 호스트 `api.seuk.suvisdev.cloud`
-   → `cp infra/docker-compose.prod.yml infra/Caddyfile .` → `up -d db` →
-   `run --rm api /app/.venv/bin/alembic upgrade head` → `up -d --build` →
-   `scripts/create_admin.py`로 첫 admin(production은 공개 가입 차단).
-   `.env` 필수: APP_ENV=production, DATABASE_URL(postgres:<DB_PASSWORD>@db/
-   arda), DB_PASSWORD, JWT_SECRET, AWS_REGION, arda-server 키, S3_BUCKET,
-   SQS_QUEUE_URL, SES_FROM_EMAIL, MAIL_REPLY_TO(seukathon@gmail.com),
-   COMPANY_NAME, PUBLIC_APP_BASE_URL=https://seuk.suvisdev.cloud,
-   CORS_ORIGINS=seuk.suvisdev.cloud,arda-teal.vercel.app, ANTHROPIC_API_KEY.
-   SES 승인 전 MAIL_DRY_RUN=1.
-4. **DNS·프론트 전환**: Cloudflare A `api.seuk` → Elastic IP(**DNS only**,
-   Caddy ACME) → `/docs` 200 확인 → Vercel `VITE_API_BASE`=
-   `https://api.seuk.suvisdev.cloud` → Redeploy(CORS 문제 소멸).
-5. **데이터 이전(선택)**: woojeongalex에게 옛 서버 `pg_dump` + S3 객체 →
-   복원 후 `alembic upgrade head`. 과정용 데이터면 빈 DB로 시작 가능.
-6. **검증**: admin 로그인 → 공고 생성 → 공개 지원 폼 이력서 첨부 제출(S3
-   CORS) → 담당자 화면 → 단계 변경 메일(워커 `sent`, 승인 전엔
-   `success@simulator.amazonses.com`).
-
-참고: 옛 팀 계정은 학원(ETECH) Organization 통합 결제 멤버로 학원이 400$
-크레딧을 넣어 뒀고 SES도 승인된 상태("과정 끝날 때까지 유지" 발언, 09-handover).
-지금 옮기는 동기는 이탈자 명의 루트 리스크.
-
-유의: 기존 arda.seuk.cloud(도메인 소유 확인 필요 — 이탈자 소유면 병행 기간
-후 폐기), 전환 기간엔 구/신 주소 둘 다 살려 두고 팀 공지 후 전환.
+참고(존치 사유가 남은 배경 두 줄): 옛 팀 계정은 학원(ETECH) 통합 결제
+멤버로 $400 크레딧·SES 승인이 살아 있었고("과정 끝날 때까지 유지",
+09-handover), 이전 동기는 이탈자 명의 루트 계정 리스크였다.
 
 ## 관련 기록
 
