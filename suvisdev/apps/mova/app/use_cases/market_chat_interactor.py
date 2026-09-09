@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -60,6 +61,34 @@ _EVAL_POSITIVE_PATTERNS: tuple[str, ...] = (
     "기대돼",
     "예매할래",
 )
+
+# 제목 없는 evaluate 후속("어때?"·"어떠냐고"·"그거 평가해줘")을 결정론으로 잡는다.
+# 분류기가 이런 발화를 recommend로 오분류해 두루뭉술한 답이 나오던 것 대응
+# (2026-09-09 실측). 트리거 어휘가 있고, 지시어·조사·트랙 어휘를 다 떼면 아무것도
+# 안 남을 때만 "제목 없는 평가 요청"으로 본다 — "어벤져스 어때"는 '어벤져스'가 남아 제외.
+_EVAL_TRIGGER_WORDS = re.compile(r"(어때|어떄|어떠|어떤|어떻|어떨|평가|평점|리뷰|볼만|괜찮)")
+_EVAL_STRIP = re.compile(
+    r"(그거|그건|이거|이건|저거|그영화|이영화|그작품|이작품|그|이|저|얘|걔"
+    r"|은|는|이|가|을|를|에\s*대해서?|영화|작품"
+    r"|어때|어떄|어떠[냐네]|어떤가|어떤지|어떰|어떻게|어떨까"
+    r"|볼만해|볼만한[가지]|평가|평점|리뷰|괜찮아|괜찮은[가지]"
+    r"|해줘|해|줘|주라|봐줘|봐|주세요|고|요|나요|가요|좀|한\s*번)"
+)
+
+
+def _is_bare_eval_followup(message: str) -> bool:
+    m = message.strip()
+    if not _EVAL_TRIGGER_WORDS.search(m):
+        return False
+    remainder = re.sub(r"[\s?!.~]", "", _EVAL_STRIP.sub("", m))
+    return remainder == ""
+
+
+def _last_assistant_content(history: list[dict[str, str]]) -> str:
+    for msg in reversed(history):
+        if msg.get("role") == "assistant":
+            return msg.get("content") or ""
+    return ""
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -159,6 +188,21 @@ class ChatInteractor(ChatUseCase):
                 return await self._reply_booking(
                     request, trace_id, entities=[], pending_title=pending_title
                 )
+
+        # -0.4. evaluate 후속 이어받기 — 제목 없는 "어때?"류는 직전 assistant가 소개한
+        #       영화를 평가한다. 분류기가 이런 발화를 recommend로 오분류해 근거 없는
+        #       답이 나오던 것 방지(2026-09-09 실측: "어떠냐고" → recommendation).
+        if self._evaluation is not None and _is_bare_eval_followup(request.message):
+            last_movie = await self._repo.find_movie_titled_in_text(
+                _last_assistant_content(request.history_dicts())
+            )
+            if last_movie is not None:
+                logger.info(
+                    "[ChatInteractor] trace=%s evaluate 후속 이어받기 title=%s",
+                    trace_id,
+                    last_movie.title,
+                )
+                return await self._reply_evaluation(request, trace_id, entities=[last_movie.title])
 
         # 0. 시맨틱 인텐트 분류(2026-08-28 5종: recommend/evaluate/booking/general/
         #    crud) — 영화와 무관한 잡담(general)은 추천 파이프라인을 타지 않고

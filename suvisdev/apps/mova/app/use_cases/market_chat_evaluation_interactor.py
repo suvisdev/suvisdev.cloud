@@ -113,17 +113,31 @@ class MovieEvaluationService:
         if self._external_reviews is not None and tmdb_id is not None:
             external = await self._external_reviews.fetch_reviews(tmdb_id)
 
-        reply = await self._compose_reply(
-            title=detail.title,
-            year=detail.release_year,
-            genres=detail.genres,
-            synopsis=detail.synopsis or "",
-            tmdb_rating=detail.rating,
-            aggregate_count=aggregate.review_count,
-            aggregate_avg=aggregate.avg_rating,
-            excerpts=aggregate.excerpts,
-            external=external,
-        )
+        # 정직 규칙: 줄거리·평점·리뷰가 전부 없으면(미개봉 신작 등) 지어내지 말고
+        # 자료 부족을 솔직히 알린다 — Gemini에 넘기면 근거 없는 두루뭉술한 호평을
+        # 만들어낸다(2026-09-09 "브랜드 뉴 데이" 실측). 데이터가 하나라도 있으면 평가.
+        if (
+            not (detail.synopsis or "").strip()
+            and aggregate.review_count == 0
+            and not external
+            and not detail.rating
+        ):
+            reply = (
+                f"'{detail.title}'은 아직 개봉 전이거나 평점·리뷰가 모이지 않아 "
+                "평가해 드릴 자료가 부족해요. 개봉 후 리뷰가 쌓이면 다시 물어봐 주세요."
+            )
+        else:
+            reply = await self._compose_reply(
+                title=detail.title,
+                year=detail.release_year,
+                genres=detail.genres,
+                synopsis=detail.synopsis or "",
+                tmdb_rating=detail.rating,
+                aggregate_count=aggregate.review_count,
+                aggregate_avg=aggregate.avg_rating,
+                excerpts=aggregate.excerpts,
+                external=external,
+            )
         logger.info(
             "[MovieEvaluationService] trace=%s movie_id=%d reviews=%d external=%d",
             trace_id,

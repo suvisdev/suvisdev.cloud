@@ -66,6 +66,14 @@ class ChatRepositoryPort(ABC):
         """자모 분해 편집거리 기반 퍼지 검색 — exact 검색 0건일 때 폴백."""
         return []
 
+    async def find_movie_titled_in_text(self, text: str) -> MovaSearchItemSchema | None:
+        """text 안에 제목이 그대로 언급된 카탈로그 영화를 역방향으로 찾는다(가장 긴 제목 우선).
+
+        evaluate 후속 이어받기용 — "어떠냐고"처럼 제목 없는 발화가 왔을 때,
+        직전 assistant 메시지(영화를 소개한 문장)에서 작품을 복원한다.
+        """
+        return None
+
     @abstractmethod
     async def record_user_action(self, user_id: int, movie_id: int, action_type: str) -> None:
         """user_actions 이벤트 기록 — chat_trend 조건부 신호(booking_intent·eval_positive)."""

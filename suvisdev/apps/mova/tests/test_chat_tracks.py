@@ -30,7 +30,10 @@ from mova.app.use_cases.market_chat_booking_interactor import (  # noqa: E402
 from mova.app.use_cases.market_chat_evaluation_interactor import (  # noqa: E402
     MovieEvaluationService,
 )
-from mova.app.use_cases.market_chat_interactor import ChatInteractor  # noqa: E402
+from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
+    ChatInteractor,
+    _is_bare_eval_followup,
+)
 from mova.app.use_cases.market_chat_title_resolver import (  # noqa: E402
     resolve_movie_title,
 )
@@ -110,6 +113,32 @@ class TitleResolverTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("인셉션" in t for t in terms))
 
 
+class BareEvalFollowupDetectorTests(unittest.TestCase):
+    """제목 없는 evaluate 후속 판별 — 제목이 남으면 제외해야 한다."""
+
+    def test_bare_triggers_detected(self) -> None:
+        for msg in (
+            "어떠냐고",
+            "어때",
+            "어때?",
+            "그거 어때",
+            "그 영화 어때",
+            "평가해줘",
+            "리뷰 어때?",
+        ):
+            self.assertTrue(_is_bare_eval_followup(msg), msg)
+
+    def test_title_bearing_or_unrelated_excluded(self) -> None:
+        for msg in (
+            "어벤져스 어때",
+            "스파이더맨은 어때",
+            "좀비 영화 추천해줘",
+            "안녕",
+            "브랜드 뉴 데이",
+        ):
+            self.assertFalse(_is_bare_eval_followup(msg), msg)
+
+
 class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
     def _service(self, *, review_count: int = 5) -> tuple[MovieEvaluationService, AsyncMock]:
         repo = AsyncMock()
@@ -159,6 +188,35 @@ class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
         result = await service.evaluate(message="없는영화 어때", entities=[], trace_id="t")
         self.assertEqual(result.status, "not_found")
         self.assertIsNone(result.card)
+
+    async def test_no_data_movie_gets_honest_reply_without_llm(self) -> None:
+        """줄거리·평점·리뷰가 전무하면(미개봉 신작 등) 지어내지 않고 자료 부족을 알린다."""
+        service, general = self._service(review_count=0)
+        no_data = MovieDetailDto(
+            id=7,
+            slug="tmdb-7",
+            title="브랜드 뉴 데이",
+            release_year=2026,
+            rating=0.0,
+            poster_url="",
+            platforms=[],
+            age_rating=None,
+            genres=[],
+            collection_id=None,
+            actors=[],
+            tags=[],
+            synopsis="",
+            trailer_key=None,
+        )
+        service._movies.find_by_id.return_value = no_data
+        service._external_reviews.fetch_reviews.return_value = []
+        service._reviews.aggregate_for_movie.return_value = ReviewAggregateDto(
+            review_count=0, avg_rating=None, excerpts=[]
+        )
+        result = await service.evaluate(message="어때", entities=["브랜드 뉴 데이"], trace_id="t")
+        self.assertEqual(result.status, "ok")
+        self.assertIn("자료가 부족", result.reply)
+        general.ask.assert_not_awaited()  # 근거 없는 hype를 LLM에 맡기지 않는다
 
 
 class BookingAssistServiceTests(unittest.IsolatedAsyncioTestCase):
@@ -327,6 +385,47 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(response.recommendations), 1)
         save_kwargs = repo.save_chat.await_args.kwargs
         self.assertEqual(save_kwargs["intent_type"], "evaluate")
+
+    async def test_bare_eval_followup_evaluates_movie_from_history(self) -> None:
+        """제목 없는 '어떠냐고' 후속은 분류기가 recommend로 오분류해도, 직전 assistant가
+        소개한 영화를 역조회해 evaluate로 잇는다(2026-09-09 맥락 이음 수정)."""
+        from mova.app.dtos.market_chat_dto import ChatEvaluationDto, ChatRecommendationDto
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        interactor, _, evaluation, _ = self._interactor(destination="recommend")
+        interactor._repo.find_movie_titled_in_text.return_value = _item(
+            7, "스파이더맨: 브랜드 뉴 데이", "2026"
+        )
+        evaluation.evaluate.return_value = EvaluationResult(
+            status="ok",
+            reply="평가",
+            card=ChatRecommendationDto(
+                id="tmdb-7",
+                movie_id=7,
+                title="스파이더맨: 브랜드 뉴 데이",
+                year="2026",
+                poster="",
+                synopsis="",
+                platform=None,
+                hook="",
+            ),
+            evaluation=ChatEvaluationDto(
+                movie_id=7, review_count=0, avg_rating=None, tmdb_rating=3.6, excerpts=[]
+            ),
+        )
+        history = [
+            {"role": "user", "content": "브랜드 뉴 데이"},
+            {
+                "role": "assistant",
+                "content": "요청하신 작품을 찾았습니다. 스파이더맨: 브랜드 뉴 데이는 독특합니다.",
+            },
+        ]
+        response = await interactor.chat(MovaChatRequest(message="어떠냐고", history=history))
+
+        self.assertEqual(response.response_type, "evaluation")
+        self.assertEqual(
+            evaluation.evaluate.await_args.kwargs["entities"], ["스파이더맨: 브랜드 뉴 데이"]
+        )
 
     async def test_booking_records_intent_signal_for_logged_in_user(self) -> None:
         from mova.app.dtos.market_chat_dto import ChatBookingDto

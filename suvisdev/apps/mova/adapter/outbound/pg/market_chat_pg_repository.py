@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -26,6 +27,11 @@ from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_for_match(text: str) -> str:
+    """공백·구두점 제거 + 소문자 — 역방향 제목 매칭용(『』·콜론·띄어쓰기 차이 흡수)."""
+    return re.sub(r"[\s:·『』\"'(),.!?~\-]", "", text).lower()
 
 
 def _to_search_items(rows: list[MovaMovie], match_type: str) -> list[MovaSearchItemSchema]:
@@ -245,6 +251,28 @@ class ChatPgRepository(ChatRepositoryPort):
             return []
         rows = await self._movies_by_ids(ids, limit, [])
         return _to_search_items(rows, "title")
+
+    async def find_movie_titled_in_text(self, text: str) -> MovaSearchItemSchema | None:
+        """text 안에 제목이 그대로 들어간 영화를 역방향으로 찾는다(가장 긴 제목 우선).
+
+        직전 assistant 문장에서 작품을 복원하는 용도라, 공백·대소문자를 무시하고
+        정규화한 뒤 부분일치를 본다. 2자 이하 제목은 오탐이 커 제외한다.
+        """
+        haystack = _normalize_for_match(text)
+        if not haystack:
+            return None
+        rows = await self._session.execute(select(MovaMovie.id, MovaMovie.title))
+        best: tuple[int, str] | None = None
+        for mid, title in rows:
+            norm = _normalize_for_match(title or "")
+            if len(norm) < 3 or norm not in haystack:
+                continue
+            if best is None or len(norm) > len(_normalize_for_match(best[1])):
+                best = (mid, title)
+        if best is None:
+            return None
+        found = await self._movies_by_ids({best[0]}, 1, [])
+        return _to_search_items(found, "title")[0] if found else None
 
     async def fuzzy_search_movies_by_title(
         self, terms: list[str], limit: int
