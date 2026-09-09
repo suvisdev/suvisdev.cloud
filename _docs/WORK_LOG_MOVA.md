@@ -138,7 +138,8 @@
   매칭 제목 전부 모호 감지, 어벤져스·존윅·토이스토리 등 단일은 바로 평가 —
   스파이더맨 전용 아님 확인.
 - 테스트 2종(ambiguous→candidates, 인터랙터→choices→schema), mova 308 passed,
-  프론트 type-check·lint 클린. **미배포**(backend 재배포 + Vercel).
+  프론트 type-check·lint 클린. **배포·검증 완료**(`cab9edd`) — 프로덕션 E2E:
+  미션임파서블·해리포터 choices 3건, 존윅 등 단일은 choices 없이 evaluation.
 
 ## 2026-09-03
 

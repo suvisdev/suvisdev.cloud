@@ -160,6 +160,22 @@
 - 커밋 `f7703bc`(vision 게이트 + CORS 화이트리스트).
 - PROGRESS: 🔴①③ 수정 완료·🔴② 대기·🟡 백로그 등재.
 
+### 작업 내용 (밤 — 배포 매끄럽게: hostPath 마운트(A) 검토→폐기, sudo NOPASSWD(B))
+- 사용자 지적("왜 매번 재빌드시키냐") — k3s가 코드를 이미지에 굽고
+  `sudo k3s ctr images import`가 TTY 비번을 요구해 `!` 실행이 막히던 것.
+- **옵션 A(코드 hostPath 마운트) 검토 후 폐기**: 통째 마운트하면 앱 시작 시
+  `main.py`의 `reload_env()`=`load_dotenv(override=True)`가 호스트 `.env`
+  (DB=localhost)를 읽어 **Secret 주입 env를 덮어써 파드 DB가 깨짐**(현행 설계가
+  "컨테이너에 .env 없음"에 의존). 코드만 선택 마운트하면 회피되나 auth.yaml
+  개편·File 마운트·프로덕션 검증까지 손이 커 리스크/이득 불리 판정.
+- **옵션 B 채택(커밋 `4312cd4`)**: `/etc/sudoers.d/k3s-image-import`에
+  `NOPASSWD: k3s ctr images import *` 한 줄 — 불변 이미지·재현성 유지하며 배포
+  비대화식화. 범위는 그 서브커맨드뿐(`sudo -n k3s ctr images ls`는 여전히 거부
+  실측). 노트북 적용 완료, `deploy.sh --build`가 비번 없이 완주 확인.
+
+### 산출물(밤)
+- 커밋 `cab9edd`(선택 칩) · `4312cd4`(B 문서·설정 안내). 노트북 sudoers 적용.
+
 ## 2026-09-08
 
 ### 작업 내용 (_docs 전수 감사·정합성 복원)
