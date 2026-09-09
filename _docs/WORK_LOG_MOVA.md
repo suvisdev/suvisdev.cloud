@@ -127,6 +127,19 @@
 ### 산출물(저녁)
 - 커밋 `525dc80`(evaluate 맥락 이음·정직 + 테스트).
 
+### 작업 내용 (밤 — 채팅 Issue 2 선택지 칩)
+- 모호한 제목(evaluate)일 때 후보를 **prose로만** 안내하고 응답 스키마에
+  후보 필드가 없어 프론트가 칩을 못 그리던 문제 수정. 백엔드: 응답 스키마에
+  `choices`(제목·연도·slug) 신설 → `ChatChoiceDto` DTO 체인 배선 → evaluate
+  서비스 ambiguous 분기에서 후보 채움 → 인터랙터 전달. 프론트
+  (`mova-ai-chat-bar.tsx`): `choices` 있으면 클릭 칩 렌더(기존 힌트 칩 스타일
+  재사용), 클릭 시 "{제목} 어때?" 전송(정확 일치로 재해석돼 evaluate).
+- **일반성 실측**(프로덕션 현행): 미션임파서블·분노의 질주·해리포터 등 다중
+  매칭 제목 전부 모호 감지, 어벤져스·존윅·토이스토리 등 단일은 바로 평가 —
+  스파이더맨 전용 아님 확인.
+- 테스트 2종(ambiguous→candidates, 인터랙터→choices→schema), mova 308 passed,
+  프론트 type-check·lint 클린. **미배포**(backend 재배포 + Vercel).
+
 ## 2026-09-03
 
 ### 작업 내용

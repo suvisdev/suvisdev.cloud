@@ -189,6 +189,23 @@ class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, "not_found")
         self.assertIsNone(result.card)
 
+    async def test_ambiguous_returns_structured_candidates(self) -> None:
+        """모호하면 후보를 prose뿐 아니라 구조화(candidates)해 준다 — 프론트 선택 칩용."""
+        service, _ = self._service()
+        service._repository.search_movies_by_title.return_value = [
+            _item(1, "스파이더맨: 노 웨이 홈", "2021"),
+            _item(2, "스파이더맨: 브랜드 뉴 데이", "2026"),
+        ]
+        result = await service.evaluate(
+            message="스파이더맨 어때", entities=["스파이더맨"], trace_id="t"
+        )
+        self.assertEqual(result.status, "ambiguous")
+        self.assertEqual(
+            [c.title for c in result.candidates],
+            ["스파이더맨: 노 웨이 홈", "스파이더맨: 브랜드 뉴 데이"],
+        )
+        self.assertEqual(result.candidates[0].slug, "1")
+
     async def test_no_data_movie_gets_honest_reply_without_llm(self) -> None:
         """줄거리·평점·리뷰가 전무하면(미개봉 신작 등) 지어내지 않고 자료 부족을 알린다."""
         service, general = self._service(review_count=0)
@@ -426,6 +443,25 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             evaluation.evaluate.await_args.kwargs["entities"], ["스파이더맨: 브랜드 뉴 데이"]
         )
+
+    async def test_ambiguous_evaluate_carries_choices_to_schema(self) -> None:
+        """evaluate 모호 응답의 candidates가 응답 DTO·스키마 choices까지 전달된다."""
+        from mova.app.dtos.market_chat_dto import ChatChoiceDto
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        interactor, _, evaluation, _ = self._interactor(destination="evaluate")
+        evaluation.evaluate.return_value = EvaluationResult(
+            status="ambiguous",
+            reply="비슷한 제목이 여러 편이에요.",
+            card=None,
+            evaluation=None,
+            candidates=[
+                ChatChoiceDto(title="스파이더맨: 브랜드 뉴 데이", year="2026", slug="tmdb-2")
+            ],
+        )
+        response = await interactor.chat(MovaChatRequest(message="스파이더맨 어때", history=[]))
+        self.assertEqual([c.title for c in response.choices], ["스파이더맨: 브랜드 뉴 데이"])
+        self.assertEqual(response.to_schema().choices[0].slug, "tmdb-2")
 
     async def test_booking_records_intent_signal_for_logged_in_user(self) -> None:
         from mova.app.dtos.market_chat_dto import ChatBookingDto

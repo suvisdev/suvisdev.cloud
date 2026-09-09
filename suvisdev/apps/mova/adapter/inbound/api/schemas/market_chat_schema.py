@@ -80,9 +80,19 @@ class MovaChatBookingSchema(BaseModel):
     showtimes: list[MovaChatCinemaShowtimeSchema] = Field(default_factory=list)
 
 
+class MovaChatChoiceSchema(BaseModel):
+    """모호한 제목의 후보 — 프론트가 클릭 칩으로 렌더해 사용자가 하나를 고른다."""
+
+    title: str
+    year: str = ""
+    slug: str
+
+
 class MovaChatResponseSchema(BaseModel):
     reply: str
     recommendations: list[MovaChatRecommendationSchema] = Field(default_factory=list)
+    # 제목이 모호할 때(evaluate) 후보 목록. 있으면 프론트가 선택 칩을 띄운다.
+    choices: list[MovaChatChoiceSchema] = Field(default_factory=list)
     refined_query: str | None = None
     keywords: list[str] = Field(default_factory=list)
     intent_type: str | None = None

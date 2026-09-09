@@ -603,6 +603,7 @@ class ChatInteractor(ChatUseCase):
             conversation_id=conversation_id,
             response_type="evaluation",
             evaluation=result.evaluation,
+            choices=result.candidates,
         )
 
     async def _reply_booking(

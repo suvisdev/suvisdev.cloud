@@ -55,6 +55,12 @@ type ChatBooking = {
   showtimes: CinemaShowtime[]
 }
 
+type ChatChoice = {
+  title: string
+  year: string
+  slug: string
+}
+
 type ChatMessage = {
   role: "user" | "assistant"
   content: string
@@ -62,6 +68,7 @@ type ChatMessage = {
   recommendations?: MovaRecommendation[]
   evaluation?: ChatEvaluation
   booking?: ChatBooking
+  choices?: ChatChoice[]
 }
 
 type ChatState = {
@@ -489,6 +496,7 @@ export function MovaAiChatBar({
           conversation_id?: number | null
           evaluation?: ChatEvaluation | null
           booking?: ChatBooking | null
+          choices?: ChatChoice[]
           detail?: unknown
         }
         if (!res.ok) throw new Error(parseError(data, res.status))
@@ -509,12 +517,14 @@ export function MovaAiChatBar({
           if (refined && lastIdx >= 0 && messages[lastIdx]?.role === "user") {
             messages[lastIdx] = { ...messages[lastIdx], intentLabel: refined }
           }
+          const choices = Array.isArray(data.choices) ? data.choices : []
           messages.push({
             role: "assistant",
             content: content || "추천을 준비하지 못했어요. 다시 질문해 주세요.",
             recommendations,
             ...(data.evaluation ? { evaluation: data.evaluation } : {}),
             ...(data.booking ? { booking: data.booking } : {}),
+            ...(choices.length > 0 ? { choices } : {}),
           })
           return { ...prev, messages, loading: false }
         })
@@ -685,6 +695,21 @@ export function MovaAiChatBar({
               )}
               {msg.role === "assistant" && msg.booking && msg.booking.status === "showing" && (
                 <ChatBookingPanel booking={msg.booking} />
+              )}
+              {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 px-1">
+                  {msg.choices.map((choice) => (
+                    <button
+                      key={choice.slug}
+                      type="button"
+                      disabled={chat.loading}
+                      onClick={() => void sendMessage(`${choice.title} 어때?`)}
+                      className="rounded-full border border-mova-border bg-mova-surface px-3 py-1.5 text-xs text-mova-muted transition-colors hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
+                    >
+                      {choice.year ? `${choice.title} (${choice.year})` : choice.title}
+                    </button>
+                  ))}
+                </div>
               )}
               {msg.role === "user" && msg.intentLabel && (
                 <p className="max-w-full px-1 text-right text-[10px] break-words text-neutral-500 [overflow-wrap:anywhere]">

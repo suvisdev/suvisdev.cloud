@@ -11,6 +11,15 @@ from dataclasses import field as dataclasses_field
 
 
 @dataclass(frozen=True)
+class ChatChoiceDto:
+    """모호한 제목의 후보 — 선택 칩용(제목·연도·slug)."""
+
+    title: str
+    year: str
+    slug: str
+
+
+@dataclass(frozen=True)
 class ChatRecommendationDto:
     id: str
     movie_id: int | None
@@ -105,11 +114,14 @@ class ChatResponseDto:
     response_type: str = "recommendation"
     evaluation: ChatEvaluationDto | None = None
     booking: ChatBookingDto | None = None
+    # 제목이 모호할 때(evaluate) 선택 칩용 후보 목록.
+    choices: list[ChatChoiceDto] = dataclasses_field(default_factory=list)
 
     def to_schema(self) -> MovaChatResponseSchema:
         from mova.adapter.inbound.api.schemas.market_chat_schema import (
             MovaChatBookingLinkSchema,
             MovaChatBookingSchema,
+            MovaChatChoiceSchema,
             MovaChatCinemaShowtimeSchema,
             MovaChatEvaluationSchema,
             MovaChatRecommendationSchema,
@@ -191,4 +203,7 @@ class ChatResponseDto:
             response_type=self.response_type,  # type: ignore[arg-type]
             evaluation=evaluation,
             booking=booking,
+            choices=[
+                MovaChatChoiceSchema(title=c.title, year=c.year, slug=c.slug) for c in self.choices
+            ],
         )

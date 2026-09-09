@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from dataclasses import field as dataclasses_field
 
-from mova.app.dtos.market_chat_dto import ChatEvaluationDto, ChatRecommendationDto
+from mova.app.dtos.market_chat_dto import (
+    ChatChoiceDto,
+    ChatEvaluationDto,
+    ChatRecommendationDto,
+)
 from mova.app.ports.output.external_review_port import ExternalReviewPort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
@@ -46,6 +51,8 @@ class EvaluationResult:
     reply: str
     card: ChatRecommendationDto | None
     evaluation: ChatEvaluationDto | None
+    # ambiguous일 때 후보 목록(제목·연도·slug) — 프론트 선택 칩용.
+    candidates: list[ChatChoiceDto] = dataclasses_field(default_factory=list)
 
 
 def _tmdb_id_from_slug(slug: str) -> int | None:
@@ -94,6 +101,10 @@ class MovieEvaluationService:
                 reply=f"비슷한 제목이 여러 편이에요: {names}. 어떤 작품을 말씀하시나요?",
                 card=None,
                 evaluation=None,
+                candidates=[
+                    ChatChoiceDto(title=c.title, year=c.year, slug=str(c.id))
+                    for c in resolution.candidates
+                ],
             )
 
         assert resolution.item is not None
