@@ -15,6 +15,8 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 09-09 노트북 프로덕션 컷오버 후 실사용 검증(API 전수 — backend·gildle 경로계산·auth·웹 카카오 OAuth 302 · 터널 530=WSL 미부팅 진단 · auth 게이트웨이 `AUTH_*_REDIRECT_URI` env drift 발견)
+- `[M]` 09-09 "정치 스릴러" 무관 픽 종결(교집합 메커니즘 규명 · 프로덕션 실측 2회 남산의 부장들·야당으로 교정 확인)
 - `[P]` 09-07 데스크톱 인프라 compose→k3s 전환 완주(`k8s/` 매니페스트 9종·deploy.sh · Docker Desktop `/Docker/host` 마운트發 kubelet 크래시 해결(systemd drop-in) · 구 compose 볼륨 DB 이전·검증)
 - `[P]` 09-07 노트북 프로덕션 k3s 1단계 컷오버(backend·auth·cloudflared 파드 · db·redis 도커 외부 연결 `external-db-redis.yaml` · `nginx-alias.yaml`로 502 복구 · 도커 backend·auth·nginx stop 보존)
 - `[M]` 09-03 무관 픽 '식객' RAG 연도 재검증 · 회귀 하네스 신설 · 키워드 사전 11엔트리 백필 · 분류기 추천 확정 가드 · general 429→200 강등
@@ -60,9 +62,11 @@
   폐기**: Arda는 신규 `arda-api`를 생성했고, 개인 EC2는 **중지 보관**
   (EBS 월 ~$3, 필요 없다고 확정되면 종료. ARDA_AWS_DEPLOY_GUIDE 표 참고).
 - **남은 것**: ① 노트북 lora-server 어댑터 동기화(현재 08-25 AWQ —
-  데스크톱 09-02 GGUF와 격차) ② 브라우저 실사용 검증(카카오 로그인·채팅·
-  gildle). ~~루트 CLAUDE.md 낡은 EC2 서술 갱신~~(09-08 완료 — 노트북
-  k3s·EC2 중지 보관 기준으로 교체). 상세: SUBDOMAIN_MIGRATION_PLAN.md.
+  데스크톱 09-02 GGUF와 격차). ~~브라우저 실사용 검증~~(09-09 API 레벨 전수
+  완료 — 채팅·gildle 경로계산·auth·웹 카카오 OAuth 302까지 실측, `[P]` 09-09.
+  카카오 동의 화면부터의 브라우저 클릭만 사용자 확인 잔여). ~~루트 CLAUDE.md
+  낡은 EC2 서술 갱신~~(09-08 완료 — 노트북 k3s·EC2 중지 보관 기준으로 교체).
+  상세: SUBDOMAIN_MIGRATION_PLAN.md.
 
 ### 서브도메인 이사 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
 - **개인 앱(mova·gildle)은 이사 안 함** — 서빙 실익 없음(세션 분리·OAuth
@@ -91,10 +95,11 @@
 (`scripts/eval_chat_queries.py`, 23질의)는 상시 사용.
 
 ### mova 채팅 품질 잔여
-- **"정치 스릴러 영화" 무관 픽**(캐시트럭·미션임파서블) — 정치 태그 42건
-  실재하는데 '스릴러' 토큰 물량이 압도하는 것으로 추정. 트레이스로 후보
-  조립(교집합 우선 발동 여부) 규명 필요. 유럽 로맨스·뉴욕 배경은 09-03
-  태그 확장으로 교정 완료.
+- ~~"정치 스릴러 영화" 무관 픽~~ — **09-09 종결**(`[M]` 09-09): 프로덕션
+  실측 2회 모두 남산의 부장들·야당으로 정상. 09-03 백필의 정치 태그가
+  스릴러 장르 태그와 교집합(`tag_and_ids` prio)을 이뤄 후보 맨 앞에 오는
+  구조로 설명됨. 09-03 당일 "미개선" 기록과의 차이(당시 EC2 vs 현 노트북)는
+  원인 미상으로 남김 — 재발 시에만 노트북 DB INTERSECT 실측으로 재개.
 - **의도 추출 Gemini 429 재시도 지연** — 쿼터 압박 시 SDK 재시도로
   3.7~5s까지 출렁(평시 0.9s). 옵션: 재시도 상한/타임아웃 단축 or 결정론
   우선. E2E 절대값은 쿼터 회복 후 재실측이 공정.
@@ -160,6 +165,12 @@
   생겼음.
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
+- **auth 게이트웨이 웹 OAuth env drift(09-09 발견)**: `/auth/login/{provider}`가
+  503 — `AUTH_{GOOGLE,KAKAO,NAVER}_REDIRECT_URI`가 `.env.example`엔 있는데
+  노트북·데스크톱 `.env` 모두 없음(컷오버 회귀 아님, 원래 미설정).
+  현 프론트는 backend viewer OAuth(`/viewer/oauth/...`)를 써서 실사용 영향
+  없음 — susu가 게이트웨이 웹 플로우를 쓰게 될 때 프로덕션 도메인 기준
+  값 확정해 3키 보충 + Secret 갱신·rollout. `check_env_drift.py`가 잡는 케이스.
 - **노트북 k3s 잔여 단계**(1단계는 09-07 완료 — 완료됨 인덱스 참고):
   2단계 redis 이관, 3단계 db(pgvector)는 밖에 둬도 무방(`k8s/README.md`).
   도커 backend·auth·nginx는 stop 상태로 롤백용 보존(`down` 금지). 배포는

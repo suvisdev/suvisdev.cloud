@@ -28,6 +28,46 @@
 
 ---
 
+## 2026-09-09
+
+### 작업 내용 (노트북 프로덕션 실사용 검증 — 09-07 컷오버 후속)
+- PROGRESS "남은 것" ② 브라우저 실사용 검증 착수. 첫 프로브에서 `api.`·
+  `auth.`·`lora-nb.` 전부 **530** — 독립 터널 2개(k3s cloudflared 파드 +
+  lora-nb 로컬 관리형)가 동시에 죽어 있어 파드 장애가 아니라 **노트북 WSL
+  미부팅**으로 진단(데스크톱 `lora.`·Vercel 프론트는 정상). 노트북 Windows는
+  켜져 있었으나 WSL2 VM은 세션이 열려야 부팅됨 — 사용자에게 WSL 터미널
+  개방을 요청해 복구(sshd가 노트북 WSL에 없어 원격 기동 불가, compose
+  시절부터 죽어 있던 라우트). **"상시 프로덕션"인데 WSL 자동 기동 장치가
+  없다는 운영 갭이 드러남** — 재부팅 때마다 수동 개입 필요.
+- WSL 부팅 후 API 레벨 전수 검증(전부 데스크톱에서 공개 URL로):
+  ① backend `/mova/rankings/hot` 200 실데이터 ② mova 채팅 "정치 스릴러"
+  정상 픽(상세 WORK_LOG_MOVA 09-09) ③ gildle `/api/gildle/routes` 9노드
+  경로 반환(hostPath 마운트 `scored_edges.json` 노트북에 실재 확인),
+  `map-data?mode=spring_autumn` 가로수 3건 — `summer_shade`의 빈 응답은
+  설계상 정상(여름 그늘은 경로 가중치에서만 쓰임) ④ auth `/healthz`·
+  `/.well-known/jwks.json` 200 ⑤ 웹 카카오 OAuth 시작
+  `/viewer/oauth/kakao/login` 302 → kauth.kakao.com, redirect_uri 정상.
+  카카오 동의 화면부터의 실클릭만 사용자 확인 잔여.
+
+### 오류·막힌 점
+- **auth 게이트웨이 웹 OAuth 503 발견**: `/auth/login/kakao?aud=suvis-mova`
+  → `"KAKAO_CLIENT_ID/AUTH_KAKAO_REDIRECT_URI가 설정되지 않았습니다"`
+  (google도 동일). 원인: `apps/auth/oauth_adapters/*.py`가 읽는
+  `AUTH_{GOOGLE,KAKAO,NAVER}_REDIRECT_URI`가 `.env.example`엔 있는데 실제
+  `.env`엔 없음(데스크톱 실측 0건 — env drift). 컷오버 회귀가 아니라 원래
+  미설정. 현 프론트 OAuth 버튼은 backend viewer 경로를 써서 실사용 무영향
+  — 백로그 등재(PROGRESS 구조·인프라), susu 웹 플로우 도입 시 보충.
+- 구 15432 SSH 터널(`ssh aws`)은 EC2행이라 노트북 프로덕션 DB 접근 경로가
+  아님을 확인 — 데스크톱→노트북 DB 원격 경로는 현재 없음(필요 시 노트북
+  WSL에서 직접 실행).
+
+### 데이터
+- 변경 없음(읽기 전용 검증).
+
+### 산출물
+- PROGRESS: 실사용 검증 완료 처리, 완료됨 인덱스 `[P]` 09-09 추가,
+  auth env drift 백로그 등재. 인터뷰 질문 09-09 추가.
+
 ## 2026-09-08
 
 ### 작업 내용 (_docs 전수 감사·정합성 복원)
