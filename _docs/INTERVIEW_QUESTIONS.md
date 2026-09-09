@@ -7,7 +7,69 @@
 
 ---
 
-## 2026-09-09
+## 2026-09-09 (오후 — LoRA 재학습·GGUF 노트북 배포)
+
+### A. 노트북 프로덕션을 AWQ에서 GGUF로 바꿀 때, 왜 "가중치만 교체"가 아니라 서빙 스택 전체를 바꿔야 했나?
+
+<details><summary>답 확인</summary>
+
+노트북은 AWQ 어댑터를 `serve.py`(gptqmodel+peft, fp16-AWQ 베이스에 LoRA 적용)로
+서빙 중이었다. 데스크톱이 새로 만든 건 **plain fp16 LoRA를 베이스에 병합해
+양자화한 GGUF**다 — 포맷도(safetensors 어댑터 vs 단일 gguf), 런타임도(PyTorch
+vs llama.cpp), 베이스도(AWQ 양자화본 vs fp16 병합본) 다르다. GGUF는 베이스+
+어댑터가 이미 하나로 병합돼 있어 노트북의 AWQ 베이스와 무관하게 자체 완결로
+돌아가는 게 장점이지만, 그걸 실행하려면 llama.cpp(`llama-server`) 스택이 필요
+하다. 그래서 파일 교체가 아니라 `serve.py`→`serve_gguf.py` 전환이 됐다.
+</details>
+
+### B. Linux CUDA 프리빌트가 없다는 걸 확인한 뒤에도 "Windows 네이티브 llama-server.exe" 대신 소스 CUDA 빌드를 택한 이유는?
+
+<details><summary>답 확인</summary>
+
+`serve_gguf.py`는 `_spawn()`에서 llama-server를 **같은 호스트의 자식
+프로세스**로 띄우고 `127.0.0.1:8201`로 프록시한다. 엔진만 Windows로 빼면
+(a) 파사드가 spawn을 안 하도록 코드를 고치고 (b) `_LLAMA_URL`을 Windows
+호스트로 돌리고 (c) WSL2↔Windows localhost 네트워킹을 검증해야 한다. 게다가
+모델 프로세스가 systemd 생명주기 밖으로 나가 운영이 갈라진다. 소스 CUDA
+빌드는 데스크톱과 100% 동일해 파사드 무수정·단일 생명주기라, "빌드 0분"의
+이점보다 경계를 가로지르는 취약성 회피가 더 값졌다.
+</details>
+
+### C. gcc 15.2 + CUDA 12.4 조합에서 빌드가 깨질 뻔했는데, 어떻게 뚫었고 왜 그 방법이 맞나?
+
+<details><summary>답 확인</summary>
+
+CUDA 12.4의 nvcc는 호스트 컴파일러로 gcc 13까지만 공식 지원해서 gcc 15.2를
+거부한다. 해법은 `-DCMAKE_CUDA_HOST_COMPILER=/usr/bin/gcc-13`로 **CUDA용
+호스트 컴파일러만 gcc-13으로 지정**하는 것. 추측이 아니라 데스크톱의
+CMakeCache.txt를 실측해 "데스크톱도 같은 gcc 15.2였고 gcc-13으로 풀었다"는
+검증된 레시피를 그대로 가져왔다. `-allow-unsupported-compiler`로 검사를 끄는
+폴백도 있었지만, 공식 지원 조합(gcc-13)을 쓰는 게 미묘한 컴파일 오류 위험이
+없어 우선했다.
+</details>
+
+### D. hook 다이어트(120→80)가 "재학습 필수"로 적혀 있었는데 재학습 없이 캡만 바꾼 판단의 근거는?
+
+<details><summary>답 확인</summary>
+
+실측이 근거다. 교사 데이터셋 227개 pick의 hook 길이가 16~35자(80 초과 0건)
+이고 서빙 프롬프트가 이미 "40자 이내"를 지시한다. 즉 모델은 이미 짧은 hook을
+생성하고, 120→80은 **한 번도 발동한 적 없는 방어적 truncation 캡**을 조인
+것뿐이라 학습 데이터·모델 동작이 안 바뀐다. "재학습 필수"는 프롬프트 목표
+자체를 40자 미만으로 낮춰 더 짧은 completion을 새로 가르칠 때만 성립한다.
+문서의 메모를 그대로 믿지 않고 데이터로 재검증한 사례.
+</details>
+
+### E. 크로스세션에서 노트북 세션 분류기가 git clone·curl을 막았을 때, 데스크톱 세션이 대신 실행하지 않은 이유는?
+
+<details><summary>답 확인</summary>
+
+권한 경계는 세션별이다. 피어 세션에서 차단된 작업을 다른 세션이 대신 하면
+사용자의 권한 결정을 우회하는 "권한 세탁"이 된다. 그래서 차단될 때마다
+데스크톱 세션이 우회하지 않고 사용자에게 (a) 노트북 세션에서 허용하거나
+(b) 노트북 WSL에서 직접 실행하도록 위임했다. 자동화 편의보다 권한 모델의
+무결성이 우선이다.
+</details>
 
 ### 1. `api.`·`auth.`·`lora-nb.`가 전부 530인데 "파드 장애"가 아니라 "노트북 WSL 미부팅"으로 진단한 근거는?
 

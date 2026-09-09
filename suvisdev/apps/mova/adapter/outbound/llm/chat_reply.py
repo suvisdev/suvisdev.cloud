@@ -94,7 +94,7 @@ class ChatReplyService:
                 title = _strip_hanja(pick.title.strip())
                 if not title:
                     continue
-                hook = _strip_hanja(pick.hook.strip())[:120]
+                hook = _strip_hanja(pick.hook.strip())[:80]
                 platform = (
                     pick.platform.strip() if pick.platform and pick.platform.strip() else None
                 )

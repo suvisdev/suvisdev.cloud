@@ -17,6 +17,7 @@
 
 - `[P]` 09-09 노트북 프로덕션 컷오버 후 실사용 검증(API 전수 — backend·gildle 경로계산·auth·웹 카카오 OAuth 302 · 터널 530=WSL 미부팅 진단 · auth 게이트웨이 `AUTH_*_REDIRECT_URI` env drift 발견)
 - `[M]` 09-09 "정치 스릴러" 무관 픽 종결(교집합 메커니즘 규명 · 프로덕션 실측 2회 남산의 부장들·야당으로 교정 확인)
+- `[M]`·`[P]` 09-09 LoRA 재학습 배치 큐 소진 + 노트북 lora-server AWQ→GGUF 이전(교사 92→94건 재생성 · 3에폭 loss 0.52 `mova_20260909_025528` · GGUF Q5_K_M · 노트북 소스 CUDA 빌드 sm_89 · drop-in override 전환 · RTX 4060 256tok 2.38s · hook 캡 120→80 · evaluate 줄거리+리뷰 종합)
 - `[P]` 09-07 데스크톱 인프라 compose→k3s 전환 완주(`k8s/` 매니페스트 9종·deploy.sh · Docker Desktop `/Docker/host` 마운트發 kubelet 크래시 해결(systemd drop-in) · 구 compose 볼륨 DB 이전·검증)
 - `[P]` 09-07 노트북 프로덕션 k3s 1단계 컷오버(backend·auth·cloudflared 파드 · db·redis 도커 외부 연결 `external-db-redis.yaml` · `nginx-alias.yaml`로 502 복구 · 도커 backend·auth·nginx stop 보존)
 - `[M]` 09-03 무관 픽 '식객' RAG 연도 재검증 · 회귀 하네스 신설 · 키워드 사전 11엔트리 백필 · 분류기 추천 확정 가드 · general 429→200 강등
@@ -61,8 +62,11 @@
 - ~~EC2 개인 스택 down·Elastic IP·t3.small 축소~~ — **09-04 결정 변경으로
   폐기**: Arda는 신규 `arda-api`를 생성했고, 개인 EC2는 **중지 보관**
   (EBS 월 ~$3, 필요 없다고 확정되면 종료. ARDA_AWS_DEPLOY_GUIDE 표 참고).
-- **남은 것**: ① 노트북 lora-server 어댑터 동기화(현재 08-25 AWQ —
-  데스크톱 09-02 GGUF와 격차). ~~브라우저 실사용 검증~~(09-09 API 레벨 전수
+- **남은 것**: ~~① 노트북 lora-server 어댑터 동기화~~ **(09-09 완료)** —
+  노트북을 AWQ(serve.py)→GGUF(serve_gguf) 스택으로 이전하고 재학습 어댑터
+  `mova_20260909_025528`(loss 0.52) 반영. 소스 CUDA 빌드(sm_89)+drop-in
+  override, RTX 4060 256tok 2.38s. 상세 `[P]`·`[M]` 09-09.
+  ~~브라우저 실사용 검증~~(09-09 API 레벨 전수
   완료 — 채팅·gildle 경로계산·auth·웹 카카오 OAuth 302까지 실측, `[P]` 09-09.
   카카오 동의 화면부터의 브라우저 클릭만 사용자 확인 잔여). ~~루트 CLAUDE.md
   낡은 EC2 서술 갱신~~(09-08 완료 — 노트북 k3s·EC2 중지 보관 기준으로 교체).
@@ -117,10 +121,14 @@
   재학습은 진짜 트리거(출력 계약 변경 / 생성 단계 체계적 실패 / 데이터셋
   유의미 증분)가 모였을 때 **한 번에**: 데이터셋 재생성 → 학습 → GGUF
   변환(`export_mova_gguf.py`) → /reload.
-- **현재 큐**: ① 09-03 태그 확장(뉴욕·유럽·직장·정치)으로 살아날 교사 예제
-  +5~10건 ② hook 길이 다이어트 120→80자(출력 계약 변경이라 재학습 필수,
-  단독 실행 수지 안 맞아 대기) ③ 이후 사전 확장분. 잔여 교사 스킵 17건
-  (배우명·형사물 등)은 실서비스 정상이라 태그 사전 확장 여지로만 남김.
+- ~~현재 큐 ①②~~ **(09-09 소진)**: 교사 데이터셋 92→94건 재생성(09-03 태그로
+  뉴욕·유럽·프랑스 부활) → 3에폭 재학습(loss 0.52, `mova_20260909_025528`)
+  → GGUF → 노트북 배포까지 완주. **hook 다이어트(②)는 재학습 불요로 판명**
+  (교사 hook 16~35자·프롬프트 이미 40자 이내 → 120→80은 방어 캡만 조인 것),
+  캡 변경만 코드 반영. 상세 `[M]` 09-09.
+- **현재 큐(잔여)**: 이후 태그 사전 확장분. 잔여 교사 스킵 15건(배우명·형사물·
+  정치 스릴러 등)은 실서비스 정상이라 태그 사전 확장 여지로만 남김. hook
+  프롬프트 목표를 40자 미만으로 낮추려면 그때는 교사 completion 재생성 필요.
 
 ### ~~EC2 전체 재빌드 불가~~ — 폐기(개인 백엔드 노트북 이전으로 무의미)
 - 09-03 노트북 이전 + 09-04 개인 EC2 중지 보관 확정으로 30GB 디스크·
@@ -165,6 +173,16 @@
   생겼음.
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
+- **evaluate 개선·hook 캡 backend 코드 미배포(09-09)**: `chat_reply.py`·
+  `market_chat_pg_repository.py` hook 캡 120→80, `market_chat_evaluation_
+  interactor.py` evaluate 프롬프트(줄거리+리뷰 종합) — 커밋 후 노트북 backend
+  이미지 재빌드(`./k8s/deploy.sh --external-db --build` + rollout)해야 프로덕션
+  반영. LoRA/GGUF(lora-server)와 별개 경로.
+- **노트북 lora-server 토큰 미설정(09-09 발견)**: 유닛에 `LORA_SERVER_TOKEN`
+  없어 `serve_gguf`가 인증 없이 `0.0.0.0:8200` 서빙(serve.py 시절부터 동일,
+  전환 무관). 백엔드는 WSL 내부 10.42.0.1로만 도달하나, 토큰 설정 시
+  데스크톱 유닛처럼 Environment 추가 + 백엔드 `LORA_SERVER_TOKEN` Secret 동기화
+  필요.
 - **auth 게이트웨이 웹 OAuth env drift(09-09 발견)**: `/auth/login/{provider}`가
   503 — `AUTH_{GOOGLE,KAKAO,NAVER}_REDIRECT_URI`가 `.env.example`엔 있는데
   노트북·데스크톱 `.env` 모두 없음(컷오버 회귀 아님, 원래 미설정).

@@ -68,6 +68,52 @@
 - PROGRESS: 실사용 검증 완료 처리, 완료됨 인덱스 `[P]` 09-09 추가,
   auth env drift 백로그 등재. 인터뷰 질문 09-09 추가.
 
+### 작업 내용 (오후 — 노트북 lora-server AWQ→GGUF 스택 이전 완주)
+- CLAUDE.md "동기화 잔여"(노트북 08-25 AWQ vs 데스크톱 09-02 GGUF) 해소.
+  데스크톱에서 재학습·GGUF 변환한 새 어댑터(`mova_20260909_025528`)를 노트북
+  프로덕션 lora-server에 반영. **크로스세션 오케스트레이션**: 데스크톱 세션이
+  설계·빌드 레시피·검증을 담당하고, 노트북 프로덕션은 `teagy-keen-hinton`
+  Claude 세션(Remote Control)이 실행. 데스크톱은 노트북에 직접 도달 불가
+  (sshd 없음)라 이 구조가 필수였음.
+- **배포 방식 결정**: 노트북은 구 AWQ(serve.py) 스택 → GGUF 서빙엔 llama.cpp
+  필요. Linux CUDA 프리빌트가 **없음을 GitHub 릴리스 실조회로 확인**(CUDA
+  프리빌트는 Windows 전용, Linux는 CPU·ROCm·SYCL·Vulkan만). Windows 네이티브
+  llama-server.exe는 `serve_gguf._spawn()`이 로컬 subprocess+127.0.0.1:8201을
+  가정해 코드 변경+WSL↔Windows 네트워킹이 필요 → 제외. **데스크톱과 동일한
+  소스 CUDA 빌드**로 결정(파사드 무수정·단일 systemd 생명주기).
+- **빌드**(노트북, ~12분): 데스크톱 CMakeCache 실측 레시피 재사용 —
+  gcc 15.2+CUDA 12.4 호스트 컴파일러 검사 회피를 위해 `gcc-13`을 CUDA host
+  compiler로 지정(데스크톱도 동일 방식이었음), arch만 sm_86→**sm_89(RTX
+  4060 Ada)**. `cmake -DGGML_CUDA=ON ... -DCMAKE_CUDA_ARCHITECTURES=89
+  -DCMAKE_CUDA_HOST_COMPILER=/usr/bin/gcc-13 -DLLAMA_CURL=OFF`. libggml-cuda
+  정상 링크.
+- **전환**: GGUF(S3 presigned URL→curl 다운로드, 1.73GB) → `LATEST_GGUF`
+  기록 → **systemd drop-in override**(`gguf.conf`, ExecStart만 serve_gguf로
+  교체, 원본 유닛·AWQ LATEST 보존 → 롤백 용이) → daemon-reload+restart.
+- **검증**(RTX 4060 8GB / EXAONE-2.4B GGUF Q5_K_M / -ngl 99 / ctx 4096 /
+  driver 560.94): /health backend=gguf, **256tok 2.38s·108.8 tok/s**,
+  VRAM 2119 MiB(AWQ 종료로 클린, RAM 4.3G→307MB), 유효 JSON·그라운딩·
+  깨짐 없음. 프로덕션 E2E 정상.
+
+### 오류·막힌 점
+- 크로스세션: 노트북 Claude 세션의 권한 분류기가 `kubectl exec`(S3 업로드
+  형태)·`git clone`·`curl`(presigned 다운로드)을 반복 차단 → 각 단계에서
+  사용자가 노트북 WSL에 직접 실행하거나 세션 권한을 허용해 진행. 권한 세탁
+  금지 원칙에 따라 데스크톱 세션이 우회하지 않고 매번 사용자에게 위임.
+- 전송 경로: 데스크톱↔노트북 직접 경로 없음(sshd 없음) → **S3 경유**로 통일
+  (교사 데이터셋 업/다운, GGUF는 presigned URL). EC2 중지 보관과 무관하게
+  S3는 살아 있음을 데스크톱에서 왕복 테스트로 재확인.
+- **보안 관찰**: 노트북 lora-server 유닛에 `LORA_SERVER_TOKEN` 미설정 →
+  `serve_gguf`가 인증 없이 `0.0.0.0:8200` 서빙(serve.py 시절부터 동일한
+  기존 상태, 전환이 만든 것 아님). 백엔드는 WSL 내부 10.42.0.1로만 도달.
+  백로그 등재(PROGRESS).
+
+### 산출물(추가)
+- 노트북: llama.cpp CUDA 빌드(sm_89), GGUF 배포, drop-in override.
+- S3: `transfer/chat_teacher_dataset_20260909.jsonl`,
+  `transfer/mova_20260909_025528-Q5_K_M.gguf`.
+- PROGRESS: 노트북 GGUF 동기화 완료 처리, 토큰 갭·backend 코드 미배포 백로그.
+
 ## 2026-09-08
 
 ### 작업 내용 (_docs 전수 감사·정합성 복원)

@@ -359,7 +359,7 @@ class ChatPgRepository(ChatRepositoryPort):
                     user_id=user_id,
                     movie_id=movie_id,
                     pick_rank=rank,
-                    hook=(rec.hook or "")[:120] or None,
+                    hook=(rec.hook or "")[:80] or None,
                     title_snapshot=rec.title,
                     batch_at=batch_at,
                     feedback=None,

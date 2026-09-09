@@ -231,7 +231,7 @@ async def main() -> None:
                 {
                     "movie_id": mid,
                     "title": str(p.get("title", "")).strip(),
-                    "hook": str(p.get("hook", "")).strip()[:120],
+                    "hook": str(p.get("hook", "")).strip()[:80],
                 }
             )
         if not valid_picks:
