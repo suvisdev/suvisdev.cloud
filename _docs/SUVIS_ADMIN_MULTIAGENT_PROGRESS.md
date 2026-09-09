@@ -172,6 +172,24 @@
   트레이드오프(초성 게임 품질). 베이지안 가중 정렬(09-01)로 노이즈 방어는
   생겼음.
 
+### 보안 백로그 (2026-09-09 전수 조사)
+- ~~🔴① vision `/upload` 무인증+무제한+GPU DoS~~ **수정 `f7703bc`**(require_user
+  +10MB+MIME, 프론트 토큰 전달) — **미배포**. ~~🔴③ CORS `["*"]`+credentials~~
+  **수정 `f7703bc`**(화이트리스트) — 미배포.
+- **🔴② 노트북 lora-server 무인증**: `.env`+serve_gguf 유닛에 `LORA_SERVER_TOKEN`
+  추가 + 재기동(backend는 이미 X-LoRA-Token 전송). backend 재배포 시 함께.
+- **🟡**: mova `POST /import/tmdb·/kofic` 무인증 쓰기(`require_admin` 필요) ·
+  access TTL 7일+웹 리프레시 미사용 · media 오류 원문 노출·크기검사 전 전체
+  적재 · 토큰 localStorage(httpOnly 쿠키 부재) · pgadmin admin/admin(replicas:0).
+- **미확인**: S3 버킷 실제 공개 여부(AWS 콘솔 확인 권장 — CLAUDE.md는 private).
+
+### mova 채팅 UX 잔여 (2026-09-09)
+- ~~evaluate 맥락 이음·정직~~ **수정 `525dc80`**(제목 없는 "어때?" 후속 → 직전
+  영화 역조회 evaluate, 미개봉작 정직) — **미배포**. **Issue 2(선택지 칩) 미착수**:
+  ambiguous 후보를 응답 스키마 `choices` 필드로 구조화 + 프론트 클릭 칩 렌더.
+- **교사 스킵 태그 확장은 무용 판정(09-09)**: 라벨 이미 존재, 원인은 배우 매칭·
+  origin_country 백필·카탈로그 커버리지. 실오답 트레이스 시 표적 수정(A안).
+
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
 - **evaluate 개선·hook 캡 backend 코드 미배포(09-09)**: `chat_reply.py`·
   `market_chat_pg_repository.py` hook 캡 120→80, `market_chat_evaluation_

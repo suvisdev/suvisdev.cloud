@@ -135,6 +135,31 @@
   `transfer/mova_20260909_025528-Q5_K_M.gguf`.
 - PROGRESS: 노트북 GGUF 동기화 완료 처리, 토큰 갭·backend 코드 미배포 백로그.
 
+### 작업 내용 (저녁 — 보안 전수 조사 + 모델 인벤토리 + 🔴 2건 수정)
+- 사용자 요청("보안이 어떻게 걸려있는지")으로 **병렬 에이전트 3영역 전수 조사**
+  (인증·인가 / 시크릿·인프라 / 데이터노출·인젝션) + **모델 인벤토리** 조사.
+- **잘 된 부분**: IDOR(신원=토큰 principal, body user_id 무시, 08-07 5건 수정
+  이력), SQL 파라미터 바인딩(인젝션 표면 없음), LLM 프롬프트 인젝션 방어
+  (`fence_user_text`+INJECTION_GUARD), OAuth(state CSRF·handoff code·JWKS),
+  하드코딩 시크릿 0건.
+- **인터넷 노출면 기준 🔴 3건**: ① vision `/upload` 무인증+무제한+GPU DoS
+  ② 노트북 lora-server 무인증(토큰 미설정) ③ CORS `["*"]`+credentials.
+  🟡: import 무인증 쓰기·access TTL 7일·media 오류 원문 노출·localStorage 토큰·
+  pgadmin admin/admin.
+- **수정(커밋 `f7703bc`)**: 🔴① `vision_router.py`에 `require_user`+10MB+image
+  MIME 게이트, 프론트 vision 페이지 Bearer 토큰 전달·상한 정합. 🔴③ `main.py`
+  CORS를 suvisdev.cloud·www·localhost 화이트리스트로. **미배포**(backend 재빌드
+  + Vercel 자동배포 대기). 🔴② lora 토큰은 노트북 설정(`.env`+serve_gguf 유닛)
+  이라 배포 시 함께 처리 예정.
+- **모델 인벤토리**(활성 9종): Gemini 3.1(flash-lite 기본/pro 옵션) · EXAONE-2.4B
+  +mova LoRA(GGUF Q5_K_M) · Qwen2.5-1.5B(인텐트/Ollama) · nomic-embed-text(RAG) ·
+  Echo(EXAONE 4bit) · Sentinel(CLIP ViT-B/32) · ConvNeXt-Nano · YOLOv11-nano.
+  비활성/롤백: fp16 serve.py·EXAONE-7.8B-AWQ·diffusion 스텁 등.
+
+### 산출물(저녁)
+- 커밋 `f7703bc`(vision 게이트 + CORS 화이트리스트).
+- PROGRESS: 🔴①③ 수정 완료·🔴② 대기·🟡 백로그 등재.
+
 ## 2026-09-08
 
 ### 작업 내용 (_docs 전수 감사·정합성 복원)
