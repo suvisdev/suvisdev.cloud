@@ -74,6 +74,10 @@ kubectl apply \
 # 충분해 --external-db(노트북)일 때만 apply한다.
 if [ "$EXTERNAL_DB" = 1 ]; then
   kubectl apply -f ingress.yaml
+  # cloudflared.yaml은 데스크톱 보호용 replicas:0이라, 위 apply가 노트북 터널
+  # 커넥터를 0으로 덮어 api./auth.suvisdev.cloud가 530이 된다(2026-09-09 사고).
+  # 프로덕션(--external-db)에서만 1로 복원한다(README 수동 scale 단계 자동화).
+  kubectl -n "$NS" scale deploy/cloudflared --replicas=1
 fi
 
 if [ "$BUILD" = 1 ]; then

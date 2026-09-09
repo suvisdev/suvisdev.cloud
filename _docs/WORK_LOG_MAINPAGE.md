@@ -108,8 +108,29 @@
   기존 상태, 전환이 만든 것 아님). 백엔드는 WSL 내부 10.42.0.1로만 도달.
   백로그 등재(PROGRESS).
 
+### 오류·막힌 점 (backend 재빌드 배포 — evaluate/hook 프로덕션 반영)
+- **sudo TTY**: `deploy.sh --build`를 Claude Code `!` 프리픽스로 돌리니
+  `sudo k3s ctr images import`가 "terminal is required to authenticate"로
+  중단(도커 빌드는 성공). 일반 WSL 터미널에서 재실행해 통과.
+- **⚠️ 프로덕션 530 사고**: `deploy.sh`가 `cloudflared.yaml`(데스크톱 보호용
+  `replicas: 0`)을 무조건 apply해 **노트북 터널 커넥터를 0으로 스케일다운**
+  → `api.suvisdev.cloud` 530(외부 다운). backend·auth rollout 자체는 성공
+  (파드에서 chat_reply.py `[:80]` 반영 확인). 복구: `kubectl -n suvisdev
+  scale deploy/cloudflared --replicas=1`(530→정상). 이건 노트북에서 deploy.sh
+  돌 때마다 재발하는 **구조 결함**이라 근본 수정(아래).
+- **근본 수정**: `k8s/deploy.sh`의 `--external-db` 분기에 apply 뒤
+  `kubectl scale deploy/cloudflared --replicas=1` 추가(README 수동 단계
+  자동화). 데스크톱 경로는 그대로 0 유지(프로덕션 토큰 흡입 방지).
+
+### 검증 (backend 배포 후 E2E)
+- backend `/mova/rankings/hot` 200. evaluate "남산의 부장들 어때?" →
+  줄거리 선행 + TMDB 리뷰 공통 반응 종합 + 표본 부족 명시(새 프롬프트 규칙
+  ⑦⑧ 반영 확인). 파드 imageID가 방금 빌드 config sha와 일치.
+
 ### 산출물(추가)
 - 노트북: llama.cpp CUDA 빌드(sm_89), GGUF 배포, drop-in override.
+- 커밋 `e2f8034`(mova 코드 4 + 문서 4, origin/main 푸시). deploy.sh
+  cloudflared 복원 수정은 커밋 대기.
 - S3: `transfer/chat_teacher_dataset_20260909.jsonl`,
   `transfer/mova_20260909_025528-Q5_K_M.gguf`.
 - PROGRESS: 노트북 GGUF 동기화 완료 처리, 토큰 갭·backend 코드 미배포 백로그.
