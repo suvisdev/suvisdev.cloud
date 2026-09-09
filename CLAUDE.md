@@ -227,9 +227,10 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   터널(`lora.suvisdev.cloud`)도 내려가지만, **프로덕션(노트북)은 자체
   lora-server를 직결하므로 영향 없다** — 터널 530을 장애로 오판하지 말 것.
   노트북 lora-server도 상시 서빙(2026-09-02 결정)이며
-  `lora-nb.suvisdev.cloud`(로컬 관리형 터널 `lora-nb`)로 노출된다. 단
-  노트북 어댑터는 08-25 AWQ 구버전 — 데스크톱 09-02 GGUF와 동기화 잔여
-  (`_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md` "남은 것").
+  `lora-nb.suvisdev.cloud`(로컬 관리형 터널 `lora-nb`)로 노출된다. **노트북도
+  2026-09-09부터 GGUF 스택**(serve_gguf + 소스 CUDA 빌드 llama.cpp sm_89,
+  systemd drop-in override로 serve.py→serve_gguf 교체)으로 데스크톱과 동기화됨
+  — 어댑터 `mova_20260909_025528`, 구 08-25 AWQ(serve.py·LATEST)는 롤백용 보존.
 - 개인 배포 환경: **프로덕션은 노트북(teagy, RTX 4060) k3s 1단계**(backend·
   auth·cloudflared 파드, db·redis 도커, 2026-09-07 컷오버), 데스크톱은 개발·
   학습용 k3s. 구 개인 EC2(m7i-flex.large)는 **중지 보관**(09-04 결정 — Arda는
