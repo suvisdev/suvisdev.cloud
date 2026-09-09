@@ -337,9 +337,15 @@ class _ApiAuthMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Suvisdev Main Page", lifespan=lifespan)
 
+# allow_origins=["*"] + allow_credentials=True는 오구성이다(모든 출처에 자격증명
+# 허용). 프론트 실제 origin만 화이트리스트로 둔다(auth_main.py와 동일 방식).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://suvisdev.cloud",
+        "https://www.suvisdev.cloud",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

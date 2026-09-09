@@ -6,9 +6,10 @@ import { Database, ImageIcon, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { getSuvisSession } from "@/lib/suvis-session"
 
 const ACCEPT = ".jpg,.jpeg,.png,image/jpeg,image/png"
-const MAX_BYTES = 20 * 1024 * 1024 // 20MB
+const MAX_BYTES = 10 * 1024 * 1024 // 10MB (백엔드 업로드 상한과 일치)
 const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
@@ -54,6 +55,11 @@ export default function VisionUploadPage() {
 
   const uploadImage = useCallback(async () => {
     if (!file) return
+    const token = getSuvisSession()?.token
+    if (!token) {
+      setUploadError("업로드하려면 로그인이 필요해요.")
+      return
+    }
     setUploading(true)
     setUploadError("")
     setUploadResult("")
@@ -63,6 +69,7 @@ export default function VisionUploadPage() {
       const res = await fetch(`${API_BASE}/api/vision/upload`, {
         method: "POST",
         body: formData,
+        headers: { Authorization: `Bearer ${token}` },
       })
       let data: { filename?: string; size_bytes?: number; detail?: string | { msg?: string }[] } =
         {}
