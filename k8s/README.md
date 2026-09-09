@@ -32,6 +32,23 @@ kubectl -n suvisdev get pods -w
 
 이후 코드 변경 배포는 `./k8s/deploy.sh --build` 한 방(빌드→import→apply→rollout).
 
+### `sudo k3s ctr images import` 비번 없이 (선택, 배포 매끄럽게)
+
+`deploy.sh --build`의 `sudo k3s ctr images import`가 매번 비밀번호를 물어
+`!`(TTY 없음) 실행을 막는다. 그 한 명령만 NOPASSWD로 열면 배포가 비대화식으로
+돈다(2026-09-09 결정, 옵션 B — 불변 이미지 방식 유지, hostPath 코드 마운트는
+`.env` override 문제로 폐기). 머신마다 1회:
+
+```bash
+K3S=$(command -v k3s)   # 보통 /usr/local/bin/k3s
+echo "$USER ALL=(root) NOPASSWD: $K3S ctr images import *" | sudo tee /etc/sudoers.d/k3s-image-import
+sudo chmod 0440 /etc/sudoers.d/k3s-image-import
+sudo visudo -c          # 문법 검증(반드시 OK 확인)
+```
+
+범위는 `k3s ctr images import`(로컬 이미지 import) 한 서브커맨드뿐 — 전체
+`k3s`/`sudo`가 아니다. 이후 `deploy.sh --build`가 비번 프롬프트 없이 완주한다.
+
 ## compose → k8s 대응표
 
 | 구 compose | k8s | 접근 |
