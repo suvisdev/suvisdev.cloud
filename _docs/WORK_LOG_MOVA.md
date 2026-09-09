@@ -84,8 +84,8 @@
 - **evaluate 트랙 개선**(사용자 요청 "어때? → 줄거리+리뷰 종합"):
   `market_chat_evaluation_interactor.py` `_EVALUATION_SYSTEM_PROMPT`에 규칙
   ⑦(시놉시스 있으면 줄거리 1~2문장 먼저) ⑧(리뷰 발췌 있으면 공통 반응
-  종합) 추가. Gemini(Mycroft) 처리 트랙이라 LoRA와 무관. ⚠️ backend 코드라
-  프로덕션 반영엔 이미지 재빌드 배포 필요(현재 미배포).
+  종합) 추가. Gemini(Mycroft) 처리 트랙이라 LoRA와 무관. backend 재배포
+  (e7b3f66)로 프로덕션 반영·검증 완료.
 
 ### 검증
 - mova 테스트 **302 passed**(hook 캡·evaluate 변경 후). 데스크톱 GGUF 검증:
@@ -115,7 +115,8 @@
   in_text`, 가장 긴 제목 우선)해 evaluate로 잇는다(booking `pending_title`과
   대칭). evaluate 서비스엔 정직 가드 추가 — 줄거리·평점·리뷰 전무하면 지어내지
   않고 자료 부족 안내. 판별기·후속·정직 회귀 테스트 3종, mova 306 passed.
-  ⚠️ 프로덕션 반영은 backend 재배포 필요(미배포). Issue 2(선택지 칩)는 백로그.
+  backend 재배포(e7b3f66)로 반영·검증 완료(프로덕션 "어떠냐고" →
+  response_type=evaluation 실측). Issue 2(선택지 칩)는 백로그.
 - **교사 스킵 15건 재분석**(사용자 "태그 사전 확장으로 살리자" 검토): 실측 결과
   **태그 사전 확장은 지렛대가 아님** — 정치·법정·춤·음악·직장·복수·심리 라벨이
   `tmdb_keyword_map`에 이미 존재(joseon→사극만 부재). 진짜 원인은 배우 매칭(3)·

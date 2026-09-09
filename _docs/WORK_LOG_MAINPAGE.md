@@ -146,11 +146,11 @@
   ② 노트북 lora-server 무인증(토큰 미설정) ③ CORS `["*"]`+credentials.
   🟡: import 무인증 쓰기·access TTL 7일·media 오류 원문 노출·localStorage 토큰·
   pgadmin admin/admin.
-- **수정(커밋 `f7703bc`)**: 🔴① `vision_router.py`에 `require_user`+10MB+image
-  MIME 게이트, 프론트 vision 페이지 Bearer 토큰 전달·상한 정합. 🔴③ `main.py`
-  CORS를 suvisdev.cloud·www·localhost 화이트리스트로. **미배포**(backend 재빌드
-  + Vercel 자동배포 대기). 🔴② lora 토큰은 노트북 설정(`.env`+serve_gguf 유닛)
-  이라 배포 시 함께 처리 예정.
+- **수정·배포·검증 완료(커밋 `f7703bc`, 재배포 `e7b3f66`)**: 🔴① `vision_router.py`
+  `require_user`+10MB+MIME 게이트 + 프론트 토큰 전달(프로덕션 무인증 401 실측).
+  🔴③ `main.py` CORS 화이트리스트(suvisdev.cloud 허용·evil.com 차단 실측). 🔴②
+  lora 토큰 — backend `.env`엔 이미 있었고 serve_gguf 유닛에만 없어 검증 안 되던
+  것 → 기존 토큰을 유닛 드롭인에 추가·재기동(무인증 401·정상 200 실측).
 - **모델 인벤토리**(활성 9종): Gemini 3.1(flash-lite 기본/pro 옵션) · EXAONE-2.4B
   +mova LoRA(GGUF Q5_K_M) · Qwen2.5-1.5B(인텐트/Ollama) · nomic-embed-text(RAG) ·
   Echo(EXAONE 4bit) · Sentinel(CLIP ViT-B/32) · ConvNeXt-Nano · YOLOv11-nano.

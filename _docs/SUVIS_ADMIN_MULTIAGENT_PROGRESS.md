@@ -173,29 +173,30 @@
   생겼음.
 
 ### 보안 백로그 (2026-09-09 전수 조사)
-- ~~🔴① vision `/upload` 무인증+무제한+GPU DoS~~ **수정 `f7703bc`**(require_user
-  +10MB+MIME, 프론트 토큰 전달) — **미배포**. ~~🔴③ CORS `["*"]`+credentials~~
-  **수정 `f7703bc`**(화이트리스트) — 미배포.
-- **🔴② 노트북 lora-server 무인증**: `.env`+serve_gguf 유닛에 `LORA_SERVER_TOKEN`
-  추가 + 재기동(backend는 이미 X-LoRA-Token 전송). backend 재배포 시 함께.
-- **🟡**: mova `POST /import/tmdb·/kofic` 무인증 쓰기(`require_admin` 필요) ·
+- ~~🔴① vision `/upload` 무인증+무제한+GPU DoS~~ **배포·검증 완료**(`f7703bc`,
+  require_user+10MB+MIME, 프론트 토큰 전달 — 프로덕션 무인증 업로드 401 실측).
+  ~~🔴③ CORS `["*"]`+credentials~~ **배포·검증 완료**(화이트리스트 — suvisdev.cloud
+  허용·evil.com 차단 실측).
+- ~~🔴② 노트북 lora-server 무인증~~ **완료**: backend `.env`엔 토큰이 이미
+  있었고 serve_gguf 유닛에만 없어 검증을 안 하던 것 → 기존 토큰을 유닛
+  드롭인에 추가·재기동. 무인증/오토큰 401·정상 200 실측.
+- **🟡(미착수)**: mova `POST /import/tmdb·/kofic` 무인증 쓰기(`require_admin` 필요) ·
   access TTL 7일+웹 리프레시 미사용 · media 오류 원문 노출·크기검사 전 전체
   적재 · 토큰 localStorage(httpOnly 쿠키 부재) · pgadmin admin/admin(replicas:0).
 - **미확인**: S3 버킷 실제 공개 여부(AWS 콘솔 확인 권장 — CLAUDE.md는 private).
 
 ### mova 채팅 UX 잔여 (2026-09-09)
-- ~~evaluate 맥락 이음·정직~~ **수정 `525dc80`**(제목 없는 "어때?" 후속 → 직전
-  영화 역조회 evaluate, 미개봉작 정직) — **미배포**. **Issue 2(선택지 칩) 미착수**:
+- ~~evaluate 맥락 이음·정직~~ **배포·검증 완료**(`525dc80` — "어떠냐고"→직전 영화
+  역조회 evaluate, 줄거리 선행+리뷰 종합, 프로덕션 response_type=evaluation 실측).
+  **Issue 2(선택지 칩) 미착수**:
   ambiguous 후보를 응답 스키마 `choices` 필드로 구조화 + 프론트 클릭 칩 렌더.
 - **교사 스킵 태그 확장은 무용 판정(09-09)**: 라벨 이미 존재, 원인은 배우 매칭·
   origin_country 백필·카탈로그 커버리지. 실오답 트레이스 시 표적 수정(A안).
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
-- **evaluate 개선·hook 캡 backend 코드 미배포(09-09)**: `chat_reply.py`·
-  `market_chat_pg_repository.py` hook 캡 120→80, `market_chat_evaluation_
-  interactor.py` evaluate 프롬프트(줄거리+리뷰 종합) — 커밋 후 노트북 backend
-  이미지 재빌드(`./k8s/deploy.sh --external-db --build` + rollout)해야 프로덕션
-  반영. LoRA/GGUF(lora-server)와 별개 경로.
+- ~~evaluate 개선·hook 캡 backend 코드 미배포(09-09)~~ **배포 완료**: hook 캡
+  120→80 · evaluate 프롬프트(줄거리+리뷰 종합)가 e2f8034→e7b3f66 재배포로
+  프로덕션 반영·검증됨.
 - **노트북 lora-server 토큰 미설정(09-09 발견)**: 유닛에 `LORA_SERVER_TOKEN`
   없어 `serve_gguf`가 인증 없이 `0.0.0.0:8200` 서빙(serve.py 시절부터 동일,
   전환 무관). 백엔드는 WSL 내부 10.42.0.1로만 도달하나, 토큰 설정 시
