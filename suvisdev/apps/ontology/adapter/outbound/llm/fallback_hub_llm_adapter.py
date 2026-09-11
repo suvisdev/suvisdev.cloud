@@ -1,9 +1,9 @@
 """HubLlmPort 폴백 조합 — primary 실패 시 fallback으로 한 번 더 시도.
 
-EC2엔 Ollama(Qwen)가 없어 인텐트 분류가 항상 호출 실패 → 기본값(recommend)으로
+Ollama(Qwen)가 없는 배포 환경에선 인텐트 분류가 항상 호출 실패 → 기본값(recommend)으로
 새던 잠복 결함(2026-08-28 3트랙 배포 실측에서 발견 — 기본값이 rag이던 시절엔
 증상이 안 보였다). 추천 어댑터의 LoRA→Gemini 폴백과 같은 철학으로, 분류도
-Qwen(로컬)→Gemini(EC2) 폴백을 태운다.
+Qwen(로컬 Ollama)→Gemini(원격 API) 폴백을 태운다.
 """
 
 from __future__ import annotations

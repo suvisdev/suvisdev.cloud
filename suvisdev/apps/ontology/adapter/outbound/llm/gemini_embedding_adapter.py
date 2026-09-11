@@ -11,7 +11,7 @@ _DEFAULT_MODEL = os.getenv("GEMINI_EMBED_MODEL", "models/gemini-embedding-001")
 
 
 class GeminiEmbeddingAdapter(EmbeddingPort):
-    """OllamaEmbeddingAdapter의 EC2용 대체 — Ollama가 없는 환경에서 쓴다.
+    """OllamaEmbeddingAdapter의 대체 — Ollama가 없는 배포 환경에서 쓴다.
 
     `gemini-embedding-001`의 기본 차원은 3072지만 `hub_knowledge.embedding`
     컬럼이 768(pgvector `Vector(768)`)이라 `output_dimensionality`로 맞춘다.

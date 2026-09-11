@@ -4,7 +4,7 @@ sentiment_label IS NULL인 리뷰를 순회하며 Echo(EXAONE-3.5-2.4B + LoRA)�
 감정분석 후 결과를 DB에 저장한다. 에디터 리뷰(rating=NULL)는 감정 기반
 자동 별점도 함께 생성한다.
 
-GPU가 없는 환경(EC2 등)에서는 첫 실행에서 모델 로드 실패 → 로그 후 루프 종료.
+GPU가 없는 배포 환경에서는 첫 실행에서 모델 로드 실패 → 로그 후 루프 종료.
 """
 
 from __future__ import annotations

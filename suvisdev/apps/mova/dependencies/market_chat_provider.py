@@ -1,6 +1,10 @@
 """채팅 DI."""
 
+from __future__ import annotations
+
 import os
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,6 +56,9 @@ from ontology.dependencies.semantic_router_provider import (
     get_intent_classifier,
     get_semantic_mycroft_use_case,
 )
+
+if TYPE_CHECKING:
+    from mova.adapter.outbound.http.lotte_cinema_adapter import LotteCinemaAdapter
 
 
 def get_chat_repository(
@@ -108,11 +115,18 @@ def get_evaluation_service(
     )
 
 
+@lru_cache(maxsize=1)
+def _shared_lotte_cinema_adapter() -> LotteCinemaAdapter:
+    from mova.adapter.outbound.http.lotte_cinema_adapter import LotteCinemaAdapter
+
+    # 어댑터 내부 극장 목록 캐시(24h)가 살아 있으려면 인스턴스가 요청 간
+    # 공유돼야 한다 — 요청마다 새로 만들면 캐시가 무효(2026-09-11 리뷰).
+    return LotteCinemaAdapter()
+
+
 def get_booking_service(
     db: AsyncSession = Depends(get_mova_db),
 ) -> BookingAssistService:
-    from mova.adapter.outbound.http.lotte_cinema_adapter import LotteCinemaAdapter
-
     keymaker = get_keymaker()
     return BookingAssistService(
         repository=ChatPgRepository(session=db),
@@ -120,7 +134,7 @@ def get_booking_service(
         box_office=KoficBoxOfficeAdapter(keymaker.kofic_api_key),
         # gildle 지오코딩과 같은 키 재사용(mova 자체 어댑터 — 스포크 간 import 금지).
         theaters=KakaoLocalTheaterAdapter(os.getenv("KAKAO_API_KEY") or ""),
-        showtimes=LotteCinemaAdapter(),
+        showtimes=_shared_lotte_cinema_adapter(),
     )
 
 

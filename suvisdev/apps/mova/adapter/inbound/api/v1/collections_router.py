@@ -49,8 +49,9 @@ async def introduce_myself() -> _MyselfResponse:
 async def create_collection(
     body: CollectionCreateSchema,
     collections: CreateCollectionUseCase = Depends(get_create_collection_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> CollectionDetailSchema:
-    """컬렉션 생성."""
+    """컬렉션 생성 — 배정/해제(PATCH·DELETE)와 동일하게 admin 전용(2026-09-11 H4)."""
     try:
         command = CollectionCreateCommand.from_payload(
             slug=body.slug,

@@ -28,6 +28,73 @@
 
 ---
 
+## 2026-09-11
+
+### 작업 내용 (백로그 소진 — 의도 추출 死호출 제거 · import 잠금 · 감정분석 배치화)
+- **의도 추출 Gemini 429 지연 근본 해소(백로그 "재시도 상한 or 결정론 우선"
+  중 후자)**: 코드 추적으로 `IntentExtractionService.extract`의 Gemini 호출이
+  **결과를 어디에도 쓰지 않는 死호출**임을 확인 — 08-19 멀티턴 오염 수정
+  2건(f59f1d4: keywords·must·similar_to를 결정론으로, 5c9c24c: refined_query
+  까지 결정론으로)이 단계적으로 Gemini 산출물을 전부 덮으면서, 호출(평시
+  0.9s, 쿼터 압박 시 SDK 재시도로 3.7~5s)과 쿼터 소모만 남아 있었다. 호출
+  블록과 함께 죽은 기계장치 전부 제거(EXTRACT_PROMPT·`_parse_json`·
+  `_prepend_recent_user_context`·`_has_hard_signal`·keymaker/fence 의존).
+  출력은 증명 가능하게 동일(산출물이 원래 결정론 경로 단독).
+- **부수 발견(회귀 기록)**: QUALITY_PHASE1 §9의 "장르만/무드 질의는 Gemini로
+  배우 보강" 설계는 08-19부터 사실상 무력화돼 있었다("전지현 코미디"처럼
+  조사 없는 배우명은 지금 못 잡는다 — 死호출 제거가 만든 퇴행이 아니라
+  기왕의 상태를 명시화한 것). 재도입하려면 **현재 턴만** Gemini에 주고
+  `must.actors`만 병합하는 별도 설계 필요. `.claude/rules/mova-chat.md` §2를
+  현실(현재 턴 결정론 단독, past_intents가 멀티턴 담당)로 갱신.
+- **mova `POST /import/tmdb`·`/kofic` `require_admin` 부착**(보안 🟡): 익명
+  카탈로그 쓰기·외부 API 쿼터 소모 차단. 프론트 호출처 없음(수동/스케줄러
+  전용) 실측 — 토큰 전달 배선 불요. `GET /import/myself`(무해 소개)는 그대로.
+- **감정분석 백필 배치화**(09-02 백로그): `EchoSentimentAdapter`를
+  `_load`/`_infer`/`_release`로 분해하고 `analyze_batch`(로드 1회 순회, 개별
+  실패는 None으로 계속) 추가. `analyze_missing`을 배치 경로로 전환(41건 ≈
+  30분 → 로드 1회 + 건당 추론). Router BackgroundTasks 단건 `analyze_one`은
+  종전 유지. **실제 백필 실행은 노트북 학습 종료 후**(프로덕션 DB 경로 필요).
+
+### 수정/구현
+- `apps/mova/adapter/outbound/llm/intent_extraction.py` — Gemini 경로 전체 삭제
+- `apps/mova/adapter/inbound/api/v1/import_router.py` — require_admin 2곳
+- `apps/mova/app/use_cases/review_sentiment_backfill_interactor.py` — 배치 경로
+  + `_make_echo_adapter` 공용화
+- `apps/ontology/.../echo_sentiment_adapter.py` — analyze_batch 신설
+- `scripts/backfill_review_sentiment_cli.py` — 독스트링 현행화
+- 테스트: `test_import_router_auth.py`(신규 4건) ·
+  `test_review_sentiment_backfill_batch.py`(신규 4건, fake로 GPU 불요) ·
+  `test_intent_gemini_skip.py`(전면 재작성 — "전 질의 유형 keymaker 미접촉"
+  고정, 히스토리 비오염 케이스 포함) · `test_intent_country_year.py` 헬퍼 정리
+
+### 오류·막힌 점
+- 노트북이 GPU 학습 중이라 **배포·프로덕션 실측은 전부 보류**(코드+로컬
+  테스트까지만). 배포 시 `./k8s/deploy.sh --external-db --build` + import
+  401 실측 + 채팅 지연 재실측 필요.
+
+### 데이터
+- 변경 없음(코드·테스트·문서만).
+
+### 산출물
+- pytest 327 passed(mova+media, not gpu/ollama) · mypy 청정 · ruff 청정 ·
+  lint-imports 6계약 유지 · `python -c "import main"` 통과. PROGRESS.md 갱신.
+
+### 작업 내용 (저녁 — 전체 리뷰 후속, mova 몫)
+상세는 `suvisdev/_docs/CODE_REVIEW_2026-09-11.md` 처리 현황 +
+WORK_LOG_MAINPAGE 09-11 저녁. mova 해당분만:
+- `POST /collections`·`POST /rankings/refresh` require_admin(+프론트 새로고침
+  버튼 토큰 배선, 비admin은 스냅샷 재로드만).
+- 마지막 리뷰 삭제 시 `movies.rating` 0.0 덮어쓰기 제거(리뷰 0건이면 불변).
+- 채팅 rate limit: CF-Connecting-IP 우선·XFF 마지막 요소·버킷 prune —
+  난수 헤더 우회 차단.
+- kofic 스케줄러 임베딩을 `get_hub_embedding_port()` 재사용으로(gemini 환경
+  신작 색인 누락 해소). 제목 역조회·퍼지 검색의 movies 전 행 로드를
+  (id,title) 10분 TTL 캐시로. LotteCinema·TmdbCatalog 어댑터 싱글턴화.
+- 데드 코드: exaone/ollama_exaone/qwen 추천 어댑터 3종·platform
+  users/admins/groups 체인·schedule_review_embedding 삭제.
+
+---
+
 ## 2026-09-09
 
 ### 작업 내용 ("정치 스릴러 영화" 무관 픽 트레이스 — 백로그 1순위 규명)

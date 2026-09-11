@@ -15,9 +15,16 @@ def test_verify_password_rejects_wrong_password_for_legacy_digest():
     assert _verify_password("wrong", digest) is False
 
 
-def test_verify_password_allows_legacy_raw_fallback():
-    """viewer LoginPgRepository._verify_password와 동일하게 평문 저장 폴백도 허용."""
-    assert _verify_password("plaintext", "plaintext") is True
+def test_verify_password_rejects_raw_equality():
+    """평문 동등 비교는 pass-the-hash 경로라 제거됨(2026-09-11) — 저장값을
+    그대로 제출해도 통과하면 안 된다."""
+    assert _verify_password("plaintext", "plaintext") is False
+
+
+def test_verify_password_rejects_hash_submitted_as_password():
+    """sha256 해시 유출 시 그 해시를 비밀번호로 제출하는 pass-the-hash 차단."""
+    digest = hashlib.sha256(b"admin1234").hexdigest()
+    assert _verify_password(digest, digest) is False
 
 
 def test_hash_password_produces_bcrypt_hash():

@@ -15,7 +15,7 @@ CLI는 세션이 아예 없음). 그래서 인터랙터가 세션 팩토리를 �
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ontology.app.ports.output.hub_rag_errors import HubRagError
@@ -80,14 +80,3 @@ class ReviewEmbeddingBackfillInteractor:
             stats[outcome] += 1
 
         return stats
-
-
-# BackgroundTasks가 await할 수 있도록 얇게 감싼 헬퍼.
-# FastAPI BackgroundTasks는 sync/async 콜러블 모두 지원한다.
-async def schedule_review_embedding(
-    interactor: ReviewEmbeddingBackfillInteractor, review_id: int
-) -> None:
-    await interactor.embed_one(review_id)
-
-
-BackfillCallable = Callable[[int], Awaitable[str]]

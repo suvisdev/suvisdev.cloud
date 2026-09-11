@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from titanic.adapter.inbound.api.schemas.crew_james_director_schema import JamesIntroduceSchema
 from titanic.app.dtos.crew_james_director_dto import JamesIntroduceResponse, JamesResponse
@@ -23,12 +24,21 @@ async def introduce_myself(
     )
 
 
+# 2026-09-11 리뷰 H4: 무인증 DB 쓰기 + 무제한 read였다 — 호출처는
+# AdminAuthGate 뒤 데이터 수집 페이지뿐이라 admin 전용 + 10MB 상한.
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
 @james_director_router.post("/upload")
 async def receive_uploaded_records(
     file: UploadFile = File(...),
     james: JamesUseCase = Depends(get_james_director_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> JamesResponse:
-    text = (await file.read()).decode("utf-8-sig", errors="replace")
+    raw = await file.read(_MAX_UPLOAD_BYTES + 1)
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="파일이 너무 큽니다(최대 10MB).")
+    text = raw.decode("utf-8-sig", errors="replace")
     try:
         return await james.receive_uploaded_records(text)
     except ValueError as e:

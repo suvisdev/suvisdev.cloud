@@ -61,7 +61,7 @@ class GuessYearRangeTests(unittest.TestCase):
         self.assertEqual(_guess_year_range("90년대 클래식 명작"), (1990, 1999))
 
     def test_recent_vocab_maps_to_year_min(self) -> None:
-        """"최신영화 알려줘" 실사고(2026-09-02): 최신·신작이 연도 조건으로
+        """ "최신영화 알려줘" 실사고(2026-09-02): 최신·신작이 연도 조건으로
         해석되지 않았다 — 클래식→year_max의 대칭으로 하한을 올해-1로 근사."""
         this_year = datetime.now(UTC).year
         self.assertEqual(_guess_year_range("최신영화 알려줘"), (this_year - 1, None))
@@ -122,13 +122,9 @@ class FillerWordBoundaryTests(unittest.TestCase):
     9/1 "좀비 recs=0" 사고의 진짜 뿌리)."""
 
     def _extract(self, message: str) -> dict:
-        import unittest.mock as m
-
         from mova.adapter.outbound.llm.intent_extraction import IntentExtractionService
 
-        with m.patch("mova.adapter.outbound.llm.intent_extraction.get_keymaker") as k:
-            k.return_value.is_gemini_ready.return_value = False
-            return IntentExtractionService().extract(message, [])
+        return IntentExtractionService().extract(message, [])
 
     def test_zombie_survives_leading_filler_strip(self) -> None:
         intent = self._extract("좀비 영화 추천해줘")

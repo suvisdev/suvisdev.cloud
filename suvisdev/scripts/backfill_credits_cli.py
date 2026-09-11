@@ -4,7 +4,7 @@
 부팅 흐름을 타지 않는다 — 반드시 명시적으로 실행해야 한다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_credits_cli.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_credits_cli.py
   (로컬 실행 시) python scripts/backfill_credits_cli.py
 
   --limit N   앞 N편만 처리(시험 실행용, 예: --limit 3)

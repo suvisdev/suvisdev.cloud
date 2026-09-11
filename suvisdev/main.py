@@ -194,6 +194,13 @@ async def lifespan(app: FastAPI):
                 await sentiment_task
             except asyncio.CancelledError:
                 pass
+        editor_reviews_task = getattr(app.state, "editor_reviews_scheduler", None)
+        if editor_reviews_task is not None:
+            editor_reviews_task.cancel()
+            try:
+                await editor_reviews_task
+            except asyncio.CancelledError:
+                pass
         await dispose_engine()
 
 

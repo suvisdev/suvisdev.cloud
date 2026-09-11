@@ -17,11 +17,11 @@ from mova.adapter.outbound.pg.market_rankings_pg_repository import RankingsPgRep
 from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
 from mova.app.dtos.market_box_office_dto import KoficImportCommand
 from mova.app.use_cases.import_interactor import ImportInteractor
-from ontology.adapter.outbound.llm.ollama_embedding_adapter import OllamaEmbeddingAdapter
 from ontology.adapter.outbound.repositories.hub_knowledge_repository import (
     HubKnowledgeRepository,
 )
 from ontology.app.use_cases.hub_rag_interactor import HubRagInteractor
+from ontology.dependencies.hub_rag_provider import get_hub_embedding_port
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,9 @@ async def _import_once() -> None:
             box_office=KoficBoxOfficeAdapter(keymaker.kofic_api_key),
             hub_rag=HubRagInteractor(
                 repository=HubKnowledgeRepository(session=session),
-                embedding=OllamaEmbeddingAdapter(),
+                # EMBEDDING_BACKEND 분기 재사용 — Ollama 하드코딩 시 gemini
+                # 환경에서 신작이 hub RAG에 색인되지 못한다(2026-09-11 리뷰).
+                embedding=get_hub_embedding_port(),
             ),
         )
         result = await interactor.import_kofic_boxoffice(KoficImportCommand())

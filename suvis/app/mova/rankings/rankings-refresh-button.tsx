@@ -12,12 +12,13 @@ export function RankingsRefreshButton({ source }: { source: string }) {
   async function handleRefresh() {
     setLoading(true)
     try {
-      // 백엔드 재집계는 chat_trend만 지원 — 다른 source는 스냅샷만 다시 읽는다.
+      // 백엔드 재집계는 chat_trend만 + admin 전용(2026-09-11) — 비로그인/일반
+      // 유저는 401이 나지만 아래 finally의 스냅샷 재로드는 그대로 동작한다.
       if (source === "chat_trend") await refreshMovaRankings(source)
-      router.refresh() // 서버 컴포넌트 재실행 → 최신 스냅샷 로드
     } catch {
-      // 실패 시 조용히 무시 — 기존 데이터 유지
+      // 실패 시 조용히 무시 — 기존 스냅샷 유지
     } finally {
+      router.refresh() // 서버 컴포넌트 재실행 → 최신 스냅샷 로드
       setLoading(false)
     }
   }

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from gildle.adapter.outbound.orm.tree_segment_orm import TreeSegmentOrm
@@ -23,7 +23,7 @@ class PgTreeSegmentRepository(TreeSegmentRepository):
 
     def save_many(self, segments: list[TreeSegment]) -> None:
         session = self._session_factory()
-        session.query(TreeSegmentOrm).delete()
+        session.execute(delete(TreeSegmentOrm))  # 2.0 스타일(레거시 Query API 제거)
         for seg in segments:
             session.add(
                 TreeSegmentOrm(

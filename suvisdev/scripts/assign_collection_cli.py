@@ -7,9 +7,9 @@ Repository 직접 호출(SSH 전제, 배포 자동화가 아니라 사람이 돌
 가 담당한다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/assign_collection_cli.py \
+  kubectl -n suvisdev exec deploy/backend -- python scripts/assign_collection_cli.py \
     --slug nolan-world --movie-ids 99,106,85 [--dry-run]
-  docker compose exec backend python scripts/assign_collection_cli.py \
+  kubectl -n suvisdev exec deploy/backend -- python scripts/assign_collection_cli.py \
     --slug nolan-world --movie-ids 99,106,85 --unassign [--dry-run]
 
 옵션:

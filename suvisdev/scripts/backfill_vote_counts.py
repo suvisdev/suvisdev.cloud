@@ -4,7 +4,7 @@ vote_count=0(미수집)인 tmdb- slug 영화를 순회하며 TMDB 기본 상세�
 vote_count를 가져와 저장한다. 멱등 — 재실행 시 이미 채워진 영화는 스킵.
 
 일회성 수동 실행 전용(부팅 흐름 미포함). Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_vote_counts.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_vote_counts.py
   (로컬 실행 시) python scripts/backfill_vote_counts.py
 
   --limit N   앞 N편만 처리(시험 실행용)

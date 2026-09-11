@@ -1,11 +1,12 @@
 """AWS S3 클라이언트를 한 객체에서 관리한다(온프레미스 유일 S3 경로).
 
 자격 증명은 **boto3 기본 자격증명 체인**을 따른다 — 명시적 키를 boto3에 넘기지
-않고 `region_name`만 지정한다. 이렇게 하면 로컬·EC2가 단일 경로로 처리된다:
+않고 `region_name`만 지정한다. 이렇게 하면 로컬·서버가 단일 경로로 처리된다:
 - 로컬/컨테이너: `.env`의 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`가
   `os.environ`에 있으면(Keymaker가 임포트 시 load_dotenv로 로드, compose는
   env_file로 주입) 기본 체인이 그걸 집는다.
-- EC2: 인스턴스 IAM Role이 자격증명을 자동 주입 → 기본 체인이 그걸 집는다.
+- (구 EC2 시절) 인스턴스 IAM Role 자동 주입도 같은 기본 체인이 집었다 —
+  현 프로덕션(노트북 k3s)은 Secret으로 주입된 AWS_* env를 쓴다.
 리전·버킷 이름은 Keymaker가 `.env`에서 읽어 보관한 값을 쓴다. 자격증명이 없으면
 호출 시점에 boto3가 `NoCredentialsError`를 던진다.
 """
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Tank:
-    """boto3 기본 자격증명 체인으로 S3 클라이언트를 제공한다(로컬 .env / EC2 IAM Role 공통)."""
+    """boto3 기본 자격증명 체인으로 S3 클라이언트를 제공한다(.env의 AWS_* env 기준)."""
 
     def __init__(self) -> None:
         # get_keymaker() 임포트가 .env를 os.environ에 로드해 기본 체인이 키를 집게 한다.

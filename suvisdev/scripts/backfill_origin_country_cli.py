@@ -9,7 +9,7 @@
 안 됨"과 구분이 안 돼 매 실행마다 같은 영화를 다시 조회하게 된다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_origin_country_cli.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_origin_country_cli.py
   (로컬 실행 시) python scripts/backfill_origin_country_cli.py
 
   --limit N   앞 N편만 처리(시험 실행용, 예: --limit 5)

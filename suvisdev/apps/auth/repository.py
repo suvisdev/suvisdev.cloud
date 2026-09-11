@@ -12,6 +12,8 @@ signup(신규)은 users 테이블에 INSERT하므로 조회 전용이 아니게 
 from __future__ import annotations
 
 import hashlib
+import hmac
+import logging
 import secrets
 from dataclasses import dataclass
 from typing import Any
@@ -23,6 +25,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from auth.rbac import Role
 from core.matrix.grid_oracle_database_manager import get_viewer_session_factory
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_GENDER = "undisclosed"  # viewer.app.dtos.user_profile.UserGender.UNDISCLOSED와 동일한 값
 
@@ -103,16 +107,34 @@ def _hash_password(raw_password: str) -> str:
 
 
 def _verify_password(raw_password: str, stored_password_hash: str) -> bool:
-    """bcrypt(신규 signup 계정)와 레거시 sha256/평문(기존 viewer 계정) 둘 다 검증.
+    """bcrypt(신규 signup·재해시 계정)와 레거시 sha256(기존 viewer 계정) 검증.
 
     apps/auth의 signup으로 만든 계정은 bcrypt 해시라 앞부분이 "$2b$"(bcrypt 식별자)로
-    시작한다 — 그 경우만 bcrypt로 검증하고, 나머지는 기존 viewer
-    login_pg_repository._verify_password와 동일한 규칙(sha256 다이제스트, 레거시
-    평문 폴백)을 그대로 재현한다. 레거시 계정은 마이그레이션하지 않는다."""
+    시작한다 — 그 경우만 bcrypt로 검증하고, 나머지는 레거시 sha256 다이제스트로
+    검증한다. 구 버전의 평문 동등 비교(`stored == raw`)는 2026-09-11 제거 —
+    해시 유출 시 그 해시를 비밀번호로 제출하면 로그인되는 pass-the-hash 경로였다.
+    레거시 sha256 계정은 로그인 성공 시 bcrypt로 재해시된다(find_by_credentials)."""
     if stored_password_hash.startswith(("$2a$", "$2b$", "$2y$")):
         return bcrypt.checkpw(raw_password.encode("utf-8"), stored_password_hash.encode("utf-8"))
     digest = hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
-    return stored_password_hash == raw_password or stored_password_hash == digest
+    return hmac.compare_digest(stored_password_hash, digest)
+
+
+async def _rehash_if_legacy(session: Any, account: Any, raw_password: str) -> None:
+    """레거시 sha256 계정을 로그인 성공 시점에 bcrypt로 재해시한다.
+
+    검증이 이미 끝난 뒤에만 호출된다(원문 비밀번호를 아는 유일한 순간).
+    재해시 실패가 로그인 자체를 막으면 안 되므로 예외는 삼키고 로그만 남긴다.
+    """
+    if account.password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        return
+    try:
+        account.password_hash = _hash_password(raw_password)
+        await session.commit()
+        logger.info("[UserRepository] 레거시 sha256 계정 bcrypt 재해시 — id=%s", account.id)
+    except Exception:
+        await session.rollback()
+        logger.warning("[UserRepository] bcrypt 재해시 실패 — 로그인은 계속 진행", exc_info=True)
 
 
 class UserRepository:
@@ -129,6 +151,7 @@ class UserRepository:
             if row is not None:
                 user, group_code = row
                 if _verify_password(password, user.password_hash):
+                    await _rehash_if_legacy(session, user, password)
                     return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
                 return None
 
@@ -142,6 +165,7 @@ class UserRepository:
             if admin_row is not None:
                 admin, group_code = admin_row
                 if _verify_password(password, admin.password_hash):
+                    await _rehash_if_legacy(session, admin, password)
                     return User(user_id=admin.id, username=admin.username, roles=[Role(group_code)])
             return None
 

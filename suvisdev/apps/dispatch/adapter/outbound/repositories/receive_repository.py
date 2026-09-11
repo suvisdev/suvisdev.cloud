@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +19,8 @@ class ReceiveRepository(ReceivePort):
             sender=command.sender,
             subject=command.subject,
             body=command.body,
-            received_at=datetime.utcnow(),
+            # utcnow()는 3.12+ deprecated — naive UTC(컬럼이 tz 없는 DateTime) 유지
+            received_at=datetime.now(UTC).replace(tzinfo=None),
             embedding=embedding,
         )
         self._session.add(row)

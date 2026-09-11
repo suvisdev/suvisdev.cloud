@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,6 +28,11 @@ from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 
 logger = logging.getLogger(__name__)
+
+# (id, title) 전체 목록 TTL 캐시 — 리포지토리 인스턴스는 요청마다 새로
+# 만들어지므로 모듈 레벨에 둔다. 상세는 `_all_movie_titles` docstring.
+_TITLES_CACHE_TTL_SECONDS = 600
+_titles_cache: tuple[float, list[tuple[int, str]]] | None = None
 
 
 def _normalize_for_match(text: str) -> str:
@@ -252,6 +258,22 @@ class ChatPgRepository(ChatRepositoryPort):
         rows = await self._movies_by_ids(ids, limit, [])
         return _to_search_items(rows, "title")
 
+    async def _all_movie_titles(self) -> list[tuple[int, str]]:
+        """전체 (id, title) 목록 — 10분 TTL 모듈 캐시.
+
+        제목 역조회·퍼지 검색이 매 호출 movies 전 행을 끌어오던 것을 줄인다
+        (2026-09-11 리뷰). 카탈로그는 일 단위(스케줄러·수동 임포트)로만 변해
+        10분 지연은 무해하다.
+        """
+        global _titles_cache  # noqa: PLW0603
+        now = time.monotonic()
+        if _titles_cache is not None and now - _titles_cache[0] < _TITLES_CACHE_TTL_SECONDS:
+            return _titles_cache[1]
+        rows = await self._session.execute(select(MovaMovie.id, MovaMovie.title))
+        titles = [(mid, title) for mid, title in rows if title]
+        _titles_cache = (now, titles)
+        return titles
+
     async def find_movie_titled_in_text(self, text: str) -> MovaSearchItemSchema | None:
         """text 안에 제목이 그대로 들어간 영화를 역방향으로 찾는다(가장 긴 제목 우선).
 
@@ -261,9 +283,8 @@ class ChatPgRepository(ChatRepositoryPort):
         haystack = _normalize_for_match(text)
         if not haystack:
             return None
-        rows = await self._session.execute(select(MovaMovie.id, MovaMovie.title))
         best: tuple[int, str] | None = None
-        for mid, title in rows:
+        for mid, title in await self._all_movie_titles():
             norm = _normalize_for_match(title or "")
             if len(norm) < 3 or norm not in haystack:
                 continue
@@ -277,11 +298,10 @@ class ChatPgRepository(ChatRepositoryPort):
     async def fuzzy_search_movies_by_title(
         self, terms: list[str], limit: int
     ) -> list[MovaSearchItemSchema]:
-        """자모 편집거리 기반 퍼지 검색 — 전체 제목을 로드해 Python에서 비교."""
+        """자모 편집거리 기반 퍼지 검색 — 캐시된 전체 제목을 Python에서 비교."""
         from mova.domain.value_objects.jamo_fuzzy import fuzzy_match_titles
 
-        rows = await self._session.execute(select(MovaMovie.id, MovaMovie.title))
-        all_titles = [(r[0], r[1]) for r in rows if r[1]]
+        all_titles = await self._all_movie_titles()
 
         candidates: list[tuple[int, str, int]] = []
         for term in terms[:4]:

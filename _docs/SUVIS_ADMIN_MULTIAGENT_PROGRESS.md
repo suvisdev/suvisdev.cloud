@@ -104,9 +104,14 @@
   스릴러 장르 태그와 교집합(`tag_and_ids` prio)을 이뤄 후보 맨 앞에 오는
   구조로 설명됨. 09-03 당일 "미개선" 기록과의 차이(당시 EC2 vs 현 노트북)는
   원인 미상으로 남김 — 재발 시에만 노트북 DB INTERSECT 실측으로 재개.
-- **의도 추출 Gemini 429 재시도 지연** — 쿼터 압박 시 SDK 재시도로
-  3.7~5s까지 출렁(평시 0.9s). 옵션: 재시도 상한/타임아웃 단축 or 결정론
-  우선. E2E 절대값은 쿼터 회복 후 재실측이 공정.
+- ~~의도 추출 Gemini 429 재시도 지연~~ — **09-11 해소(결정론 우선, 배포 대기)**:
+  08-19 멀티턴 오염 수정 2건(f59f1d4·5c9c24c)이 Gemini 추출 산출물을 전부
+  결정론 결과로 덮은 뒤로 **호출만 남고 결과는 미사용**(순수 지연+쿼터 낭비)
+  이었음을 확인하고 호출 자체를 제거. 출력 동일(테스트 8건 재작성으로 고정),
+  질의당 0.9~5s 절감 + Gemini 쿼터 1건 절약. 부수 발견: 구 QUALITY_PHASE1 §9
+  "Gemini 배우 보강"은 08-19부터 사실상 무력화돼 있었다 — 재도입하려면 현재
+  턴만 Gemini에 주고 must.actors만 병합하는 별도 설계 필요(`.claude/rules/
+  mova-chat.md` §2 갱신).
 - **취향 재정렬 후속(08-18 신규)**: alpha 별점 결합 튜닝(현재 순수 코사인),
   후보 window 확대(taste vector 있는 유저에게 limit 16 이상 — 프롬프트
   토큰·Gemini 요금 트레이드오프).
@@ -149,8 +154,12 @@
   쌓임(이틀 41건). 데스크톱 백필(터널 15432 +
   `backfill_review_sentiment_cli.py`)을 **주 1회쯤 루틴화**할 것. 접속 방법은
   WORK_LOG_MOVA 09-02 후속 5 메모.
-- CLI 개선: 건당 모델 로드/해제라 41건 ≈ 30분 — **모델 1회 로드 배치화**하면
-  2~3분. 반복 루틴이 되면 우선 처리.
+- ~~CLI 개선: 건당 모델 로드/해제라 41건 ≈ 30분~~ **배치화 완료(09-11)**:
+  `EchoSentimentAdapter.analyze_batch`(로드 1회 순회, 개별 실패는 None으로
+  계속) + `analyze_missing` 배치 경로 전환. fake 단위 테스트 4건
+  (`test_review_sentiment_backfill_batch.py`). Router BackgroundTasks 단건
+  경로(analyze_one)는 종전 그대로. **실제 백필 실행은 노트북 학습 종료 후**
+  (프로덕션 DB 접근 경로 필요 — WORK_LOG_MOVA 09-02 후속 5 메모).
 
 ### 채팅 응답 트랙 재설계 잔여 (설계: `suvisdev/apps/mova/_docs/MOVA_CHAT_INTENT_REDESIGN.md`)
 - **Phase 2 시간표 확장**: 현재 롯데시네마만. 타 체인 추가 시 약관·robots
@@ -180,10 +189,25 @@
 - ~~🔴② 노트북 lora-server 무인증~~ **완료**: backend `.env`엔 토큰이 이미
   있었고 serve_gguf 유닛에만 없어 검증을 안 하던 것 → 기존 토큰을 유닛
   드롭인에 추가·재기동. 무인증/오토큰 401·정상 200 실측.
-- **🟡(미착수)**: mova `POST /import/tmdb·/kofic` 무인증 쓰기(`require_admin` 필요) ·
-  access TTL 7일+웹 리프레시 미사용 · media 오류 원문 노출·크기검사 전 전체
-  적재 · 토큰 localStorage(httpOnly 쿠키 부재) · pgadmin admin/admin(replicas:0).
-- **미확인**: S3 버킷 실제 공개 여부(AWS 콘솔 확인 권장 — CLAUDE.md는 private).
+- ~~🟡 mova `POST /import/tmdb·/kofic` 무인증 쓰기~~ **코드 수정 완료(09-11,
+  배포 대기)**: `require_admin` 부착 + 401/200 테스트 4건
+  (`test_import_router_auth.py`). 프론트 호출처 없음(수동/스케줄러 전용)이라
+  토큰 전달 배선 불요. ~~🟡 media 오류 원문 노출·크기검사 전 전체 적재~~
+  **코드 수정 완료(09-11, 배포 대기)**: 502 detail 일반 문구화(원문은 로그),
+  업로드는 상한+1바이트까지만 read.
+- **🟡(잔여)**: access TTL 7일+웹 리프레시 미사용 · 토큰 localStorage(httpOnly
+  쿠키 부재) — 인증 구조 변경이라 별도 설계 필요 · pgadmin admin/admin(replicas:0).
+- **09-11 전체 코드 리뷰 + 후속 수정 ①~⑤ 완료(배포 대기)** — 리뷰 결과·처리
+  현황·잔여 목록의 SSOT는 `suvisdev/_docs/CODE_REVIEW_2026-09-11.md`. 요지:
+  인증 3건(평문/pass-the-hash·미검증 이메일 admin·admin1234 시드) + 무인증
+  엔드포인트 10곳 가드 + gildle DoS 상한 + 중간 1~5 + 성능 캐시 + 데드 코드
+  42파일·스크립트 30개 아카이브. **잔여(중간 6~15·낮음 전부)는 문서의
+  "처리 현황 → 잔여" 참고.** 배포 시 auth 파드 재배포 필수, viewer
+  login/signup은 404가 정상(언마운트). 평문 저장 계정이 있으면 로그인 불가
+  (재설정 대상).
+- ~~미확인: S3 버킷 실제 공개 여부~~ **비공개 확인(09-11 실측)**: boto3로
+  PublicAccessBlock 4항목 전부 True + 버킷 정책 없음(NoSuchBucketPolicy) +
+  ACL 소유자 FULL_CONTROL 단독. CLAUDE.md의 private 기술이 맞음.
 
 ### mova 채팅 UX 잔여 (2026-09-09)
 - ~~evaluate 맥락 이음·정직~~ **배포·검증 완료**(`525dc80` — "어떠냐고"→직전 영화
@@ -200,11 +224,10 @@
 - ~~evaluate 개선·hook 캡 backend 코드 미배포(09-09)~~ **배포 완료**: hook 캡
   120→80 · evaluate 프롬프트(줄거리+리뷰 종합)가 e2f8034→e7b3f66 재배포로
   프로덕션 반영·검증됨.
-- **노트북 lora-server 토큰 미설정(09-09 발견)**: 유닛에 `LORA_SERVER_TOKEN`
-  없어 `serve_gguf`가 인증 없이 `0.0.0.0:8200` 서빙(serve.py 시절부터 동일,
-  전환 무관). 백엔드는 WSL 내부 10.42.0.1로만 도달하나, 토큰 설정 시
-  데스크톱 유닛처럼 Environment 추가 + 백엔드 `LORA_SERVER_TOKEN` Secret 동기화
-  필요.
+- ~~노트북 lora-server 토큰 미설정(09-09 발견)~~ **09-09 저녁에 이미 해소** —
+  보안 백로그 🔴②와 같은 건이었다(같은 날 오후 발견 기록이 정리 안 된 채
+  남아 있던 것, 09-11 모순 정리). 기존 토큰을 유닛 드롭인에 추가·재기동,
+  무인증 401·정상 200 실측 완료(`[P]` 09-09 저녁).
 - **auth 게이트웨이 웹 OAuth env drift(09-09 발견)**: `/auth/login/{provider}`가
   503 — `AUTH_{GOOGLE,KAKAO,NAVER}_REDIRECT_URI`가 `.env.example`엔 있는데
   노트북·데스크톱 `.env` 모두 없음(컷오버 회귀 아님, 원래 미설정).

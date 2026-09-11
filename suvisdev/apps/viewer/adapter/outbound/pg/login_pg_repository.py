@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 
+import bcrypt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,8 +25,16 @@ class LoginRepositoryError(Exception):
 
 
 def _verify_password(raw_password: str, stored_password_hash: str) -> bool:
+    """bcrypt(auth 게이트웨이 재해시 계정) 또는 레거시 sha256만 허용.
+
+    구 버전의 평문 동등 비교(`stored == raw`)는 2026-09-11 제거 — DB의 해시
+    문자열 자체를 비밀번호로 제출하면 로그인되는 pass-the-hash 경로였다.
+    평문으로 저장된 계정이 만약 있다면 이제 로그인 불가(비밀번호 재설정 대상).
+    """
+    if stored_password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        return bcrypt.checkpw(raw_password.encode("utf-8"), stored_password_hash.encode("utf-8"))
     digest = hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
-    return stored_password_hash == raw_password or stored_password_hash == digest
+    return hmac.compare_digest(stored_password_hash, digest)
 
 
 class LoginPgRepository(LoginRepository):

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.require_admin import AdminPrincipal, require_admin
 
 from mova.adapter.inbound.api.schemas.studio_import_schema import (
     KoficImportRequestSchema,
@@ -29,6 +30,7 @@ async def introduce_myself(
 async def import_from_tmdb(
     req: TmdbImportRequestSchema,
     use_case: ImportUseCase = Depends(get_import_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> MovieImportResultSchema:
     """TMDB에서 영화 메타를 가져와 카탈로그에 반영."""
     if (
@@ -58,6 +60,7 @@ async def import_from_tmdb(
 async def import_from_kofic(
     req: KoficImportRequestSchema,
     use_case: ImportUseCase = Depends(get_import_use_case),
+    _: AdminPrincipal = Depends(require_admin),
 ) -> MovieImportResultSchema:
     """KOFIC 주간 박스오피스를 카탈로그에 매칭·enrich하고 box_office 랭킹으로 저장."""
     command = KoficImportCommand(target_date=req.target_date, week_gb=req.week_gb)

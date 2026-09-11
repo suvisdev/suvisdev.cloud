@@ -55,10 +55,7 @@ def calculate_route(
 
     path = use_case.execute(edges, start_node, end_node, mode)
 
-    edge_lookup: dict[tuple[str, str], RouteEdge] = {}
-    for e in edges:
-        edge_lookup[(e.from_node, e.to_node)] = e
-        edge_lookup[(e.to_node, e.from_node)] = e
+    edge_lookup = _edge_lookup(edges)
 
     coordinates: list[list[float]] = []
     for i in range(len(path) - 1):
@@ -75,22 +72,81 @@ def calculate_route(
     return {"path": path, "coordinates": coordinates}
 
 
+# ── 요청당 재구축 방지 캐시(2026-09-11 리뷰) ──────────────────────────────
+# 라우터의 mtime 캐시가 같은 edges 리스트 객체를 재사용하므로, 파생 구조물
+# (간선 lookup·노드 그리드)은 리스트 동일성(is)으로 재사용을 판정한다.
+
+_edge_lookup_cache: tuple[list[RouteEdge], dict[tuple[str, str], RouteEdge]] | None = None
+
+
+def _edge_lookup(edges: list[RouteEdge]) -> dict[tuple[str, str], RouteEdge]:
+    global _edge_lookup_cache  # noqa: PLW0603
+    if _edge_lookup_cache is not None and _edge_lookup_cache[0] is edges:
+        return _edge_lookup_cache[1]
+    lookup: dict[tuple[str, str], RouteEdge] = {}
+    for e in edges:
+        lookup[(e.from_node, e.to_node)] = e
+        lookup[(e.to_node, e.from_node)] = e
+    _edge_lookup_cache = (edges, lookup)
+    return lookup
+
+
+# 최근접 노드 탐색용 그리드 인덱스 — 셀 한 변 ≈0.005°(서울 위도에서 약 450~550m).
+# 전수 스캔(간선 233k × 하버사인 2회)을 셀 몇 개 조회로 줄인다.
+_NODE_GRID_CELL_DEG = 0.005
+_NODE_GRID_MAX_RING = 200  # ≈1° — 이 밖이면 데이터 커버리지 밖으로 보고 포기
+_node_grid_cache: (
+    tuple[list[RouteEdge], dict[tuple[int, int], list[tuple[str, Coordinate]]]] | None
+) = None
+
+
+def _node_grid(edges: list[RouteEdge]) -> dict[tuple[int, int], list[tuple[str, Coordinate]]]:
+    global _node_grid_cache  # noqa: PLW0603
+    if _node_grid_cache is not None and _node_grid_cache[0] is edges:
+        return _node_grid_cache[1]
+    grid: dict[tuple[int, int], list[tuple[str, Coordinate]]] = {}
+    seen: set[str] = set()
+    for edge in edges:
+        for node, coord in ((edge.from_node, edge.from_coord), (edge.to_node, edge.to_coord)):
+            if coord is None or node in seen:
+                continue
+            seen.add(node)
+            cell = (
+                int(coord.latitude // _NODE_GRID_CELL_DEG),
+                int(coord.longitude // _NODE_GRID_CELL_DEG),
+            )
+            grid.setdefault(cell, []).append((node, coord))
+    _node_grid_cache = (edges, grid)
+    return grid
+
+
 def _find_nearest_node_id(edges: list[RouteEdge], point: Coordinate) -> str | None:
-    if not edges:
+    grid = _node_grid(edges)
+    if not grid:
         return None
+    center = (
+        int(point.latitude // _NODE_GRID_CELL_DEG),
+        int(point.longitude // _NODE_GRID_CELL_DEG),
+    )
     best_dist = float("inf")
     best_node = ""
-    for edge in edges:
-        if edge.from_coord is not None:
-            d = point.distance_to(edge.from_coord)
-            if d < best_dist:
-                best_dist = d
-                best_node = edge.from_node
-        if edge.to_coord is not None:
-            d = point.distance_to(edge.to_coord)
-            if d < best_dist:
-                best_dist = d
-                best_node = edge.to_node
+    found_ring: int | None = None
+    for ring in range(_NODE_GRID_MAX_RING + 1):
+        # 후보를 처음 찾은 링에서 +2링까지 더 훑는다 — 셀 경계 바로 너머의
+        # 더 가까운 노드를 놓치지 않기 위한 여유분.
+        if found_ring is not None and ring > found_ring + 2:
+            break
+        for dx in range(-ring, ring + 1):
+            for dy in range(-ring, ring + 1):
+                if max(abs(dx), abs(dy)) != ring:
+                    continue
+                for node, coord in grid.get((center[0] + dx, center[1] + dy), []):
+                    d = point.distance_to(coord)
+                    if d < best_dist:
+                        best_dist = d
+                        best_node = node
+        if best_node and found_ring is None:
+            found_ring = ring
     return best_node or None
 
 
@@ -189,15 +245,29 @@ class _FullShadeLookup(dict[str, Any]):
         return 1.0
 
 
+_shade_lookup_by_slot: dict[int, dict[tuple[str, str], float]] = {}
+_shade_lookup_src_mtime: float = 0.0
+
+
 def _build_shade_lookup(slot: int) -> dict[tuple[str, str], float] | None:
+    """슬롯별 lookup을 캐시한다 — 233k 엔트리 dict를 요청마다 재구축하지 않게
+    (2026-09-11 리뷰). 원본 shade_scores.json이 바뀌면(mtime) 전체 무효화."""
+    global _shade_lookup_src_mtime  # noqa: PLW0603
     data = _load_shade_scores()
     if data is None:
         return None
+    if _shade_mtime != _shade_lookup_src_mtime:
+        _shade_lookup_by_slot.clear()
+        _shade_lookup_src_mtime = _shade_mtime
+    cached = _shade_lookup_by_slot.get(slot)
+    if cached is not None:
+        return cached
     idx = data["slots"].index(slot)
     lookup: dict[tuple[str, str], float] = {}
     for key, pcts in data["edges"].items():
         from_node, _, to_node = key.partition("-")
         lookup[(from_node, to_node)] = pcts[idx] / 100.0
+    _shade_lookup_by_slot[slot] = lookup
     return lookup
 
 
@@ -233,10 +303,7 @@ def navigate(
         edges, request.start_node, request.end_node, season, shade_lookup=shade_lookup
     )
 
-    edge_lookup: dict[tuple[str, str], RouteEdge] = {}
-    for e in edges:
-        edge_lookup[(e.from_node, e.to_node)] = e
-        edge_lookup[(e.to_node, e.from_node)] = e
+    edge_lookup = _edge_lookup(edges)
 
     coordinates: list[list[float]] = []
     for i in range(len(path) - 1):
@@ -302,27 +369,31 @@ def _get_scored_edges_raw() -> list[dict[str, Any]]:
     return _scored_edges_cache
 
 
+# 2026-09-11 리뷰 H5: bbox 없는 호출이 23.4만 간선(80MB급) 전체를 반환하는
+# DoS 표면이었다 — 지도(gildle-map.tsx)는 항상 bbox+zoom을 보내므로 bbox를
+# 필수화하고, zoom과 무관한 절대 상한을 둔다.
+_MAX_EDGES_RESPONSE = 20_000
+
+
 @route_router.get("/graph-edges")
 def get_graph_edges(
-    south: float | None = Query(None),
-    west: float | None = Query(None),
-    north: float | None = Query(None),
-    east: float | None = Query(None),
+    south: float = Query(...),
+    west: float = Query(...),
+    north: float = Query(...),
+    east: float = Query(...),
     zoom: int | None = Query(None),
 ) -> list[dict[str, Any]]:
     edges = _get_scored_edges_raw()
     if not edges:
         raise HTTPException(status_code=404, detail="scored_edges.json 없음")
-    if south is not None and west is not None and north is not None and east is not None:
-        filtered = [
-            e
-            for e in edges
-            if south <= e["midpoint_lat"] <= north and west <= e["midpoint_lng"] <= east
-        ]
-        if zoom is not None and zoom < 15 and len(filtered) > 5000:
-            filtered = _decimate_by_grid(filtered, zoom)
-        return filtered
-    return edges
+    filtered = [
+        e
+        for e in edges
+        if south <= e["midpoint_lat"] <= north and west <= e["midpoint_lng"] <= east
+    ]
+    if zoom is not None and zoom < 15 and len(filtered) > 5000:
+        filtered = _decimate_by_grid(filtered, zoom)
+    return filtered[:_MAX_EDGES_RESPONSE]
 
 
 def _decimate_by_grid(edges: list[dict[str, Any]], zoom: int) -> list[dict[str, Any]]:

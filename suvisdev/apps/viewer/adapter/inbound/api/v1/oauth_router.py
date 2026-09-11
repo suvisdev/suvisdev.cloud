@@ -7,6 +7,7 @@ import os
 import secrets
 import time
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
@@ -19,16 +20,42 @@ oauth_router = APIRouter(prefix="/oauth", tags=["oauth"])
 logger = logging.getLogger(__name__)
 
 _FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
-_STATE_SECRET = os.getenv("JWT_SECRET", "")
+_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _STATE_MAX_AGE_SECONDS = 600
+_STATE_KEY_PREFIX = "viewer:oauth:state:"
+
+_state_client: redis.Redis | None = None
+
+
+def _state_store() -> redis.Redis:
+    global _state_client
+    if _state_client is None:
+        _state_client = redis.from_url(_REDIS_URL, decode_responses=True)
+    return _state_client
+
+
+def _state_secret() -> bytes:
+    # 호출 시점에 읽고 미설정이면 즉시 실패 — 구 버전은 모듈 로드 시
+    # `os.getenv("JWT_SECRET", "")`로 조용히 빈 키 HMAC이 되어 누구나 state를
+    # 위조할 수 있었다(2026-09-11 리뷰).
+    secret = os.getenv("JWT_SECRET", "")
+    if not secret:
+        raise RuntimeError("JWT_SECRET이 설정되지 않았습니다.")
+    return secret.encode()
 
 
 def _sign_state() -> str:
-    """CSRF state를 쿠키 없이 자체 서명해 발급한다 — 브라우저/프록시의 쿠키 유실 문제를 피한다."""
+    """CSRF state를 쿠키 없이 자체 서명해 발급한다 — 브라우저/프록시의 쿠키 유실 문제를 피한다.
+
+    서명과 별개로 nonce를 Redis에 TTL로 적어 두고 콜백에서 1회 소비한다 —
+    서명만으로는 10분 내 무한 재사용이 가능해 로그인 CSRF에 쓰일 수 있었다
+    (2026-09-11 리뷰; auth 게이트웨이의 OAuthStateStore와 동일 방식).
+    """
     nonce = secrets.token_urlsafe(16)
     ts = str(int(time.time()))
     payload = f"{nonce}.{ts}"
-    sig = hmac.new(_STATE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(_state_secret(), payload.encode(), hashlib.sha256).hexdigest()
+    _state_store().set(f"{_STATE_KEY_PREFIX}{nonce}", "1", ex=_STATE_MAX_AGE_SECONDS)
     return f"{payload}.{sig}"
 
 
@@ -38,14 +65,17 @@ def _verify_state(state: str) -> bool:
         return False
     nonce, ts, sig = parts
     payload = f"{nonce}.{ts}"
-    expected_sig = hmac.new(_STATE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    expected_sig = hmac.new(_state_secret(), payload.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected_sig):
         return False
     try:
         issued_at = int(ts)
     except ValueError:
         return False
-    return time.time() - issued_at <= _STATE_MAX_AGE_SECONDS
+    if time.time() - issued_at > _STATE_MAX_AGE_SECONDS:
+        return False
+    # 1회 소비 — delete가 1을 돌려줄 때만(존재했고 지금 지웠을 때만) 유효
+    return _state_store().delete(f"{_STATE_KEY_PREFIX}{nonce}") == 1
 
 
 @oauth_router.get("/{provider}/login")

@@ -422,9 +422,10 @@ export async function fetchMovaRankings(
 }
 
 export async function refreshMovaRankings(source = "chat_trend"): Promise<void> {
+  // 백엔드 재집계는 admin 전용(2026-09-11) — 토큰이 있으면 3계층 전달한다.
   const res = await fetch(
     `/api/mova/rankings/refresh?source=${encodeURIComponent(source)}`,
-    { method: "POST" },
+    { method: "POST", headers: { ...authHeader() } },
   )
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))

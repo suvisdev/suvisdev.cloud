@@ -4,7 +4,7 @@ seed_catalog_if_sparse는 movies >= 5편이면 스킵되므로, 이미 채워진
 카탈로그의 hub_knowledge만 비어있는 경우 이 스크립트로 별도 채운다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/ingest_hub_knowledge.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/ingest_hub_knowledge.py
   (로컬 실행 시) python scripts/ingest_hub_knowledge.py
 
   --embedding-backend {ollama,gemini}

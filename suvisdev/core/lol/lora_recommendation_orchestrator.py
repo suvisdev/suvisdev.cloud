@@ -1,8 +1,8 @@
 """mova 채팅용 LoRA 파인튜닝 모델(lora_server) 직접 서빙 클라이언트.
 
-~/.venv-exaone(별도 venv)에서 상주 로드된 `lora_server`(호스트, Ollama·awq_server와
-동일 패턴의 별도 프로세스)를 HTTP로 호출한다. 인터페이스는
-awq_exaone_orchestrator.AwqExaoneOrchestrator와 동일하게 맞춘다.
+~/.venv-exaone(별도 venv)에서 상주 로드된 `lora_server`(호스트에서 도는 별도
+프로세스, Ollama와 동일 패턴)를 HTTP로 호출한다. (구 awq_server :8100 체인은
+2026-09-11 데드 코드 정리로 삭제됨 — GGUF 롤백 대상은 :8200 serve.py다.)
 
 LORA_SERVER_URL을 원격(Cloudflare Tunnel 등) 주소로 바꾸면 그대로 원격 GPU
 서버를 호출한다 — 코드 변경 없이 env만 바꾸면 된다. 원격 노출 시 LORA_SERVER_TOKEN을

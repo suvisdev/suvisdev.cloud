@@ -40,6 +40,9 @@ def _to_int(value: Any) -> int:
         return 0
 
 
+_find_all_cache: tuple[Path, float, list[HazardZone]] | None = None
+
+
 class TrafficAuthorityHazardZoneRepository(HazardZoneRepository):
     """HazardZoneRepository의 결빙 사고 다발지역 CSV 구현체.
 
@@ -54,6 +57,13 @@ class TrafficAuthorityHazardZoneRepository(HazardZoneRepository):
         self._encoding = encoding
 
     def find_all(self) -> list[HazardZone]:
+        # /routes 요청마다 read_csv를 다시 타지 않게 mtime 캐시(2026-09-11 리뷰).
+        global _find_all_cache  # noqa: PLW0603
+        mtime = self._csv_path.stat().st_mtime
+        if _find_all_cache is not None:
+            cached_path, cached_mtime, cached_rows = _find_all_cache
+            if cached_path == self._csv_path and cached_mtime == mtime:
+                return cached_rows
         frame = pd.read_csv(self._csv_path, encoding=self._encoding)
         seoul = frame[frame[_COL_SIDO_SGG].astype(str).str.startswith(_SEOUL_PREFIX)]
         zones: list[HazardZone] = []
@@ -61,6 +71,7 @@ class TrafficAuthorityHazardZoneRepository(HazardZoneRepository):
             zone = self._to_zone(position, row)
             if zone is not None:
                 zones.append(zone)
+        _find_all_cache = (self._csv_path, mtime, zones)
         return zones
 
     def _to_zone(self, position: int, row: dict[str, Any]) -> HazardZone | None:

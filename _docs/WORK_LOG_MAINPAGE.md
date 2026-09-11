@@ -28,6 +28,90 @@
 
 ---
 
+## 2026-09-11
+
+### 작업 내용 (보안 🟡 소진 — media 하드닝 · S3 실측 · 문서 모순 정리)
+- **media `/photos` 하드닝**(보안 🟡 2건): ① 업로드를 상한+1바이트까지만
+  read — 종전엔 전체를 메모리에 올린 뒤 10MB 검사라 초과 업로드도 서버
+  메모리를 다 쓰고 나서야 400이었다. ② S3 실패 502의 `detail=str(e)` 원문
+  노출 제거(업로드·목록 2곳) — 일반 문구로 바꾸고 원문은 서버 로그로.
+  테스트: 초과 크기 400+업로드 미도달, 502 detail에 원시 예외 문자열 부재.
+- **S3 버킷 공개 여부 실측(백로그 "미확인" 종결)**: boto3 읽기 전용 조회로
+  PublicAccessBlock 4항목 전부 True + 버킷 정책 없음 + ACL 소유자 단독 —
+  **완전 비공개** 확인. CLAUDE.md의 private 기술이 맞았다.
+- **PROGRESS.md 모순 정리**: "노트북 lora-server 토큰 미설정"이 구조·인프라
+  백로그에 미해결로 남아 있었으나, 같은 날(09-09) 저녁 보안 세션의 🔴②로
+  이미 해소(유닛 드롭인 토큰+401/200 실측)된 동일 건 — 오후 발견 기록이
+  정리 안 된 것. 완료로 교정(노트북 학습 중이라 재실측은 안 함, 워크로그
+  09-09 기록 근거).
+- mova 쪽 같은 날 작업(의도 추출 死호출 제거 · import require_admin ·
+  감정분석 배치화)은 `WORK_LOG_MOVA.md` 09-11 참고.
+
+### 오류·막힌 점
+- 노트북 GPU 학습 중 → 배포·프로덕션 실측 보류. media 수정 프로덕션 반영은
+  다음 배포(`deploy.sh --external-db --build`)에 편승.
+- **미착수로 남긴 🟡**: access TTL 7일+리프레시 미사용 · 토큰 localStorage —
+  인증 구조 변경(httpOnly 쿠키 전환 등)이라 프론트·백엔드 동시 설계 필요,
+  단발 수정으로 하지 않기로 함.
+
+### 작업 내용 (추가 — 백엔드 전체 코드 리뷰, 읽기 전용)
+- 사용자 요청으로 `suvisdev/` 전체 점검: 자동 검사 4종(pytest 774 passed ·
+  mypy 1,106파일 청정 · ruff 경미 9건 · lint-imports 6계약) + 영역별 병렬
+  리뷰 5개 + 높음 항목 직접 재검증. **수정 없음, 보고만.**
+- 결과 문서: `suvisdev/_docs/CODE_REVIEW_2026-09-11.md` — 높음 5군
+  (비밀번호 검증 pass-the-hash·미검증 이메일 admin·admin1234 시드·무인증
+  엔드포인트 10곳·gildle graph-edges 무제한), 중간 15, 낮음 다수, 데드/
+  스테일 코드 목록(AWQ 체인·빈 파일 16·일회성 스크립트 ~24·유령 앱 주석),
+  미사용 의존성(firebase-admin·langchain 계열 등), 권장 착수 순서 포함.
+
+### 작업 내용 (저녁 — 리뷰 후속 수정 ①~⑤ 완주)
+사용자 지시("권장 순서대로 진행")로 리뷰 발견을 일괄 수정. 상세·처리 현황은
+`suvisdev/_docs/CODE_REVIEW_2026-09-11.md` "처리 현황" 섹션이 SSOT.
+- **① 인증**: `_verify_password` 평문 동등 비교 제거(pass-the-hash 차단,
+  viewer·auth 양쪽) + viewer에 bcrypt 검증 추가 + auth는 레거시 sha256 계정
+  로그인 성공 시 bcrypt 재해시. OAuth role은 `email_verified=True` 이메일로만
+  산출(네이버 이메일 사칭 admin 차단). admin/admin1234 시드는
+  `VIEWER_ADMIN_PASSWORD` 미설정 시 스킵. viewer login/signup 라우터 언마운트
+  (프론트·susu 호출처 0 실측, 실사용은 auth 게이트웨이 — 코드는 롤백용 보존).
+  ⚠️ 평문 저장 계정이 만약 있으면 로그인 불가(비밀번호 재설정 대상).
+- **② 무인증 가드**: ontology 5(face train/predict·sentinel·genre·sentiment·
+  semantic, train은 epochs≤100 등 파라미터 상한) · mova 2(collections POST·
+  rankings/refresh) · titanic 2(james/upload 10MB 상한·rose train/predict) ·
+  execsuite pdf/summarize · dispatch spam/classify. jack/train은 스텁이라 제외.
+  프론트 3계층 토큰 배선: rankings 새로고침(공개 페이지 버튼은 실패해도
+  스냅샷 재로드 유지), object-detection face/predict, titanic CSV 업로드.
+- **③ 중간 1~5**: 마지막 리뷰 삭제 시 movies.rating 0.0 덮어쓰기 제거 ·
+  editor_reviews 스케줄러 shutdown cancel 추가 · `EMBEDDING_BACKEND` 분기
+  재사용 2곳(kofic 스케줄러·semantic provider) · 채팅 rate limit
+  CF-Connecting-IP 우선+XFF 마지막 요소+버킷 prune · viewer OAuth state
+  Redis 1회 소비 전환+JWT_SECRET 미설정 즉시 RuntimeError.
+- **④ 성능**: gildle 요청당 재구축 전면 캐시화(nx 그래프·노드 그리드 인덱스·
+  edge_lookup·그늘 슬롯·CSV mtime) + weight를 nx 콜러블로 바꿔 233k 사전
+  대입 제거(공유 그래프 변이 레이스도 해소). mova (id,title) 10분 TTL 캐시,
+  LotteCinema·TmdbCatalog 어댑터 싱글턴화(내부 캐시 부활).
+- **⑤ 정리**: 데드 파일 42개 삭제, 일회성 스크립트 30개 `scripts/_archive/`
+  이동, compose→kubectl 사용법 16건, utcnow 3곳(naive UTC 유지),
+  CLAUDE.md §B·§O 실측 갱신, EC2/compose 낡은 주석 11곳, requirements
+  미사용 10종 제거. titanic 빈 엔티티 8개는 의도적 스캐폴딩 판명으로 보존.
+
+### 오류·막힌 점 (저녁)
+- pyproject ruff `target-version`을 py313으로 올리자 신규 UP 룰 87건 —
+  일괄 정리가 별도 작업 규모라 py312 유지+사유 주석, mypy만 3.13으로.
+- isort known-first-party에 shared 등 신규 앱을 추가하자 I001 56건 재정렬
+  요구 — 유령 앱 5개 제거만 하는 최소 변경으로 후퇴.
+- 배포·프로덕션 실측은 노트북 학습 중이라 전부 보류. 배포 시 주의:
+  ⚠️ **auth 파드도 재배포 필요**(비밀번호 검증 변경이 auth 게이트웨이에도
+  들어감), viewer login/signup 401 아닌 404가 나는 게 정상(언마운트).
+
+### 산출물
+- media 테스트 10 passed. 상세 검증 수치는 WORK_LOG_MOVA 09-11 산출물 참고.
+- `suvisdev/_docs/CODE_REVIEW_2026-09-11.md`(전체 리뷰 보고서 + 처리 현황).
+- 저녁 검증: pytest 784 passed(가드·state·role 회귀 테스트 신규 ~17건 포함) ·
+  mypy 1,063파일 청정 · ruff 기존 9건 유지 · lint-imports 6계약 ·
+  `import main` OK · suvis type-check/lint 청정.
+
+---
+
 ## 2026-09-09
 
 ### 작업 내용 (노트북 프로덕션 실사용 검증 — 09-07 컷오버 후속)

@@ -1,6 +1,6 @@
 """추천 폴백 데코레이터 — primary(LoRA) 실패 시 fallback(Gemini)으로 자동 전환.
 
-RECOMMENDATION_BACKEND=lora일 때 노트북 lora 서버가 꺼져 있으면 예전엔 EC2
+RECOMMENDATION_BACKEND=lora일 때 lora 서버가 꺼져 있으면 예전엔 배포 환경
 `.env`를 고쳐 컨테이너를 재생성해야 했다(수동 폴백, 2026-08-25 실측 왕복 8초 +
 사람 개입). 이 데코레이터가 LLMError를 잡아 fallback으로 넘기므로 수동 전환이
 필요 없어진다. 서킷 브레이커(core/lol)가 열려 있으면 primary는 HTTP 호출 없이

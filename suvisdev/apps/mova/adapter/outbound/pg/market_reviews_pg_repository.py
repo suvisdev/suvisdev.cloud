@@ -375,9 +375,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         await self._update_movie_rating(row.movie_id)
         return True
 
-    async def get_sentiment_summary(
-        self, movie_id: int
-    ) -> tuple[int, int, int]:
+    async def get_sentiment_summary(self, movie_id: int) -> tuple[int, int, int]:
         rows = (
             await self._session.execute(
                 select(MovaReview.sentiment_label, func.count(MovaReview.id))
@@ -419,9 +417,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
     async def get_vote_count(self, review_id: int) -> int:
         result = (
             await self._session.execute(
-                select(func.count(MovaReviewVote.id)).where(
-                    MovaReviewVote.review_id == review_id
-                )
+                select(func.count(MovaReviewVote.id)).where(MovaReviewVote.review_id == review_id)
             )
         ).scalar_one()
         return int(result or 0)
@@ -429,10 +425,12 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
     async def has_voted(self, review_id: int, user_id: int) -> bool:
         row = (
             await self._session.execute(
-                select(MovaReviewVote.id).where(
+                select(MovaReviewVote.id)
+                .where(
                     MovaReviewVote.review_id == review_id,
                     MovaReviewVote.user_id == user_id,
-                ).limit(1)
+                )
+                .limit(1)
             )
         ).scalar_one_or_none()
         return row is not None
@@ -447,9 +445,14 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 )
             )
         ).scalar_one_or_none()
+        # 리뷰가 0건이 되면 rating을 건드리지 않는다 — movies.rating은 TMDB
+        # 유래 기준 평점인데 0.0으로 덮으면 복원 경로가 없어(다음 재임포트까지)
+        # 가중평점 정렬·게임 풀(rating>=3.3)에서 영구 강등된다(2026-09-11 리뷰).
+        if result is None:
+            return
         movie = (
             await self._session.execute(select(MovaMovie).where(MovaMovie.id == movie_id))
         ).scalar_one_or_none()
         if movie:
-            movie.rating = round(float(result), 2) if result is not None else 0.0
+            movie.rating = round(float(result), 2)
             await self._session.commit()

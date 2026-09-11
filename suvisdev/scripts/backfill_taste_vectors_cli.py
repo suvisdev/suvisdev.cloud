@@ -6,7 +6,7 @@ BackgroundTasks가 정상적으로 돌면 리뷰 저장 직후 작성자 취향 
 다시 돌려도 같은 가중 평균이 나옴) 전량 재실행해도 안전하다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_taste_vectors_cli.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_taste_vectors_cli.py
   (로컬 실행 시) python scripts/backfill_taste_vectors_cli.py
 
   --limit N   앞 N명만 처리(시험 실행용)

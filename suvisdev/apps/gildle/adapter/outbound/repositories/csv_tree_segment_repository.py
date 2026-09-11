@@ -30,6 +30,9 @@ def _to_optional_str(value: Any) -> str | None:
     return text or None
 
 
+_find_all_cache: tuple[Path, float, list[TreeSegment]] | None = None
+
+
 def _to_quantity(value: Any) -> int:
     """수량 파싱. 결측·비정상 값('-', 빈칸, '1,200' 등)은 0으로 처리."""
     if value is None or pd.isna(value):
@@ -65,12 +68,21 @@ class CsvTreeSegmentRepository(TreeSegmentRepository):
         self._encoding = encoding
 
     def find_all(self) -> list[TreeSegment]:
+        # /routes 요청마다 read_csv를 다시 타지 않게 mtime 캐시(2026-09-11 리뷰).
+        # 리포지토리 인스턴스는 요청마다 새로 만들어지므로 캐시는 모듈 레벨.
+        global _find_all_cache  # noqa: PLW0603
+        mtime = self._csv_path.stat().st_mtime
+        if _find_all_cache is not None:
+            cached_path, cached_mtime, cached_rows = _find_all_cache
+            if cached_path == self._csv_path and cached_mtime == mtime:
+                return cached_rows
         frame = pd.read_csv(self._csv_path, encoding=self._encoding)
         segments: list[TreeSegment] = []
         for position, row in enumerate(frame.to_dict("records"), start=1):
             segment = self._to_segment(position, row)
             if segment is not None:
                 segments.append(segment)
+        _find_all_cache = (self._csv_path, mtime, segments)
         return segments
 
     def save_many(self, segments: list[TreeSegment]) -> None:

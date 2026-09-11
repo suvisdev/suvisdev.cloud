@@ -10,7 +10,7 @@ hub_knowledge 재임베딩 이슈(PROGRESS.md 1순위, 프로덕션 데이터 �
 뿐 재임베딩이 아니다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_movie_embeddings_cli.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_movie_embeddings_cli.py
   (로컬 실행 시) python scripts/backfill_movie_embeddings_cli.py
 
   --limit N   앞 N편만 처리(시험 실행용, 예: --limit 5)

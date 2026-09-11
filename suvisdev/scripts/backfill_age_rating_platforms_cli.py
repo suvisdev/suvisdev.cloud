@@ -9,7 +9,7 @@
 list_missing_age_rating_or_platforms 주석). 일회성 스크립트라 감내.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_age_rating_platforms_cli.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_age_rating_platforms_cli.py
   (로컬 실행 시) python scripts/backfill_age_rating_platforms_cli.py
 
   --limit N   앞 N편만 처리(시험 실행용, 예: --limit 5)

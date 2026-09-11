@@ -45,7 +45,11 @@ class OAuthLoginInteractor(OAuthLoginUseCase):
                 user_id=existing.user_id,
                 username=existing.username,
                 nickname=existing.nickname,
-                email=identity.email,
+                # role(ADMIN_EMAILS 대조)은 프로바이더가 검증한 이메일에만 부여 —
+                # 네이버 등 미검증 이메일은 사용자가 임의로 바꿔 넣을 수 있어
+                # admin 이메일 사칭으로 role=admin 세션이 발급되는 경로가 된다
+                # (2026-09-11 리뷰 H2).
+                email=identity.email if identity.email_verified else None,
             )
             logger.info(
                 "[OAuthLoginInteractor] %s 기존 계정 로그인 — user_id=%s",
@@ -76,7 +80,8 @@ class OAuthLoginInteractor(OAuthLoginUseCase):
             user_id=login.user_id,
             username=login.username,
             nickname=login.nickname,
-            email=identity.email,
+            # 위 handle_callback과 동일 — 미검증 이메일로는 role을 산출하지 않는다.
+            email=identity.email if identity.email_verified else None,
         )
         session = self._session_store.redeem_handoff_code(code=handoff_code)
         if session is None:

@@ -25,7 +25,6 @@ bcrypt==5.0.0
 PyJWT[crypto]==2.10.1
 alembic==1.18.4
 pgvector==0.4.2
-sqlmodel==0.0.38
 python-multipart==0.0.32
 boto3
 neo4j-graphrag==1.18.0
@@ -40,18 +39,9 @@ opencv-python
 pytest==9.0.3
 pytest-asyncio==1.4.0
 mcp==1.28.0
-langchain==1.3.11
 langchain-core==1.5.1
-langchain-community==0.4.2
-langchain-ollama==1.1.0
 langchain-google-genai==4.3.2
-langchain-text-splitters==1.1.2
-langsmith==0.10.10
-langgraph==1.2.6
-langgraph-checkpoint==4.1.1
-langgraph-prebuilt==1.1.0
 --extra-index-url https://download.pytorch.org/whl/cu126
 torch==2.12.1+cu126
 torchaudio==2.11.0+cu126
 torchvision==0.27.1+cu126
-firebase-admin==6.9.0

@@ -95,6 +95,17 @@ def test_upload_photo_rejects_empty_file(client):
     assert resp.status_code == 400
 
 
+def test_upload_photo_rejects_oversize_without_full_read(monkeypatch, client, fake_tank):
+    """상한 초과 파일은 400 — 상한+1바이트까지만 읽고 거부한다."""
+    monkeypatch.setattr(router_module, "_MAX_BYTES", 8)
+    resp = client.post(
+        "/media/photos",
+        files={"file": ("photo.jpg", b"123456789", "image/jpeg")},
+    )
+    assert resp.status_code == 400
+    assert fake_tank.calls == []
+
+
 def test_upload_photo_maps_s3_failure_to_502(monkeypatch):
     tank = _FakeTank(error=RuntimeError("S3 업로드 실패: boom"))
     monkeypatch.setattr(router_module, "get_tank", lambda: tank)
@@ -104,6 +115,8 @@ def test_upload_photo_maps_s3_failure_to_502(monkeypatch):
         files={"file": ("photo.jpg", b"fake-image-bytes", "image/jpeg")},
     )
     assert resp.status_code == 502
+    # 원시 예외 문자열(버킷명·자격증명 힌트 등)을 응답에 흘리지 않는다
+    assert "boom" not in resp.json()["detail"]
 
 
 def test_upload_photo_requires_auth():
@@ -165,6 +178,7 @@ def test_list_photos_with_ocr_maps_list_failure_to_502(monkeypatch):
     resp = client.get("/media/photos/ocr")
 
     assert resp.status_code == 502
+    assert "boom" not in resp.json()["detail"]
 
 
 def test_list_photos_with_ocr_requires_admin():

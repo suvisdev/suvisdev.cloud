@@ -32,21 +32,26 @@ Karpathy 네 원칙(묵시적 가정 금지·최소 diff)은 **항상** 유지�
 
 | 앱 | 역할 | 토폴로지 | 참조 |
 |----|------|----------|------|
-| `ontology/` | **Hub** — 공통 이벤트 버스·온톨로지·하네스 평가 엔진 | ⭐ Hub | — |
+| `ontology/` | **Hub** — 공통 이벤트 버스·RAG·비전/NLP 리소스 어댑터·하네스 평가 엔진 | ⭐ Hub | — |
 | `titanic/` | CSV 업로드(James)·조회(Walter)·선장채팅(Smith) — **헥사고날 기준선** | Spoke | `titanic/_docs/CLAUDE.md` |
 | `mova/` | 영화·채팅·랭킹·리뷰 등 도메인 API | Spoke | `mova/_docs/CLAUDE.md` |
-| `viewer/` | 인증(`groups`, `admins`, `users`) — login/signup | Spoke | `viewer/_docs/CLAUDE.md` |
-| `silicon_valley/` | n8n·Slack 연동, 이벤트 발행 | Spoke | — |
-| `friday13th/` | 개발 중 (스켈레톤 — main.py 미등록) | Spoke | — |
-| `imitation_game/` | 개발 중 (스켈레톤 — main.py 미등록) | Spoke | — |
-| `inception/` | 개발 중 (스켈레톤 — main.py 미등록) | Spoke | — |
-| `social_network/` | 개발 중 (스켈레톤 — main.py 미등록) | Spoke | — |
+| `viewer/` | 인증 데이터(`groups`, `admins`, `users`)·OAuth·프로필·아바타 | Spoke | `viewer/_docs/CLAUDE.md` |
+| `auth/` | 인증 게이트웨이 — **main.py 미등록**, k8s 별도 파드(`auth.suvisdev.cloud`)로 서빙 | 독립 서비스 | — |
+| `gildle/` | 산책 경로 계산(OSM 그래프·그늘/가로수 가중) | Spoke | — |
+| `dispatch/` | 이메일·텔레그램·디스코드 발송 + 수신함·스팸 분류 | Spoke | — |
+| `execsuite/` | LangChain 챗·PDF 요약·메일 | Spoke | — |
+| `contents/` | 콘텐츠 데모(soccer chat 등) | Spoke | — |
+| `analytics/` | 방문자 통계 | Spoke | — |
+| `media/` | susu 카메라 사진 → S3 저장·OCR | Spoke | — |
+| `sample/` | 순수 스켈레톤(main.py 미등록, 전 파일 `__init__.py`) | Spoke | — |
 
-- **인증은 `viewer/`** — 프로덕션 login/signup은 viewer만 사용.
-- **DB:** Neon PostgreSQL. Mova·Viewer(Secom)는 동일 DB URL을 공유하는 경우가 많음 (`DATABASE_URL` / `MOVA_DATABASE_URL` / `SECOM_DATABASE_URL`).
+- **프로덕션 인증은 auth 게이트웨이**(`/auth/login`·`/auth/signup`, RS256) —
+  viewer의 구 login/signup 라우터는 2026-09-11 언마운트(OAuth·프로필만 유지).
+- **DB:** PostgreSQL(노트북 k3s 외부 도커). Mova·Viewer(Secom)는 동일 DB URL을 공유하는 경우가 많음 (`DATABASE_URL` / `MOVA_DATABASE_URL` / `SECOM_DATABASE_URL`).
 - **진입점:** `main.py` — lifespan에서 `verify_connection()` → `create_tables()` → `seed_viewer_if_empty()`.
-- **현재 main.py 등록 앱:** titanic, mova, viewer (나머지는 스켈레톤).
-- **테스트:** `apps/<app>/tests/` (앱별). `suvisdev/tests/` 루트 폴더는 **사용하지 않음**.
+- **현재 main.py 등록 앱(2026-09-11 실측):** mova, titanic, gildle, viewer,
+  execsuite, dispatch, contents, ontology(vision·nlp 포함), analytics, media.
+- **테스트:** `apps/<app>/tests/` 또는 `test/` (앱별 기존 이름 유지). `suvisdev/tests/` 루트 폴더는 **사용하지 않음**.
 
 ---
 
@@ -366,13 +371,13 @@ python scripts/verify_db_tables.py
 앱 간 통신 토폴로지는 **스타-토폴로지(Star Topology / Hub-and-Spoke)** 로 강제된다.
 
 ```text
-        titanic   mova   viewer   silicon_valley
-           \       |       |       /
-            \      |       |      /
-             ★  ontology (Hub)  ★
-            /      |       |      \
-           /       |       |       \
-     friday13th  inception  social_network  imitation_game
+        titanic    mova    viewer    gildle
+           \        |        |        /
+            \       |        |       /
+              ★  ontology (Hub)  ★
+            /       |        |       \
+           /        |        |        \
+     dispatch  execsuite  contents  analytics · media
 ```
 
 ### O.2 Hub 규칙 (`ontology`)

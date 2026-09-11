@@ -6,7 +6,7 @@
 UNIQUE(movie_id, slug) ON CONFLICT DO NOTHING으로 건너뛴다.
 
 일회성 수동 실행 전용(부팅 흐름 미포함). Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_tmdb_keyword_tags.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_tmdb_keyword_tags.py
   (로컬 실행 시) python scripts/backfill_tmdb_keyword_tags.py
 
   --limit N   앞 N편만 처리(시험 실행용, 예: --limit 5)

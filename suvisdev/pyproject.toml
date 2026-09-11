@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py312"  # 실런타임은 3.13 — py313으로 올리면 신규 UP 룰 87건 일괄 정리가 필요해 별도 작업으로 미룸(2026-09-11)
 src = ["apps", "core"]
 
 [tool.ruff.lint]
@@ -37,9 +37,8 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = [
     "ontology",
-    "titanic", "mova", "viewer", "silicon_valley",
+    "titanic", "mova", "viewer",
     "dispatch",
-    "friday13th", "imitation_game", "inception", "social_network",
     "gildle",
     "contents",
     "analytics",
@@ -54,7 +53,7 @@ indent-style = "space"
 # mypy — strict 정적 타입 검사
 # ──────────────────────────────────────────────
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 explicit_package_bases = true

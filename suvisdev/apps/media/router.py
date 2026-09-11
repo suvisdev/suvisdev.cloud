@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import mimetypes
 from datetime import datetime
 
@@ -15,6 +16,8 @@ from core.matrix.aws_tank_s3_manager import get_tank
 from media.dependencies.require_auth import get_current_user
 from media.ocr import extract_text
 from media.schemas import OcrPhotoItem, PhotoUploadResponse
+
+logger = logging.getLogger(__name__)
 
 media_router = APIRouter(prefix="/media", tags=["media"])
 
@@ -28,7 +31,9 @@ async def upload_photo(
     file: UploadFile = File(...),
     user: TokenPayload = Depends(get_current_user),
 ) -> PhotoUploadResponse:
-    content = await file.read()
+    # 상한+1바이트까지만 읽는다 — 전체를 메모리에 올린 뒤 거부하면 10MB 검사가
+    # 무의미해진다(초과 업로드도 서버 메모리를 다 쓰고 나서야 400).
+    content = await file.read(_MAX_BYTES + 1)
     if not content:
         raise HTTPException(status_code=400, detail="빈 파일입니다.")
     if len(content) > _MAX_BYTES:
@@ -43,7 +48,8 @@ async def upload_photo(
     try:
         url = await asyncio.to_thread(tank.upload_bytes, key, content, content_type=content_type)
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.error("[media] S3 업로드 실패 key=%s err=%s", key, e)
+        raise HTTPException(status_code=502, detail="사진 저장에 실패했습니다.") from e
 
     return PhotoUploadResponse(key=key, url=url, size_bytes=len(content), content_type=content_type)
 
@@ -62,7 +68,8 @@ async def list_photos_with_ocr(
     try:
         keys = await asyncio.to_thread(tank.list_objects, "media/")
     except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        logger.error("[media] S3 목록 조회 실패 err=%s", e)
+        raise HTTPException(status_code=502, detail="사진 목록 조회에 실패했습니다.") from e
 
     keys.sort(reverse=True)  # 파일명에 타임스탬프가 있어 최신순 정렬됨
     items: list[OcrPhotoItem] = []

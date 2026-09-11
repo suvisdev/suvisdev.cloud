@@ -3,10 +3,11 @@ import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
 
 export async function POST(request: NextRequest) {
   const source = request.nextUrl.searchParams.get("source") ?? "chat_trend"
+  const auth = request.headers.get("authorization")
   try {
     const res = await backendFetch(
       `/mova/rankings/refresh?source=${encodeURIComponent(source)}`,
-      { method: "POST" },
+      { method: "POST", headers: auth ? { Authorization: auth } : {} },
     )
     let data: unknown
     try {

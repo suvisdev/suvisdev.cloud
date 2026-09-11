@@ -5,9 +5,9 @@
 줄에 찍힌 "재시작하려면: --start-page N"을 그대로 다음 실행에 넘기면 이어받는다.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/bulk_import_movies.py \
+  kubectl -n suvisdev exec deploy/backend -- python scripts/bulk_import_movies.py \
       --source tmdb_discover --country KR --pages 50
-  docker compose exec backend python scripts/bulk_import_movies.py \
+  kubectl -n suvisdev exec deploy/backend -- python scripts/bulk_import_movies.py \
       --source tmdb_popular --pages 20 --start-page 21
 
   --source        tmdb_popular | tmdb_discover (kofic은 2026-08-13 CLI에서 제거)

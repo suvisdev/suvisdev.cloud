@@ -6,7 +6,7 @@ BackgroundTasks가 정상적으로 돌면 신규/수정 리뷰는 저장 직후 
 대상이라 idempotent.
 
 Usage (suvisdev 폴더에서):
-  docker compose exec backend python scripts/backfill_review_embeddings_cli.py
+  kubectl -n suvisdev exec deploy/backend -- python scripts/backfill_review_embeddings_cli.py
   (로컬 실행 시) python scripts/backfill_review_embeddings_cli.py
 
   --limit N   앞 N건만 처리(시험 실행용)

@@ -1,8 +1,9 @@
 """reviews.sentiment_label 백필 — body가 있는데 sentiment가 NULL인 리뷰를 순회한다.
 
 GPU(CUDA)가 있는 로컬 머신에서만 실행한다. EXAONE-3.5-2.4B + Echo LoRA를
-호출당 로드/해제하므로 건당 수십 초가 걸린다 — 대량 처리 시 --limit으로 끊어서
-실행하는 것을 권장한다.
+한 번만 로드해 전량 순회한다(2026-09-11 배치화 — 건당 로드/해제 시절 41건
+≈ 30분이던 것을 로드 1회로 단축). 배치 동안 VRAM을 점유하므로 lora-server
+학습 등과 겹치지 않게 실행한다.
 
 Usage (suvisdev 폴더에서):
   python scripts/backfill_review_sentiment_cli.py
@@ -43,7 +44,9 @@ async def _run(args: argparse.Namespace) -> None:
     import torch
 
     if not torch.cuda.is_available():
-        print("[backfill_review_sentiment] CUDA GPU가 없습니다. 이 스크립트는 GPU 머신에서만 실행 가능합니다.")
+        print(
+            "[backfill_review_sentiment] CUDA GPU가 없습니다. 이 스크립트는 GPU 머신에서만 실행 가능합니다."
+        )
         return
 
     from core.matrix.grid_oracle_database_manager import get_mova_session_factory

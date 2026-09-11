@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.matrix.grid_oracle_database_manager import get_db
 from ontology.adapter.outbound.llm.fallback_hub_llm_adapter import FallbackHubLlmAdapter
 from ontology.adapter.outbound.llm.gemini_llm_adapter import GeminiLlmAdapter
-from ontology.adapter.outbound.llm.ollama_embedding_adapter import OllamaEmbeddingAdapter
 from ontology.adapter.outbound.llm.qwen_intent_classifier import QwenIntentClassifier
 from ontology.adapter.outbound.llm.qwen_llm_adapter import QwenLlmAdapter
 from ontology.adapter.outbound.repositories.hub_knowledge_repository import (
@@ -21,6 +20,7 @@ from ontology.app.ports.output.intent_classifier_port import IntentClassifierPor
 from ontology.app.use_cases.hub_rag_interactor import HubRagInteractor
 from ontology.app.use_cases.Mycroft_interactor import MycroftInteractor
 from ontology.app.use_cases.semantic_router_interactor import SemanticRouterInteractor
+from ontology.dependencies.hub_rag_provider import get_hub_embedding_port
 
 
 def get_qwen_llm_port() -> HubLlmPort:
@@ -35,7 +35,7 @@ def get_intent_classifier(
     qwen: HubLlmPort = Depends(get_qwen_llm_port),
     gemini: HubLlmPort = Depends(get_gemini_llm_port),
 ) -> IntentClassifierPort:
-    # Qwen(Ollama)은 로컬 GPU 전용 — EC2엔 없어 분류가 전부 기본값으로 새던
+    # Qwen(Ollama)은 로컬 GPU 전용 — 없는 환경에선 분류가 전부 기본값으로 새던
     # 잠복 결함(2026-08-28 실측). Gemini 폴백을 태워 양쪽 환경에서 분류가 산다.
     return QwenIntentClassifier(llm=FallbackHubLlmAdapter(primary=qwen, fallback=gemini))
 
@@ -44,7 +44,10 @@ def get_semantic_hub_rag_use_case(
     db: AsyncSession = Depends(get_db),
 ) -> HubRagUseCase:
     repository: HubKnowledgePort = HubKnowledgeRepository(session=db)
-    return HubRagInteractor(repository=repository, embedding=OllamaEmbeddingAdapter())
+    # EMBEDDING_BACKEND 분기(get_hub_embedding_port)를 재사용 — Ollama 하드코딩
+    # 시 gemini 환경에서 RAG 경로가 조용히 죽는다(2026-09-11 리뷰, 08-07 실측과
+    # 동일 클래스).
+    return HubRagInteractor(repository=repository, embedding=get_hub_embedding_port())
 
 
 def get_semantic_mycroft_use_case(

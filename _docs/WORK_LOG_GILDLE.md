@@ -28,6 +28,32 @@
 
 ---
 
+## 2026-09-11
+
+### 작업 내용 (전체 리뷰 후속 — gildle 몫: DoS 상한 + 요청당 재구축 제거)
+상세는 `suvisdev/_docs/CODE_REVIEW_2026-09-11.md` 처리 현황 참고.
+- **`GET /graph-edges` 상한**: bbox 없는 호출이 23.4만 간선(80MB급) 전체를
+  무인증 반환하던 것 → bbox 4개 필수화(지도는 항상 보냄) + 응답 20,000건
+  절대 상한.
+- **요청당 재구축 제거**: ① nx 그래프를 edges 리스트 동일성 키로 캐시
+  ② 최단경로 weight를 전 간선 사전 대입(233k회) 대신 nx 콜러블로 — 방문한
+  간선만 평가되고, 캐시된 공유 그래프를 변이하는 동시성 문제도 함께 해소
+  ③ 최근접 노드 전수 스캔 → 0.005° 그리드 인덱스(+2링 여유 탐색)
+  ④ edge_lookup·그늘 슬롯별 lookup 캐시 ⑤ 가로수·결빙 CSV find_all mtime 캐시.
+- 레거시 `session.query(...).delete()` → 2.0 `delete()` 문. 미사용 프로바이더
+  3종(get_walk_graph_source/port·get_import_tree_segment_use_case) 제거.
+
+### 오류·막힌 점
+- 없음. 검증: gildle 테스트 198 passed(전 스위트 784의 일부), ruff·mypy 청정.
+- postgres 모드(요청당 create_engine·세션 미close 누수)는 현재 csv 모드라
+  잠복 — 리뷰 잔여 목록에 남김.
+
+### 산출물
+- 당일 저녁 일괄 커밋·배포(커밋 해시는 WORK_LOG_MAINPAGE 09-11 참고).
+  리뷰 문서 처리 현황에 통합 기록.
+
+---
+
 ## 2026-08-28
 
 ### 작업 내용

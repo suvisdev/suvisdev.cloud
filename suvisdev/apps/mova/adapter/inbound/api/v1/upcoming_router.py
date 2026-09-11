@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,7 +27,10 @@ from mova.adapter.outbound.http.tmdb_catalog_adapter import TmdbCatalogAdapter
 upcoming_router = APIRouter(prefix="/upcoming", tags=["mova-upcoming"])
 
 
+@lru_cache(maxsize=1)
 def _get_catalog() -> TmdbCatalogAdapter:
+    # 요청마다 새 인스턴스를 만들면 어댑터 내부 장르맵 캐시가 매번 재조회된다
+    # (2026-09-11 리뷰) — 프로세스당 1개를 공유한다.
     return TmdbCatalogAdapter(get_keymaker().tmdb_api_key)
 
 

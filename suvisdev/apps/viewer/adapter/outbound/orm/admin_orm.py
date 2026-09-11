@@ -60,8 +60,16 @@ async def seed_admin_if_empty() -> None:
         if admin_exists.scalar_one_or_none() is not None:
             return
 
+        password = os.getenv("VIEWER_ADMIN_PASSWORD")
+        if not password:
+            # 고정 기본값(admin/admin1234)으로 시드하면 새 환경마다 기본
+            # 자격증명 admin 계정이 생긴다(2026-09-11 리뷰 H3) — env가 없으면
+            # 시드하지 않고 경고만 남긴다. 관리자 계정이 필요하면
+            # VIEWER_ADMIN_PASSWORD를 설정하고 재기동할 것.
+            logger.warning("[AdminOrm] VIEWER_ADMIN_PASSWORD 미설정 — 기본 관리자 시드를 건너뜀")
+            return
+
         username = (os.getenv("VIEWER_ADMIN_USERNAME") or "admin").strip()
-        password = os.getenv("VIEWER_ADMIN_PASSWORD") or "admin1234"
         nickname = (os.getenv("VIEWER_ADMIN_NICKNAME") or "Mova Admin").strip()
         email = (os.getenv("VIEWER_ADMIN_EMAIL") or f"{username}@mova.local").strip()
 
