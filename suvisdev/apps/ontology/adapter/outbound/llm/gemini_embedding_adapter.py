@@ -14,7 +14,8 @@ class GeminiEmbeddingAdapter(EmbeddingPort):
     """OllamaEmbeddingAdapter의 대체 — Ollama가 없는 배포 환경에서 쓴다.
 
     `gemini-embedding-001`의 기본 차원은 3072지만 `hub_knowledge.embedding`
-    컬럼이 768(pgvector `Vector(768)`)이라 `output_dimensionality`로 맞춘다.
+    컬럼이 EMBEDDING_DIM(2026-09-11부터 1024 — bge-m3 전환)이라
+    `output_dimensionality`로 맞춘다.
     MRL 절단이라 반환 벡터의 L2 norm이 1이 아니지만, 검색이
     `cosine_distance`(스케일 불변)만 쓰므로 순위에 영향이 없어 재정규화하지
     않는다.

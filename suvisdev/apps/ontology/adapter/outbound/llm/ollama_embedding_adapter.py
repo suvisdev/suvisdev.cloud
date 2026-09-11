@@ -9,7 +9,11 @@ from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.app.ports.output.knowledge_embedding_port import EmbeddingPort
 
 _OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-_DEFAULT_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+# 2026-09-11 nomic-embed-text→bge-m3(1024차원, 접두사 불요) — 한국어 검색
+# recall@8 0.390→0.860 실측(scripts/eval_embedding_models.py). 서빙 노드에
+# `ollama pull bge-m3` + hub 재임베딩이 선행돼야 한다(RS_TEACHER_LOOP.md).
+# dispatch의 동명 어댑터는 자체 768 공간이라 그대로 nomic을 쓴다.
+_DEFAULT_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "bge-m3")
 
 
 class OllamaEmbeddingAdapter(EmbeddingPort):

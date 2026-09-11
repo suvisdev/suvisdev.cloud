@@ -121,6 +121,28 @@
   ③ 채팅 제목 직접 언급 증가. 도입 시 ATS 순수 Python 구현 복사(의존 금지)
   → `intent_extraction` 결정론 경로.
 
+### RAG 임베딩 bge-m3 전환 — 코드 완료, 노트북 컷오버 대기 (2026-09-11)
+- **실측 근거**(`scripts/eval_embedding_models.py`, 60질의·패러프레이즈 포함):
+  bge-m3 recall@8 **0.860** vs e5-base 0.765 vs 현행 nomic **0.390**(한국어
+  취약). bge-m3 채택 — 접두사 불요·Ollama 공식, 비용은 hub_knowledge 한
+  테이블 1024 마이그레이션뿐(movies/reviews/taste·dispatch는 각자 768 공간).
+- **완료**: `EMBEDDING_DIM` 1024, Ollama 어댑터 기본 bge-m3, alembic
+  `20260911_0001`, ingest 호스트 실행 지원. 데스크톱 검증(alter+gemini 10편
+  색인+1024 벡터 검색 히트) 완료.
+- **남은 것(노트북, 절차 엄수)**: `ollama pull bge-m3` → pull·deploy →
+  `alembic upgrade head` → `ingest_hub_knowledge.py --reset
+  --embedding-backend ollama`(859편) → eval_chat_queries 회귀. 상세:
+  `suvisdev/_docs/RS_TEACHER_LOOP.md` §2.
+
+### RS 교사 루프(엑사온 데이터셋 v2) — 파이프라인 완성 (2026-09-11)
+- 학생(EXAONE) 온도 4종 후보 생성 → 그라운딩 하드 필터 → Gemini 루브릭
+  심판(7점 미만은 교사 작성 폴백) 구조. `rs_mine_queries.py`(실질의 채굴) +
+  `rs_generate_and_judge.py`(생성·심판·감사로그, 재개 지원).
+- 데스크톱 스모크 E2E 통과 — 단 로컬 카탈로그(205편·장르만)라 심판 6점으로
+  전건 교사 폴백. **본 실행은 노트북 호스트에서**(프로덕션 카탈로그 + 내부
+  llama-server 8201 온도 샘플링). 학습은 기존 배치 큐 원칙: v2가 300건+
+  모이면 stop→train→GGUF→reload→eval 한 번에. 상세: RS_TEACHER_LOOP.md §1.
+
 ### LoRA 재학습 배치 큐 (2026-09-03 사용자 결정 — 매 변경마다 학습 금지)
 - **원칙**: 상류 변경(태그 사전·후보 조립·프롬프트 입력)은 계속 쌓되,
   재학습은 진짜 트리거(출력 계약 변경 / 생성 단계 체계적 실패 / 데이터셋

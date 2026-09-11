@@ -92,6 +92,11 @@ async def _director_names(session, movie_id: int) -> list[str]:
 
 
 async def main(args: argparse.Namespace) -> None:
+    # 호스트 직접 실행 지원 — get_keymaker()의 .env 로드 부작용으로
+    # MOVA_DATABASE_URL·GEMINI 키를 os.environ에 싣는다(backfill_*_cli.py와 동일).
+    from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+
+    get_keymaker()
     # 대량 재임베딩도 크론 백필과 같은 이유로 별도 키 사용(2026-08-28 쿼터 분리)
     # — backfill_movie_embeddings_cli.py 주석 참고. 미설정이면 기존 키 그대로.
     backfill_key = os.getenv("GEMINI_BACKFILL_API_KEY", "").strip()

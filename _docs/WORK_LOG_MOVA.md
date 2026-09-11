@@ -107,6 +107,40 @@ WORK_LOG_MAINPAGE 09-11 저녁. mova 해당분만:
 - 테스트: `BookingRegionFirstTests` 4건(이어받기·맥락 부재·명시 제목 우선·
   신호 추출 서브테스트 5) — mova 323 passed·mypy·ruff 청정.
 
+### 작업 내용 (심야 — RAG 임베딩 bge-m3 전환 + RS 교사 루프 구축)
+- **임베딩 비교 하네스 신설**(`scripts/eval_embedding_models.py`): 로컬 DB
+  코퍼스(hub 비었으면 movies+장르 태그로 ingest 형태 재구성) + 장르 쿼리
+  + 패러프레이즈 쿼리(어휘 겹침 배제 10종), HF 가중치 직접 로드로
+  Recall@8·MRR@8 측정. **결과: bge-m3 0.860 / e5-base 0.765 / 현행 nomic
+  0.390** — 한국어에서 현행이 크게 밀림을 실측.
+- **bge-m3 전환 코드**: `EMBEDDING_DIM` 768→1024, ontology Ollama 어댑터
+  기본모델 bge-m3(env로 오버라이드 가능, dispatch 사본은 768 유지),
+  alembic `20260911_0001`(vector(1024), 기존 벡터 NULL), Gemini 어댑터는
+  output_dimensionality가 상수를 따라감. `ingest_hub_knowledge.py`에
+  호스트 실행 부트스트랩(get_keymaker) 추가. **데스크톱 검증**: 로컬 alter
+  + alembic stamp + gemini 백엔드 10편 색인 + 1024 쿼리 벡터 검색 히트 확인.
+  노트북 컷오버 절차는 `RS_TEACHER_LOOP.md` §2(재임베딩 859편 포함).
+- **RS 교사 루프**: `rs_mine_queries.py`(chats 실질의 채굴, 추천 트랙만) +
+  `rs_generate_and_judge.py`(내부 llama-server 8201 온도 4종 후보 →
+  JSON·그라운딩 하드 필터·중복 제거 → Gemini 루브릭 심판(임계 7) → 미달 시
+  교사 작성 폴백 → dataset v2 + audit 로그, 재개 지원). 스모크 2건 E2E
+  통과 — 로컬 카탈로그 빈약으로 심판 6점 전건 교사 폴백(프로덕션 카탈로그
+  에서 본실행해야 학생 채택률이 정상). einops 설치(nomic HF 평가용).
+
+### 오류·막힌 점 (심야)
+- 로컬 hub_knowledge 0건(미색인 스냅샷) → 평가 코퍼스를 movies+태그로 즉석
+  구성하는 폴백을 하네스에 내장. ingest가 컨테이너 전용 가정이라 호스트
+  에서 DB URL 미주입 → get_keymaker 부트스트랩 추가로 해결.
+- 장르 단어가 문서에 그대로 있어 태그명 쿼리는 변별력이 없다 → 패러프레이즈
+  쿼리셋으로 시맨틱 일반화를 측정(모델 간 격차가 여기서 크게 벌어짐).
+
+### 산출물 (심야)
+- 신규: eval_embedding_models.py · rs_mine_queries.py ·
+  rs_generate_and_judge.py · alembic 20260911_0001 ·
+  `suvisdev/_docs/RS_TEACHER_LOOP.md`(런북). ontology 96 passed·mypy 청정.
+- 당일 심야 커밋으로 마감. 노트북 몫(다음 세션): bge-m3 pull→deploy→
+  upgrade→재임베딩(859편), RS 본실행 — 절차는 RS_TEACHER_LOOP.md.
+
 ---
 
 ## 2026-09-09
