@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
+from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.http.kofic_adapter import KoficAdapterError
 from mova.app.dtos.market_chat_dto import (
     ChatBookingDto,
@@ -43,6 +44,30 @@ _DISCOVERY_PATTERN = re.compile(
     r"뭐\s*(?:가\s*)?(?:있|볼|봐|나왔)|무슨\s*영화|어떤\s*(?:영화|작품)|상영작|상영\s*중인"
 )
 _DISCOVERY_LIST_LIMIT = 8
+
+# 지역-선행 발화("군자쪽에 예매할 시간 있어?")의 지명 신호 — title resolver가
+# 실패했을 때만 본다. 지명이 제목 후보로 흘러가 자모 퍼지 매칭되면
+# "군자→군체/감자" 같은 무관 후보 되묻기가 났다(2026-09-11 실사용).
+# 고정밀 접미(쪽/역/근처/주변/인근)만 신호로 삼는다 — 동·구 단독은 제목
+# 오탐 여지가 있어 제외. 오탐해도 극장 검색이 0건으로 끝날 뿐이라 안전하다.
+_REGION_SUFFIX_EXCLUDE = frozenset({"이", "그", "저", "양", "한", "어느", "오른", "왼", "반대"})
+_REGION_JJOK = re.compile(r"([가-힣A-Za-z0-9]{1,12})\s*쪽")
+_REGION_STATION = re.compile(r"([가-힣A-Za-z0-9]{2,12})역(?=[\s에으로은는이가,.!?~]|$)")
+_REGION_NEAR = re.compile(r"([가-힣A-Za-z0-9]{2,12})\s*(?:근처|주변|인근)")
+
+
+def _extract_region_signal(message: str) -> str | None:
+    m = _REGION_JJOK.search(message)
+    if m and m.group(1) not in _REGION_SUFFIX_EXCLUDE:
+        return m.group(1)
+    m = _REGION_STATION.search(message)
+    if m:
+        return m.group(1)
+    m = _REGION_NEAR.search(message)
+    if m:
+        return m.group(1)
+    return None
+
 
 # 체인 공식 검색 딥링크 — 시간표를 아는 척하지 않고 검색 페이지로 위임한다.
 _BOOKING_LINK_TEMPLATES = (
@@ -140,6 +165,7 @@ class BookingAssistService:
         entities: list[str],
         trace_id: str,
         pending_title: str | None = None,
+        history: list[dict[str, str]] | None = None,
     ) -> BookingResult:
         if pending_title:
             return await self._assist_with_region(
@@ -150,6 +176,37 @@ class BookingAssistService:
             return await self._discovery_reply(trace_id)
 
         resolution = await resolve_movie_title(self._repository, message=message, entities=entities)
+
+        # 지역-선행 이어받기(2026-09-11): 발화에서 제목이 확정되지 않았고 지명
+        # 신호가 있으면, 직전 assistant 응답(평가·추천 문장)에서 방금 다루던
+        # 영화를 역조회해 곧장 지역 검색으로 잇는다 — "옵세션 평가 →
+        # 군자쪽에 예매" 흐름. 기존 pending_title 마커는 "제목 먼저 → 지역
+        # 되묻기" 순서만 지원해 이 역순이 지명 퍼지 매칭 되묻기로 새고 있었다.
+        if resolution.status != "ok":
+            region = _extract_region_signal(message)
+            if region:
+                context = await self._context_movie_from_history(history)
+                if context is not None:
+                    logger.info(
+                        "[BookingAssist] trace=%s 지역-선행 이어받기 title=%s region=%s",
+                        trace_id,
+                        context.title,
+                        region,
+                    )
+                    return await self._assist_with_region(
+                        title_term=context.title, region=region, trace_id=trace_id
+                    )
+                # 맥락 영화도 없으면 지명을 제목 후보로 되묻지 않고 제목을 묻는다.
+                return BookingResult(
+                    status="not_found",
+                    reply=(
+                        f"'{region}' 근처 상영관을 찾아드릴게요. "
+                        "어떤 작품을 예매하실지 제목을 알려주시겠어요?"
+                    ),
+                    card=None,
+                    booking=None,
+                )
+
         if resolution.status == "not_found":
             return BookingResult(
                 status="not_found",
@@ -244,6 +301,25 @@ class BookingAssistService:
             len(titles),
         )
         return BookingResult(status="ok", reply=reply, card=None, booking=None)
+
+    async def _context_movie_from_history(
+        self, history: list[dict[str, str]] | None
+    ) -> MovaSearchItemSchema | None:
+        """직전 assistant 응답에서 방금 다루던 영화를 역조회한다.
+
+        evaluate 후속 이어받기(`_is_bare_eval_followup`)와 같은 근거 —
+        직전 응답 하나만 본다(더 거슬러 올라가면 엉뚱한 작품을 잇는다).
+        """
+        if not history:
+            return None
+        for msg in reversed(history):
+            if msg.get("role") != "assistant":
+                continue
+            content = (msg.get("content") or "").strip()
+            if not content:
+                return None
+            return await self._repository.find_movie_titled_in_text(content)
+        return None
 
     async def _assist_with_region(
         self, *, title_term: str, region: str, trace_id: str

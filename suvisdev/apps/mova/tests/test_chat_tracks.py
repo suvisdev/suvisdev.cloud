@@ -25,6 +25,7 @@ from mova.app.use_cases.market_chat_booking_interactor import (  # noqa: E402
     _DISCOVERY_PATTERN,
     REGION_ASK_MARKER,
     BookingAssistService,
+    _extract_region_signal,
     pending_title_from_history,
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import (  # noqa: E402
@@ -296,6 +297,99 @@ class BookingAssistServiceTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(pending_title_from_history(history), "호프")
         self.assertIsNone(pending_title_from_history([{"role": "assistant", "content": "안녕"}]))
+
+
+class BookingRegionFirstTests(unittest.IsolatedAsyncioTestCase):
+    """지역-선행 이어받기(2026-09-11 실사용 — 옵세션 평가 직후 "군자쪽에 예매할
+    시간 있는지"가 지명 퍼지 매칭돼 군체/구원자/감자로 되묻던 오류).
+
+    제목이 발화에서 확정되지 않고 지명 신호(쪽/역/근처)가 있으면, 직전
+    assistant 응답에서 영화를 역조회해 곧장 지역 검색으로 잇는다."""
+
+    _HISTORY = [
+        {"role": "user", "content": "옵세션 어때?"},
+        {
+            "role": "assistant",
+            "content": "영화 '옵세션'은 사랑이 집착으로 변해가는 과정을 그린 공포물입니다.",
+        },
+    ]
+
+    def _service(self) -> BookingAssistService:
+        repo = AsyncMock()
+
+        async def _search(terms: list[str], limit: int) -> list[MovaSearchItemSchema]:
+            # "옵세션"으로 재해석된 뒤에만 정확 일치 — 지명("군자쪽…")은 0건
+            if any("옵세션" in t for t in terms):
+                return [_item(7, "옵세션", "2026")]
+            return []
+
+        repo.search_movies_by_title.side_effect = _search
+        # 지명이 퍼지 폴백까지 가면 무관 후보가 나오던 상황 재현
+        repo.fuzzy_search_movies_by_title.return_value = [
+            _item(1, "군체", "2026"),
+            _item(2, "구원자", "2025"),
+            _item(3, "감자", "1987"),
+        ]
+        repo.find_movie_titled_in_text.return_value = _item(7, "옵세션", "2026")
+        movies = AsyncMock()
+        movies.find_by_id.return_value = _detail(7, "옵세션")
+        theaters = AsyncMock()
+        theaters.search_theaters.return_value = []
+        return BookingAssistService(
+            repository=repo, movies=movies, box_office=AsyncMock(), theaters=theaters
+        )
+
+    async def test_region_first_uses_context_movie(self) -> None:
+        service = self._service()
+        result = await service.assist(
+            message="군자쪽에 예매할 시간 있는지 확인해줘",
+            entities=[],
+            trace_id="t",
+            history=self._HISTORY,
+        )
+
+        # 지명 퍼지 후보 되묻기("군체/구원자/감자")가 아니라 옵세션×군자 검색
+        self.assertNotIn("군체", result.reply)
+        self.assertEqual(result.booking.region, "군자")
+        service._repository.find_movie_titled_in_text.assert_awaited_once()
+        service._theaters.search_theaters.assert_awaited_once()
+
+    async def test_region_first_without_context_asks_title(self) -> None:
+        service = self._service()
+        service._repository.find_movie_titled_in_text.return_value = None
+        result = await service.assist(
+            message="군자쪽에 예매할 시간 있는지 확인해줘",
+            entities=[],
+            trace_id="t",
+            history=self._HISTORY,
+        )
+
+        self.assertEqual(result.status, "not_found")
+        self.assertIn("군자", result.reply)
+        self.assertIn("제목", result.reply)
+        self.assertNotIn("군체", result.reply)
+
+    async def test_explicit_title_still_wins_over_region_signal(self) -> None:
+        """발화에 제목이 확정되면 지역-선행 경로를 타지 않는다."""
+        service = self._service()
+        result = await service.assist(
+            message="옵세션 예매하고 싶어", entities=["옵세션"], trace_id="t", history=self._HISTORY
+        )
+
+        self.assertEqual(result.resolved_movie_id, 7)
+        service._repository.find_movie_titled_in_text.assert_not_awaited()
+
+    def test_region_signal_extraction(self) -> None:
+        cases = {
+            "군자쪽에 예매할 시간 있는지 확인해줘": "군자",
+            "강남역에서 볼래": "강남",
+            "홍대 근처 상영관": "홍대",
+            "저쪽에서 볼래": None,  # 대명사 '저쪽'은 지명 아님
+            "호프 예매하고 싶어": None,
+        }
+        for message, expected in cases.items():
+            with self.subTest(message=message):
+                self.assertEqual(_extract_region_signal(message), expected)
 
 
 class BookingDiscoveryTests(unittest.IsolatedAsyncioTestCase):

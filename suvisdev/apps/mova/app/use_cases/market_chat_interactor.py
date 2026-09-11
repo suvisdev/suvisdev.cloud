@@ -621,6 +621,8 @@ class ChatInteractor(ChatUseCase):
             entities=entities,
             trace_id=trace_id,
             pending_title=pending_title,
+            # 지역-선행 발화("군자쪽에 예매…")의 맥락 영화 역조회용(2026-09-11)
+            history=request.history_dicts(),
         )
         # 예매 의지 신호(chat_trend 조건부 반영) — 작품이 확정된 최초 턴에서만,
         # 로그인 사용자 한정(user_actions.user_id NOT NULL).

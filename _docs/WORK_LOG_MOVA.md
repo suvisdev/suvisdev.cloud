@@ -93,6 +93,20 @@ WORK_LOG_MAINPAGE 09-11 저녁. mova 해당분만:
 - 데드 코드: exaone/ollama_exaone/qwen 추천 어댑터 3종·platform
   users/admins/groups 체인·schedule_review_embedding 삭제.
 
+### 작업 내용 (밤 — booking 지역-선행 이어받기, 실사용 오류)
+- **실사용 발견**: 옵세션 evaluate 직후 "군자쪽에 예매할 시간 있는지
+  확인해줘" → 지명 '군자'가 제목 퍼지 매칭돼 "군체(2026)/구원자(2025)/
+  감자(1987) 중 어떤 작품?"으로 되묻음. 원인 3중: ① booking의 맥락 이어받기
+  (`pending_title`)는 "제목 먼저→지역 되묻기" 순서 전용이라 역순(맥락 제목+
+  지역 선행) 경로 부재 ② title resolver 앞에 지명 판별 없음 ③ booking 트랙
+  진입 후 현재 메시지 문자열만 봄(히스토리 미전달).
+- **수정**: `assist()`에 history 전달 + resolver 실패 시 지명 신호
+  (쪽/역/근처/주변/인근 접미, 대명사 제외)면 직전 assistant 응답에서
+  `find_movie_titled_in_text` 역조회 → `_assist_with_region` 직행. 맥락
+  영화도 없으면 지명 퍼지 되묻기 대신 제목 질문. 규칙 문서 §8에 불변식 추가.
+- 테스트: `BookingRegionFirstTests` 4건(이어받기·맥락 부재·명시 제목 우선·
+  신호 추출 서브테스트 5) — mova 323 passed·mypy·ruff 청정.
+
 ---
 
 ## 2026-09-09
