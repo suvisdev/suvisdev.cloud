@@ -109,6 +109,11 @@
 - 저녁 검증: pytest 784 passed(가드·state·role 회귀 테스트 신규 ~17건 포함) ·
   mypy 1,063파일 청정 · ruff 기존 9건 유지 · lint-imports 6계약 ·
   `import main` OK · suvis type-check/lint 청정.
+- **커밋 `b2a094e`**(오전+저녁 일괄, main 푸시 완료 — pre-commit ruff-format이
+  10파일 정형화 후 재커밋). 프론트는 Vercel 자동 배포. 백엔드·auth 배포는
+  노트북 세션(teagy)에 크로스세션 위임(git pull → `deploy.sh --external-db
+  --build` → 401/404/OAuth/chat 검증 체크리스트 전달) — 결과는 노트북
+  세션에서 확인.
 
 ---
 
