@@ -121,7 +121,7 @@ const ARTICLES: Article[] = [
   {
     title: "제12조 (외부 데이터 및 링크)",
     body: [
-      "본 서비스가 제공하는 영화 메타데이터(포스터, 줄거리, 출연진, 개봉일 등)의 상당수는 The Movie Database(TMDB) 및 영화진흥위원회(KOFIC) 등 외부 데이터 소스로부터 제공받아 표시됩니다. 회사는 해당 데이터의 정확성·최신성을 보증하지 않으며, TMDB API의 사용은 TMDB에 의해 승인되거나 인증되지 않습니다(This product uses the TMDB API but is not endorsed or certified by TMDB).",
+      "본 서비스가 제공하는 영화 메타데이터(포스터, 줄거리, 출연진, 개봉일 등)의 상당수는 The Movie Database(TMDB) 및 영화진흥위원회(KOFIC) 등 외부 데이터 소스로부터 제공받아 표시됩니다. 회사는 해당 데이터의 정확성·최신성을 보증하지 않으며, TMDB API의 사용은 TMDB에 의해 승인되거나 인증되지 않습니다(This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB).",
       "본 서비스는 OTT 프로바이더 등 외부 사이트로의 링크를 제공할 수 있으며, 해당 사이트의 정책·콘텐츠·서비스에 대해서는 회사가 책임을 지지 않습니다.",
     ],
   },

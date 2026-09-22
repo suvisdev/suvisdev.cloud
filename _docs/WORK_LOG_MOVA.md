@@ -28,6 +28,467 @@
 
 ---
 
+## 2026-09-22
+
+### 작업 내용 (노트북 세션 — 멀티턴 학습 데이터셋 구축)
+- 09-17에서 멈춘 지점 정리 + "학습에 추가해야 할 것" 실측 확인 + 사용자 요청인
+  "최근 채팅 데이터로 대화 이어가기 학습" 데이터셋 작성.
+- **핵심 발견 — 학습·서빙 프롬프트 불일치**: 교사 데이터셋 470행(94 원본 + 376
+  증강)이 **전부 단일턴**(`[대화]` 섹션에 사용자 1턴, Mova 0턴)인데 서빙
+  `ChatPromptBuilder.build_prompt`는 최근 **6턴 히스토리**를 넣는다. 후속 발화
+  ("다른건", "고마워")는 한 번도 학습된 적이 없다.
+- **09-17 인사 퇴행의 원인 추정**: 기존 no-pick 예시 10건이 **전부 빈 카탈로그**
+  케이스다. "카탈로그에 영화가 있는데도 인사엔 추천하지 않기"는 학습된 바가 없다.
+  코랩 하드 체크의 `empty_ok`도 카탈로그가 빈 경우만 보므로 이 퇴행을 통과시켰다.
+- 사용자 결정 3건: ① 멀티턴은 **실사용 씨앗 + 합성 확장** ② 09-17 어댑터
+  `mova_20260917_124713`는 **폐기**하고 새 데이터셋으로 재학습 ③ 학습은 **코랩**
+  (사용자가 직접 실행, `train_mova_lora.py`는 손대지 않음).
+
+### 수정/구현
+- `datasets/build_multiturn_dataset.py` 신규 — 원본 1건을 씨앗으로 히스토리를 얹어
+  네 패턴을 만든다. 후속 발화 어휘는 프로덕션 `chat_messages` 실사용 후속턴 42건에서
+  가져왔다.
+  - `mt_topic` : 다른 대화를 히스토리로 얹고 본 턴은 원본 그대로 → 맥락 오염 방지.
+    정답은 원본 completion 그대로라 **교사 호출 0회**.
+  - `mt_again` : "다른건" 류. 서빙은 이미 추천한 작품을 카탈로그 단계에서 빼므로
+    (`market_chat_interactor` dedup, :357) **데이터도 카탈로그에서 뺀다** — 프롬프트에
+    "반복 금지" 규칙이 없으니 카탈로그에 남겨두고 제외를 가르치면 서빙과 어긋난다.
+  - `mt_narrow` : "2026년 작품으로" 류. 의도 섹션만 좁히고 카탈로그는 그대로 둬
+    조건 안 맞는 후보를 걸러내게 한다.
+  - `mt_smalltalk` : "고마워"·"ㅎㅇ" 류. **카탈로그를 남겨둔 채** 추천하지 않기 —
+    09-17 퇴행 직격. 고정 문구라 교사 호출 0회.
+- `datasets/merge_training_dataset.py` 신규 — 증강본 + 멀티턴 병합 + 정답 title을
+  카탈로그 값으로 교정.
+- `scripts/mova_exaone_colab.ipynb` 수정 — ① `DATA_NAME` 교체 ② **평가셋에 멀티턴
+  포함**(09-17은 단일턴만 평가해 퇴행을 놓쳤다) ③ `results` 키를 `src`→`src:aug`
+  (한 원본에서 평가 행이 여러 개 나와 키 충돌) ④ 하드 체크에 **`nopick_ok`** 추가
+  (정답이 "추천 안 함"인데 추천하면 실패) ⑤ 안내문·변경점 갱신.
+
+### 오류·막힌 점
+- **교사 힌트 과잉**: again의 intro가 "카탈로그에 등록되어 있지 않아"라고 거짓
+  안내를 써서 힌트를 붙였더니, 반대로 **카탈로그에 9편 남았는데도 0편 추천 +
+  "더 보여드릴 게 없다"**가 나왔다. 힌트를 "남은 것 중에서 고르라"로 뒤집고,
+  검증에 `카탈로그가 남았으면 picks 필수`를 넣어 해결.
+- **intro·picks 모순 11건**: 0편인데 "엄선했습니다"류 intro(09-17의 "3편 미만"
+  모순 intro와 같은 종류). 정규식 검증으로 버리고 재생성. 같은 원본에서 반복
+  실패하는 13건은 포기 — 해당 원본은 topic·narrow·smalltalk으로 커버된다.
+- **제목 하드 체크 오탐**: 카탈로그 원문에 공백이 겹친 제목("시카리오:  암살자의
+  도시")이 있어 불일치 처리. 앱이 제목을 DB 값으로 덮어쓰므로 공백은 연도 꼬리와
+  같이 무시하도록 정규화.
+- **09-17 데이터 오타 발견**: src=26의 정답 title이 "슈리오 마리오 브라더스"
+  (카탈로그는 "슈퍼 마리오 브라더스"). movie_id는 맞아 서빙 영향은 없지만 증강
+  4행 + 멀티턴 1행으로 번져 있었다 — 병합 단계에서 5건 교정.
+- 노트북 호스트에 google-genai가 없어 스크래치패드에 `uv venv`로 격리 환경 구성
+  (lora-server용 `~/.venv-exaone`은 건드리지 않음).
+
+### 데이터
+- `chat_teacher_dataset_20260922.jsonl` **607행** = 단일턴 376(orig·shuffle·para1·2)
+  + 멀티턴 231(topic 84 · again 71 · narrow 48 · smalltalk 28). 멀티턴 커버 원본
+  84/94(picks 있는 원본 전부). **하드 체크 전 행 통과**.
+- 노트북 분할 예상(SEED 20260917 유지 — 09-17과 같은 평가셋): 학습 518행 /
+  평가 47행(원본 14 + 멀티턴 33 — topic 12·again 8·narrow 7·smalltalk 6).
+- 교사 호출 누계 약 147회(again·narrow만), 버림 13건. 캐시 `.multiturn_cache.json`.
+- 실사용 멀티턴 원천 실측: `chat_conversations` 20건 / `chat_messages` user 62·
+  assistant 62(08-12~09-11), **후속턴 42건**. user meta에 intent_type·keywords·
+  refined_query, assistant meta에 recommendations(movie_id·hook)가 있어 프롬프트
+  재구성이 가능하다. `chat` 테이블은 486행(고유 175, ~09-21)이나 질의 단위라 맥락 없음.
+
+### 미반영으로 남긴 것 (다음 학습 전 확인)
+- `scripts/train_mova_lora.py`: target_modules가 아직 Llama식(`o_proj`·`gate_proj`
+  등 — EXAONE엔 없어 q/k/v만 걸린다), 베이스 기본값 Qwen2.5-1.5B, 데이터셋 기본
+  경로도 구형, 토큰 경계 수정도 미반영. **코랩으로 학습하기로 해 의도적으로 미수정.**
+- `scripts/rs_mine_queries.py:63`이 `chats` 테이블을 조회하는데 **실제 테이블명은
+  `chat`**이다 — 지금 실행하면 실패한다(RS 루프 미착수라 아직 드러나지 않았음).
+- 운영 `serve_gguf.py` `--cache-ram` 상한 미결정(현재 5.4GB 점유).
+- 09-17 `eval_report_20260917_124713.json`은 바탕화면 `mova/FT/out/`에 남아 있다
+  (메모리에 "휘발"로 적혀 있던 것 정정).
+
+### 작업 내용 (추가 — 채팅 품질 수정 4건 · RAG 색인 근본 결함)
+- 사용자가 코랩 학습을 직접 돌리는 동안 품질 항목을 병행: 무관 픽 원인 규명·수정,
+  `serve_gguf.py` cache-ram 상한, `rs_mine_queries.py` 버그, 기능 점검.
+
+#### ① 무관 픽 근본 원인 = 배우 인식 (수정 완료)
+- 09-17 관찰("톰 크루즈"→정글 크루즈·크루즈 패밀리)의 원인은 RAG가 아니라
+  **배우 미인식**이었다. `_guess_actors`(intent_extraction.py:190)는
+  `"{이름} 배우|출연|관련|이랑|와|과|이 나오는"` 패턴만 잡고, 캡처도 공백 앞 한
+  토큰뿐이다. 파드 실측:
+  | 질의 | 인식 결과 |
+  |------|----------|
+  | `톰 크루즈 영화 추천` | `[]` |
+  | `톰 크루즈 배우 영화 추천` | `['크루즈']` (성만) |
+  | `톰 크루즈 나오는 영화` | `[]` |
+  | `마동석 액션 영화` | `[]` |
+- 배우를 놓치면 태그도 0건이라("크루즈"·"싸움" 태그는 DB에 없음) RAG 제목 유사
+  히트만 후보에 남는 것이 무관 픽 경로였다. 09-11에 Gemini 의도 추출 호출을
+  제거한 뒤로 이 정규식이 **유일한 배우 인식 경로**였다.
+- 수정: `search_tag_catalog`가 발화(keywords에 원문 전체가 들어온다)에서
+  **DB 배우 실명**을 찾아 정규식 추측보다 우선 사용(`_actor_names_in_text`,
+  3자 이상 한글만 — 2자는 "공유"·"고수"·"권율"처럼 일반 어휘와 겹친다, 7ms).
+  포트는 안 건드려 fake 수정이 불필요했다.
+- 검증: 실사용 상위 배우 질의(rs_mine_queries 채굴 결과 상위에 3건 35회)가 전부
+  정상화 — 키아누 리브스→존 윅 시리즈, 전지현→엽기적인 그녀, 송강호→기생충·
+  살인의 추억, 톰 크루즈→탑건: 매버릭. 배우 없는 질의는 오탐 0건.
+  신규 테스트 4건 + 기존 `test_search_tag_catalog_and.py` 배선 보강,
+  **mova 328 passed**(파드 오버레이).
+
+#### ② RAG 색인에 줄거리가 없었다 (근본 결함 · 재색인 완료)
+- 실사용 고유 질의 135건 분류: 태그 매칭 있음 69건(51%) · 배우만 6건(4%) ·
+  **태그·배우 둘 다 0건 60건(44%)**. 44%가 RAG/인기작 폴백에 전적으로 의존한다.
+- 그 RAG의 색인 문서가 `개봉/장르/출연/감독`뿐이었다(평균 57자, **줄거리 없음**).
+  내용 정보가 없어 임베딩이 제목·장르·배우 이름에만 기반 → "심리전 두뇌 싸움"에
+  제목이 `싸움`인 영화가 1위(0.591), 파이트 클럽은 0.488로 밀림. 점수대가
+  0.47~0.59로 좁아 임계값(`_MIN_HIT_SCORE=0.15`)으로는 구조적으로 분리 불가.
+- `movies.synopsis`는 **3,393/3,418편에 평균 264자**로 이미 채워져 있었고
+  색인에서만 빠져 있었다. `ingest_hub_knowledge.py`에 줄거리를 추가
+  (`MovieListItemDto`에 synopsis가 없어 `_synopses()` 배치 조회로 붙였다 —
+  편당 개별 쿼리는 3,400편에 느리다).
+- **전체 재색인 완료**: succeeded=2967 · failed=0, 문서 평균 57자→**352자**,
+  줄거리 포함 2,826/2,970. `--reset` 없이 upsert라 **무중단**이었다(차원 변경이
+  없으므로 09-17처럼 전량 삭제할 이유가 없다).
+- 전후 비교: `심리전 두뇌 싸움`→**싸움·싸울아비 소멸, 파이트 클럽 1위**,
+  `클래식 명작 처음 보는 사람용`→제목이 `클래식`인 영화 대신 **아마데우스·
+  모던 타임즈**, `형사물`→악질경찰·반드시 잡는다, `스트레스 풀고 싶을 때`→
+  폴링 다운·성질 죽이기. 남은 편향: `혼자 볼 감성적인 영화`→밤의 해변에서 혼자·
+  혼자 사는 사람들, `비 오는 날`→바람 부는 날이면… (문서 맨 앞 제목의 가중치).
+- **09-17 recall@8 0.860은 줄거리 없는 코퍼스에서 나온 숫자**였다(데스크톱 로컬
+  205편 스냅샷 → `_load_eval_data`의 즉석 구성 폴백). 새 색인 기준 모델 재측정을
+  위해 `eval_embedding_models.py`에 `--corpus-json`을 추가했다 —
+  `~/.venv-exaone`에는 torch·transformers는 있지만 DB 드라이버가 없다.
+
+#### ③ serve_gguf.py cache-ram 상한 (배포 대기)
+- llama-server `--cache-ram` 기본 8192MiB를 그대로 써서 상주 RSS가 5.4GB였다
+  (09-17 A/B 때 테스트 서버와 합쳐 RAM 고갈 → 스크립트 killed의 원인).
+  `LORA_GGUF_CACHE_RAM` 기본 **1024MiB**로 제한. 채팅 프롬프트는 카탈로그가 매
+  질의 달라 공통 프리픽스가 시스템 프롬프트 정도뿐이라 1GB로 충분하다.
+  **lora-server 재시작 시 적용** — 코랩 학습 후 GGUF 반영과 함께 하면 된다.
+
+#### ④ rs_mine_queries.py 테이블명 버그
+- `select ... from chats`인데 실제 테이블은 `chat`이다(RS 루프 미착수라 09-11
+  이후 드러나지 않았음). 수정 후 파드 실행 검증: 원발화 486건 → 고유 135건.
+
+#### ⑤ 기능 점검 (초성 게임·메모리 게임·리더보드·마이페이지) — 버그 0건
+- 초성 정합성 8/8. `토니 레인즈와 한국영화 25년`의 초성이 `…ㅇㅅㅇㄴ`인 것은
+  **의도된 동작**(08-13 사용자 지적으로 넣은 숫자 한자음 변환: "25"→"이십오").
+  `category=kr/foreign` 필터 정상(08-19 외국 영화 혼입 수정 유지).
+- 메모리 덱 stage 1·3·5·10 → pairs 2·6·10·20(= 2N, `games_interactor.py:45`
+  기대값과 일치), 포스터 누락 0, 범위 밖 stage 422.
+- 리더보드 실데이터 동작(chosung 1위 10점). 마이페이지는 무인증·가짜 토큰 모두
+  401(08-07 IDOR 수정 유지).
+
+#### ⑥ 회귀 하네스 23/23 + 하네스 자체의 빈틈 수정
+- 재색인 후 `eval_chat_queries.py` **23/23 PASS**(파드 내부 호출). 재색인 효과가
+  결과에 보인다 — `심리전 두뇌 싸움`→배틀쉽·자칼(싸움·싸울아비 소멸),
+  `클래식 명작 처음 보는 사람용`→그린 마일·포레스트 검프(제목 `클래식` 소멸).
+- **그런데 `톰 크루즈 영화 추천`이 여전히 정글 크루즈·크루즈 패밀리를 반환했다.**
+  원인은 `kubectl cp`로 파드에 넣은 소스가 **이미 모듈을 로드한 uvicorn에 반영되지
+  않기 때문**이다(서빙에 영향이 없는 것과 같은 이유). 배우 수정의 실서빙 반영은
+  `./k8s/deploy.sh --external-db --build` 배포가 필요하다 — 파드를 재시작하면
+  cp한 파일은 이미지 원본으로 되돌아간다. **배포 대기.**
+- 하네스가 그걸 PASS로 판정한 것은 금지 픽 목록에 없었기 때문. 09-17에 관찰된
+  무관 픽이 하네스에 반영돼 있지 않았다. `톰 크루즈` spec에
+  `banned=["정글 크루즈","크루즈 패밀리"]`, `송강호` spec에
+  `banned=["천년여우","궁합"]` 추가.
+
+#### ⑦ 배우 매칭이 있을 때 시맨틱 꼬리 제외 (신규 발견 · 수정)
+- 회귀 `[10] 송강호 나오는 영화` → 변호인(정답) · **궁합 · 천년여우 구미호**.
+  DB 실측으로 **둘 다 송강호 미출연** 확인(송강호 DB 출연작: 관상·괴물·밀양·밀정·
+  사도·쉬리·거미집·기생충·마약왕·변호인·브로커·의형제 등 24편).
+- 즉 배우 매칭이 1위를 잡아도 `real_matches[:10]` 뒤에 붙는 **RAG 꼬리**를 LoRA가
+  고르면 미출연작이 나간다. 배우 DB 출연작은 송강호 24 · 톰 크루즈 29 · 마동석 36편
+  이라 결정론 후보만으로 카탈로그 상한(16)이 찬다 — 꼬리를 섞을 이유가 없다.
+- 수정: `market_chat_interactor`에서 `real_matches[0].match_type`이
+  `actor`/`actor+keyword`면 `catalog = real_matches[:16]`으로 끝내고 시맨틱을 붙이지
+  않는다. mood 질의(대부분)는 `keyword`·`popular_fallback`이라 기존 경로 그대로.
+- 회귀 테스트 `test_actor_matches_exclude_semantic_tail` 추가, **mova 329 passed**.
+
+#### ⑧ 임베딩 모델 순위 재측정 — 현행 bge-m3 유지 확정
+- 줄거리 포함 새 코퍼스(2,970문서)로 3종 비교(`--corpus-json`, `~/.venv-exaone` GPU):
+  | 순위 | 모델 | recall@8 | mrr@8 |
+  |------|------|----------|-------|
+  | 1 | **BAAI/bge-m3**(현행) | **0.385** | **0.582** |
+  | 2 | intfloat/multilingual-e5-base | 0.333 | 0.550 |
+  | 3 | nomic-embed-text-v1.5 | 0.087 | 0.162 |
+- **교체 불필요.** e5-base는 768차원이라 마이그레이션 없이 바꿀 수 있으나 성능이
+  낮아 이득이 없고, nomic은 bge-m3의 1/4 수준(09-17 전환이 옳았음을 새 코퍼스에서
+  재확인). nomic은 `einops` 미설치로 1차 측정에서 실패해 설치 후 재측정했다.
+- **09-17의 0.860과 직접 비교 금지**: 그때는 로컬 205편·줄거리 없는 코퍼스였고
+  지금은 2,970문서다(14배). 정답 라벨이 장르 태그 멤버십(한 장르에 수백 편)이라
+  `recall@8`은 분모가 8로 캡돼 사실상 "top-8 중 정답 비율"이다 — 절대값은 의미가
+  약하고 **모델 간 상대 비교**에만 쓴다.
+
+#### ⑨ mood 확장 사전 — 한글 활용형 부분일치 버그 + 실사용 기반 보강
+- 사전에 `"가벼"` 트리거가 있는데 실사용 11회 질의 `"오늘 밤 가볍게 볼 한국 영화"`가
+  태그 0건이었다. 원인은 **종성**: `"가벼"`=가+벼, `"가볍게"`=가+볍+게로 부분일치가
+  깨진다. 사전이 `"슬픈"/"슬프"`·`"웃긴"/"웃기"`처럼 활용형을 쌍으로 두던 관례가
+  있었는데 `"가볍"`이 누락돼 있었다.
+- 활용형 4개(`가볍·무섭·즐겁·우습`) + 실사용 미매칭에서 추출한 9개(`감성·형사·복수·
+  사극·스트레스·심리·위로·첩보·괴물`) 추가. 장르로 환원되지 않는 표현
+  (`클래식 명작`·`주말에 몰아볼 시리즈`·`비 오는 날`)은 RAG 몫으로 남겼다.
+- 검증(순수 함수 직접 호출): 미매칭 질의 8건(누적 45회)이 장르 태그로 환원됨.
+  실사용 135건 전체 재측정은 파드 반영 후로 미룸(`kubectl cp`가 자동 모드에서 차단).
+
+#### ⑩ 이미지 자동 정리 (`k8s/deploy.sh`)
+- `suvisdev-app:latest`가 14.3GB인데 `--build`마다 이전 이미지가 태그를 잃고
+  `<none>`으로 남는다(docker `df` 기준 회수 가능 15.5GB/95%). 빌드 블록 뒤에
+  `docker image prune -f`(dangling만) + `sudo k3s crictl rmi --prune`(파드 미참조분,
+  실패해도 배포 계속)을 추가했다.
+
+#### 배포 — sudo 벽으로 미완
+- `./k8s/deploy.sh --external-db --build`를 시도했으나 `sudo k3s ctr images import`가
+  터미널 없는 셸에서 비밀번호를 받을 수 없어 중단된다. `docker build`까지는 완료되므로
+  **사용자가 같은 명령을 재실행하면 캐시로 즉시 통과**한다. 배포 전까지 배우 실명
+  매칭·시맨틱 꼬리 제외·mood 사전·cache-ram은 **코드에만** 반영된 상태다.
+
+#### ⑪ v3 재학습 결과 — 목표 전부 달성 (사용자 코랩 실행)
+- `chat_teacher_dataset_v3.jsonl` 753행으로 재학습(`train_rows=619`, best_epoch 1,
+  eval_loss 0.691). 리포트 `eval_report_20260922_064437.json`.
+
+| 지표 | v2 | **v3** |
+|------|----|--------|
+| 하드 체크(student) | 96% | **100%** — 전 항목 |
+| Gemini 심판 | 6.15 vs 8.21 | **7.38 vs 7.57** |
+| 승/무/패(vs Gemini) | 8/5/34 | **17/5/25** |
+| vs 베이스 | 6.45 vs 4.66 | **7.51 vs 3.98 (38승 9패)** |
+
+- **하드 체크에서 학생(100%)이 Gemini(98%)를 앞섰다.**
+- 유형별 — v3 README §5 합격선 **전부 충족**:
+  | 유형 | v2 pass / 점수 | **v3 pass / 점수** |
+  |------|----------------|--------------------|
+  | `mt_again`(재요청) | 75% / 3.38 | **100% / 8.00** |
+  | `orig`(단일턴) | 100% / 6.07 | 100% / **7.64** |
+  | `mt_smalltalk` | 100% / 9.17 | 100% / **9.17**(퇴행 없음) |
+  | `mt_narrow` | 100% / 6.00 | 100% / 6.14 |
+  | `mt_topic` | 100% / 6.67 | 100% / 6.50 |
+- **환각이 해결됐다** — v2에서 "카탈로그가 비었는데 영화를 지어내던" 실패가
+  8.00점/100%가 됐다. 정직 표현 비율을 5%→12%로 올린 데이터 보강이 그 지점에
+  정확히 작용했다. 부수 효과로 **단일턴까지 6.07→7.64**로 올랐다.
+- **남은 것**: 어댑터·GGUF가 아직 로컬에 없다(구글 드라이브에만 존재). 받아서
+  `lora-server` 교체 → `eval_chat_queries.py` 전후 비교 후 운영 반영.
+
+### 산출물
+- 신규: `datasets/build_multiturn_dataset.py` · `datasets/merge_training_dataset.py`
+  · `datasets/chat_teacher_dataset_multiturn.jsonl` · `chat_teacher_dataset_20260922.jsonl`
+- 수정: `scripts/mova_exaone_colab.ipynb`(멀티턴 평가·`nopick_ok`·getpass 폴백) ·
+  `apps/mova/adapter/outbound/pg/market_chat_pg_repository.py`(배우 실명 매칭) ·
+  `apps/mova/tests/test_search_tag_catalog_and.py` · `scripts/ingest_hub_knowledge.py`
+  (줄거리 색인) · `model_servers/lora_server/serve_gguf.py`(cache-ram) ·
+  `scripts/rs_mine_queries.py`(테이블명) · `scripts/eval_embedding_models.py`(--corpus-json)
+- 신규: `datasets/build_v3_additions.py`(정직 안내·배우 질의·재요청 보강) ·
+  `chat_teacher_dataset_v3.jsonl` 753행 · 바탕화면 `mova/FT/mova-colab-v3/`
+- 신규 테스트: `apps/mova/tests/test_actor_name_matching.py` · `test_market_chat_interactor.py`의 `test_actor_matches_exclude_semantic_tail`
+- 추가 수정: `apps/mova/app/use_cases/market_chat_interactor.py`(배우 매칭 시 시맨틱
+  꼬리 제외) · `scripts/eval_chat_queries.py`(금지 픽 보강) ·
+  `apps/mova/domain/value_objects/mood_expansion.py`(활용형·미매칭 어휘 13개) ·
+  `k8s/deploy.sh`(빌드 후 이미지 prune)
+- **배포 대기**: 배우 실명 매칭·시맨틱 꼬리 제외·cache-ram은 코드에만 반영됐다.
+  `./k8s/deploy.sh --external-db --build` + lora-server 재시작이 필요하다.
+- 바탕화면 `C:\Users\suteagy\Desktop\mova\FT\mova-colab-20260922\`
+  (데이터셋 · 노트북 · README) — 코랩 실행은 사용자 몫.
+
+---
+
+### 작업 내용 (추가 — 배포 완주 · v3 운영 반영 · 배우 질의 회귀 · v4 데이터)
+- 오전에 "배포 대기"로 남긴 것을 전부 배포하고, 카탈로그 프롬프트에 **장르·한 줄
+  줄거리**를 넣었다(v4 과제 ①, v3 패배 25건 중 카탈로그 사유 16건의 근본 원인은
+  프롬프트가 제목·연도만 주던 것). 그 사이 Gemini로 서빙하다가 사용자 결정으로
+  **v3 EXAONE(`mova_20260922_064437`)을 운영에 반영**했다.
+
+#### ⑫ 카탈로그 프롬프트 — 장르·줄거리 추가 (배포 완료)
+- `MovaSearchItemSchema`에 `genres`·`summary`(기본값 "") 추가, `_to_search_items`가
+  장르 맵과 `synopsis` 앞 한 문장(60자)을 싣고 `format_tag_catalog_section`이
+  `- movie_id=164 더 배트맨 (2022) [범죄, 미스터리, 스릴러] [태그] — 줄거리: …`로 출력.
+  프롬프트 626자→1,392자(+383토큰, 4096 컨텍스트 여유).
+- **버그 1건 즉시 발견·수정**: 구분자 없이 이어 붙이니 LLM이 줄거리까지 제목으로
+  읽어 title에 줄거리가 통째로 들어갔다("너바나 더 밴드: 전설적 밴드 '너바나'와는…").
+  `— 줄거리:` 접두로 경계를 명시.
+- 효과(Gemini 서빙 실측): `형사물 추천해줘`→암수살인·나쁜 녀석들·악질경찰(v3 평가
+  2점이던 질의), `기억상실 소재`→오늘 밤 세계에서…·마녀·럭키.
+
+#### ⑬ booking 지역 파서 — "군자역 근처"를 못 알아듣던 원인 (수정·배포)
+- 실사용 `chat_id=584 '군자역 근처'`가 `booking=need_region`으로 끝났다. 의도 분류·
+  제목 이어받기(『옵세션』)는 정상, 깨진 건 지역 슬롯 한 곳. 카카오 로컬 실측:
+  `'군자역 근처'→None`, `'군자역'→메가박스 군자·우리영화관·KU시네마테크`.
+  꼬리말(근처/주변/인근)을 떼는 `_REGION_NEAR`는 있었지만 **제목 이어받기 경로는
+  `message.strip()`을 그대로 슬롯에 넣어** 그 정규식을 안 거쳤다.
+- `_parse_region_transport`에 `_REGION_TAIL` 꼬리말 제거만 추가(역·동 이름은 유지 —
+  기존 테스트 `홍대입구역 도보→홍대입구역` 보존). 회귀 테스트 2건, mova 332 passed.
+- 사용자가 이걸 "Gemini API가 못 잡는다"로 봤지만 **Gemini 호출은 6시간 전부 200 OK**
+  (쿼터·키 오류 0건) — LLM 무관한 결정론 코드 버그였다.
+
+#### ⑭ v3 EXAONE 운영 반영 — 환경 드리프트 3연패 끝에 성공
+- 사용자 결정: 외부 API 의존을 줄이려 EXAONE으로 복귀. 단 로컬 GGUF는 09-09·v1뿐이라
+  (Gemini 대비 4.71 vs 8.36 열세) **되돌릴 대상은 v3**(7.38 vs 7.57 대등)여야 했다.
+  코랩이 GGUF까지 만들어 드라이브에 뒀는데 그걸 놓치고 바탕화면 어댑터로 로컬 변환을
+  택한 건 판단 착오 — 다만 거의 끝나 있어 마무리했다.
+- `export_mova_gguf.py` 실패 3연속, 원인은 전부 **환경 드리프트**:
+  1. `~/.venv-exaone` transformers 5.13.1 — peft 0.20 `_check_tied_modules`가 EXAONE
+     remote code의 `get_input_embeddings` 미구현으로 `NotImplementedError`.
+  2. transformers 4.47.1로 내리니 HF 캐시의 remote code(5.x용)가 `RopeParameters` import 실패.
+  3. 코랩 조합(transformers 5.5.0 + peft 0.20.0)으로 맞춰도 1과 동일 — 버전이 아니라
+     **peft의 tied-embedding 검사 자체**가 문제. LoRA 타겟 7개(attn/mlp)에 임베딩이
+     없어 검사를 건너뛰어도 병합 결과가 같다 → 스크래치패드 래퍼로 우회해 병합 성공.
+  4. 양자화에서 `key not found: exaone.attention.layer_norm_rms_epsilon` — 09-17에
+     겪고 `scripts/convert_exaone_gguf.py`까지 만들어 뒀는데 **`export_mova_gguf.py`가
+     그걸 안 거치고 `convert_hf_to_gguf.py`를 직접 부른다**. 그 스크립트로 f16 재생성
+     후 Q5_K_M 1.73GB 완료(09-09·09-17판과 바이트 동일 크기).
+- venv는 코랩과 같은 `transformers==5.5.0`·`peft==0.20.0`으로 고정해 뒀다(pip이 없는
+  uv venv라 `uv pip install --python ~/.venv-exaone/bin/python`). `serve_gguf.py`는
+  둘 다 import하지 않아 서빙 무관.
+- lora-server 기동(`model_loaded: true`, v3 경로) → `.env RECOMMENDATION_BACKEND=lora`
+  → Secret 갱신 + rollout. 파드 printenv·`:8200/health` 도달 확인, 실요청이
+  `LoraRecommendationOrchestrator`→`/generate 200` 경유하는 로그 확인.
+
+#### ⑮ v3 회귀 21/23 — 배우 질의 회귀 (v4 1순위)
+- `eval_chat_queries.py` v3: **21/23**(Gemini 기준선 23/23). FAIL은 `송강호 나오는 영화`·
+  `마동석 액션 영화` 둘 다 picks 0. 카탈로그는 채워져 있었다(송강호 8편: 기생충·
+  택시운전사·변호인…, 마동석 8편; trace `cc6fbf98` 후보 16편 actor+keyword) —
+  **모델이 후보가 있는데도 비웠다**. v3의 `v3_honest`(다른 배우 카탈로그→0편) 30건이
+  "배우 질의=0편"으로 과잉 일반화된 것. 실사용 상위 질의(배우 3건 35회)라 운영 영향
+  있음 — lora 실패 시 Gemini 폴백은 있지만 "0편 응답"은 실패가 아니라 폴백이 안 탄다.
+- `intro` 저장 결함 확인: 학습 자료로 쓸 수 있는 건 `chat`(질문 585) + `picks`(980,
+  hook·**feedback**)이고 응답 본문은 `chat_messages` 136행(로그인 대화)뿐 — Gemini/
+  EXAONE이 쓴 intro가 대부분 유실된다. `chat`에 한 칼럼 추가로 해결 가능(미착수).
+- 페르소나 부여 질문에 대한 답: v3 패배 25건의 사유에 **톤은 0건** — 지금 병목이
+  아니고, 넣으면 v4 데이터를 그 톤으로 다시 만들어야 하므로 보류 권고.
+
+#### ⑯ GPU 실측 — 4GB 데스크톱 서빙 가능 여부
+- `nvidia-smi` 합계 4,550MB의 정체는 **EXAONE 두 벌**: llama.cpp(mova v3 1.73GB)와
+  ollama `exaone3.5:2.4b`(1.9GB, soccer chat·메일·vision 에이전트용). `ollama stop`으로
+  1,898MB 즉시 회수 → **lora-server 단독 2,652MB**. GTX 1650 SUPER 4GB에서 서빙만은
+  가능(학습·GGUF 병합은 VRAM 5GB+라 불가, llama.cpp sm_75 재빌드 필요, ollama 동거 불가).
+  `OLLAMA_KEEP_ALIVE` 단축이 절감책이나 bge-m3(RAG 임베딩)는 mova 필수라 모델별로 줄 것.
+
+#### ⑰ v4 학습 데이터 — `datasets/build_v4_dataset.py` (파드 실행)
+- ① rebuild: v3 753행의 카탈로그 줄을 DB 값으로 새 형식 치환(796편 중 장르 786·
+  줄거리 784, 교사 호출 0, completion은 movie_id 기반이라 유효). ② teacher: 실사용
+  질의 60건을 실제 파이프라인(새 형식 프롬프트)으로 재생성. ③ actor: DB 상위 배우
+  30명×발화 2종 → **서빙과 같은 혼합 카탈로그**(actor+keyword)로 교사 호출, picks가
+  전부 그 배우 작품이고 1편 이상일 때만 채택(⑮ 회귀 교정). 결과는 바탕화면
+  `mova/FT/mova-colab-v4/`에 `chat_teacher_dataset_v4.jsonl`로.
+
+### 오류·막힌 점 (추가)
+- 배포 스크립트를 **실행 중에 수정**해 bash가 스트리밍으로 읽다 line 61 문법 오류 —
+  apply 미실행, 직접 apply+rollout으로 복구. `crictl rmi --prune`이 방금 import한
+  이미지를 지워 새 파드가 `ErrImageNeverPull`로 116분 Pending — 해당 줄 제거.
+- 대기 루프의 `pgrep -f`가 자기 명령줄에 매칭돼 2회 헛돌았다 → PID 기준으로.
+- 파드 전체 pytest 수집 오류: `apps/gildle/tests/scripts/test_compute_shade_scores.py`가
+  `shapely`를 요구하는데 서빙 이미지에 없다 → `pytest.importorskip("shapely")`.
+
+### 파이프라인 검증 (커밋 전, 파드 이미지 기준)
+- 백엔드 전체 `pytest -m "not gpu and not ollama"` **802 passed**(shade 테스트 스킵).
+- ruff: 오늘 변경 파일 전부 통과(잔존 23건은 기존 파일·노트북 셀).
+- 프론트 `tsc --noEmit` 통과. eslint는 이 셸에서 pnpm shim이
+  `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`(Node 22.22)로 못 떠 미실행.
+- 운영: 새 카탈로그·지역 파서 반영 파드 Running, walks 401 가드, v3 lora 경로 200.
+
+## 2026-09-17
+
+### 작업 내용 (노트북 세션 — bge-m3 컷오버 완주 · EXAONE 코랩 재학습 준비)
+- 09-11 코드(f745447)를 노트북 프로덕션에 배포한 뒤(`[P]` 09-17) RAG 임베딩
+  bge-m3 컷오버를 런북 §2 순서로 진행: `ollama pull bge-m3` → 배포 →
+  파드 안 `alembic upgrade head`(20260901_0001→20260911_0001) → 재색인 →
+  회귀.
+- **런북 전제 오류 발견**: 런북은 프로덕션 `EMBEDDING_BACKEND=ollama`를
+  가정했지만 실측은 **gemini**(EC2 시절 설정이 노트북 `.env`로 그대로 옴).
+  이 상태에서 bge-m3로 색인하면 질의(Gemini 1024)와 문서(bge-m3 1024)가
+  차원만 같고 공간이 달라 조용히 엉뚱한 결과가 나온다. `.env`를 ollama로
+  바꾸고(백업 `.env.bak-20260917`) Secret 갱신 + backend 재시작 후 색인.
+- 재색인은 호스트 대신 **파드 안**에서 실행: 노트북 호스트엔 백엔드 파이썬
+  환경이 없고, 파드→`host.docker.internal:11434`(Ollama `0.0.0.0` 바인드)
+  bge-m3 호출이 200·1024차원으로 확인됨.
+- EXAONE 재학습(사용자 결정: 94건을 변형해 늘려 코랩에서 학습, Gemini와
+  비교): 증강 스크립트 + 코랩 노트북 작성, 바탕화면 `mova-colab/`에 배치.
+
+### 수정/구현
+- `datasets/augment_teacher_dataset.py` 신규 — 원본마다 orig·shuffle(카탈로그
+  줄 순서 섞기)·para1/2(Gemini `gemini-3.1-flash-lite` 말투 패러프레이즈 +
+  셔플). completion은 원본 유지, `src`·`aug` 키로 원본 추적. 프로젝트 모듈
+  의존 없이 google-genai·python-dotenv만 사용(노트북 호스트에 백엔드 env 없음).
+- `scripts/mova_exaone_colab.ipynb` 신규 — 원본 단위 홀드아웃 14건(빈 카탈로그
+  2건 포함) · r16/α32/lr1e-4(09-09와 동일) · 최대 3에폭 중 평가 손실 최저
+  선택 · 하드 체크(JSON·그라운딩·제목·hook40·최대3·빈 카탈로그·한자) ·
+  Gemini 블라인드 A/B 심판(학생 vs Gemini, 학생 vs 베이스) · 전체 재학습 →
+  fp16 병합 → llama.cpp `304665f` GGUF Q5_K_M → 드라이브. 8번 셀에 노트북
+  반영·롤백 절차.
+
+### 오류·막힌 점
+- 패러프레이즈 일부가 "하나만 추천해 줄래?"처럼 **개수 조건을 추가** — 정답
+  3편과 모순. 프롬프트에 금지 규칙 + 정규식 필터 추가, 해당 캐시 재생성.
+- Gemini 429(분당 15회) 2건·503 1건 — **프로덕션 백엔드와 같은 키라 한도를
+  나눠 씀**. 실패분만 재실행해 376건 완성. 코랩 평가도 같은 키면 트래픽과
+  경합하므로 가능하면 별도 키 권장.
+- 제목 하드 체크가 교사 데이터 71%만 통과 → 교사가 "캔터빌의 유령 (2025)"처럼
+  연도를 붙인 탓. 앱은 제목을 DB 값으로 덮어쓰므로(chat_reply) 연도 꼬리는
+  무시하도록 수정 → 97.9%.
+- 노트북 `.venv`에 pip·dotenv 없음, `python3-venv` 미설치 → `uv venv`로
+  작업 폴더에 격리 환경 구성(lora-server용 `~/.venv-exaone`은 건드리지 않음).
+
+### 데이터
+- `chat_teacher_dataset_aug.jsonl` 376행(orig 94 · shuffle 94 · para 188).
+  패러프레이즈 캐시 `datasets/.paraphrase_cache.json`.
+- hub_knowledge 재색인: movies 3,413편 기준 문서 **2,965건 succeeded, 실패 0**
+  (10m59s). 런북의 "859편"은 09-11 당시 수치.
+- 회귀 `eval_chat_queries.py` **23/23 PASS**(09-09 어댑터 + bge-m3) — 재학습
+  모델 비교 기준선. 로그상 매 질의 `vector_search hits=8` dim=1024.
+- 관찰(하네스 통과지만 품질 이슈): "톰 크루즈"→크루즈 패밀리·정글 크루즈,
+  "심리전 두뇌 싸움"→싸움·싸울아비 — 제목 부분 문자열 매칭 계열. LoRA가
+  아니라 후보 조립 단계 문제로 보임(미조사).
+
+### 작업 내용 (추가 — 코랩 호환 수정 · 라우터 EXAONE 통일)
+- **코랩 첫 실행 오류 2건 수정**: ① EXAONE 원격 코드가 transformers 5.13.1에서
+  `create_causal_mask(input_embeds=…)` TypeError, 4.57.6에선 `RopeParameters`
+  import 실패 → 초소형 무작위 EXAONE으로 버전 탐색, **5.5.0** 고정(5.0 AttentionInterface,
+  5.2 check_model_inputs 실패). peft 0.20이 요구하는 `get_input_embeddings`가
+  원격 코드에 없어 `wte` 반환으로 보충. ② 코랩 기본 torchao 0.10을 peft가 거부 →
+  설치 셀에서 제거.
+- **LoRA 대상층 오류 발견**: 학습 스크립트의 Llama식 이름(o_proj·gate_proj…)은
+  EXAONE에 없고 실제 이름은 `out_proj·c_fc_0·c_fc_1·c_proj` — **09-09 어댑터를 포함해
+  q/k/v 3개 층만 학습돼 왔다**. 코랩 노트북은 7개 층 전부로 수정(`train_mova_lora.py`는
+  미수정).
+- **토큰 경계 불일치**: 프롬프트+답을 통째로 토큰화하면 `]`+`{`가 `]{` 한 토큰으로
+  합쳐져, 추론(프롬프트가 `]`로 끝남)과 다른 토큰열을 학습. 따로 토큰화해 잇도록 수정.
+  초소형 EXAONE으로 학습→평가→병합→GGUF 변환(llama.cpp 304665f) 통과.
+- **라우터 qwen2.5:1.5b → exaone3.5:2.4b(사용자 결정: 로컬 모델 EXAONE 통일)**.
+  파드 안 실측(실채팅 중복 제거 후 결정론 가드 제외 114건): Gemini와 **90% 일치**
+  (온도 0·기본 동일 103건), 평균 0.3~0.6s vs Gemini 약 2.5s. 불일치는 "토이스토리 어때"
+  "더문은 잼ㅆ나" "아바타"처럼 제목+평가 의도를 recommend로 보낸 경우가 주 — 라우터
+  학습 데이터 후보. 결정성 위해 `T1MidFakerOrchestrator.generate`에 선택
+  `temperature` 추가, 라우터만 0 전달. 테스트 51 passed(파드 오버레이).
+- **7.8B 공존 실측**: lora-server(2.5GB) 옆에 exaone3.5:7.8b를 올리면 Ollama가
+  bge-m3·2.4B를 내려 스왑(2.4B 재로드 9.2s). bge-m3+2.4B만은 공존(각 0.14~0.17s).
+  7.8B는 기동 워밍업·PDF 요약만 쓰므로 **배포 직후 첫 채팅에 스왑 지연** 가능.
+- **7.8B 온디맨드(사용자 결정 1안)**: `main.py` 기동 워밍업과 이제 안 쓰이는
+  `get_faker_orchestrator`·`warmup()` 삭제, PDF 요약기만 `keep_alive="0"`(Ollama가 응답
+  직후 언로드함을 2.4B로 실측). ruff 청정 · `import main` · 파드 오버레이 120 passed.
+- 배포는 자동 모드 분류기에 차단 → 사용자 실행 대기. 포스터 장르 에이전트는
+  exaone3.5 Ollama가 tools 미지원이라 qwen 유지.
+
+- **코랩 학습 결과 GGUF 적용·A/B(저녁)**: `mova_20260917_124713`(best epoch 1 —
+  eval_loss 0.835→0.988→1.190로 과적합, 노트북은 최적 에폭 수로 전체 재학습하므로
+  배포본도 1에폭) 병합→f16→Q5_K_M(1,646MiB). 변환은
+  `scripts/convert_exaone_gguf.py`(rms eps 키 보충 래퍼)로 통과. **운영 미적용.**
+- **A/B 결과(온도 0, 하드 체크 pass)**: 09-09 운영 → 09-17 신규
+  - 처음 보는 인사말 8: 8 → 8 — 단 신규는 "고마워요 잘 볼게요"·"ㅎㅇ"에 **영화 3편을
+    추천**하며 "3편 미만이라…" 모순 intro(체크는 통과하는 퇴행)
+  - orig 94: 85 → 92 / para2 94: 80 → 92 — **둘 다 학습에 들어간 행**이라 일반화
+    근거는 아님(title·max3 실패가 주로 줄어듦). 신규 실패 중 1건은 JSON 깨짐
+    (`"movie_id": 186, "'더 캐니언'…"` 키 누락).
+
+### 오류·막힌 점(저녁)
+- **이전 세션 A/B 도중 RAM 고갈로 스크립트 `[killed]`**: 운영(:8201)+테스트(:8210)
+  llama-server가 각각 RSS 5.4·6.1GB(전부 anon) → RAM 15/15GB·스왑 4/4GB·load 29.
+  GPU(4.6/8GB)·커널 OOM·재부팅은 무관. 원인은 llama-server `--cache-ram`
+  **기본 8192MiB** 호스트 프롬프트 캐시. 테스트 서버 종료 후 가용 0.7→6.7GB.
+  재실행은 운영 모델 평가 → 신규를 `--cache-ram 0`으로 띄워 평가 → 종료 순차 방식.
+  운영 `serve_gguf.py`에도 상한이 없어 5.4GB 점유 중(미수정, 결정 대기).
+
+### 산출물
+- 신규: `datasets/augment_teacher_dataset.py` · `chat_teacher_dataset_aug.jsonl`
+  · `scripts/mova_exaone_colab.ipynb`. 런북 `RS_TEACHER_LOOP.md` §2 정정.
+- 바탕화면 `C:\Users\suteagy\Desktop\mova-colab\`(노트북 + 데이터셋).
+
+---
+
 ## 2026-09-11
 
 ### 작업 내용 (백로그 소진 — 의도 추출 死호출 제거 · import 잠금 · 감정분석 배치화)

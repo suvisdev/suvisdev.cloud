@@ -7,6 +7,7 @@ import gildle.adapter.outbound.orm.route_node_orm  # noqa: F401
 import gildle.adapter.outbound.orm.route_request_orm  # noqa: F401
 import gildle.adapter.outbound.orm.route_result_orm  # noqa: F401
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401
+import gildle.adapter.outbound.orm.walk_orm  # noqa: F401
 from gildle.adapter.outbound.orm.base import GildleBase
 
 
@@ -23,6 +24,7 @@ class TestOrmSchema:
         assert {
             "tree_segments",
             "hazard_zones",
+            "walks",
             "route_nodes",
             "route_edges",
             "route_requests",

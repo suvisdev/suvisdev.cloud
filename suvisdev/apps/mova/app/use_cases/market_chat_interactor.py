@@ -333,9 +333,16 @@ class ChatInteractor(ChatUseCase):
                 t for t in tag_items if t.match_type != "popular_fallback" or has_hard_filter
             ]
             if real_matches:
-                head = real_matches[:10]  # 시맨틱 보충 여지를 남기는 상한
-                head_ids = {t.id for t in head}
-                catalog = (head + [c for c in catalog if c.id not in head_ids])[:16]
+                # 배우 매칭이 받쳐주는 질의는 시맨틱 꼬리를 섞지 않는다 — DB 출연작이
+                # 24~36편이라 결정론 후보만으로 상한(16)이 차고, 꼬리를 남기면 LoRA가
+                # 미출연작을 고른다(2026-09-22 실측: "송강호 나오는 영화"에 궁합·
+                # 천년여우 구미호 — DB 확인 결과 둘 다 송강호 미출연).
+                if real_matches[0].match_type in ("actor", "actor+keyword"):
+                    catalog = real_matches[:16]
+                else:
+                    head = real_matches[:10]  # 시맨틱 보충 여지를 남기는 상한
+                    head_ids = {t.id for t in head}
+                    catalog = (head + [c for c in catalog if c.id not in head_ids])[:16]
                 logger.info(
                     "[ChatInteractor] trace=%s RAG+태그 합집합 후보 %d편(태그 %s)",
                     trace_id,

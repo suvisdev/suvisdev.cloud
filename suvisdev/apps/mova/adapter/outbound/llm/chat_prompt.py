@@ -112,7 +112,19 @@ class ChatPromptBuilder:
             )
         for item in hits[:12]:
             kind = "태그" if item.match_type == "keyword" else item.match_type
-            lines.append(f"- movie_id={item.id} {item.title} ({item.year or '연도 미상'}) [{kind}]")
+            # 제목·연도만 주면 LLM이 작품 내용을 모른 채 제목으로 추측한다 —
+            # "형사물"에 무관한 작품을 고르거나 줄거리를 지어내는 실패의 원인이었다
+            # (2026-09-22, v3 평가 패배 25건 중 최다 사유). 장르·한 줄 요약을 함께 준다.
+            parts = [f"- movie_id={item.id} {item.title} ({item.year or '연도 미상'})"]
+            if item.genres:
+                parts.append(f"[{item.genres}]")
+            parts.append(f"[{kind}]")
+            if item.summary:
+                # 구분자 없이 이어 붙이면 LLM이 줄거리까지 제목으로 읽는다
+                # (2026-09-22 실측: title에 줄거리가 통째로 들어간 응답). "줄거리:"로
+                # 경계를 분명히 한다.
+                parts.append(f"— 줄거리: {item.summary}")
+            lines.append(" ".join(parts))
         return "\n".join(lines)
 
     def format_past_intents_section(self, intents: list[MovaChat]) -> str:

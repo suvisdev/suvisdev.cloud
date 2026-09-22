@@ -8,7 +8,7 @@ from dispatch.app.ports.input.email_use_case import EmailUseCase
 from dispatch.app.use_cases.send_email_interactor import SendEmailInteractor
 from ontology.app.use_cases.hub_email_orchestrator import HubEmailOrchestrator
 
-# 공용 오케스트레이터(get_faker_orchestrator, exaone3.5:7.8b)와 별개로,
+# 오케스트레이터 기본 모델(exaone3.5:7.8b)과 별개로,
 # 메일 본문 생성은 지금까지 검증된 exaone3.5:2.4b 전용 인스턴스를 그대로 쓴다.
 _EMAIL_MODEL = "exaone3.5:2.4b"
 

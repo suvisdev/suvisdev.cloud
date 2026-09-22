@@ -28,6 +28,53 @@
 
 ---
 
+## 2026-09-22
+
+### 작업 내용 (인프라 — 배포 스크립트 이미지 정리 · 무료 호스팅 검토)
+- `k8s/deploy.sh` 빌드 뒤 이미지 정리 추가: `docker image prune -f`(dangling만) +
+  `docker builder prune --max-used-space 20GB`. **`crictl rmi --prune`은 쓰면 안 된다** —
+  방금 import한 이미지를 미참조로 보고 지워 rollout이 `ErrImageNeverPull`로 죽는다
+  (실측 116분 Pending). 실제로 쌓이는 건 dangling이 아니라 빌드 캐시(0.8→15.3GB).
+- 사용자 질문 "Cloudflare만으로 서버 가동 / 무료 호스팅" 실측 근거 답변: 이미지
+  **14.8GB**(ontology·vision·titanic의 torch·ultralytics 포함), 백엔드 RAM 980Mi,
+  DB **121MB**. Cloudflare는 터널일 뿐 서버가 아니고 Workers/Containers로는 현재
+  스택(pgvector·커스텀 LoRA) 불가. 무료 후보는 Oracle Always Free ARM(24GB)+Neon
+  (pgvector)+Gemini, 단 mova+auth만 추려 이미지를 1GB 아래로 줄이는 게 전제. GPU
+  무료 상시는 없음 — 서빙 이전 시 EXAONE→Gemini 방향과 같아 폴백 구조로 흡수.
+
+### 오류·막힌 점
+- 실행 중인 `deploy.sh`를 편집해 bash가 바뀐 파일을 스트리밍으로 읽다 line 61 문법
+  오류 → apply 미실행, 직접 `kubectl apply` + rollout으로 복구. 배포 중 스크립트
+  수정 금지.
+
+### 산출물
+- `k8s/deploy.sh`(prune 단계·주석), `susu/android/.gitignore`(google-services.json 제외).
+
+---
+
+## 2026-09-17
+
+### 작업 내용 (노트북 세션 — f745447 프로덕션 배포)
+- 세션 시작 자동 `git pull`이 로컬 미커밋 문서(09-11 노트북 기록)와 충돌해
+  실패 → stash·pull·pop으로 f745447까지 병합(충돌 없음).
+- 파드 재시작 320회+는 앱 크래시가 아니라 **WSL 재부팅**(호스트 부팅 20:05:54 =
+  세 파드 동시 exit 255 시각). 사이트 200·lora-server 정상 확인 후 진행.
+- 롤백 태그 `suvisdev-app:pre-f745447` 확보 → `./k8s/deploy.sh --external-db
+  --build`를 비대화식으로 완주(**6m10s**, sudo NOPASSWD import 규칙이 이미
+  적용돼 있음 확인). backend·auth·cloudflared 새 파드 1/1.
+- 09-11 취소됐던 b2a094e·0a6def9까지 이번 배포에 포함됨. 검증: 회귀 하네스
+  23/23 PASS(booking 이어받기 E2E 2건은 별도 미실측).
+- 이어서 `.env` `EMBEDDING_BACKEND` gemini→ollama 변경(백업
+  `suvisdev/.env.bak-20260917`) + Secret 갱신 + backend 재시작 — bge-m3 컷오버
+  상세는 `[M]` 09-17.
+
+### 오류·막힌 점
+- 앞선 세션 기록의 "b2a094e 배포 미완, 재실행 대기"는 이번 배포로 해소.
+- 의도 분류기 Qwen 1차가 매 요청 `qwen2.5:1.5b not found` 404 → Gemini 폴백
+  (기존 경로, 백로그 등록).
+
+---
+
 ## 2026-09-11
 
 ### 작업 내용 (보안 🟡 소진 — media 하드닝 · S3 실측 · 문서 모순 정리)
@@ -116,6 +163,35 @@
   세션에서 확인.
 
 ---
+
+### 작업 내용 (추가 — b2a094e 프로덕션 배포 시도 · 팬 소음 원인 규명, 노트북 세션)
+- 데스크톱 세션의 요청으로 노트북(teagy)에서 b2a094e 배포 착수. `git pull`
+  완료, 롤백용 도커 태그 `suvisdev-app:pre-b2a094e` 확보(k3s containerd 쪽
+  태그는 sudo 범위 밖이라 실패 — 롤백 시 도커 태그를 latest로 되돌려
+  `k3s ctr images import`).
+- `deploy.sh --external-db --build`는 자동 모드 분류기에 차단돼 사용자가 직접
+  실행 → **빌드 중 팬 소음으로 사용자가 취소**(export 직후 CANCELED). 새
+  이미지 미생성, 파드 재기동 없음 → **프로덕션은 배포 전 상태 그대로**
+  (backend·auth·cloudflared 1/1, 사이트 200/302 정상, 530 없음).
+  **b2a094e 배포·검증 8항목은 미완, 재실행 대기.**
+- 이후 데스크톱 세션이 b05a514(docs)·0a6def9(booking 지역-선행 이어받기)를
+  추가 푸시 → 로컬 문서 수정을 stash한 뒤 0a6def9까지 pull(충돌 없음).
+  **다음 배포는 0a6def9 기준 한 번에** 나가며, 검증에 채팅 E2E 2건("옵세션
+  어때?" → 같은 스레드 "군자쪽에 예매할 시간 있는지 확인해줘"가 되묻기 없이
+  옵세션 기준 군자 상영관 안내, 로그 `[BookingAssist] ... 지역-선행 이어받기`)이
+  추가됨.
+
+### 오류·막힌 점
+- **팬 소음 원인**: dockerd 단일 코어 100%(pip 275s → 14.6GB 레이어 export
+  177s). GPU 38°C·0%, 메모리 여유 11GB로 학습·lora-server 무관. buildx
+  이력 비교 결과 08-31(12m43s)·09-03(9m14s) 전체 빌드와 **동일 패턴**이며
+  오늘이 오히려 빠름 — 이번 커밋의 requirements 10줄 삭제로 pip 레이어
+  캐시가 무효화돼 전체 빌드가 된 것(09-09는 캐시 적중 1~12s). 지금 재실행
+  시 pip 레이어는 캐시돼 export 3분만 남음.
+- **근본 원인은 이미지 구성**: 파드에 GPU가 없는데(`torch.cuda.is_available()`
+  False 실측) cu126 torch 3종+bitsandbytes로 pip 레이어 9.01GB. 사용자 결정으로
+  **CPU 전용 torch 전환을 별도 백로그로 등록**(PROGRESS.md 구조·인프라
+  백로그) — 오늘은 GPU 학습으로 노트북 발열이 심해 착수 안 함.
 
 ## 2026-09-09
 

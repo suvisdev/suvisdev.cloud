@@ -1,6 +1,6 @@
-"""RS 교사 루프 1단계 — 프로덕션 chats에서 실사용 질의를 채굴한다 (2026-09-11).
+"""RS 교사 루프 1단계 — 프로덕션 chat에서 실사용 질의를 채굴한다 (2026-09-11).
 
-chats.raw_message에서 추천 학습에 쓸 만한 사용자 발화를 추려 JSONL로 쓴다.
+chat.raw_message에서 추천 학습에 쓸 만한 사용자 발화를 추려 JSONL로 쓴다.
 빈도순 정렬(자주 묻는 질의가 데이터셋에 먼저 들어가게)·중복 제거·길이 필터.
 예매/평가 트랙 어휘가 든 발화는 제외한다 — LoRA의 역할은 recommend 트랙
 생성뿐이고, 흐름 제어는 코드가 담당한다(설계 원칙).
@@ -56,7 +56,7 @@ async def _run(args: argparse.Namespace) -> None:
         rows = (
             await session.execute(
                 text(
-                    "select raw_message from chats "
+                    "select raw_message from chat "
                     "where created_at > now() - make_interval(days => :days)"
                 ),
                 {"days": args.days},

@@ -78,6 +78,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--models", nargs="*", default=list(MODEL_SPECS), help="비교할 HF 모델 id 목록"
     )
     parser.add_argument("--max-queries", type=int, default=60)
+    parser.add_argument(
+        "--corpus-json",
+        help="DB 대신 이 JSON에서 코퍼스·태그를 읽는다 — torch는 있지만 DB 드라이버가 "
+        "없는 환경(노트북 ~/.venv-exaone)에서 평가를 돌리기 위한 입력. 덤프 형식은 "
+        '{"corpus": [[movie_id, text], ...], "tags": [[label, movie_id], ...]}',
+    )
     parser.add_argument("--batch-size", type=int, default=16)
     return parser.parse_args(argv)
 
@@ -200,11 +206,38 @@ def _evaluate(model_id: str, corpus, queries, *, batch_size: int) -> dict[str, f
     return {"recall@8": recall_sum / n, "mrr@8": mrr_sum / n}
 
 
-async def _run(args: argparse.Namespace) -> None:
-    from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+def _load_from_json(path: str):
+    """--corpus-json 입력을 DB 경로와 같은 (corpus, queries)로 변환한다."""
+    import json
 
-    get_keymaker()  # .env 로드 부작용 — DB URL 주입
-    corpus, queries = await _load_eval_data()
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    corpus = [(int(mid), str(txt)) for mid, txt in data["corpus"]]
+    corpus_ids = {mid for mid, _ in corpus}
+    by_label: dict[str, set[int]] = {}
+    for label, movie_id in data["tags"]:
+        if int(movie_id) in corpus_ids:
+            by_label.setdefault(str(label), set()).add(int(movie_id))
+    queries = [
+        (_QUERY_TEMPLATE.format(label=label), ids)
+        for label, ids in sorted(by_label.items())
+        if len(ids) >= _MIN_RELEVANT
+    ]
+    for query_text, genre_label in _PARAPHRASE_QUERIES:
+        relevant = by_label.get(genre_label, set())
+        if len(relevant) >= _MIN_RELEVANT:
+            queries.append((query_text, relevant))
+    return corpus, queries
+
+
+async def _run(args: argparse.Namespace) -> None:
+
+    if args.corpus_json:
+        corpus, queries = _load_from_json(args.corpus_json)
+    else:
+        from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+
+        get_keymaker()  # .env 로드 부작용 — DB URL 주입
+        corpus, queries = await _load_eval_data()
     queries = queries[: args.max_queries]
     if not corpus or not queries:
         print(f"[eval-embed] 평가 재료 부족 corpus={len(corpus)} queries={len(queries)}")

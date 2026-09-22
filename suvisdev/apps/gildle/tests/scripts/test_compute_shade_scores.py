@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from gildle.scripts.compute_shade_scores import (
+import pytest
+
+# shapely는 오프라인 파이프라인 전용이라 서빙 이미지에 없다 — 파드에서 전체
+# 테스트를 돌릴 때 수집 단계에서 깨지지 않게 건너뛴다(2026-09-22).
+pytest.importorskip("shapely")
+
+from gildle.scripts.compute_shade_scores import (  # noqa: E402
     compute_slot_fractions,
     project_to_meters,
 )

@@ -44,40 +44,30 @@ class T1MidFakerOrchestrator:
         except httpx.TransportError:
             return False
 
-    def warmup(self) -> bool:
-        """모델을 미리 메모리에 올려 콜드 스타트를 제거한다. 실패해도 무시."""
-        try:
-            with httpx.Client(timeout=self._timeout) as client:
-                r = client.post(
-                    f"{self._base_url}/api/chat",
-                    json={
-                        "model": self._model,
-                        "messages": [],
-                        "keep_alive": self._keep_alive,
-                    },
-                )
-            return r.status_code == 200
-        except httpx.TransportError:
-            return False
+    def generate(
+        self, prompt: str, *, system: str | None = None, temperature: float | None = None
+    ) -> str:
+        """프롬프트를 self._model에 전달하고 응답 문자열을 반환한다.
 
-    def generate(self, prompt: str, *, system: str | None = None) -> str:
-        """프롬프트를 self._model에 전달하고 응답 문자열을 반환한다."""
+        temperature를 주지 않으면 모델 Modelfile 기본값을 쓴다(exaone3.5는 1).
+        """
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
+        body: dict[str, object] = {
+            "model": self._model,
+            "messages": messages,
+            "stream": False,
+            "keep_alive": self._keep_alive,
+        }
+        if temperature is not None:
+            body["options"] = {"temperature": temperature}
+
         try:
             with httpx.Client(timeout=self._timeout) as client:
-                r = client.post(
-                    f"{self._base_url}/api/chat",
-                    json={
-                        "model": self._model,
-                        "messages": messages,
-                        "stream": False,
-                        "keep_alive": self._keep_alive,
-                    },
-                )
+                r = client.post(f"{self._base_url}/api/chat", json=body)
         except httpx.TimeoutException as e:
             raise FakerOrchestratorError("Ollama 응답 타임아웃", status_code=504) from e
         except httpx.TransportError as e:
@@ -96,10 +86,3 @@ class T1MidFakerOrchestrator:
         if not text:
             raise FakerOrchestratorError("모델이 빈 응답을 반환했습니다.", status_code=502)
         return text
-
-
-_orchestrator = T1MidFakerOrchestrator()
-
-
-def get_faker_orchestrator() -> T1MidFakerOrchestrator:
-    return _orchestrator

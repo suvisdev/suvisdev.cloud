@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
-        android:label="susu"
+        android:label="길들"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -42,6 +42,11 @@
                     android:scheme="kakaocaabb804d994e85dc8e83b7e7b434ff8" />
             </intent-filter>
         </activity>
+        <!-- 네이버 지도 SDK — 등록된 패키지명(cloud.suvisdev.gildle)에서만 동작한다.
+             값은 lib/naver_config.dart의 naverMapClientId와 같아야 한다. -->
+        <meta-data
+            android:name="com.naver.maps.map.CLIENT_ID"
+            android:value="e630p2wr6p" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

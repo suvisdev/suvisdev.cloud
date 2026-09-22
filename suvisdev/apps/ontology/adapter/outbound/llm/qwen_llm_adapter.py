@@ -1,4 +1,10 @@
-"""Qwen2.5-1.5B-Instruct(Ollama) 직접 호출 어댑터 — HubLlmPort 구현체.
+"""EXAONE-3.5-2.4B(Ollama) 직접 호출 어댑터 — HubLlmPort 구현체.
+
+2026-09-17: qwen2.5:1.5b → exaone3.5:2.4b 전환(사용자 결정 — 로컬 모델을 EXAONE으로
+통일). 노트북에 qwen이 없어 매 요청 404 → Gemini 폴백이던 상태였다. 실채팅 질문
+114건(결정론 가드 제외) 실측: Gemini 분류와 90% 일치, 평균 0.3~0.6s. 분류가
+흔들리지 않게 temperature 0 고정(exaone Modelfile 기본값은 1). 클래스·파일명의
+Qwen은 호출부가 많아 이름만 유지한다.
 
 시맨틱 라우터의 분류(routing)·RAG 답변 두 역할을 이 모델 하나로 겸한다("1인 2역").
 QLoRA 파인튜닝 없이 역할별 시스템 프롬프트만 바꿔 끼우는 것으로 충분하다 — PoC
@@ -19,7 +25,7 @@ from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFake
 from ontology.app.ports.output.hub_llm_port import HubLlmPort
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 
-_QWEN_MODEL = "qwen2.5:1.5b"
+_QWEN_MODEL = "exaone3.5:2.4b"
 
 
 class QwenLlmAdapter(HubLlmPort):
@@ -28,6 +34,8 @@ class QwenLlmAdapter(HubLlmPort):
 
     async def generate(self, prompt: str, *, system: str | None = None) -> str:
         try:
-            return await asyncio.to_thread(self._orchestrator.generate, prompt, system=system)
+            return await asyncio.to_thread(
+                self._orchestrator.generate, prompt, system=system, temperature=0
+            )
         except FakerOrchestratorError as e:
             raise HubRagError(e.detail, status_code=e.status_code) from e

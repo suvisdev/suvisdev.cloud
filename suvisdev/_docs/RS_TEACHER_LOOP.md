@@ -98,8 +98,15 @@ python scripts/eval_chat_queries.py                  # RAG 경로 회귀
 
 - ③~④ 사이 RAG는 벡터 0건이라 태그 폴백으로만 동작(채팅은 계속 됨 —
   설계된 폴백). 트래픽 낮은 시간대 권장.
-- `EMBEDDING_BACKEND`는 ollama 유지. gemini로 바꿀 일이 생기면 그때도
-  전체 재임베딩 필수(공간 상이) — 기존 규칙 동일.
+- **`EMBEDDING_BACKEND`를 먼저 확인할 것** — 09-17 실측 노트북 `.env`는
+  EC2 시절 값 `gemini`였다. 그대로 bge-m3 색인하면 질의(Gemini)와 문서(bge-m3)가
+  차원만 1024로 같고 공간이 달라 조용히 틀린다. ollama로 바꾸고
+  `deploy.sh --external-db` + backend 재시작 후 색인. gemini로 되돌리면 전체
+  재임베딩 필수(공간 상이).
+- **09-17 컷오버 완료**: 호스트에 백엔드 env가 없어 ④는 파드 안에서 실행
+  (`kubectl -n suvisdev exec deploy/backend -c backend -- python
+  scripts/ingest_hub_knowledge.py --reset --embedding-backend ollama`, 파드→
+  `host.docker.internal:11434`). 문서 2,965건 · 10m59s · 실패 0, 회귀 23/23.
 - 롤백: `alembic downgrade -1` + 코드 revert + nomic 재색인.
 
 ### 잔여

@@ -40,25 +40,14 @@ export const APPS_CATALOG: AppCatalogItem[] = [
 
 export const TEAM_PROJECTS: AppCatalogItem[] = [
   {
-    id: "seuk",
-    titleKo: "SEUK",
-    titleEn: "슥 만드는 해커톤 팀",
-    href: "https://team.seuk.cloud",
-    available: true,
-    imageFirst: true,
-    gradient: "from-sky-400 via-blue-500 to-cyan-600",
-    image: "/apps-seuk.jpg",
-    team: "Team Seuk",
-  },
-  {
     id: "arda",
     titleKo: "ARDA",
     titleEn: "AI Recruitment Assistant",
-    href: "https://arda.seuk.cloud",
+    href: "https://seuk.suvisdev.cloud",
     available: true,
     imageFirst: false,
     gradient: "from-violet-500 via-purple-600 to-indigo-700",
-    icon: "💼",
+    image: "/apps-arda.svg",
     team: "Team Seuk",
   },
 ]

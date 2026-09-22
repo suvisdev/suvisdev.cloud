@@ -49,6 +49,23 @@ if [ "$BUILD" = 1 ]; then
   docker build -t suvisdev-app:latest ../suvisdev
   # k3s는 도커와 이미지 저장소를 공유하지 않는다(containerd) — 빌드 후 import 필수
   docker save suvisdev-app:latest | sudo k3s ctr images import -
+
+  # 태그를 잃은 이미지 정리 — 안전망이다. 이 환경의 buildkit은 같은 태그 재빌드 시
+  # 이전 이미지를 자동 정리해 실측상 dangling이 0개였지만(2026-09-22, 두 번 빌드
+  # 모두 0B 회수), 빌더가 바뀌거나 중단된 빌드가 남기면 14GB대가 <none>으로 잡힌다.
+  # dangling만 지우므로 실행 중 컨테이너의 이미지와 다른 태그는 건드리지 않는다.
+  echo "[prune] 태그 없는 도커 이미지 정리"
+  docker image prune -f
+  # containerd(`crictl rmi --prune`)는 여기서 쓰면 안 된다 — 방금 import한 이미지를
+  # "아직 아무 파드도 참조하지 않는 미사용 이미지"로 보고 지워버려서, 뒤따르는
+  # rollout이 ErrImageNeverPull로 죽는다(2026-09-22 실측: 새 파드 2개가 116분간
+  # Pending). import → prune → rollout 순서에서는 필연적이다. containerd 정리가
+  # 필요하면 rollout이 끝난 뒤 별도로 돌릴 것.
+  # 실제로 쌓이는 건 dangling 이미지가 아니라 빌드 캐시다(2026-09-22 실측: 두 번
+  # 빌드에 0.8GB→15.3GB, dangling은 0개 — buildkit이 같은 태그 재빌드 시 이전
+  # 이미지를 자동 정리한다). 캐시는 다음 빌드를 5~6분 줄여주는 자산이고 디스크도
+  # 818GB 남아 있어 매번 지우지 않는다. 무한 증가만 상한으로 막는다.
+  docker builder prune -f --max-used-space 20GB >/dev/null 2>&1 || true
 fi
 
 # db·redis: 데스크톱은 클러스터 안(StatefulSet/PVC), 노트북 1단계는 도커 컨테이너를

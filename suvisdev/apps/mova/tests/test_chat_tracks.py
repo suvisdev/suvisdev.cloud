@@ -686,6 +686,19 @@ class RegionTransportParsingTests(unittest.TestCase):
         region, radius, label = _parse_region_transport("홍대입구역 도보")
         self.assertEqual((region, radius, label), ("홍대입구역", 3_000, "도보"))
 
+    def test_near_tail_stripped(self) -> None:
+        """'군자역 근처'를 그대로 넘기면 카카오 지오코딩이 실패한다(2026-09-22 실측)."""
+        from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
+
+        region, radius, label = _parse_region_transport("군자역 근처")
+        self.assertEqual((region, radius, label), ("군자역", 10_000, None))
+
+    def test_near_tail_stripped_with_transport(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
+
+        region, radius, label = _parse_region_transport("강남 주변 차로")
+        self.assertEqual((region, radius, label), ("강남", 20_000, "차량"))
+
     def test_plain_region_keeps_default(self) -> None:
         from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
 

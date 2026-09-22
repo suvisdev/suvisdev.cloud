@@ -22,18 +22,24 @@ export function MovaFooter() {
           </a>
         </nav>
 
-        <p className="text-[10px] leading-relaxed text-mova-muted">
-          Movie data provided by{" "}
+        {/* TMDB 약관은 로고 표시 + 고지 문구를 요구한다. 로고는 "내 서비스 로고보다
+            덜 눈에 띄게"가 조건이라 short 변형을 작은 높이로 쓴다. */}
+        <div className="flex items-start gap-2">
           <a
             href="https://www.themoviedb.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-mova-text"
+            aria-label="The Movie Database"
+            className="mt-[2px] shrink-0"
           >
-            TMDB
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/tmdb-logo.svg" alt="TMDB" width={52} height={7} className="h-[7px] w-auto opacity-70" />
           </a>
-          . This product uses the TMDB API but is not endorsed or certified by TMDB.
-        </p>
+          <p className="text-[10px] leading-relaxed text-mova-muted">
+            Movie data provided by TMDB. This product uses TMDB and the TMDB APIs but is not
+            endorsed, certified, or otherwise approved by TMDB.
+          </p>
+        </div>
 
         <p className="text-[10px] text-neutral-500">© 2026 SUVIS · mova</p>
       </div>

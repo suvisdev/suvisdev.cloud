@@ -28,6 +28,71 @@
 
 ---
 
+## 2026-09-22
+
+### 작업 내용 (앱 출시 준비 — walks API · 건물 그늘 파이프라인 복구)
+- 앱 출시를 **gildle만** 하기로 결정(mova는 TMDB 약관의 AI 학습 조항이 별도 서면
+  계약을 요구 — gildle은 OSM/공공데이터 기반이라 그 리스크가 없다).
+- gildle이 **stateless 경로 계산기**라 사용자가 다시 열 이유가 없다는 문제를
+  `walks` API로 해결하고, 코드만 있고 한 번도 돌지 않았던 **건물 그늘 계산**을
+  복구했다.
+
+### 수정/구현
+- **`walks` API 신규** (`/api/gildle/walks`) — 저장·목록·상세·삭제·통계 5종.
+  전부 `require_user`이고, **남의 기록은 403이 아니라 404**로 막는다(id 존재
+  여부를 흘리지 않기 위해 — 08-07 mova 마이페이지 IDOR 수정과 같은 기준).
+  레이어: ORM·엔티티·DTO·포트 2종·PgRepository·Interactor·스키마·라우터·provider.
+  alembic `20260922_0001`(테이블 `walks` + 복합 인덱스). **gildle 197 passed.**
+  - `user_id`에 FK를 걸지 않았다 — `users`는 다른 앱 테이블이고 참조하면 앱 경계를
+    넘는 결합이 생긴다. 소유권 검사는 유스케이스가 한다.
+  - 경로 좌표는 상한 5,000점에서 **거부가 아니라 절단** — 기록을 통째로 잃는 편이
+    더 나쁘다.
+- **건물 데이터 출처를 OSM → 브이월드로 교체**. `scripts/fetch_vworld_buildings.py`
+  신규(`fetch_osm_buildings.py`와 **같은 형식**으로 저장해 하위 파이프라인 무수정).
+
+### 오류·막힌 점
+- **건물 그늘이 한 번도 계산된 적이 없었다**: `compute_shade_scores.py`는 08-27
+  커밋인데 서빙 데이터 `scored_edges.json`은 **08-25 생성**이라 `shade_score` 필드
+  자체가 0건이었다. 건물 데이터 파일(`seoul_buildings_osm.json`)도 없었다. 즉
+  "그늘 우선 경로"가 `tree_score` 폴백으로만 돌고 있었다. 라우터
+  (`_load_shade_scores`)는 mtime 캐시까지 갖춘 채 파일만 기다리고 있었다.
+- **JSONB가 sqlite에서 안 돼 gildle 테스트 31건이 깨졌다** — 기존 테스트가
+  sqlite in-memory로 `create_all`을 한다. `JSON().with_variant(JSONB, "postgresql")`로 수정.
+- `slots=True` dataclass에 `__dict__`를 써서 테스트 2건 실패 → `dataclasses.replace`로 수정.
+
+### 데이터
+- **건물 높이 출처 비교(실측)**:
+  | 출처 | 높이/층수 보유율 |
+  |------|------------------|
+  | OSM `height` 태그 | **10.6%** (테스트 영역 1,147동) |
+  | 브이월드 `LT_C_SPBD.gro_flo_co` | **83.6%** (표본 5,000동, 서울 5개 지역) |
+  - 지역별: 관악 100% · 강남 96.9% · 여의도 93.8% · 종로 89.6% · 노원 37.8%
+    (노원은 아파트 단지 부속 건물이 0으로 들어간 것으로 보인다)
+- **높이는 `heit`가 아니라 층수를 써야 한다** — 건축HUB 건축물대장 공식 가이드
+  (HWP 원문 확인)의 응답 예시조차 `<heit>0</heit>`이고 `<grndFlrCnt>2</grndFlrCnt>`만
+  채워져 있다. 층당 3.0m 환산(OSM `building:levels`와 같은 계수).
+- 브이월드 API: `size` 상한 **1,000**(1,001 이상 오류), `geomFilter=BOX(minx,miny,maxx,maxy)`,
+  `domain` 파라미터 필수(인증키 발급 시 등록한 도메인).
+
+### 산출물
+- 신규: `apps/gildle/adapter/outbound/orm/walk_orm.py` · `domain/entities/walk_entity.py`
+  · `app/dtos/walk_dto.py` · `app/ports/{output/walk_repository,input/walk_use_case}.py`
+  · `adapter/outbound/pg/walk_pg_repository.py` · `app/use_cases/walk_interactor.py`
+  · `adapter/inbound/api/{schemas/walk_schema,v1/walk_router}.py` · `dependencies/walk_provider.py`
+  · `scripts/fetch_vworld_buildings.py` · `tests/app/test_walk_interactor.py`
+  · `alembic/versions/20260922_0001_create_gildle_walks.py`
+- 문서: `apps/gildle/_docs/GILDLE_APP_API_PLAN.md` · `susu/_docs/GILDLE_APP_RELEASE_PLAN.md`
+  · `susu/_docs/GILDLE_APP_SETUP_GUIDE.md`
+- 프론트: `suvis/app/gildle/privacy/page.tsx`(위치정보 처리 고지 — Play 필수 제출물)
+- **완료(저녁)**: 브이월드 건물 약 80만 동 수집 → 그늘 13슬롯 계산 완료, 그늘 구간
+  4.4%→39.9%. 마이그레이션 `20260922_0001` **노트북 프로덕션 적용**(`walks` 테이블
+  확인), walks API 401 가드 실측. `test_compute_shade_scores.py`는 서빙 이미지에
+  shapely가 없어 `importorskip`으로 파드에서 스킵.
+- **남은 것**: Flutter 지도 화면(네이버 Client ID 적용됨), `/routes` `summer_shade`
+  모드·좌표 응답, Firebase `google-services.json`, 나무 데이터 보강(`tree_score` 4.4%).
+
+---
+
 ## 2026-09-11
 
 ### 작업 내용 (전체 리뷰 후속 — gildle 몫: DoS 상한 + 요청당 재구축 제거)

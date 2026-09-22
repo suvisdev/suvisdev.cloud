@@ -12,3 +12,6 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Firebase — 프로젝트 식별자가 들어 있어 커밋하지 않는다(2026-09-22)
+google-services.json

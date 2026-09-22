@@ -55,6 +55,11 @@ _REGION_JJOK = re.compile(r"([가-힣A-Za-z0-9]{1,12})\s*쪽")
 _REGION_STATION = re.compile(r"([가-힣A-Za-z0-9]{2,12})역(?=[\s에으로은는이가,.!?~]|$)")
 _REGION_NEAR = re.compile(r"([가-힣A-Za-z0-9]{2,12})\s*(?:근처|주변|인근)")
 
+# 지역 되묻기 답변("군자역 근처")은 message를 그대로 슬롯에 넣기 때문에 꼬리말이
+# 지오코딩까지 흘러간다 — 2026-09-22 실측: 카카오가 '군자역 근처'는 None,
+# '군자역'은 정상 반환. 역·동 이름은 건드리지 않고 꼬리말만 떼어 낸다.
+_REGION_TAIL = re.compile(r"\s*(?:근처|주변|인근)\s*$")
+
 
 def _extract_region_signal(message: str) -> str | None:
     m = _REGION_JJOK.search(message)
@@ -124,6 +129,7 @@ def _parse_region_transport(text: str) -> tuple[str, int, str | None]:
             continue
         region_tokens.append(token)
     region = " ".join(region_tokens).strip() or text.strip()
+    region = _REGION_TAIL.sub("", region).strip() or region
     return region, radius, label
 
 

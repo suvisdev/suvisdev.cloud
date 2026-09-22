@@ -277,6 +277,29 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(catalog[0].match_type, "keyword")
         self.assertEqual(catalog[2].match_type, "semantic")
 
+    async def test_actor_matches_exclude_semantic_tail(self) -> None:
+        """배우 매칭이 받쳐주면 시맨틱 꼬리를 섞지 않는다.
+
+        2026-09-22 실측: "송강호 나오는 영화"가 변호인(정답) 뒤에 RAG 꼬리로 들어온
+        궁합·천년여우 구미호를 LoRA가 골랐다 — DB 확인 결과 둘 다 송강호 미출연.
+        배우 DB 출연작이 24~36편이라 결정론 후보만으로 상한이 찬다.
+        """
+        rag_hits = [
+            Mock(source_ref="9", title="궁합"),
+            Mock(source_ref="8", title="천년여우 구미호"),
+        ]
+        tag_items = [
+            self._tag_item("1", "변호인", "actor"),
+            self._tag_item("2", "기생충", "actor"),
+        ]
+        interactor, _repo, recommender = self._build(rag_hits=rag_hits, tag_items=tag_items)
+
+        await interactor.chat(MovaChatRequest(message="송강호 나오는 영화", history=[]))
+
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["1", "2"])
+        self.assertTrue(all(c.match_type == "actor" for c in catalog))
+
     async def test_popular_fallback_tag_results_discarded(self) -> None:
         """태그 실매칭이 없으면(popular_fallback) 합치지 않는다 — 순수 mood 질의는
         현행(RAG 단독) 유지."""

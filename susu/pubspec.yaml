@@ -43,6 +43,14 @@ dependencies:
   flutter_riverpod: ^2.6.1
   go_router: ^17.3.0
   image_picker: ^1.2.3
+  # 길들 앱 전환(2026-09-22). 지도는 네이버 — 한국 보행로·건물이 OSM/구글보다
+  # 정교하고, Flutter 패키지도 카카오(서드파티 파편화)보다 안정적이다.
+  # 경로 계산은 백엔드(OSM 보행 그래프 + 그늘 점수)가 그대로 담당한다.
+  flutter_naver_map: ^1.4.4
+  geolocator: ^13.0.2
+  # 푸시(FCM) — google-services.json을 android/app/에 넣어야 동작한다.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
 
 dev_dependencies:
   flutter_test:

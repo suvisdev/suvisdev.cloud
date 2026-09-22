@@ -26,6 +26,8 @@ suvisdev/apps/gildle/data/scored_edges.json
 suvisdev/apps/gildle/data/seoul_buildings_osm.json
 suvisdev/apps/gildle/data/seoul_buildings_osm.state.json
 suvisdev/apps/gildle/data/shade_scores.json
+suvisdev/apps/gildle/data/shade_scores.noon-only.json
+suvisdev/apps/gildle/data/vworld_buildings.state.json
 
 # suvisjk — 별도 레포(suvisdev/suvisjk, GitHub Pages 배포)의 로컬 클론
 suvisjk/

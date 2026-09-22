@@ -182,7 +182,7 @@ export default function MovaPrivacyPage() {
           </a>{" "}
           및 영화진흥위원회(KOFIC) 등 공개 데이터 소스로부터 제공받아 표시됩니다. 이는 회원의
           개인정보에 해당하지 않으며, 회사는 해당 외부 데이터에 회원의 개인정보를 결합하지 않습니다.
-          본 서비스는 TMDB API를 사용하나 TMDB에 의해 승인되거나 인증되지 않습니다.
+          본 서비스는 TMDB와 TMDB API를 사용하나 TMDB에 의해 보증·인증되거나 달리 승인되지 않았습니다(This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB).
         </p>
       ),
     },

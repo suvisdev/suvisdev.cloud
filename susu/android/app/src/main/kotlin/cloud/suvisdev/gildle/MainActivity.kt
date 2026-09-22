@@ -1,4 +1,4 @@
-package cloud.suvisdev.susu
+package cloud.suvisdev.gildle
 
 import io.flutter.embedding.android.FlutterActivity
 

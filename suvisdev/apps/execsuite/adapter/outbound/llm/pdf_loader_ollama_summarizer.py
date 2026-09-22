@@ -20,7 +20,9 @@ _MAX_INPUT_CHARS = 12000
 
 class OllamaExaonePdfSummarizer(PdfSummarizerPort):
     def __init__(self) -> None:
-        self._orchestrator = T1MidFakerOrchestrator()
+        # keep_alive "0": 요약 직후 7.8B를 VRAM에서 내린다 — 상주하면 노트북 8GB에서
+        # 채팅용 bge-m3·라우터 2.4B가 밀려난다(2026-09-17 실측). 대가는 요청마다 로드 수 초.
+        self._orchestrator = T1MidFakerOrchestrator(keep_alive="0")
 
     async def summarize(self, text: str) -> str:
         truncated = text[:_MAX_INPUT_CHARS]

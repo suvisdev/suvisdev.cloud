@@ -14,7 +14,7 @@ from mova.adapter.outbound.pg.market_chat_pg_repository import ChatPgRepository
 
 def _movie(mid: int) -> SimpleNamespace:
     return SimpleNamespace(
-        id=mid, title=f"영화{mid}", release_year=2020, rating=4.0, poster_url=""
+        id=mid, title=f"영화{mid}", release_year=2020, rating=4.0, poster_url="", synopsis=""
     )
 
 
@@ -69,6 +69,11 @@ class SearchTagCatalogAndPriorityTests(IsolatedAsyncioTestCase):
     ) -> None:
         repo._movie_ids_by_titles = AsyncMock(return_value=set())  # type: ignore[method-assign]
         repo._movie_ids_by_tags = AsyncMock(return_value=tags)  # type: ignore[method-assign]
+        # 발화 속 DB 배우 실명 조회(2026-09-22 추가) — 여기선 매칭 없음으로 두어
+        # 기존 동작(호출부가 준 actor_names 사용)을 검증한다.
+        repo._actor_names_in_text = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        # 카탈로그 장르 조회(2026-09-22 추가) — 오케스트레이션 검증이 목적이라 빈 결과로 둔다
+        repo._genres_for = AsyncMock(return_value={})  # type: ignore[method-assign]
         repo._movie_ids_by_actors = AsyncMock(return_value=set(actors))  # type: ignore[method-assign]
         repo._movies_by_ids = AsyncMock(side_effect=movies_side_effect)  # type: ignore[method-assign]
 

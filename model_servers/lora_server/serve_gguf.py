@@ -32,6 +32,12 @@ _LLAMA_SERVER_BIN = os.getenv(
 _LLAMA_PORT = int(os.getenv("LORA_GGUF_PORT", "8201"))
 _LLAMA_URL = f"http://127.0.0.1:{_LLAMA_PORT}"
 _CTX_SIZE = os.getenv("LORA_GGUF_CTX", "4096")
+# llama-server의 호스트 프롬프트 캐시 상한(MiB). 기본값 8192를 그대로 두면
+# 상주 RSS가 5GB대까지 자라, 재학습 A/B로 테스트 서버를 하나 더 띄울 때
+# RAM이 고갈된다(2026-09-17 실측: 운영 5.4GB + 테스트 6.1GB로 스크립트가
+# killed). 채팅 프롬프트는 카탈로그가 매 질의 달라 공통 프리픽스가
+# 시스템 프롬프트 정도뿐이라 1GB로 충분하다. 0은 비활성, -1은 무제한.
+_CACHE_RAM_MIB = os.getenv("LORA_GGUF_CACHE_RAM", "1024")
 
 _state: dict[str, Any] = {}
 
@@ -46,6 +52,7 @@ def _spawn() -> None:
             "--port", str(_LLAMA_PORT),
             "-ngl", "99",
             "-c", _CTX_SIZE,
+            "--cache-ram", _CACHE_RAM_MIB,
             "--jinja",
         ]
     )

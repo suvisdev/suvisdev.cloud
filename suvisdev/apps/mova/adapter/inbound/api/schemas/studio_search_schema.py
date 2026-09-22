@@ -16,6 +16,11 @@ class MovaSearchItemSchema(BaseModel):
     rating: float
     poster: str
     match_type: str
+    # 2026-09-22: 프롬프트가 제목·연도만 주면 LLM이 작품 내용을 모른 채 제목으로
+    # 추측한다("형사물"에 무관한 작품, 줄거리 왜곡 — v3 평가 패배 25건의 최다 사유).
+    # 기본값을 둬서 이 스키마를 쓰는 다른 경로는 그대로 동작한다.
+    genres: str = ""
+    summary: str = ""
 
 
 class SearchResultSchema(BaseModel):

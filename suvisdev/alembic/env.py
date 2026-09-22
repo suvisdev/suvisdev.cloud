@@ -40,6 +40,7 @@ import gildle.adapter.outbound.orm.route_node_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_request_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_result_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401,E402
+import gildle.adapter.outbound.orm.walk_orm  # noqa: F401,E402
 
 # mova ORM 등록 — 패키지 __init__이 전체 서브모듈을 import해 MovaBase.metadata에 붙인다.
 import mova.adapter.outbound.orm  # noqa: F401,E402

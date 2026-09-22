@@ -8,7 +8,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommendationSchema
@@ -26,6 +26,7 @@ from mova.adapter.outbound.orm.studio_movies_orm import ALLOWED_ORIGINAL_LANGUAG
 from mova.adapter.outbound.orm.studio_tags_orm import MovaTag
 from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
+from mova.domain.value_objects.mood_expansion import POPULAR_GENRES
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,20 @@ def _normalize_for_match(text: str) -> str:
     return re.sub(r"[\s:·『』\"'(),.!?~\-]", "", text).lower()
 
 
-def _to_search_items(rows: list[MovaMovie], match_type: str) -> list[MovaSearchItemSchema]:
+_SUMMARY_CHARS = 60  # 프롬프트 토큰과 판단 근거의 절충 — 한 줄이면 충분하다
+
+
+def _to_search_items(
+    rows: list[MovaMovie],
+    match_type: str,
+    genres: dict[int, list[str]] | None = None,
+) -> list[MovaSearchItemSchema]:
+    """카탈로그 아이템. 장르·줄거리 요약을 함께 실어 LLM이 제목으로 추측하지 않게 한다.
+
+    2026-09-22: 프롬프트가 제목·연도만 주던 탓에 "형사물 추천"에 무관한 작품을 고르고
+    줄거리를 지어내는 실패가 v3 평가 패배 25건 중 최다 사유였다(카탈로그 16회).
+    """
+    gmap = genres or {}
     return [
         MovaSearchItemSchema(
             id=str(m.id),
@@ -49,9 +63,23 @@ def _to_search_items(rows: list[MovaMovie], match_type: str) -> list[MovaSearchI
             rating=float(m.rating or 0),
             poster=m.poster_url or "",
             match_type=match_type,
+            genres=", ".join(gmap.get(m.id, [])),
+            summary=_shorten(m.synopsis),
         )
         for m in rows
     ]
+
+
+def _shorten(text: str | None) -> str:
+    """줄거리 앞 한 문장(최대 _SUMMARY_CHARS자). 문장 경계를 우선한다."""
+    if not text:
+        return ""
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= _SUMMARY_CHARS:
+        return cleaned
+    head = cleaned[:_SUMMARY_CHARS]
+    cut = max(head.rfind("."), head.rfind("다 "), head.rfind(", "))
+    return (head[: cut + 1] if cut > _SUMMARY_CHARS // 2 else head).strip() + "…"
 
 
 class ChatPgRepository(ChatRepositoryPort):
@@ -104,6 +132,54 @@ class ChatPgRepository(ChatRepositoryPort):
                 conds.append(title_no_space.ilike(f"%{stripped}%"))
         rows = await self._session.execute(select(MovaMovie.id).where(or_(*conds)).distinct())
         return {r[0] for r in rows}
+
+    async def _genres_for(self, rows: list[MovaMovie]) -> dict[int, list[str]]:
+        return await self._genres_by_movie_ids([m.id for m in rows])
+
+    async def _genres_by_movie_ids(self, movie_ids: list[int]) -> dict[int, list[str]]:
+        """카탈로그에 실을 장르 라벨. 대중 장르 화이트리스트만 통과시킨다 —
+        태그에는 키워드 백필로 들어온 잡다한 라벨이 섞여 있어 그대로 쓰면 프롬프트가
+        길어지기만 한다(2026-09-22)."""
+        if not movie_ids:
+            return {}
+        rows = await self._session.execute(
+            select(MovaTag.movie_id, MovaTag.label).where(
+                MovaTag.movie_id.in_(movie_ids), MovaTag.label.in_(POPULAR_GENRES)
+            )
+        )
+        out: dict[int, list[str]] = {}
+        for movie_id, label in rows:
+            bucket = out.setdefault(int(movie_id), [])
+            if label not in bucket and len(bucket) < 3:  # 3개면 성격이 드러난다
+                bucket.append(str(label))
+        return out
+
+    async def _actor_names_in_text(self, keywords: list[str]) -> list[str]:
+        """keywords 안에 DB 배우 실명이 들어 있으면 그 이름을 돌려준다.
+
+        의도 추출의 `_guess_actors`는 "{이름} 배우|출연|이랑" 패턴만 잡아
+        "톰 크루즈 영화 추천"처럼 뒤따르는 말이 없는 발화에서 배우를 놓치고,
+        잡아도 공백 앞 한 토큰만 캡처해 "크루즈"로 줄어 동성 배우(테리·레이먼드
+        크루즈)까지 물어온다(2026-09-22 실측). 배우를 놓치면 태그도 0건이라
+        RAG의 제목 유사 히트("정글 크루즈")만 후보에 남는 게 무관 픽의 경로였다.
+
+        keywords에는 원문 전체가 한 항목으로 들어오므로 그걸 건초더미로 쓴다.
+        2자 이름은 일반 어휘와 겹치므로("공유"·"고수"·"권율") 3자 이상만 본다.
+        """
+        if not keywords:
+            return []
+        hay = " ".join(keywords)
+        rows = await self._session.execute(
+            select(MovaActor.name)
+            .where(
+                func.length(MovaActor.name) >= 3,
+                MovaActor.name.op("~")("[가-힣]"),
+                literal(hay).ilike(func.concat("%", MovaActor.name, "%")),
+            )
+            .order_by(func.length(MovaActor.name).desc())
+            .limit(5)
+        )
+        return [r[0] for r in rows]
 
     async def _movie_ids_by_actors(self, actor_names: list[str]) -> set[int]:
         if not actor_names:
@@ -190,14 +266,27 @@ class ChatPgRepository(ChatRepositoryPort):
         if title_ids:
             rows = await self._movies_by_ids(title_ids, limit, conds)
             if rows:
-                return _to_search_items(rows, "title")
+                return _to_search_items(rows, "title", await self._genres_for(rows))
 
         tag_ids, tag_and_ids = await self._movie_ids_by_tags(keywords)
-        actor_ids = await self._movie_ids_by_actors(actor_names or [])
+        # DB에 실재하는 배우 이름이 발화에 있으면 그것을 쓴다 — 정규식 추측보다
+        # 정확하고, 성만 잡힌 이름("크루즈")으로 동성 배우가 섞이는 것도 막는다.
+        db_actor_names = await self._actor_names_in_text(keywords)
+        actor_ids = await self._movie_ids_by_actors(db_actor_names or actor_names or [])
 
         if tag_ids and actor_ids:
             both = tag_ids & actor_ids
-            ids, match_type = (both, "actor+keyword") if both else (tag_ids | actor_ids, "keyword")
+            if both:
+                ids, match_type = both, "actor+keyword"
+            elif db_actor_names:
+                # DB 실명이 잡힌 배우 질의는 배우 조건을 유지한다. "송강호 나오는 영화"의
+                # keywords에는 "영화"가 남아(`['송강호','나오는','영화',...]`) tags.label
+                # ILIKE '%영화%'로 태그가 대량 매칭되는데, 교집합이 비었다고 합집합으로
+                # 완화하면 송강호와 무관한 영화가 후보를 채우고 LLM이 0편을 낸다
+                # (2026-09-22 실측: 6/6 recs=0, 로그상 match_type=keyword).
+                ids, match_type = actor_ids, "actor"
+            else:
+                ids, match_type = tag_ids | actor_ids, "keyword"
         elif actor_ids:
             ids, match_type = actor_ids, "actor"
         elif tag_ids:
@@ -221,7 +310,7 @@ class ChatPgRepository(ChatRepositoryPort):
             else:
                 rows = await self._movies_by_ids(ids, limit, conds)
             if rows:
-                return _to_search_items(rows, match_type)
+                return _to_search_items(rows, match_type, await self._genres_for(rows))
 
         # 아무 조건도 안 맞으면 완전히 빈 후보 대신 인기작으로 폴백한다 —
         # 빈 후보를 주면 LLM이 카탈로그에 없는 movie_id를 스스로 지어내고
@@ -230,7 +319,8 @@ class ChatPgRepository(ChatRepositoryPort):
         fallback_rows = await self._session.execute(
             select(MovaMovie).where(*conds).order_by(*self._recency_first_order()).limit(limit)
         )
-        return _to_search_items(list(fallback_rows.scalars().all()), "popular_fallback")
+        fb = list(fallback_rows.scalars().all())
+        return _to_search_items(fb, "popular_fallback", await self._genres_for(fb))
 
     async def filter_movie_ids_by_year(
         self,

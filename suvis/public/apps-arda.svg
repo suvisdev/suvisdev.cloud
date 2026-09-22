@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 533" width="800" height="533" role="img" aria-label="ARDA — AI Recruitment Assistant">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="52%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.97"/>
+      <stop offset="100%" stop-color="#ede9fe" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c4b5fd" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1e1b4b" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="533" fill="url(#bg)"/>
+  <circle cx="640" cy="90" r="210" fill="url(#glow)"/>
+  <g fill="#ffffff" opacity="0.12">
+    <circle cx="96" cy="96" r="3"/><circle cx="146" cy="96" r="3"/><circle cx="196" cy="96" r="3"/>
+    <circle cx="96" cy="146" r="3"/><circle cx="146" cy="146" r="3"/>
+    <circle cx="96" cy="436" r="3"/><circle cx="146" cy="436" r="3"/><circle cx="196" cy="436" r="3"/>
+    <circle cx="672" cy="436" r="3"/><circle cx="722" cy="436" r="3"/>
+  </g>
+
+  <!-- 뒤에 겹친 이력서 두 장 -->
+  <g filter="url(#soft)">
+    <rect x="236" y="150" width="210" height="266" rx="14" fill="#ffffff" opacity="0.28" transform="rotate(-8 341 283)"/>
+    <rect x="262" y="140" width="210" height="266" rx="14" fill="#ffffff" opacity="0.45" transform="rotate(-4 367 273)"/>
+  </g>
+
+  <!-- 선택된 이력서 -->
+  <g filter="url(#soft)">
+    <rect x="296" y="128" width="228" height="288" rx="16" fill="url(#paper)"/>
+    <circle cx="344" cy="180" r="22" fill="#7c3aed" opacity="0.22"/>
+    <path d="M344 170a9 9 0 1 1 0 18 9 9 0 0 1 0-18Zm0 22c8 0 15 4 17 10h-34c2-6 9-10 17-10Z" fill="#6d28d9" opacity="0.85"/>
+    <rect x="380" y="168" width="104" height="10" rx="5" fill="#6d28d9" opacity="0.5"/>
+    <rect x="380" y="187" width="72" height="8" rx="4" fill="#6d28d9" opacity="0.28"/>
+    <g fill="#4c1d95" opacity="0.2">
+      <rect x="324" y="232" width="172" height="9" rx="4.5"/>
+      <rect x="324" y="256" width="150" height="9" rx="4.5"/>
+      <rect x="324" y="280" width="164" height="9" rx="4.5"/>
+      <rect x="324" y="304" width="118" height="9" rx="4.5"/>
+    </g>
+    <g>
+      <rect x="324" y="338" width="58" height="22" rx="11" fill="#7c3aed" opacity="0.16"/>
+      <rect x="390" y="338" width="74" height="22" rx="11" fill="#7c3aed" opacity="0.16"/>
+    </g>
+  </g>
+
+  <!-- AI 매칭 배지 -->
+  <g filter="url(#soft)">
+    <circle cx="520" cy="372" r="42" fill="#ffffff"/>
+    <circle cx="520" cy="372" r="42" fill="none" stroke="#7c3aed" stroke-opacity="0.25" stroke-width="2"/>
+    <path d="M502 373l12 13 24-27" fill="none" stroke="#6d28d9" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 매칭 라인 -->
+  <g stroke="#ffffff" stroke-opacity="0.45" stroke-width="2.5" stroke-linecap="round" fill="none">
+    <path d="M524 214c48 6 74 30 80 62" stroke-dasharray="7 9"/>
+    <path d="M296 300c-44 10-64 34-68 66" stroke-dasharray="7 9"/>
+  </g>
+  <g fill="#ffffff" opacity="0.8">
+    <circle cx="612" cy="284" r="6"/>
+    <circle cx="224" cy="378" r="6"/>
+  </g>
+</svg>

@@ -15,6 +15,8 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[M]` 09-22 멀티턴 학습 데이터셋 구축(교사 470행이 전부 단일턴인데 서빙은 6턴 히스토리 주입 — 학습·서빙 불일치 규명 · `build_multiturn_dataset.py` 4패턴 231행 · 최종 607행 하드 체크 전 행 통과 · 코랩 노트북 평가셋에 멀티턴 포함 + `nopick_ok` 체크 추가 · 09-17 어댑터 폐기 결정 · 바탕화면 `colab/mova-colab-20260922/` 배치, **코랩 실행은 사용자 대기**)
+- `[M]`·`[P]` 09-17 f745447 노트북 프로덕션 배포(빌드 6m10s) + RAG 임베딩 bge-m3 컷오버 완주(`EMBEDDING_BACKEND` gemini→ollama 정정 · alembic `20260911_0001` · 파드 안 재색인 2,965건 실패 0 · 회귀 23/23 PASS · vector_search 1024 히트 실측)
 - `[P]` 09-09 노트북 프로덕션 컷오버 후 실사용 검증(API 전수 — backend·gildle 경로계산·auth·웹 카카오 OAuth 302 · 터널 530=WSL 미부팅 진단 · auth 게이트웨이 `AUTH_*_REDIRECT_URI` env drift 발견)
 - `[M]` 09-09 "정치 스릴러" 무관 픽 종결(교집합 메커니즘 규명 · 프로덕션 실측 2회 남산의 부장들·야당으로 교정 확인)
 - `[M]`·`[P]` 09-09 LoRA 재학습 배치 큐 소진 + 노트북 lora-server AWQ→GGUF 이전(교사 92→94건 재생성 · 3에폭 loss 0.52 `mova_20260909_025528` · GGUF Q5_K_M · 노트북 소스 CUDA 빌드 sm_89 · drop-in override 전환 · RTX 4060 256tok 2.38s · hook 캡 120→80 · evaluate 줄거리+리뷰 종합)
@@ -99,6 +101,18 @@
 (`scripts/eval_chat_queries.py`, 23질의)는 상시 사용.
 
 ### mova 채팅 품질 잔여
+- ~~멀티턴 재학습 — 코랩 실행 대기~~ — **09-22 v2·v3 학습 완료, v3 운영 반영**
+  (아래 "EXAONE 재학습" 절). 09-17 어댑터는 폐기.
+- **학습 스크립트 미반영(의도적)**: `train_mova_lora.py`의 target_modules가 Llama식
+  이라 EXAONE에선 q/k/v만 걸린다. 베이스 기본값 Qwen2.5-1.5B·구 데이터셋 경로·
+  토큰 경계 수정도 미반영 — 코랩으로 학습하기로 해 손대지 않았다. 로컬 학습으로
+  돌아가려면 먼저 고칠 것.
+- ~~`rs_mine_queries.py:63` 테이블명 버그~~ — 09-22 수정(`chat`).
+- ~~운영 `serve_gguf.py` `--cache-ram` 상한~~ — **09-22 `--cache-ram 1024` 적용·배포**
+  (RSS 5.4GB→0.51GB). 테스트 서버는 `--cache-ram 0`으로 띄울 것.
+- **배우 질의 picks 0 회귀(v3, 09-22)**: 카탈로그에 배우작이 있어도 0편 — v4 배우 보강으로
+  교정 예정. 그 전까지 실사용 상위 질의(배우 3건 35회)가 영향권.
+- **응답 `intro` 미저장**: 학습 자료화하려면 `chat`에 칼럼 추가 필요(09-22 확인).
 - ~~"정치 스릴러 영화" 무관 픽~~ — **09-09 종결**(`[M]` 09-09): 프로덕션
   실측 2회 모두 남산의 부장들·야당으로 정상. 09-03 백필의 정치 태그가
   스릴러 장르 태그와 교집합(`tag_and_ids` prio)을 이뤄 후보 맨 앞에 오는
@@ -121,18 +135,38 @@
   ③ 채팅 제목 직접 언급 증가. 도입 시 ATS 순수 Python 구현 복사(의존 금지)
   → `intent_extraction` 결정론 경로.
 
-### RAG 임베딩 bge-m3 전환 — 코드 완료, 노트북 컷오버 대기 (2026-09-11)
-- **실측 근거**(`scripts/eval_embedding_models.py`, 60질의·패러프레이즈 포함):
-  bge-m3 recall@8 **0.860** vs e5-base 0.765 vs 현행 nomic **0.390**(한국어
-  취약). bge-m3 채택 — 접두사 불요·Ollama 공식, 비용은 hub_knowledge 한
-  테이블 1024 마이그레이션뿐(movies/reviews/taste·dispatch는 각자 768 공간).
-- **완료**: `EMBEDDING_DIM` 1024, Ollama 어댑터 기본 bge-m3, alembic
-  `20260911_0001`, ingest 호스트 실행 지원. 데스크톱 검증(alter+gemini 10편
-  색인+1024 벡터 검색 히트) 완료.
-- **남은 것(노트북, 절차 엄수)**: `ollama pull bge-m3` → pull·deploy →
-  `alembic upgrade head` → `ingest_hub_knowledge.py --reset
-  --embedding-backend ollama`(859편) → eval_chat_queries 회귀. 상세:
-  `suvisdev/_docs/RS_TEACHER_LOOP.md` §2.
+### EXAONE 재학습 — v3 운영 반영 완료, v4 데이터 준비 (2026-09-22)
+- **v3(`mova_20260922_064437`) 운영 서빙 중** — 로컬 변환 GGUF
+  `~/lora_adapters/gguf/mova_20260922_064437-Q5_K_M.gguf`, `RECOMMENDATION_BACKEND=lora`,
+  lora 실패 시 Gemini 자동 폴백. 회귀 **21/23**(Gemini 23/23) — FAIL은 배우 질의 2건이
+  카탈로그가 있는데도 picks 0(`v3_honest` 과잉 일반화). 상세 WORK_LOG_MOVA 09-22 ⑮.
+- **v4 데이터**: `datasets/build_v4_dataset.py`(파드 실행) — v3 753행 새 카탈로그 형식
+  치환 + 실사용 60건·배우 60건 교사 재생성(서빙과 같은 혼합 카탈로그). 바탕화면
+  `mova/FT/mova-colab-v4/`. 코랩 실행은 사용자 몫, 산출물은 `out/v4/`로 분리.
+- **후속(코드)**: ① `export_mova_gguf.py`가 `convert_exaone_gguf.py`를 기본 경유하도록
+  연결(오늘 `layer_norm_rms_epsilon` 재발) ② peft tied-embedding 우회를 스크래치패드
+  래퍼에서 저장소로 ③ `~/.venv-exaone` 버전 핀 기록(transformers 5.5.0·peft 0.20.0, 코랩 동일)
+  ④ `chat`에 `intro` 저장 칼럼(Gemini/EXAONE 응답을 학습 자료로 모으기 위해).
+- 페르소나 부여는 보류(v3 패배 사유에 톤 0건). GPU: lora-server 단독 2,652MB 실측 —
+  4GB 데스크톱 서빙 가능하나 ollama 동거·학습·병합 불가.
+
+#### (이전 기록 — 2026-09-17 준비 단계)
+- 94건 → **376건 증강**(`datasets/augment_teacher_dataset.py`: 카탈로그 셔플 +
+  Gemini 말투 패러프레이즈 2종, 개수 표현 필터). 정답 픽은 원본 유지.
+- 코랩 노트북 `suvisdev/scripts/mova_exaone_colab.ipynb`(바탕화면
+  `mova-colab/`에 데이터와 함께): 원본 단위 14건 홀드아웃 → 에폭별 평가 손실로
+  최적 에폭 → 하드 체크 + Gemini 블라인드 심판(학생 vs Gemini·베이스) →
+  전체 재학습 → 병합 → llama.cpp `304665f`로 GGUF Q5_K_M → 드라이브 저장.
+  CPU 초소형 모델로 셀 로직 스모크 통과(EXAONE 실학습은 미검증).
+- **09-17 저녁 코랩 결과 GGUF 변환·A/B 완료, 운영 미적용**:
+  `~/lora_adapters/gguf/mova_20260917_124713-Q5_K_M.gguf`. 학습행 pass 85→92·80→92지만
+  처음 보는 인사("ㅎㅇ"·"고마워요")에 영화 3편 추천하는 퇴행 → 적용 전 미학습 질의
+  평가(`eval_chat_queries.py`) 필요. 상세 WORK_LOG_MOVA 09-17.
+- **llama-server `--cache-ram` 기본 8GB**(09-17 RAM 고갈 원인): 운영 `serve_gguf.py`
+  인자에 상한 추가 여부 결정 대기.
+- **남은 것(원래 계획)**: 사용자가 코랩 실행 → GGUF 내려받기 → 노트북 `LATEST_GGUF`
+  교체·`/reload` → `eval_chat_queries.py` 비교(**09-17 기준선 23/23 PASS**,
+  09-09 어댑터). 절차는 노트북 8번 셀.
 
 ### RS 교사 루프(엑사온 데이터셋 v2) — 파이프라인 완성 (2026-09-11)
 - 학생(EXAONE) 온도 4종 후보 생성 → 그라운딩 하드 필터 → Gemini 루브릭
@@ -243,6 +277,34 @@
   origin_country 백필·카탈로그 커버리지. 실오답 트레이스 시 표적 수정(A안).
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
+- **라우터 exaone3.5:2.4b 전환 코드 완료, 배포 대기(09-17)**: qwen2.5:1.5b 404→Gemini
+  폴백 상태를 EXAONE 2.4B(온도 0)로 교체, Gemini 일치 90%. 배포 후 확인: 로그에
+  `FallbackHubLlmAdapter` 404 경고 소멸 + eval_chat_queries 23/23. 불일치(제목+어때 →
+  recommend)는 라우터 LoRA 학습 후보.
+- **exaone3.5:7.8b 온디맨드 전환 코드 완료, 배포 대기(09-17 사용자 결정 1안)**: 7.8B 상주 시
+  bge-m3·2.4B가 밀려 재로드(최대 9s) 실측 → 기동 워밍업 제거(`get_faker_orchestrator`·
+  `warmup` 함께 삭제), PDF 요약만 `keep_alive="0"`(요약 직후 언로드, 실측 확인). 7.8B
+  추가 학습은 불요 판단 — 전용 출력 계약 없는 범용 요약만 담당.
+- **`train_mova_lora.py` LoRA 대상층이 EXAONE에서 q/k/v만 매칭**(09-17 발견) — 코랩
+  노트북은 수정됨. 로컬 학습 경로를 다시 쓸 일이 있으면 같은 수정 필요.
+- **백엔드 이미지 슬림화 — CPU 전용 torch로 전환(09-11 결정, 별도 작업)**:
+  노트북 backend 파드엔 GPU 런타임이 없어(`k8s/backend.yaml`에 nvidia 설정
+  없음) 파드 안 `torch.cuda.is_available()`이 **False로 실측**됐는데, 이미지는
+  `torch==2.12.1+cu126`·torchaudio·torchvision cu126 + bitsandbytes로 pip
+  레이어만 **9.01GB, 총 14.6GB**. 이 때문에 requirements가 바뀔 때마다 전체
+  빌드(pip 4~5분 + 14GB export 3분, dockerd 단일 코어 100%)로 노트북 팬이
+  오래 돈다(08-31 12m43s · 09-03 9m14s · 09-11 7m34s 취소). 계획:
+  ① `--extra-index-url`을 `whl/cpu`로, torch 3종을 `+cpu` 빌드로 교체
+  ② bitsandbytes는 CUDA 전용이라 pod에서 원래 못 쓰던 것 — echo_sentiment
+  어댑터(`device_map={"": 0}`, 4bit)가 pod에서 호출되는 경로가 있는지 먼저
+  확인해 없으면 requirements에서 제거, 있으면 CPU 폴백 설계
+  ③ convnext·sentinel 어댑터는 `cuda→cpu` 자동 폴백이라 영향 없음
+  ④ 데스크톱(학습·GPU 테스트)은 `.venv`로 돌리므로 이미지 변경과 무관 —
+  단 `pytest -m gpu`가 이미지가 아닌 venv 기준임을 재확인
+  ⑤ 효과 예상: 이미지 수 GB대, export 수십 초. 검증: 빌드 시간·`docker
+  history` 레이어 크기 · 파드 기동 후 mova chat·gildle·ontology 추론 엔드포인트
+  실측. **노트북 상태 좋을 때(학습 없는 날) 착수** — 전체 재빌드가 한 번 더
+  필요하므로.
 - ~~evaluate 개선·hook 캡 backend 코드 미배포(09-09)~~ **배포 완료**: hook 캡
   120→80 · evaluate 프롬프트(줄거리+리뷰 종합)가 e2f8034→e7b3f66 재배포로
   프로덕션 반영·검증됨.

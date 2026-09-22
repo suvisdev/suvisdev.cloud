@@ -40,6 +40,7 @@ from sqlalchemy import delete, select  # noqa: E402
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory  # noqa: E402
 from mova.adapter.outbound.orm.studio_actors_orm import MovaActor  # noqa: E402
 from mova.adapter.outbound.orm.studio_movie_directors_orm import MovaMovieDirector  # noqa: E402
+from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie  # noqa: E402
 from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository  # noqa: E402
 from mova.adapter.outbound.pg.studio_characters_pg_repository import (  # noqa: E402
     CharactersPgRepository,
@@ -89,6 +90,17 @@ async def _director_names(session, movie_id: int) -> list[str]:
         .where(MovaMovieDirector.movie_id == movie_id)
     )
     return [name for (name,) in rows.all()]
+
+
+async def _synopses(session) -> dict[int, str]:
+    """movie_id → 줄거리. MovieListItemDto에는 synopsis가 없어 따로 읽는다.
+
+    편당 개별 쿼리는 3,400편에 느리므로 한 번에 받아 딕셔너리로 쓴다.
+    """
+    rows = await session.execute(
+        select(MovaMovie.id, MovaMovie.synopsis).where(MovaMovie.synopsis.isnot(None))
+    )
+    return {mid: syn for mid, syn in rows.all() if syn and syn.strip()}
 
 
 async def main(args: argparse.Namespace) -> None:
@@ -155,6 +167,9 @@ async def main(args: argparse.Namespace) -> None:
             existing_refs = {r[0] for r in rows}
             print(f"[skip-existing] 기존 색인 {len(existing_refs)}건은 건너뜀")
 
+        synopses = await _synopses(session)
+        print(f"[synopsis] 줄거리 보유 {len(synopses)}편")
+
         succeeded = 0
         skipped = 0
         failed: list[str] = []
@@ -173,6 +188,15 @@ async def main(args: argparse.Namespace) -> None:
                 content_lines.append(f"출연: {cast_names}")
             if director_names:
                 content_lines.append(f"감독: {director_names}")
+            # 줄거리가 문서의 본문이다 — 이게 없으면 임베딩이 제목·장르·배우
+            # 이름에만 기반해 "심리전 두뇌 싸움"에 제목이 '싸움'인 영화가 1위로
+            # 오는 표면 어휘 매칭이 된다(2026-09-22 실측: 무관 히트 0.591 >
+            # 파이트 클럽 0.488로 임계값으로도 분리 불가). movies.synopsis는
+            # 3,393/3,418편에 평균 264자로 이미 채워져 있었는데 색인에서만 빠져
+            # 있었다. 내용 기반 검색의 전제 조건이다.
+            synopsis = synopses.get(movie.id)
+            if synopsis:
+                content_lines.append(f"줄거리: {synopsis}")
             content = "\n".join(content_lines)
 
             command = HubKnowledgeUpsertCommand(

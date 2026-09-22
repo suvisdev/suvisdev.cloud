@@ -162,15 +162,9 @@ async def lifespan(app: FastAPI):
                 "DB ?? ?? ? Mova/Viewer DB API ???. suvisdev/.env DATABASE_URL ??: %s",
                 err,
             )
-        # Ollama 모델 워밍업 — 콜드 스타트 제거(백그라운드, 기동 비차단)
-        try:
-            from core.lol.t1_mid_faker_orchestrator import get_faker_orchestrator
-
-            app.state.faker_warmup = asyncio.create_task(
-                asyncio.to_thread(get_faker_orchestrator().warmup)
-            )
-        except Exception as warm_err:
-            logger.warning("[main] Ollama 워밍업 예약 실패: %s", warm_err)
+        # exaone3.5:7.8b 기동 워밍업은 두지 않는다(2026-09-17) — 노트북 8GB에서 7.8B가
+        # 상주하면 lora-server 옆의 bge-m3·라우터 2.4B가 밀려 채팅마다 재로드(최대 9s)된다.
+        # 7.8B는 PDF 요약 요청 때만 올렸다가 즉시 내린다(pdf_loader_ollama_summarizer).
         yield
     finally:
         scheduler_task = getattr(app.state, "rankings_scheduler", None)
