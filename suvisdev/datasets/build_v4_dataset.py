@@ -248,7 +248,7 @@ async def teacher(factory, *, limit: int, skip_base_queries: bool) -> list[dict]
                     "prompt": prompt,
                     "completion": completion,
                     "aug": "orig",
-                    "src": f"{aug}_{i}",
+                    "src": 10_000 + i,  # 기존 src가 int라 노트북이 sorted()한다 — 타입을 맞춘다
                     "gen": aug,
                 }
             )
