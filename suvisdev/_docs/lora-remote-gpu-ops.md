@@ -25,6 +25,11 @@ uvicorn serve:app --host 0.0.0.0 --port 8200
   `LORA_FALLBACK_BASE_MODEL`/`LORA_FALLBACK_BACKEND`의 베이스 모델만으로 기동).
 - 원격 노출 전, `LORA_SERVER_TOKEN` 환경변수를 이 프로세스에도 설정해야 인증이
   걸린다(아래 4번).
+- **`~/.venv-exaone` 버전 핀(2026-09-22)**: `transformers==5.5.0`·`peft==0.20.0` —
+  코랩 학습 노트북과 동일. `export_mova_gguf.py`(어댑터 병합)만 이 둘을 쓰고
+  `serve_gguf.py`는 쓰지 않는다. 이 venv는 uv로 만들어 `pip`이 없다 →
+  `uv pip install --python ~/.venv-exaone/bin/python "transformers==5.5.0" "peft==0.20.0"`.
+  09-22에 5.13.1로 드리프트해 병합이 막혔던 전례가 있으니 재학습 전 확인할 것.
 
 ## 2. Cloudflare Tunnel로 외부에 노출
 

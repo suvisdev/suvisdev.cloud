@@ -143,10 +143,10 @@
 - **v4 데이터**: `datasets/build_v4_dataset.py`(파드 실행) — v3 753행 새 카탈로그 형식
   치환 + 실사용 60건·배우 60건 교사 재생성(서빙과 같은 혼합 카탈로그). 바탕화면
   `mova/FT/mova-colab-v4/`. 코랩 실행은 사용자 몫, 산출물은 `out/v4/`로 분리.
-- **후속(코드)**: ① `export_mova_gguf.py`가 `convert_exaone_gguf.py`를 기본 경유하도록
-  연결(오늘 `layer_norm_rms_epsilon` 재발) ② peft tied-embedding 우회를 스크래치패드
-  래퍼에서 저장소로 ③ `~/.venv-exaone` 버전 핀 기록(transformers 5.5.0·peft 0.20.0, 코랩 동일)
-  ④ `chat`에 `intro` 저장 칼럼(Gemini/EXAONE 응답을 학습 자료로 모으기 위해).
+- **후속(코드)**: ~~①~③~~ 09-22 저녁 완료 — `export_mova_gguf.py`가 `convert_exaone_gguf.py`
+  경유 + peft 우회 내장 + 실경로 기본값, 격리 실행으로 운영 GGUF와 md5 동일 확인;
+  venv 핀은 `_docs/lora-remote-gpu-ops.md` §1. 남은 것 ④ `chat`에 `intro` 저장 칼럼
+  (Gemini/EXAONE 응답을 학습 자료로 모으기 위해).
 - 페르소나 부여는 보류(v3 패배 사유에 톤 0건). GPU: lora-server 단독 2,652MB 실측 —
   4GB 데스크톱 서빙 가능하나 ollama 동거·학습·병합 불가.
 

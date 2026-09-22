@@ -374,6 +374,15 @@
 - 파드 전체 pytest 수집 오류: `apps/gildle/tests/scripts/test_compute_shade_scores.py`가
   `shapely`를 요구하는데 서빙 이미지에 없다 → `pytest.importorskip("shapely")`.
 
+#### ⑱ GGUF 변환 파이프라인 연동 수정 (⑭의 재발 방지)
+- `export_mova_gguf.py`: ② 단계를 `convert_exaone_gguf.py` 경유로, peft tied-embedding
+  우회를 `_skip_tied_embedding_check()`로 내장(안전 근거: 타겟 7개에 임베딩 없음),
+  기본 경로를 노트북 실경로(`~/llama.cpp/build/bin/llama-quantize`, `~/lora_adapters/gguf`)로.
+- 검증: 운영 GGUF를 건드리지 않게 격리 폴더에서 끝까지 실행(병합 디렉터리 재사용) →
+  양자화 통과, 산출물이 운영 `mova_20260922_064437-Q5_K_M.gguf`와 **md5 동일**.
+  `LATEST_GGUF`는 실행 후 복원(스크립트가 무조건 덮어쓰므로 격리 실행 시 주의).
+- `~/.venv-exaone` 핀(transformers 5.5.0·peft 0.20.0)을 `_docs/lora-remote-gpu-ops.md` §1에 기록.
+
 ### 파이프라인 검증 (커밋 전, 파드 이미지 기준)
 - 백엔드 전체 `pytest -m "not gpu and not ollama"` **802 passed**(shade 테스트 스킵).
 - ruff: 오늘 변경 파일 전부 통과(잔존 23건은 기존 파일·노트북 셀).
