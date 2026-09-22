@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from gildle.adapter.outbound.graph.networkx_route_graph_adapter import (
-    NetworkXRouteGraphAdapter,
+from gildle.adapter.outbound.graph.dijkstra_route_graph_adapter import (
+    AStarRouteGraphAdapter,
 )
 from gildle.adapter.outbound.repositories.csv_tree_segment_repository import (
     CsvTreeSegmentRepository,
@@ -19,12 +19,14 @@ from gildle.app.ports.input.calculate_route_use_case import (
 from gildle.app.ports.input.get_map_data_use_case import (
     GetMapVisualizationDataUseCase,
 )
+from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
 from gildle.app.use_cases.calculate_route_interactor import (
     CalculateDogFriendlyRouteInteractor,
 )
 from gildle.app.use_cases.get_map_data_interactor import (
     GetMapVisualizationDataInteractor,
 )
+from gildle.app.use_cases.plan_loop_interactor import PlanLoopRouteInteractor
 from gildle.domain.services.route_weight_calculator import RouteWeightCalculator
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -85,7 +87,21 @@ def get_calculate_route_use_case() -> CalculateDogFriendlyRouteUseCase:
         hazard_repository=TrafficAuthorityHazardZoneRepository(
             csv_path=_hazard_csv_path(), encoding=encoding
         ),
-        route_graph=NetworkXRouteGraphAdapter(),
+        # 자체 A*(2026-09-22): 실데이터 200쌍에서 networkx와 경로 비용 불일치 0건 확인 후 교체.
+        # 시간 의존 그늘(③)·제약 최단경로(④)·루프(⑤)가 이 구현체를 전제한다.
+        route_graph=AStarRouteGraphAdapter(),
+        weight_calculator=RouteWeightCalculator(),
+    )
+
+
+def get_plan_loop_use_case() -> PlanLoopRouteUseCase:
+    encoding = _csv_encoding()
+    return PlanLoopRouteInteractor(
+        tree_repository=CsvTreeSegmentRepository(csv_path=_tree_csv_path(), encoding=encoding),
+        hazard_repository=TrafficAuthorityHazardZoneRepository(
+            csv_path=_hazard_csv_path(), encoding=encoding
+        ),
+        route_graph=AStarRouteGraphAdapter(),
         weight_calculator=RouteWeightCalculator(),
     )
 

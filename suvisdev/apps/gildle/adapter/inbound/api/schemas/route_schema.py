@@ -40,10 +40,27 @@ class NavigateRequestSchema(BaseModel):
     start_node: str = Field(..., description="출발 노드 ID")
     end_node: str = Field(..., description="도착 노드 ID")
     mode: str = Field("spring_autumn", description="spring_autumn | winter_safety | summer_shade")
+    max_detour_ratio: float | None = Field(
+        None,
+        ge=0.0,
+        le=3.0,
+        description="지정 시 길이가 최단거리의 (1+비율)배를 넘지 않는 범위에서 모드 선호 반영",
+    )
     departure_time: str | None = Field(
         None,
         description='출발 시각 "HH:MM"(KST). summer_shade에서만 사용, 미지정 시 현재 시각.',
     )
+
+
+class LoopRequestSchema(BaseModel):
+    """출발 좌표에서 목표 거리만큼 돌아오는 산책 루프 요청."""
+
+    lat: float = Field(..., description="출발 위도")
+    lng: float = Field(..., description="출발 경도")
+    target_m: float = Field(..., ge=300, le=20_000, description="목표 거리(m)")
+    mode: str = Field("spring_autumn", description="spring_autumn | winter_safety | summer_shade")
+    departure_time: str | None = Field(None, description='출발 "HH:MM"(여름 그늘 슬롯용)')
+    limit: int = Field(3, ge=1, le=6, description="반환 후보 수")
 
 
 class RouteResponseSchema(BaseModel):

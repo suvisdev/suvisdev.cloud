@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from gildle.adapter.inbound.api.schemas.route_schema import (
+    LoopRequestSchema,
     NavigateRequestSchema,
     RouteRequestSchema,
 )
@@ -19,9 +21,11 @@ from gildle.app.ports.input.calculate_route_use_case import (
 from gildle.app.ports.input.get_map_data_use_case import (
     GetMapVisualizationDataUseCase,
 )
+from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
 from gildle.dependencies.route_provider import (
     get_calculate_route_use_case,
     get_map_data_use_case,
+    get_plan_loop_use_case,
 )
 from gildle.domain.services.sun_position import sun_altitude_azimuth
 from gildle.domain.value_objects.coordinate import Coordinate
@@ -238,6 +242,29 @@ def _resolve_slot(departure_time: str | None, slots: list[int]) -> int | None:
     return min(max(slot, slots[0]), slots[-1])
 
 
+_WALK_SPEED_M_PER_S = 1.2  # 평지 도보 — ETA 모델(§2-E)이 생기면 대체
+
+
+def _slot_of_elapsed(departure_time: str | None, start_slot: int) -> Callable[[float], int]:
+    """걸은 거리(m) → 슬롯(hour). 출발 "HH:MM"(없으면 현재 시각)에 도보 시간을 더해
+    30분 반올림한다. 시간 의존 탐색(③)에 넘긴다."""
+    now = datetime.now(_KST)
+    if departure_time:
+        try:
+            h, m = departure_time.split(":")
+            base_min = int(h) * 60 + int(m)
+        except ValueError:
+            base_min = start_slot * 60
+    else:
+        base_min = now.hour * 60 + now.minute
+
+    def slot_of(elapsed_m: float) -> int:
+        total_min = base_min + elapsed_m / _WALK_SPEED_M_PER_S / 60.0
+        return int((total_min + 30) // 60)
+
+    return slot_of
+
+
 class _FullShadeLookup(dict[str, Any]):
     """밤 시간대: 해가 없으므로 모든 간선을 그늘(1.0)로 취급 → 순수 최단 경로."""
 
@@ -289,6 +316,8 @@ def navigate(
     # 밤(슬롯 범위 밖)이면 해가 없으므로 그늘 계산을 제외하고 최단 경로로 안내.
     shade_lookup: dict[tuple[str, str], float] | None = None
     night = False
+    slot: int | None = None
+    slots: list[int] = []
     if season is SeasonMode.SUMMER_SHADE:
         shade_data = _load_shade_scores()
         slots = shade_data["slots"] if shade_data else list(range(7, 20))
@@ -299,9 +328,32 @@ def navigate(
         elif shade_data is not None:
             shade_lookup = _build_shade_lookup(slot)
 
-    path = use_case.execute(
-        edges, request.start_node, request.end_node, season, shade_lookup=shade_lookup
-    )
+    if request.max_detour_ratio is not None:
+        # ④ 제약 최단경로 — 그늘·가로수 선호를 반영하되 길이 상한을 지킨다.
+        path = use_case.execute_bounded(
+            edges,
+            request.start_node,
+            request.end_node,
+            season,
+            shade_lookup=shade_lookup,
+            max_detour_ratio=request.max_detour_ratio,
+        )
+    elif season is SeasonMode.SUMMER_SHADE and not night and slot is not None and slots:
+        # ③ 시간 의존 — 걷는 동안 슬롯이 넘어가면 그 시각의 그늘을 쓴다.
+        # networkx 구현체는 지원하지 않아 출발 슬롯 하나로 동작한다(포트 기본 구현).
+        by_slot = {s: lk for s in slots if s >= slot and (lk := _build_shade_lookup(s)) is not None}
+        path = use_case.execute_time_aware(
+            edges,
+            request.start_node,
+            request.end_node,
+            season,
+            shade_by_slot=by_slot,
+            slot_of_elapsed=_slot_of_elapsed(request.departure_time, slot),
+        )
+    else:
+        path = use_case.execute(
+            edges, request.start_node, request.end_node, season, shade_lookup=shade_lookup
+        )
 
     edge_lookup = _edge_lookup(edges)
 
@@ -351,6 +403,68 @@ def navigate(
         "edge_shades": edge_shades,
         "night": night,
     }
+
+
+@route_router.post("/loops")
+def plan_loops(
+    request: LoopRequestSchema,
+    use_case: PlanLoopRouteUseCase = Depends(get_plan_loop_use_case),
+) -> dict[str, Any]:
+    """출발점으로 돌아오는 목표 거리 산책 루프 후보(§1-⑤). 여름 모드는 출발 슬롯 그늘 적용."""
+    try:
+        season = SeasonMode.from_value(request.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    edges = _load_scored_edges()
+    if not edges:
+        raise HTTPException(status_code=404, detail="scored_edges.json 없음")
+    start = _find_nearest_node_id(edges, Coordinate(latitude=request.lat, longitude=request.lng))
+    if start is None:
+        return {"candidates": [], "night": False}
+
+    shade_lookup: dict[tuple[str, str], float] | None = None
+    night = False
+    if season is SeasonMode.SUMMER_SHADE:
+        shade_data = _load_shade_scores()
+        slots = shade_data["slots"] if shade_data else list(range(7, 20))
+        slot = _resolve_slot(request.departure_time, slots)
+        if slot is None:
+            night = True
+            shade_lookup = _FullShadeLookup()  # type: ignore[assignment]
+        elif shade_data is not None:
+            shade_lookup = _build_shade_lookup(slot)
+
+    candidates = use_case.execute(
+        edges,
+        start,
+        request.target_m,
+        season,
+        nearest_node=lambda c: _find_nearest_node_id(edges, c),
+        shade_lookup=shade_lookup,
+        limit=request.limit,
+    )
+    edge_lookup = _edge_lookup(edges)
+    out = []
+    for c in candidates:
+        coords: list[list[float]] = []
+        for i in range(len(c.path) - 1):
+            e = edge_lookup.get((c.path[i], c.path[i + 1]))
+            if e is None:
+                continue
+            src = e.from_coord if e.from_node == c.path[i] else e.to_coord
+            pt = src or e.midpoint
+            coords.append([pt.latitude, pt.longitude])
+        out.append(
+            {
+                "path": c.path,
+                "coordinates": coords,
+                "length_m": c.length_m,
+                "overlap_ratio": c.overlap_ratio,
+                "shade_ratio": None if night else c.shade_ratio,
+                "bearing_deg": c.bearing_deg,
+            }
+        )
+    return {"candidates": out, "night": night}
 
 
 _scored_edges_cache: list[dict[str, Any]] | None = None
