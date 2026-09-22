@@ -1,0 +1,380 @@
+{
+ "summary": {
+  "hard": {
+   "gemini": {
+    "pass": 0.9,
+    "json": 1.0,
+    "grounded": 1.0,
+    "title": 0.9,
+    "hook40": 1.0,
+    "max3": 1.0,
+    "empty_ok": 1.0,
+    "no_hanja": 1.0
+   },
+   "haiku": {
+    "pass": 1.0,
+    "json": 1.0,
+    "grounded": 1.0,
+    "title": 1.0,
+    "hook40": 1.0,
+    "max3": 1.0,
+    "empty_ok": 1.0,
+    "no_hanja": 1.0
+   }
+  },
+  "judge": {
+   "gemini_avg": 8.0,
+   "haiku_avg": 5.14,
+   "gemini_win": 7,
+   "tie": 0,
+   "haiku_win": 0,
+   "judged": 7
+  },
+  "usage": {
+   "claude-haiku-4-5": {
+    "input": 22458,
+    "output": 2622
+   },
+   "claude-opus-5": {
+    "input": 10804,
+    "output": 6548
+   }
+  },
+  "cost_usd": {
+   "claude-haiku-4-5": 0.0356,
+   "claude-opus-5": 0.2177
+  }
+ },
+ "results": [
+  {
+   "query": "재즈 나오는 영화",
+   "gemini": "{\"intro\": \"감미로운 재즈 선율이 돋보이는 영화 세 편을 추천해 드립니다.\", \"picks\": [{\"movie_id\": 208, \"title\": \"위플래쉬\", \"hook\": \"강렬한 드럼 비트와 재즈의 열정\"}, {\"movie_id\": 401, \"title\": \"라라랜드\", \"hook\": \"재즈의 낭만과 꿈을 담은 이야기\"}, {\"movie_id\": 592, \"title\": \"소울\", \"hook\": \"재즈 음악이 흐르는 깊은 울림의 애니메이션\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"재즈 음악이 나오는 영화들을 찾으셨네요. 3편을 추천해드립니다.\",\n  \"picks\": [\n    {\n      \"movie_id\": 208,\n      \"title\": \"위플래쉬\",\n      \"hook\": \"재즈 드러머의 집념과 고통을 다룬 긴장감 넘치는 드라마\"\n    },\n    {\n      \"movie_id\": 401,\n      \"title\": \"라라랜드\",\n      \"hook\": \"LA의 재즈 뮤지션과 배우의 로맨틱한 꿈 이야기\"\n    },\n    {\n      \"movie_id\": 592,\n      \"title\": \"소울\",\n      \"hook\": \"재즈 음악을 향한 사랑과 인생의 의미를 담은 애니메이션\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 9.0,
+    "haiku": 6.0,
+    "winner": "gemini",
+    "reason": "두 응답 모두 카탈로그 내 재즈 영화 3편을 정확히 골랐고 A의 hook이 다소 더 구체적이나, A는 코드펜스를 덧붙여 'JSON만 출력' 형식을 위반해 크게 감점된다."
+   }
+  },
+  {
+   "query": "강아지 나오는 영화",
+   "gemini": "{\n  \"intro\": \"사랑스러운 강아지들이 활약하는 영화들을 소개해 드릴게요.\",\n  \"picks\": [\n    {\n      \"movie_id\": 1313,\n      \"title\": \"퍼피 구조대 더 무비\",\n      \"hook\": \"도시를 구하기 위해 용감하게 나선 강아지들의 모험\"\n    },\n    {\n      \"movie_id\": 991,\n      \"title\": \"마이펫의 이중생활 2\",\n      \"hook\": \"주인이 집을 비운 사이 펼쳐지는 펫들의 비밀 이야기\"\n    },\n    {\n      \"movie_id\": 5527,\n      \"title\": \"DC 리그 오브 슈퍼-펫\",\n      \"hook\": \"세상을 구하기 위해 뭉친 귀여운 슈퍼독들의 활약\"\n    }\n  ]\n}",
+   "haiku": "```json\n{\n  \"intro\": \"강아지가 주역으로 나오는 재미있는 영화들을 추천해드릴게요!\",\n  \"picks\": [\n    {\n      \"movie_id\": 609,\n      \"title\": \"존 윅 (2014)\",\n      \"hook\": \"사랑하는 강아지를 위해 복수에 나서는 킬러의 이야기\"\n    },\n    {\n      \"movie_id\": 1719,\n      \"title\": \"개들의 섬 (2018)\",\n      \"hook\": \"개 독감 위기 속 개들이 펼치는 모험과 코미디\"\n    },\n    {\n      \"movie_id\": 5527,\n      \"title\": \"DC 리그 오브 슈퍼-펫 (2022)\",\n      \"hook\": \"초능력을 가진 슈퍼독과 반려동물들의 활약\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": false,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": false
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 9.0,
+    "haiku": 6.0,
+    "winner": "gemini",
+    "reason": "두 응답 모두 카탈로그 내 적절한 강아지 영화를 골랐고 훅도 구체적이나, A는 코드펜스로 감싸 JSON만 출력 형식을 위반했고 intro에 느낌표 섞인 과장 어투가 있는 반면 B는 형식·말투·그라운딩이 모두 깔끔하다."
+   }
+  },
+  {
+   "query": "이성민 영화 추천해줘",
+   "gemini": "{\"intro\": \"배우 이성민이 출연한 영화 중 몰입감 넘치는 작품들을 선정했습니다.\", \"picks\": [{\"movie_id\": 2108, \"title\": \"서울의 봄\", \"hook\": \"압도적인 연기로 보여주는 긴박한 정치 드라마\"}, {\"movie_id\": 2271, \"title\": \"공작\", \"hook\": \"첩보물 특유의 묵직한 긴장감이 돋보이는 수작\"}, {\"movie_id\": 2668, \"title\": \"남산의 부장들\", \"hook\": \"역사의 소용돌이 속에서 펼쳐지는 강렬한 열연\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"이성민 배우 영화를 찾고 계시네요! 카탈로그에서 이성민 출연 작품 12편을 찾았습니다.\",\n  \"picks\": [\n    {\n      \"movie_id\": 718,\n      \"title\": \"어쩔수가없다\",\n      \"hook\": \"만족하던 일상이 뒤바뀌는 범죄 코미디 스릴러\"\n    },\n    {\n      \"movie_id\": 4008,\n      \"title\": \"변호인\",\n      \"hook\": \"세무 변호사의 정의로운 변신을 그린 감동 드라마\"\n    },\n    {\n      \"movie_id\": 2108,\n      \"title\": \"서울의 봄\",\n      \"hook\": \"역사적 사건 속 인물들의 선택과 갈등을 담은 역작\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": null,
+    "haiku": null,
+    "winner": "tie",
+    "reason": ""
+   }
+  },
+  {
+   "query": "라미란 영화 추천해줘",
+   "gemini": "{\"intro\": \"배우 라미란이 출연한 영화 중 추천해 드립니다.\", \"picks\": [{\"movie_id\": 4059, \"title\": \"시민덕희\", \"hook\": \"보이스피싱을 직접 잡으러 나선 통쾌한 추적극\"}, {\"movie_id\": 2691, \"title\": \"걸캅스\", \"hook\": \"비공식 수사에 나선 전설의 형사들의 짜릿한 액션\"}, {\"movie_id\": 4024, \"title\": \"미쓰 와이프\", \"hook\": \"하루아침에 아줌마로 바뀐 변호사의 유쾌한 반전\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"라미란 배우 영화를 찾으시는군요! 함께 추천해드릴게요.\",\n  \"picks\": [\n    {\n      \"movie_id\": 1804,\n      \"title\": \"소원\",\n      \"hook\": \"라미란의 깊이 있는 연기가 돋보이는 감동 드라마\"\n    },\n    {\n      \"movie_id\": 2691,\n      \"title\": \"걸캅스\",\n      \"hook\": \"라미란의 카리스마 있는 액션과 코미디가 어우러진 작품\"\n    },\n    {\n      \"movie_id\": 4059,\n      \"title\": \"시민덕희\",\n      \"hook\": \"라미란의 매력적인 캐릭터가 살아나는 코미디 범죄물\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": null,
+    "haiku": null,
+    "winner": "tie",
+    "reason": ""
+   }
+  },
+  {
+   "query": "평점 높은 명작 추천",
+   "gemini": "{\"intro\": \"조건에 딱 맞는 작품을 찾지 못해 인기작 중에서 몇 편을 골라봤습니다.\", \"picks\": [{\"movie_id\": 113, \"title\": \"오펜하이머\", \"hook\": \"압도적인 몰입감과 연출이 돋보이는 작품입니다.\"}, {\"movie_id\": 158, \"title\": \"탑건: 매버릭\", \"hook\": \"완벽한 서사와 박진감 넘치는 명작입니다.\"}, {\"movie_id\": 184, \"title\": \"듄\", \"hook\": \"장엄한 영상미로 큰 호평을 받은 SF 영화입니다.\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"평점 높은 명작을 찾으시는군요! 조건에 딱 맞는 작품은 못 찾아 인기작 중에서 골라봤습니다.\",\n  \"picks\": [\n    {\n      \"movie_id\": 113,\n      \"title\": \"오펜하이머\",\n      \"hook\": \"역사적 거작을 담은 웅장한 드라마 대작\"\n    },\n    {\n      \"movie_id\": 158,\n      \"title\": \"탑건: 매버릭\",\n      \"hook\": \"30년 후 돌아온 전설의 감동적 귀환\"\n    },\n    {\n      \"movie_id\": 184,\n      \"title\": \"듄\",\n      \"hook\": \"스케일 있는 비주얼과 깊이 있는 SF 서사\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 7.0,
+    "haiku": 5.0,
+    "winner": "gemini",
+    "reason": "픽 구성은 동일하게 적절하나 A는 코드펜스로 JSON 전용 형식을 위반하고 intro도 느낌표·모순된 안내가 섞인 반면, B는 형식이 깔끔하고 말투가 차분해 hook의 다소 일반적인 과장 표현을 감안해도 우위다."
+   }
+  },
+  {
+   "query": "조진웅 나오는 영화",
+   "gemini": "{\"intro\": \"배우 조진웅이 출연한 강렬하고 인상 깊은 작품들을 추천해 드립니다.\", \"picks\": [{\"movie_id\": 2229, \"title\": \"독전\", \"hook\": \"독보적인 연기력으로 펼치는 마약 조직 수사극\"}, {\"movie_id\": 2581, \"title\": \"끝까지 간다\", \"hook\": \"조진웅의 서늘한 악역 연기가 압권인 스릴러\"}, {\"movie_id\": 2512, \"title\": \"범죄와의 전쟁: 나쁜놈들 전성시대\", \"hook\": \"부산 조직폭력배 세계를 다룬 긴장감 넘치는 범죄극\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"조진웅 배우가 출연한 영화들을 추천해드릴게요!\",\n  \"picks\": [\n    {\n      \"movie_id\": 2271,\n      \"title\": \"공작\",\n      \"hook\": \"1993년 북한 핵 개발을 둘러싼 긴박한 스릴러\"\n    },\n    {\n      \"movie_id\": 2349,\n      \"title\": \"암살\",\n      \"hook\": \"일제 강점기 독립을 위한 대담한 암살작전 액션드라마\"\n    },\n    {\n      \"movie_id\": 2229,\n      \"title\": \"독전\",\n      \"hook\": \"아시아 최대 마약 조직을 둘러싼 범죄 스릴러\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 9.0,
+    "haiku": 6.0,
+    "winner": "gemini",
+    "reason": "둘 다 카탈로그 내 조진웅 출연작으로 정확하나, A는 코드펜스를 둘러 JSON만 출력 형식을 위반했고 훅이 배우 연결 없이 일반 줄거리 요약에 그친 반면 B는 형식을 지키고 조진웅의 연기 포인트를 구체적으로 짚었다."
+   }
+  },
+  {
+   "query": "클래식 명작 처음 보는 사람용",
+   "gemini": "{\"intro\": \"클래식 명작에 딱 맞는 작품을 모두 찾지는 못해, 입문하기 좋은 인기 명작들 중에서 몇 편 골라봤습니다.\", \"picks\": [{\"movie_id\": 36, \"title\": \"쇼생크 탈출\", \"hook\": \"희망이라는 가치를 되새기게 하는 최고의 드라마입니다.\"}, {\"movie_id\": 100, \"title\": \"대부\", \"hook\": \"장르 영화의 교과서라 불리는 압도적 서사입니다.\"}, {\"movie_id\": 171, \"title\": \"포레스트 검프\", \"hook\": \"따뜻하고 감동적인 인생 이야기가 담겨 있습니다.\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"클래식 명작을 처음 접하는 분이군요! 조건에 딱 맞는 작품은 못 찾아 1990년대 이전 인기 명작 중에서 골라봤습니다.\",\n  \"picks\": [\n    {\n      \"movie_id\": 100,\n      \"title\": \"대부\",\n      \"hook\": \"영화사를 바꾼 마스터피스, 반드시 봐야 할 필수 고전\"\n    },\n    {\n      \"movie_id\": 232,\n      \"title\": \"쉰들러 리스트\",\n      \"hook\": \"인류 역사의 진실을 담은 감동적인 걸작\"\n    },\n    {\n      \"movie_id\": 254,\n      \"title\": \"12명의 성난 사람들\",\n      \"hook\": \"미니멀하지만 강렬한 법정 드라마의 고전\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 8.0,
+    "haiku": 5.0,
+    "winner": "gemini",
+    "reason": "A는 순수 JSON 형식을 지키며 입문용 픽과 무난한 훅을 제시한 반면, B는 코드펜스로 형식을 위반하고 '1990년대 이전'이라 해놓고 1993년작 쉰들러 리스트를 넣어 그라운딩·정직성에서도 흠이 있다."
+   }
+  },
+  {
+   "query": "연인이랑 보기 좋은 영화",
+   "gemini": "{\"intro\": \"연인과 함께 즐겁게 관람하기 좋은 로맨틱한 작품들을 모았습니다.\", \"picks\": [{\"movie_id\": 2484, \"title\": \"티미의 못말리는 무비: 티미가 커졌어요\", \"hook\": \"유쾌한 판타지와 로맨스를 함께 즐길 수 있어요.\"}, {\"movie_id\": 4663, \"title\": \"위대한 계춘빈\", \"hook\": \"연인과 소소하게 보기 좋은 로맨틱 코미디입니다.\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"연인과 함께 즐길 수 있는 영화를 찾고 계시네요! 카탈로그에서 3편을 추천해드립니다.\",\n  \"picks\": [\n    {\n      \"movie_id\": 5270,\n      \"title\": \"캔터빌의 유령\",\n      \"hook\": \"판타지 로맨스로 가득한 따뜻한 애니메이션\"\n    },\n    {\n      \"movie_id\": 2484,\n      \"title\": \"티미의 못말리는 무비: 티미가 커졌어요\",\n      \"hook\": \"판타지와 로맨스가 어우러진 재미있는 코미디\"\n    },\n    {\n      \"movie_id\": 4663,\n      \"title\": \"위대한 계춘빈\",\n      \"hook\": \"로맨틱한 분위기의 유쾌한 코미디\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 5.0,
+    "haiku": 2.0,
+    "winner": "gemini",
+    "reason": "A도 아동용 작품을 로맨스로 포장한 그라운딩 문제가 있으나 픽을 무리하게 늘리지 않았고, B는 코드펜스로 JSON 형식을 위반한 데다 3편 모두 근거 없이 '로맨스'로 라벨링해 더 큰 감점 대상입니다."
+   }
+  },
+  {
+   "query": "가족이랑 같이 볼만한 영화",
+   "gemini": "{\"intro\": \"가족들과 함께 즐거운 시간을 보낼 수 있는 애니메이션 영화들을 추천해 드립니다.\", \"picks\": [{\"movie_id\": 330, \"title\": \"주토피아\", \"hook\": \"남녀노소 누구나 즐겁게 볼 수 있는 모험\"}, {\"movie_id\": 635, \"title\": \"엔칸토: 마법의 세계\", \"hook\": \"가족의 사랑과 화합을 다룬 따뜻한 이야기\"}, {\"movie_id\": 344, \"title\": \"인사이드 아웃 2\", \"hook\": \"온 가족이 공감하며 볼 수 있는 감동적인 성장기\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"가족과 함께 즐길 수 있는 따뜻하고 재미있는 영화들을 추천해드릴게요!\",\n  \"picks\": [\n    {\n      \"movie_id\": 330,\n      \"title\": \"주토피아\",\n      \"hook\": \"모든 연령이 즐기는 모험과 웃음이 가득한 애니메이션\"\n    },\n    {\n      \"movie_id\": 635,\n      \"title\": \"엔칸토: 마법의 세계\",\n      \"hook\": \"가족의 사랑과 마법이 어우러진 감동적인 판타지\"\n    },\n    {\n      \"movie_id\": 344,\n      \"title\": \"인사이드 아웃 2\",\n      \"hook\": \"성장기 자녀와 부모가 함께 공감할 수 있는 감정 이야기\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": 9.0,
+    "haiku": 6.0,
+    "winner": "gemini",
+    "reason": "두 응답 모두 카탈로그 내 적절한 가족 영화를 골랐고 훅도 무난하나, B는 JSON만 출력하라는 형식을 어기고 코드펜스로 감쌌으며 인트로에 느낌표 섞인 들뜬 말투가 있어 A가 낫다."
+   }
+  },
+  {
+   "query": "오달수 영화 추천해줘",
+   "gemini": "{\"intro\": \"배우 오달수의 개성 넘치는 연기를 볼 수 있는 작품들을 골라 보았습니다.\", \"picks\": [{\"movie_id\": 2368, \"title\": \"7번방의 선물\", \"hook\": \"딸바보 아빠의 감동적인 이야기를 그린 수작입니다.\"}, {\"movie_id\": 2340, \"title\": \"해적: 바다로 간 산적\", \"hook\": \"오달수 특유의 유머가 돋보이는 모험극입니다.\"}, {\"movie_id\": 2246, \"title\": \"도둑들\", \"hook\": \"각양각색 도둑들의 팀플레이가 펼쳐지는 범죄물입니다.\"}]}",
+   "haiku": "```json\n{\n  \"intro\": \"오달수 배우의 영화들을 추천해드릴게요!\",\n  \"picks\": [\n    {\n      \"movie_id\": 718,\n      \"title\": \"어쩔수가없다\",\n      \"hook\": \"안정적인 삶을 살던 남자의 예상 밖의 선택\"\n    },\n    {\n      \"movie_id\": 2057,\n      \"title\": \"신과함께-죄와 벌\",\n      \"hook\": \"7번의 지옥 재판을 통한 감정적 여정\"\n    },\n    {\n      \"movie_id\": 2368,\n      \"title\": \"7번방의 선물\",\n      \"hook\": \"교도소에서 펼쳐지는 감동적인 휴먼드라마\"\n    }\n  ]\n}\n```",
+   "checks": {
+    "gemini": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    },
+    "haiku": {
+     "json": true,
+     "grounded": true,
+     "title": true,
+     "hook40": true,
+     "max3": true,
+     "empty_ok": true,
+     "no_hanja": true,
+     "pass": true
+    }
+   },
+   "judge": {
+    "gemini": null,
+    "haiku": null,
+    "winner": "tie",
+    "reason": ""
+   }
+  }
+ ]
+}
