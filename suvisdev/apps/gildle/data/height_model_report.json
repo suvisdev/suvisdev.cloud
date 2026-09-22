@@ -1,0 +1,57 @@
+{
+  "holdout": 143008,
+  "mae_baseline_grid_median": 4.602,
+  "mae_model": 3.637,
+  "mae_model_rounded_floor": 3.587,
+  "within_1_floor_baseline": 0.707,
+  "within_1_floor_model": 0.645,
+  "within_1_floor_model_rounded": 0.766,
+  "adopt": true,
+  "importance": [
+    [
+      "cell_mean",
+      5602
+    ],
+    [
+      "area",
+      5070
+    ],
+    [
+      "cy_km",
+      4460
+    ],
+    [
+      "cx_km",
+      4356
+    ],
+    [
+      "cell_n",
+      4329
+    ],
+    [
+      "nverts",
+      4274
+    ],
+    [
+      "compact",
+      2874
+    ],
+    [
+      "perim",
+      2456
+    ],
+    [
+      "coarse_median",
+      1728
+    ],
+    [
+      "cell_median",
+      1377
+    ],
+    [
+      "aspect",
+      674
+    ]
+  ],
+  "seconds": 23.5
+}

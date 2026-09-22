@@ -31,3 +31,5 @@ suvisdev/apps/gildle/data/vworld_buildings.state.json
 
 # suvisjk — 별도 레포(suvisdev/suvisjk, GitHub Pages 배포)의 로컬 클론
 suvisjk/
+suvisdev/apps/gildle/data/height_model.lgb.txt
+suvisdev/apps/gildle/data/height_model_pred.json

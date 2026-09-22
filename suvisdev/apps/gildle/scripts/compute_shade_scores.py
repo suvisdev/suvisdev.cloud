@@ -87,6 +87,25 @@ def impute_heights(buildings: list[dict[str, Any]]) -> int:
     return imputed
 
 
+def apply_height_model(buildings: list[dict[str, Any]], pred_path: Path) -> int:
+    """train_height_model.py --apply 사이드카(결측 건물 index → 높이 m)를 반영한다.
+    적용한 건물은 `height_known=True`로 바꿔 격자 중앙값 계산에도 실측처럼 들어간다
+    (모델 예측이 중앙값보다 정확하므로 나머지 결측 보간에도 도움이 된다)."""
+    if not pred_path.exists():
+        return 0
+    preds: dict[str, float] = json.loads(pred_path.read_text(encoding="utf-8"))
+    applied = 0
+    for idx, h in preds.items():
+        b = buildings[int(idx)]
+        if b.get("height_known"):
+            continue
+        b["height_m"] = min(float(h), _IMPUTE_MAX_HEIGHT_M)
+        b["height_known"] = True
+        b["height_source"] = "model"
+        applied += 1
+    return applied
+
+
 def _shadow_polygon(
     outline_m: list[tuple[float, float]],
     height_m: float,
@@ -158,11 +177,21 @@ def main() -> None:
     parser.add_argument("--buildings", default=str(_DATA_DIR / "seoul_buildings_osm.json"))
     parser.add_argument("--out", default=str(_DATA_DIR / "shade_scores.json"))
     parser.add_argument("--slots", nargs="*", type=int, default=_SLOTS)
+    parser.add_argument(
+        "--height-model-pred",
+        default=str(_DATA_DIR / "height_model_pred.json"),
+        help="train_height_model.py --apply 산출물(결측 건물 index→높이). 없으면 격자 중앙값만 쓴다",
+    )
     args = parser.parse_args()
 
     edges = json.loads(Path(args.edges).read_text(encoding="utf-8"))
     buildings = json.loads(Path(args.buildings).read_text(encoding="utf-8"))
+    # 모델 B(2026-09-22): GBM 예측이 홀드아웃 14.3만 동에서 격자 중앙값보다 낫다
+    # (MAE 3.59 vs 4.60m, ±1층 76.6% vs 70.7%). 예측치가 있으면 그 건물은 실측처럼
+    # 취급하고, 나머지 결측만 격자 중앙값으로 채운다.
+    modeled = apply_height_model(buildings, Path(args.height_model_pred))
     imputed = impute_heights(buildings)
+    logger.info("높이 모델 예측 적용 %d동 · 격자 중앙값 보간 %d동", modeled, imputed)
     logger.info(
         "엣지 %d, 건물 %d(높이 추정 %d동), 슬롯 %s",
         len(edges),
