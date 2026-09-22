@@ -59,8 +59,8 @@ if [ "$BUILD" = 1 ]; then
   # containerd(`crictl rmi --prune`)는 여기서 쓰면 안 된다 — 방금 import한 이미지를
   # "아직 아무 파드도 참조하지 않는 미사용 이미지"로 보고 지워버려서, 뒤따르는
   # rollout이 ErrImageNeverPull로 죽는다(2026-09-22 실측: 새 파드 2개가 116분간
-  # Pending). import → prune → rollout 순서에서는 필연적이다. containerd 정리가
-  # 필요하면 rollout이 끝난 뒤 별도로 돌릴 것.
+  # Pending). import → prune → rollout 순서에서는 필연적이다. containerd 정리는
+  # 이 파일 맨 아래에서 rollout 완료 **후** 태그 잃은 이미지만 지운다.
   # 실제로 쌓이는 건 dangling 이미지가 아니라 빌드 캐시다(2026-09-22 실측: 두 번
   # 빌드에 0.8GB→15.3GB, dangling은 0개 — buildkit이 같은 태그 재빌드 시 이전
   # 이미지를 자동 정리한다). 캐시는 다음 빌드를 5~6분 줄여주는 자산이고 디스크도
@@ -100,6 +100,16 @@ fi
 if [ "$BUILD" = 1 ]; then
   # 같은 태그(latest) 재빌드는 spec이 안 바뀌어 rollout이 자동으로 안 일어난다
   kubectl -n "$NS" rollout restart deploy/backend deploy/auth
+  # containerd 구 이미지 정리(2026-09-22 사용자 요청: 배포마다 4.8GB씩 쌓이지 않게).
+  # 같은 태그로 import하면 이전 이미지는 태그를 잃고 <none>으로 남는다. 새 파드가
+  # 다 뜬 뒤에만 지운다 — 그 전에 지우면 롤백 대상이 사라지고, --prune은 파드가
+  # 0인 다른 이미지(pgadmin·neo4j·cloudflared)까지 지워 재풀을 유발하므로 안 쓴다.
+  # 실행 중 컨테이너가 참조하는 이미지는 crictl이 거부하므로 롤아웃 실패 시에도 안전.
+  kubectl -n "$NS" rollout status deploy/backend --timeout=600s
+  kubectl -n "$NS" rollout status deploy/auth --timeout=600s
+  echo "[prune] containerd 태그 없는 이미지 정리"
+  sudo k3s crictl images 2>/dev/null | awk '$1 == "<none>" { print $3 }' \
+    | xargs -r sudo k3s crictl rmi || true
 fi
 
 kubectl -n "$NS" get pods

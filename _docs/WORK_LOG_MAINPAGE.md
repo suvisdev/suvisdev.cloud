@@ -50,6 +50,38 @@
 ### 산출물
 - `k8s/deploy.sh`(prune 단계·주석), `susu/android/.gitignore`(google-services.json 제외).
 
+### 작업 내용 (밤 — susu: 네이버 지도 Client ID 주입)
+- 사용자가 바탕화면 `길들/네이버 클라우드 플랫폼.txt`에 NCP Maps Client ID를 받아 둠 →
+  `susu/dart_defines.json`(gitignore 추가)에 넣고 `--dart-define-from-file`로 주입.
+  `.env`의 `NAVER_CLIENT_ID`는 **네이버 로그인(OAuth)** 키라 지도와 별개 — 혼동 주의.
+- `lib/core/config/env.dart` `AppConfig.naverMapClientId` + `lib/main.dart`에서
+  `FlutterNaverMap().init()`(값 비면 건너뜀). 매니페스트 meta-data는 값이 소스에 박혀
+  넣지 않음. 가이드 `GILDLE_APP_SETUP_GUIDE.md` §1-3 실제 방식으로 갱신.
+- 검증: Windows Flutter(`C:\src\flutter`)를 WSL에서 `cmd.exe /c "pushd \\wsl.localhost\…"`로
+  호출해 `pub get`(flutter_naver_map 1.4.x 잠금 반영) + `flutter analyze` — 신규 오류 0.
+  기존 경고 3(`main.dart` key 파라미터)·오류 1(`widget_test.dart` MyApp)은 이전부터
+  있던 것. `pub get`이 `analysis_options.yaml`을 자동 수정한 건 되돌림. Windows 플러그인
+  심볼릭 링크 `ERROR_ACCESS_DENIED`는 데스크톱 타깃 전용이라 Android 빌드와 무관.
+- 남은 콘솔 발급: Firebase `google-services.json`, 서비스 계정 키(푸시 배선 때).
+  `v-world.txt`의 브이월드 키는 이미 `.env`(`VWORLD_API_KEY`)에 같은 값이 있음.
+
+### 작업 내용 (밤 — deploy.sh 구 이미지 자동 정리 · "sudo 벽" 정정)
+- **사용자 요청**: 파드 올릴 때마다 이미지가 쌓이지 않게. 실측: containerd에 `<none>`
+  suvisdev 이미지 **7개 × 4.8GB ≈ 33GB** 누적(같은 태그 import 때마다 이전 것이 태그를
+  잃음). 도커 쪽은 buildkit이 자동 정리해 0개.
+- `k8s/deploy.sh`: `--build`일 때 `rollout restart` 뒤 **`rollout status` 대기 → `crictl
+  images`의 `<none>`만 `crictl rmi`**. `--prune`은 파드 0인 pgadmin·neo4j·cloudflared
+  이미지까지 지워 재풀을 부르고, 롤아웃 **전**에 지우면 방금 import한 이미지가 사라지는
+  09-22 낮 사고(116분 Pending)가 나므로 순서·대상을 이렇게 고정. 실행 중 컨테이너가
+  참조하는 이미지는 crictl이 거부해 롤아웃 실패 시에도 안전. 누적분 7개는 즉시 수동 정리.
+- **"sudo 벽"은 절반만 사실**: `sudo -n true`는 막히지만 sudoers에 `/usr/local/bin/k3s`가
+  **NOPASSWD**라 `sudo k3s ctr images import`·`crictl`은 TTY 없이도 된다(`sudo -n -l`로
+  확인). 즉 `deploy.sh --build`는 하네스 셸에서 그대로 돌릴 수 있다 — 낮·밤에 두 번
+  사용자에게 넘긴 건 `sudo -n true` 실패를 과잉 일반화한 오판. 메모리에 기록.
+- 주의: 이번 밤 배포는 사용자가 돌리는 동안 내가 deploy.sh 끝부분을 편집했다(09-22 낮
+  "실행 중 스크립트 수정 금지" 교훈 재범). 롤아웃은 정상 종료했지만 다음부턴 `pgrep -f
+  deploy.sh`로 확인 후 편집.
+
 ---
 
 ## 2026-09-17
