@@ -9,7 +9,7 @@
 |---|---|
 | mova 추천 | **v3 EXAONE**(`mova_20260922_064437`) 서빙, `RECOMMENDATION_BACKEND=lora`, 실패 시 Gemini 폴백 |
 | mova 회귀 | v3 21/23 (배우 질의 2건 picks 0 — v4가 겨냥) |
-| gildle | 자체 A\* 경로 · 시간 의존 그늘 · 제약 경로 · **루프 `/api/gildle/loops`** 배포됨 |
+| gildle | 자체 A\* 경로 · 시간 의존 그늘 · 제약 경로 · **루프 `/api/gildle/loops`** 배포됨. **루프 길이 2패스 보정은 18:2x 재빌드 배포 중** — 확인: `curl … /api/gildle/loops target_m 1500` 길이가 1,4xx m면 반영 |
 | 마지막 커밋 | 아래 "커밋 이력" |
 
 ## 집에서 할 것 (순서대로)
@@ -63,6 +63,6 @@ kubectl -n suvisdev exec deploy/backend -c backend -- sh -c \
 | `4bd0485` | mova v4 학습 데이터 895행 |
 | `4d6cfcd` | gildle 경로 탐색 자체 구현·합성 하네스·루프 API |
 | `3c260cd` · `e033a47` | v4 데이터 src 보존/int화·노트북 정규식 |
-| (다음) | 모델 B 앙상블·A 파이프라인·루프 길이 보정 |
+| `ff9e1fb` | 모델 B 앙상블·A 파이프라인·루프 길이 보정 |
 
 푸시는 하지 않았다(사용자 요청 시).
