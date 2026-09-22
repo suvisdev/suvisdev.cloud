@@ -40,8 +40,12 @@ REGION_ASK_MARKER = "어느 지역에서 보실 계획인가요"
 # 이걸 title resolver로 보내면 "영화" 같은 일반어가 제목 퍼지 매칭돼
 # 무관 후보로 되묻는 오류가 났다(2026-09-02 실사용). 결정론 패턴으로
 # 먼저 갈라 상영작 목록(박스오피스 근사)으로 답한다.
+# "바로 예매할 수 있는 영화 찾아줘"(2026-09-22 실사용)는 '뭐있어'가 없어 이 패턴을
+# 비껴가 '바로'가 제목 퍼지 매칭됐다(아바타·바튼 아카데미). '예매할 수 있는 영화/작품'
+# 자체를 탐색 신호로 본다 — '영화관'은 제외해 "호프 예매할 수 있는 영화관"은 제목 경로.
 _DISCOVERY_PATTERN = re.compile(
     r"뭐\s*(?:가\s*)?(?:있|볼|봐|나왔)|무슨\s*영화|어떤\s*(?:영화|작품)|상영작|상영\s*중인"
+    r"|예매\s*(?:할\s*수\s*있는|가능한)\s*(?:영화|작품)(?!관)"
 )
 _DISCOVERY_LIST_LIMIT = 8
 
@@ -318,13 +322,27 @@ class BookingAssistService:
         """
         if not history:
             return None
-        for msg in reversed(history):
+        for idx in range(len(history) - 1, -1, -1):
+            msg = history[idx]
             if msg.get("role") != "assistant":
                 continue
             content = (msg.get("content") or "").strip()
             if not content:
                 return None
-            return await self._repository.find_movie_titled_in_text(content)
+            found = await self._repository.find_movie_titled_in_text(content)
+            if found is not None:
+                return found
+            # 평가 응답은 줄거리만 담고 제목을 안 쓴다("음반점 직원 베어가…") — 그
+            # 응답을 부른 user 발화("옵세션 어때")에 제목이 있다(2026-09-22 실사용).
+            for prev in range(idx - 1, -1, -1):
+                if history[prev].get("role") == "user":
+                    user_text = (history[prev].get("content") or "").strip()
+                    return (
+                        await self._repository.find_movie_titled_in_text(user_text)
+                        if user_text
+                        else None
+                    )
+            return None
         return None
 
     async def _assist_with_region(

@@ -28,6 +28,7 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
 from mova.app.use_cases.market_chat_booking_interactor import (
     BookingAssistService,
+    _extract_region_signal,
     pending_title_from_history,
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
@@ -89,6 +90,62 @@ def _last_assistant_content(history: list[dict[str, str]]) -> str:
         if msg.get("role") == "assistant":
             return msg.get("content") or ""
     return ""
+
+
+# 후보 제시 문구는 evaluate/booking 트랙이 결정론으로 만든다(ambiguous 분기) —
+# 그 형식("제목(연도) / …")을 그대로 되읽어 다음 턴의 선택을 잇는다.
+_CHOICE_PREFIX = "비슷한 제목이 여러 편이에요: "
+_CHOICE_ENTRY = re.compile(r"^(.*?)(?:\((\d{4})\))?$")
+_CHOICE_YEAR4 = re.compile(r"(?<!\d)(\d{4})(?!\d)")
+_CHOICE_YEAR2 = re.compile(r"(?<!\d)(\d{2})\s*년")
+_CHOICE_ORDINALS = (
+    ("첫", "1번", "하나"),
+    ("두번째", "둘째", "두 번째", "2번"),
+    ("세번째", "셋째", "세 번째", "3번"),
+)
+_CHOICE_TAIL = re.compile(r"(말하는거잖아|말하는거|꺼|거|것|영화|작품|으로|로|이요|요)+[\s?!.~]*$")
+
+
+def pick_from_choice_list(last_assistant: str, message: str) -> tuple[str, str] | None:
+    """직전 응답이 후보 제시였고 이번 발화가 그중 하나를 고르면 (제목, 트랙)을 돌려준다.
+
+    트랙은 되묻기 꼬리로 구분한다("예매하시려나요" → booking, 그 외 → evaluate).
+    연도(2026·"26년")·순서("두번째")·제목 부분일치 중 정확히 하나만 잡힐 때 확정한다 —
+    둘 이상이면 None(되묻기 유지)이 잘못 짚는 것보다 낫다.
+    """
+    if not last_assistant.startswith(_CHOICE_PREFIX):
+        return None
+    body = last_assistant[len(_CHOICE_PREFIX) :]
+    body = body.split(". 어떤 작품", 1)[0]
+    entries: list[tuple[str, str | None]] = []
+    for raw in body.split(" / "):
+        m = _CHOICE_ENTRY.match(raw.strip())
+        if m and m.group(1).strip():
+            entries.append((m.group(1).strip(), m.group(2)))
+    if not entries:
+        return None
+    track = "booking" if "예매하시려나요" in last_assistant else "evaluate"
+
+    text = message.strip()
+    matched: list[str] = []
+    year: str | None = None
+    if m4 := _CHOICE_YEAR4.search(text):
+        year = m4.group(1)
+    elif m2 := _CHOICE_YEAR2.search(text):
+        yy = int(m2.group(1))
+        year = str(2000 + yy if yy <= 30 else 1900 + yy)
+    if year:
+        matched = [t for t, y in entries if y == year]
+    if not matched:
+        for idx, words in enumerate(_CHOICE_ORDINALS):
+            if any(w in text for w in words) and idx < len(entries):
+                matched = [entries[idx][0]]
+                break
+    if not matched:
+        needle = re.sub(r"\s+", "", _CHOICE_TAIL.sub("", text)).lower()
+        if len(needle) >= 2:
+            matched = [t for t, _ in entries if needle in re.sub(r"\s+", "", t).lower()]
+    return (matched[0], track) if len(matched) == 1 else None
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -179,6 +236,18 @@ class ChatInteractor(ChatUseCase):
         #       ("강남" 단독 발화는 분류기가 general로 오분류하기 쉽다).
         if self._booking is not None:
             pending_title = pending_title_from_history(request.history_dicts())
+            # 화제 전환 방어(2026-09-22 실사용: 지역 되묻기 뒤 "옵세션 줄거리 알려줘"가
+            # 지역명으로 들어가 "'옵세션 줄거리 알려줘' 지역을 찾지 못했어요"). 발화가
+            # 카탈로그 제목을 담고 지명 신호가 없으면 지역 답이 아니라 새 요청이다.
+            if (
+                pending_title
+                and _extract_region_signal(request.message) is None
+                and await self._repo.find_movie_titled_in_text(request.message) is not None
+            ):
+                logger.info(
+                    "[ChatInteractor] trace=%s booking 대기 중 화제 전환 → 분류기로", trace_id
+                )
+                pending_title = None
             if pending_title:
                 logger.info(
                     "[ChatInteractor] trace=%s booking 지역 이어받기 title=%s",
@@ -188,6 +257,27 @@ class ChatInteractor(ChatUseCase):
                 return await self._reply_booking(
                     request, trace_id, entities=[], pending_title=pending_title
                 )
+
+        # -0.45. 후보 제시("비슷한 제목이 여러 편이에요: A(2021) / B(2026)…") 뒤의 선택
+        #        발화("26년꺼"·"두번째"·"브랜뉴데이")를 결정론으로 잇는다. 분류기로 가면
+        #        "26년꺼"가 recommend로 흘러 "26년차 작품"으로 오해했다(2026-09-22 실사용).
+        choice = pick_from_choice_list(
+            _last_assistant_content(request.history_dicts()), request.message
+        )
+        if choice is not None:
+            title, track = choice
+            logger.info(
+                "[ChatInteractor] trace=%s 후보 선택 이어받기 title=%s track=%s",
+                trace_id,
+                title,
+                track,
+            )
+            if track == "booking" and self._booking is not None:
+                return await self._reply_booking(
+                    request, trace_id, entities=[title], pending_title=None
+                )
+            if track == "evaluate" and self._evaluation is not None:
+                return await self._reply_evaluation(request, trace_id, entities=[title])
 
         # -0.4. evaluate 후속 이어받기 — 제목 없는 "어때?"류는 직전 assistant가 소개한
         #       영화를 평가한다. 분류기가 이런 발화를 recommend로 오분류해 근거 없는

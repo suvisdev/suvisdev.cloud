@@ -34,6 +34,7 @@ from mova.app.use_cases.market_chat_evaluation_interactor import (  # noqa: E402
 from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
     ChatInteractor,
     _is_bare_eval_followup,
+    pick_from_choice_list,
 )
 from mova.app.use_cases.market_chat_title_resolver import (  # noqa: E402
     resolve_movie_title,
@@ -354,6 +355,33 @@ class BookingRegionFirstTests(unittest.IsolatedAsyncioTestCase):
         service._repository.find_movie_titled_in_text.assert_awaited_once()
         service._theaters.search_theaters.assert_awaited_once()
 
+    async def test_region_first_falls_back_to_user_turn_when_reply_has_no_title(self) -> None:
+        """평가 응답은 줄거리만 담고 제목이 없다(2026-09-22 실사용 "음반점 직원 베어가…").
+        그 응답을 부른 user 발화("옵세션 어때")에서 맥락 영화를 찾는다."""
+        service = self._service()
+
+        async def _titled(text: str) -> MovaSearchItemSchema | None:
+            return _item(7, "옵세션", "2026") if "옵세션" in text else None
+
+        service._repository.find_movie_titled_in_text.side_effect = _titled
+        history = [
+            {"role": "user", "content": "옵세션 어때"},
+            {
+                "role": "assistant",
+                "content": "음반점 직원 베어가 소원을 빈 뒤 벌어지는 공포 이야기입니다.",
+            },
+        ]
+        result = await service.assist(
+            message="군자쪽에 예매할 시간 있는지 확인해줘",
+            entities=[],
+            trace_id="t",
+            history=history,
+        )
+
+        self.assertEqual(result.booking.region, "군자")
+        self.assertNotIn("제목을 알려주시겠어요", result.reply)
+        self.assertEqual(service._repository.find_movie_titled_in_text.await_count, 2)
+
     async def test_region_first_without_context_asks_title(self) -> None:
         service = self._service()
         service._repository.find_movie_titled_in_text.return_value = None
@@ -442,6 +470,9 @@ class BookingDiscoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(_DISCOVERY_PATTERN.search("인셉션 어디서 상영해?"))
         self.assertIsNotNone(_DISCOVERY_PATTERN.search("지금 바로 예매할 수 있는 영화 뭐있어"))
         self.assertIsNotNone(_DISCOVERY_PATTERN.search("요즘 상영작 알려줘"))
+        # 2026-09-22 실사용: '뭐있어'가 없어도 '예매할 수 있는 영화'는 탐색형이다
+        self.assertIsNotNone(_DISCOVERY_PATTERN.search("바로 예매할 수 있는 영화 찾아줘"))
+        self.assertIsNone(_DISCOVERY_PATTERN.search("호프 예매할 수 있는 영화관 알려줘"))
 
 
 class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
@@ -450,6 +481,7 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
     ) -> tuple[ChatInteractor, AsyncMock, AsyncMock, AsyncMock]:
         repo = AsyncMock()
         repo.save_chat.return_value = 11
+        repo.find_movie_titled_in_text.return_value = None
         classifier = AsyncMock()
         classifier.classify.return_value = (destination, ["호프"])
         evaluation = AsyncMock()
@@ -623,6 +655,110 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         interactor._classifier.classify.assert_not_awaited()
         self.assertEqual(booking.assist.await_args.kwargs["pending_title"], "호프")
 
+    async def test_pending_region_yields_to_topic_change(self) -> None:
+        """지역 되묻기 뒤 "옵세션 줄거리 알려줘"는 지역명이 아니다(2026-09-22 실사용:
+        "'옵세션 줄거리 알려줘' 지역을 찾지 못했어요"). 제목이 있고 지명 신호가 없으면
+        분류기로 보낸다."""
+        from mova.app.dtos.market_chat_dto import ChatRecommendationDto
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        interactor, repo, evaluation, booking = self._interactor(destination="evaluate")
+        repo.find_movie_titled_in_text.return_value = _item(7, "옵세션", "2026")
+        evaluation.evaluate.return_value = EvaluationResult(
+            status="ok",
+            reply="줄거리",
+            card=ChatRecommendationDto(
+                id="tmdb-7",
+                movie_id=7,
+                title="옵세션",
+                year="2026",
+                poster="",
+                synopsis="",
+                platform=None,
+                hook="",
+            ),
+            evaluation=None,
+        )
+        history = [
+            {"role": "user", "content": "옵세션 예매하고싶어"},
+            {
+                "role": "assistant",
+                "content": f"『옵세션』 상영관을 찾아드릴게요. {REGION_ASK_MARKER}?",
+            },
+        ]
+
+        response = await interactor.chat(
+            MovaChatRequest(message="옵세션 줄거리 알려줘", history=history)
+        )
+
+        self.assertEqual(response.response_type, "evaluation")
+        interactor._classifier.classify.assert_awaited_once()
+        booking.assist.assert_not_awaited()
+
+    async def test_pending_region_still_taken_for_bare_region(self) -> None:
+        """제목 없는 "강남"은 종전대로 지역 답으로 잇는다(화제 전환 방어의 오탐 없음)."""
+        from mova.app.dtos.market_chat_dto import ChatBookingDto
+        from mova.app.use_cases.market_chat_booking_interactor import BookingResult
+
+        interactor, _repo, _, booking = self._interactor(destination="general")
+        booking.assist.return_value = BookingResult(
+            status="ok",
+            reply="목록",
+            card=None,
+            booking=ChatBookingDto(status="showing", region="강남", theaters=[], booking_links=[]),
+        )
+        history = [
+            {
+                "role": "assistant",
+                "content": f"『호프』 상영관을 찾아드릴게요. {REGION_ASK_MARKER}?",
+            }
+        ]
+
+        await interactor.chat(MovaChatRequest(message="강남", history=history))
+
+        self.assertEqual(booking.assist.await_args.kwargs["pending_title"], "호프")
+        interactor._classifier.classify.assert_not_awaited()
+
+    async def test_choice_followup_by_year_routes_to_evaluate(self) -> None:
+        """후보 제시 뒤 "26년꺼"는 2026년 후보 선택이다(2026-09-22 실사용: recommend로
+        흘러 "26년차 작품"으로 오해). 분류기 없이 evaluate로 잇는다."""
+        from mova.app.dtos.market_chat_dto import ChatRecommendationDto
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        interactor, _repo, evaluation, _ = self._interactor(destination="recommend")
+        evaluation.evaluate.return_value = EvaluationResult(
+            status="ok",
+            reply="평가",
+            card=ChatRecommendationDto(
+                id="tmdb-7",
+                movie_id=7,
+                title="스파이더맨: 브랜드 뉴 데이",
+                year="2026",
+                poster="",
+                synopsis="",
+                platform=None,
+                hook="",
+            ),
+            evaluation=None,
+        )
+        history = [
+            {"role": "user", "content": "스파이더맨 어때"},
+            {
+                "role": "assistant",
+                "content": "비슷한 제목이 여러 편이에요: 스파이더맨: 노 웨이 홈(2021) / "
+                "스파이더맨: 어크로스 더 유니버스(2023) / 스파이더맨: 브랜드 뉴 데이(2026). "
+                "어떤 작품을 말씀하시나요?",
+            },
+        ]
+
+        response = await interactor.chat(MovaChatRequest(message="26년꺼", history=history))
+
+        self.assertEqual(response.response_type, "evaluation")
+        interactor._classifier.classify.assert_not_awaited()
+        self.assertEqual(
+            evaluation.evaluate.await_args.kwargs["entities"], ["스파이더맨: 브랜드 뉴 데이"]
+        )
+
     async def test_eval_positive_reaction_records_signal(self) -> None:
         interactor, repo, _, _ = self._interactor(destination="general")
         conversations = AsyncMock()
@@ -672,6 +808,45 @@ class FallbackHonestyPromptTests(unittest.TestCase):
         ]
         section = ChatPromptBuilder().format_tag_catalog_section(hits)
         self.assertNotIn("폴백 후보", section)
+
+
+class ChoiceListPickerTests(unittest.TestCase):
+    _EVAL = (
+        "비슷한 제목이 여러 편이에요: 스파이더맨: 노 웨이 홈(2021) / "
+        "스파이더맨: 어크로스 더 유니버스(2023) / 스파이더맨: 브랜드 뉴 데이(2026). "
+        "어떤 작품을 말씀하시나요?"
+    )
+    _BOOK = "비슷한 제목이 여러 편이에요: 군체(2026) / 구원자(2025) / 감자(1987). 어떤 작품을 예매하시려나요?"
+
+    def test_year_two_digit(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._EVAL, "26년꺼"), ("스파이더맨: 브랜드 뉴 데이", "evaluate")
+        )
+
+    def test_year_four_digit(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._EVAL, "2021년 거"), ("스파이더맨: 노 웨이 홈", "evaluate")
+        )
+
+    def test_ordinal(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._EVAL, "두번째"),
+            ("스파이더맨: 어크로스 더 유니버스", "evaluate"),
+        )
+
+    def test_title_fragment(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._EVAL, "브랜드 뉴 데이요"),
+            ("스파이더맨: 브랜드 뉴 데이", "evaluate"),
+        )
+
+    def test_booking_track_from_tail(self) -> None:
+        self.assertEqual(pick_from_choice_list(self._BOOK, "1987"), ("감자", "booking"))
+
+    def test_ambiguous_or_unrelated_is_none(self) -> None:
+        self.assertIsNone(pick_from_choice_list(self._EVAL, "스파이더맨"))  # 셋 다 부분일치
+        self.assertIsNone(pick_from_choice_list(self._EVAL, "다른 영화 추천해줘"))
+        self.assertIsNone(pick_from_choice_list("안녕하세요!", "26년꺼"))
 
 
 class RegionTransportParsingTests(unittest.TestCase):
