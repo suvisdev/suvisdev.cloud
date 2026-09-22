@@ -98,7 +98,9 @@ async def rebuild(factory, rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for r in rows:
         prompt = "\n".join(_rebuild_line(ln, genres, summary) for ln in r["prompt"].split("\n"))
-        out.append({**r, "prompt": prompt, "src": "v4_rebuild"})
+        # src는 노트북이 원본 단위 홀드아웃을 뽑는 키다 — 덮어쓰면 안 된다(09-22 코랩
+        # `Sample larger than population` 사고). 출처는 gen에 따로 적는다.
+        out.append({**r, "prompt": prompt, "gen": "v4_rebuild"})
     return out
 
 
@@ -239,7 +241,17 @@ async def teacher(factory, *, limit: int, skip_base_queries: bool) -> list[dict]
             completion = json.dumps(
                 {"intro": str(data.get("intro", "")).strip(), "picks": picks}, ensure_ascii=False
             )
-            examples.append({"prompt": prompt, "completion": completion, "aug": aug, "src": "v4"})
+            # 신규 행은 단일턴 원본이다: aug="orig"로 두어 홀드아웃 후보가 되게 하고
+            # (배우 질의가 평가셋에 들어가야 v3 회귀를 잰다), src는 행마다 고유하게.
+            examples.append(
+                {
+                    "prompt": prompt,
+                    "completion": completion,
+                    "aug": "orig",
+                    "src": f"{aug}_{i}",
+                    "gen": aug,
+                }
+            )
             print(f"[{i + 1}/{len(jobs)}] ok {aug} picks={len(picks)} | {msg}", flush=True)
         if called:
             time.sleep(SLEEP_SECONDS)
