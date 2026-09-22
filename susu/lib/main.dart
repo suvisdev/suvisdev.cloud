@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
 import 'package:video_player/video_player.dart';
 
 import 'auth.dart';
+import 'core/config/env.dart';
 import 'features/media/presentation/photo_capture_controller.dart';
 import 'features/mova/presentation/mova_chat_screen.dart';
 import 'kakao_config.dart';
@@ -15,6 +17,12 @@ import 'stopwatch_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await KakaoSdk.init(nativeAppKey: kakaoNativeAppKey);
+  if (AppConfig.naverMapClientId.isNotEmpty) {
+    await FlutterNaverMap().init(
+      clientId: AppConfig.naverMapClientId,
+      onAuthFailed: (e) => debugPrint('네이버 지도 인증 실패: $e'),
+    );
+  }
   runApp(const ProviderScope(child: SuvisApp()));
 }
 

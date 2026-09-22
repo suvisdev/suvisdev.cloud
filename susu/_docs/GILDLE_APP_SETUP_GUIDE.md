@@ -30,34 +30,25 @@ Mobile Dynamic Map은 월 단위 무료 호출량이 있다(구간별 종량 과
 규모에서는 무료 범위를 넘기기 어렵다. 콘솔의 **요금 계산기**에서 현재 단가를
 확인할 수 있다.
 
-### 1-3. 코드에 넣는 것
+### 1-3. 코드에 넣는 것 — **적용 완료(2026-09-22 밤)**
 
-`pubspec.yaml`
-```yaml
-dependencies:
-  flutter_naver_map: ^1.4.4
-```
+Client ID는 발급받아 `susu/dart_defines.json`(gitignore)에 넣었다. 소스·매니페스트에는
+값이 없고, 실행 때 파일로 주입한다:
 
-`android/app/src/main/AndroidManifest.xml` — `<application>` 안에
-```xml
-<meta-data
-    android:name="com.naver.maps.map.CLIENT_ID"
-    android:value="발급받은_CLIENT_ID" />
-```
-
-`lib/main.dart` — `runApp` 전에 초기화
-```dart
-await FlutterNaverMap().init(
-  clientId: '발급받은_CLIENT_ID',
-  onAuthFailed: (e) => debugPrint('네이버 지도 인증 실패: $e'),
-);
-```
-
-**Client ID는 소스에 하드코딩하지 말 것.** `--dart-define`으로 주입하고
-`String.fromEnvironment`로 읽는다:
 ```bash
-flutter run --dart-define=NAVER_MAP_CLIENT_ID=xxxx
+flutter run --dart-define-from-file=dart_defines.json
+flutter build apk --dart-define-from-file=dart_defines.json
 ```
+Android Studio 실행 버튼을 쓰면 Run/Debug Configurations → **Additional run args**에
+`--dart-define-from-file=dart_defines.json`을 한 번 넣어 둔다.
+
+- `lib/core/config/env.dart` — `AppConfig.naverMapClientId`(`String.fromEnvironment`).
+- `lib/main.dart` — `runApp` 전에 `FlutterNaverMap().init(clientId: …, onAuthFailed: …)`.
+  값이 비어 있으면 초기화를 건너뛰어 지도 없는 실행도 깨지지 않는다.
+- `AndroidManifest.xml`의 `com.naver.maps.map.CLIENT_ID` meta-data는 **넣지 않았다** —
+  flutter_naver_map 1.x는 `init()`으로 충분하고, 매니페스트에 넣으면 값이 소스에 박힌다.
+- 인증 실패(`onAuthFailed`)가 찍히면 NCP 콘솔의 Android 패키지명이 `applicationId`와
+  같은지부터 본다.
 
 ### 1-4. 중요 — 바뀌는 건 "배경 지도"뿐이다
 
@@ -150,7 +141,7 @@ FCM 자체는 **무료**이고 발송량 제한도 사실상 없다. Firebase �
 ## 3. 발급 순서 요약 (회원님이 하실 일)
 
 1. **Play Console 개발자 계정** — $25, 신분 확인 (진행 중)
-2. **네이버 클라우드 플랫폼** → Maps → Application 등록 → **Client ID**
+2. ~~네이버 클라우드 플랫폼 → Maps → Application 등록 → Client ID~~ **받음·적용됨(09-22)**
 3. **Firebase** → 프로젝트 → Android 앱 추가 → **`google-services.json`**
 4. Firebase → 서비스 계정 → **비공개 키 JSON** (백엔드용, 서버에만 보관)
 
