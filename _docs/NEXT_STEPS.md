@@ -9,7 +9,7 @@
 |---|---|
 | mova 추천 | **v3 EXAONE**(`mova_20260922_064437`) 서빙, `RECOMMENDATION_BACKEND=lora`, 실패 시 Gemini 폴백 |
 | mova 회귀 | v3 21/23 (배우 질의 2건 picks 0 — v4가 겨냥) |
-| gildle | 자체 A\* 경로 · 시간 의존 그늘 · 제약 경로 · **루프 `/api/gildle/loops`** 배포됨. **루프 길이 2패스 보정은 18:2x 재빌드 배포 중** — 확인: `curl … /api/gildle/loops target_m 1500` 길이가 1,4xx m면 반영 |
+| gildle | 자체 A\* 경로 · 시간 의존 그늘 · 제약 경로 · **루프 `/api/gildle/loops`** 배포됨. 루프 길이 2패스 보정 **배포·검증 완료**(18:3x, 목표 1,500m → 1,427~1,455m) |
 | 마지막 커밋 | 아래 "커밋 이력" |
 
 ## 집에서 할 것 (순서대로)
