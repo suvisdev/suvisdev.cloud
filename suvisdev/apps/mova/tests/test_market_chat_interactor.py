@@ -517,6 +517,16 @@ class ChatInteractorTasteRerankTests(unittest.IsolatedAsyncioTestCase):
         saved_movie_ids = [r.movie_id for r in picks_kwargs["recommendations"]]
         self.assertEqual(saved_movie_ids, [202, 101, 303])
 
+    async def test_save_chat_stores_llm_reply(self) -> None:
+        # 운영 응답을 학습 자료로 모으려면 LLM이 쓴 intro가 chat에 남아야 한다(2026-09-22).
+        interactor, taste_repo, _ = self._build(recs=[self._rec(101, "A")])
+        taste_repo.get_taste_vector.return_value = None
+
+        await interactor.chat(MovaChatRequest(message="추천", history=[], user_id=42))
+
+        repo = interactor._repo
+        self.assertEqual(repo.save_chat.await_args.kwargs["reply"], "답변")
+
     async def test_taste_vector_missing_keeps_original_order(self) -> None:
         # 로그인 유저지만 리뷰 0건이라 taste vector = None → 재정렬 스킵.
         recs = [self._rec(101, "A"), self._rec(202, "B"), self._rec(303, "C")]

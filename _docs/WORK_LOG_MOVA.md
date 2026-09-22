@@ -407,6 +407,62 @@
   `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`(Node 22.22)로 못 떠 미실행.
 - 운영: 새 카탈로그·지역 파서 반영 파드 Running, walks 401 가드, v3 lora 경로 200.
 
+### 작업 내용 (추가 — 밤 세션: `chat.reply` 저장 칼럼 · 노트북 검증 환경)
+
+#### ⑲ `chat.reply` 칼럼 — 운영 응답 저장 (코드·마이그레이션 완료, **배포 대기**)
+- ⑮에서 확인한 "Gemini/EXAONE이 쓴 intro 유실"을 `chat` 테이블에 Text 칼럼 하나로
+  해결. 이름은 문서에서 부르던 `intro`가 아니라 **`reply`** — DTO(`ChatResponseDto.reply`)와
+  같고, general·evaluate·booking 트랙의 응답은 intro가 아니라 본문 전체이기 때문.
+- **저장 시점은 LLM 원문**: 추천 트랙은 0편일 때 `_compose_empty_reply`가 reply를
+  템플릿으로 바꾸는데, 그 **전** 값을 저장한다. 학습 자료로 필요한 건 "모델이 실제로
+  뭐라고 썼는가"(0편인데 "골라봤어요"라고 쓴 모순까지)이지 사용자에게 보인 안내
+  문구가 아니다. `save_chat` 호출 위치는 그대로 두고 인자만 추가 — 재배치 없음.
+- 변경: ORM `MovaChat.reply` · 포트 `save_chat(reply=)`(필수 키워드, 기본값 없음 —
+  4개 트랙이 전부 명시적으로 넘기게) · `ChatPgRepository` · 인터랙터 4곳(추천=LLM
+  intro, evaluate/booking=`result.reply`, general=`reply_text`) · alembic
+  `20260922_0002_add_chat_reply`(`ADD COLUMN reply TEXT NULL`, 기존 행 NULL).
+- 테스트: `test_save_chat_stores_llm_reply`(추천 트랙이 "답변"을 넘기는지) +
+  evaluate 트랙 기존 테스트에 `reply` 단언 1줄.
+- **마이그레이션 적용 완료(21:2x)**: 파드를 거치지 않고 이미지 컨테이너로 실행 —
+  `docker run --rm --network host -v $PWD:/src:ro -w /src --env-file .env
+  suvisdev-app:latest alembic upgrade head`(DB가 호스트 `localhost:5432` 도커 컨테이너라
+  host 네트워크면 그대로 붙는다). `20260922_0001 → 20260922_0002 (head)`, `\d chat`에
+  `reply | text` 확인. nullable 추가라 구 코드가 도는 동안에도 무해.
+- **이미지 빌드 완료, k3s 반입·롤아웃은 사용자 몫**: `docker build`는 끝났으나(`9daf38b4`,
+  변경 코드·0002 포함 확인) `sudo k3s ctr images import`가 TTY 없는 셸에서 비밀번호를
+  못 받는다(09-22 낮 "sudo 벽"과 동일). 사용자가 `./k8s/deploy.sh --external-db --build`를
+  실행하면 빌드는 캐시로 즉시 통과 → import → rollout.
+- **배포·검증 완료(21:4x)**: 사용자가 `! ./k8s/deploy.sh --external-db --build` 실행 →
+  `backend-67cbdbbfd8` 롤아웃, 새 파드에 변경 코드·0002 파일 확인. 운영 `POST /mova/chat`
+  ("비 오는 날 … 잔잔한 영화") 200 · recs 3 → `chat` id 609에 `reply` "비 오는 날의 차분한
+  분위기에 어울리는 잔잔한 영화들을 준비했습니다." 저장 실측. 608 이하는 NULL(구 코드).
+  주의: mova 라우터는 `/api` prefix 없이 `/mova/chat`에 마운트돼 있다(`main.py:369`) —
+  `/api/mova/chat`은 404.
+
+#### ⑳ 노트북 검증 환경 — pytest가 없다
+- 노트북 `suvisdev/.venv`는 gildle 배치용 슬림 venv(shapely·numpy·pyproj)라 pytest·
+  mypy·ruff·lint-imports가 **없다**. `~/.venv-exaone`도 마찬가지. 파드 안 실행은
+  auto 모드 분류기가 원격 쓰기(`kubectl exec … tar xf`)를 막았고, 운영 파드 파일을
+  덮는 것 자체가 나쁘다.
+- 해결: **이미지 `suvisdev-app:latest`를 일회용 컨테이너로 띄우고 소스를 read-only
+  마운트**해서 테스트 —
+  `docker run --rm -v "$PWD":/src:ro -w /src -e PYTHONPATH=/src:/src/apps
+  -e PYTHONDONTWRITEBYTECODE=1 suvisdev-app:latest python -m pytest apps/mova/tests
+  -m "not gpu and not ollama" -p no:cacheprovider`. **330 passed / 3 failed** —
+  실패 3건(`test_market_reviews.py` 라우터 3건)은 감정분석 provider가 실제 DB 접속을
+  요구하는 기존 환경 의존(이미지 자체 코드로도 9건 실패)으로 이번 변경과 무관.
+- ruff·import-linter는 `uv venv`로 만든 스크래치 venv(의존성 설치 불필요)에서 실행 —
+  ruff check/format 통과, **Contracts 6 kept, 0 broken**. mypy는 백엔드 의존성이
+  통째로 필요해 노트북에선 못 돌림(데스크톱 또는 이미지에 mypy 추가가 필요).
+- 프론트: 노트북에 `pnpm`이 없고 `corepack pnpm`은 Node 22.22 + Debian corepack 조합에서
+  `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`으로 죽는다. corepack이 받아 둔
+  `~/.cache/node/corepack/pnpm/11.21.0/bin/pnpm.cjs`를 **node로 직접 실행**하면 된다.
+  `install --frozen-lockfile` 후 `lint`·`type-check` 둘 다 exit 0(NEXT_STEPS 6번 종결).
+- `~/.venv-exaone`: transformers 5.5.0 · peft 0.20.0 확인(NEXT_STEPS 7번 종결).
+- 부수 관찰: 20:32 backend 파드 재시작(exit 255, Reason Unknown)은 **WSL 자체 부팅**
+  (systemd 기본 서비스·k3s가 20:32:37 동시 기동)이라 장애가 아님 — 노트북이 꺼져
+  있던 동안 프로덕션 다운은 알려진 트레이드오프.
+
 ## 2026-09-17
 
 ### 작업 내용 (노트북 세션 — bge-m3 컷오버 완주 · EXAONE 코랩 재학습 준비)

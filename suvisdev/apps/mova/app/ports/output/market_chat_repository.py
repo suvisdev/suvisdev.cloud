@@ -93,8 +93,9 @@ class ChatRepositoryPort(ABC):
         keywords: list[str],
         intent_type: str,
         search_filters: dict[str, Any],
+        reply: str | None,
     ) -> int:
-        """chat 저장 → chat.id 반환."""
+        """chat 저장 → chat.id 반환. `reply`는 LLM 응답 본문(학습 자료용)."""
 
     @abstractmethod
     async def save_picks(

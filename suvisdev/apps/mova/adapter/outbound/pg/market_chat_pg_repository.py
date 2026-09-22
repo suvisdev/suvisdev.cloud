@@ -449,6 +449,7 @@ class ChatPgRepository(ChatRepositoryPort):
         keywords: list[str],
         intent_type: str,
         search_filters: dict[str, Any],
+        reply: str | None,
     ) -> int:
         chat = MovaChat(
             user_id=user_id,
@@ -458,6 +459,7 @@ class ChatPgRepository(ChatRepositoryPort):
             keywords=keywords,
             intent_type=intent_type,
             search_filters=search_filters,
+            reply=reply,
             hit_count=1,
         )
         self._session.add(chat)

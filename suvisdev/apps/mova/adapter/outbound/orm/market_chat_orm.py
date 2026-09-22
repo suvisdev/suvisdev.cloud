@@ -46,6 +46,11 @@ class MovaChat(MovaModel):
         default=dict,
         comment="must(AND) / similar_to 등 분류·검색용",
     )
+    reply: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="LLM 응답 본문(추천 트랙은 0편 안내로 바꾸기 전 intro 원문) — 학습 자료용, 2026-09-22",
+    )
     hit_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     last_used_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

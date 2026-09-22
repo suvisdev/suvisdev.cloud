@@ -421,6 +421,7 @@ class ChatInteractor(ChatUseCase):
             keywords=intent["keywords"],
             intent_type=intent["intent_type"],
             search_filters=intent["search_filters"],
+            reply=reply,
         )
         await self._repo.save_picks(
             chat_id=chat_id,
@@ -569,6 +570,7 @@ class ChatInteractor(ChatUseCase):
             keywords=entities,
             intent_type="evaluate",
             search_filters={},
+            reply=result.reply,
         )
         recommendations = [result.card] if result.card else []
         assistant_meta: dict[str, Any] = {"recommendations": self._cards_meta(recommendations)}
@@ -645,6 +647,7 @@ class ChatInteractor(ChatUseCase):
             keywords=entities,
             intent_type="booking",
             search_filters={},
+            reply=result.reply,
         )
         recommendations = [result.card] if result.card else []
         assistant_meta: dict[str, Any] = {"recommendations": self._cards_meta(recommendations)}
@@ -788,6 +791,7 @@ class ChatInteractor(ChatUseCase):
             keywords=[],
             intent_type="general",
             search_filters={},
+            reply=reply_text,
         )
         logger.info(
             "[ChatInteractor] trace=%s chat_id=%d intent=general reply_chars=%d recs=0",

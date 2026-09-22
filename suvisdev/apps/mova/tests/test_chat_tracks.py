@@ -496,6 +496,7 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(response.recommendations), 1)
         save_kwargs = repo.save_chat.await_args.kwargs
         self.assertEqual(save_kwargs["intent_type"], "evaluate")
+        self.assertEqual(save_kwargs["reply"], "평가")  # 응답 본문도 학습 자료로 남긴다
 
     async def test_bare_eval_followup_evaluates_movie_from_history(self) -> None:
         """제목 없는 '어떠냐고' 후속은 분류기가 recommend로 오분류해도, 직전 assistant가
