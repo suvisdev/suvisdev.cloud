@@ -62,8 +62,29 @@
   기존 경고 3(`main.dart` key 파라미터)·오류 1(`widget_test.dart` MyApp)은 이전부터
   있던 것. `pub get`이 `analysis_options.yaml`을 자동 수정한 건 되돌림. Windows 플러그인
   심볼릭 링크 `ERROR_ACCESS_DENIED`는 데스크톱 타깃 전용이라 Android 빌드와 무관.
-- 남은 콘솔 발급: Firebase `google-services.json`, 서비스 계정 키(푸시 배선 때).
+- ~~남은 콘솔 발급: Firebase~~ **자정 무렵 둘 다 받음** — `google-services.json`(프로젝트
+  `gildle`, 패키지 `cloud.suvisdev.gildle` 일치 확인) → `susu/android/app/`(gitignore),
+  서비스 계정 키 → `~/secrets/gildle-fcm.json`(chmod 600, 저장소 밖). Gradle에
+  google-services 플러그인(Kotlin DSL: settings + app) 추가, 디버그 APK 빌드로 검증.
+  FCM 런타임(initializeApp·토큰 등록·백엔드 발송)은 지도 화면 세션에서 배선.
   `v-world.txt`의 브이월드 키는 이미 `.env`(`VWORLD_API_KEY`)에 같은 값이 있음.
+
+### 작업 내용 (새벽 — 릴리스 서명 키 · APK 빌드 · deploy.sh 검증)
+- **APK 빌드가 WSL 경로에서 안 되는 원인**: Windows flutter를 `\\wsl.localhost\…` UNC 경로에서
+  돌리면 "Waiting for another flutter command to release the Swift Package Manager lock"에서
+  영원히 대기(잠금 보유 프로세스 없음 — UNC 파일 잠금 문제). **`C:\Users\suteagy\gildle-build\susu`
+  로 rsync(build·.dart_tool 제외) 후 빌드하면 정상**. 디버그 APK 242MB 빌드 성공 →
+  바탕화면 `길들/gildle-debug-20260923.apk`. Firebase 플러그인·google-services.json 반영 확인.
+- **릴리스 서명 키 생성**: 사용자는 "받은 적 없다"고 했는데 받는 게 아니라 만드는 것. WSL엔
+  JDK가 없어 `keytool` 부재 → Windows Flutter용 JDK(`Eclipse Adoptium\jdk-17…\bin\keytool.exe`)
+  로 PKCS12 생성(alias `gildle`, 10000일, 24자 무작위 비밀번호). 키·비밀번호 파일은
+  `C:\Users\suteagy\secrets\`(+WSL `~/secrets/`, 사용자가 바탕화면 `길들/`에도 복사). 채팅에
+  비밀번호를 적지 않음. `android/key.properties`(gitignore) + `app/build.gradle.kts`에
+  key.properties 있으면 release 서명, 없으면 debug 폴백. 릴리스 APK 빌드 실행.
+- 실행 중이던 flutter 빌드를 `timeout`으로 죽이면 Windows 쪽 dart.exe가 고아로 남아 다음
+  빌드가 잠금에 걸린다 — `taskkill`로 정리 후 `bin/cache/lockfile` 삭제.
+- `deploy.sh --external-db --build`를 하네스 셸에서 직접 실행(sudo k3s NOPASSWD 확인) —
+  롤아웃 후 containerd `<none>` 정리 단계 실검증.
 
 ### 작업 내용 (밤 — deploy.sh 구 이미지 자동 정리 · "sudo 벽" 정정)
 - **사용자 요청**: 파드 올릴 때마다 이미지가 쌓이지 않게. 실측: containerd에 `<none>`
