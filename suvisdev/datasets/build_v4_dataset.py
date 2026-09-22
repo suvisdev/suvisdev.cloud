@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import random
 import re
@@ -42,6 +43,9 @@ _V3 = _D / "chat_teacher_dataset_v3.jsonl"
 _BASE = _D / "chat_teacher_dataset_v4_base.jsonl"
 _NEW = _D / "chat_teacher_dataset_v4_new.jsonl"
 _OUT = _D / "chat_teacher_dataset_v4.jsonl"
+# 교사 응답 캐시(prompt sha1 → raw). kubectl exec가 끊기면 프로세스가 같이 죽는다
+# (2026-09-22 실측: 68/159에서 소리 없이 종료) — 재실행 시 이미 받은 응답은 재사용한다.
+_CACHE = _D / ".v4_cache.json"
 
 SLEEP_SECONDS = 4.5  # Gemini 무료 티어 15req/min
 _ACTOR_TOP_N = 30
@@ -166,6 +170,9 @@ async def teacher(factory, *, limit: int, skip_base_queries: bool) -> list[dict]
     if limit:
         jobs = jobs[:limit]
 
+    cache: dict[str, str] = (
+        json.loads(_CACHE.read_text(encoding="utf-8")) if _CACHE.exists() else {}
+    )
     examples, skipped, calls = [], [], 0
     for i, (msg, aug, actor) in enumerate(jobs):
         intent = intent_svc._fallback_raw(msg)
@@ -204,13 +211,19 @@ async def teacher(factory, *, limit: int, skip_base_queries: bool) -> list[dict]
             user_nickname=None,
             preferred_genres=[],
         )
-        try:
-            raw = gemini_reply(prompt, None)
-        except Exception as e:  # noqa: BLE001 — 쿼터/일시 오류는 스킵하고 계속
-            skipped.append((msg, f"gemini error: {e}"))
-            time.sleep(SLEEP_SECONDS)
-            continue
-        calls += 1
+        key = hashlib.sha1(prompt.encode("utf-8")).hexdigest()
+        raw = cache.get(key)
+        called = raw is None
+        if raw is None:
+            try:
+                raw = gemini_reply(prompt, None)
+            except Exception as e:  # noqa: BLE001 — 쿼터/일시 오류는 스킵하고 계속
+                skipped.append((msg, f"gemini error: {e}"))
+                time.sleep(SLEEP_SECONDS)
+                continue
+            calls += 1
+            cache[key] = raw
+            _CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
         data = reply_svc._extract_json(raw)
         picks = _grounded_picks(data, catalog_ids) if data else []
         why = None
@@ -228,7 +241,8 @@ async def teacher(factory, *, limit: int, skip_base_queries: bool) -> list[dict]
             )
             examples.append({"prompt": prompt, "completion": completion, "aug": aug, "src": "v4"})
             print(f"[{i + 1}/{len(jobs)}] ok {aug} picks={len(picks)} | {msg}", flush=True)
-        time.sleep(SLEEP_SECONDS)
+        if called:
+            time.sleep(SLEEP_SECONDS)
 
     print(f"\n[teacher] {len(examples)}행 채택 · 교사 {calls}회 · 버림 {len(skipped)}")
     for msg, why in skipped:

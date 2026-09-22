@@ -140,9 +140,11 @@
   `~/lora_adapters/gguf/mova_20260922_064437-Q5_K_M.gguf`, `RECOMMENDATION_BACKEND=lora`,
   lora 실패 시 Gemini 자동 폴백. 회귀 **21/23**(Gemini 23/23) — FAIL은 배우 질의 2건이
   카탈로그가 있는데도 picks 0(`v3_honest` 과잉 일반화). 상세 WORK_LOG_MOVA 09-22 ⑮.
-- **v4 데이터**: `datasets/build_v4_dataset.py`(파드 실행) — v3 753행 새 카탈로그 형식
-  치환 + 실사용 60건·배우 60건 교사 재생성(서빙과 같은 혼합 카탈로그). 바탕화면
-  `mova/FT/mova-colab-v4/`. 코랩 실행은 사용자 몫, 산출물은 `out/v4/`로 분리.
+- **v4 데이터 완성(09-22 저녁) — 코랩 실행 대기**: `chat_teacher_dataset_v4.jsonl`
+  **895행**(rebuild 753 + 신규 142) 바탕화면 `mova/FT/mova-colab-v4/`, 노트북
+  `VERSION_TAG="v4"`, 산출물 드라이브 `out/v4/`. 학습 후: GGUF 다운로드 →
+  `LATEST_GGUF` 교체·`/reload` → `eval_chat_queries.py`(기준선 v3 21/23 · Gemini 23/23)
+  — **배우 질의 2건(송강호·마동석)이 살아나는지**가 합격 기준.
 - **후속(코드)**: ~~①~③~~ 09-22 저녁 완료 — `export_mova_gguf.py`가 `convert_exaone_gguf.py`
   경유 + peft 우회 내장 + 실경로 기본값, 격리 실행으로 운영 GGUF와 md5 동일 확인;
   venv 핀은 `_docs/lora-remote-gpu-ops.md` §1. 남은 것 ④ `chat`에 `intro` 저장 칼럼

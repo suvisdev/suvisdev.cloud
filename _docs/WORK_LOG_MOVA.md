@@ -363,8 +363,18 @@
   줄거리 784, 교사 호출 0, completion은 movie_id 기반이라 유효). ② teacher: 실사용
   질의 60건을 실제 파이프라인(새 형식 프롬프트)으로 재생성. ③ actor: DB 상위 배우
   30명×발화 2종 → **서빙과 같은 혼합 카탈로그**(actor+keyword)로 교사 호출, picks가
-  전부 그 배우 작품이고 1편 이상일 때만 채택(⑮ 회귀 교정). 결과는 바탕화면
-  `mova/FT/mova-colab-v4/`에 `chat_teacher_dataset_v4.jsonl`로.
+  전부 그 배우 작품이고 1편 이상일 때만 채택(⑮ 회귀 교정).
+- **결과 895행** = rebuild 753 + 신규 142(v4_teacher 83 · v4_actor 59/60). 교사 155회,
+  버림 17(카탈로그 밖 movie_id 13 · 카탈로그 비어 있음 3 · 배우 작품 아닌 pick 1).
+  picks 0편 행 192(정직·잡담·재요청 소진). 바탕화면 `mova/FT/mova-colab-v4/
+  chat_teacher_dataset_v4.jsonl`, 노트북 `VERSION_TAG="v4"`.
+- 운영 파드에 `kubectl exec`로 12분짜리 작업을 붙여 두면 **연결이 끊길 때 자식
+  프로세스가 같이 죽는다**(68/159에서 소리 없이 종료). `nohup` + 로그 파일로 바꾸고
+  교사 응답 캐시(`.v4_cache.json`, prompt sha1)를 넣어 재실행은 3회만 다시 불렀다.
+  파드의 `/suvisdev/datasets`는 로컬 마운트라 산출물이 root 소유로 바로 생긴다
+  (`kubectl cp`로 덮어쓰면 permission denied — 복사 불필요).
+- 데이터 품질 메모: 일부 `synopsis`가 줄거리가 아니라 크레딧("크리에이터: … / 출연: …")
+  이다(예: movie_id=2484). 색인·프롬프트 양쪽에 그대로 들어가니 다음 TMDB 동기화 때 정리.
 
 ### 오류·막힌 점 (추가)
 - 배포 스크립트를 **실행 중에 수정**해 bash가 스트리밍으로 읽다 line 61 문법 오류 —
