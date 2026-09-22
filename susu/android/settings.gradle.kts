@@ -21,6 +21,8 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.0.1" apply false
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
+    // Firebase(FCM) — app/google-services.json을 읽어 리소스로 굽는다(2026-09-22)
+    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 include(":app")

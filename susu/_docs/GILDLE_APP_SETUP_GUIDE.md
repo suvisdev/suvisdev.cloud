@@ -94,18 +94,12 @@ dependencies:
   firebase_messaging: ^15.1.5
 ```
 
-`android/build.gradle` (프로젝트 수준)
-```gradle
-plugins {
-    id "com.google.gms.google-services" version "4.4.2" apply false
-}
-```
-
-`android/app/build.gradle`
-```gradle
-plugins {
-    id "com.google.gms.google-services"
-}
+**적용 완료(09-22 밤, Kotlin DSL)** — 이 템플릿은 플러그인 선언이 `settings.gradle.kts`에 있다:
+```kotlin
+// android/settings.gradle.kts  plugins { … }
+id("com.google.gms.google-services") version "4.4.2" apply false
+// android/app/build.gradle.kts  plugins { … }
+id("com.google.gms.google-services")
 ```
 
 `android/app/src/main/AndroidManifest.xml` — Android 13+는 알림 권한이 필요하다
@@ -142,8 +136,11 @@ FCM 자체는 **무료**이고 발송량 제한도 사실상 없다. Firebase �
 
 1. **Play Console 개발자 계정** — $25, 신분 확인 (진행 중)
 2. ~~네이버 클라우드 플랫폼 → Maps → Application 등록 → Client ID~~ **받음·적용됨(09-22)**
-3. **Firebase** → 프로젝트 → Android 앱 추가 → **`google-services.json`**
-4. Firebase → 서비스 계정 → **비공개 키 JSON** (백엔드용, 서버에만 보관)
+3. ~~Firebase → 프로젝트 → Android 앱 추가 → google-services.json~~ **받음·배치됨(09-22 밤)**
+   — `susu/android/app/google-services.json`(gitignore), 프로젝트 `gildle`, 패키지 일치 확인.
+   Gradle 플러그인(`settings.gradle.kts` + `app/build.gradle.kts`, Kotlin DSL) 추가됨.
+4. ~~Firebase → 서비스 계정 → 비공개 키 JSON~~ **받음(09-22 밤)** — 노트북 `~/secrets/gildle-fcm.json`
+   (chmod 600, 저장소 밖). 백엔드 발송 코드가 생기면 `.env`에 경로로 연결한다.
 
 2~4를 받으면 나머지 코드 작업은 바로 진행할 수 있다.
 
