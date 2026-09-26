@@ -28,6 +28,30 @@
 
 ---
 
+## 2026-09-27
+
+### 작업 내용 (v5 코랩 노트북 — 드라이브 마운트 실패 대응)
+- 사용자가 v5 코랩을 돌리다 3번 셀 `drive.mount`에서 `ValueError: mount failed`(권한 팝업
+  미완료·팝업 차단 시 나는 일반 실패). 재시도 안내 후 사용자가 "v5 다시 만들어줘" 요청 →
+  드라이브가 없어도 끝까지 돌도록 노트북을 고쳤다.
+
+### 수정/구현
+- 바탕화면 `mova/FT/mova-colab-v5/mova_exaone_colab.ipynb`(저장소 `suvisdev/scripts/` 사본도 동일하게
+  동기화 — 수정 전 두 파일이 바이트 동일했음):
+  - 3번 셀: `drive.mount` 2회 시도(두 번째는 `force_remount=True`) → 실패 시 `DRIVE_OK=False`,
+    `DRIVE_DIR=/content/qwen-training`으로 폴백. 기존 "데이터 없으면 업로드 창" 로직이 그대로 이어받는다.
+  - 8번 셀 신설: `DRIVE_OK`면 경로만 출력, 아니면 어댑터+리포트를 zip(GGUF 제외)으로 `files.download`,
+    GGUF는 따로 `files.download`(1.7GB — 끊기면 어댑터 zip만으로 노트북 `export_mova_gguf.py` 변환).
+  - 0번 안내문·README 실행 절에 폴백 동작 명시. 셀 코드 `ast.parse` 통과 확인(코랩 실행은 사용자).
+
+### 오류·막힌 점
+- 사용자가 다른 코랩 노트북(`gs-macro-yolo`, 게임 매크로 YOLO)을 잘못 실행해 zip 없음 오류를 먼저 봤음 —
+  mova와 무관, 넘어감.
+
+### 산출물
+- 워크로그 본 항목. 진행 요약 v5 줄 갱신.
+
+
 ## 2026-09-22
 
 ### 작업 내용 (노트북 세션 — 멀티턴 학습 데이터셋 구축)
