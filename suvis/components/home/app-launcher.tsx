@@ -60,8 +60,8 @@ export function AppLauncher({ apps }: AppLauncherProps) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && e.nativeEvent.isComposing) e.preventDefault()
           }}
-          placeholder="무엇이든 물어보세요 — 진수택과 그의 앱에 대해"
-          aria-label="AI에게 질문"
+          placeholder="Suvisdev에게 물어보세요 — 진수택과 그의 앱에 대해"
+          aria-label="Suvisdev에게 질문"
           autoComplete="off"
           disabled={chat.loading}
           className="w-full bg-transparent text-base text-neutral-900 outline-none placeholder:text-neutral-500 disabled:opacity-60 dark:text-neutral-100"
