@@ -4,6 +4,7 @@ from ontology.adapter.inbound.api.v1.anomaly_detection_router import anomaly_det
 from ontology.adapter.inbound.api.v1.face_router import face_router
 from ontology.adapter.inbound.api.v1.harvester_router import harvester_router
 from ontology.adapter.inbound.api.v1.image_classifier_router import image_classifier_router
+from ontology.adapter.inbound.api.v1.portfolio_chat_router import portfolio_chat_router
 from ontology.adapter.inbound.api.v1.semantic_router import semantic_router
 from ontology.adapter.inbound.api.v1.sentiment_analysis_router import sentiment_analysis_router
 from ontology.adapter.inbound.api.v1.vision_router import vision_introduce_router
@@ -23,3 +24,7 @@ ontology_router.include_router(harvester_router)
 # NLP 라우터 — vision과 성격이 달라 별도로 export한다(Echo 감정 분석 시작점).
 nlp_router = APIRouter(prefix="/nlp", tags=["nlp"])
 nlp_router.include_router(sentiment_analysis_router)
+
+# 홈 포트폴리오 AI 채팅 — 프론트가 직접 부르는 공개 엔드포인트라 mova처럼 /api 없이 노출한다.
+portfolio_router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+portfolio_router.include_router(portfolio_chat_router)

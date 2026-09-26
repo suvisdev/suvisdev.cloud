@@ -44,13 +44,14 @@ class T1MidFakerOrchestrator:
         except httpx.TransportError:
             return False
 
-    def generate(
-        self, prompt: str, *, system: str | None = None, temperature: float | None = None
-    ) -> str:
-        """프롬프트를 self._model에 전달하고 응답 문자열을 반환한다.
-
-        temperature를 주지 않으면 모델 Modelfile 기본값을 쓴다(exaone3.5는 1).
-        """
+    def _build_body(
+        self,
+        prompt: str,
+        *,
+        system: str | None,
+        temperature: float | None,
+        num_ctx: int | None,
+    ) -> dict[str, object]:
         messages: list[dict[str, str]] = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -62,8 +63,31 @@ class T1MidFakerOrchestrator:
             "stream": False,
             "keep_alive": self._keep_alive,
         }
+        options: dict[str, float | int] = {}
         if temperature is not None:
-            body["options"] = {"temperature": temperature}
+            options["temperature"] = temperature
+        if num_ctx is not None:
+            # ollama 기본 컨텍스트는 4096 — 긴 근거를 넣을 때 명시하지 않으면 앞부분이
+            # 조용히 잘린다(2026-09-27 포트폴리오 채팅 실측: 근거 2,240토큰 + 시스템 프롬프트).
+            options["num_ctx"] = num_ctx
+        if options:
+            body["options"] = options
+        return body
+
+    def generate(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        temperature: float | None = None,
+        num_ctx: int | None = None,
+    ) -> str:
+        """프롬프트를 self._model에 전달하고 응답 문자열을 반환한다.
+
+        temperature를 주지 않으면 모델 Modelfile 기본값을 쓴다(exaone3.5는 1).
+        num_ctx를 주지 않으면 ollama 기본(4096)을 쓴다.
+        """
+        body = self._build_body(prompt, system=system, temperature=temperature, num_ctx=num_ctx)
 
         try:
             with httpx.Client(timeout=self._timeout) as client:

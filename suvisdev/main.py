@@ -42,7 +42,12 @@ from media.router import media_router
 from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
-from ontology.adapter.inbound.api import nlp_router, ontology_router, vision_router
+from ontology.adapter.inbound.api import (
+    nlp_router,
+    ontology_router,
+    portfolio_router,
+    vision_router,
+)
 from titanic.adapter.inbound.api import titanic_router
 from viewer.adapter.inbound.api import viewer_router
 from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
@@ -375,6 +380,7 @@ app.include_router(dispatch_router, prefix="/api/v1")
 app.include_router(contents_router, prefix="/api/v1")
 app.include_router(vision_router, prefix="/api")
 app.include_router(ontology_router, prefix="/api")
+app.include_router(portfolio_router)  # /portfolio/chat — 홈 AI 채팅(공개, IP 제한)
 app.include_router(nlp_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(media_router, prefix="/api")
