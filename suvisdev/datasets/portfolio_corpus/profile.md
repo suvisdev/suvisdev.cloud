@@ -21,7 +21,7 @@ AI 영화 추천(Mova), 반려견 산책 경로(Gildle), 모바일 앱(susu)까�
 아키텍처 위에서 기획부터 배포까지 전 과정을 개인 프로젝트로 수행했습니다.
 LoRA 파인튜닝과 Gemini API를 활용한 AI 파이프라인, Clean Architecture 기반 FastAPI 백엔드,
 Next.js + Flutter 멀티플랫폼 프론트엔드를 설계·구현하고 직접 운영하고 있습니다.
-포트폴리오 사이트는 suvisdev.cloud, 개발 블로그는 jk.suvisdev.cloud, GitHub 계정은 suvisdev입니다.
+포트폴리오 사이트는 https://suvisdev.cloud, 개발 블로그는 https://jk.suvisdev.cloud, GitHub은 https://github.com/suvisdev 입니다.
 연락은 사이트의 Contact 페이지를 통해 할 수 있습니다.
 
 주요 수치: 개발 기간 10주, 백엔드 테스트 550개 이상, Gildle 보행 그래프 233,964 edges.
@@ -41,14 +41,14 @@ Next.js + Flutter 멀티플랫폼 프론트엔드를 설계·구현하고 직접
 
 - **Mova** — AI 영화 추천 플랫폼. EXAONE-3.5-2.4B LoRA 파인튜닝 모델과 Gemini 듀얼 백엔드로 개인화
   추천을 하고, AI 리뷰 자동 생성, 박스오피스 랭킹, 영화 AI 챗봇을 제공합니다. 기술: FastAPI, Next.js,
-  EXAONE LoRA, Gemini, PostgreSQL, pgvector. 주소: suvisdev.cloud/mova
+  EXAONE LoRA, Gemini, PostgreSQL, pgvector. 주소: https://suvisdev.cloud/mova
 - **Gildle** — 반려견 산책 경로 추천. OpenStreetMap 기반 233,964 edges 보행 그래프에 나무 그늘·결빙 위험·
   반려견 친화라는 3축 환경 점수를 매겨 최적 경로를 찾습니다. 기술: FastAPI, OSM/osmnx, Leaflet, Next.js,
-  Overpass API. 주소: suvisdev.cloud/gildle
+  Overpass API. 주소: https://suvisdev.cloud/gildle
 - **suvisdev.cloud** — 모듈러 모놀리식 풀스택 플랫폼. Clean Architecture와 Star Topology(Hub-Spoke)로
   여러 앱을 한 백엔드에 통합했고, 소셜 로그인(Google·Kakao·Naver), RBAC 어드민, 방문자 통계를 갖췄습니다.
   기술: FastAPI, Next.js, Flutter, Docker, Kubernetes(k3s), Cloudflare Tunnel, Vercel.
-- **ARDA** — 팀 SEUK의 AI 채용 도우미(팀 프로젝트). 주소: seuk.suvisdev.cloud
+- **ARDA** — 팀 SEUK의 AI 채용 도우미(팀 프로젝트). 주소: https://seuk.suvisdev.cloud
 
 ## 기술 스택
 

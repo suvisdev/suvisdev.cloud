@@ -3,7 +3,8 @@ import type { ReactNode } from "react"
 // 홈 AI 채팅 답변용 최소 마크다운 렌더러 — 굵게·링크·URL·인라인 코드·목록·문단만 지원한다.
 // 시스템 프롬프트가 이 범위 안에서만 쓰도록 모델에 지시한다(표·제목·이미지 없음). 의존성 추가 없음.
 
-const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\((https?:\/\/[^\s)]+)\)|https?:\/\/[^\s)]+)/g
+// 링크 URL은 스킴이 없어도 허용한다(모델이 "suvisdev.cloud/mova"처럼 쓰는 경우 실측) — 렌더 시 https://를 붙인다.
+const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^\s)]+\)|https?:\/\/[^\s)]+)/g
 
 function renderInline(text: string): ReactNode[] {
   const nodes: ReactNode[] = []
@@ -24,9 +25,10 @@ function renderInline(text: string): ReactNode[] {
         </code>
       )
     } else {
-      const linkMatch = token.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/)
+      const linkMatch = token.match(/^\[([^\]]+)\]\(([^\s)]+)\)$/)
       const label = linkMatch ? linkMatch[1] : token
-      const href = linkMatch ? linkMatch[2] : token
+      const rawHref = linkMatch ? linkMatch[2] : token
+      const href = /^https?:\/\//.test(rawHref) ? rawHref : `https://${rawHref}`
       nodes.push(
         <a
           key={start}
