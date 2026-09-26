@@ -51,6 +51,34 @@
 ### 산출물
 - 워크로그 본 항목. 진행 요약 v5 줄 갱신.
 
+### 작업 내용 (추가 — v5 어댑터 GGUF 변환·운영 회귀, 새벽)
+- 사용자가 v5 코랩을 완주해 바탕화면 `mova/FT/v5/`에 어댑터 `mova_20260926_161748`(85MB)+리포트를 둠.
+  코랩 지표는 v4보다 나빴지만(학생 pass 82%, 심판 6.93 vs 8.86, 실패 5건 전부 `ref_pick_ok` — 송강호·
+  라미란 배우 질의와 `mt_again` 3건이 후보 있는데 0편) 운영 회귀는 별개라 변환·실측까지 진행.
+- 절차(09-22 ㉑과 동일): 어댑터 `~/lora_adapters/`로 복사 → `LATEST`·`LATEST_GGUF` 백업
+  (`*.bak-v4-20260927`) → `systemctl --user stop lora-server`(VRAM 265MB 확인) →
+  `~/.venv-exaone/bin/python scripts/export_mova_gguf.py` 한 번에 통과(약 6분, 병합 시 VRAM 5.3GB) →
+  `start` → health가 `mova_20260926_161748-Q5_K_M.gguf` 표시.
+- **운영 회귀 결과(NodePort 31386)**: `eval_chat_queries.py` **23/23 PASS**(v4 21/23·Gemini 23/23 —
+  송강호·마동석·2000년대 초반·법정 드라마 전부 PASS, v4의 회귀 2건 회복 + 배우 유지).
+  `eval_chat_multiturn.py` 첫 실행 5/6 — 5번 장면(후보 제시→"26년꺼")이 500. 파드 로그상 원인은
+  `MycroftInteractor`→`gemini_llm_adapter` **Gemini 503 UNAVAILABLE**이 `HubRagError`로 올라와 500이 된
+  것으로 lora 무관(코랩·운영 모두 이날 Gemini 503 잦음). `--only 26년` 재실행 **PASS** → 사실상 6/6.
+- **결정: v5 유지(운영 서빙 중)**. v4 유지 vs v3 롤백 결정 대기는 v5로 해소. 롤백 필요 시
+  `LATEST_GGUF`를 `mova_20260922_124254-Q5_K_M.gguf`로 되돌리고 `:8200/reload`.
+- 교훈: **코랩 28건 평가셋과 운영 23질의가 두 회차 연속 반대로 갈렸다**(v4·v5 모두 코랩에선 후퇴,
+  운영에선 전진). 코랩 평가셋(홀드아웃 14원본+멀티턴)은 "정답 있는 픽" 재현률에 민감하고, 운영
+  하네스는 결정론 규칙(recs 유무·연도·금지 픽)이라 재는 것이 다르다. 코랩 심판 점수로 내보내기
+  여부를 정하면 v5를 버렸을 것 — 내보내기 판단은 운영 하네스 우선.
+
+### 오류·막힌 점 (추가)
+- 회귀 스크립트를 시스템 `python3`으로 돌리면 `httpx` 없음 — `~/.venv-exaone/bin/python`으로 실행.
+- Gemini 503이 mova 채팅 500으로 새는 경로(`HubRagError` 미처리)는 백로그로.
+
+### 산출물 (추가)
+- `~/lora_adapters/gguf/mova_20260926_161748-Q5_K_M.gguf`(1.73GB) 운영 서빙. 리포트는 바탕화면
+  `mova/FT/v5/eval_report_20260926_161748.json`. 코드 변경 없음(미커밋 문서만).
+
 
 ## 2026-09-22
 

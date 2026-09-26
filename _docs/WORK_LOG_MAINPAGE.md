@@ -55,6 +55,56 @@
   09-17~09-23 커밋 16개(`d0fd885`~`34181a4`)도 이번에 함께 올라갔다.
 
 
+### 작업 내용 (추가 — 홈 입력창을 AI 채팅으로: 포트폴리오 문서 RAG 챗봇)
+- 사용자 정정: 홈 입력창은 앱 검색이 아니라 **클로드·제미나이처럼 AI가 붙은 대화 입구**이고, 오케스트레이터는
+  "지금 쓰는 7.8B"(노트북 ollama `exaone3.5:7.8b`). 결정 3건: 자료는 공개용 세트만·개인정보는 이름/학력 수준·
+  누구나 + IP 레이트리밋. "파인튜닝 필요하면 코랩" — 이번엔 불필요(근거 주입 RAG).
+- 조사(Explore 에이전트 2건)로 확정한 설계: **새 앱 없음**. 문서 RAG 스택(EmbeddingPort·pgvector `hub_knowledge`·
+  HubLlmPort·FallbackHubLlmAdapter)이 전부 ontology(Hub)에 있고 `source` 칼럼으로 분리되므로 ontology에
+  `portfolio` 유스케이스·라우터를 얹고 `source='portfolio_doc'` 행으로 색인. **마이그레이션 0건**. 도구 호출 루프도
+  없음 — EXAONE 3.5 템플릿에 tool 형식이 없고(`ollama show --template` 실측) 답의 근거는 전부 문서라 매 질문
+  검색→근거 주입이 더 단순·안정. 계획서 `suvisdev/_docs/plans/2026-09-27-portfolio-chat.md`.
+- 7.8B 실측(설계 전): num_ctx 8192에서 5.7GB, lora-server(2.4GB)와 동시 상주 가능(합 7.8/8.2GB), 콜드 5s·근거
+  2,240토큰 응답 7s. **ollama 기본 num_ctx 4096이라 근거가 잘림** → 오케스트레이터에 `num_ctx` 옵션 추가가 필수였음.
+
+### 수정/구현 (추가)
+- `core/lol/t1_mid_faker_orchestrator.py`: `generate(..., num_ctx=None)` + 본문 조립 `_build_body` 분리(테스트 가능).
+- ontology 신규: `exaone_llm_adapter.py`(7.8B·temperature 0·num_ctx 8192·keep_alive 5m, FakerOrchestratorError→
+  HubRagError로 감싸 폴백이 걸리게), `portfolio_chat_dto.py`(Command.from_schema/Dto.to_schema lazy import),
+  `portfolio_chat_use_case.py`, `portfolio_chat_interactor.py`(top-6·유사도 0.15 컷·근거 없으면 LLM 미호출 고정 답·
+  히스토리 6턴·시스템 프롬프트에 연락처 금지 규칙), `portfolio_chat_schema.py`(message 1~1000·history≤10),
+  `rate_limit.py`(mova 것 복제 — Spoke import 금지), `portfolio_chat_router.py`(`POST /portfolio/chat`, 업스트림
+  오류는 일반 문구+로그), `portfolio_chat_provider.py`(`PORTFOLIO_LLM_BACKEND` exaone(기본, Gemini 폴백)/gemini).
+  `api/__init__.py`에 `portfolio_router`, `main.py`에 prefix 없이 include.
+- `scripts/ingest_portfolio_docs.py`: md → front matter/HTML 주석 제거 → `## ` 단위 청크(1500자 초과 재분할·200자 미만
+  병합·20자 미만 폐기) → `HubRagInteractor.ingest_movie`(범용 upsert) → `portfolio:<stem>#<n>`. `--reset/--dry-run`.
+- `datasets/portfolio_corpus/profile.md`: /resume 공개 페이지에서 옮긴 프로필(이름·학력·교육·프로젝트·기술 스택),
+  **전화·이메일 제외**. 1차 색인 뒤 "학력이 어떻게 돼?"가 Gildle 청크(0.41)를 잡길래 학력 절을 독립 청크로
+  보강(0.43~0.51로 1위 회복). 청크 제목이 임베딩에 같이 들어가므로 절 제목이 검색어와 맞아야 한다.
+- 테스트 4파일 16건 신규(오케스트레이터 본문 3·인터랙터 5·스위치 4·라우터 5 — 429 포함). ontology+core/lol 전체
+  119 passed. ruff·mypy(내 파일)·lint-imports 6/6·`import main`·env drift 통과.
+- 프론트: `app/api/portfolio/chat/route.ts`(프록시, 무인증), `lib/portfolio-api.ts`(`sendPortfolioChat`,
+  `safeApiErrorMessage`), `components/home/portfolio-chat-panel.tsx`(표시 전용), `app-launcher.tsx`를 필터→채팅
+  전송으로(낙관적 추가·실패 롤백·IME 가드). type-check·lint·prettier 통과.
+
+### 오류·막힌 점 (추가)
+- 노트북엔 pytest 환경이 없다(프로젝트 `.venv`는 gildle용 슬림). 스크래치 `uv venv`에 경량 의존성 + CPU torch
+  계열로 구성 — ontology `api/__init__.py`가 비전 라우터를 즉시 import해 라우터 테스트만 돌려도 torch·ultralytics·
+  peft까지 필요했다(mova/analytics는 lazy `__getattr__`라 이 문제가 없음. 손대지 않음, 후보로 기록).
+- 호스트 색인 실행에 `psycopg-binary` 필요(없으면 "no pq wrapper").
+- `check_env_drift.py`는 이전부터 exit 1(REDIRECT_URI·PGADMIN 등 7키). 새 PORTFOLIO_* 3키는 `.env`에 명시.
+
+### 데이터 (추가)
+- `hub_knowledge` `portfolio_doc` **124청크**(profile 4 + 지킬 about/overview/mova/gildle/devlog + `_posts` 26편).
+  bge-m3(ollama) 임베딩, 실패 0. 재색인은 `--reset`.
+
+### 산출물 (추가)
+- 백엔드 `./k8s/deploy.sh --external-db --build` 배포, 운영 스모크(NodePort): "만든 앱"(콜드 10.3s, 근거 6청크로
+  Mova·Gildle·suvisdev.cloud 정확) · "학력"(5.5s, 경상대 건축공학과 자퇴·하이미디어 과정) · "전화번호"(1.3s,
+  "Contact 페이지 참고, 공개되지 않음") · "오늘 날씨"(2.4s, 자료에 없음). **mova 23질의 회귀 23/23 유지**(7.8B
+  상주 중 VRAM 7,833/8,188MB, 2.4B 라우터는 밀려났다 재로드).
+- 커밋 해시는 아래 09-27 후속 줄에 기록.
+
 ## 2026-09-22
 
 ### 작업 내용 (인프라 — 배포 스크립트 이미지 정리 · 무료 호스팅 검토)
