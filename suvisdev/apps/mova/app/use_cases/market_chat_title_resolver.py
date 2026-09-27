@@ -41,9 +41,48 @@ def _strip_particle(word: str) -> str:
     return _PARTICLES.sub("", word)
 
 
+# 앞 어절 후보에서 제외할 일반어 — "지금 예매…"의 '지금'이 제목이 되면 안 된다.
+_LEADING_STOPWORDS = frozenset(
+    {
+        "지금",
+        "오늘",
+        "내일",
+        "이번",
+        "당장",
+        "바로",
+        "근처",
+        "우리집",
+        "여기",
+        "거기",
+        "그",
+        "이",
+        "저",
+        "영화",
+    }
+)
+
+
+def _leading_candidates(message: str) -> list[str]:
+    """문장 앞 1~2어절(원형 그대로). "파과 예매할 수 있게 시간봐줘 그럼"처럼 꼬리 규칙이
+    못 떼는 자유 문장에서 제목이 맨 앞에 오는 관례를 이용한다. 조사는 여기서 떼지 않는다 —
+    "파과"의 '과'를 조사로 보고 '파'를 만든 것이 2026-09-27 스파이더맨 오매칭의 원인이다."""
+    words = [w for w in message.strip().split() if w]
+    out: list[str] = []
+    if words and words[0] not in _LEADING_STOPWORDS and len(words[0]) >= 2:
+        out.append(words[0])
+        if (
+            len(words) >= 2
+            and words[1] not in _LEADING_STOPWORDS
+            and not _TRAILING_PATTERN.fullmatch(words[1])
+        ):
+            out.append(f"{words[0]} {words[1]}")
+    return out
+
+
 def _title_terms(message: str, entities: list[str]) -> list[str]:
-    """분류기 entities(제목이 첫 번째 관례) 우선, 발화에서 꼬리 어휘를 뗀 후보 보강."""
-    terms = [e.strip() for e in entities if e.strip()]
+    """분류기 entities(제목이 첫 번째 관례) 우선, 발화에서 꼬리 어휘를 뗀 후보 보강.
+    1자 엔티티는 버린다 — '파'가 부분일치로 스파이더맨·임파서블을 끌어온다."""
+    terms = [e.strip() for e in entities if len(e.strip()) >= 2]
     stripped = message.strip().rstrip("?!.~ ")
     prev = None
     while prev != stripped:  # "예매하고 싶어"처럼 어휘가 겹쳐 붙은 꼬리를 반복 제거
@@ -51,14 +90,18 @@ def _title_terms(message: str, entities: list[str]) -> list[str]:
         stripped = _TRAILING_PATTERN.sub("", stripped).strip()
     if stripped and stripped not in terms:
         terms.append(stripped)
+    for cand in _leading_candidates(message):
+        if cand not in terms:
+            terms.append(cand)
 
-    # 조사 분리 — "더문은 쩸 쓰나"에서 첫 어절 "더문은" → "더문"
+    # 조사 분리 — "더문은 쩸 쓰나"에서 첫 어절 "더문은" → "더문".
+    # 1자 어간은 버린다: "파과"→"파"가 부분일치로 무관 제목을 끌어왔다(2026-09-27).
     extra: list[str] = []
     for t in terms:
         words = t.split()
         if words:
             stem = _strip_particle(words[0])
-            if stem and stem != words[0] and stem not in terms:
+            if len(stem) >= 2 and stem != words[0] and stem not in terms:
                 extra.append(stem)
     terms.extend(extra)
     return terms[:6]

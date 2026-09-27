@@ -32,8 +32,10 @@ from mova.app.use_cases.market_chat_evaluation_interactor import (  # noqa: E402
     MovieEvaluationService,
 )
 from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
+    _GENERAL_CHAT_SYSTEM_PROMPT,
     ChatInteractor,
     _is_bare_eval_followup,
+    _is_booking_lexicon,
     pick_from_choice_list,
 )
 from mova.app.use_cases.market_chat_title_resolver import (  # noqa: E402
@@ -113,6 +115,60 @@ class TitleResolverTests(unittest.IsolatedAsyncioTestCase):
         await resolve_movie_title(repo, message="인셉션이 재밌어", entities=[])
         terms = repo.search_movies_by_title.await_args.args[0]
         self.assertTrue(any("인셉션" in t for t in terms))
+
+
+class TitleResolverLeadingCandidateTests(unittest.IsolatedAsyncioTestCase):
+    """2026-09-27 실사용: "파과 예매할 수 있게 시간봐줘 그럼"이 스파이더맨 후보로 되물었다."""
+
+    async def test_leading_word_is_tried_when_tail_rule_fails(self) -> None:
+        repo = AsyncMock()
+
+        async def search(terms, limit):
+            return [_item(2315, "파과", "2025")] if "파과" in terms else []
+
+        repo.search_movies_by_title.side_effect = search
+        res = await resolve_movie_title(
+            repo, message="파과 예매할 수 있게 시간봐줘 그럼", entities=[]
+        )
+        self.assertEqual(res.status, "ok")
+        self.assertEqual(res.item.title, "파과")
+
+    async def test_single_char_entity_is_dropped(self) -> None:
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = []
+        repo.fuzzy_search_movies_by_title.return_value = []
+        await resolve_movie_title(repo, message="파과 시간봐줘 그럼", entities=["파"])
+        terms = repo.search_movies_by_title.await_args.args[0]
+        self.assertNotIn("파", terms)
+        self.assertIn("파과", terms)
+
+    async def test_leading_stopword_not_a_candidate(self) -> None:
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = []
+        repo.fuzzy_search_movies_by_title.return_value = []
+        await resolve_movie_title(repo, message="지금 인턴 시간봐줘", entities=[])
+        terms = repo.search_movies_by_title.await_args.args[0]
+        self.assertNotIn("지금", terms)
+
+
+class BookingLexiconGuardTests(unittest.TestCase):
+    def test_showtime_words_route_to_booking(self) -> None:
+        for m in (
+            "인턴 영화 시간표 보여줘",
+            "호프 상영 시간 알려줘",
+            "파과 예매할 수 있게",
+            "영화관 어디야",
+            "군자에 롯데시네마가 있어?",
+        ):
+            self.assertTrue(_is_booking_lexicon(m), m)
+
+    def test_recommend_and_plain_chat_are_not_booking(self) -> None:
+        for m in ("영화관에서 볼만한 거 추천해줘", "안녕", "인턴 줄거리 알려줘", "군자"):
+            self.assertFalse(_is_booking_lexicon(m), m)
+
+    def test_general_prompt_forbids_realtime_facts(self) -> None:
+        self.assertIn("시간표", _GENERAL_CHAT_SYSTEM_PROMPT)
+        self.assertIn("지어내지", _GENERAL_CHAT_SYSTEM_PROMPT)
 
 
 class BareEvalFollowupDetectorTests(unittest.TestCase):
@@ -654,6 +710,19 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.response_type, "booking")
         interactor._classifier.classify.assert_not_awaited()
         self.assertEqual(booking.assist.await_args.kwargs["pending_title"], "호프")
+
+    async def test_booking_lexicon_skips_general_classifier(self) -> None:
+        """분류기가 general이라 해도 '시간표' 발화는 booking으로 간다(2026-09-27 실사용)."""
+        from mova.app.use_cases.market_chat_booking_interactor import BookingResult
+
+        interactor, _repo, _, booking = self._interactor(destination="general")
+        booking.assist.return_value = BookingResult(
+            status="ok", reply="『인턴』 상영관을 찾아드릴게요.", card=None, booking=None
+        )
+        response = await interactor.chat(MovaChatRequest(message="인턴 영화 시간표 보여줘"))
+        self.assertEqual(response.response_type, "booking")
+        interactor._classifier.classify.assert_not_awaited()
+        interactor._general.ask.assert_not_awaited()
 
     async def test_pending_region_yields_to_topic_change(self) -> None:
         """지역 되묻기 뒤 "옵세션 줄거리 알려줘"는 지역명이 아니다(2026-09-22 실사용:

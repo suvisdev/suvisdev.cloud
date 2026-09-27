@@ -46,8 +46,30 @@ _GENERAL_CHAT_SYSTEM_PROMPT = (
     "너는 mova의 영화 대화 도우미다. 영화/작품 관련 일반 질문에 한국어로 간결하고 "
     "자연스럽게 답한다. 추천 요청이면 목록을 나열하지 말고 대화로 안내한다. "
     "[이전 대화]가 주어지면 그 흐름에 이어서 답하고, 사용자가 불만이나 지적을 "
-    "하면 인사말 없이 짧게 사과한 뒤 어떻게 다시 요청하면 되는지 한 가지만 안내한다."
+    "하면 인사말 없이 짧게 사과한 뒤 어떻게 다시 요청하면 되는지 한 가지만 안내한다. "
+    # 2026-09-27 실사용: 시간표 질의가 general로 새자 '롯데시네마 군자점 14:10·17:30'을
+    # 지어냈다. 실시간 사실은 이 트랙이 알 수 없다는 것을 프롬프트에 못 박는다.
+    "너는 상영 시간표·상영 회차·영화관 지점·예매 가능 여부·좌석 같은 실시간 정보를 "
+    "전혀 알 수 없다. 그런 질문에는 모른다고 분명히 말하고 절대 지어내지 않으며, "
+    "'○○ 예매하고 싶어'처럼 작품명과 함께 예매를 요청하면 상영관을 찾아 준다고만 안내한다."
 )
+
+# 예매·시간표 어휘가 든 발화는 분류기 결과와 무관하게 booking 트랙으로 보낸다 —
+# 분류기가 "인턴 영화 시간표 보여줘"를 general로 넘겨 Gemini가 시간표를 지어냈다
+# (2026-09-27 실사용). booking은 시간표를 모르면 체인 검색 링크로 위임하므로 안전하다.
+# '추천'이 섞인 발화("영화관에서 볼만한 거 추천")는 추천 트랙 몫이라 제외한다.
+_BOOKING_LEXICON = re.compile(
+    r"시간표|상영\s*(?:시간|회차|스케줄)|예매|예약|상영관|상영\s*중|회차"
+    r"|(?:영화관|극장)\s*(?:어디|찾|알려|있|근처|주변)"
+    # 체인명 자체도 예매 문맥이다 — "군자에 롯데시네마가 있어?"(2026-09-27 실사용)
+    r"|CGV|씨지브이|롯데시네마|메가박스"
+)
+_RECOMMEND_WORD = re.compile(r"추천")
+
+
+def _is_booking_lexicon(message: str) -> bool:
+    return bool(_BOOKING_LEXICON.search(message)) and not _RECOMMEND_WORD.search(message)
+
 
 # 평가를 들은 뒤의 긍정 반응 — chat_trend 조건부 신호(2026-08-28 결정: 단순
 # 질의는 미집계, 긍정 반응·예매 의지만 반영). 실측 사례가 쌓이면 보강한다.
@@ -298,8 +320,14 @@ class ChatInteractor(ChatUseCase):
         #    crud) — 영화와 무관한 잡담(general)은 추천 파이프라인을 타지 않고
         #    Gemini(Mycroft)로 바로 위임한다. mova/chat엔 실제 CRUD 기능이 없으므로
         #    (crud는 분류기가 가끔 오분류하는 잡음에 가깝다) general과 동일 처리.
+        if self._booking is not None and _is_booking_lexicon(request.message):
+            logger.info("[ChatInteractor] trace=%s booking 어휘 선분기(분류기 생략)", trace_id)
+            return await self._reply_booking(request, trace_id, entities=[], pending_title=None)
+
         destination, entities = await self._classifier.classify(request.message)
-        logger.info("[ChatInteractor] trace=%s destination=%s", trace_id, destination)
+        logger.info(
+            "[ChatInteractor] trace=%s destination=%s entities=%s", trace_id, destination, entities
+        )
 
         # 평가 직후의 긍정 반응은 chat_trend 조건부 신호로 기록(발화 자체는
         # 원래 갈 곳으로 계속 흘린다 — 보통 general).
