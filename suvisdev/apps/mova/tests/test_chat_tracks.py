@@ -133,6 +133,25 @@ class TitleResolverLeadingCandidateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res.status, "ok")
         self.assertEqual(res.item.title, "파과")
 
+    async def test_mid_sentence_exact_word_beats_fuzzy(self) -> None:
+        """ "군자에서 인턴 오늘 몇 시에 볼 수 있어?" — 앞 어절 '군자'가 퍼지로 군체·감자를
+        끌어오기 전에, 어절 '인턴'의 정확 일치를 잡는다(2026-09-27 라이브)."""
+        repo = AsyncMock()
+        calls: list[list[str]] = []
+
+        async def search(terms, limit):
+            calls.append(list(terms))
+            return [_item(1019, "인턴", "2015")] if "인턴" in terms else []
+
+        repo.search_movies_by_title.side_effect = search
+        repo.fuzzy_search_movies_by_title.return_value = [_item(7, "군체", "2026")]
+        res = await resolve_movie_title(
+            repo, message="군자에서 인턴 오늘 몇 시에 볼 수 있어?", entities=[]
+        )
+        self.assertEqual(res.status, "ok")
+        self.assertEqual(res.item.title, "인턴")
+        repo.fuzzy_search_movies_by_title.assert_not_awaited()
+
     async def test_single_char_entity_is_dropped(self) -> None:
         repo = AsyncMock()
         repo.search_movies_by_title.return_value = []
@@ -159,11 +178,18 @@ class BookingLexiconGuardTests(unittest.TestCase):
             "파과 예매할 수 있게",
             "영화관 어디야",
             "군자에 롯데시네마가 있어?",
+            "군자에서 인턴 오늘 몇 시에 볼 수 있어?",
         ):
             self.assertTrue(_is_booking_lexicon(m), m)
 
     def test_recommend_and_plain_chat_are_not_booking(self) -> None:
-        for m in ("영화관에서 볼만한 거 추천해줘", "안녕", "인턴 줄거리 알려줘", "군자"):
+        for m in (
+            "영화관에서 볼만한 거 추천해줘",
+            "안녕",
+            "인턴 줄거리 알려줘",
+            "군자",
+            "몇 시간짜리 영화야?",
+        ):
             self.assertFalse(_is_booking_lexicon(m), m)
 
     def test_general_prompt_forbids_realtime_facts(self) -> None:

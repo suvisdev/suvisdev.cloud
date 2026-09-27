@@ -79,6 +79,22 @@ def _leading_candidates(message: str) -> list[str]:
     return out
 
 
+def _word_candidates(message: str) -> list[str]:
+    """문장의 어절(조사 제거, 2자 이상, 불용어·꼬리 어휘 제외) — 정확 일치 전용."""
+    out: list[str] = []
+    for w in message.strip().rstrip("?!.~ ").split():
+        stem = _strip_particle(w)
+        for cand in (w, stem):
+            if (
+                len(cand) >= 2
+                and cand not in _LEADING_STOPWORDS
+                and not _TRAILING_PATTERN.fullmatch(cand)
+                and cand not in out
+            ):
+                out.append(cand)
+    return out[:8]
+
+
 def _title_terms(message: str, entities: list[str]) -> list[str]:
     """분류기 entities(제목이 첫 번째 관례) 우선, 발화에서 꼬리 어휘를 뗀 후보 보강.
     1자 엔티티는 버린다 — '파'가 부분일치로 스파이더맨·임파서블을 끌어온다."""
@@ -120,6 +136,16 @@ async def resolve_movie_title(
 
     items = await repository.search_movies_by_title(terms, _CANDIDATE_LIMIT)
     if not items:
+        # 어절 정확 일치 — "군자에서 인턴 오늘 몇 시에 볼 수 있어?"처럼 제목이 문장 중간에
+        # 있으면 앞 어절 후보('군자')가 퍼지로 군체·구원자·감자를 끌어온다(2026-09-27 라이브).
+        # 퍼지 전에 각 어절(조사 뗀 것)이 제목과 정확히 같은지 본다.
+        words = _word_candidates(message)
+        if words:
+            by_word = await repository.search_movies_by_title(words, _CANDIDATE_LIMIT)
+            word_norms = {_normalize(w) for w in words}
+            exact_words = [i for i in by_word if _normalize(i.title) in word_norms]
+            if exact_words:
+                return TitleResolution(status="ok", item=exact_words[0], candidates=by_word)
         # 퍼지 폴백 — 자모 편집거리로 가장 유사한 제목을 찾는다.
         items = await repository.fuzzy_search_movies_by_title(terms, _CANDIDATE_LIMIT)
         if not items:
