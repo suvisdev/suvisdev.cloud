@@ -30,11 +30,25 @@ Dio createDio() {
         }
         handler.next(options);
       },
-      onError: (error, handler) {
+      onError: (error, handler) async {
         debugPrint(
           '[Dio] ${error.requestOptions.method} ${error.requestOptions.path} '
           '-> ${error.response?.statusCode ?? '-'} ${error.message}',
         );
+        // access token 만료(10분) — refresh 성공 시 같은 요청을 한 번만 다시 보낸다.
+        final options = error.requestOptions;
+        if (error.response?.statusCode == 401 && options.extra['retried'] != true) {
+          if (await AuthSession.refresh()) {
+            final token = await AuthSession.readAccessToken();
+            options.headers['Authorization'] = 'Bearer $token';
+            options.extra['retried'] = true;
+            try {
+              return handler.resolve(await dio.fetch(options));
+            } on DioException catch (e) {
+              return handler.next(e);
+            }
+          }
+        }
         handler.next(error);
       },
     ),

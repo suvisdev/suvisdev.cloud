@@ -30,6 +30,45 @@
 
 ## 2026-09-27
 
+### 작업 내용 (오후 — 산책 중 · 기록 · 내 정보 화면 · 토큰 갱신 · push-tokens · app/version · APK)
+- 오전 작업 배포·커밋(`0457d0d`) 뒤 사용자 지시로 "산책 중 화면부터 쭈욱": ① 산책 중 → ② 기록·상세·
+  내 정보 탭 → ④ 실기기용 디버그 APK → ⑤ `app/version` → ③ FCM 토큰 등록(백엔드 테이블·API 포함).
+  ⑥ `scored_edges.json` DB 이전은 착수하지 않았다(별도 세션 분량).
+
+### 수정/구현 (오후)
+- **access 토큰 자동 갱신** — 산책은 10분(access TTL)을 넘기므로 필수였다. `AuthSession.refresh()`
+  (`POST /auth/mobile/refresh`, 로테이션된 두 토큰 저장, 동시 401은 한 번만 재발급, 401이면 세션
+  삭제·네트워크 오류면 보존) + dio 인터셉터가 401에서 refresh 후 같은 요청을 **1회** 재시도
+  (`extra['retried']` 가드). 09-22 auth.dart 주석의 "refresh 미구현" 해소.
+- **산책 중** `walk_session_controller.dart`·`walk_screen.dart`: geolocator `AndroidSettings`
+  (best, distanceFilter 5m, **포그라운드 서비스 알림** — 화면이 꺼져도 추적, 백그라운드 위치 권한은
+  불필요) 스트림, 정확도 30m 초과 점 폐기·2m 미만 이동 무시, 1초 타이머로 경과. 지도에 계획 경로(회색
+  점선)·걸은 길(초록) 오버레이, 거리·시간·페이스 카드. 종료 확인 → 점 2개 미만이면 "버리기/그래도
+  저장" → `POST /walks`(5,000점 초과는 등간격 솎기, `season_mode`=계획 모드, `avg_shade_score`=계획
+  경로 그늘 비율) → 상세 화면으로 교체. `PopScope`로 추적 중 뒤로가기는 종료 확인으로.
+- **기록·상세·내 정보** `walks_screen.dart`(통계 카드 + 목록, 당겨서 새로고침, autoDispose
+  FutureProvider라 탭 진입마다 재조회)·`walk_detail_screen.dart`(폴리라인 fitBounds + 수치 + 삭제
+  확인)·`profile_screen.dart`(누적 통계·로그아웃). `main.dart` `HomeScreen`을 3탭 `NavigationBar` +
+  `IndexedStack`(탭 전환에도 지도 상태 유지)으로. 지도 하단 카드에 "산책 시작/이 길로 산책 시작".
+  공용 `format.dart`(StatTile·km·시간·날짜·모드 라벨).
+- **매니페스트**: `FOREGROUND_SERVICE`·`FOREGROUND_SERVICE_LOCATION`(Android 14 필수)·
+  `POST_NOTIFICATIONS`.
+- **백엔드 `push_tokens`**(`20260927_0001`, token 유일키, users FK 없음) — 엔티티(platform
+  android|ios 검증)·출력 포트(upsert/delete)·인터랙터·PG 저장소·`POST/DELETE /api/gildle/push-tokens`
+  (`require_user`, 204). 남의 토큰 삭제는 조용히 무시(멱등). **발송 코드는 없다** — 보낼 알림이 정해지면
+  출력 포트를 더한다(서비스 계정 키 `~/secrets/gildle-fcm.json`).
+- **`GET /api/gildle/app/version?platform=android`** — `GILDLE_APP_MIN_VERSION`·`_LATEST_VERSION`·
+  `_STORE_URL` 환경변수(기본 1.0.0). 앱은 `package_info_plus`로 자기 버전을 읽어 min 미만이면 닫을 수
+  없는 안내(스토어 링크는 등록 후 `store_url`로). 확인 실패는 막지 않는다.
+- **앱 FCM** `app_services.dart`: 홈 진입 시 `Firebase.initializeApp` → 권한 → `getToken` → 등록,
+  `onTokenRefresh` 재등록, 로그아웃 때 해제(best-effort). 초기화 실패는 로그만(푸시 없이 동작).
+- 테스트: 인터랙터 3건(asyncio)·라우터 3건 → gildle **239 passed**, ruff·mypy·lint-imports 통과.
+  Flutter analyze 0 issues, 테스트 3/3(Windows 복사본).
+- **배포·마이그레이션(오후)**: `deploy.sh --external-db --build` 롤아웃 → 파드에서 `alembic upgrade head`
+  (`20260922_0002 → 20260927_0001`, `push_tokens` 생성). 프로덕션 `app/version` 200(1.0.0), `push-tokens`
+  무인증 401 확인. 디버그 APK 241MB → 바탕화면 `길들/gildle-debug-20260927.apk`(Gradle 55초, Windows 복사본).
+  **실기기 확인은 아직** — 폰에 설치해 지도 인증·위치 권한·산책 저장까지 봐야 한다.
+
 ### 작업 내용 (앱 지도 화면 · susu 정리 · `/routes` 점검 · 수관 데이터 · A* 모드별 배율)
 - 사용자 지시 순서대로 ①Flutter 지도 화면 → ②susu를 gildle 앱으로 정리 → ③`/routes`
   점검 → ④나무 데이터 보강 → ⑥모드별 A* 휴리스틱. ⑤그늘 실측(사진)은 앱이 나온 뒤로 미룸.

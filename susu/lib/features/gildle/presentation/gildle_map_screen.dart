@@ -6,17 +6,17 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/gildle_theme.dart';
 import '../domain/geo_point.dart';
 import '../domain/season_mode.dart';
+import 'format.dart';
 import 'map_controller.dart';
+import 'walk_screen.dart';
+import 'walk_session_controller.dart';
 
 const _seoulCenter = NLatLng(37.5665, 126.9780);
 const _walkSpeedMps = 1.2; // 백엔드 `_WALK_SPEED_M_PER_S`와 같은 값
 
 /// 지도 — 출발·도착을 찍으면 계절 모드 경로를, 루프 버튼은 출발점 기준 산책 루프를 그린다.
 class GildleMapScreen extends ConsumerStatefulWidget {
-  const GildleMapScreen({super.key, this.actions = const []});
-
-  /// 상단 앱바 오른쪽 버튼(로그아웃 등) — 화면 조합은 main.dart가 정한다.
-  final List<Widget> actions;
+  const GildleMapScreen({super.key});
 
   @override
   ConsumerState<GildleMapScreen> createState() => _GildleMapScreenState();
@@ -35,7 +35,7 @@ class _GildleMapScreenState extends ConsumerState<GildleMapScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('길들'), actions: widget.actions),
+      appBar: AppBar(title: const Text('길들')),
       body: Stack(
         children: [
           NaverMap(
@@ -293,6 +293,15 @@ class _BottomPanel extends ConsumerWidget {
                 ],
               ),
             ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _startWalk(context),
+                icon: const Icon(Icons.directions_walk),
+                label: Text(lengthM != null ? '이 길로 산책 시작' : '산책 시작'),
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               '경로 데이터 © OpenStreetMap contributors',
@@ -302,6 +311,20 @@ class _BottomPanel extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// 경로가 있으면 계획 경로로 넘긴다 — 산책 중 화면이 회색 점선으로 깔고, 그늘 비율은 기록에 저장된다.
+  void _startWalk(BuildContext context) {
+    final coords = state.displayedCoordinates;
+    final loop = state.currentLoop;
+    final planned = coords.length >= 2
+        ? PlannedRoute(
+            coordinates: coords,
+            mode: state.mode,
+            shadeRatio: loop != null ? loop.shadeRatio : state.route?.shadeRatio,
+          )
+        : PlannedRoute(coordinates: const [], mode: state.mode);
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalkScreen(planned: planned)));
   }
 }
 
@@ -321,36 +344,16 @@ class _Summary extends StatelessWidget {
 
     return Row(
       children: [
-        _Stat(label: '거리', value: _km(lengthM)),
+        StatTile(label: '거리', value: _km(lengthM)),
         const SizedBox(width: 20),
-        _Stat(label: '예상', value: '약 $minutes분'),
+        StatTile(label: '예상', value: '약 $minutes분'),
         if (state.mode == SeasonMode.summerShade) ...[
           const SizedBox(width: 20),
           if (night)
             Text('밤이라 그늘 계산 없이 최단 경로', style: theme.textTheme.bodySmall)
           else if (shade != null)
-            _Stat(label: '그늘', value: '${(shade * 100).round()}%'),
+            StatTile(label: '그늘', value: '${(shade * 100).round()}%'),
         ],
-      ],
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.extension<GildleExtras>()!.muted;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: muted)),
-        Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
       ],
     );
   }

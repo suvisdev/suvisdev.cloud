@@ -10,7 +10,10 @@ import 'package:video_player/video_player.dart';
 import 'auth.dart';
 import 'core/config/env.dart';
 import 'core/theme/gildle_theme.dart';
+import 'features/gildle/presentation/app_services.dart';
 import 'features/gildle/presentation/gildle_map_screen.dart';
+import 'features/gildle/presentation/profile_screen.dart';
+import 'features/gildle/presentation/walks_screen.dart';
 import 'kakao_config.dart';
 
 void main() async {
@@ -117,13 +120,27 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-/// 로그인 뒤 메인 — 지도 화면에 로그아웃 버튼만 얹는다. 기록·마이페이지 탭은 다음 단계.
-class HomeScreen extends StatelessWidget {
+/// 로그인 뒤 메인 — 지도 · 기록 · 내 정보 탭. 탭을 오가도 지도 상태가 살아 있게 IndexedStack.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
-  Future<void> _logout(BuildContext context) async {
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(pushRegistrarProvider).register());
+  }
+
+  Future<void> _logout() async {
+    await ref.read(pushRegistrarProvider).unregister();
     await AuthSession.logout();
-    if (!context.mounted) return;
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AuthScreen()),
       (route) => false,
@@ -132,14 +149,40 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GildleMapScreen(
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.logout),
-          tooltip: '로그아웃',
-          onPressed: () => _logout(context),
+    // 최소 지원 버전 미만이면 닫을 수 없는 안내를 띄운다(스토어 링크는 등록 뒤 store_url로).
+    ref.listen(versionCheckProvider, (_, next) {
+      final info = next.valueOrNull;
+      if (info == null) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: const Text('업데이트가 필요합니다'),
+            content: Text('이 버전은 더 이상 지원되지 않습니다. 최신 버전 ${info.latestVersion}으로 업데이트해 주세요.'),
+          ),
         ),
-      ],
+      );
+    });
+    return Scaffold(
+      body: IndexedStack(
+        index: _index,
+        children: [
+          const GildleMapScreen(),
+          const WalksScreen(),
+          ProfileScreen(onLogout: _logout),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: '지도'),
+          NavigationDestination(icon: Icon(Icons.history), label: '기록'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),
+        ],
+      ),
     );
   }
 }

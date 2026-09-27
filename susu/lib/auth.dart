@@ -29,14 +29,57 @@ class AuthSession {
     return refreshToken != null && refreshToken.isNotEmpty;
   }
 
-  /// 인증이 필요한 API 호출(예: 사진 업로드)의 Authorization 헤더에 쓴다.
-  /// access token은 10분 TTL이라 만료 후 호출은 401을 받을 수 있음 — 이번
-  /// 범위에서는 자동 재발급(refresh)까지는 구현하지 않는다.
+  /// 인증이 필요한 API 호출(산책 기록 등)의 Authorization 헤더에 쓴다.
+  /// access token은 10분 TTL — 401을 받으면 dio 인터셉터가 [refresh]로 재발급해 재시도한다.
   static Future<String?> readAccessToken() async {
     return _storage.read(key: _accessTokenKey);
   }
 
-  static Future<void> _save({
+  static Future<void>? _refreshing;
+
+  /// POST /auth/mobile/refresh — refresh token은 로테이션되므로(재사용 감지 시 401)
+  /// 둘 다 새로 저장한다. 동시 401이 여러 건 나도 재발급은 한 번만 돈다.
+  /// 실패(만료·폐기)하면 로컬 세션을 지우고 false — 호출자는 로그인 화면으로 보낸다.
+  static Future<bool> refresh() async {
+    final inFlight = _refreshing;
+    if (inFlight != null) {
+      await inFlight;
+      return (await readAccessToken())?.isNotEmpty ?? false;
+    }
+    final task = _refreshOnce();
+    _refreshing = task.then((_) {}, onError: (_) {});
+    try {
+      return await task;
+    } finally {
+      _refreshing = null;
+    }
+  }
+
+  static Future<bool> _refreshOnce() async {
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+    try {
+      final resp = await http.post(
+        Uri.parse('$authBaseUrl/auth/mobile/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refreshToken}),
+      );
+      if (resp.statusCode != 200) {
+        if (resp.statusCode == 401) await clear();
+        return false;
+      }
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      await save(
+        accessToken: body['access_token'] as String,
+        refreshToken: body['refresh_token'] as String,
+      );
+      return true;
+    } catch (_) {
+      return false; // 네트워크 오류 — 세션은 남겨 두고 이번 호출만 실패
+    }
+  }
+
+  static Future<void> save({
     required String accessToken,
     required String refreshToken,
   }) async {
@@ -133,7 +176,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
-    await AuthSession._save(
+    await AuthSession.save(
       accessToken: body['access_token'] as String,
       refreshToken: body['refresh_token'] as String,
     );

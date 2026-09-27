@@ -50,6 +50,7 @@ dependencies:
   # 푸시(FCM) — google-services.json을 android/app/에 넣어야 동작한다.
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.5
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:
