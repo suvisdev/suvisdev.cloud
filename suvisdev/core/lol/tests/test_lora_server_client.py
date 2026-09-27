@@ -3,10 +3,10 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from core.lol import lora_recommendation_orchestrator as module
-from core.lol.lora_recommendation_orchestrator import (
-    LoraOrchestratorError,
-    LoraRecommendationOrchestrator,
+from core.lol import lora_server_client as module
+from core.lol.lora_server_client import (
+    LoraServerClient,
+    LoraServerError,
 )
 
 
@@ -59,8 +59,8 @@ def _reset_circuit(monkeypatch):
     monkeypatch.setattr(module, "_circuit_open_until", 0.0)
 
 
-def _orchestrator(**kwargs) -> LoraRecommendationOrchestrator:
-    return LoraRecommendationOrchestrator(base_url="http://lora.test", **kwargs)
+def _orchestrator(**kwargs) -> LoraServerClient:
+    return LoraServerClient(base_url="http://lora.test", **kwargs)
 
 
 def test_generate_success_first_try(monkeypatch):
@@ -89,7 +89,7 @@ def test_generate_fails_after_retry_exhausted_on_transport_error(monkeypatch):
     results = [httpx.ConnectError("boom"), httpx.ConnectError("boom again")]
     monkeypatch.setattr(module.httpx, "Client", _fake_client_class(results, calls))
     orch = _orchestrator()
-    with pytest.raises(LoraOrchestratorError) as exc_info:
+    with pytest.raises(LoraServerError) as exc_info:
         orch.generate("prompt")
     assert exc_info.value.status_code == 503
     assert len(calls) == 2  # 최초 시도 + 1회 재시도, 그 이상은 없음
@@ -101,7 +101,7 @@ def test_generate_does_not_retry_on_http_error_status(monkeypatch):
     results = [_FakeResponse(status_code=500, text="server error")]
     monkeypatch.setattr(module.httpx, "Client", _fake_client_class(results, calls))
     orch = _orchestrator()
-    with pytest.raises(LoraOrchestratorError) as exc_info:
+    with pytest.raises(LoraServerError) as exc_info:
         orch.generate("prompt")
     assert exc_info.value.status_code == 502
     assert len(calls) == 1

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 
-from core.lol.t1_mid_faker_orchestrator import T1MidFakerOrchestrator
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator
 from dispatch.adapter.inbound.watcher.detective_watson_watcher_hub import (
     DetectiveWatsonWatcherHub,
 )
@@ -43,7 +43,7 @@ def _build_mock_events() -> list[InboundMessageEvent]:
 
 
 def _build_watson() -> DetectiveWatsonWatcherHub:
-    faker = T1MidFakerOrchestrator(model=REPORT_WRITER_MODEL)
+    faker = SuvisdevOrchestrator(model=REPORT_WRITER_MODEL)
     return DetectiveWatsonWatcherHub(
         holmes=HolmesInteractor(),
         reporter=ReportWriterInteractor(orchestrator=faker),

@@ -3,7 +3,7 @@
 fp16 transformers 서빙(serve.py)의 속도 한계(≈26tok/s)를 llama.cpp Q5_K_M로
 대체한다(2026-09-02 전환). llama-server를 자식 프로세스(127.0.0.1:8201)로 띄우고
 /generate를 OpenAI /v1/chat/completions로 변환 프록시한다. EC2 orchestrator
-(core/lol/lora_recommendation_orchestrator.py)의 계약 — X-LoRA-Token 헤더,
+(core/lol/lora_server_client.py)의 계약 — X-LoRA-Token 헤더,
 {"prompt","system","max_new_tokens"} → {"text"} — 은 불변이라 백엔드 변경이 없다.
 
 모델은 export_mova_gguf.py가 갱신하는 ~/lora_adapters/LATEST_GGUF(경로 1줄)를

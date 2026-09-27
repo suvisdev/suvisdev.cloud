@@ -22,7 +22,7 @@
 
 | 구분 | 경로 | 책임 |
 |---|---|---|
-| 수정 | `core/lol/t1_mid_faker_orchestrator.py` | `generate`에 `num_ctx` 옵션 추가(본문 조립을 `_build_body`로 분리) |
+| 수정 | `core/lol/orchestrator.py` | `generate`에 `num_ctx` 옵션 추가(본문 조립을 `_build_body`로 분리) |
 | 생성 | `apps/ontology/adapter/outbound/llm/exaone_llm_adapter.py` | `ExaoneLlmAdapter(HubLlmPort)` — 7.8B, temperature 0, num_ctx 8192, keep_alive 5m |
 | 생성 | `apps/ontology/app/dtos/portfolio_chat_dto.py` | `PortfolioChatTurn` · `PortfolioChatCommand.from_schema` · `PortfolioChatAnswerDto.to_schema` |
 | 생성 | `apps/ontology/app/ports/input/portfolio_chat_use_case.py` | `PortfolioChatUseCase.chat(command) -> PortfolioChatAnswerDto` |
@@ -36,7 +36,7 @@
 | 생성 | `scripts/ingest_portfolio_docs.py` | md 파일 → 청크 → `hub_knowledge(source='portfolio_doc')` upsert, `--reset` |
 | 생성 | `datasets/portfolio_corpus/profile.md` | 공개 프로필(이름·학력·경력·기술·프로젝트, 연락처 제외) |
 | 수정 | `.env.example` | `PORTFOLIO_LLM_BACKEND` · `PORTFOLIO_LLM_MODEL` 문서화 |
-| 테스트 | `core/lol/tests/test_t1_mid_faker_orchestrator_body.py` · `apps/ontology/test/test_portfolio_chat_interactor.py` · `test_portfolio_chat_router.py` · `test_portfolio_llm_backend_switch.py` | |
+| 테스트 | `core/lol/tests/test_orchestrator_body.py` · `apps/ontology/test/test_portfolio_chat_interactor.py` · `test_portfolio_chat_router.py` · `test_portfolio_llm_backend_switch.py` | |
 | 프론트 생성 | `suvis/app/api/portfolio/chat/route.ts` · `suvis/lib/portfolio-api.ts` · `suvis/components/home/portfolio-chat-panel.tsx` | 프록시 · API 클라이언트 · 대화 패널 |
 | 프론트 수정 | `suvis/components/home/app-launcher.tsx` | 입력창을 채팅 전송으로, 필터 제거, 패널 배치 |
 
@@ -45,11 +45,11 @@
 ### Task 1: 오케스트레이터 `num_ctx` 옵션
 
 **Files:**
-- Modify: `core/lol/t1_mid_faker_orchestrator.py` (`generate`)
-- Test: `core/lol/tests/test_t1_mid_faker_orchestrator_body.py`
+- Modify: `core/lol/orchestrator.py` (`generate`)
+- Test: `core/lol/tests/test_orchestrator_body.py`
 
 **Interfaces:**
-- Produces: `T1MidFakerOrchestrator._build_body(prompt, *, system, temperature, num_ctx) -> dict[str, object]`, `generate(prompt, *, system=None, temperature=None, num_ctx=None) -> str`
+- Produces: `SuvisdevOrchestrator._build_body(prompt, *, system, temperature, num_ctx) -> dict[str, object]`, `generate(prompt, *, system=None, temperature=None, num_ctx=None) -> str`
 
 - [ ] **Step 1: 실패 테스트**
 
@@ -65,22 +65,22 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.lol.t1_mid_faker_orchestrator import T1MidFakerOrchestrator  # noqa: E402
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator  # noqa: E402
 
 
 class BuildBodyTests(unittest.TestCase):
     def test_options_omitted_when_nothing_set(self) -> None:
-        body = T1MidFakerOrchestrator(model="m")._build_body("q", system=None, temperature=None, num_ctx=None)
+        body = SuvisdevOrchestrator(model="m")._build_body("q", system=None, temperature=None, num_ctx=None)
         self.assertNotIn("options", body)
         self.assertEqual(body["messages"], [{"role": "user", "content": "q"}])
 
     def test_temperature_and_num_ctx_go_to_options(self) -> None:
-        body = T1MidFakerOrchestrator(model="m")._build_body("q", system="s", temperature=0, num_ctx=8192)
+        body = SuvisdevOrchestrator(model="m")._build_body("q", system="s", temperature=0, num_ctx=8192)
         self.assertEqual(body["options"], {"temperature": 0, "num_ctx": 8192})
         self.assertEqual(body["messages"][0], {"role": "system", "content": "s"})
 ```
 
-- [ ] **Step 2: 실행해 실패 확인** — `python -m pytest core/lol/tests/test_t1_mid_faker_orchestrator_body.py -q` → `AttributeError: _build_body`
+- [ ] **Step 2: 실행해 실패 확인** — `python -m pytest core/lol/tests/test_orchestrator_body.py -q` → `AttributeError: _build_body`
 - [ ] **Step 3: 구현** — `generate`의 본문 조립부를 `_build_body`로 빼고 `num_ctx` 추가:
 
 ```python
@@ -169,7 +169,7 @@ async def chat(self, command):
     reply = await self._llm.generate(prompt, system=SYSTEM_PROMPT)
     return PortfolioChatAnswerDto(reply=reply.strip(), sources=tuple(dict.fromkeys(h.title for h in hits)))
 ```
-  어댑터: `ExaoneLlmAdapter(model=os.getenv("PORTFOLIO_LLM_MODEL","exaone3.5:7.8b"), keep_alive=os.getenv("PORTFOLIO_LLM_KEEP_ALIVE","5m"))`, `generate` → `asyncio.to_thread(orch.generate, prompt, system=system, temperature=0, num_ctx=8192)`, `FakerOrchestratorError`→`HubRagError`(폴백이 걸리려면 필수).
+  어댑터: `ExaoneLlmAdapter(model=os.getenv("PORTFOLIO_LLM_MODEL","exaone3.5:7.8b"), keep_alive=os.getenv("PORTFOLIO_LLM_KEEP_ALIVE","5m"))`, `generate` → `asyncio.to_thread(orch.generate, prompt, system=system, temperature=0, num_ctx=8192)`, `SuvisdevOrchestratorError`→`HubRagError`(폴백이 걸리려면 필수).
   프로바이더: `PORTFOLIO_LLM_BACKEND`가 `gemini`면 `GeminiLlmAdapter()`, 아니면 `FallbackHubLlmAdapter(primary=ExaoneLlmAdapter(), fallback=GeminiLlmAdapter())`. 매 호출 `os.getenv`(테스트 `patch.dict`).
 - [ ] **Step 4: 스위치 테스트** (`test_portfolio_llm_backend_switch.py`) — unset→`FallbackHubLlmAdapter`, `gemini`→`GeminiLlmAdapter`, ` GEMINI `→Gemini, `unknown`→Fallback.
 - [ ] **Step 5: 통과 확인** — `python -m pytest apps/ontology/test/test_portfolio_chat_interactor.py apps/ontology/test/test_portfolio_llm_backend_switch.py -q`

@@ -2,7 +2,7 @@
 
 OllamaExaoneRecommendationAdapter/QwenRecommendationAdapter와 완전히 동일한
 프롬프트·파싱 로직(ChatPromptBuilder·ChatReplyService)을 재사용하고, 실제 생성
-호출만 core/lol의 LoraRecommendationOrchestrator(lora_server, 주기 재학습된
+호출만 core/lol의 LoraServerClient(lora_server, 주기 재학습된
 공용 LoRA 어댑터)로 교체한다.
 """
 
@@ -11,9 +11,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
-from core.lol.lora_recommendation_orchestrator import (
-    LoraOrchestratorError,
-    LoraRecommendationOrchestrator,
+from core.lol.lora_server_client import (
+    LoraServerClient,
+    LoraServerError,
 )
 from mova.adapter.inbound.api.schemas.market_chat_schema import (
     MovaChatRecommendationSchema,
@@ -31,7 +31,7 @@ class LoraRecommendationAdapter(RecommendationPort):
         self._intent_svc = IntentExtractionService()
         self._prompt_builder = ChatPromptBuilder()
         self._reply_svc = ChatReplyService()
-        self._orchestrator = LoraRecommendationOrchestrator()
+        self._orchestrator = LoraServerClient()
 
     def extract_intent(
         self, message: str, history: list[dict[str, str]] | None = None
@@ -64,7 +64,7 @@ class LoraRecommendationAdapter(RecommendationPort):
         )
         try:
             raw = await asyncio.to_thread(self._orchestrator.generate, prompt)
-        except LoraOrchestratorError as e:
+        except LoraServerError as e:
             raise LLMError(e.detail, status_code=e.status_code) from e
         reply, recs = self._reply_svc.parse_gemini_reply(raw)
         recs = await self._reply_svc.enrich_from_db(recs, tag_catalog=tag_catalog)

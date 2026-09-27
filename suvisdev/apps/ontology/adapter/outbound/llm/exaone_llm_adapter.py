@@ -4,7 +4,7 @@
 프롬프트에 넣어 답하므로 컨텍스트를 8192로 명시한다(ollama 기본 4096이면 근거가 잘린다).
 노트북 RTX 4060 실측(09-27): num_ctx 8192에서 5.7GB, lora-server(2.4GB)와 동시 상주 가능,
 콜드 로드 5s·근거 2,240토큰 응답 7s. keep_alive를 짧게(5m) 둬 mova 쪽 모델에 VRAM을 돌려준다.
-FakerOrchestratorError는 HubRagError로 감싼다 — FallbackHubLlmAdapter(→Gemini)가 그것만 잡는다.
+OrchestratorError는 HubRagError로 감싼다 — FallbackHubLlmAdapter(→Gemini)가 그것만 잡는다.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
 from ontology.app.ports.output.hub_llm_port import HubLlmPort
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 
@@ -29,7 +29,7 @@ class ExaoneLlmAdapter(HubLlmPort):
         keep_alive: str = _DEFAULT_KEEP_ALIVE,
         num_ctx: int = _NUM_CTX,
     ) -> None:
-        self._orchestrator = T1MidFakerOrchestrator(model=model, keep_alive=keep_alive)
+        self._orchestrator = SuvisdevOrchestrator(model=model, keep_alive=keep_alive)
         self._num_ctx = num_ctx
 
     async def generate(self, prompt: str, *, system: str | None = None) -> str:
@@ -41,5 +41,5 @@ class ExaoneLlmAdapter(HubLlmPort):
                 temperature=0,
                 num_ctx=self._num_ctx,
             )
-        except FakerOrchestratorError as e:
+        except SuvisdevOrchestratorError as e:
             raise HubRagError(e.detail, status_code=e.status_code) from e

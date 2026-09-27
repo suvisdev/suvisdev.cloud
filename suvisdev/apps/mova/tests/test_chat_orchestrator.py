@@ -78,24 +78,26 @@ class ParseUnderstandingTests(unittest.TestCase):
 class AdapterTests(unittest.IsolatedAsyncioTestCase):
     async def test_calls_client_with_json_mode_and_history(self) -> None:
         client = MagicMock()
-        client.generate.return_value = (
-            '{"intent":"booking","title":"인턴","region":"군자","followup":true}'
-        )
+        client.understand_json.return_value = {
+            "intent": "booking",
+            "title": "인턴",
+            "region": "군자",
+            "followup": True,
+        }
         adapter = ExaoneChatUnderstandingAdapter(client=client)
         u = await adapter.understand(
             "군자", [{"role": "assistant", "content": "『인턴』 어느 지역에서 보실 계획인가요?"}]
         )
         self.assertEqual((u.title, u.region, u.followup), ("인턴", "군자", True))
-        kwargs = client.generate.call_args.kwargs
-        self.assertTrue(kwargs["json_format"])
-        self.assertEqual(kwargs["temperature"], 0.0)
-        self.assertIn("도우미: 『인턴』", client.generate.call_args.args[0])
+        kwargs = client.understand_json.call_args.kwargs
+        self.assertEqual(kwargs["num_ctx"], 2048)
+        self.assertIn("도우미: 『인턴』", client.understand_json.call_args.args[0])
 
     async def test_client_error_becomes_understanding_error(self) -> None:
-        from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError
+        from core.lol.suvisdev_orchestrator import SuvisdevOrchestratorError
 
         client = MagicMock()
-        client.generate.side_effect = FakerOrchestratorError("down", status_code=503)
+        client.understand_json.side_effect = SuvisdevOrchestratorError("down", status_code=503)
         with self.assertRaises(ChatUnderstandingError):
             await ExaoneChatUnderstandingAdapter(client=client).understand("안녕", [])
 

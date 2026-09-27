@@ -153,6 +153,17 @@
     로그 `[Orchestrator] intent=booking(llm=booking) title='인턴' movie=인턴(2015) region='군자'` —
     검증 movie는 제목 확정용이고 연도(2015/2026)는 예매 트랙의 상영작 우선 규칙이 고른다(카드 2026 확인).
     "송강호 나오는 영화"처럼 LLM이 구절을 title로 넣어도 카탈로그 불일치로 None이 돼 추천 경로가 정상.
+- **core/lol 개명(사용자 지시 "t1 말고 오케스트레이터로", 이어서 "suvisdev_오케스트레이터")**:
+  `t1_mid_faker_orchestrator.py`/`T1MidFakerOrchestrator`/`FakerOrchestratorError` →
+  `suvisdev_orchestrator.py`/`SuvisdevOrchestrator`/`SuvisdevOrchestratorError`. 이름만 바꾸면 실체
+  (Ollama 클라이언트)와 또 어긋나므로 **`understand_json()`**(JSON 모드 호출 → dict, 깨진 출력은 본문
+  에서 객체 추출 → 1회 재시도)을 옮겨 넣어 앱 오케스트레이터의 "이해" 단계를 공용으로 만들었다.
+  mova `ExaoneChatUnderstandingAdapter`가 이걸 쓴다. 참조 갱신: ontology qwen/exaone 어댑터,
+  execsuite PDF 요약, contents soccer chat, dispatch(메일·스팸·리포트) + 각 테스트·문서.
+  사용자 질문 "lora_recommendation_orchestrator는 뭐냐" → lora_server(:8200) HTTP 클라이언트
+  (서킷 브레이커·재시도)라 **`lora_server_client.py`/`LoraServerClient`/`LoraServerError`**로 함께 개명.
+  실수: `\bOrchestrator\b` 일괄 치환이 execsuite `_docs/harness-lab`의 일반 명사 "Orchestrator"까지
+  바꿔 `git checkout`으로 되돌리고 T1 참조만 다시 치환. 과거 워크로그·인터뷰의 옛 이름은 역사라 그대로.
 - **학습(LoRA) 필요 없음 판단**: 예매 트랙은 LLM을 쓰지 않고(KOFIC·카카오·롯데 시간표 결정론), 잡담
   트랙은 Gemini 프롬프트, LoRA(EXAONE)는 추천 트랙 픽 생성에만 쓰인다. 교사 데이터셋에도 booking·
   general 행이 0건이라 이 사고를 학습으로 고칠 자리가 없다. 분류기(Qwen few-shot 프롬프트)에 예시를

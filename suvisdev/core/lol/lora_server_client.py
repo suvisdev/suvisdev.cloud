@@ -1,4 +1,6 @@
-"""mova 채팅용 LoRA 파인튜닝 모델(lora_server) 직접 서빙 클라이언트.
+"""mova 채팅용 LoRA 파인튜닝 모델(lora_server :8200) HTTP 클라이언트 — 서킷 브레이커·재시도 포함.
+(2026-09-27 개명: 구 lora_recommendation_orchestrator/LoraRecommendationOrchestrator — 오케스트레이터가
+아니라 추천 트랙의 LLM 호출 클라이언트다.)
 
 ~/.venv-exaone(별도 venv)에서 상주 로드된 `lora_server`(호스트에서 도는 별도
 프로세스, Ollama와 동일 패턴)를 HTTP로 호출한다. (구 awq_server :8100 체인은
@@ -49,7 +51,7 @@ def _circuit_record_failure() -> None:
         if _circuit_failures >= _CIRCUIT_FAILURE_THRESHOLD:
             _circuit_open_until = time.monotonic() + _CIRCUIT_COOLDOWN_SECONDS
             logger.warning(
-                "[LoraRecommendationOrchestrator] 서킷 오픈 — 연속 %d회 실패, %.0fs 동안 즉시 실패 처리",
+                "[LoraServerClient] 서킷 오픈 — 연속 %d회 실패, %.0fs 동안 즉시 실패 처리",
                 _circuit_failures,
                 _CIRCUIT_COOLDOWN_SECONDS,
             )
@@ -62,15 +64,15 @@ def _circuit_record_success() -> None:
         _circuit_open_until = 0.0
 
 
-class LoraOrchestratorError(Exception):
+class LoraServerError(Exception):
     def __init__(self, detail: str, *, status_code: int = 503) -> None:
         super().__init__(detail)
         self.detail = detail
         self.status_code = status_code
 
 
-class LoraRecommendationOrchestrator:
-    """mova 채팅용 파인튜닝 어댑터(lora_server) 기반 공용 오케스트레이터."""
+class LoraServerClient:
+    """lora_server 호출 클라이언트 — 실패 3회면 60초 서킷 오픈, 그동안 호출자는 Gemini 폴백."""
 
     def __init__(
         self,
@@ -97,12 +99,12 @@ class LoraRecommendationOrchestrator:
             payload["system"] = system
 
         if _circuit_is_open():
-            raise LoraOrchestratorError(
+            raise LoraServerError(
                 "LoRA 서버 서킷 오픈 상태(연속 실패 후 쿨다운) — 즉시 실패 처리",
                 status_code=503,
             )
 
-        logger.info("[LoraRecommendationOrchestrator] generate prompt_chars=%d", len(prompt))
+        logger.info("[LoraServerClient] generate prompt_chars=%d", len(prompt))
 
         headers = {"X-LoRA-Token": self._token} if self._token else {}
 
@@ -110,16 +112,14 @@ class LoraRecommendationOrchestrator:
             r = self._post_with_retry(headers, payload)
         except httpx.TimeoutException as e:
             _circuit_record_failure()
-            raise LoraOrchestratorError("LoRA 서버 응답 타임아웃", status_code=504) from e
+            raise LoraServerError("LoRA 서버 응답 타임아웃", status_code=504) from e
         except httpx.TransportError as e:
             _circuit_record_failure()
-            raise LoraOrchestratorError(
-                f"LoRA 서버에 연결할 수 없습니다: {e!s}", status_code=503
-            ) from e
+            raise LoraServerError(f"LoRA 서버에 연결할 수 없습니다: {e!s}", status_code=503) from e
 
         if r.status_code != 200:
             _circuit_record_failure()
-            raise LoraOrchestratorError(
+            raise LoraServerError(
                 f"LoRA 서버 호출 실패 (HTTP {r.status_code}): {r.text[:200]}",
                 status_code=502,
             )
@@ -127,7 +127,7 @@ class LoraRecommendationOrchestrator:
         text = (r.json().get("text") or "").strip()
         if not text:
             _circuit_record_failure()
-            raise LoraOrchestratorError("LoRA 모델이 빈 응답을 반환했습니다.", status_code=502)
+            raise LoraServerError("LoRA 모델이 빈 응답을 반환했습니다.", status_code=502)
         _circuit_record_success()
         return text
 
@@ -144,7 +144,7 @@ class LoraRecommendationOrchestrator:
                 last_error = e
                 if attempt < _RETRY_ATTEMPTS - 1:
                     logger.warning(
-                        "[LoraRecommendationOrchestrator] 네트워크 실패, %.1fs 후 재시도: %s",
+                        "[LoraServerClient] 네트워크 실패, %.1fs 후 재시도: %s",
                         _RETRY_BACKOFF_SECONDS,
                         e,
                     )

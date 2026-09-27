@@ -12,7 +12,7 @@
 |------|------|------|
 | **Graph DB** | Neo4j (Docker) | 온톨로지·엔티티 관계 모델링에 최적. `domain/ontology/`와 1:1 대응. Cypher 쿼리로 Spoke 간 관계 탐색 가능. |
 | **Vector DB** | Qdrant (Docker) | Rust 기반, Docker 경량 이미지, REST + gRPC 지원. exaone 임베딩을 저장하고 RAG 파이프라인에 연결. |
-| **임베딩 모델** | exaone3.5:2.4b (Ollama) | 이미 로컬 실행 중. `core/lol/t1_mid_faker_orchestrator.py`에서 프롬프트 생성, 별도 임베딩 API로 벡터 추출. |
+| **임베딩 모델** | exaone3.5:2.4b (Ollama) | 이미 로컬 실행 중. `core/lol/orchestrator.py`에서 프롬프트 생성, 별도 임베딩 API로 벡터 추출. |
 
 ---
 

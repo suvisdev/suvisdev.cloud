@@ -100,7 +100,7 @@ app = FastAPI(lifespan=lifespan)
 def require_lora_token(x_lora_token: str | None = Header(default=None)) -> None:
     """LORA_SERVER_TOKEN이 비어있으면(로컬 개발) 인증을 생략한다. 원격(Cloudflare
     Tunnel 등)으로 노출할 때만 값을 채워 활성화한다 — orchestrator 쪽
-    (core/lol/lora_recommendation_orchestrator.py)도 같은 값을 X-LoRA-Token
+    (core/lol/lora_server_client.py)도 같은 값을 X-LoRA-Token
     헤더로 보내야 한다."""
     expected = os.getenv("LORA_SERVER_TOKEN", "")
     if not expected:

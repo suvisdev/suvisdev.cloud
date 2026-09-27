@@ -10,7 +10,7 @@
 허브 앤 스포크(Hub-and-Spoke) 구조. 실제 패키지명 기준:
 
 - **Hub — `ontology/`**: 온톨로지·이벤트 버스. `ontology.domain.events.spoke_events`에 Spoke 공용 이벤트 타입(`InboundMessageEvent`)을 정의한다. Hub는 이벤트 기록만 하고(`HubEmailOrchestrator` 참고) LLM을 직접 호출하지 않는다.
-- **최고 사령탑(공용) — `core/lol/t1_mid_faker_orchestrator.py`**: `T1MidFakerOrchestrator`. Ollama로 로컬 실행 중인 EXAONE 모델을 호출하는 오케스트레이터("페이커/Faker"). 클래스 기본값은 `exaone3.5:7.8b`이지만, **모든 spoke는 `model="exaone3.5:2.4b"` 전용 인스턴스를 각자 띄워서 쓴다** (공용 싱글턴 `get_faker_orchestrator()`는 현재 어떤 spoke도 쓰지 않음, 2026-07-14 기준).
+- **최고 사령탑(공용) — `core/lol/orchestrator.py`**: `SuvisdevOrchestrator`. Ollama로 로컬 실행 중인 EXAONE 모델을 호출하는 오케스트레이터("페이커/Faker"). 클래스 기본값은 `exaone3.5:7.8b`이지만, **모든 spoke는 `model="exaone3.5:2.4b"` 전용 인스턴스를 각자 띄워서 쓴다** (공용 싱글턴 `get_faker_orchestrator()`는 현재 어떤 spoke도 쓰지 않음, 2026-07-14 기준).
 - **Communication Spoke — `dispatch/`**: Email·Telegram·Discord 등 외부 채널 인바운드/아웃바운드를 전담. `exaone3.5:2.4b` 전용 인스턴스를 각자 띄운다 — 메일 본문 생성(`email_provider.py`), VIP/보고서 격상(`ReportWriterInteractor`), 스팸 분류(`spam_provider.py`, 2026-07-14에 별도 spoke였던 `spam_filter` 앱을 dispatch로 통합) 모두 동일. VIP 격상은 Hub를 거치지 않고 dispatch 내부에서 직접 종결한다.
 - **기타 Spoke**: `titanic/`, `silicon_valley/` 등.
 

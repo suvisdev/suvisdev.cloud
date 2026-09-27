@@ -1,4 +1,4 @@
-"""ChatUnderstandingPort 구현 — EXAONE(Ollama, core.lol T1MidFakerOrchestrator)로 슬롯 추출.
+"""ChatUnderstandingPort 구현 — EXAONE(Ollama, core.lol SuvisdevOrchestrator)로 슬롯 추출.
 
 2026-09-27 실측(노트북 RTX 4060, 발화 6건):
   exaone3.5:2.4b  평균 0.87s — 제목을 못 뽑고 스키마 문자열("시각/날짜 표현")을 그대로 뱉음 → 불가
@@ -10,13 +10,16 @@ LLM은 "없음"·"null"·스키마 문구·발화에 없는 체인명을 섞어 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import re
 from typing import Any
 
-from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from core.lol.suvisdev_orchestrator import (
+    SuvisdevOrchestrator,
+    SuvisdevOrchestratorError,
+    _parse_json_object,
+)
 from mova.app.dtos.chat_understanding_dto import INTENTS, ChatUnderstanding
 from mova.app.ports.output.chat_understanding_port import (
     ChatUnderstandingError,
@@ -70,20 +73,13 @@ def _clean_str(
     return v or None
 
 
-def parse_understanding(raw: str, message: str) -> ChatUnderstanding:
-    """JSON 문자열 → ChatUnderstanding. 형식이 아니면 ChatUnderstandingError."""
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        m = re.search(r"\{.*\}", raw, re.S)
-        if not m:
-            raise ChatUnderstandingError(f"JSON 아님: {raw[:120]}") from None
-        try:
-            data = json.loads(m.group(0))
-        except json.JSONDecodeError as e:
-            raise ChatUnderstandingError(f"JSON 파싱 실패: {raw[:120]}") from e
-    if not isinstance(data, dict):
-        raise ChatUnderstandingError("JSON 객체가 아님")
+def parse_understanding(data: dict[str, Any] | str, message: str) -> ChatUnderstanding:
+    """LLM 출력(dict 또는 JSON 문자열) → ChatUnderstanding. 형식이 아니면 ChatUnderstandingError."""
+    if isinstance(data, str):
+        parsed = _parse_json_object(data)
+        if parsed is None:
+            raise ChatUnderstandingError(f"JSON 아님: {data[:120]}")
+        data = parsed
     intent = str(data.get("intent") or "").strip().lower()
     if intent not in INTENTS:
         raise ChatUnderstandingError(f"알 수 없는 intent: {intent!r}")
@@ -112,8 +108,8 @@ def _render_history(history: list[dict[str, str]]) -> str:
 
 
 class ExaoneChatUnderstandingAdapter(ChatUnderstandingPort):
-    def __init__(self, client: T1MidFakerOrchestrator | None = None) -> None:
-        self._client = client or T1MidFakerOrchestrator(
+    def __init__(self, client: SuvisdevOrchestrator | None = None) -> None:
+        self._client = client or SuvisdevOrchestrator(
             model=os.getenv("MOVA_ORCHESTRATOR_MODEL", _DEFAULT_MODEL),
             timeout=float(os.getenv("MOVA_ORCHESTRATOR_TIMEOUT_S", "20")),
         )
@@ -123,14 +119,9 @@ class ExaoneChatUnderstandingAdapter(ChatUnderstandingPort):
         prompt = (f"[최근 대화]\n{rendered}\n\n" if rendered else "") + f"[발화]\n{message}"
         try:
             # 동기 httpx 클라이언트 — 이벤트 루프를 막지 않게 스레드로 넘긴다.
-            raw = await asyncio.to_thread(
-                self._client.generate,
-                prompt,
-                system=SYSTEM_PROMPT,
-                temperature=0.0,
-                num_ctx=2048,
-                json_format=True,
+            data = await asyncio.to_thread(
+                self._client.understand_json, prompt, system=SYSTEM_PROMPT, num_ctx=2048
             )
-        except FakerOrchestratorError as e:
+        except SuvisdevOrchestratorError as e:
             raise ChatUnderstandingError(e.detail) from e
-        return parse_understanding(raw, message)
+        return parse_understanding(data, message)

@@ -1,7 +1,7 @@
 # mova 추천 — 원격 GPU(lora_server) 운영 시나리오
 
 > **용도:** 백엔드(EC2 등, GPU 없음)와 `lora_server`(GPU, 예: 집 노트북)를 다른
-> 머신에 분리 배포할 때 참조한다. 관련 코드: `core/lol/lora_recommendation_orchestrator.py`,
+> 머신에 분리 배포할 때 참조한다. 관련 코드: `core/lol/lora_server_client.py`,
 > `model_servers/lora_server/serve.py`.
 
 ## 구조
@@ -77,7 +77,7 @@ RECOMMENDATION_BACKEND=gemini
 
 ## 알려진 한계
 
-- `core/lol/lora_recommendation_orchestrator.py`의 `is_ready()`(헬스체크)는
+- `core/lol/lora_server_client.py`의 `is_ready()`(헬스체크)는
   코드 어디에서도 호출되지 않는다 — 앱 부팅 시점에도, 요청 경로에서도 사전
   점검이 없다. 장애는 실제 `/generate` 호출이 타임아웃/연결 실패해야 드러난다.
   원격 전환 후 운영 데이터가 쌓이면 부팅 시 헬스체크 또는 모니터링 연동을

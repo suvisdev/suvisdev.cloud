@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contents.app.dtos.soccer_chat_dto import SoccerChatDto
 from contents.app.ports.output.soccer_chat_errors import SoccerChatError
-from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
 
 
 def _build_prompt(messages: list[dict[str, str]]) -> str:
@@ -21,13 +21,13 @@ def _build_prompt(messages: list[dict[str, str]]) -> str:
 
 
 class SoccerChatInteractor:
-    def __init__(self, *, orchestrator: T1MidFakerOrchestrator) -> None:
+    def __init__(self, *, orchestrator: SuvisdevOrchestrator) -> None:
         self._orchestrator = orchestrator
 
     def chat(self, *, messages: list[dict[str, str]], system: str | None) -> SoccerChatDto:
         prompt = _build_prompt(messages)
         try:
             reply = self._orchestrator.generate(prompt, system=system)
-        except FakerOrchestratorError as e:
+        except SuvisdevOrchestratorError as e:
             raise SoccerChatError(e.detail, status_code=e.status_code) from e
         return SoccerChatDto(reply=reply)

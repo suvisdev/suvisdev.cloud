@@ -6,7 +6,7 @@
 
 ## 1. 왜
 
-09-27 이전에는 "오케스트레이터"라 부를 층이 없었다. `core/lol/t1_mid_faker_orchestrator.py`는
+09-27 이전에는 "오케스트레이터"라 부를 층이 없었다. `core/lol/orchestrator.py`는
 이름과 달리 Ollama HTTP 클라이언트(모델 한 번 호출)이고, 이해·판단은 셋으로 쪼개져 있었다:
 
 | 역할 | 담당 | 문제 |

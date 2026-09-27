@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
 from dispatch.app.dtos.spam_dto import SpamClassifyDto
 from dispatch.app.ports.output.spam_errors import SpamFilterError
 from ontology.domain.spam.spam_category import SpamCategory
@@ -40,7 +40,7 @@ def _parse_llm_response(raw: str) -> SpamClassifyDto:
 
 
 class SpamClassifyInteractor:
-    def __init__(self, *, orchestrator: T1MidFakerOrchestrator) -> None:
+    def __init__(self, *, orchestrator: SuvisdevOrchestrator) -> None:
         self._orchestrator = orchestrator
 
     def classify(self, *, subject: str, body: str, sender: str | None) -> SpamClassifyDto:
@@ -56,7 +56,7 @@ class SpamClassifyInteractor:
         prompt = _build_user_prompt(subject=subject, body=body, sender=sender)
         try:
             raw = self._orchestrator.generate(prompt, system=_SYSTEM_PROMPT)
-        except FakerOrchestratorError as e:
+        except SuvisdevOrchestratorError as e:
             raise SpamFilterError(f"LLM 분류 실패: {e.detail}", status_code=e.status_code) from e
 
         return _parse_llm_response(raw)

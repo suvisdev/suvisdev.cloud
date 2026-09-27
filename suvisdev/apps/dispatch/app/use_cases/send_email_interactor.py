@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.lol.t1_mid_faker_orchestrator import FakerOrchestratorError, T1MidFakerOrchestrator
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
 from dispatch.adapter.inbound.api.schemas.email_schema import EmailIntroduceSchema
 from dispatch.app.dtos.email_dto import EmailDto, EmailIntroduceQuery, EmailIntroduceResponse
 from dispatch.app.ports.input.email_use_case import EmailUseCase
@@ -19,7 +19,7 @@ class SendEmailInteractor(EmailUseCase):
         *,
         gmail: GmailPort,
         hub: HubEmailOrchestrator,
-        orchestrator: T1MidFakerOrchestrator,
+        orchestrator: SuvisdevOrchestrator,
     ) -> None:
         self._gmail = gmail
         self._hub = hub
@@ -46,7 +46,7 @@ class SendEmailInteractor(EmailUseCase):
         full_prompt = f"수신자 이메일: {to}\n\n지시사항: {prompt}"
         try:
             body = self._orchestrator.generate(full_prompt, system=self._SYSTEM)
-        except FakerOrchestratorError as e:
+        except SuvisdevOrchestratorError as e:
             raise DispatchError(f"LLM 본문 생성 실패: {e.detail}", status_code=e.status_code) from e
         body = sanitize_body(body)
         resolved_subject = (subject or "").strip() or self._generate_subject(prompt)
@@ -56,7 +56,7 @@ class SendEmailInteractor(EmailUseCase):
     def _generate_subject(self, prompt: str) -> str:
         try:
             generated = self._orchestrator.generate(prompt, system=self._SUBJECT_SYSTEM)
-        except FakerOrchestratorError:
+        except SuvisdevOrchestratorError:
             return _DEFAULT_SUBJECT
         cleaned = sanitize_body(generated).strip("\"'")
         return cleaned or _DEFAULT_SUBJECT

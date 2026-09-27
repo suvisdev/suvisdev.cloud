@@ -76,7 +76,7 @@ SEUK 해커톤에서 팀 프로젝트 경험이 있다. MOVA는 1인 풀스택 �
 
 **비용:** GPU 인스턴스(g4dn.xlarge) 월 $160+ vs m7i-flex.large 월 $77. 집에 이미 RTX 4060이 있으니 무료 GPU를 쓰고, EC2는 CPU만 돌리는 게 합리적이었다.
 
-**설계:** `RecommendationPort` ABC 뒤에 `LoraRecommendationOrchestrator`와 `GeminiRecommendationAdapter`를 둬서, 환경변수 하나로 전환된다. Cloudflare Tunnel이 집 GPU를 EC2에 노출하고, 터널이 끊기면 Gemini로 수동 폴백(8초). 이 구조 자체가 hexagonal의 어댑터 교체를 실증하는 사례다.
+**설계:** `RecommendationPort` ABC 뒤에 `LoraServerClient`와 `GeminiRecommendationAdapter`를 둬서, 환경변수 하나로 전환된다. Cloudflare Tunnel이 집 GPU를 EC2에 노출하고, 터널이 끊기면 Gemini로 수동 폴백(8초). 이 구조 자체가 hexagonal의 어댑터 교체를 실증하는 사례다.
 
 **트레이드오프:** 자동 폴백은 의도적으로 안 넣었다 — 어떤 모델이 답했는지 불투명해지는 것을 방지하기 위해 수동 전환을 유지했다.
 
