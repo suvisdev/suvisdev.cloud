@@ -53,7 +53,9 @@ _GENERAL_CHAT_SYSTEM_PROMPT = (
     # 그쪽으로 넘기는 말을 하되, 절대 지어내지 않는다.
     "상영 시간표·회차·영화관 지점·예매 가능 여부는 이 대화에서 조회하지 못하므로 절대 "
     "추측하거나 지어내지 않는다. 대신 '작품명과 함께 예매 또는 시간표를 말씀해 주시면 "
-    "근처 영화관과 롯데시네마 상영 시간표를 찾아드린다'고 한 문장으로 안내한다."
+    "근처 영화관과 롯데시네마 상영 시간표를 찾아드린다'고 한 문장으로 안내한다. "
+    "[지금 상영 중] 목록이 주어지면 그 목록에 있는 작품(괄호는 개봉 연도)만 현재 극장에서 "
+    "상영 중이라고 말할 수 있고, 같은 제목이 여러 해에 있으면 목록의 연도를 따른다."
 )
 
 # 예매·시간표 어휘가 든 발화는 분류기 결과와 무관하게 booking 트랙으로 보낸다 —
@@ -890,6 +892,11 @@ class ChatInteractor(ChatUseCase):
             question = f"[이전 대화]\n{context}\n\n[현재 발화]\n{request.message}"
         else:
             question = request.message
+        # 지금 상영작 근거(주간 박스오피스) — "인턴 언제 해?"에 2015년작 얘기를 하지 않게
+        # (2026-09-27 사용자 지적: 상영 중인 건 2026년작). booking 서비스가 KOFIC을 1시간 캐시로 든다.
+        showing = await self._showing_titles_for_general()
+        if showing:
+            question = f"{question}\n\n[지금 상영 중(주간 박스오피스)]\n{' / '.join(showing)}"
         # LLM 장애·쿼터 429가 500으로 새지 않게 정직한 안내로 강등한다
         # (2026-09-03 실측: "안녕" → Gemini 429 → HubRagError 미포착 → 500).
         # 추천 트랙은 LoRA+폴백 체인이 받지만 general은 이 호출이 유일한 경로다.
@@ -941,6 +948,16 @@ class ChatInteractor(ChatUseCase):
             recommendations=[],
             conversation_id=conversation_id,
         )
+
+    async def _showing_titles_for_general(self) -> list[str]:
+        if self._booking is None:
+            return []
+        try:
+            titles = await self._booking.showing_titles()
+        except Exception as e:  # 근거는 보조 정보 — 실패해도 잡담 답변은 나가야 한다
+            logger.warning("[ChatInteractor] 상영작 근거 조회 실패 — %s", e)
+            return []
+        return [t for t in titles if isinstance(t, str)] if isinstance(titles, list) else []
 
     async def _compose_empty_reply(
         self, *, user_id: int | None, already_shown_slugs: set[str], retry_after_shown: bool

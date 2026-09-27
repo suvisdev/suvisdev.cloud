@@ -62,6 +62,15 @@ SCENES: list[dict[str, Any]] = [
         "note": "09-27 general 프롬프트 실시간 사실 금지",
     },
     {
+        "name": "동명 작품은 상영 중인 쪽(인턴 2026)",
+        "history": [],
+        "q": "인턴 예매하고 싶어",
+        "intent": "booking",
+        "rec_title_contains": "인턴",
+        "rec_year": 2026,
+        "note": "09-27 사용자 지적 — 2015년작 카드가 나갔다(박스오피스 개봉연도로 선택)",
+    },
+    {
         "name": "체인 지점 질문은 booking(카카오 극장 검색)",
         "history": [],
         "q": "군자역 근처에 어느 체인 지점이 있는지 알려줘",
@@ -166,6 +175,9 @@ def _evaluate(scene: dict[str, Any], data: dict[str, Any]) -> list[str]:
     for s in scene.get("must_not", []):
         if s in reply:
             problems.append(f"응답에 '{s}' 포함")
+    if scene.get("rec_year"):
+        if not any(str(r.get("year")) == str(scene["rec_year"]) for r in recs):
+            problems.append(f"카드 연도 {scene['rec_year']} 아님: {[r.get('year') for r in recs]}")
     if scene.get("rec_title_contains"):
         if not any(scene["rec_title_contains"] in (r.get("title") or "") for r in recs):
             problems.append(f"카드에 '{scene['rec_title_contains']}' 없음")

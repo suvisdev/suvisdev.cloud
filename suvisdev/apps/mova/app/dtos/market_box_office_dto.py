@@ -12,6 +12,8 @@ class BoxOfficeEntryDto:
     rank: int
     movie_cd: str
     title: str
+    # 개봉 연도(KOFIC openDt) — 같은 제목이 여러 편일 때(인턴 2015/2026) 상영 중인 쪽을 고르는 근거.
+    open_year: int | None = None
 
 
 @dataclass(frozen=True)

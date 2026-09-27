@@ -342,6 +342,33 @@ class BookingAssistServiceTests(unittest.IsolatedAsyncioTestCase):
             repository=repo, movies=movies, box_office=box_office, theaters=theaters
         )
 
+    async def test_duplicate_title_prefers_box_office_year(self) -> None:
+        """인턴(2015)·인턴(2026) 중 예매는 상영 중인 2026년작이어야 한다(2026-09-27 사용자 지적)."""
+        from mova.app.dtos.market_box_office_dto import BoxOfficeEntryDto
+
+        service = self._service()
+        service._repository.search_movies_by_title.return_value = [
+            _item(1019, "인턴", "2015"),
+            _item(4715, "인턴", "2026"),
+        ]
+        service._movies.find_by_id.return_value = _detail(4715, "인턴")
+        service._box_office.fetch_box_office.return_value = [
+            BoxOfficeEntryDto(rank=2, movie_cd="x", title="인턴", open_year=2026)
+        ]
+        result = await service.assist(message="인턴 예매하고 싶어", entities=["인턴"], trace_id="t")
+        self.assertEqual(result.status, "ok")
+        service._movies.find_by_id.assert_awaited_with(4715)
+
+    async def test_showing_titles_lists_box_office_with_year(self) -> None:
+        from mova.app.dtos.market_box_office_dto import BoxOfficeEntryDto
+
+        service = self._service()
+        service._box_office.fetch_box_office.return_value = [
+            BoxOfficeEntryDto(rank=1, movie_cd="a", title="오디세이", open_year=2026),
+            BoxOfficeEntryDto(rank=2, movie_cd="b", title="인턴"),
+        ]
+        self.assertEqual(await service.showing_titles(), ["오디세이(2026)", "인턴"])
+
     async def test_showing_asks_region_with_marker(self) -> None:
         service = self._service(showing=True)
         result = await service.assist(message="호프 예매하고 싶어", entities=["호프"], trace_id="t")
@@ -754,6 +781,15 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.response_type, "booking")
         interactor._classifier.classify.assert_not_awaited()
         interactor._general.ask.assert_not_awaited()
+
+    async def test_general_gets_showing_titles_as_grounding(self) -> None:
+        interactor, _repo, _, booking = self._interactor(destination="general")
+        booking.showing_titles.return_value = ["인턴(2026)", "오디세이(2026)"]
+        interactor._general.ask.return_value = MycroftAnswerDto(text="답")
+        await interactor.chat(MovaChatRequest(message="인턴 언제 해?"))
+        question = interactor._general.ask.await_args.args[0].question
+        self.assertIn("[지금 상영 중", question)
+        self.assertIn("인턴(2026)", question)
 
     async def test_pending_region_yields_to_topic_change(self) -> None:
         """지역 되묻기 뒤 "옵세션 줄거리 알려줘"는 지역명이 아니다(2026-09-22 실사용:

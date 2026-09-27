@@ -15,6 +15,7 @@ from urllib.parse import quote
 
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.http.kofic_adapter import KoficAdapterError
+from mova.app.dtos.market_box_office_dto import BoxOfficeEntryDto
 from mova.app.dtos.market_chat_dto import (
     ChatBookingDto,
     ChatBookingLinkDto,
@@ -28,7 +29,7 @@ from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 from mova.app.ports.output.showtime_port import ShowtimePort
 from mova.app.ports.output.theater_search_port import TheaterSearchPort
-from mova.app.use_cases.market_chat_title_resolver import resolve_movie_title
+from mova.app.use_cases.market_chat_title_resolver import TitleResolution, resolve_movie_title
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,7 @@ class BookingAssistService:
             return await self._discovery_reply(trace_id)
 
         resolution = await resolve_movie_title(self._repository, message=message, entities=entities)
+        resolution = await self._prefer_showing_duplicate(resolution)
 
         # 지역-선행 이어받기(2026-09-11): 발화에서 제목이 확정되지 않았고 지명
         # 신호가 있으면, 직전 assistant 응답(평가·추천 문장)에서 방금 다루던
@@ -352,6 +354,7 @@ class BookingAssistService:
         resolution = await resolve_movie_title(
             self._repository, message=title_term, entities=[title_term]
         )
+        resolution = await self._prefer_showing_duplicate(resolution)
         if resolution.status != "ok" or resolution.item is None:
             return BookingResult(
                 status="not_found",
@@ -445,19 +448,64 @@ class BookingAssistService:
         last_sunday = today_kst - timedelta(days=today_kst.isoweekday())
         return last_sunday.strftime("%Y%m%d")
 
-    async def _is_showing(self, title: str) -> bool:
-        """KOFIC 주간 박스오피스 등재 여부로 근사 — 실패 시 상영 중으로 간주하지 않는다."""
+    async def _box_office_entries(self) -> list[BoxOfficeEntryDto]:
         try:
-            entries = await self._box_office.fetch_box_office(self._last_completed_week_date(), "0")
+            return await self._box_office.fetch_box_office(self._last_completed_week_date(), "0")
         except KoficAdapterError as e:
             logger.warning("[BookingAssistService] 박스오피스 조회 실패 — %s", e)
-            return False
+            return []
+
+    async def _is_showing(self, title: str) -> bool:
+        """KOFIC 주간 박스오피스 등재 여부로 근사 — 실패 시 상영 중으로 간주하지 않는다."""
         wanted = _normalize(title)
         return any(
             wanted in _normalize(entry.title) or _normalize(entry.title) in wanted
-            for entry in entries
+            for entry in await self._box_office_entries()
             if entry.title
         )
+
+    async def _prefer_showing_duplicate(self, resolution: TitleResolution) -> TitleResolution:
+        """같은 제목이 여러 편이면(인턴 2015·2026) 지금 상영 중인 쪽을 고른다.
+
+        제목 해석기는 평점·최신 정렬의 첫 항목을 주는데, 2026-09-27 실사용에서 예매 요청에
+        2015년작 인턴 카드가 나갔다. 박스오피스 개봉 연도(openDt)와 맞는 후보가 있으면
+        그쪽, 개봉 연도를 모르면 가장 최신작. 동명 후보가 하나뿐이면 그대로 둔다.
+        """
+        item = resolution.item
+        if resolution.status != "ok" or item is None:
+            return resolution
+        wanted = _normalize(item.title)
+        same = [c for c in resolution.candidates if _normalize(c.title) == wanted]
+        if len(same) < 2:
+            return resolution
+        entries = [e for e in await self._box_office_entries() if _normalize(e.title) == wanted]
+        if not entries:
+            return resolution
+        open_years = {e.open_year for e in entries if isinstance(e.open_year, int)}
+        matched = [c for c in same if c.year and c.year.isdigit() and int(c.year) in open_years]
+        pick = (
+            matched[0]
+            if matched
+            else max(same, key=lambda c: int(c.year) if c.year and c.year.isdigit() else 0)
+        )
+        if pick.id == item.id:
+            return resolution
+        logger.info(
+            "[BookingAssist] 동명 작품 중 상영작 선택 title=%s %s→%s",
+            item.title,
+            item.year,
+            pick.year,
+        )
+        return TitleResolution(status="ok", item=pick, candidates=resolution.candidates)
+
+    async def showing_titles(self) -> list[str]:
+        """잡담 트랙 근거용 — 지금 상영 중인 작품 "제목(개봉연도)" 목록(주간 박스오피스)."""
+        out: list[str] = []
+        for e in await self._box_office_entries():
+            if not e.title:
+                continue
+            out.append(f"{e.title}({e.open_year})" if isinstance(e.open_year, int) else e.title)
+        return out
 
     async def _fetch_lotte_showtimes(
         self, theaters: list[ChatTheaterDto], movie_title: str
