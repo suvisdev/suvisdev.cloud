@@ -130,6 +130,29 @@
   하네스에 카드 연도 검사(`rec_year`)와 장면 추가(12장면). 6차 배포 뒤 프로덕션 **12/12 PASS**,
   "인턴 예매하고 싶어" 카드 = 인턴(2026, tmdb-607833), 잡담 "인턴 언제 해?" → "'인턴(2026)'은 현재
   상영 중입니다. 지역이나 영화관을 알려주시면…"(근거 목록 반영).
+- **오케스트레이터 층 신설(사용자 결정: "진짜 오케스트레이터 층 만드는 재설계, 7.8B를
+  `t1_mid_faker_orchestrator`로 붙여서")**: 설계 `apps/mova/_docs/MOVA_CHAT_ORCHESTRATOR.md`.
+  - 실측으로 모델 결정: 2.4B 0.87s지만 제목 못 뽑음·스키마 문구 에코 → 불가. **7.8B 0.85s**(예열
+    후, 첫 호출 7.3s)로 파과·인턴·"군자" 이어받기·옵세션 evaluate 정확 → 채택. 기존 Qwen 분류기와
+    비슷한 지연, 포트폴리오 채팅과 모델 공유라 VRAM 추가 없음.
+  - 신규: `dtos/chat_understanding_dto.py`(ChatUnderstanding/VerifiedSlots), `ports/output/
+    chat_understanding_port.py`, `adapter/outbound/llm/exaone_chat_understanding_adapter.py`
+    (프롬프트+정제: "null"·"없음"·스키마 문구·발화에 없는 체인명 제거), `use_cases/
+    chat_orchestrator.py`(이해→카탈로그 정확 일치 검증→예매 어휘 안전망). `core/lol`
+    클라이언트에 `json_format`(ollama JSON 모드) 추가.
+  - 배선: `ChatInteractor(orchestrator=)` 선택 주입, `chat()` 맨 앞에서 `plan()` → `_dispatch_slots()`;
+    booking은 `BookingAssistService.assist_slots()`(작품+지역이면 되묻기 없이 극장 검색), evaluate는
+    검증된 제목, recommend는 기존 파이프라인(`_reply_recommend`로 분리, 무변경), general은 기존.
+    booking 응답 조립은 `_finish_booking`으로 공유. 이해 실패면 None → 기존 결정론·분류기 경로.
+    DI `get_chat_orchestrator`(`MOVA_ORCHESTRATOR_ENABLED=0` 롤백 스위치, `_MODEL`, `_TIMEOUT_S`).
+  - 테스트 `test_chat_orchestrator.py` 14건(정제·어댑터·검증·디스패치·폴백). mova 전체 통과.
+    스크래치 venv에 `google-genai`를 넣자 FallbackHonesty 2건도 통과(환경 문제였음).
+  - **배포·검증(6차)**: 멀티턴 12/12(장면 6은 오케스트레이터가 작품+지역을 한 번에 읽어 되묻기
+    없이 극장 검색까지 가므로 판정을 카드 기준으로 수정) · 단일턴 23/23 · mova 377 passed.
+    프로덕션 지연(발화당, 오케스트레이터 포함): 예매 1.9s · 평가 4.0s · 잡담 2.9s · 추천 5.1s.
+    로그 `[Orchestrator] intent=booking(llm=booking) title='인턴' movie=인턴(2015) region='군자'` —
+    검증 movie는 제목 확정용이고 연도(2015/2026)는 예매 트랙의 상영작 우선 규칙이 고른다(카드 2026 확인).
+    "송강호 나오는 영화"처럼 LLM이 구절을 title로 넣어도 카탈로그 불일치로 None이 돼 추천 경로가 정상.
 - **학습(LoRA) 필요 없음 판단**: 예매 트랙은 LLM을 쓰지 않고(KOFIC·카카오·롯데 시간표 결정론), 잡담
   트랙은 Gemini 프롬프트, LoRA(EXAONE)는 추천 트랙 픽 생성에만 쓰인다. 교사 데이터셋에도 booking·
   general 행이 0건이라 이 사고를 학습으로 고칠 자리가 없다. 분류기(Qwen few-shot 프롬프트)에 예시를

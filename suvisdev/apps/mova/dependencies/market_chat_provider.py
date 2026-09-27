@@ -15,6 +15,9 @@ from mova.adapter.outbound.http.kakao_local_adapter import KakaoLocalTheaterAdap
 from mova.adapter.outbound.http.kofic_box_office_adapter import KoficBoxOfficeAdapter
 from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapter
 from mova.adapter.outbound.http.tmdb_review_adapter import TmdbReviewAdapter
+from mova.adapter.outbound.llm.exaone_chat_understanding_adapter import (
+    ExaoneChatUnderstandingAdapter,
+)
 from mova.adapter.outbound.llm.fallback_recommendation_adapter import (
     FallbackRecommendationAdapter,
 )
@@ -44,9 +47,14 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from mova.app.use_cases.chat_orchestrator import ChatOrchestrator
 from mova.app.use_cases.market_chat_booking_interactor import BookingAssistService
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
-from mova.app.use_cases.market_chat_interactor import ChatInteractor
+from mova.app.use_cases.market_chat_interactor import (
+    _BOOKING_LEXICON,
+    _RECOMMEND_WORD,
+    ChatInteractor,
+)
 from mova.dependencies.market_conversations_provider import get_conversations_repository
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
@@ -138,6 +146,25 @@ def get_booking_service(
     )
 
 
+def get_chat_orchestrator(
+    repository: ChatRepositoryPort = Depends(get_chat_repository),
+) -> ChatOrchestrator | None:
+    """MOVA_ORCHESTRATOR_ENABLED=0이면 미주입 → 기존 결정론+분류기 경로만 돈다(롤백 스위치)."""
+    if os.getenv("MOVA_ORCHESTRATOR_ENABLED", "1") in ("0", "false", "no"):
+        return None
+    return ChatOrchestrator(
+        understanding=_shared_understanding_adapter(),
+        repository=repository,
+        booking_lexicon=_BOOKING_LEXICON,
+        recommend_word=_RECOMMEND_WORD,
+    )
+
+
+@lru_cache(maxsize=1)
+def _shared_understanding_adapter() -> ExaoneChatUnderstandingAdapter:
+    return ExaoneChatUnderstandingAdapter()
+
+
 def get_chat_use_case(
     repository: ChatRepositoryPort = Depends(get_chat_repository),
     recommender: RecommendationPort = Depends(get_recommendation_port),
@@ -150,6 +177,7 @@ def get_chat_use_case(
     taste_vectors: UserTasteVectorRepositoryPort = Depends(get_user_taste_vector_repository),
     evaluation: MovieEvaluationService = Depends(get_evaluation_service),
     booking: BookingAssistService = Depends(get_booking_service),
+    orchestrator: ChatOrchestrator | None = Depends(get_chat_orchestrator),
 ) -> ChatUseCase:
     return ChatInteractor(
         repository=repository,
@@ -163,6 +191,7 @@ def get_chat_use_case(
         taste_vectors=taste_vectors,
         evaluation=evaluation,
         booking=booking,
+        orchestrator=orchestrator,
     )
 
 

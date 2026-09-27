@@ -20,8 +20,15 @@ paths:
 
 ### 1. 파이프라인 순서 (바꾸지 말 것)
 
+**2026-09-27부터 맨 앞에 오케스트레이터가 있다** — `ChatOrchestrator.plan()`이 EXAONE 7.8B로
+발화를 {의도, 작품명, 지역, 시각, 체인, 이어받기}로 읽고 작품명을 카탈로그로 검증한 뒤
+트랙에 슬롯을 넘긴다(SSOT: `apps/mova/_docs/MOVA_CHAT_ORCHESTRATOR.md`). 이해 실패 시에만
+아래 기존 경로가 돈다. 트랙에 새 정규식을 추가하기 전에 오케스트레이터 프롬프트·정제로
+해결되는지 먼저 본다.
+
 ```text
-인텐트 분류(classifier) → general/crud면 Mycroft 직행(RAG·추천 안 탐)
+오케스트레이터(이해→검증→디스패치, 실패 시 ↓)
+ → 인텐트 분류(classifier) → general/crud면 Mycroft 직행(RAG·추천 안 탐)
   → 의도 추출(extract_intent, 히스토리 병합)
   → RAG 시맨틱 검색(hub_rag, k=8) + 태그 실매칭 합집합(RAG 우선, 캡 16)
   → RAG 실패·0건이면 tag catalog 폴백(mood 확장 포함)

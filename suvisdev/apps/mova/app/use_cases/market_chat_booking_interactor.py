@@ -169,6 +169,51 @@ class BookingAssistService:
         self._theaters = theaters
         self._showtimes = showtimes
 
+    async def assist_slots(
+        self,
+        *,
+        message: str,
+        title_text: str | None,
+        verified_title: str | None,
+        region: str | None,
+        trace_id: str,
+        history: list[dict[str, str]] | None = None,
+    ) -> BookingResult:
+        """오케스트레이터(2026-09-27)가 넘긴 슬롯으로 실행하는 얇은 경로.
+
+        - 작품 확정 + 지역 → 곧장 지역 검색(되묻기 없이)
+        - 작품(확정 또는 텍스트)만 → 기존 해석·상영 판정·지역 되묻기
+        - 지역만 → 직전 대화의 작품이 있으면 그걸로, 없으면 제목을 묻는다
+        - 아무것도 없음 → 탐색형이면 상영작 목록, 아니면 기존 경로
+        """
+        title = verified_title or title_text
+        if title and region:
+            return await self._assist_with_region(
+                title_term=title, region=region, trace_id=trace_id
+            )
+        if title:
+            return await self.assist(
+                message=title, entities=[title], trace_id=trace_id, history=history
+            )
+        if region:
+            context = await self._context_movie_from_history(history)
+            if context is not None:
+                return await self._assist_with_region(
+                    title_term=context.title, region=region, trace_id=trace_id
+                )
+            return BookingResult(
+                status="not_found",
+                reply=(
+                    f"'{region}' 근처 상영관을 찾아드릴게요. "
+                    "어떤 작품을 예매하실지 제목을 알려주시겠어요?"
+                ),
+                card=None,
+                booking=None,
+            )
+        if _DISCOVERY_PATTERN.search(message):
+            return await self._discovery_reply(trace_id)
+        return await self.assist(message=message, entities=[], trace_id=trace_id, history=history)
+
     async def assist(
         self,
         *,

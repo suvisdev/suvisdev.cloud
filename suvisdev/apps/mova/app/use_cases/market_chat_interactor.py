@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRequest
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
+from mova.app.dtos.chat_understanding_dto import VerifiedSlots
 from mova.app.dtos.market_chat_dto import ChatRecommendationDto, ChatResponseDto
 from mova.app.ports.input.market_chat_use_case import ChatUseCase
 from mova.app.ports.output.llm_output_port import RecommendationPort
@@ -26,8 +27,10 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from mova.app.use_cases.chat_orchestrator import ChatOrchestrator
 from mova.app.use_cases.market_chat_booking_interactor import (
     BookingAssistService,
+    BookingResult,
     _extract_region_signal,
     pending_title_from_history,
 )
@@ -232,6 +235,7 @@ class ChatInteractor(ChatUseCase):
         taste_vectors: UserTasteVectorRepositoryPort | None = None,
         evaluation: MovieEvaluationService | None = None,
         booking: BookingAssistService | None = None,
+        orchestrator: ChatOrchestrator | None = None,
     ) -> None:
         self._repo = repository
         self._llm = recommender
@@ -251,6 +255,9 @@ class ChatInteractor(ChatUseCase):
         # 흘려 하위호환 유지(기존 테스트·부팅 경로 보호).
         self._evaluation = evaluation
         self._booking = booking
+        # 오케스트레이터(2026-09-27): 발화를 EXAONE으로 한 번 이해하고 카탈로그로 검증한 뒤
+        # 트랙을 고른다. 미주입·이해 실패면 아래 결정론 선분기 + 분류기 경로가 그대로 돈다.
+        self._orchestrator = orchestrator
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
@@ -261,6 +268,15 @@ class ChatInteractor(ChatUseCase):
         # -1. 대화 스레드 소유권 사전 검증(LLM 쿼터 소모 전에). 로그인 + 기존 id
         #     지정 시에만 조회. 없거나 남의 것이면 여기서 즉시 raise.
         await self._verify_conversation_ownership(request)
+
+        # -0.6. 오케스트레이터 — 이해(LLM) → 검증(카탈로그) → 디스패치. 성공하면 아래
+        #       결정론 선분기·분류기를 타지 않는다(같은 발화를 두 번 읽지 않는다).
+        if self._orchestrator is not None:
+            slots = await self._orchestrator.plan(
+                request.message, request.history_dicts(), trace_id=trace_id
+            )
+            if slots is not None:
+                return await self._dispatch_slots(request, trace_id, slots)
 
         # -0.5. booking 지역 이어받기 — 직전 assistant 응답이 지역 되묻기였으면
         #       이번 발화는 지역명이다. 분류기를 거치지 않고 결정론으로 잇는다
@@ -351,6 +367,10 @@ class ChatInteractor(ChatUseCase):
         if destination in ("general", "crud"):
             return await self._reply_general(request, trace_id)
 
+        return await self._reply_recommend(request, trace_id)
+
+    async def _reply_recommend(self, request: MovaChatRequest, trace_id: str) -> ChatResponseDto:
+        """추천 트랙 본문(무변경) — 의도 추출→RAG→후보→LLM→재정렬→저장."""
         # 1. 의도 추출 (CPU-bound → 스레드 위임). LLM 출력 포트 경유.
         # 대화 히스토리를 함께 넘겨 후속 발화("최근영화로")가 이전 조건("코미디")을
         # 삼키지 않게 한다 — 각 턴이 독립 추천이 되던 문제 대응(2026-08-14).
@@ -681,6 +701,32 @@ class ChatInteractor(ChatUseCase):
         )
         return reranked
 
+    async def _dispatch_slots(
+        self, request: MovaChatRequest, trace_id: str, slots: VerifiedSlots
+    ) -> ChatResponseDto:
+        """검증된 슬롯 → 트랙 실행. 트랙은 이해를 다시 하지 않고 실행만 한다."""
+        await self._maybe_record_eval_positive(request, trace_id)
+        title = slots.movie.title if slots.movie else slots.title_text
+        if slots.intent == "booking" and self._booking is not None:
+            result = await self._booking.assist_slots(
+                message=request.message,
+                title_text=slots.title_text,
+                verified_title=slots.movie.title if slots.movie else None,
+                region=slots.region,
+                trace_id=trace_id,
+                history=request.history_dicts(),
+            )
+            if request.user_id and result.resolved_movie_id and not slots.followup:
+                await self._repo.record_user_action(
+                    request.user_id, result.resolved_movie_id, "booking_intent"
+                )
+            return await self._finish_booking(request, trace_id, result, [title] if title else [])
+        if slots.intent == "evaluate" and self._evaluation is not None:
+            return await self._reply_evaluation(request, trace_id, [title] if title else [])
+        if slots.intent == "general":
+            return await self._reply_general(request, trace_id)
+        return await self._reply_recommend(request, trace_id)
+
     async def _reply_evaluation(
         self, request: MovaChatRequest, trace_id: str, entities: list[str]
     ) -> ChatResponseDto:
@@ -766,6 +812,12 @@ class ChatInteractor(ChatUseCase):
             await self._repo.record_user_action(
                 request.user_id, result.resolved_movie_id, "booking_intent"
             )
+        return await self._finish_booking(request, trace_id, result, entities)
+
+    async def _finish_booking(
+        self, request: MovaChatRequest, trace_id: str, result: BookingResult, entities: list[str]
+    ) -> ChatResponseDto:
+        """booking 결과 저장·응답 조립 — 기존 경로와 오케스트레이터 경로가 공유."""
         chat_id = await self._repo.save_chat(
             user_id=request.user_id,
             assistant_id=None,

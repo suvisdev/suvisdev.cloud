@@ -51,6 +51,7 @@ class T1MidFakerOrchestrator:
         system: str | None,
         temperature: float | None,
         num_ctx: int | None,
+        json_format: bool = False,
     ) -> dict[str, object]:
         messages: list[dict[str, str]] = []
         if system:
@@ -63,6 +64,9 @@ class T1MidFakerOrchestrator:
             "stream": False,
             "keep_alive": self._keep_alive,
         }
+        if json_format:
+            # ollama의 JSON 모드 — 구조화 출력(슬롯 추출 등)에서 산문이 섞이는 것을 막는다.
+            body["format"] = "json"
         options: dict[str, float | int] = {}
         if temperature is not None:
             options["temperature"] = temperature
@@ -81,13 +85,16 @@ class T1MidFakerOrchestrator:
         system: str | None = None,
         temperature: float | None = None,
         num_ctx: int | None = None,
+        json_format: bool = False,
     ) -> str:
         """프롬프트를 self._model에 전달하고 응답 문자열을 반환한다.
 
         temperature를 주지 않으면 모델 Modelfile 기본값을 쓴다(exaone3.5는 1).
-        num_ctx를 주지 않으면 ollama 기본(4096)을 쓴다.
+        num_ctx를 주지 않으면 ollama 기본(4096)을 쓴다. json_format=True면 JSON만 받는다.
         """
-        body = self._build_body(prompt, system=system, temperature=temperature, num_ctx=num_ctx)
+        body = self._build_body(
+            prompt, system=system, temperature=temperature, num_ctx=num_ctx, json_format=json_format
+        )
 
         try:
             with httpx.Client(timeout=self._timeout) as client:
