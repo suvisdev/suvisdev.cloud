@@ -179,6 +179,8 @@ class BookingLexiconGuardTests(unittest.TestCase):
             "영화관 어디야",
             "군자에 롯데시네마가 있어?",
             "군자에서 인턴 오늘 몇 시에 볼 수 있어?",
+            "군자역 근처에 어느 체인 지점이 있는지 알려줘",
+            "인턴 어디서 볼 수 있어?",
         ):
             self.assertTrue(_is_booking_lexicon(m), m)
 
@@ -192,9 +194,12 @@ class BookingLexiconGuardTests(unittest.TestCase):
         ):
             self.assertFalse(_is_booking_lexicon(m), m)
 
-    def test_general_prompt_forbids_realtime_facts(self) -> None:
+    def test_general_prompt_forbids_realtime_facts_and_points_to_booking(self) -> None:
         self.assertIn("시간표", _GENERAL_CHAT_SYSTEM_PROMPT)
         self.assertIn("지어내지", _GENERAL_CHAT_SYSTEM_PROMPT)
+        # "모른다"로 끝내지 않고 예매 도우미(극장 검색·롯데 시간표)로 넘기는 안내가 있어야 한다.
+        self.assertIn("롯데시네마", _GENERAL_CHAT_SYSTEM_PROMPT)
+        self.assertIn("찾아드린다", _GENERAL_CHAT_SYSTEM_PROMPT)
 
 
 class BareEvalFollowupDetectorTests(unittest.TestCase):
