@@ -13,6 +13,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 NS=suvisdev
 REPO_ROOT="$(cd .. && pwd)"   # backend.yaml hostPath의 __REPO_ROOT__ 치환용
+HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}"   # __HF_CACHE__ — 감성 배치 가중치 캐시(09-27)
 
 BUILD=0
 EXTERNAL_DB=0
@@ -79,7 +80,7 @@ else
 fi
 
 # backend.yaml의 hostPath(__REPO_ROOT__)를 이 머신의 저장소 루트로 치환해 apply
-sed "s#__REPO_ROOT__#${REPO_ROOT}#g" backend.yaml | kubectl apply -f -
+sed "s#__REPO_ROOT__#${REPO_ROOT}#g; s#__HF_CACHE__#${HF_CACHE}#g" backend.yaml | kubectl apply -f -
 
 kubectl apply \
   -f auth.yaml \

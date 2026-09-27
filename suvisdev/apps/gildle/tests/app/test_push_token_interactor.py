@@ -3,8 +3,8 @@
 from dataclasses import replace
 
 import pytest
-from fastapi import HTTPException
 
+from gildle.app.errors import PushTokenValidationError
 from gildle.app.ports.output.push_token_repository import PushTokenRepositoryPort
 from gildle.app.use_cases.push_token_interactor import PushTokenInteractor
 from gildle.domain.entities.push_token_entity import PushToken
@@ -41,10 +41,9 @@ async def test_register_trims_and_upserts_same_token_to_new_user():
 @pytest.mark.asyncio
 async def test_register_rejects_bad_platform_and_empty_token():
     uc = PushTokenInteractor(_FakeRepo())
-    with pytest.raises(HTTPException) as e:
+    with pytest.raises(PushTokenValidationError):
         await uc.register(1, "abc", "web")
-    assert e.value.status_code == 400
-    with pytest.raises(HTTPException):
+    with pytest.raises(PushTokenValidationError):
         await uc.register(1, "   ", "android")
 
 

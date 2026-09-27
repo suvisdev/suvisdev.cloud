@@ -164,6 +164,17 @@
   (서킷 브레이커·재시도)라 **`lora_server_client.py`/`LoraServerClient`/`LoraServerError`**로 함께 개명.
   실수: `\bOrchestrator\b` 일괄 치환이 execsuite `_docs/harness-lab`의 일반 명사 "Orchestrator"까지
   바꿔 `git checkout`으로 되돌리고 T1 참조만 다시 치환. 과거 워크로그·인터뷰의 옛 이름은 역사라 그대로.
+- **리뷰 감성 스케줄러 전량 실패 수정(밤, 사용자 지시 "재점검해서 실행")**: 파드에서 `_make_echo_adapter().analyze()`를
+  직접 돌려 트레이스백 확보 — `transformers/integrations/bitsandbytes.py: available_devices.discard("cpu")` →
+  `'frozenset' object has no attribute 'discard'`. 원인: `EchoSentimentAdapter._load`가 **bitsandbytes 4bit +
+  `device_map={"":0}`(GPU)** 를 하드코딩했는데 백엔드 파드(k3s)는 `torch.cuda.is_available()=False`. CUDA 전용
+  양자화를 CPU에서 검증하다 transformers 4.47.1의 frozenset 버그로 죽었다(09-25 파드 컷오버 뒤부터 매일
+  failed=50). 수정: GPU면 기존 4bit, 아니면 **bf16 CPU 로드**(2.4B ≈ 4.8GB, 파드 MemAvailable 9.7GB·16코어).
+  가중치를 파드 재시작마다 받지 않게 `k8s/backend.yaml`에 호스트 `~/.cache/huggingface` hostPath(`__HF_CACHE__`,
+  deploy.sh 치환) 추가. **배포 후 파드 실행**: 단건 24.5s(로드 포함)·2건째 12s(analyze마다 재로드하는 기존 설계),
+  `run_sentiment_once(50)` → **succeeded=50, failed=0, 511s**. 남은 미분석분은 50건씩 추가 사이클로 소진
+  (스케줄러는 24h마다 50건). 호출당 재로드는 GPU VRAM 예산 때문에 둔 설계라 CPU에서도 그대로 뒀다 —
+  배치 1회 8.5분이면 일 1회 스케줄엔 충분.
 - **학습(LoRA) 필요 없음 판단**: 예매 트랙은 LLM을 쓰지 않고(KOFIC·카카오·롯데 시간표 결정론), 잡담
   트랙은 Gemini 프롬프트, LoRA(EXAONE)는 추천 트랙 픽 생성에만 쓰인다. 교사 데이터셋에도 booking·
   general 행이 0건이라 이 사고를 학습으로 고칠 자리가 없다. 분류기(Qwen few-shot 프롬프트)에 예시를

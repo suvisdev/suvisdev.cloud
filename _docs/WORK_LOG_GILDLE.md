@@ -30,7 +30,14 @@
 
 ## 2026-09-27
 
-### 작업 내용 (저녁 — susu→gildle 개명 · 아이콘·스플래시 · graph-edges 메모리 · 릴리스 AAB)
+### 작업 내용 (밤 — 아키텍처 감사 후속: 인터랙터의 HTTPException 제거)
+- 저장소 전체 헥사고날 감사(사용자 요청, `[P]` 09-27)에서 `WalkInteractor`·`PushTokenInteractor`가
+  `HTTPException`을 직접 던지는 것(suvisdev/CLAUDE.md §K 금지)이 잡혔다 — 둘 다 09-22·09-27에 내가 쓴 코드.
+  `apps/gildle/app/errors.py`(`WalkValidationError`·`WalkNotFoundError`·`PushTokenValidationError`)로 바꾸고
+  라우터가 400/404로 변환. 테스트는 앱 예외를 기대하도록 수정, gildle 225 passed. 남은 위반은 mova
+  `games_interactor`(HTTPException 7곳)·`whoami_router`(viewer ORM 직접 import) — 기록만.
+
+ · 아이콘·스플래시 · graph-edges 메모리 · 릴리스 AAB)
 - 사용자: "앱 이름도 susu 말고 gildle로", 그리고 목록 2번(`scored_edges.json` DB 이전)부터 콘솔 등록
   전까지 완성도 올리기. **DB 이전은 실측 뒤 보류 판단**: 경로 탐색(A*)은 어차피 메모리 그래프가
   필요해 DB로 옮겨도 RSS가 줄지 않고, uvicorn 워커도 1개라 "워커 수만큼 복제" 우려는 해당 없음.

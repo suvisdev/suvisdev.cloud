@@ -82,6 +82,9 @@ spec:
               mountPath: /suvisdev/apps/ontology/resources/crawled
             - name: gildle-data
               mountPath: /suvisdev/apps/gildle/data
+            # 호스트 HF 캐시 — 감성 배치(EXAONE 2.4B bf16 CPU)가 가중치를 재시작마다 받지 않게(09-27)
+            - name: hf-cache
+              mountPath: /root/.cache/huggingface
           readinessProbe:
             tcpSocket:
               port: 8000
@@ -100,6 +103,10 @@ spec:
         - name: gildle-data
           hostPath:
             path: __REPO_ROOT__/suvisdev/apps/gildle/data
+            type: DirectoryOrCreate
+        - name: hf-cache
+          hostPath:
+            path: __HF_CACHE__
             type: DirectoryOrCreate
 ---
 apiVersion: v1

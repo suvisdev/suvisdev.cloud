@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from shared.security.require_user import UserPrincipal, require_user
 
 from gildle.adapter.inbound.api.schemas.walk_schema import (
@@ -17,6 +17,7 @@ from gildle.adapter.inbound.api.schemas.walk_schema import (
     WalkSummarySchema,
 )
 from gildle.app.dtos.walk_dto import WalkCreateCommand, WalkListQuery
+from gildle.app.errors import WalkNotFoundError, WalkValidationError
 from gildle.app.ports.input.walk_use_case import WalkUseCase
 from gildle.dependencies.walk_provider import get_walk_use_case
 
@@ -29,19 +30,22 @@ async def record_walk(
     principal: UserPrincipal = Depends(require_user),
     use_case: WalkUseCase = Depends(get_walk_use_case),
 ) -> WalkDetailSchema:
-    walk = await use_case.record(
-        WalkCreateCommand(
-            user_id=principal.user_id,
-            started_at=payload.started_at,
-            ended_at=payload.ended_at,
-            distance_m=payload.distance_m,
-            duration_s=payload.duration_s,
-            path=payload.path,
-            season_mode=payload.season_mode,
-            avg_shade_score=payload.avg_shade_score,
-            memo=payload.memo,
+    try:
+        walk = await use_case.record(
+            WalkCreateCommand(
+                user_id=principal.user_id,
+                started_at=payload.started_at,
+                ended_at=payload.ended_at,
+                distance_m=payload.distance_m,
+                duration_s=payload.duration_s,
+                path=payload.path,
+                season_mode=payload.season_mode,
+                avg_shade_score=payload.avg_shade_score,
+                memo=payload.memo,
+            )
         )
-    )
+    except WalkValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     return WalkDetailSchema.of_walk(walk)
 
 
@@ -72,7 +76,10 @@ async def walk_detail(
     principal: UserPrincipal = Depends(require_user),
     use_case: WalkUseCase = Depends(get_walk_use_case),
 ) -> WalkDetailSchema:
-    return WalkDetailSchema.of_walk(await use_case.detail(walk_id, principal.user_id))
+    try:
+        return WalkDetailSchema.of_walk(await use_case.detail(walk_id, principal.user_id))
+    except WalkNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @walk_router.delete("/{walk_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -81,4 +88,7 @@ async def delete_walk(
     principal: UserPrincipal = Depends(require_user),
     use_case: WalkUseCase = Depends(get_walk_use_case),
 ) -> None:
-    await use_case.remove(walk_id, principal.user_id)
+    try:
+        await use_case.remove(walk_id, principal.user_id)
+    except WalkNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e

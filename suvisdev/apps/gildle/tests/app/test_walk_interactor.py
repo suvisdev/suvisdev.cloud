@@ -4,9 +4,9 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
-from fastapi import HTTPException
 
 from gildle.app.dtos.walk_dto import WalkCreateCommand, WalkListQuery, WalkStats, WalkSummary
+from gildle.app.errors import WalkNotFoundError, WalkValidationError
 from gildle.app.ports.output.walk_repository import WalkRepositoryPort
 from gildle.app.use_cases.walk_interactor import WalkInteractor
 from gildle.domain.entities.walk_entity import Walk
@@ -81,9 +81,9 @@ class TestRecord:
     @pytest.mark.asyncio
     async def test_rejects_end_before_start(self):
         repo = _FakeWalkRepository()
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(WalkValidationError) as e:
             await WalkInteractor(repository=repo).record(_command(started_at=_END, ended_at=_START))
-        assert e.value.status_code == 400
+        assert "path" in str(e.value) or str(e.value)
 
     @pytest.mark.asyncio
     async def test_truncates_over_long_path(self):
@@ -108,9 +108,9 @@ class TestOwnership:
             season_mode="summer",
         )
         repo = _FakeWalkRepository([mine])
-        with pytest.raises(HTTPException) as e:
+        with pytest.raises(WalkNotFoundError) as e:
             await WalkInteractor(repository=repo).detail(1, user_id=7)
-        assert e.value.status_code == 404
+        assert "찾을 수 없" in str(e.value)
 
     @pytest.mark.asyncio
     async def test_delete_requires_ownership(self):
@@ -125,6 +125,6 @@ class TestOwnership:
             season_mode="summer",
         )
         repo = _FakeWalkRepository([other])
-        with pytest.raises(HTTPException):
+        with pytest.raises(WalkNotFoundError):
             await WalkInteractor(repository=repo).remove(1, user_id=7)
         assert repo.deleted == []  # 소유자가 아니면 삭제까지 가지 않는다

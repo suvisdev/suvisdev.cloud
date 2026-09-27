@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from fastapi import HTTPException
-
+from gildle.app.errors import PushTokenValidationError
 from gildle.app.ports.input.push_token_use_case import PushTokenUseCase
 from gildle.app.ports.output.push_token_repository import PushTokenRepositoryPort
 from gildle.domain.entities.push_token_entity import PushToken
@@ -18,7 +17,7 @@ class PushTokenInteractor(PushTokenUseCase):
         try:
             entity = PushToken(id=None, user_id=user_id, token=token.strip(), platform=platform)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise PushTokenValidationError(str(e)) from e
         return await self._repository.upsert(entity)
 
     async def unregister(self, user_id: int, token: str) -> None:

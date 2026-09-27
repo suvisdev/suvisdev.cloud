@@ -71,19 +71,31 @@ class EchoSentimentAdapter(SentimentAnalysisPort):
             _BASE_MODEL_ID, revision=_BASE_MODEL_REVISION, trust_remote_code=True
         )
 
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-        )
-        base_model = AutoModelForCausalLM.from_pretrained(
-            _BASE_MODEL_ID,
-            revision=_BASE_MODEL_REVISION,
-            quantization_config=bnb_config,
-            device_map={"": 0},
-            trust_remote_code=True,
-        )
+        if self._device == "cuda":
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+            )
+            base_model = AutoModelForCausalLM.from_pretrained(
+                _BASE_MODEL_ID,
+                revision=_BASE_MODEL_REVISION,
+                quantization_config=bnb_config,
+                device_map={"": 0},
+                trust_remote_code=True,
+            )
+        else:
+            # 백엔드 파드(k3s)는 GPU가 없다. bitsandbytes 4bit는 CUDA 전용이라 CPU에서
+            # transformers의 백엔드 검증이 `'frozenset' object has no attribute 'discard'`로
+            # 죽어 09-27까지 감성 배치가 전량 실패했다(WORK_LOG_MOVA 09-27). CPU에선
+            # 양자화 없이 bf16으로 올린다(2.4B ≈ 4.8GB, 16코어 forward 1회 수 초).
+            base_model = AutoModelForCausalLM.from_pretrained(
+                _BASE_MODEL_ID,
+                revision=_BASE_MODEL_REVISION,
+                torch_dtype=torch.bfloat16,
+                trust_remote_code=True,
+            ).to(self._device)
         model = PeftModel.from_pretrained(base_model, self._adapter_dir)
         model.eval()
         return model, base_model, tokenizer
