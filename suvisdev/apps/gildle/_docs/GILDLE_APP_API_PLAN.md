@@ -8,9 +8,9 @@ gildle은 OSM 데이터와 자체 계산만 쓰므로 그 리스크가 없다.
 
 | 항목 | 상태 |
 |------|------|
-| 라우터 | `route_router.py` 하나 — 엔드포인트 4개 |
-| 엔드포인트 | `POST /routes` · `POST /navigate` · `GET /graph-edges` · `GET /map-data` |
-| 인증 | **없음** — 전부 공개, `require_user` 미적용 |
+| 라우터 | `route_router.py` + `walk_router.py`(09-22) |
+| 엔드포인트 | `POST /routes`(09-27부터 `/navigate`와 동일한 여름 그늘·`length_m`) · `POST /navigate` · `POST /loops` · `GET /graph-edges` · `GET /map-data` · `walks` 5종 |
+| 인증 | 경로 계산은 공개, `walks`는 `require_user`(09-22) |
 | DB | `route_nodes`·`route_edges`·`tree_segments`·`route_requests`·`route_results` **전부 0행** |
 | 데이터 원천 | 파일 — `data/scored_edges.json` **76MB**를 프로세스 메모리로 로드 |
 | 사용자 기능 | **0개** (저장·기록·즐겨찾기·통계 전부 없음) |

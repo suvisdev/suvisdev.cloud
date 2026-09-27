@@ -44,6 +44,8 @@ class NetworkXRouteGraphAdapter(RouteGraphPort):
         start: str,
         end: str,
         weight_fn: Callable[[RouteEdge], float],
+        *,
+        heuristic_scale: float | None = None,  # 휴리스틱 없음 — 포트 호환용
     ) -> list[str]:
         # weight를 간선 속성에 사전 대입하지 않고 콜러블로 넘긴다 — 전 간선
         # 233k회 사전 계산 제거 + 캐시된 공유 그래프를 요청마다 변이하는

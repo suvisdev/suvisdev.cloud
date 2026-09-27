@@ -1,3 +1,5 @@
+import pytest
+
 from gildle.domain.entities.hazard_zone import HazardZone
 from gildle.domain.entities.tree_segment import TreeSegment
 from gildle.domain.services.route_weight_calculator import RouteWeightCalculator
@@ -183,3 +185,58 @@ class TestSummerShade:
             self._summer_edge(), SeasonMode.SPRING_AUTUMN, [], [], shade_fraction=0.0
         )
         assert w.value == 100.0
+
+
+class TestSummerShadeCombinesBuildingAndCanopy:
+    """여름 그늘 = max(건물 그늘, tree_score). 건물 없는 숲길이 햇빛으로 계산되던 것을 고침(09-27)."""
+
+    def _edge(self, tree_score: float) -> RouteEdge:
+        return RouteEdge(
+            from_node="a",
+            to_node="b",
+            base_distance_m=100.0,
+            midpoint=Coordinate(latitude=37.5, longitude=127.0),
+            road_name=None,
+            tree_score=tree_score,
+        )
+
+    def test_canopy_wins_when_building_shade_is_low(self):
+        w = RouteWeightCalculator().calculate_edge_weight(
+            self._edge(0.9), SeasonMode.SUMMER_SHADE, [], [], shade_fraction=0.2
+        )
+        assert w.value == pytest.approx(100.0 * (1 + 4 * 0.1))
+
+    def test_building_shade_wins_when_higher(self):
+        w = RouteWeightCalculator().calculate_edge_weight(
+            self._edge(0.1), SeasonMode.SUMMER_SHADE, [], [], shade_fraction=0.8
+        )
+        assert w.value == pytest.approx(100.0 * (1 + 4 * 0.2))
+
+    def test_no_precomputed_shade_falls_back_to_tree_score(self):
+        w = RouteWeightCalculator().calculate_edge_weight(
+            self._edge(0.5), SeasonMode.SUMMER_SHADE, [], [], shade_fraction=None
+        )
+        assert w.value == pytest.approx(100.0 * (1 + 4 * 0.5))
+
+
+class TestMinMultiplier:
+    def test_spring_is_discount_floor_and_others_one(self):
+        calc = RouteWeightCalculator()
+        assert calc.min_multiplier(SeasonMode.SPRING_AUTUMN) == pytest.approx(0.7)
+        assert calc.min_multiplier(SeasonMode.SUMMER_SHADE) == 1.0
+        assert calc.min_multiplier(SeasonMode.WINTER_SAFETY) == 1.0
+
+    def test_every_mode_weight_is_at_least_distance_times_floor(self):
+        # A* admissible 조건 — 어떤 그늘·수종·위험 조합에서도 가중치/거리 ≥ 하한.
+        calc = RouteWeightCalculator()
+        edge = RouteEdge(
+            from_node="a",
+            to_node="b",
+            base_distance_m=100.0,
+            midpoint=Coordinate(latitude=37.5, longitude=127.0),
+            road_name=None,
+            tree_score=1.0,
+        )
+        for mode in SeasonMode:
+            w = calc.calculate_edge_weight(edge, mode, [], [], shade_fraction=1.0).value
+            assert w >= 100.0 * calc.min_multiplier(mode) - 1e-9

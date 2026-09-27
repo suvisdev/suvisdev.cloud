@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- 현재 위치를 출발지로 쓰기 위한 포그라운드 위치 권한. 백그라운드 권한은
+         Play 심사에서 별도 정당화가 필요하므로 넣지 않는다(GILDLE_APP_RELEASE_PLAN 4단계). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <application
         android:label="길들"
         android:name="${applicationName}"
@@ -43,7 +45,7 @@
             </intent-filter>
         </activity>
         <!-- 네이버 지도 SDK — 등록된 패키지명(cloud.suvisdev.gildle)에서만 동작한다.
-             값은 lib/naver_config.dart의 naverMapClientId와 같아야 한다. -->
+             값은 dart_defines.json의 NAVER_MAP_CLIENT_ID와 같아야 한다. -->
         <meta-data
             android:name="com.naver.maps.map.CLIENT_ID"
             android:value="e630p2wr6p" />

@@ -28,6 +28,92 @@
 
 ---
 
+## 2026-09-27
+
+### 작업 내용 (앱 지도 화면 · susu 정리 · `/routes` 점검 · 수관 데이터 · A* 모드별 배율)
+- 사용자 지시 순서대로 ①Flutter 지도 화면 → ②susu를 gildle 앱으로 정리 → ③`/routes`
+  점검 → ④나무 데이터 보강 → ⑥모드별 A* 휴리스틱. ⑤그늘 실측(사진)은 앱이 나온 뒤로 미룸.
+- 이 세션까지 gildle 앱 화면은 0개였고(09-22 기준), 백엔드는 출시 준비가 끝난 상태였다.
+
+### 수정/구현
+- **① 지도 화면** `susu/lib/features/gildle/` — `domain/{season_mode,geo_point}.dart`,
+  `data/{gildle_route_api,models/route_result,models/loop_candidate}.dart`,
+  `presentation/{map_controller,gildle_map_screen}.dart`. 네이버 지도(flutter_naver_map 1.4.4,
+  Windows pub 캐시 소스에서 시그니처 확인) 위에 탭 2번으로 출발·도착 → `POST /api/gildle/routes`,
+  계절 모드 SegmentedButton, 여름은 구간별 그늘을 warm(햇빛)↔accent(그늘)로 색 보간한
+  `NMultipartPathOverlay`, 루프 버튼(거리 슬라이더 → `POST /api/gildle/loops`, 후보 칩),
+  현재 위치 버튼(geolocator → 출발지), 하단 카드(거리·예상 분·그늘%·밤 안내·OSM 저작자 표시).
+  riverpod `StateNotifier`는 기존 mova 컨트롤러와 같은 꼴, 에러 문구는 auth.md §6대로 짧게.
+- **② susu 정리(A안)** — `features/mova`·`features/media`·`stopwatch_page.dart`·
+  `naver_config.dart`(미사용, Client ID는 dart_defines) 삭제, `main.dart`를 `GildleApp` +
+  `HomeScreen`(지도 + 로그아웃)으로 재작성, `gildleLightTheme/DarkTheme` 적용, 로그인 화면
+  문구 '길들'. `image_picker` 의존성 제거, 매니페스트 CAMERA 권한 삭제·`ACCESS_FINE/COARSE_LOCATION`
+  추가(백그라운드 위치는 Play 정당화가 필요해 안 넣음). 인트로 영상 스플래시는 그대로 둠.
+  낡은 테스트 2개(`MyApp` 참조 오류·스톱워치) 삭제 → `test/geo_point_test.dart` 3건.
+- **③ `/routes` 점검 — 결함 2개 수정** (`route_router.py`)
+  - 여름 모드가 `/routes`에선 그늘 조회 없이(나무 점수 폴백) 돌았고 응답에 `shade_ratio`
+    등이 없었다 — 앱은 좌표만 알기 때문에 이 엔드포인트가 `/navigate`와 같아야 한다.
+    `_plan_route()`로 공통화(④ 제약·③ 시간 의존·기본 분기 전부), `RouteRequestSchema`에
+    `departure_time`·`max_detour_ratio` 추가, 두 엔드포인트 모두 `length_m` 응답.
+  - **좌표 응답이 간선 저장 방향을 무시했다**: 간선을 양방향으로 색인하면서 항상 `from_coord`를
+    써서 역방향 간선에선 상대편 끝점이 나갔다(경로 a→b→c가 (a,b)·(c,b)로 저장돼 있으면 좌표가
+    a,c,b). `_path_coordinates()`가 진행 방향 끝점을 고르게 수정, `/loops`도 공용(마지막
+    도착 좌표까지 넣어 루프가 닫힘). 실데이터 표본 2경로에서 역방향 간선 54개 — 웹 지도의
+    폴리라인이 그동안 국소적으로 되돌아가고 있었다는 뜻.
+- **④ 나무 데이터 보강** — `scripts/fetch_osm_canopy.py`(Overpass: wood·forest·park 폴리곤
+  `out geom`, tree_row 선; 미러 순환·백오프는 buildings 수집과 동일, UA 없으면 406) +
+  `scripts/enrich_tree_scores.py`(간선을 **선분**으로 보고 shapely STRtree로 숲 1.0 · 공원 0.6 ·
+  나무열 15m 0.9 · 나무 점 25m 밀도(12m 간격=만점), 기존 값을 하한으로 max → 멱등, 원본은
+  `graph_cache/`에 백업 후 임시 파일→`os.replace`). 테스트 `test_enrich_tree_scores.py` 4건.
+- **가중치 규칙 변경** `RouteWeightCalculator` 여름: `shade = max(건물 그늘, tree_score)`.
+  이유: `shade_scores.json`이 전 간선(233,945)을 0%로라도 덮고 있어 tree_score 폴백이 **한 번도
+  안 걸렸고**, 건물 없는 산길·공원길이 "완전 햇빛"으로 계산됐다. 라우터·루프의 그늘 통계도 같은 정의.
+- **⑥ 모드별 A* 배율** — `RouteWeightCalculator.min_multiplier(mode)`(봄가을 0.7, 여름·겨울
+  1.0)를 포트 `find_shortest_path(..., heuristic_scale=)`로 넘긴다(networkx·PG·Fake는 받고
+  무시). `execute_bounded`의 순수 거리 탐색은 1.0, `scaled(t)`는 모드 하한, 루프 되밟기 페널티도
+  하한 그대로. `verify_routing_equivalence.py`를 모드별 측정으로 확장(`astar` 기본 0.7 vs
+  `astar_mode`).
+
+### 오류·막힌 점
+- `flutter test`는 `\\wsl.localhost` 경로에서 09-23과 같은 잠금 대기로 실패 →
+  `C:\Users\suteagy\gildle-build\susu`로 rsync 후 실행(3/3 통과). `flutter analyze`는 WSL
+  경로에서도 된다(0 issues). `pub get`이 Windows 데스크톱 플러그인 심볼릭 링크 오류로 exit≠0이지만
+  Android와 무관, `analysis_options.yaml` 자동 수정은 되돌림.
+- 노트북엔 pytest가 없어 스크래치 `uv venv`(requirements에서 torch 계열 제외 + shapely·lightgbm)로
+  gildle 233 passed. `ruff format apps/gildle`이 안 건드린 파일 4개(walk_orm 등)까지 재포맷해
+  `git checkout`으로 되돌림 — 포맷은 편집한 파일에만 걸 것.
+- Overpass `out count;`는 406/빈 응답 — UA 헤더 + `out ids;`로 대체. 공원 조회는 연속 호출 시
+  일시 실패(레이트리밋)했고 수집 스크립트의 5초 간격·백오프로는 문제 없었다.
+
+### 데이터
+- 수관: wood 1,982 · forest 906 · park 3,124 폴리곤 + tree_row 445 선(열린 고리 168 건너뜀) →
+  `seoul_canopy_osm.json` 4.8MB(커밋 대상, trees·parks와 같은 취급).
+- `scored_edges.json` 보강(12:40 KST, 18초): tree_score>0 **10,355(4.43%) → 45,256(19.34%)**,
+  ≥0.5 42,869, dog_friendly>0.3 74,843 → 128,085(공원 150m 판정을 중심점→폴리곤 거리로 바꾼 효과),
+  변경 75,009. 표본: 남산 0.2→1.0, 서울숲 0→1.0, 북한산 0→1.0, 여의도공원 0.2→0.6, 강남역 0 유지,
+  광화문(기존 1.0) 유지. 백업 `graph_cache/scored_edges.before-tree-enrich-20260927.json`.
+  **파드 hostPath라 즉시 서빙** — 프로덕션 `graph-edges` 남산 구역 19간선 전부 1.0 확인.
+- A* 모드별(실데이터 60쌍, seed 3, 보강 **전** 데이터, 불일치 0):
+  | 모드 | 배율 | 방문 비율(다익스트라=1) 0.7 → 모드 | 질의당 초 다익/0.7/모드 |
+  |---|---|---|---|
+  | 봄가을 | 0.7 | 0.415 → 0.415 | 0.284 / 0.156 / 0.157 |
+  | 겨울 | 1.0 | 0.415 → **0.191** | 0.271 / 0.150 / **0.070** |
+  | 여름 | 1.0 | 0.861 → 0.803 | 0.392 / 0.424 / 0.390 |
+  여름이 여전히 약한 이유는 가중치가 거리의 1~5배라 직선거리 하한이 느슨해서다(09-22 진단과 같음).
+  **보강 후 재측정**(같은 60쌍): 여름 방문 비율 0.7 배율 0.787 → 모드 배율 **0.696**(질의당 0.385→0.342s),
+  봄가을·겨울은 동일 — 그늘 간선이 늘어 가중치가 거리에 가까워진 만큼 휴리스틱이 조여진 것.
+
+### 산출물
+- susu: 위 신규·삭제 파일, `pubspec.yaml`·`AndroidManifest.xml`·`auth.dart`·`main.dart`.
+- suvisdev: `route_router.py`·`route_schema.py`·`route_graph_port.py`·다익스트라/networkx/PG
+  어댑터·`calculate_route_interactor.py`·`plan_loop_interactor.py`·`route_weight_calculator.py`·
+  `verify_routing_equivalence.py`·신규 스크립트 2·테스트(navigate 2건·다익스트라 2건·가중치 5건·
+  enrich 4건). ruff·mypy·lint-imports 통과.
+- **배포 완료(오후, 사용자 지시)**: `./k8s/deploy.sh --external-db --build` — backend·auth 롤아웃
+  성공, 프로덕션 `/routes` 여름 모드가 `length_m`·`shade_ratio`·`edge_shades`·`night`를 반환하는 것 확인.
+- 남은 것: 산책 중(위치 추적·기록 저장 `POST /walks`)·기록 목록·FCM 토큰 화면, 실기기 APK 확인,
+  ⑤ 그늘 실측(앱 이후).
+
 ## 2026-09-22
 
 ### 작업 내용 (앱 출시 준비 — walks API · 건물 그늘 파이프라인 복구)

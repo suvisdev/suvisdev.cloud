@@ -25,8 +25,15 @@ class RouteGraphPort(ABC):
         start: str,
         end: str,
         weight_fn: Callable[[RouteEdge], float],
+        *,
+        heuristic_scale: float | None = None,
     ) -> list[str]:
-        """`weight_fn`으로 각 간선 가중치를 구해 start→end 최단 경로(노드 id 목록)를 반환한다."""
+        """`weight_fn`으로 각 간선 가중치를 구해 start→end 최단 경로(노드 id 목록)를 반환한다.
+
+        `heuristic_scale`은 A* 구현체용 힌트 — "가중치 ≥ 거리 × scale"이 보장될 때
+        호출자가 넘긴다(`RouteWeightCalculator.min_multiplier`). None이면 구현체 기본값,
+        휴리스틱이 없는 구현체(networkx·PG)는 무시한다.
+        """
         ...
 
     def find_shortest_path_time_dependent(
@@ -35,6 +42,8 @@ class RouteGraphPort(ABC):
         start: str,
         end: str,
         weight_fn_t: Callable[[RouteEdge, float], float],
+        *,
+        heuristic_scale: float | None = None,
     ) -> list[str]:
         """간선 가중치가 **그 간선에 도달하기까지 걸은 거리(m)**에 따라 달라지는 탐색.
 
@@ -43,4 +52,6 @@ class RouteGraphPort(ABC):
         출발 시점(0m) 가중치로 일반 탐색을 한다 — networkx 구현체가 그렇다.
         자체 다익스트라 구현체가 이를 덮어쓴다.
         """
-        return self.find_shortest_path(graph, start, end, lambda e: weight_fn_t(e, 0.0))
+        return self.find_shortest_path(
+            graph, start, end, lambda e: weight_fn_t(e, 0.0), heuristic_scale=heuristic_scale
+        )

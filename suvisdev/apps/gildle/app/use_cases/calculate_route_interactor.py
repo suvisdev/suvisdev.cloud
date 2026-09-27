@@ -88,7 +88,13 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
         hazards = self._hazard_repository.find_all()
         weight_fn = build_weight_fn(self._weight_calculator, mode, segments, hazards, shade_lookup)
         graph = self._route_graph.build_graph(edges)
-        return self._route_graph.find_shortest_path(graph, start, end, weight_fn)
+        return self._route_graph.find_shortest_path(
+            graph,
+            start,
+            end,
+            weight_fn,
+            heuristic_scale=self._weight_calculator.min_multiplier(mode),
+        )
 
     def execute_bounded(
         self,
@@ -111,8 +117,11 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
         full = build_weight_fn(self._weight_calculator, mode, segments, hazards, shade_lookup)
         graph = self._route_graph.build_graph(edges)
 
+        # 순수 거리 탐색은 배율 1.0, 모드 가중치를 섞은 탐색은 모드 하한(봄가을 0.7).
+        # scaled(t) = 거리 + t·(모드가중치 − 거리) ≥ 거리 × 모드 하한이라 같은 값이 안전하다.
+        scale = self._weight_calculator.min_multiplier(mode)
         shortest = self._route_graph.find_shortest_path(
-            graph, start, end, lambda e: e.base_distance_m
+            graph, start, end, lambda e: e.base_distance_m, heuristic_scale=1.0
         )
         if not shortest:
             return []
@@ -121,13 +130,17 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
         def scaled(t: float) -> Callable[[RouteEdge], float]:
             return lambda e: e.base_distance_m + t * (full(e) - e.base_distance_m)
 
-        preferred = self._route_graph.find_shortest_path(graph, start, end, full)
+        preferred = self._route_graph.find_shortest_path(
+            graph, start, end, full, heuristic_scale=scale
+        )
         if path_length_m(edges, preferred) <= limit + 1e-6:
             return preferred
         lo, hi, best = 0.0, 1.0, shortest
         for _ in range(_BOUNDED_ITERATIONS):
             mid = (lo + hi) / 2
-            candidate = self._route_graph.find_shortest_path(graph, start, end, scaled(mid))
+            candidate = self._route_graph.find_shortest_path(
+                graph, start, end, scaled(mid), heuristic_scale=scale
+            )
             if candidate and path_length_m(edges, candidate) <= limit + 1e-6:
                 best, lo = candidate, mid
             else:
@@ -160,4 +173,10 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
             ).value
 
         graph = self._route_graph.build_graph(edges)
-        return self._route_graph.find_shortest_path_time_dependent(graph, start, end, weight_fn_t)
+        return self._route_graph.find_shortest_path_time_dependent(
+            graph,
+            start,
+            end,
+            weight_fn_t,
+            heuristic_scale=self._weight_calculator.min_multiplier(mode),
+        )

@@ -92,7 +92,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const IntroScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
     } catch (e) {
@@ -153,7 +153,7 @@ class _AuthScreenState extends State<AuthScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Suvisdev',
+                  '길들',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w900,

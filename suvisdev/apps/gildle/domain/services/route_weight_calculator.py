@@ -48,11 +48,23 @@ class RouteWeightCalculator:
             return base
 
         if mode is SeasonMode.SUMMER_SHADE:
-            shade = shade_fraction if shade_fraction is not None else edge.tree_score
+            # 건물 그늘(사전 계산)과 수관(tree_score — 숲·가로수) 중 큰 값이 실제 그늘이다.
+            # 2026-09-27까지는 shade_fraction이 있으면 tree_score를 무시해, 건물이 없는
+            # 산길·공원길이 "완전 햇빛"으로 계산됐다(shade_scores.json이 전 간선을
+            # 0%로라도 덮고 있어 폴백이 한 번도 안 걸렸음).
+            shade = max(shade_fraction or 0.0, edge.tree_score)
             shade = max(0.0, min(1.0, shade))
             return base.apply_penalty(_SUN_PENALTY_RATE * (1.0 - shade))
 
         return base
+
+    @staticmethod
+    def min_multiplier(mode: SeasonMode) -> float:
+        """모드별 `가중치 / 거리`의 하한 — A* 휴리스틱(직선거리 × 배율)이 이 값 이하여야
+        admissible하다. 봄가을만 감면(0.7)이 있고 겨울·여름은 페널티뿐이라 1.0."""
+        if mode is SeasonMode.SPRING_AUTUMN:
+            return 1.0 - _SPRING_DISCOUNT_RATE
+        return 1.0
 
     def _matches_bonus_tree(self, edge: RouteEdge, segments: list[TreeSegment]) -> bool:
         """보너스 수종 구간 매칭. 도로명 일치(우선) → 좌표 근접(보조) 순으로 본다."""

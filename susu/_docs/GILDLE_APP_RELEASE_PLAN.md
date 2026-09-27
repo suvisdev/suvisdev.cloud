@@ -9,17 +9,17 @@ AI 학습 조항이 별도 서면 계약을 요구하기 때문이고, gildle은
 | 항목 | 상태 |
 |------|------|
 | Flutter 프로젝트 | `susu/` 하나 — `applicationId = cloud.suvisdev.susu` |
-| 화면 | mova 채팅(174줄) · 사진 업로드 · 스톱워치 — **전체 1,518줄** |
-| 구조 | `Splash → Intro → Navigator.push`, `go_router`는 `/` 하나만 등록 |
-| 릴리스 서명 | **없음** — `signingConfig = signingConfigs.getByName("debug")` |
-| gildle 화면 | **0개** |
+| 화면 | ~~mova 채팅 · 사진 업로드 · 스톱워치~~ → **09-27 삭제**, gildle 지도 화면 1개 |
+| 구조 | `Splash → Auth → HomeScreen(지도)`, `go_router`는 `/` 하나만 등록 |
+| 릴리스 서명 | ~~없음~~ → 09-23 `key.properties` 있으면 release 키, 없으면 debug 폴백 |
+| gildle 화면 | ~~0개~~ → **지도 1개(09-27)** — 산책 중·기록·마이페이지는 미구현 |
 | iOS | **하지 않음** (2026-09-22 결정, Android만 출시) |
 | 지도 패키지 | 없음 (웹은 Leaflet 사용) |
 | 인프라 | 카카오 OAuth·dio·flutter_secure_storage·riverpod **있음** (재사용 가치) |
 
 ---
 
-## 단계 1. 프로젝트 형태 정하기 ← **먼저 결정할 것**
+## 단계 1. 프로젝트 형태 정하기 — **A안으로 진행함(2026-09-27)**
 
 **A. susu를 gildle 앱으로 전환** (권장)
 - 카카오 OAuth·네트워크·보안 저장소가 이미 붙어 있어 그대로 쓴다.

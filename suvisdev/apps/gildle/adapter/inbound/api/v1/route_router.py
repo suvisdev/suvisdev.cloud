@@ -43,6 +43,12 @@ def calculate_route(
     request: RouteRequestSchema,
     use_case: CalculateDogFriendlyRouteUseCase = Depends(get_calculate_route_use_case),
 ) -> dict[str, Any]:
+    """좌표 기반 경로 — 최근접 노드로 스냅한 뒤 `/navigate`와 같은 탐색·응답을 쓴다.
+
+    2026-09-27까지는 여름 모드여도 그늘 조회 없이(나무 점수 폴백) 돌았고 응답에
+    그늘 필드가 없었다 — 앱은 좌표만 알기 때문에 이 엔드포인트가 `/navigate`와
+    같은 기능을 가져야 한다.
+    """
     try:
         start, end, mode = request.to_domain()
     except ValueError as exc:
@@ -55,25 +61,60 @@ def calculate_route(
     start_node = _find_nearest_node_id(edges, start)
     end_node = _find_nearest_node_id(edges, end)
     if start_node is None or end_node is None:
-        return {"path": [], "coordinates": []}
+        return _empty_route_response()
 
-    path = use_case.execute(edges, start_node, end_node, mode)
+    return _plan_route(
+        edges,
+        start_node,
+        end_node,
+        mode,
+        use_case,
+        departure_time=request.departure_time,
+        max_detour_ratio=request.max_detour_ratio,
+    )
 
-    edge_lookup = _edge_lookup(edges)
 
-    coordinates: list[list[float]] = []
+def _empty_route_response() -> dict[str, Any]:
+    return {
+        "path": [],
+        "coordinates": [],
+        "length_m": 0.0,
+        "shade_ratio": None,
+        "edge_shades": None,
+        "night": False,
+    }
+
+
+def _path_coordinates(
+    edge_lookup: dict[tuple[str, str], RouteEdge], path: list[str]
+) -> list[list[float]]:
+    """노드 경로 → 좌표열. 간선은 양방향으로 색인되므로 저장 방향이 아니라 **경로
+    진행 방향**의 끝점을 골라야 한다 — 예전엔 항상 from_coord를 써서 역방향 간선에서
+    폴리라인이 되돌아갔다(2026-09-27 수정). 좌표 없는 노드는 간선 중점으로 대체."""
+    coords: list[list[float]] = []
     for i in range(len(path) - 1):
         edge = edge_lookup.get((path[i], path[i + 1]))
-        if edge and edge.from_coord is not None:
-            coordinates.append([edge.from_coord.latitude, edge.from_coord.longitude])
-        elif edge:
-            coordinates.append([edge.midpoint.latitude, edge.midpoint.longitude])
-    if path and len(path) >= 2:
-        last_edge = edge_lookup.get((path[-2], path[-1]))
-        if last_edge and last_edge.to_coord is not None:
-            coordinates.append([last_edge.to_coord.latitude, last_edge.to_coord.longitude])
+        if edge is None:
+            continue
+        src = edge.from_coord if edge.from_node == path[i] else edge.to_coord
+        pt = src or edge.midpoint
+        coords.append([pt.latitude, pt.longitude])
+    if len(path) >= 2:
+        last = edge_lookup.get((path[-2], path[-1]))
+        if last is not None:
+            dst = last.to_coord if last.to_node == path[-1] else last.from_coord
+            if dst is not None:
+                coords.append([dst.latitude, dst.longitude])
+    return coords
 
-    return {"path": path, "coordinates": coordinates}
+
+def _path_length_m(edge_lookup: dict[tuple[str, str], RouteEdge], path: list[str]) -> float:
+    total = 0.0
+    for i in range(len(path) - 1):
+        edge = edge_lookup.get((path[i], path[i + 1]))
+        if edge is not None:
+            total += edge.base_distance_m
+    return round(total, 1)
 
 
 # ── 요청당 재구축 방지 캐시(2026-09-11 리뷰) ──────────────────────────────
@@ -312,6 +353,29 @@ def navigate(
     if not edges:
         raise HTTPException(status_code=404, detail="scored_edges.json 없음")
 
+    return _plan_route(
+        edges,
+        request.start_node,
+        request.end_node,
+        season,
+        use_case,
+        departure_time=request.departure_time,
+        max_detour_ratio=request.max_detour_ratio,
+    )
+
+
+def _plan_route(
+    edges: list[RouteEdge],
+    start_node: str,
+    end_node: str,
+    season: SeasonMode,
+    use_case: CalculateDogFriendlyRouteUseCase,
+    *,
+    departure_time: str | None,
+    max_detour_ratio: float | None,
+) -> dict[str, Any]:
+    """`/routes`·`/navigate` 공통 — 그늘 슬롯 결정 → 탐색(④ 제약 / ③ 시간 의존 / 기본)
+    → 좌표·길이·그늘 통계."""
     # 여름 그늘 모드: 출발 시각을 슬롯에 매핑해 사전 계산 그늘을 조회한다.
     # 밤(슬롯 범위 밖)이면 해가 없으므로 그늘 계산을 제외하고 최단 경로로 안내.
     shade_lookup: dict[tuple[str, str], float] | None = None
@@ -321,22 +385,22 @@ def navigate(
     if season is SeasonMode.SUMMER_SHADE:
         shade_data = _load_shade_scores()
         slots = shade_data["slots"] if shade_data else list(range(7, 20))
-        slot = _resolve_slot(request.departure_time, slots)
+        slot = _resolve_slot(departure_time, slots)
         if slot is None:
             night = True
             shade_lookup = _FullShadeLookup()  # type: ignore[assignment]
         elif shade_data is not None:
             shade_lookup = _build_shade_lookup(slot)
 
-    if request.max_detour_ratio is not None:
+    if max_detour_ratio is not None:
         # ④ 제약 최단경로 — 그늘·가로수 선호를 반영하되 길이 상한을 지킨다.
         path = use_case.execute_bounded(
             edges,
-            request.start_node,
-            request.end_node,
+            start_node,
+            end_node,
             season,
             shade_lookup=shade_lookup,
-            max_detour_ratio=request.max_detour_ratio,
+            max_detour_ratio=max_detour_ratio,
         )
     elif season is SeasonMode.SUMMER_SHADE and not night and slot is not None and slots:
         # ③ 시간 의존 — 걷는 동안 슬롯이 넘어가면 그 시각의 그늘을 쓴다.
@@ -344,32 +408,17 @@ def navigate(
         by_slot = {s: lk for s in slots if s >= slot and (lk := _build_shade_lookup(s)) is not None}
         path = use_case.execute_time_aware(
             edges,
-            request.start_node,
-            request.end_node,
+            start_node,
+            end_node,
             season,
             shade_by_slot=by_slot,
-            slot_of_elapsed=_slot_of_elapsed(request.departure_time, slot),
+            slot_of_elapsed=_slot_of_elapsed(departure_time, slot),
         )
     else:
-        path = use_case.execute(
-            edges, request.start_node, request.end_node, season, shade_lookup=shade_lookup
-        )
+        path = use_case.execute(edges, start_node, end_node, season, shade_lookup=shade_lookup)
 
     edge_lookup = _edge_lookup(edges)
-
-    coordinates: list[list[float]] = []
-    for i in range(len(path) - 1):
-        edge = edge_lookup.get((path[i], path[i + 1]))
-        if edge:
-            if edge.from_coord is not None:
-                coordinates.append([edge.from_coord.latitude, edge.from_coord.longitude])
-            else:
-                coordinates.append([edge.midpoint.latitude, edge.midpoint.longitude])
-
-    if path and coordinates:
-        last_edge = edge_lookup.get((path[-2], path[-1]))
-        if last_edge and last_edge.to_coord is not None:
-            coordinates.append([last_edge.to_coord.latitude, last_edge.to_coord.longitude])
+    coordinates = _path_coordinates(edge_lookup, path)
 
     # 여름 그늘 모드(낮)에서만 경로의 길이가중 그늘 비율·구간별 그늘을 계산.
     edge_shades: list[float] | None = None
@@ -390,7 +439,8 @@ def navigate(
                 found = shade_lookup.get((edge.from_node, edge.to_node))
                 if found is None:
                     found = shade_lookup.get((edge.to_node, edge.from_node))
-                shade = found if found is not None else 0.0
+                # 가중치(RouteWeightCalculator)와 같은 정의: 건물 그늘·수관 중 큰 값.
+                shade = max(found if found is not None else 0.0, edge.tree_score)
                 total_len += edge.base_distance_m
                 shaded_len += edge.base_distance_m * shade
             edge_shades.append(round(shade, 2))
@@ -399,6 +449,7 @@ def navigate(
     return {
         "path": path,
         "coordinates": coordinates,
+        "length_m": _path_length_m(edge_lookup, path),
         "shade_ratio": shade_ratio,
         "edge_shades": edge_shades,
         "night": night,
@@ -446,18 +497,10 @@ def plan_loops(
     edge_lookup = _edge_lookup(edges)
     out = []
     for c in candidates:
-        coords: list[list[float]] = []
-        for i in range(len(c.path) - 1):
-            e = edge_lookup.get((c.path[i], c.path[i + 1]))
-            if e is None:
-                continue
-            src = e.from_coord if e.from_node == c.path[i] else e.to_coord
-            pt = src or e.midpoint
-            coords.append([pt.latitude, pt.longitude])
         out.append(
             {
                 "path": c.path,
-                "coordinates": coords,
+                "coordinates": _path_coordinates(edge_lookup, c.path),
                 "length_m": c.length_m,
                 "overlap_ratio": c.overlap_ratio,
                 "shade_ratio": None if night else c.shade_ratio,

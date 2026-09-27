@@ -1,5 +1,6 @@
 """실데이터(scored_edges.json 23만 간선)에서 자체 다익스트라·A*가 networkx와
-같은 비용의 경로를 내는지, 방문 노드 수는 얼마나 줄었는지 잰다.
+같은 비용의 경로를 내는지, 방문 노드 수는 얼마나 줄었는지 **모드별로** 잰다
+(2026-09-27부터 모드별 휴리스틱 배율 `astar_mode`도 함께).
 
     python -m gildle.scripts.verify_routing_equivalence [--pairs 200] [--seed 1]
 
@@ -13,6 +14,7 @@ import json
 import random
 import time
 from pathlib import Path
+from typing import Any
 
 from gildle.adapter.outbound.graph.dijkstra_route_graph_adapter import (
     AStarRouteGraphAdapter,
@@ -62,10 +64,6 @@ def main() -> None:
     edges = _load_edges_with_coords(args.edges)
     calc = RouteWeightCalculator()
 
-    # 여름 그늘 모드로 가중치가 거리의 1~5배 사이에서 실제로 흔들리게 한다(tree_score 폴백).
-    def weight_fn(e: RouteEdge) -> float:
-        return calc.calculate_edge_weight(e, SeasonMode.SUMMER_SHADE, [], []).value
-
     rng = random.Random(args.seed)
     nodes = sorted({e.from_node for e in edges} | {e.to_node for e in edges})
     pairs = [(rng.choice(nodes), rng.choice(nodes)) for _ in range(args.pairs)]
@@ -75,9 +73,6 @@ def main() -> None:
         lookup[(e.from_node, e.to_node)] = e
         lookup[(e.to_node, e.from_node)] = e
 
-    def cost(path: list[str]) -> float:
-        return sum(weight_fn(lookup[(path[i], path[i + 1])]) for i in range(len(path) - 1))
-
     impls = {
         "networkx": NetworkXRouteGraphAdapter(),
         "dijkstra": DijkstraRouteGraphAdapter(),
@@ -85,36 +80,63 @@ def main() -> None:
     }
     graphs = {k: v.build_graph(edges) for k, v in impls.items()}
 
-    mismatches, elapsed, visited = 0, {k: 0.0 for k in impls}, {"dijkstra": 0, "astar": 0}
-    reachable = 0
-    for s, t in pairs:
-        costs: dict[str, float] = {}
-        for k, impl in impls.items():
-            t0 = time.perf_counter()
-            path = impl.find_shortest_path(graphs[k], s, t, weight_fn)
-            elapsed[k] += time.perf_counter() - t0
-            costs[k] = cost(path) if path else -1.0
-            if k in visited:
-                visited[k] += graphs[k].last_visited
-        if costs["networkx"] >= 0:
-            reachable += 1
-        if any(abs(costs[k] - costs["networkx"]) > 1e-6 for k in ("dijkstra", "astar")):
-            mismatches += 1
-            print(f"MISMATCH {s}→{t}: {costs}")
+    # 모드별로 잰다 — 가중치 분포(봄가을 0.7~1배, 여름 1~5배)와 휴리스틱 배율이 모드마다
+    # 다르다. "astar"는 생성자 기본 0.7, "astar_mode"는 min_multiplier(mode)를 넘긴 것.
+    summary: dict[str, Any] = {"pairs": len(pairs), "modes": {}}
+    for mode in SeasonMode:
+        scale = calc.min_multiplier(mode)
 
-    summary = {
-        "pairs": len(pairs),
-        "reachable": reachable,
-        "mismatches": mismatches,
-        "sec_per_query": {k: round(v / len(pairs), 4) for k, v in elapsed.items()},
-        "visited_ratio_astar_over_dijkstra": round(
-            visited["astar"] / max(1, visited["dijkstra"]), 3
-        ),
-    }
-    print(
-        f"\n{len(pairs)}쌍 중 도달 {reachable} · 불일치 {mismatches} · "
-        f"질의당 {summary['sec_per_query']} · A* 방문 비율 {summary['visited_ratio_astar_over_dijkstra']}"
-    )
+        def weight_fn(e: RouteEdge, mode: SeasonMode = mode) -> float:
+            return calc.calculate_edge_weight(e, mode, [], []).value
+
+        def cost(path: list[str]) -> float:
+            return sum(weight_fn(lookup[(path[i], path[i + 1])]) for i in range(len(path) - 1))
+
+        runs: dict[str, tuple[Any, dict[str, Any]]] = {
+            "networkx": (impls["networkx"], {}),
+            "dijkstra": (impls["dijkstra"], {}),
+            "astar": (impls["astar"], {}),
+            "astar_mode": (impls["astar"], {"heuristic_scale": scale}),
+        }
+        graph_of = {
+            "networkx": "networkx",
+            "dijkstra": "dijkstra",
+            "astar": "astar",
+            "astar_mode": "astar",
+        }
+        mismatches, reachable = 0, 0
+        elapsed = dict.fromkeys(runs, 0.0)
+        visited = {k: 0 for k in runs if k != "networkx"}
+        for s, t in pairs:
+            costs: dict[str, float] = {}
+            for k, (impl, kw) in runs.items():
+                g = graphs[graph_of[k]]
+                t0 = time.perf_counter()
+                path = impl.find_shortest_path(g, s, t, weight_fn, **kw)
+                elapsed[k] += time.perf_counter() - t0
+                costs[k] = cost(path) if path else -1.0
+                if k in visited:
+                    visited[k] += g.last_visited
+            if costs["networkx"] >= 0:
+                reachable += 1
+            if any(abs(costs[k] - costs["networkx"]) > 1e-6 for k in visited):
+                mismatches += 1
+                print(f"MISMATCH [{mode.value}] {s}→{t}: {costs}")
+        per_mode = {
+            "heuristic_scale": scale,
+            "reachable": reachable,
+            "mismatches": mismatches,
+            "sec_per_query": {k: round(v / len(pairs), 4) for k, v in elapsed.items()},
+            "visited_ratio_over_dijkstra": {
+                k: round(visited[k] / max(1, visited["dijkstra"]), 3)
+                for k in ("astar", "astar_mode")
+            },
+        }
+        summary["modes"][mode.value] = per_mode
+        print(
+            f"[{mode.value}] 도달 {reachable}/{len(pairs)} · 불일치 {mismatches} · "
+            f"질의당 {per_mode['sec_per_query']} · 방문 비율 {per_mode['visited_ratio_over_dijkstra']}"
+        )
     print(json.dumps(summary, ensure_ascii=False))
 
 

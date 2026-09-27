@@ -118,6 +118,7 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
             if not m1 or not m2 or len({start, m1, m2}) < 3:
                 continue
             used: set[tuple[str, str]] = set()
+            scale = self._weight_calculator.min_multiplier(mode)
 
             def penalized(e: RouteEdge, used: set[tuple[str, str]] = used) -> float:
                 w = base(e)
@@ -125,7 +126,9 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
 
             path: list[str] = [start]
             for a, b in ((start, m1), (m1, m2), (m2, start)):
-                seg = self._route_graph.find_shortest_path(graph, a, b, penalized)
+                seg = self._route_graph.find_shortest_path(
+                    graph, a, b, penalized, heuristic_scale=scale
+                )
                 if len(seg) < 2:
                     path = []
                     break
@@ -169,7 +172,7 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
                 dup += e.base_distance_m
             seen.add(key)
             if mode is SeasonMode.SUMMER_SHADE:
-                shaded += e.base_distance_m * (shade_of(e, shade_lookup) or 0.0)
+                shaded += e.base_distance_m * max(shade_of(e, shade_lookup) or 0.0, e.tree_score)
         summer = mode is SeasonMode.SUMMER_SHADE and total > 0
         return LoopCandidateDto(
             path=path,

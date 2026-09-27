@@ -80,6 +80,8 @@ class PgRouteGraphRepository(RouteGraphPort):
         start: str,
         end: str,
         weight_fn: Callable[[RouteEdge], float],
+        *,
+        heuristic_scale: float | None = None,  # 휴리스틱 없음 — 포트 호환용
     ) -> list[str]:
         for _u, _v, data in graph.edges(data=True):
             data["weight"] = weight_fn(data["route_edge"])

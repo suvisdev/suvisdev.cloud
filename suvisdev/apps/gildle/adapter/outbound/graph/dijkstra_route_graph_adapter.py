@@ -5,9 +5,11 @@ networkx 대체(2026-09-22, `_docs/GILDLE_ROUTING_ALGORITHM.md` §1-①②). 포
 
 - 간선 가중치는 방문할 때만 `weight_fn`으로 평가한다(전 간선 사전 계산 금지 —
   23만 간선 그래프를 요청마다 다시 재지 않는 현 설계 유지).
-- A*의 휴리스틱은 "도착점까지 직선거리 × heuristic_scale". 봄가을 모드가 간선
-  가중치를 거리의 0.7배까지 감면하므로 scale은 모드 최소 배율(0.7) 이하여야
-  admissible하다 — 기본값을 0.7로 두면 모든 모드에서 최적 경로가 보장된다.
+- A*의 휴리스틱은 "도착점까지 직선거리 × scale". 봄가을 모드가 간선 가중치를
+  거리의 0.7배까지 감면하므로 scale은 모드 최소 배율 이하여야 admissible하다 —
+  생성자 기본값 0.7은 모든 모드에서 안전한 값이고, 호출자가 `heuristic_scale`로
+  모드별 값(`RouteWeightCalculator.min_multiplier`: 봄가을 0.7, 여름·겨울 1.0)을
+  넘기면 그걸 쓴다(2026-09-27, §1-② "모드별 휴리스틱 배율").
   좌표가 없는 노드(from_coord/to_coord None)가 하나라도 있으면 휴리스틱 0(=다익스트라).
 """
 
@@ -70,22 +72,29 @@ class DijkstraRouteGraphAdapter(RouteGraphPort):
         _graph_cache = (edges, graph)
         return graph
 
+    def _heuristic(
+        self, graph: AdjacencyGraph, end: str, heuristic_scale: float | None
+    ) -> Callable[[str], float]:
+        scale = self._scale if heuristic_scale is None else heuristic_scale
+        if scale < 0:
+            raise ValueError("heuristic_scale은 0 이상이어야 합니다")
+        goal = graph.coords.get(end)
+        if scale <= 0 or not graph.all_nodes_have_coords or goal is None:
+            return lambda _node: 0.0
+        return lambda node: graph.coords[node].distance_to(goal) * scale
+
     def find_shortest_path(
         self,
         graph: AdjacencyGraph,
         start: str,
         end: str,
         weight_fn: Callable[[RouteEdge], float],
+        *,
+        heuristic_scale: float | None = None,
     ) -> list[str]:
         if start not in graph.adjacency or end not in graph.adjacency:
             return []
-        use_astar = self._scale > 0 and graph.all_nodes_have_coords
-        goal = graph.coords.get(end)
-
-        def h(node: str) -> float:
-            if not use_astar or goal is None:
-                return 0.0
-            return graph.coords[node].distance_to(goal) * self._scale
+        h = self._heuristic(graph, end, heuristic_scale)
 
         dist: dict[str, float] = {start: 0.0}
         prev: dict[str, str] = {}
@@ -119,6 +128,8 @@ class DijkstraRouteGraphAdapter(RouteGraphPort):
         start: str,
         end: str,
         weight_fn_t: Callable[[RouteEdge, float], float],
+        *,
+        heuristic_scale: float | None = None,
     ) -> list[str]:
         """비용 기준 라벨 세팅 + 노드별 누적 거리(m) 동반. 걷는 시간이 흐르면 뒤
         간선의 그늘이 바뀌므로 weight_fn_t(edge, 도달까지 걸은 m)로 평가한다.
@@ -126,13 +137,7 @@ class DijkstraRouteGraphAdapter(RouteGraphPort):
         최적이다."""
         if start not in graph.adjacency or end not in graph.adjacency:
             return []
-        use_astar = self._scale > 0 and graph.all_nodes_have_coords
-        goal = graph.coords.get(end)
-
-        def h(node: str) -> float:
-            if not use_astar or goal is None:
-                return 0.0
-            return graph.coords[node].distance_to(goal) * self._scale
+        h = self._heuristic(graph, end, heuristic_scale)
 
         dist: dict[str, float] = {start: 0.0}
         meters: dict[str, float] = {start: 0.0}

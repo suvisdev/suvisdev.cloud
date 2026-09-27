@@ -155,3 +155,48 @@ class TestEquivalenceWithNetworkX:
             graph, "A", "D", lambda e: 1.0 if e.road_name == "일반로" else 1000.0
         )
         assert path == ["A", "C", "D"]
+
+
+class TestPerCallHeuristicScale:
+    """호출자가 넘긴 heuristic_scale(모드별 배율)이 생성자 기본값(0.7)을 덮어쓴다."""
+
+    def test_scale_one_matches_dijkstra_when_weights_are_at_least_distance(self):
+        edges = _grid_edges(20, seed=3)
+        rng = random.Random(11)
+        factor = {id(e): rng.uniform(1.0, 5.0) for e in edges}  # 여름·겨울 범위
+
+        def weight_fn(e: RouteEdge, factor: dict[int, float] = factor) -> float:
+            return e.base_distance_m * factor[id(e)]
+
+        dj, astar = DijkstraRouteGraphAdapter(), AStarRouteGraphAdapter()
+        g_dj, g_as = dj.build_graph(edges), astar.build_graph(edges)
+        nodes = sorted({e.from_node for e in edges} | {e.to_node for e in edges})
+        visited_default = visited_mode = 0
+        for s, t in [(rng.choice(nodes), rng.choice(nodes)) for _ in range(15)]:
+            ref = _cost(edges, dj.find_shortest_path(g_dj, s, t, weight_fn), weight_fn)
+            astar.find_shortest_path(g_as, s, t, weight_fn)
+            visited_default += g_as.last_visited
+            got = _cost(
+                edges,
+                astar.find_shortest_path(g_as, s, t, weight_fn, heuristic_scale=1.0),
+                weight_fn,
+            )
+            visited_mode += g_as.last_visited
+            assert abs(ref - got) < 1e-6, (s, t)
+        assert visited_mode <= visited_default
+
+    def test_scale_zero_disables_heuristic_and_negative_rejected(self):
+        edges = _grid_edges(6)
+        astar = AStarRouteGraphAdapter()
+        g = astar.build_graph(edges)
+        assert astar.find_shortest_path(
+            g, "0_0", "3_3", lambda e: e.base_distance_m, heuristic_scale=0.0
+        )
+        try:
+            astar.find_shortest_path(
+                g, "0_0", "3_3", lambda e: e.base_distance_m, heuristic_scale=-1.0
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("음수 배율은 거부해야 한다")

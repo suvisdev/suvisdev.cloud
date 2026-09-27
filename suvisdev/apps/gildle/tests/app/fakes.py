@@ -70,6 +70,8 @@ class CapturingRouteGraphPort(RouteGraphPort):
         start: str,
         end: str,
         weight_fn: Callable[[RouteEdge], float],
+        *,
+        heuristic_scale: float | None = None,  # 휴리스틱 없음 — 포트 호환용
     ) -> list[str]:
         self.start = start
         self.end = end

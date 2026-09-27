@@ -13,7 +13,17 @@ class RouteRequestSchema(BaseModel):
     start_lng: float = Field(..., description="시작 경도")
     end_lat: float = Field(..., description="종료 위도")
     end_lng: float = Field(..., description="종료 경도")
-    mode: str = Field(..., description="spring_autumn | winter_safety")
+    mode: str = Field(..., description="spring_autumn | winter_safety | summer_shade")
+    max_detour_ratio: float | None = Field(
+        None,
+        ge=0.0,
+        le=3.0,
+        description="지정 시 길이가 최단거리의 (1+비율)배를 넘지 않는 범위에서 모드 선호 반영",
+    )
+    departure_time: str | None = Field(
+        None,
+        description='출발 시각 "HH:MM"(KST). summer_shade에서만 사용, 미지정 시 현재 시각.',
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -22,7 +32,8 @@ class RouteRequestSchema(BaseModel):
                 "start_lng": 126.9245,
                 "end_lat": 37.5270,
                 "end_lng": 126.9290,
-                "mode": "spring_autumn",
+                "mode": "summer_shade",
+                "departure_time": "14:00",
             }
         }
     }
