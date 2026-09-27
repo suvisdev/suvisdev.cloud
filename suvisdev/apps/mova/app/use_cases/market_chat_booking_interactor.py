@@ -30,6 +30,8 @@ from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 from mova.app.ports.output.showtime_port import ShowtimePort
 from mova.app.ports.output.theater_search_port import TheaterSearchPort
 from mova.app.use_cases.market_chat_title_resolver import TitleResolution, resolve_movie_title
+from mova.domain.services.showing_title_policy import prefer_showing_year
+from mova.domain.value_objects.movie_title import MovieTitle
 
 logger = logging.getLogger(__name__)
 
@@ -144,10 +146,6 @@ def _booking_links(title: str) -> list[ChatBookingLinkDto]:
         ChatBookingLinkDto(chain=chain, url=url.format(q=q))
         for chain, url in _BOOKING_LINK_TEMPLATES
     ]
-
-
-def _normalize(title: str) -> str:
-    return "".join(title.split()).lower()
 
 
 _MAX_SHOWTIME_CINEMAS = 2
@@ -502,9 +500,9 @@ class BookingAssistService:
 
     async def _is_showing(self, title: str) -> bool:
         """KOFIC 주간 박스오피스 등재 여부로 근사 — 실패 시 상영 중으로 간주하지 않는다."""
-        wanted = _normalize(title)
+        wanted = MovieTitle(title)
         return any(
-            wanted in _normalize(entry.title) or _normalize(entry.title) in wanted
+            wanted.overlaps(entry.title)
             for entry in await self._box_office_entries()
             if entry.title
         )
@@ -519,20 +517,16 @@ class BookingAssistService:
         item = resolution.item
         if resolution.status != "ok" or item is None:
             return resolution
-        wanted = _normalize(item.title)
-        same = [c for c in resolution.candidates if _normalize(c.title) == wanted]
+        wanted = MovieTitle(item.title)
+        same = [c for c in resolution.candidates if wanted.equals(c.title)]
         if len(same) < 2:
             return resolution
-        entries = [e for e in await self._box_office_entries() if _normalize(e.title) == wanted]
+        entries = [e for e in await self._box_office_entries() if wanted.equals(e.title)]
         if not entries:
             return resolution
         open_years = {e.open_year for e in entries if isinstance(e.open_year, int)}
-        matched = [c for c in same if c.year and c.year.isdigit() and int(c.year) in open_years]
-        pick = (
-            matched[0]
-            if matched
-            else max(same, key=lambda c: int(c.year) if c.year and c.year.isdigit() else 0)
-        )
+        year = prefer_showing_year([c.year for c in same], open_years)
+        pick = next((c for c in same if c.year == year), same[0])
         if pick.id == item.id:
             return resolution
         logger.info(

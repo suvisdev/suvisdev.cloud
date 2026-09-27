@@ -22,12 +22,9 @@ from mova.app.ports.output.chat_understanding_port import (
     ChatUnderstandingPort,
 )
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
+from mova.domain.value_objects.movie_title import MovieTitle
 
 logger = logging.getLogger(__name__)
-
-
-def _normalize(title: str) -> str:
-    return re.sub(r"\s+", "", title).lower()
 
 
 class ChatOrchestrator:
@@ -92,6 +89,6 @@ class ChatOrchestrator:
         if not title:
             return None
         items = await self._repo.search_movies_by_title([title], 5)
-        wanted = _normalize(title)
-        exact = [i for i in items if _normalize(i.title) == wanted]
+        wanted = MovieTitle(title)
+        exact = [i for i in items if wanted.equals(i.title)]
         return exact[0] if exact else None

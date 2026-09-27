@@ -66,6 +66,13 @@
   라우터 패키지 import 전수 확인. **배포 후** 파드에서 `alembic upgrade head`(→`20260927_0002`), mova 멀티턴
   12/12·단일턴 23/23, gildle `app/version`·`graph-edges`·`routes` 200, 파드 import 오류 없음.
 
+### 하네스(문서) 정정 — "헥사고날·클린은 전면, DDD는 필요한 곳에만"
+- 사용자 질문 "DDD까지 쓸 필요는 없는 거지?" → 아키텍처 감사 결과로 답하고 하네스를 실제에 맞게 고쳤다.
+  `suvisdev/CLAUDE.md` **§P 신설**(도메인 객체를 두는 기준 3가지 + 두지 않는 경우 + 인터랙터 예외 규칙),
+  §K 표에 "규칙 없는 엔티티 생성 금지"·"앱 예외→라우터 변환" 반영. `suvis` ponytail 스킬·하네스 문서 2개의
+  "hexagonal DDD" 표현 정정. 감사 수치: 인터랙터→ORM 0, 도메인→외부 0, 라우터→저장소 1(계약상 허용),
+  인터랙터 HTTPException 3파일(gildle 2 수정, mova games 1 잔여).
+
 ### 오류·막힌 점
 - `\bOrchestrator\b`·모듈명 일괄 sed가 무관 문서까지 바꾸는 사고 2회(execsuite harness-lab 문서, 내부
   참조 타입 삭제) → 되돌리고 범위를 좁혀 재적용. **일괄 치환은 파일 목록을 먼저 보고 건다.**

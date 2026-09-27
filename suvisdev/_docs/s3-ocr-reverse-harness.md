@@ -4,7 +4,7 @@
 
 Flutter(susu)로 촬영된 이미지가 S3에 저장된 상태에서, 웹의 지정 화면 진입 시
 서버가 그 이미지들을 읽어 OCR로 텍스트를 추출하고 `[{image_url, extracted_text}]`
-목록을 반환하는 기능을, hexagonal clean DDD 규칙대로 `apps/ontology`(vision 계열)에
+목록을 반환하는 기능을, hexagonal clean 규칙대로 `apps/ontology`(vision 계열)에
 추가한다.
 
 ## 스코프

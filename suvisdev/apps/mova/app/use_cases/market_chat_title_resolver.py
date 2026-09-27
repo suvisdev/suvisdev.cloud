@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
+from mova.domain.value_objects.movie_title import normalize_title
 
 # 발화 꼬리에 붙는 트랙 어휘 — 제목 후보를 만들 때 떼어낸다.
 # ("호프 어때??" → "호프", "호프 예매하고 싶어" → "호프")
@@ -123,10 +124,6 @@ def _title_terms(message: str, entities: list[str]) -> list[str]:
     return terms[:6]
 
 
-def _normalize(title: str) -> str:
-    return re.sub(r"\s+", "", title).lower()
-
-
 async def resolve_movie_title(
     repository: ChatRepositoryPort, *, message: str, entities: list[str]
 ) -> TitleResolution:
@@ -142,8 +139,8 @@ async def resolve_movie_title(
         words = _word_candidates(message)
         if words:
             by_word = await repository.search_movies_by_title(words, _CANDIDATE_LIMIT)
-            word_norms = {_normalize(w) for w in words}
-            exact_words = [i for i in by_word if _normalize(i.title) in word_norms]
+            word_norms = {normalize_title(w) for w in words}
+            exact_words = [i for i in by_word if normalize_title(i.title) in word_norms]
             if exact_words:
                 return TitleResolution(status="ok", item=exact_words[0], candidates=by_word)
         # 퍼지 폴백 — 자모 편집거리로 가장 유사한 제목을 찾는다.
@@ -155,8 +152,8 @@ async def resolve_movie_title(
         return TitleResolution(status="ambiguous", item=None, candidates=items[:3])
 
     # 정확 일치(공백·대소문자 무시)가 있으면 그중 첫 항목(평점·최신 우선 정렬).
-    normalized_terms = {_normalize(t) for t in terms}
-    exact = [i for i in items if _normalize(i.title) in normalized_terms]
+    normalized_terms = {normalize_title(t) for t in terms}
+    exact = [i for i in items if normalize_title(i.title) in normalized_terms]
     if exact:
         return TitleResolution(status="ok", item=exact[0], candidates=items)
     if len(items) == 1:

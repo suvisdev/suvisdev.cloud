@@ -17,6 +17,7 @@ import httpx
 
 from mova.app.dtos.market_chat_dto import CinemaShowtimeDto, ShowtimeSlotDto
 from mova.app.ports.output.showtime_port import ShowtimePort
+from mova.domain.value_objects.movie_title import MovieTitle, normalize_title
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +36,6 @@ class _LotteCinema:
     name: str
     lat: float = 0.0
     lng: float = 0.0
-
-
-def _normalize(s: str) -> str:
-    return "".join(s.split()).lower()
 
 
 class LotteCinemaAdapter(ShowtimePort):
@@ -92,11 +89,11 @@ class LotteCinemaAdapter(ShowtimePort):
             return None
 
         items = (data.get("PlaySeqs") or {}).get("Items") or []
-        wanted = _normalize(movie_title)
+        wanted = MovieTitle(movie_title)
         slots: list[ShowtimeSlotDto] = []
         for item in items:
             name_kr = item.get("MovieNameKR") or ""
-            if wanted not in _normalize(name_kr) and _normalize(name_kr) not in wanted:
+            if not wanted.overlaps(name_kr):
                 continue
             total = int(item.get("TotalSeatCount") or 0)
             booked = int(item.get("BookingSeatCount") or 0)
@@ -164,12 +161,12 @@ class LotteCinemaAdapter(ShowtimePort):
             if stripped.startswith(prefix):
                 stripped = stripped[len(prefix) :]
                 break
-        stripped_norm = _normalize(stripped)
+        stripped_norm = normalize_title(stripped)  # 극장명도 같은 키 규칙(공백 제거+소문자)
         if not stripped_norm:
             return None
 
         for c in self._cinemas:
-            c_norm = _normalize(c.name)
+            c_norm = normalize_title(c.name)
             if c_norm == stripped_norm or c_norm in stripped_norm or stripped_norm in c_norm:
                 return c
         return None

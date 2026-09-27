@@ -10,7 +10,7 @@ susu(Flutter)의 카카오 OAuth 로그인 결과(access token)를 받아 유저
 경로까지 철저히 분리**한다. 모바일 refresh token은 Redis의 전용 namespace에 저장한다.
 
 ## Context — 착수 전 확인 사항 (반드시 준수)
-- hexagonal clean DDD, FastAPI(`uvicorn main:app`). **titanic 앱이 baseline 컨벤션**
+- hexagonal clean(도메인 모델은 필요한 곳에만 — suvisdev/CLAUDE.md §P), FastAPI(`uvicorn main:app`). **titanic 앱이 baseline 컨벤션**
   (frozen dataclass VO, from_orm 팩토리, DIP 어댑터 스왑)이지만, **`apps/auth`는 titanic처럼
   `adapter/inbound`·`adapter/outbound` 디렉터리로 나뉜 구조가 아니다** — `router.py` /
   `services.py`(`AuthService`) / `repository.py` / `security.py`의 flat 구조이고, DI는

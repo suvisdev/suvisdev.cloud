@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -27,6 +26,7 @@ from mova.adapter.outbound.orm.studio_tags_orm import MovaTag
 from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.domain.value_objects.mood_expansion import POPULAR_GENRES
+from mova.domain.value_objects.movie_title import MovieTitle, loose_title_key
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +34,6 @@ logger = logging.getLogger(__name__)
 # 만들어지므로 모듈 레벨에 둔다. 상세는 `_all_movie_titles` docstring.
 _TITLES_CACHE_TTL_SECONDS = 600
 _titles_cache: tuple[float, list[tuple[int, str]]] | None = None
-
-
-def _normalize_for_match(text: str) -> str:
-    """공백·구두점 제거 + 소문자 — 역방향 제목 매칭용(『』·콜론·띄어쓰기 차이 흡수)."""
-    return re.sub(r"[\s:·『』\"'(),.!?~\-]", "", text).lower()
 
 
 _SUMMARY_CHARS = 60  # 프롬프트 토큰과 판단 근거의 절충 — 한 줄이면 충분하다
@@ -370,15 +365,14 @@ class ChatPgRepository(ChatRepositoryPort):
         직전 assistant 문장에서 작품을 복원하는 용도라, 공백·대소문자를 무시하고
         정규화한 뒤 부분일치를 본다. 2자 이하 제목은 오탐이 커 제외한다.
         """
-        haystack = _normalize_for_match(text)
-        if not haystack:
+        if not loose_title_key(text):
             return None
         best: tuple[int, str] | None = None
         for mid, title in await self._all_movie_titles():
-            norm = _normalize_for_match(title or "")
-            if len(norm) < 3 or norm not in haystack:
+            candidate = MovieTitle(title or "")
+            if not candidate.appears_in(text):
                 continue
-            if best is None or len(norm) > len(_normalize_for_match(best[1])):
+            if best is None or len(candidate.loose_key) > len(loose_title_key(best[1])):
                 best = (mid, title)
         if best is None:
             return None

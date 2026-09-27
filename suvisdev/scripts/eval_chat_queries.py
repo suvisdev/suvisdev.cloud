@@ -63,7 +63,7 @@ SPECS: list[dict[str, Any]] = [
         "banned": ["정글 크루즈", "크루즈 패밀리"],
         "note": "스킵: 배우 그라운딩 + 09-22 무관 픽 재발 방지",
     },
-    {"q": "법정 드라마 영화", "note": "스킵: no grounded picks"},
+    {"q": "법정 드라마 영화", "note": "카탈로그 갭(09-27: LoRA·Gemini 모두 0편, 후보 16편에 법정물 없음) — 실패는 데이터 문제"},
     {"q": "조선시대 사극 영화", "note": "스킵: no grounded picks"},
     {"q": "정치 스릴러 영화", "note": "스킵: no grounded picks"},
     {"q": "형사물 추천해줘", "note": "스킵: no grounded picks — 9/3 라이브 정상 확인"},

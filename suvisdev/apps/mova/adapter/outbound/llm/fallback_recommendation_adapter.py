@@ -21,6 +21,9 @@ from mova.app.ports.output.llm_output_port import RecommendationPort
 
 logger = logging.getLogger(__name__)
 
+# 실매칭 후보가 이만큼 있는데 0편이면 LoRA 오답으로 본다(3편 미만은 정직한 0편일 수 있다).
+_MIN_REAL_CANDIDATES_FOR_RETRY = 3
+
 
 class FallbackRecommendationAdapter(RecommendationPort):
     def __init__(self, primary: RecommendationPort, fallback: RecommendationPort) -> None:
@@ -45,29 +48,38 @@ class FallbackRecommendationAdapter(RecommendationPort):
         preferred_genres: list[str],
         model: Literal["flash", "flash15", "pro"] | None,
     ) -> tuple[str, list[MovaChatRecommendationSchema]]:
+        kwargs: dict[str, Any] = dict(
+            history=history,
+            message=message,
+            intent=intent,
+            tag_catalog=tag_catalog,
+            past_intents=past_intents,
+            user_nickname=user_nickname,
+            preferred_genres=preferred_genres,
+            model=model,
+        )
         try:
-            return await self._primary.generate_recommendation(
-                history=history,
-                message=message,
-                intent=intent,
-                tag_catalog=tag_catalog,
-                past_intents=past_intents,
-                user_nickname=user_nickname,
-                preferred_genres=preferred_genres,
-                model=model,
-            )
+            reply, recs = await self._primary.generate_recommendation(**kwargs)
         except LLMError as e:
             logger.warning(
                 "[FallbackRecommendationAdapter] primary 실패(%s) — fallback으로 전환",
                 e.detail,
             )
-            return await self._fallback.generate_recommendation(
-                history=history,
-                message=message,
-                intent=intent,
-                tag_catalog=tag_catalog,
-                past_intents=past_intents,
-                user_nickname=user_nickname,
-                preferred_genres=preferred_genres,
-                model=model,
+            return await self._fallback.generate_recommendation(**kwargs)
+        # 실매칭 후보가 충분한데 0편 — LoRA가 가끔 그러는 결정적 오답("법정 드라마 영화",
+        # 2026-09-22·09-27 실측: 후보 16편에 recs=0). 에러가 아니라 폴백이 안 걸리던 구멍이라
+        # 한 번 더 fallback(Gemini)에 맡긴다. 인기작 폴백뿐인 후보는 0편이 정직한 답이라 제외.
+        real = [c for c in tag_catalog if c.match_type != "popular_fallback"]
+        if not recs and len(real) >= _MIN_REAL_CANDIDATES_FOR_RETRY:
+            logger.warning(
+                "[FallbackRecommendationAdapter] primary가 후보 %d편에서 0편 — fallback 재시도",
+                len(real),
             )
+            try:
+                f_reply, f_recs = await self._fallback.generate_recommendation(**kwargs)
+            except LLMError as e:
+                logger.warning("[FallbackRecommendationAdapter] fallback도 실패(%s)", e.detail)
+                return reply, recs
+            if f_recs:
+                return f_reply, f_recs
+        return reply, recs

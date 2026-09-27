@@ -332,11 +332,12 @@ python scripts/verify_db_tables.py
 | ❌ 금지 | ✅ 대신 |
 |--------|--------|
 | Router에서 Repository 직접 호출 | Use Case port 경유 |
-| Interactor에서 `HTTPException` | `RepositoryError` → router 변환 |
+| Interactor에서 `HTTPException` | 앱 예외(`app/errors.py`·`*_errors.py`) → router 변환 (§P) |
 | Interactor에서 `to_schema()` | Router에서 `Dto.to_schema()` |
 | `model_dump()` dict로 Command 생성 | `Command.from_schema(schema)` |
 | Interactor 내부 `XxxPgRepository()` | 생성자 주입 (DIP) |
 | 요청 없는 OCP용 인터페이스 남발 | YAGNI |
+| 규칙 없는 엔티티·VO 생성("레이어가 비어서") | §P 기준(규칙 중복·검증 조건)이 생길 때만 |
 | PK를 slug/username만으로 | `id` PK + UNIQUE 보조키 |
 | `from suvisdev.apps.*` 긴 접두사 | `from mova.*` / `from titanic.*` |
 
@@ -413,6 +414,32 @@ python scripts/verify_db_tables.py
 | `pre-commit` | `suvisdev/.pre-commit-config.yaml` | 커밋 시점 자동 검사 |
 
 위반 시 커밋이 차단된다.
+
+---
+
+## P. 도메인 모델은 필요한 곳에만 (2026-09-27 감사 결과)
+
+이 저장소는 **헥사고날·클린 아키텍처는 전면 적용**하지만 **DDD(애그리거트·불변식·도메인
+이벤트)는 전면 적용하지 않는다.** 09-27 감사에서 mova 엔티티 14개가 전부 미사용으로
+드러나 삭제했다 — 규칙 없이 만든 엔티티는 DTO의 복제본이 되고 아무도 쓰지 않는다.
+
+**도메인 객체(엔티티·값 객체·도메인 서비스)를 두는 기준 — 아래 중 하나가 실제로 생겼을 때:**
+
+| 신호 | 대응 | 실례 |
+|------|------|------|
+| 같은 규칙이 인터랙터·어댑터 **두 곳 이상에 복사**됨 | 값 객체·도메인 서비스로 모은다 | `mova/domain/value_objects/movie_title.py`(제목 정규화 4곳→1), `domain/services/showing_title_policy.py`(동명 작품 상영작 우선) |
+| 한 개념의 생성·상태 변경에 **검증 조건이 붙음** | 엔티티 `__post_init__`/메서드에 둔다 | `gildle/domain/entities/walk_entity.py`, `push_token_entity.py`(platform 검증) |
+| 계산 규칙이 **외부 의존 없이** 독립 | 도메인 서비스 | `gildle/domain/services/route_weight_calculator.py`, `mova/domain/value_objects/mood_expansion.py` |
+
+**두지 않는 경우**: 조회·검색·LLM 호출·저장뿐인 유스케이스(mova 채팅 대부분, viewer 프로필,
+dispatch 발송). DTO + 인터랙터로 충분하며, "레이어가 비어 보여서" 엔티티를 만들지 않는다.
+
+**규칙**
+- 인터랙터는 `HTTPException`을 던지지 않는다 — 앱 예외(`app/errors.py` 또는
+  `app/ports/output/*_errors.py`)를 던지고 라우터가 상태 코드로 바꾼다(§K). 09-27에
+  gildle 2곳을 이 방식으로 고쳤고, mova `games_interactor`(7곳)가 남은 위반이다.
+- 정규화·비교 같은 "같은 것인가" 판정은 어댑터마다 다시 쓰지 말고 도메인 값 객체를 import한다.
+- 도메인 패키지는 `fastapi`·`sqlalchemy`·`adapter`·`app`을 import하지 않는다(감사 시 0건 유지).
 
 ---
 
