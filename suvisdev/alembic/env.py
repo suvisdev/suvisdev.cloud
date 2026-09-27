@@ -37,8 +37,6 @@ import execsuite.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.hazard_zone_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_edge_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_node_orm  # noqa: F401,E402
-import gildle.adapter.outbound.orm.route_request_orm  # noqa: F401,E402
-import gildle.adapter.outbound.orm.route_result_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.push_token_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.walk_orm  # noqa: F401,E402

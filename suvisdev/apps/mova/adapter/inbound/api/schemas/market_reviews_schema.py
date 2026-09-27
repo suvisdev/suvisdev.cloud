@@ -28,18 +28,6 @@ class ReviewActivitySchema(BaseModel):
     action_at: datetime
 
 
-class ReviewActivityWithMovieSchema(BaseModel):
-    id: int
-    user_id: int
-    movie_id: int
-    action_type: str
-    action_at: datetime
-    movie_title: str
-    movie_slug: str
-    rating: float | None = None
-    body: str | None = None
-
-
 class ReviewCreateSchema(BaseModel):
     """user_id는 요청 바디로 받지 않는다 — require_user principal에서 파생.
 
@@ -114,18 +102,3 @@ class MovieSentimentSummarySchema(BaseModel):
     total_count: int
     positive_ratio: float
     summary: str
-
-
-class MarketReviewsSchema(BaseModel):
-    id: int = Field(0, description="Reviews ID")
-    name: str = Field("평론가 (Critic)", description="Critic's name")
-    # 작품에 대한 반응을 언어와 별점으로 기록하는 비평가. reviews 테이블 관리
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "id": 1,
-                "name": "평론가 (Critic)",
-            }
-        }
-    }

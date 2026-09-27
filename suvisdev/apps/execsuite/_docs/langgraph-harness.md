@@ -53,7 +53,7 @@ Neo4j는 데이터 간 관계를 노드·엣지로 저장하는 그래프 DB로,
 
 **지금 있는 것**:
 - `apps/ontology/app/use_cases/semantic_router_interactor.py` —
-  `crud`/`rag`/`general` 3갈래로만 분류한다(`qwen_intent_classifier.py`
+  `crud`/`rag`/`general` 3갈래로만 분류한다(`llm_intent_classifier.py`
   `_DESTINATIONS`). "reasoning"(다단계 추론이 필요한 질문) 갈래는 아직
   없다.
 - `apps/execsuite/adapter/outbound/repositories/langchain_chat_engine_repository.py` —

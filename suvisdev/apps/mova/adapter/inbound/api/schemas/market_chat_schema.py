@@ -108,18 +108,3 @@ class MovaChatResponseSchema(BaseModel):
     )
     evaluation: MovaChatEvaluationSchema | None = None
     booking: MovaChatBookingSchema | None = None
-
-
-class MarketChatSchema(BaseModel):
-    id: int = Field(0, description="Chat ID")
-    name: str = Field("시나리오 작가 (Screenwriter)", description="Screenwriter's name")
-    # 사용자의 말 속 숨은 의도를 정제된 문장으로 번역하는 작가. chat 테이블 관리
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "id": 1,
-                "name": "시나리오 작가 (Screenwriter)",
-            }
-        }
-    }

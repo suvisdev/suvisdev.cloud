@@ -3,7 +3,6 @@ import pandas as pd
 from gildle.adapter.outbound.repositories.csv_tree_segment_repository import (
     CsvTreeSegmentRepository,
 )
-from gildle.domain.entities.tree_segment import TreeSegment
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.tree_species import TreeSpecies
 
@@ -91,29 +90,3 @@ class TestRealDataQuirks:
         repo = CsvTreeSegmentRepository(csv_path=csv)
 
         assert repo.find_all()[0].road_name is None
-
-
-class TestSaveMany:
-    def test_save_many_writes_refined_csv(self, tmp_path):
-        refined = tmp_path / "refined_tree_segments.csv"
-        repo = CsvTreeSegmentRepository(csv_path=tmp_path / "unused.csv", refined_path=refined)
-
-        repo.save_many(
-            [
-                TreeSegment(
-                    id=1,
-                    road_name="여의대로",
-                    start=Coordinate(latitude=37.50, longitude=127.00),
-                    end=Coordinate(latitude=37.52, longitude=127.04),
-                    species=TreeSpecies.CHERRY,
-                    quantity=120,
-                    managing_agency="영등포구청",
-                )
-            ]
-        )
-
-        assert refined.exists()
-        saved = pd.read_csv(refined)
-        assert len(saved) == 1
-        assert saved.iloc[0]["road_name"] == "여의대로"
-        assert saved.iloc[0]["species"] == "벚나무"

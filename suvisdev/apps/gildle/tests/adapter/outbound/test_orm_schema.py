@@ -4,8 +4,6 @@ from sqlalchemy import create_engine, inspect
 import gildle.adapter.outbound.orm.hazard_zone_orm  # noqa: F401
 import gildle.adapter.outbound.orm.route_edge_orm  # noqa: F401
 import gildle.adapter.outbound.orm.route_node_orm  # noqa: F401
-import gildle.adapter.outbound.orm.route_request_orm  # noqa: F401
-import gildle.adapter.outbound.orm.route_result_orm  # noqa: F401
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401
 import gildle.adapter.outbound.orm.walk_orm  # noqa: F401
 from gildle.adapter.outbound.orm.base import GildleBase
@@ -27,8 +25,6 @@ class TestOrmSchema:
             "walks",
             "route_nodes",
             "route_edges",
-            "route_requests",
-            "route_results",
         } <= tables
 
     def test_route_edges_has_two_self_ref_fks_to_route_nodes(self):
@@ -41,19 +37,3 @@ class TestOrmSchema:
         engine = _create_all()
         pk = inspect(engine).get_pk_constraint("tree_segments")
         assert pk["constrained_columns"] == ["id"]
-
-    def test_route_results_request_id_is_unique(self):
-        engine = _create_all()
-        inspector = inspect(engine)
-        # unique=True는 UNIQUE 제약 또는 unique 인덱스 어느 쪽으로도 반영될 수 있다.
-        unique_cols = [
-            c for u in inspector.get_unique_constraints("route_results") for c in u["column_names"]
-        ]
-        unique_cols += [
-            c
-            for idx in inspector.get_indexes("route_results")
-            if idx.get("unique")
-            for c in idx["column_names"]
-        ]
-        # 1:1 보장 — route_request_id에 UNIQUE.
-        assert "route_request_id" in unique_cols

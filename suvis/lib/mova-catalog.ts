@@ -1,6 +1,6 @@
 /** 정적 카탈로그(`mova-movies`)와 DB slug 불일치 시 URL용 canonical id */
 
-export const MOVA_TITLE_TO_SLUG: Record<string, string> = {
+const MOVA_TITLE_TO_SLUG: Record<string, string> = {
   원더풀스: "wonderfuls",
   인터스텔라: "interstellar",
   "듄: 파트2": "dune-2",

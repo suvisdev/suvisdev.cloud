@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 # ── 공용 중첩 스키마 ──────────────────────────────────────────────────────────
 
@@ -76,19 +76,3 @@ class MovieListSchema(BaseModel):
 
 
 # ── 생성 요청 (import/admin 용) ──────────────────────────────────────────────
-
-
-class MovieCreateSchema(BaseModel):
-    title: str
-    slug: str | None = None
-    release_year: int = 0
-    rating: float = 0.0
-    poster_url: str = ""
-    platforms: list[PlatformSchema] = Field(default_factory=list)
-    age_rating: str | None = None
-    genres: list[str] = Field(default_factory=list)
-    collection_id: int | None = None
-
-
-class MovieTitleCreateSchema(BaseModel):
-    title: str

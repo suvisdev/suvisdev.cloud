@@ -1,16 +1,16 @@
 """시맨틱 인텐트 게이트웨이 — 질문 1건을 crud/rag/general 세 갈래로 분류해 처리한다.
 
-QLoRA 파인튜닝은 필요 없다. 단일 모델(Qwen2.5-1.5B, ontology/adapter/outbound/llm/
-qwen_llm_adapter.py)에 역할별 시스템 프롬프트만 갈아 끼우는 동적 프롬프팅으로
+QLoRA 파인튜닝은 필요 없다. 단일 모델(EXAONE-3.5-2.4B, ontology/adapter/outbound/llm/
+exaone_small_llm_adapter.py)에 역할별 시스템 프롬프트만 갈아 끼우는 동적 프롬프팅으로
 분류(routing)·RAG 답변 두 역할을 겸한다 — VRAM을 추가로 쓰지 않고, PoC 단계에서
 파인튜닝 데이터셋을 만들 필요 없이 프롬프트 수정만으로 반복 검증할 수 있다.
 
-분류 로직 자체는 qwen_intent_classifier.QwenIntentClassifier(IntentClassifierPort)로
+분류 로직 자체는 llm_intent_classifier.LlmIntentClassifier(IntentClassifierPort)로
 분리돼 있다 — mova ChatInteractor도 같은 분류기를 공유한다.
 
 - crud: 결정론적 분기 — 실제 CRUD 실행은 각 Spoke 책임이라 여기서는 위임 안내만 반환.
 - rag: HubRagUseCase로 hub_knowledge 검색 → 근거(Context)를 시스템 프롬프트에 박아
-  같은 Qwen 모델로 grounded 답변 생성. 근거가 없으면 추측하지 않고 바로 안내한다.
+  같은 EXAONE 모델로 grounded 답변 생성. 근거가 없으면 추측하지 않고 바로 안내한다.
 - general: 지식 조회가 필요 없는 잡담 — 기존 MycroftUseCase(Gemini)에 위임한다.
 """
 

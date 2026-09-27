@@ -160,6 +160,8 @@ dataset/
 - `apps/ontology/adapter/inbound/api/v1/sentiment_analysis_router.py` — `POST /sentiment/analyze` (`asyncio.to_thread`로 이벤트 루프 블로킹 방지, 호출당 EXAONE 로드가 수십 초 걸림)
 - `apps/ontology/adapter/inbound/api/__init__.py` — `nlp_router`(prefix `/nlp`) 신설, vision/ontology와 별도로 export(Echo가 vision이 아닌 첫 NLP 태스크라 새 그룹 필요)
 - `main.py` — `nlp_router`를 `/api` prefix로 include → 최종 경로 `/api/nlp/sentiment/analyze`
+> **2026-09-27 정리**: `sentiment_analysis_mcp_server.py`·`sentiment_echo_agent.py`는 `.mcp.json`에 등록되지 않은 데드 경로라 삭제했다(아래는 당시 기록).
+
 - `apps/ontology/adapter/inbound/mcp/sentiment_analysis_mcp_server.py` — `analyze_sentiment(text) -> dict` tool, `INFERENCE_URL` 환경변수로 base URL 설정
 
 **GPU 검증(2026-07-23)**:

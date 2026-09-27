@@ -1,8 +1,0 @@
-# ~/.venv-exaone 전용 (suvisdev 메인 venv와 완전히 분리, _docs/EXAONE_LOCAL_AI_SETUP.md §7 참고)
-# transformers/torch/gptqmodel은 이미 검증된 버전으로 설치돼 있음 — 여기서는 서버 실행에 필요한
-# 추가 패키지만 명시한다.
-fastapi
-uvicorn[standard]
-transformers==5.13.1
-torch==2.13.0
-gptqmodel==7.1.0

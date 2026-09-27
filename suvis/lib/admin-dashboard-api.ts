@@ -1,23 +1,8 @@
-import { listAgents } from "@/lib/admin-api"
-
-export type AgentSummaryStats = {
-  total: number
-  on: number
-  off: number
-}
-
 export type ActivityItem = {
   id: string
   label: string
   time: string
   kind: "agent" | "crawl"
-}
-
-/** 실제 연동 — /viewer/admin/agents 목록에서 집계한다. */
-export async function getAgentSummaryStats(): Promise<AgentSummaryStats> {
-  const agents = await listAgents()
-  const on = agents.filter((a) => a.status === "on").length
-  return { total: agents.length, on, off: agents.length - on }
 }
 
 /** TODO: harvester 실행 이력 API 연동 전까지 mock. */

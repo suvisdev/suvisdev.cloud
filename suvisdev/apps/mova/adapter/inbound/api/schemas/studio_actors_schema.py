@@ -28,10 +28,3 @@ class ActorDetailSchema(BaseModel):
     role_type: Literal["director", "actor"]
     profile_photo_url: str
     filmography: list[MovieInActorSchema]
-
-
-# 생성 요청 (import/admin 용)
-class ActorCreateSchema(BaseModel):
-    name: str
-    role_type: Literal["director", "actor"] = "actor"
-    profile_photo_url: str = ""

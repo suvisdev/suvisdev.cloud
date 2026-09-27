@@ -12,25 +12,3 @@ class Role(StrEnum):
 
     ADMIN = "admin"
     USER = "user"
-
-
-class Permission(StrEnum):
-    VIEW_ADMIN_DASHBOARD = "view_admin_dashboard"
-    MANAGE_USERS = "manage_users"
-
-
-ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
-    Role.ADMIN: frozenset({Permission.VIEW_ADMIN_DASHBOARD, Permission.MANAGE_USERS}),
-    Role.USER: frozenset(),
-}
-
-
-def has_permission(roles: list[str], permission: Permission) -> bool:
-    for raw in roles:
-        try:
-            role = Role(raw)
-        except ValueError:
-            continue
-        if permission in ROLE_PERMISSIONS.get(role, frozenset()):
-            return True
-    return False

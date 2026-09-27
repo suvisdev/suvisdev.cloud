@@ -72,9 +72,7 @@ GET  /gildle/stats              누적 거리·횟수·이번 달 요약   requi
 POST /gildle/walks/{id}/share   경로 공유 링크 생성
 GET  /gildle/routes/recent      최근 계산한 경로(재실행용)
 ```
-`route_requests`·`route_results` ORM이 이미 있으나 **0행이고 어디서도 쓰이지
-않는다**(스키마 테스트에만 등장). 최근 경로를 살리려면 이 테이블을 실제로
-채우는 것부터다.
+~~`route_requests`·`route_results` ORM~~ — 0행·미참조라 **2026-09-27 삭제**(마이그레이션 `20260927_0002`). 최근 경로가 필요해지면 새로 설계한다.
 
 ---
 

@@ -16,15 +16,15 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
-from ontology.adapter.outbound.llm.qwen_intent_classifier import (  # noqa: E402
-    QwenIntentClassifier,
+from ontology.adapter.outbound.llm.llm_intent_classifier import (  # noqa: E402
+    LlmIntentClassifier,
 )
 
 
-def _classifier(raw_response: str) -> QwenIntentClassifier:
+def _classifier(raw_response: str) -> LlmIntentClassifier:
     llm = AsyncMock()
     llm.generate.return_value = raw_response
-    return QwenIntentClassifier(llm=llm)
+    return LlmIntentClassifier(llm=llm)
 
 
 class IntentClassifierDestinationTests(unittest.IsolatedAsyncioTestCase):

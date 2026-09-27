@@ -24,13 +24,3 @@ class TagGroupSchema(BaseModel):
     mood: list[TagSchema]
     genre: list[TagSchema]
     cast: list[TagSchema]
-
-
-# 생성 요청 (import/admin 용)
-class TagCreateSchema(BaseModel):
-    movie_id: int
-    label: str
-    slug: str = ""
-    description: str = ""
-    character_id: int | None = None
-    tag_kind: Literal["mood", "genre", "cast"] = "mood"

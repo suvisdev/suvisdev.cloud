@@ -84,7 +84,7 @@ def _request(bbox: tuple[float, float, float, float], page: int, key: str, domai
         except Exception as e:  # noqa: BLE001 — 네트워크 오류는 백오프 후 재시도
             if attempt == _MAX_RETRY - 1:
                 raise
-            wait = 2 ** attempt
+            wait = 2**attempt
             logger.warning("요청 실패(%s) — %ds 후 재시도", e, wait)
             time.sleep(wait)
     raise RuntimeError("unreachable")
@@ -175,7 +175,10 @@ def main() -> None:
             known = sum(1 for b in buildings if b["height_known"])
             logger.info(
                 "타일 %d/%d — 누계 %d동(층수 보유 %d, %.1f%%)",
-                i + 1, len(tiles), len(buildings), known,
+                i + 1,
+                len(tiles),
+                len(buildings),
+                known,
                 known / len(buildings) * 100 if buildings else 0,
             )
         time.sleep(_SLEEP_S)
@@ -185,7 +188,10 @@ def main() -> None:
     known = sum(1 for b in buildings if b["height_known"])
     logger.info(
         "저장 완료: %s (건물 %d동, 층수 보유 %d동 %.1f%%)",
-        _OUT, len(buildings), known, known / len(buildings) * 100 if buildings else 0,
+        _OUT,
+        len(buildings),
+        known,
+        known / len(buildings) * 100 if buildings else 0,
     )
 
 

@@ -72,9 +72,3 @@ class LoopRequestSchema(BaseModel):
     mode: str = Field("spring_autumn", description="spring_autumn | winter_safety | summer_shade")
     departure_time: str | None = Field(None, description='출발 "HH:MM"(여름 그늘 슬롯용)')
     limit: int = Field(3, ge=1, le=6, description="반환 후보 수")
-
-
-class RouteResponseSchema(BaseModel):
-    """경로 계산 응답 — 노드 id 경로."""
-
-    path: list[str] = Field(default_factory=list, description="시작→끝 노드 id 경로")

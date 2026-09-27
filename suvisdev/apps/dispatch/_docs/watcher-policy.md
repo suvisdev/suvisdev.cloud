@@ -1,3 +1,5 @@
+> **2026-09-27 정리**: `DetectiveWatsonWatcherHub`(watcher/detective_watson_watcher_hub.py)와 하네스 `harness_watson_triage.py`는 앱 어디서도 쓰이지 않아 삭제했다. 이 문서는 정책 설계 기록으로 남긴다.
+
 # 왓슨(Watson) 인바운드 트리아지 — 구조 · 구현 현황
 
 > dispatch가 외부 채널(Email·Telegram·Discord)로부터 받은 이벤트를 1차 분류(Triage)해서

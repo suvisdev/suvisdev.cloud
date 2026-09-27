@@ -11,7 +11,7 @@
 
 | 역할 | 담당 | 문제 |
 |---|---|---|
-| 의도 분류 | Hub `QwenIntentClassifier` | destination 5종만. 작품명·지역 슬롯은 안 뽑음 |
+| 의도 분류 | Hub `LlmIntentClassifier` | destination 5종만. 작품명·지역 슬롯은 안 뽑음 |
 | 디스패치 | `ChatInteractor.chat()` if 사슬 + 결정론 가드 5단 | 판단 없음. 가드끼리 어휘가 따로 놂 |
 | 슬롯 추출 | 트랙별 정규식 15개(예매 5·해석기 2·인터랙터 8) | 같은 발화를 트랙마다 다르게 읽음 → "파과→파", "시간표 질의→잡담" |
 

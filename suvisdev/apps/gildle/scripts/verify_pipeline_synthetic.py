@@ -152,9 +152,6 @@ class _Trees(TreeSegmentRepository):
     def find_all(self) -> list[TreeSegment]:
         return list(self._s)
 
-    def save_many(self, segments: list[TreeSegment]) -> None:
-        self._s.extend(segments)
-
 
 class _Hazards(HazardZoneRepository):
     def __init__(self, hazards: list[HazardZone]) -> None:

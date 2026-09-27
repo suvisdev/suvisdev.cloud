@@ -6,12 +6,9 @@ import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 const API_BASE =
-  process.env.BACKEND_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://127.0.0.1:8000"
+  process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
 
-const POSTER_PLACEHOLDER =
-  "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&q=80"
+const POSTER_PLACEHOLDER = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&q=80"
 
 export type MovaHotRankingItem = {
   id: string
@@ -64,7 +61,7 @@ export type MovaSearchResult = {
   match_type: "title" | "person" | "keyword" | "synopsis"
 }
 
-export type MovaCollectionItem = {
+type MovaCollectionItem = {
   id: number
   slug: string
   name: string
@@ -87,7 +84,7 @@ export type MovaCollectionDetail = {
   movie_count: number
 }
 
-export type MovaSpoilerSpan = { start: number; end: number; text: string }
+type MovaSpoilerSpan = { start: number; end: number; text: string }
 
 export type MovaReviewRow = {
   id: number
@@ -230,10 +227,7 @@ function titleFetchUrl(slug: string): string {
   if (typeof window !== "undefined") {
     return `/api/mova/titles/${encodeURIComponent(slug)}`
   }
-  const base =
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://127.0.0.1:8000"
+  const base = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
   return `${base}/mova/movies/${encodeURIComponent(slug)}`
 }
 
@@ -360,11 +354,9 @@ export async function fetchHotRankings(limit = 10): Promise<MovaHotRankingItem[]
       })
       if (!res.ok) continue
       const data = await res.json()
-      rows = (
-        Array.isArray(data)
-          ? (data as HotRankingApiRow[])
-          : ((data as { items?: HotRankingApiRow[] }).items ?? [])
-      )
+      rows = Array.isArray(data)
+        ? (data as HotRankingApiRow[])
+        : ((data as { items?: HotRankingApiRow[] }).items ?? [])
       if (rows.length > 0) break
     }
     if (!rows.length) return staticRankingFallback()
@@ -375,10 +367,7 @@ export async function fetchHotRankings(limit = 10): Promise<MovaHotRankingItem[]
       year: String(row.release_year || ""),
       poster: coercePosterUrl(row.poster) ?? POSTER_PLACEHOLDER,
       rating: row.rating,
-      platform:
-        row.platform === "netflix" || row.platform === "disney"
-          ? row.platform
-          : undefined,
+      platform: row.platform === "netflix" || row.platform === "disney" ? row.platform : undefined,
       badge: row.badge === "NEW" || row.badge === "AD" ? row.badge : undefined,
     }))
   } catch {
@@ -391,12 +380,12 @@ export async function fetchHotRankings(limit = 10): Promise<MovaHotRankingItem[]
  * "일시적 오류"를 구분해서 보여줄 수 있도록 반환값을 분리한다. */
 export async function fetchMovaRankings(
   source = "chat_trend",
-  limit = 10,
+  limit = 10
 ): Promise<MovaHotRankingItem[] | null> {
   try {
     const res = await fetch(
       `${rankingsFetchUrl()}?source=${encodeURIComponent(source)}&limit=${encodeURIComponent(String(limit))}`,
-      { cache: "no-store" },
+      { cache: "no-store" }
     )
     if (!res.ok) return null
     const data = await res.json()
@@ -410,10 +399,7 @@ export async function fetchMovaRankings(
       year: String(row.release_year || ""),
       poster: coercePosterUrl(row.poster) ?? POSTER_PLACEHOLDER,
       rating: row.rating,
-      platform:
-        row.platform === "netflix" || row.platform === "disney"
-          ? row.platform
-          : undefined,
+      platform: row.platform === "netflix" || row.platform === "disney" ? row.platform : undefined,
       badge: row.badge === "NEW" || row.badge === "AD" ? row.badge : undefined,
     }))
   } catch {
@@ -423,10 +409,10 @@ export async function fetchMovaRankings(
 
 export async function refreshMovaRankings(source = "chat_trend"): Promise<void> {
   // 백엔드 재집계는 admin 전용(2026-09-11) — 토큰이 있으면 3계층 전달한다.
-  const res = await fetch(
-    `/api/mova/rankings/refresh?source=${encodeURIComponent(source)}`,
-    { method: "POST", headers: { ...authHeader() } },
-  )
+  const res = await fetch(`/api/mova/rankings/refresh?source=${encodeURIComponent(source)}`, {
+    method: "POST",
+    headers: { ...authHeader() },
+  })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     const detail =
@@ -462,7 +448,7 @@ export async function fetchMovaMovies(
     age_rating?: string
     platform?: string
     sort?: string
-  },
+  }
 ): Promise<MovaMovieList> {
   const params = new URLSearchParams({
     limit: String(limit),
@@ -502,20 +488,7 @@ export async function fetchSimilarMovies(slug: string, limit = 12): Promise<ApiM
   return data.items
 }
 
-/** @deprecated use fetchMovaMovies */
-export async function fetchMovaMoviesFromApi(limit = 80): Promise<ApiMovieRow[]> {
-  try {
-    const data = await fetchMovaMovies(limit, 0)
-    return data.items
-  } catch {
-    return []
-  }
-}
-
-export async function fetchMovaCollections(
-  limit = 20,
-  offset = 0,
-): Promise<MovaCollectionList> {
+export async function fetchMovaCollections(limit = 20, offset = 0): Promise<MovaCollectionList> {
   const res = await fetch(collectionFetchUrl(`?limit=${limit}&offset=${offset}`), {
     cache: "no-store",
   })
@@ -530,28 +503,9 @@ export async function fetchMovaCollections(
   return (await res.json()) as MovaCollectionList
 }
 
-export async function createMovaCollection(input: {
+export async function fetchMovaCollectionDetail(
   slug: string
-  name: string
-  description?: string
-}): Promise<MovaCollectionDetail> {
-  const res = await fetch(collectionFetchUrl(""), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const detail =
-      typeof data === "object" && data && "detail" in data
-        ? (data as { detail: unknown }).detail
-        : undefined
-    throw new Error(safeApiErrorMessage(detail, `컬렉션 생성 실패 (${res.status})`, res.status))
-  }
-  return data as MovaCollectionDetail
-}
-
-export async function fetchMovaCollectionDetail(slug: string): Promise<MovaCollectionDetail | null> {
+): Promise<MovaCollectionDetail | null> {
   const res = await fetch(collectionFetchUrl(`/${encodeURIComponent(slug)}`), {
     cache: "no-store",
   })
@@ -563,11 +517,11 @@ export async function fetchMovaCollectionDetail(slug: string): Promise<MovaColle
 export async function fetchMovaCollectionMovies(
   slug: string,
   limit = 20,
-  offset = 0,
+  offset = 0
 ): Promise<{ items: CollectionMovieRow[]; total: number; limit: number; offset: number }> {
   const res = await fetch(
     collectionFetchUrl(`/${encodeURIComponent(slug)}/movies?limit=${limit}&offset=${offset}`),
-    { cache: "no-store" },
+    { cache: "no-store" }
   )
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -576,7 +530,7 @@ export async function fetchMovaCollectionMovies(
         ? (data as { detail: unknown }).detail
         : undefined
     throw new Error(
-      safeApiErrorMessage(detail, `컬렉션 영화 조회 실패 (${res.status})`, res.status),
+      safeApiErrorMessage(detail, `컬렉션 영화 조회 실패 (${res.status})`, res.status)
     )
   }
   const data = (await res.json()) as {
@@ -606,13 +560,13 @@ export function movaReviewToComment(row: MovaReviewRow): MovaComment {
 export async function fetchMovaReviewsByMovie(
   movieId: number,
   limit = 20,
-  offset = 0,
+  offset = 0
 ): Promise<MovaReviewRow[]> {
   const res = await fetch(
     reviewsFetchUrl(
-      `/by-movie/${movieId}?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`,
+      `/by-movie/${movieId}?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
     ),
-    { cache: "no-store" },
+    { cache: "no-store" }
   )
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -648,9 +602,7 @@ export type MovaVoteResult = {
   vote_count: number
 }
 
-export async function toggleReviewVote(
-  reviewId: number,
-): Promise<MovaVoteResult> {
+export async function toggleReviewVote(reviewId: number): Promise<MovaVoteResult> {
   const res = await fetch(reviewsFetchUrl(`/${reviewId}/vote`), {
     method: "POST",
     headers: { ...authHeader() },
@@ -661,9 +613,7 @@ export async function toggleReviewVote(
       typeof data === "object" && data !== null && "detail" in data
         ? (data as { detail?: unknown }).detail
         : undefined
-    throw new Error(
-      safeApiErrorMessage(detail, `투표 처리 실패 (${res.status})`, res.status),
-    )
+    throw new Error(safeApiErrorMessage(detail, `투표 처리 실패 (${res.status})`, res.status))
   }
   return (await res.json()) as MovaVoteResult
 }
@@ -773,7 +723,7 @@ export async function removeFromWatchlist(userId: number, movieId: number): Prom
   if (!res.ok) throw new Error(`찜 삭제 실패 (${res.status})`)
 }
 
-export type MypagePickItem = {
+type MypagePickItem = {
   pick_id: number
   title: string
   hook: string | null
@@ -783,12 +733,12 @@ export type MypagePickItem = {
   feedback: string | null
 }
 
-export type MypageSearchItem = {
+type MypageSearchItem = {
   refined_query: string
   searched_at: string
 }
 
-export type MypageReviewItem = {
+type MypageReviewItem = {
   review_id: number
   movie_id: number
   title: string
@@ -800,7 +750,7 @@ export type MypageReviewItem = {
   spoiler_spans?: MovaSpoilerSpan[]
 }
 
-export type MypageActivity = {
+type MypageActivity = {
   watched_count: number
   review_count: number
   average_rating: number | null
@@ -826,7 +776,9 @@ export async function deleteMovaAccount(userId: number): Promise<void> {
       typeof data === "object" && data && "detail" in data
         ? (data as { detail: unknown }).detail
         : undefined
-    throw new Error(safeApiErrorMessage(detail, `회원 탈퇴에 실패했습니다. (${res.status})`, res.status))
+    throw new Error(
+      safeApiErrorMessage(detail, `회원 탈퇴에 실패했습니다. (${res.status})`, res.status)
+    )
   }
 }
 
@@ -846,37 +798,9 @@ export async function fetchMovaMypage(userId: number): Promise<MypageData> {
   return (await res.json()) as MypageData
 }
 
-export function apiMovieToMovaMovie(row: ApiMovieRow): MovaMovie {
-  const poster = coercePosterUrl(row.poster_url) ?? POSTER_PLACEHOLDER
-  const platformProvider = row.platforms[0]?.provider
-  return {
-    movieDbId: row.id,
-    id: resolveMovaCatalogSlug(row.slug, row.title),
-    title: row.title,
-    year: String(row.release_year || ""),
-    genres: row.genres ?? [],
-    country: "",
-    ageRating: row.age_rating ?? "",
-    platform:
-      platformProvider === "netflix" || platformProvider === "disney"
-        ? platformProvider
-        : undefined,
-    poster,
-    backdrop: poster,
-    rating: row.rating,
-    ratingCount: 0,
-    rank: 0,
-    synopsis: "",
-    ratingDistribution: Array(10).fill(0),
-    cast: [],
-    comments: [],
-    gallery: [],
-  }
-}
-
 // ── 배우 상세 (GET /mova/actors/{id}) ────────────────────────────────────────
 
-export type MovaActorFilmItem = {
+type MovaActorFilmItem = {
   movieId: number
   slug: string
   title: string

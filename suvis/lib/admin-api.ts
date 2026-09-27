@@ -2,8 +2,7 @@ import { getSuvisSession } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
-  "http://127.0.0.1:8000"
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 export type AgentSummary = {
   id: string
@@ -57,8 +56,4 @@ export function invokeAgent(id: string): Promise<{ id: string; result: string; m
 
 export function getAgentLogs(id: string): Promise<AgentLogEntry[]> {
   return adminFetch<AgentLogEntry[]>(`/${id}/logs`)
-}
-
-export function getAgentModel(id: string): Promise<{ id: string; model: string; status: string }> {
-  return adminFetch(`/${id}/model`)
 }

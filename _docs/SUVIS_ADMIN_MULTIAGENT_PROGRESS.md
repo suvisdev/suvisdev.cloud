@@ -102,6 +102,11 @@
 history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `--base-url
 http://127.0.0.1:31386`.
 
+### 저장소 정리 (2026-09-27 저녁, `[P]` 09-27)
+- Qwen 명칭 제거(실체 EXAONE), 데드 코드 백엔드 94파일·프론트 64파일·의존성 35 삭제, `route_requests/
+  route_results` 드롭(`20260927_0002`). 남은 후보: 프론트 shadcn `button/card/dialog` 하위 export(라이브러리
+  성격이라 보류), `eslint-config-next`(knip 오탐 — flat config compat이 씀).
+
 ### 메인페이지 (2026-09-27)
 - **홈 개편 배포 완료(`adef914`, Vercel 반영 확인, `[P]` 09-27)** — 이후 같은 날 입력창을 AI 채팅으로 전환(아래): 로고 → 검색창 → mova·gildle·arda 3타일. 데이터는 `apps-catalog.ts`.
 - **홈 AI 채팅 배포 완료(09-27 새벽, `[P]` 09-27)**: `POST /portfolio/chat` — ontology에 유스케이스·라우터 추가,

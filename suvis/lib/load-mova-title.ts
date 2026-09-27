@@ -4,7 +4,7 @@ import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { findMovaMovie, type MovaMovie } from "@/lib/mova-movies"
 
 /** 일부 환경에서 동적 라우트 세그먼트가 percent-encoding 그대로 전달되는 경우를 보정 */
-export function decodeMovaRouteSlug(value: string): string {
+function decodeMovaRouteSlug(value: string): string {
   try {
     return decodeURIComponent(value)
   } catch {
@@ -19,8 +19,7 @@ export async function loadMovaTitle(rawSlug: string): Promise<MovaMovie | null> 
 
   let apiMovie: MovaMovie | null = null
   try {
-    apiMovie =
-      (await fetchMovaTitle(slug)) ?? (slug !== id ? await fetchMovaTitle(id) : null)
+    apiMovie = (await fetchMovaTitle(slug)) ?? (slug !== id ? await fetchMovaTitle(id) : null)
   } catch {
     apiMovie = null
   }

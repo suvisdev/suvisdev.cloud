@@ -195,12 +195,12 @@ def build_ai_review_generator() -> object:
 
 
 def build_harvester_command_parser() -> HarvesterCommandParserPort:
-    from ontology.adapter.outbound.llm.qwen_harvester_command_parser import (
-        QwenHarvesterCommandParser,
+    from ontology.adapter.outbound.llm.exaone_small_llm_adapter import ExaoneSmallLlmAdapter
+    from ontology.adapter.outbound.llm.llm_harvester_command_parser import (
+        LlmHarvesterCommandParser,
     )
-    from ontology.adapter.outbound.llm.qwen_llm_adapter import QwenLlmAdapter
 
-    return QwenHarvesterCommandParser(llm=QwenLlmAdapter())
+    return LlmHarvesterCommandParser(llm=ExaoneSmallLlmAdapter())
 
 
 def build_custom_url_scrape_use_case() -> CustomUrlScrapeUseCase:

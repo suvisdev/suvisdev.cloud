@@ -2,8 +2,7 @@ import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
-  "http://127.0.0.1:8000"
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 export type ChosungQuestion = {
   movie_id: number
@@ -28,7 +27,7 @@ export type MemoryDeck = {
 
 export type GameType = "chosung" | "memory"
 
-export type LeaderboardEntry = {
+type LeaderboardEntry = {
   rank: number
   user_id: number
   nickname: string
@@ -61,9 +60,7 @@ async function gamesFetch<T>(path: string, init?: RequestInit): Promise<T> {
   })
   const data = (await res.json()) as T & ApiErrorBody
   if (!res.ok) {
-    throw new Error(
-      safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status),
-    )
+    throw new Error(safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status))
   }
   return data
 }
@@ -72,7 +69,7 @@ export type ChosungCategory = "all" | "kr" | "foreign"
 
 export function fetchNextChosungQuestion(
   category: ChosungCategory = "all",
-  excludeIds: number[] = [],
+  excludeIds: number[] = []
 ): Promise<ChosungQuestion> {
   const params = new URLSearchParams({ category })
   if (excludeIds.length > 0) params.set("exclude", excludeIds.join(","))
@@ -99,7 +96,7 @@ export function saveGameScore(payload: {
 
 export function fetchLeaderboard(
   game: GameType,
-  opts: { stage?: number; limit?: number } = {},
+  opts: { stage?: number; limit?: number } = {}
 ): Promise<Leaderboard> {
   const params = new URLSearchParams({ game })
   if (opts.stage !== undefined) params.set("stage", String(opts.stage))

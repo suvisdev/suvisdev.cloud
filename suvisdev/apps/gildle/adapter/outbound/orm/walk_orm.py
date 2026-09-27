@@ -31,9 +31,7 @@ class WalkOrm(GildleBase):
     duration_s: Mapped[int]
     # 테스트는 sqlite in-memory로 create_all을 하는데 JSONB는 sqlite 방언에 없다
     # (2026-09-22: 그대로 뒀다가 gildle 테스트 31건이 깨졌다). 방언별로 갈라 준다.
-    path: Mapped[list[Any]] = mapped_column(
-        JSON().with_variant(JSONB, "postgresql"), default=list
-    )
+    path: Mapped[list[Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), default=list)
     season_mode: Mapped[str]
     avg_shade_score: Mapped[float | None] = mapped_column(default=None)
     memo: Mapped[str | None] = mapped_column(default=None)

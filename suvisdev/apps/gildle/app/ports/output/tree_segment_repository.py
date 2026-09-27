@@ -13,6 +13,3 @@ class TreeSegmentRepository(ABC):
 
     @abstractmethod
     def find_all(self) -> list[TreeSegment]: ...
-
-    @abstractmethod
-    def save_many(self, segments: list[TreeSegment]) -> None: ...

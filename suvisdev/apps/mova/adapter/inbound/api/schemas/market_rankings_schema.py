@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class RankingItemSchema(BaseModel):
@@ -13,12 +13,6 @@ class RankingItemSchema(BaseModel):
     chat_id: int | None = None
     score: int | None = None
     badge: str | None = None
-
-
-class RankingBulkSchema(BaseModel):
-    ranked_at: date | None = None
-    source: str = "box_office"
-    items: list[RankingItemSchema] = Field(default_factory=list)
 
 
 class HotRankingDisplaySchema(BaseModel):

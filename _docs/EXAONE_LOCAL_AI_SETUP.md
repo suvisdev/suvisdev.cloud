@@ -370,8 +370,8 @@ curl -X POST http://localhost:8200/reload
 영화와 무관한 질문은 Gemini로 보내도록 연결함. 분류·RAG 답변 모두 QLoRA 파인튜닝 없이
 Qwen2.5-1.5B 하나에 **역할별 시스템 프롬프트만 갈아 끼우는 동적 프롬프팅**으로 충분했다.
 
-- `ontology/app/ports/output/intent_classifier_port.py` + `qwen_intent_classifier.py`
-  (`QwenIntentClassifier`) — 독립 게이트웨이(`POST /api/ontology/semantic/ask`)와
+- `ontology/app/ports/output/intent_classifier_port.py` + `llm_intent_classifier.py`
+  (`LlmIntentClassifier`) — 독립 게이트웨이(`POST /api/ontology/semantic/ask`)와
   `mova/app/use_cases/market_chat_interactor.py`가 이 분류기를 공유.
 - **분류 프롬프트 실측 이슈**: "rag" 기준을 "저장된 지식에서 사실을 찾아야 하는 질문"처럼
   추상적으로 적으니 "슬픈 영화 추천해줘" 같은 실제 요청을 매번 "general"로 오분류했다 —

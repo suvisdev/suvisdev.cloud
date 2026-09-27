@@ -82,18 +82,14 @@ class TestRecord:
     async def test_rejects_end_before_start(self):
         repo = _FakeWalkRepository()
         with pytest.raises(HTTPException) as e:
-            await WalkInteractor(repository=repo).record(
-                _command(started_at=_END, ended_at=_START)
-            )
+            await WalkInteractor(repository=repo).record(_command(started_at=_END, ended_at=_START))
         assert e.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_truncates_over_long_path(self):
         """상한 초과 경로는 거부가 아니라 절단 — 기록을 통째로 잃는 편이 더 나쁘다."""
         repo = _FakeWalkRepository()
-        walk = await WalkInteractor(repository=repo).record(
-            _command(path=[[37.5, 127.0]] * 6000)
-        )
+        walk = await WalkInteractor(repository=repo).record(_command(path=[[37.5, 127.0]] * 6000))
         assert len(walk.path) == 5000
 
 
@@ -102,8 +98,14 @@ class TestOwnership:
     async def test_detail_of_other_user_is_404_not_403(self):
         """403을 주면 그 id가 존재한다는 사실이 새어 나간다."""
         mine = Walk(
-            id=1, user_id=99, started_at=_START, ended_at=_END,
-            distance_m=100, duration_s=60, path=[], season_mode="summer",
+            id=1,
+            user_id=99,
+            started_at=_START,
+            ended_at=_END,
+            distance_m=100,
+            duration_s=60,
+            path=[],
+            season_mode="summer",
         )
         repo = _FakeWalkRepository([mine])
         with pytest.raises(HTTPException) as e:
@@ -113,8 +115,14 @@ class TestOwnership:
     @pytest.mark.asyncio
     async def test_delete_requires_ownership(self):
         other = Walk(
-            id=1, user_id=99, started_at=_START, ended_at=_END,
-            distance_m=100, duration_s=60, path=[], season_mode="summer",
+            id=1,
+            user_id=99,
+            started_at=_START,
+            ended_at=_END,
+            distance_m=100,
+            duration_s=60,
+            path=[],
+            season_mode="summer",
         )
         repo = _FakeWalkRepository([other])
         with pytest.raises(HTTPException):

@@ -30,6 +30,49 @@
 
 ## 2026-09-27
 
+### 작업 내용 (저녁 — 저장소 전체 데드 코드·낡은 이름 정리, 사용자 지시)
+- "qwen은 어디서 쓰나 → 전부 EXAONE·Gemini 아니냐"에서 출발해 "죽은 경로·오류 코드·낡은 코드·안 쓰는
+  코드 전부 정리"로 확장. 스캔 도구: import 문 기준 미참조 모듈 스캐너(스크래치 스크립트)·vulture(신뢰도
+  60/80)·프론트 knip. **후보마다 클래스·함수명까지 grep으로 참조를 재확인**하고 지웠다.
+
+### 수정/구현
+- **Qwen 명칭 제거**(실체는 09-17부터 exaone3.5:2.4b): `qwen_llm_adapter`→`exaone_small_llm_adapter`
+  (`ExaoneSmallLlmAdapter`), `qwen_intent_classifier`→`llm_intent_classifier`(`LlmIntentClassifier`),
+  `qwen_harvester_command_parser`→`llm_harvester_command_parser`, DI `get_exaone_small_llm_port`. 문서·주석·
+  테스트 파일명 동반 갱신. 비전 MCP 에이전트 기본 모델 `qwen2.5:1.5b`(Ollama에 없어 404)→exaone 2.4b로
+  바꿨다가 아래 정리에서 파일 자체 삭제.
+- **삭제(백엔드 94파일)**: titanic "미구현" 스텁 30(추상 ORM·매퍼·엔티티 10종×3) · viewer 구 로그인·
+  회원가입 체인 12(09-11 언마운트; `login_pg_repository`·스키마·DTO는 OAuth·테스트가 써서 유지) ·
+  mova DTO로 대체된 엔티티 14·VO 7·platform_* 스키마/ORM/DTO 9·`pg_session.py` · execsuite piper_* MCP
+  스텁 5+토폴로지 · ontology 미등록 MCP 에이전트 3(`sentiment_analysis_mcp_server`·`sentiment_echo_agent`·
+  `vision_genre_agent`) · dispatch `DetectiveWatsonWatcherHub`+하네스 · gildle `KakaoGeocodingAdapter`·
+  `ImportTreeSegmentInteractor`·`route_request/result_orm`·`RouteResponseSchema` · `model_servers/awq_server`.
+- **삭제(심볼)**: `TreeSegmentRepository.save_many`(포트·CSV·PG·페이크·테스트), mova 미사용 스키마 클래스
+  10(`MarketChatSchema`·`RankingBulkSchema`·`*CreateSchema` 등), auth `Permission`/`ROLE_PERMISSIONS`/
+  `has_permission`·`OAuthAdapter` Protocol.
+- 마이그레이션 `20260927_0002`: 0행·미참조 `route_requests`·`route_results` 드롭(downgrade는 0b92552ee0d7
+  정의 복원). alembic env·`test_orm_schema` 갱신.
+- **유지(의도적)**: `apps/sample`(문서화된 스켈레톤), contents K리그 ORM 4(테이블 존재·alembic 등록),
+  `NetworkXRouteGraphAdapter`(동치 검증 스크립트), `SampleWalkGraphSource`·`OsmWalkGraphAdapter`(배치 스크립트),
+  `VisionS3Repository`(S3 대안 어댑터), `_validate_email`(pydantic validator — vulture 오탐).
+- **프론트(suvis, knip)**: 미사용 파일 64 삭제 — 구 홈 컴포넌트 4(09-27 개편 전 `apps-grid`·
+  `featured-carousel`·`hero-jarvis-panel`·`quick-info-bar`), `mova-section`·`project-card`·`auth-open-link`,
+  mova `genre-catalog`·`genre-onboarding`·`preferred-genres-badge`·`promo-banner`, shadcn ui 50(설치만 되고
+  미사용), `hooks/use-*` 중복. 외부 미사용 export 21은 `export`만 떼고, eslint `no-unused-vars`가 잡는
+  최상위 선언 15만 삭제(내부 참조 타입을 지웠다가 되돌린 뒤 이 방식으로 재작업). `package.json`
+  미사용 의존성 35 제거(radix 24·zod·react-hook-form·date-fns·sonner·vaul 등) → `pnpm install
+  --lockfile-only`(npx pnpm@10, lockfile −1,466줄). tsc·eslint 0, prettier 적용.
+- 검증: 백엔드 755 passed(스크래치 venv에 boto3·ollama·langchain-core 추가) · ruff·lint-imports 통과 ·
+  라우터 패키지 import 전수 확인. **배포 후** 파드에서 `alembic upgrade head`(→`20260927_0002`), mova 멀티턴
+  12/12·단일턴 23/23, gildle `app/version`·`graph-edges`·`routes` 200, 파드 import 오류 없음.
+
+### 오류·막힌 점
+- `\bOrchestrator\b`·모듈명 일괄 sed가 무관 문서까지 바꾸는 사고 2회(execsuite harness-lab 문서, 내부
+  참조 타입 삭제) → 되돌리고 범위를 좁혀 재적용. **일괄 치환은 파일 목록을 먼저 보고 건다.**
+- `pkill -f <스크립트명>`이 자기 셸을 죽임(명령줄에 같은 문자열). 백그라운드 작업은 PID로 관리할 것.
+- `pnpm`이 WSL PATH에 없음 — `npx --yes pnpm@10`로 대체(lockfile v9 유지).
+
+
 ### 작업 내용 (메인페이지 — 구글 시작화면식 개편)
 - 사용자 요청: 메인을 크롬 새 탭처럼 "로고 → 검색창 → 앱 아이콘 격자"로. 격자에는 **mova·gildle·팀
   프로젝트 arda 3개만**(나머지 라우트는 본인 전용이라 비노출, 소개 문구·정보 페이지 링크 불필요).

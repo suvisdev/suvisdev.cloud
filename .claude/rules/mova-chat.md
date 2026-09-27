@@ -195,7 +195,7 @@ cd suvisdev && python -m pytest apps/mova/tests -m "not gpu and not ollama" -q
   응답한다 — 일반어("영화")가 제목 퍼지 매칭돼 무관 후보로 "어떤 작품을
   예매하시려나요?" 되묻던 오류의 수정. 패턴 제거·title 해석 선행 금지.
 - **예매 어휘 없는 booking 분류는 recommend로 교정한다**(2026-09-02 실사고,
-  "최신영화 알려줘"): 분류기(`qwen_intent_classifier`)가 booking을 반환해도
+  "최신영화 알려줘"): 분류기(`llm_intent_classifier`)가 booking을 반환해도
   질문에 `_BOOKING_VOCAB`(예매·예약·티켓·표 끊·상영·극장·영화관·보러·
   시간표·어디서)이 하나도 없으면 결정론 가드가 recommend로 되돌린다 —
   '요즘 상영작 알려줘' 프롬프트 예시와 표면이 비슷한 소개 요청이 booking으로

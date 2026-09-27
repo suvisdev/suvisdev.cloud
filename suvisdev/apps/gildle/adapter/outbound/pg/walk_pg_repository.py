@@ -95,4 +95,6 @@ class WalkPgRepository(WalkRepositoryPort):
                 ).where(WalkOrm.user_id == user_id)
             )
         ).one()
-        return WalkStats(total_count=row[0], total_distance_m=int(row[1]), total_duration_s=int(row[2]))
+        return WalkStats(
+            total_count=row[0], total_distance_m=int(row[1]), total_duration_s=int(row[2])
+        )

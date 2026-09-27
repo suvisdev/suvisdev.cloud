@@ -101,36 +101,3 @@ class TestFindAll:
         assert seg.start.latitude == 37.500
         assert seg.end.latitude == 37.510
         assert seg.species == TreeSpecies.ZELKOVA
-
-
-class TestSaveMany:
-    def test_save_then_find_all_roundtrip(self) -> None:
-        session = _make_session()
-        repo = PgTreeSegmentRepository(session_factory=lambda: session)
-
-        repo.save_many([_cherry_segment(), _zelkova_segment()])
-        result = repo.find_all()
-
-        assert len(result) == 2
-        names = {s.road_name for s in result}
-        assert names == {"여의대로", "국회대로"}
-
-    def test_save_many_truncates_existing_rows(self) -> None:
-        session = _make_session()
-        repo = PgTreeSegmentRepository(session_factory=lambda: session)
-
-        repo.save_many([_cherry_segment()])
-        assert len(repo.find_all()) == 1
-
-        repo.save_many([_zelkova_segment()])
-        assert len(repo.find_all()) == 1
-        assert repo.find_all()[0].road_name == "국회대로"
-
-    def test_save_many_empty_list_clears_table(self) -> None:
-        session = _make_session()
-        repo = PgTreeSegmentRepository(session_factory=lambda: session)
-
-        repo.save_many([_cherry_segment()])
-        repo.save_many([])
-
-        assert repo.find_all() == []

@@ -39,17 +39,3 @@ class KoficImportRequestSchema(BaseModel):
         "0",
         description="0=주간(전체) · 1=주중 · 2=주말",
     )
-
-
-class StudioImportSchema(BaseModel):
-    id: int = Field(0, description="Import ID")
-    name: str = Field("수입 감독 (Import Director)", description="Import Director's name")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "id": 1,
-                "name": "수입 감독 (Import Director)",
-            }
-        }
-    }

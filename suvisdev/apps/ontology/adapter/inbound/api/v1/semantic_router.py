@@ -1,7 +1,7 @@
 """시맨틱 인텐트 게이트웨이 — POST /ontology/semantic/ask.
 
 질문 1건을 crud/rag/general 세 갈래로 분류해 처리한다. 분류·RAG 답변은 로컬
-Qwen2.5-1.5B(Ollama)가 시스템 프롬프트만 바꿔가며 겸한다 — QLoRA 파인튜닝은
+EXAONE-3.5-2.4B(Ollama)가 시스템 프롬프트만 바꿔가며 겸한다 — QLoRA 파인튜닝은
 필요 없다(PoC 단계 프롬프트 튜닝으로 충분, 실제 판단 로직은
 semantic_router_interactor.py 참고).
 """

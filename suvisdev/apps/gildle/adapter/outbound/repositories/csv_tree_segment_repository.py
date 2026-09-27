@@ -60,11 +60,9 @@ class CsvTreeSegmentRepository(TreeSegmentRepository):
     def __init__(
         self,
         csv_path: str | Path,
-        refined_path: str | Path = "refined_tree_segments.csv",
         encoding: str = "utf-8-sig",
     ) -> None:
         self._csv_path = Path(csv_path)
-        self._refined_path = Path(refined_path)
         self._encoding = encoding
 
     def find_all(self) -> list[TreeSegment]:
@@ -84,23 +82,6 @@ class CsvTreeSegmentRepository(TreeSegmentRepository):
                 segments.append(segment)
         _find_all_cache = (self._csv_path, mtime, segments)
         return segments
-
-    def save_many(self, segments: list[TreeSegment]) -> None:
-        records = [
-            {
-                "id": s.id,
-                "road_name": s.road_name,
-                "start_latitude": s.start.latitude,
-                "start_longitude": s.start.longitude,
-                "end_latitude": s.end.latitude,
-                "end_longitude": s.end.longitude,
-                "species": s.species.value,
-                "quantity": s.quantity,
-                "managing_agency": s.managing_agency,
-            }
-            for s in segments
-        ]
-        pd.DataFrame(records).to_csv(self._refined_path, index=False, encoding=self._encoding)
 
     def _to_segment(self, position: int, row: dict[str, Any]) -> TreeSegment | None:
         try:

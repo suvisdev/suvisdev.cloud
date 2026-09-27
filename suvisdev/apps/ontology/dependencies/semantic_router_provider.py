@@ -4,10 +4,10 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_db
+from ontology.adapter.outbound.llm.exaone_small_llm_adapter import ExaoneSmallLlmAdapter
 from ontology.adapter.outbound.llm.fallback_hub_llm_adapter import FallbackHubLlmAdapter
 from ontology.adapter.outbound.llm.gemini_llm_adapter import GeminiLlmAdapter
-from ontology.adapter.outbound.llm.qwen_intent_classifier import QwenIntentClassifier
-from ontology.adapter.outbound.llm.qwen_llm_adapter import QwenLlmAdapter
+from ontology.adapter.outbound.llm.llm_intent_classifier import LlmIntentClassifier
 from ontology.adapter.outbound.repositories.hub_knowledge_repository import (
     HubKnowledgeRepository,
 )
@@ -23,8 +23,8 @@ from ontology.app.use_cases.semantic_router_interactor import SemanticRouterInte
 from ontology.dependencies.hub_rag_provider import get_hub_embedding_port
 
 
-def get_qwen_llm_port() -> HubLlmPort:
-    return QwenLlmAdapter()
+def get_exaone_small_llm_port() -> HubLlmPort:
+    return ExaoneSmallLlmAdapter()
 
 
 def get_gemini_llm_port() -> HubLlmPort:
@@ -32,12 +32,12 @@ def get_gemini_llm_port() -> HubLlmPort:
 
 
 def get_intent_classifier(
-    qwen: HubLlmPort = Depends(get_qwen_llm_port),
+    local: HubLlmPort = Depends(get_exaone_small_llm_port),
     gemini: HubLlmPort = Depends(get_gemini_llm_port),
 ) -> IntentClassifierPort:
-    # Qwen(Ollama)은 로컬 GPU 전용 — 없는 환경에선 분류가 전부 기본값으로 새던
+    # EXAONE(Ollama)은 로컬 GPU 전용 — 없는 환경에선 분류가 전부 기본값으로 새던
     # 잠복 결함(2026-08-28 실측). Gemini 폴백을 태워 양쪽 환경에서 분류가 산다.
-    return QwenIntentClassifier(llm=FallbackHubLlmAdapter(primary=qwen, fallback=gemini))
+    return LlmIntentClassifier(llm=FallbackHubLlmAdapter(primary=local, fallback=gemini))
 
 
 def get_semantic_hub_rag_use_case(
@@ -58,7 +58,7 @@ def get_semantic_mycroft_use_case(
 
 def get_semantic_router_use_case(
     classifier: IntentClassifierPort = Depends(get_intent_classifier),
-    router_llm: HubLlmPort = Depends(get_qwen_llm_port),
+    router_llm: HubLlmPort = Depends(get_exaone_small_llm_port),
     rag: HubRagUseCase = Depends(get_semantic_hub_rag_use_case),
     general: MycroftUseCase = Depends(get_semantic_mycroft_use_case),
 ) -> SemanticRouterUseCase:

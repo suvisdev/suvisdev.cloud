@@ -1,7 +1,7 @@
 """임의 페이지 + 자연어 지시 → 추출 결과 — PageExtractorPort 구현체.
 
-로컬 Qwen(1.5B)은 컨텍스트가 좁아서 페이지 전체 본문을 넣기엔 부족하다 — 이미
-QwenLlmAdapter의 용도(라우팅·짧은 RAG 답변)와도 다르므로, 더 큰 컨텍스트를 감당할
+로컬 EXAONE(2.4B)은 컨텍스트가 좁아서 페이지 전체 본문을 넣기엔 부족하다 — 이미
+ExaoneSmallLlmAdapter의 용도(라우팅·짧은 RAG 답변)와도 다르므로, 더 큰 컨텍스트를 감당할
 수 있는 Gemini(GeminiLlmAdapter)를 재사용한다.
 """
 

@@ -2,10 +2,9 @@ import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
-  "http://127.0.0.1:8000"
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
-export type DailyVisitorCount = { date: string; count: number }
+type DailyVisitorCount = { date: string; count: number }
 
 export type VisitorSummary = {
   now_active: number
@@ -36,7 +35,9 @@ export async function getVisitorSummary(): Promise<VisitorSummary> {
   })
   const data = (await res.json()) as VisitorSummary & ApiErrorBody
   if (!res.ok) {
-    throw new Error(safeApiErrorMessage(data.detail, "방문자 통계를 가져오지 못했습니다.", res.status))
+    throw new Error(
+      safeApiErrorMessage(data.detail, "방문자 통계를 가져오지 못했습니다.", res.status)
+    )
   }
   return data
 }

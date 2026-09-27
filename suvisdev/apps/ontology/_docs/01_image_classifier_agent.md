@@ -302,6 +302,8 @@ curl -X POST https://api.suvisdev.cloud/<app>/classify \
 | **H3** | `ImageClassifierPort` / `ImageClassifierUseCase` / `image_classifier_interactor.py` — YOLO(face) 선례와 동일한 헥사고날 패턴, DIP 준수 |
 | **H4** | `POST/GET /api/vision/genre/{classify,classes}` — Cloudflare Tunnel 경유 실제 응답 확인 |
 | **H5** | `image_classifier_mcp_server.py`(FastMCP, `classify_image`/`list_supported_classes`) — stdio 클라이언트로 tool 목록·왕복 호출 검증(`scripts/test_mcp_classifier_client.py`) |
+> **2026-09-27 정리**: H6 산출물 `vision_genre_agent.py`는 등록되지 않은 데드 경로(qwen2.5:1.5b 404)라 삭제했다. 아래 표는 당시 기록이다.
+
 | **H6** | `vision_genre_agent.py` — qwen2.5:1.5b가 tool_calls를 신뢰성 있게 생성하지 않음을 실측 확인하고, tool 트리거는 결정적 규칙(이미지 첨부 시 항상 호출)으로 처리, LLM은 confidence 기반 자연어 요약만 담당. 고/저신뢰도 케이스 모두 실제 왕복 검증 |
 
 **가중치**(`apps/ontology/runs/`)는 기존 YOLO 관례대로 `.gitignore` 대상, **학습 데이터셋**(`resources/genre_classifier_train/`)은 yolo_train 선례처럼 커밋됨.

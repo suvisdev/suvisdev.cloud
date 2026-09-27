@@ -23,13 +23,9 @@ from gildle.domain.value_objects.route_edge import RouteEdge
 class FakeTreeSegmentRepository(TreeSegmentRepository):
     def __init__(self, segments: list[TreeSegment] | None = None) -> None:
         self._segments = list(segments or [])
-        self.saved: list[TreeSegment] = []
 
     def find_all(self) -> list[TreeSegment]:
         return list(self._segments)
-
-    def save_many(self, segments: list[TreeSegment]) -> None:
-        self.saved.extend(segments)
 
 
 class FakeHazardZoneRepository(HazardZoneRepository):

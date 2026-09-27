@@ -2,8 +2,8 @@ import { listAgents } from "@/lib/admin-api"
 
 export type StatsPeriod = "day" | "week" | "month"
 
-export type TrendPoint = { label: string; value: number }
-export type AgentUsageSlice = { name: string; value: number }
+type TrendPoint = { label: string; value: number }
+type AgentUsageSlice = { name: string; value: number }
 
 export type StatsData = {
   callTrend: TrendPoint[]

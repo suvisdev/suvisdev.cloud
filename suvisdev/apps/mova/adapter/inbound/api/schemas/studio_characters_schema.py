@@ -23,9 +23,3 @@ class CastListSchema(BaseModel):
 
     movie_id: int
     cast: list[CharacterWithActorSchema]
-
-
-# 연결 생성 요청 (import/admin 용)
-class CharacterLinkCreateSchema(BaseModel):
-    movie_id: int
-    actor_id: int
