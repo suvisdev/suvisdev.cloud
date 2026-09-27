@@ -510,20 +510,28 @@ def plan_loops(
     return {"candidates": out, "night": night}
 
 
-_scored_edges_cache: list[dict[str, Any]] | None = None
-_scored_edges_mtime: float = 0.0
-
-
-def _get_scored_edges_raw() -> list[dict[str, Any]]:
-    global _scored_edges_cache, _scored_edges_mtime  # noqa: PLW0603
-    scored_path = Path(os.getenv("GILDLE_SCORED_EDGES", str(_DATA_DIR / "scored_edges.json")))
-    if not scored_path.exists():
-        return []
-    mtime = scored_path.stat().st_mtime
-    if _scored_edges_cache is None or mtime != _scored_edges_mtime:
-        _scored_edges_cache = json.loads(scored_path.read_text(encoding="utf-8"))
-        _scored_edges_mtime = mtime
-    return _scored_edges_cache
+def _edge_to_dict(e: RouteEdge) -> dict[str, Any]:
+    """graph-edges 응답 한 건 — scored_edges.json 레코드와 같은 키.
+    2026-09-27: 원본 dict 23만 건을 별도 캐시로 들고 있던 것을 없앴다(RouteEdge 리스트와
+    이중 보관 — 파드 RSS 약 1.7GB 중 상당분). 응답은 bbox 필터 뒤 최대 2만 건만 직렬화한다."""
+    rec: dict[str, Any] = {
+        "from_node": e.from_node,
+        "to_node": e.to_node,
+        "base_distance_m": e.base_distance_m,
+        "midpoint_lat": e.midpoint.latitude,
+        "midpoint_lng": e.midpoint.longitude,
+        "road_name": e.road_name,
+        "tree_score": e.tree_score,
+        "hazard_score": e.hazard_score,
+        "dog_friendly_score": e.dog_friendly_score,
+    }
+    if e.from_coord is not None:
+        rec["from_lat"] = e.from_coord.latitude
+        rec["from_lng"] = e.from_coord.longitude
+    if e.to_coord is not None:
+        rec["to_lat"] = e.to_coord.latitude
+        rec["to_lng"] = e.to_coord.longitude
+    return rec
 
 
 # 2026-09-11 리뷰 H5: bbox 없는 호출이 23.4만 간선(80MB급) 전체를 반환하는
@@ -540,28 +548,28 @@ def get_graph_edges(
     east: float = Query(...),
     zoom: int | None = Query(None),
 ) -> list[dict[str, Any]]:
-    edges = _get_scored_edges_raw()
+    edges = _load_scored_edges()
     if not edges:
         raise HTTPException(status_code=404, detail="scored_edges.json 없음")
     filtered = [
         e
         for e in edges
-        if south <= e["midpoint_lat"] <= north and west <= e["midpoint_lng"] <= east
+        if south <= e.midpoint.latitude <= north and west <= e.midpoint.longitude <= east
     ]
     if zoom is not None and zoom < 15 and len(filtered) > 5000:
         filtered = _decimate_by_grid(filtered, zoom)
-    return filtered[:_MAX_EDGES_RESPONSE]
+    return [_edge_to_dict(e) for e in filtered[:_MAX_EDGES_RESPONSE]]
 
 
-def _decimate_by_grid(edges: list[dict[str, Any]], zoom: int) -> list[dict[str, Any]]:
+def _decimate_by_grid(edges: list[RouteEdge], zoom: int) -> list[RouteEdge]:
     grid_sizes = {12: 0.004, 13: 0.002, 14: 0.001}
     grid = grid_sizes.get(zoom, 0.005)
     seen: set[tuple[int, int]] = set()
-    result: list[dict[str, Any]] = []
-    scored: list[tuple[float, dict[str, Any]]] = []
+    result: list[RouteEdge] = []
+    scored: list[tuple[float, RouteEdge]] = []
     for e in edges:
-        key = (int(e["midpoint_lat"] / grid), int(e["midpoint_lng"] / grid))
-        score = e.get("tree_score", 0) + e.get("hazard_score", 0)
+        key = (int(e.midpoint.latitude / grid), int(e.midpoint.longitude / grid))
+        score = e.tree_score + e.hazard_score
         if key not in seen:
             seen.add(key)
             result.append(e)

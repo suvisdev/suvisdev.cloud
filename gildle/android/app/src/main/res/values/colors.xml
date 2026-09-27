@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 네이티브 스플래시 배경 — GildleColors.lightAccent -->
+    <color name="gildle_launch">#16A34A</color>
+	<color name="ic_launcher_background">#16A34A</color>
+</resources>

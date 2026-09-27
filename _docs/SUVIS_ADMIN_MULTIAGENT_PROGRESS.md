@@ -220,9 +220,13 @@ http://127.0.0.1:31386`.
 - **완료(09-27 오후, `[G]` 09-27)**: 산책 중(포그라운드 추적·저장)·기록·상세·내 정보 3탭, access
   토큰 자동 갱신(401→refresh→재시도), `push_tokens` 테이블·API(`20260927_0001`), `app/version`, 앱 FCM
   토큰 등록, 디버그 APK(`바탕화면/길들/gildle-debug-20260927.apk`).
-- 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장 — 에뮬레이터 아닌 폰) →
-  `scored_edges.json` 76MB → `route_edges` DB 적재 → FCM 발송(보낼 알림 결정 후) → ⑤ 그늘 실측
-  (사진 5곳) → 모델 A(walks 쌓인 뒤) · 모델 D(DEM). **사용자 몫은 Play Console 인증 대기.**
+- **완료(09-27 저녁)**: `susu`→`gildle` 개명(폴더·패키지·문서), 런처 아이콘(adaptive)·정적 스플래시,
+  graph-edges 이중 캐시 제거(파드 RSS −220MB), 릴리스 AAB `길들/gildle-release-20260927.aab`.
+  `scored_edges` DB 이전은 **보류**(RSS 안 줄고 워커 1개 — 근거 `[G]` 09-27 저녁).
+- 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 콘솔 인증 후 스토어
+  등록정보(스크린샷·설명에 서울 한정·콘텐츠 등급·데이터 보안 양식) + `GILDLE_APP_STORE_URL` →
+  FCM 발송(보낼 알림 결정 후) → ⑤ 그늘 실측(사진 5곳) → 모델 A(walks 쌓인 뒤) · 모델 D(DEM).
+  **사용자 몫은 Play Console 인증 대기.** 준비 상태 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
 
 ### RS 교사 루프(엑사온 데이터셋 v2) — 파이프라인 완성 (2026-09-11)
 - 학생(EXAONE) 온도 4종 후보 생성 → 그라운딩 하드 필터 → Gemini 루브릭

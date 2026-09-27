@@ -70,7 +70,7 @@ cloud.suvisdev/
 ├── suvis/                 ← 프론트엔드 (Next.js)
 │   ├── CLAUDE.md          ← 프론트 SSOT(디렉터리·컴포넌트 규칙)
 │   └── _docs/             ← 프론트 문서 (React 세부 규칙·디자인 정책)
-└── susu/                  ← 모바일 (Flutter)
+└── gildle/                ← 모바일 (Flutter)
     ├── CLAUDE.md          ← 아직 비어 있음 — 당분간 _docs/ 하네스 문서가 대신함
     └── _docs/             ← Flutter 문서 (카카오 OAuth·Android/iOS 하네스)
 ```
@@ -86,7 +86,7 @@ cloud.suvisdev/
 | 백엔드 아키텍처·API·ERD·FastAPI 규칙 | `suvisdev/_docs/` |
 | 앱별 ERD·도메인 설계 | `suvisdev/apps/<app>/_docs/` |
 | 프론트엔드 화면 설계·컴포넌트·Next.js 규칙 | `suvis/_docs/` |
-| Flutter 화면 설계·위젯·Dart 규칙 | `susu/_docs/` |
+| Flutter 화면 설계·위젯·Dart 규칙 | `gildle/_docs/` |
 
 > **규칙:** 새 문서를 만들 때 위 표에서 성격에 맞는 폴더에 배치한다. 루트나 임의 경로에 두지 않는다.
 
@@ -94,7 +94,7 @@ cloud.suvisdev/
 |-----------|-----------|
 | 백엔드 (FastAPI · Clean Architecture) | [`suvisdev/CLAUDE.md`](suvisdev/CLAUDE.md) |
 | 프론트엔드 (Next.js) | [`suvis/CLAUDE.md`](suvis/CLAUDE.md) |
-| 모바일 (Flutter) | `susu/CLAUDE.md`는 비어 있음 — `susu/_docs/`의 하네스 문서(카카오 OAuth·Android·iOS)를 대신 참조 |
+| 모바일 (Flutter) | `gildle/CLAUDE.md`는 비어 있음 — `gildle/_docs/`의 하네스 문서(카카오 OAuth·Android·iOS)를 대신 참조 |
 
 **Karpathy 네 원칙은 모든 영역에서 항상 유효하다.**
 
@@ -110,7 +110,7 @@ cloud.suvisdev/
 |------|------|
 | `_docs/WORK_LOG_MOVA.md` | mova(영화 추천·채팅·게임) |
 | `_docs/WORK_LOG_GILDLE.md` | gildle(산책 경로) |
-| `_docs/WORK_LOG_MAINPAGE.md` | 그 외 전부(메인페이지·어드민·인증·susu·인프라) |
+| `_docs/WORK_LOG_MAINPAGE.md` | 그 외 전부(메인페이지·어드민·인증·gildle·인프라) |
 
 세션 종료가 트리거다. 파일 상단의 템플릿(작업 내용/수정·구현/오류·막힌 점/
 데이터/산출물)을 따르고, 최신 날짜가 맨 위에 오게 추가한다. 이미 그날
@@ -149,7 +149,7 @@ alembic history                   # 리비전 체인 확인
 PYTHONPATH="$PWD:$PWD/apps" lint-imports   # 클린 아키텍처 의존 규칙 검사
 python scripts/check_env_drift.py # .env.example 키가 .env에 다 있는지(값 비교 안 함)
 
-# 모바일 (susu/)
+# 모바일 (gildle/)
 flutter run
 
 # 인프라 (루트) — k8s로 전환됨(2026-09-07, 데스크톱). WSL2에 k3s 직접 설치.
@@ -191,7 +191,7 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 - **S3는 연결돼 있다(2026-08-10 실측 정정)**: `AWS_ACCESS_KEY_ID`·
   `AWS_SECRET_ACCESS_KEY`·`AWS_REGION`·`VISION_S3_BUCKET` 네 키가 로컬·EC2 `.env`에
   모두 채워져 있고, EC2 컨테이너에서 `Tank.list_buckets()`가
-  `suvisdev-s3-584569945696-ap-northeast-2-an`을 반환한다(susu 업로드 객체
+  `suvisdev-s3-584569945696-ap-northeast-2-an`을 반환한다(구 susu 앱 업로드 객체
   `media/{user_id}/...` 존재). **이 문서에 오래 남아 있던 "미설정" 기술은 틀린
   것이었다** — S3 경로를 타는 코드는 정상 동작한다는 전제로 작업할 것.
   버킷은 **비공개**라 객체 공개 URL은 403이다. 표시에는

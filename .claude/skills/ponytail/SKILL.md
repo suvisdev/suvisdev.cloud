@@ -7,7 +7,7 @@ description: >
   의존성→한 줄 순으로 검토해 불필요한 추상화·보일러플레이트를 걷어냅니다.
   "게으르게", "최소로", "ponytail" 같은 표현이나 과설계·보일러플레이트 불만에도
   반응합니다. 일반 지식 질문·번역·요약 등 코드가 아닌 요청에는 쓰지 않습니다.
-  프론트(suvis)·백엔드(suvisdev)·모바일(susu) 모든 스택에 적용됩니다.
+  프론트(suvis)·백엔드(suvisdev)·모바일(gildle) 모든 스택에 적용됩니다.
 argument-hint: "[lite|full|ultra]"
 license: MIT
 ---

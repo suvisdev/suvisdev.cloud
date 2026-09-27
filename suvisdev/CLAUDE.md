@@ -42,7 +42,7 @@ Karpathy 네 원칙(묵시적 가정 금지·최소 diff)은 **항상** 유지�
 | `execsuite/` | LangChain 챗·PDF 요약·메일 | Spoke | — |
 | `contents/` | 콘텐츠 데모(soccer chat 등) | Spoke | — |
 | `analytics/` | 방문자 통계 | Spoke | — |
-| `media/` | susu 카메라 사진 → S3 저장·OCR | Spoke | — |
+| `media/` | (구 susu) 모바일 카메라 사진 → S3 저장·OCR | Spoke | — |
 | `sample/` | 순수 스켈레톤(main.py 미등록, 전 파일 `__init__.py`) | Spoke | — |
 
 - **프로덕션 인증은 auth 게이트웨이**(`/auth/login`·`/auth/signup`, RS256) —

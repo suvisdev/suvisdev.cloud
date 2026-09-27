@@ -30,6 +30,36 @@
 
 ## 2026-09-27
 
+### 작업 내용 (저녁 — susu→gildle 개명 · 아이콘·스플래시 · graph-edges 메모리 · 릴리스 AAB)
+- 사용자: "앱 이름도 susu 말고 gildle로", 그리고 목록 2번(`scored_edges.json` DB 이전)부터 콘솔 등록
+  전까지 완성도 올리기. **DB 이전은 실측 뒤 보류 판단**: 경로 탐색(A*)은 어차피 메모리 그래프가
+  필요해 DB로 옮겨도 RSS가 줄지 않고, uvicorn 워커도 1개라 "워커 수만큼 복제" 우려는 해당 없음.
+  대신 실제 낭비였던 **graph-edges용 원본 dict 23만 건 이중 캐시**를 없앴다(아래).
+
+### 수정/구현 (저녁)
+- **개명** `susu/` → `gildle/`(`git mv`), pubspec `name: gildle`·설명, 테스트 import, web manifest,
+  README, 루트 CLAUDE.md(구조·명령·워크로그 표)·`suvisdev/CLAUDE.md`·`_docs/README.md`·ponytail 스킬,
+  `gildle/_docs/*`의 경로. 과거 워크로그·하네스 문서 본문의 "susu"는 역사라 그대로 둠. Windows 빌드
+  복사본도 `C:\Users\suteagy\gildle-build\gildle`로 교체(구 `susu` 폴더 삭제).
+- **런처 아이콘**: `assets/icon/{icon,icon_fg}.png`를 Pillow로 생성(초록 `#16A34A` 라운드 배경 + 흰
+  산책길 곡선·출발점·warm 도착점·나무). 첫 버전은 `ImageDraw.line(joint=)`가 촘촘한 점열에서 털처럼
+  갈라져 원판(디스크) 연속으로 그리는 방식으로 교체. `flutter_launcher_icons` 0.14.4로 mipmap 5종 +
+  adaptive(`mipmap-anydpi-v26`, 전경은 안전영역 66% 축소본) 생성. 기본 Flutter 아이콘은 Play 심사
+  전에 반드시 바꿔야 했던 항목.
+- **스플래시**: Suvisdev 인트로 영상(4~5초 대기) 제거 → 세션 확인 후 즉시 전환하는 초록 정적 화면.
+  `video_player` 의존성·`assets/videos/intro.mp4` 삭제. 네이티브 스플래시 `launch_background.xml`
+  (drawable·v21)을 `@color/gildle_launch`로.
+- **graph-edges 이중 캐시 제거**(`route_router.py`): `_get_scored_edges_raw`(원본 dict 23만)와
+  `_load_scored_edges`(RouteEdge 23만)를 둘 다 들고 있었다. bbox 필터·격자 솎기를 RouteEdge로 하고
+  응답 최대 2만 건만 `_edge_to_dict`로 직렬화. 로컬 TestClient 실측(ru_maxrss): graph-edges+routes
+  호출 뒤 **716MB → 497MB**. 프로덕션 파드는 예열 후 VmRSS 1.73GB였음(gildle 몫 ≈590MB).
+- `.env`·`.env.example`에 `GILDLE_APP_MIN_VERSION`·`_LATEST_VERSION`·`_STORE_URL`(기본 1.0.0).
+- **릴리스 AAB**: `flutter build appbundle --release --dart-define-from-file`(key.properties 서명,
+  Gradle 104초) → **75.6MB** `바탕화면/길들/gildle-release-20260927.aab`. 디버그 APK도 개명·아이콘·
+  스플래시 반영본으로 재빌드해 `gildle-debug-20260927.apk` 교체.
+- **배포**: graph-edges 캐시 제거 롤아웃 후 프로덕션 예열 VmRSS **1.73GB → 1.51GB**, graph-edges·
+  routes·app/version 정상. flutter analyze 0 issues.
+
 ### 작업 내용 (오후 — 산책 중 · 기록 · 내 정보 화면 · 토큰 갱신 · push-tokens · app/version · APK)
 - 오전 작업 배포·커밋(`0457d0d`) 뒤 사용자 지시로 "산책 중 화면부터 쭈욱": ① 산책 중 → ② 기록·상세·
   내 정보 탭 → ④ 실기기용 디버그 APK → ⑤ `app/version` → ③ FCM 토큰 등록(백엔드 테이블·API 포함).
