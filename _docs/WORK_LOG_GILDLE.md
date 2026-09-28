@@ -36,13 +36,43 @@
   타일이 API 키 없는 요청에 워터마크 타일을 돌려준다(08-27 도입 당시엔 무료·무키). 보행 그래프 간선
   (초록)은 우리 API라 정상.
 
+- 이어서 사용자 결정 **"네이버 SDK로 재작성 + 웹도 앱과 동일하게"**(장소 검색은 유지, 레이어 토글·
+  여름 출발 시각·경유 도로 목록은 삭제, 산책 추적도 웹에 구현). Explore 에이전트로 Flutter 지도 화면
+  (`gildle_map_screen.dart`·`map_controller.dart`)과 웹을 대조한 뒤 앱 구성을 기준으로 다시 썼다.
+
 ### 수정/구현
-- `gildle-map.tsx` TileLayer를 키 없는 OSM 표준 타일(`tile.openstreetmap.org`)로 교체, attribution 정정.
-  밝은 지도라 다크 UI와 덜 어울림 — 다크 타일이 필요하면 CARTO 무료 키를 받아 `dark_all` URL에 붙이는
-  게 후속 선택지. Flutter 앱은 네이버 지도라 무관.
+- (오전) `gildle-map.tsx` TileLayer를 OSM 표준 타일로 임시 교체 — 아래 재작성으로 대체됨.
+- **`app/gildle/map/_components/gildle-map.tsx` 전면 재작성(네이버 지도 JS v3, `next/script`로
+  `maps.js?ncpKeyId=…` 로드)**: 서울시청 중심·zoom 13·minZoom 10·로고 오른쪽 위(앱과 동일) · 지도 탭
+  1번째 출발→2번째 도착(`POST /api/gildle/routes`, 좌표를 그대로 보내 서버가 스냅)→3번째 다시 출발 ·
+  계절 모드 3종(봄·가을/여름 그늘/겨울 안전, 바꾸면 루프 비우고 재계산) · FAB 3개(현재 위치→출발지
+  +zoom 16, 루프 시트 0.5~8 km 슬라이더→`POST /loops` 후보 칩 "거리·8방위", 지우기) · 하단 카드(안내
+  문구·거리·예상(1.2 m/s)·여름 그늘 %·"밤이라 그늘 계산 없이 최단 경로") · 폴리라인은 흰 외곽선 위에
+  여름+`edge_shades`면 구간별 햇빛(warm)→그늘(accent) lerp, 그 외 accent 단색(앱 `_pathOverlay`와 같은
+  규칙, 앞뒤 연결 구간은 이웃 간선 그늘) · 경로 바뀌면 fitBounds(60/60/200/60).
+- **산책 추적(웹)**: "이 길로 산책 시작" → 로그인 세션 없으면 안내, 있으면 `watchPosition`(5 m 미만
+  이동은 버림, 앱 distanceFilter와 동일)으로 걸은 길을 accent 실선, 계획 경로를 회색 점선으로 그리고
+  거리·시간 타이머 표시 → "산책 끝내기" → `POST /api/gildle/walks`(path 5,000점 이하로 솎음, 여름이면
+  `avg_shade_score`=경로 그늘 비율) → "기록 #id 저장됨". 웹엔 기록 목록 화면이 아직 없다(후속).
+- `lib/gildle-api.ts` 신설(`calculateRoute`·`findLoops`·`createWalk`, 세션 Bearer, `safeApiErrorMessage`)
+  — 종전 컴포넌트가 `fetch`를 직접 부르던 것을 CLAUDE.md C.2 규칙대로 정리. 장소 검색(Nominatim)은
+  컴포넌트 안 그대로(외부 공개 API).
+- 삭제: Next 프록시 `app/api/gildle/graph-edges`·`navigate`(웹 전용 기능과 함께 불필요), 의존성
+  `leaflet`·`react-leaflet`·`@types/leaflet`. 추가: `@types/navermaps`(dev).
+- 환경변수 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID`(앱 `NAVER_MAP_CLIENT_ID`와 같은 값). 로컬은 `suvis/.env.local`
+  (gitignore), 프로덕션은 **사용자가 Vercel 환경변수로 등록**. NCP 콘솔 Application `gildle`의 Web
+  서비스 URL에 `https://suvisdev.cloud` 등록 확인(스크린샷), `http://localhost:3000` 추가 권고. 인증 실패
+  시 `navermap_authFailure` 훅으로 상단 안내.
+
+### 오류·막힌 점
+- 노트북 `node_modules`는 pnpm 11.21.0으로 설치돼 있어 `npx pnpm@10`이 스토어 불일치로 실패 —
+  `npx -y pnpm@11.21.0`으로 add/remove.
+- 삭제한 라우트를 `.next/types/validator.ts`가 계속 참조해 tsc가 실패 → `.next` 캐시 삭제 후 통과.
+- 브라우저 실검증은 못 했다(노트북 하네스에 브라우저 없음) — `tsc`·eslint·`next build`까지만. **사용자가
+  Vercel 변수 등록 후 실제 화면에서 탭→경로·루프·현재 위치·산책 추적을 확인해야 한다.**
 
 ### 산출물
-- 커밋(프론트 2차 묶음)에 포함.
+- 커밋: 오전 타일 교체(프론트 2차 묶음) + 오후 네이버 SDK 재작성 커밋.
 
 ---
 
