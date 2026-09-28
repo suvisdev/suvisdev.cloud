@@ -151,6 +151,60 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await orch.plan("안녕", [], trace_id="t"))
 
 
+class ShadowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_shadow_runs_in_background_and_records_diff(self) -> None:
+        """섀도 모델은 응답을 막지 않고 백그라운드로 돌며, 필드별 불일치를 기록한다(2026-09-28)."""
+        import asyncio
+
+        from mova.app.use_cases import chat_orchestrator as mod
+
+        primary = AsyncMock()
+        primary.understand.return_value = ChatUnderstanding(
+            intent="booking", title="인턴", region="군자"
+        )
+        shadow = AsyncMock()
+        shadow.understand.return_value = ChatUnderstanding(
+            intent="booking", title="인턴", region="군자역"
+        )
+        repo = AsyncMock()
+        repo.search_movies_by_title.return_value = [_item(4715, "인턴")]
+        records: list[dict] = []
+        orch = ChatOrchestrator(primary, repo, shadow=shadow, on_shadow=records.append)
+
+        slots = await orch.plan("군자역에서 인턴", [], trace_id="t1")
+        assert slots is not None
+        self.assertEqual(slots.region, "군자")  # 응답은 주 모델 기준
+        await asyncio.gather(*list(mod._shadow_tasks))
+
+        self.assertEqual(len(records), 1)
+        self.assertFalse(records[0]["match"])
+        self.assertEqual(records[0]["diff"], ["region"])
+        self.assertEqual(records[0]["shadow"]["region"], "군자역")
+
+    async def test_shadow_failure_is_recorded_not_raised(self) -> None:
+        import asyncio
+
+        from mova.app.use_cases import chat_orchestrator as mod
+
+        primary = AsyncMock()
+        primary.understand.return_value = ChatUnderstanding(intent="general")
+        shadow = AsyncMock()
+        shadow.understand.side_effect = ChatUnderstandingError("ollama 404")
+        records: list[dict] = []
+        orch = ChatOrchestrator(primary, AsyncMock(), shadow=shadow, on_shadow=records.append)
+        await orch.plan("안녕", [], trace_id="t2")
+        await asyncio.gather(*list(mod._shadow_tasks))
+        self.assertIn("404", records[0]["shadow_error"])
+
+    async def test_no_shadow_by_default(self) -> None:
+        from mova.app.use_cases import chat_orchestrator as mod
+
+        primary = AsyncMock()
+        primary.understand.return_value = ChatUnderstanding(intent="general")
+        await ChatOrchestrator(primary, AsyncMock()).plan("안녕", [], trace_id="t3")
+        self.assertEqual(len(mod._shadow_tasks), 0)
+
+
 class DispatchTests(unittest.IsolatedAsyncioTestCase):
     def _interactor(self, slots: VerifiedSlots | None):
         repo = AsyncMock()

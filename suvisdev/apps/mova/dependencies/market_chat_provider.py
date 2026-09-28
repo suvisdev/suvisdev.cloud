@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator
 from core.matrix.grid_oracle_database_manager import get_mova_db
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from mova.adapter.outbound.http.kakao_local_adapter import KakaoLocalTheaterAdapter
@@ -152,17 +155,44 @@ def get_chat_orchestrator(
     """MOVA_ORCHESTRATOR_ENABLED=0이면 미주입 → 기존 결정론+분류기 경로만 돈다(롤백 스위치)."""
     if os.getenv("MOVA_ORCHESTRATOR_ENABLED", "1") in ("0", "false", "no"):
         return None
+    shadow = _shared_shadow_understanding_adapter()
     return ChatOrchestrator(
         understanding=_shared_understanding_adapter(),
         repository=repository,
         booking_lexicon=_BOOKING_LEXICON,
         recommend_word=_RECOMMEND_WORD,
+        shadow=shadow,
+        on_shadow=_append_shadow_record if shadow else None,
     )
 
 
 @lru_cache(maxsize=1)
 def _shared_understanding_adapter() -> ExaoneChatUnderstandingAdapter:
     return ExaoneChatUnderstandingAdapter()
+
+
+@lru_cache(maxsize=1)
+def _shared_shadow_understanding_adapter() -> ExaoneChatUnderstandingAdapter | None:
+    """섀도 비교(2026-09-28): MOVA_ORCHESTRATOR_SHADOW_MODEL(예: mova-understand)을 주면 켜진다."""
+    model = os.getenv("MOVA_ORCHESTRATOR_SHADOW_MODEL", "").strip()
+    if not model:
+        return None
+    return ExaoneChatUnderstandingAdapter(
+        client=SuvisdevOrchestrator(
+            model=model, timeout=float(os.getenv("MOVA_ORCHESTRATOR_TIMEOUT_S", "20"))
+        )
+    )
+
+
+# datasets/는 hostPath라 파드 재시작에도 남는다. jsonl은 gitignore 대상.
+_SHADOW_LOG = os.getenv("MOVA_SHADOW_LOG", "datasets/understanding/shadow_log.jsonl")
+
+
+def _append_shadow_record(record: dict[str, Any]) -> None:
+    path = Path(_SHADOW_LOG)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def get_chat_use_case(
