@@ -100,6 +100,15 @@
   뷰포트)`로, 익명 래퍼에 제약 추가, **채팅 페이지 높이를 `calc(100dvh − 헤더)`로 명시**(헤더 실측 데스크톱
   57px·모바일 86px). 재검사: 리스트 769px 고정, 입력창 826~900px, 2턴째 내 말풍선이 상단(scrollTop 622).
 - **약속 카드 라벨** "팀 프로젝트 · 충북 AI 해커톤 출품작"(사용자 "충붕"은 충북으로 해석).
+- **전체 파이프라인 점검**(사용자 "파이프라인 점검하고 테스트 한 번씩"): 백엔드 전체 pytest **892 passed /
+  3 failed**(실패 3건은 `test_market_reviews` 라우터 DB 의존 기존 건) · ruff·format·import-linter(6 kept)
+  통과 · env drift 정상 · 파드 3종 Running, lora-server(v5 GGUF)·ollama 7.8B 상주 · API 스모크(mova 목록·
+  gildle 버전·경로 31노드 1.18km·루프 3후보·포트폴리오 채팅) 정상 · 스케줄러(랭킹·감성·KOFIC 8편·에디터
+  리뷰) 가동. **프로덕션 E2E(Playwright)**: 홈 타일 4개+라벨, 홈 채팅 "길들은 뭐야" 정답, mova 예매 채팅에
+  롯데 회차 링크 6·시간표 링크 2·네이버 극장 링크 4·입력창 하단 고정(900/900), 길들 지도 두 번 클릭→경로
+  2.4 km·33분 카드. **길들 프로덕션 지도 초기 버그**: 네이버 SDK가 컨테이너에 `position:relative`를 인라인
+  강제해 `absolute inset-0`이 무효(높이 0) → `h-full w-full`로 수정·재배포·실측(789px, 타일 36장).
+  관찰: 에디터 리뷰 스케줄러 오늘 주기 "생성 0 / 대상 15"(Gemini SKIP·기사 부족 추정, 오류 로그 없음).
 - **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
   제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
   프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.
