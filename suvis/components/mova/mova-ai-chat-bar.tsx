@@ -465,7 +465,10 @@ export function MovaAiChatBar({
         return
       }
       const tail = content.offsetHeight - anchor.offsetTop // 마지막 내 말풍선부터 끝까지
-      spacer.style.minHeight = `${Math.max(0, list.clientHeight - tail - 16)}px`
+      // 리스트가 뷰포트에 묶여 있지 않은 레이아웃에서도 스페이서가 리스트를 키우고 다시
+      // 스페이서가 커지는 되먹임이 생기지 않게 뷰포트 높이로 상한을 둔다.
+      const bound = Math.min(list.clientHeight, window.innerHeight)
+      spacer.style.minHeight = `${Math.max(0, bound - tail - 16)}px`
     }
     fit()
 

@@ -5,10 +5,7 @@ import { BarChart3, PanelLeft, PanelLeftClose } from "lucide-react"
 import { MovaAiChatBar } from "@/components/mova/mova-ai-chat-bar"
 import { MovaChatRail } from "@/components/mova/mova-chat-rail"
 import { MovaChatSidebar } from "@/components/mova/mova-chat-sidebar"
-import {
-  getSuvisSession,
-  SUVIS_SESSION_CHANGED_EVENT,
-} from "@/lib/suvis-session"
+import { getSuvisSession, SUVIS_SESSION_CHANGED_EVENT } from "@/lib/suvis-session"
 
 /**
  * mova/main 클라이언트 셸 — 로그인 상태 감지·conversationId 공유·사이드바 토글.
@@ -114,7 +111,7 @@ export function MovaChatShell() {
       if (id === conversationId) setConversationId(null)
       setSidebarRefreshKey((k) => k + 1)
     },
-    [conversationId],
+    [conversationId]
   )
 
   const handleConversationChanged = useCallback((id: number | null) => {
@@ -129,8 +126,10 @@ export function MovaChatShell() {
 
   if (!loggedIn) {
     // 익명: 사이드바 없이 챗바만(sessionStorage 모드).
+    // min-h-0 + overflow-hidden이 없으면 리스트가 콘텐츠만큼 자라 입력창이 페이지 밖으로
+    // 밀린다(2026-09-28 실측: 스페이서와 되먹임해 리스트가 15만 px까지 커짐).
     return (
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <MovaAiChatBar />
       </div>
     )
@@ -173,14 +172,14 @@ export function MovaChatShell() {
         </>
       )}
 
-      <div className="flex min-w-0 min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* 사이드바 토글 바 — 모바일: 항상 노출 / 데스크톱: 접혔을 때만 노출 */}
-        <div className="flex items-center gap-2 border-b border-mova-border px-3 py-1 md:px-4">
+        <div className="border-mova-border flex items-center gap-2 border-b px-3 py-1 md:px-4">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
             aria-label="대화 목록 열기"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text md:hidden"
+            className="text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text flex h-9 w-9 items-center justify-center rounded-lg md:hidden"
           >
             <PanelLeft className="h-4 w-4" />
           </button>
@@ -189,7 +188,7 @@ export function MovaChatShell() {
               type="button"
               onClick={() => setDesktopCollapsed(false)}
               aria-label="대화 목록 펼치기"
-              className="hidden h-9 w-9 items-center justify-center rounded-lg text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text md:flex"
+              className="text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text hidden h-9 w-9 items-center justify-center rounded-lg md:flex"
             >
               <PanelLeft className="h-4 w-4" />
             </button>
@@ -199,12 +198,12 @@ export function MovaChatShell() {
               type="button"
               onClick={() => setDesktopCollapsed(true)}
               aria-label="대화 목록 접기"
-              className="hidden h-9 w-9 items-center justify-center rounded-lg text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text md:flex"
+              className="text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text hidden h-9 w-9 items-center justify-center rounded-lg md:flex"
             >
               <PanelLeftClose className="h-4 w-4" />
             </button>
           )}
-          <span className="text-xs text-mova-muted">대화 목록</span>
+          <span className="text-mova-muted text-xs">대화 목록</span>
 
           {/* 랭킹 레일 토글 — lg+에서만. 디폴트 숨김. */}
           <button
@@ -212,7 +211,7 @@ export function MovaChatShell() {
             onClick={() => setRailHidden((v) => !v)}
             aria-label={railHidden ? "랭킹 열기" : "랭킹 숨기기"}
             aria-pressed={!railHidden}
-            className="ml-auto hidden h-9 items-center gap-1.5 rounded-lg px-2 text-xs text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text lg:flex"
+            className="text-mova-muted hover:bg-mova-surface-2 hover:text-mova-text ml-auto hidden h-9 items-center gap-1.5 rounded-lg px-2 text-xs lg:flex"
           >
             <BarChart3 className="h-4 w-4" />
             <span>{railHidden ? "랭킹 보기" : "랭킹 숨기기"}</span>
