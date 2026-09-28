@@ -343,9 +343,7 @@ export function MovaAiChatBar({
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
 
   const listRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
   const lastUserRef = useRef<HTMLDivElement>(null)
-  const spacerRef = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef(0)
   const prevLastUserIdxRef = useRef(-1)
   const heroInputRef = useRef<HTMLTextAreaElement>(null)
@@ -473,46 +471,31 @@ export function MovaAiChatBar({
     }
   }, [inputValue, isInitial])
 
-  // 스크롤 규칙(클로드·제미나이식, 2026-09-28 사용자 요청): 메시지를 보내면 **내 말풍선이 리스트
-  // 맨 위**에 오도록 올리고, 답변은 그 아래에서 자라난다. 예전엔 매번 맨 아래로 붙여 새 말풍선이
-  // 화면 중간에 어중간하게 걸쳤다. 마지막 말풍선이 맨 위까지 올라갈 수 있게 하단에 스페이서를 두고,
-  // 답변·로딩이 자라면 그만큼 스페이서를 줄인다(위치는 그대로). DB에서 대화를 통째로 불러온 경우만
-  // 맨 아래로 간다.
+  // 스크롤 규칙(2026-09-28 재조정): 빈 여백(스페이서)을 두지 않는다. 사용자가 "여백이 왜 이렇게
+  // 크냐"고 지적 — 보낸 말풍선을 맨 위로 올리려면 아래 빈 공간이 필요해 짧은 답·로딩 중에 화면이 비었다.
+  //  - 보낼 때: 맨 아래로(내 말풍선 + 로딩이 입력창 바로 위)
+  //  - 답이 오면: 내 말풍선을 맨 위로 올리려 시도 — 답이 짧으면 브라우저가 끝에서 멈춰 전체가 입력창 위에
+  //    붙고, 길면 답의 시작부터 읽을 수 있다. DB 대화 통째 불러오기는 맨 아래로.
   const lastUserIdx = chat.messages.reduce((acc, m, i) => (m.role === "user" ? i : acc), -1)
   useEffect(() => {
     const list = listRef.current
-    const content = contentRef.current
-    const spacer = spacerRef.current
-    if (!list || !content || !spacer) return
-
-    const fit = () => {
-      const anchor = lastUserRef.current
-      if (!anchor) {
-        spacer.style.minHeight = "0px"
-        return
-      }
-      const tail = content.offsetHeight - anchor.offsetTop // 마지막 내 말풍선부터 끝까지
-      // 리스트가 뷰포트에 묶여 있지 않은 레이아웃에서도 스페이서가 리스트를 키우고 다시
-      // 스페이서가 커지는 되먹임이 생기지 않게 뷰포트 높이로 상한을 둔다.
-      const bound = Math.min(list.clientHeight, window.innerHeight)
-      spacer.style.minHeight = `${Math.max(0, bound - tail - 16)}px`
-    }
-    fit()
-
-    const bulkLoaded = chat.messages.length - prevCountRef.current > 1
-    const newUserTurn = lastUserIdx !== prevLastUserIdxRef.current && lastUserIdx >= 0
-    prevCountRef.current = chat.messages.length
+    if (!list) return
+    const count = chat.messages.length
+    const bulkLoaded = count - prevCountRef.current > 1
+    const newUserTurn = lastUserIdx !== prevLastUserIdxRef.current && lastUserIdx === count - 1
+    const answerArrived =
+      count > prevCountRef.current && chat.messages[count - 1]?.role === "assistant" && !bulkLoaded
+    prevCountRef.current = count
     prevLastUserIdxRef.current = lastUserIdx
-    if (bulkLoaded) {
-      list.scrollTo({ top: list.scrollHeight })
-    } else if (newUserTurn && lastUserRef.current) {
-      list.scrollTo({ top: lastUserRef.current.offsetTop - 12, behavior: "smooth" })
-    }
-
-    const ro = new ResizeObserver(fit)
-    ro.observe(content)
-    ro.observe(list)
-    return () => ro.disconnect()
+    requestAnimationFrame(() => {
+      if (bulkLoaded || newUserTurn) {
+        list.scrollTo({ top: list.scrollHeight, behavior: bulkLoaded ? "auto" : "smooth" })
+      } else if (answerArrived && lastUserRef.current) {
+        list.scrollTo({ top: lastUserRef.current.offsetTop - 12, behavior: "smooth" })
+      } else if (chat.loading) {
+        list.scrollTo({ top: list.scrollHeight, behavior: "smooth" })
+      }
+    })
   }, [chat.messages, chat.loading, lastUserIdx])
 
   // 히어로 → 채팅 모드 전환 후 채팅 입력창에 자동 포커스
@@ -714,8 +697,9 @@ export function MovaAiChatBar({
     // min-h-0: flex-1 child의 기본 min-height:auto가 콘텐츠 높이를 요구해
     // 리스트의 overflow-y-auto가 안 걸리는 flexbox 관용적 함정 방지.
     <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 md:px-6">
-      <div ref={listRef} className="relative min-h-0 flex-1 overflow-y-auto py-3">
-        <div ref={contentRef} className="space-y-4">
+      <div ref={listRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto py-3">
+        {/* 대화가 화면보다 짧으면 입력창 쪽(아래)에 붙인다 — 위가 비는 편이 아래가 비는 것보다 덜 어색하다 */}
+        <div className="mt-auto space-y-4">
           {chat.messages.map((msg, i) => (
             <div
               key={i}
@@ -818,7 +802,6 @@ export function MovaAiChatBar({
             </div>
           )}
         </div>
-        <div ref={spacerRef} aria-hidden />
       </div>
 
       {chat.error && (
