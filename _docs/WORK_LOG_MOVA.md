@@ -128,6 +128,25 @@
     채점 → 에폭별 검증 손실 → 최적 에폭 평가셋 채점 → 합격 판정(28/36·intent 35·title 34·JSON 실패 0) → 전체
     재학습·GGUF·**Ollama Modelfile**(운영 exaone3.5:2.4b 템플릿, temperature 0). 로컬 검증: 셀 17개 컴파일, 실제
     EXAONE 토크나이저로 HF 템플릿 == Ollama 템플릿(접두 차이 0), 채점 함수 정답 주입 36/36.
+- **저녁 — 섀도 비교·하네스·에디터 리뷰·서수·게임·TMDB 500편**(사용자 요청 묶음):
+  - **섀도 비교**: `ChatOrchestrator(shadow=, on_shadow=)` — 주 모델 결과로 응답한 뒤 같은 발화를 섀도 모델에
+    백그라운드로 읽혀 필드별 불일치를 로그(`[OrchestratorShadow]`)와 `datasets/understanding/shadow_log.jsonl`
+    (hostPath, gitignore)에 남긴다. `MOVA_ORCHESTRATOR_SHADOW_MODEL`로만 켜진다(기본 꺼짐). 테스트 3건.
+  - **하네스**: 멀티턴 16장면(광역·구 단위·OTT 추가, `watch_links_min` 판정) 16/16, 포트폴리오 채팅 하네스
+    `scripts/eval_portfolio_chat.py` 신설 11/11. 이해 데이터셋 빌더 평가 정답 39개로 동기화(코랩 v1은 36개 그대로).
+  - **"두번째꺼" 미인식**: 추천 카드 제목이 화면에만 있고 대화 기록엔 "영화들을 준비했습니다"뿐이라 어떤 모델도
+    풀 수 없었다(모델 크기 문제 아님). 프론트가 assistant 턴 앞에 `[추천 카드] 1.『A』(연도)…`를 붙여 보내고,
+    `market_chat_ordinal.resolve_ordinal_reference`가 서수(첫/두/세 번째·N번·마지막꺼)를 제목으로 치환한 뒤 모든
+    경로가 제목을 본다. 실측: "두번째꺼 어디서 볼 수 있어" → 비와 당신의 이야기 예매 트랙.
+  - **에디터 리뷰 0건 원인**: 후보 상위 15편이 매 주기(그리고 파드 재시작마다) 같은데, 검색어 `"제목" 영화`가
+    동명 아이돌(라이즈)·뮤지컬(비틀쥬스) 기사를 잡아 Gemini가 정당하게 SKIP → 실패가 기록되지 않아 큐가 영구
+    정체. 실패 영화 30일 쿨다운 + 주기 20시간 간격을 `datasets/editor_reviews_state.json`(hostPath)에 기록,
+    후보 풀 5배. 수동 3편 실행 → 2편 생성(프레셔·사랑의 가설), 1편 쿨다운.
+  - **게임 레이어 위반**: `games_interactor`의 HTTPException 7곳 → `GamesError(status_code)`, 라우터가 변환(§P).
+    이로써 mova 인터랙터의 HTTPException 0건.
+  - **TMDB 최신작 500편**: `scripts/import_recent_tmdb.py` — 개봉일 ≤ 오늘·최신순, 성인물 제외, 원어 ko/en,
+    포스터·한국어 줄거리 필수, 투표 20+, slug·제목+연도 중복 제외. 드라이런 500편 확인 후 실적재(결과는 아래).
+    `bulk_import_movies`가 vote_count를 안 넘기던 누락도 보강.
 - 코랩 재학습: 오늘 결정 없음 — 하네스 만점이고 실사용 오답 샘플이 0이라 학습 트리거(출력 계약 변경·
   체계적 실패·데이터 유의미 증분) 중 어느 것도 아직 없다.
 

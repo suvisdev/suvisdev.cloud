@@ -121,7 +121,9 @@ http://127.0.0.1:31386`.
 - 09-28 오후: 홈 채팅 **범위 제한**(모델 `[범위밖]` 판정 → 고정 거절), **ARDA 지킬 색인**(277청크, `--ref-prefix arda`).
   mova: 서울 등 **광역 롯데 상영관 검색**, 상영 안 하는 작품 **OTT 시청 링크**. 구 단위(구 중심 반경 5km) 완료. **이해 단계 2.4B
   코랩 준비 완료**(바탕화면 `mova/FT/understanding-v1/` 데이터+노트북+README, 기준선 7.8B 28/36·2.4B 6/36) —
-  **코랩 실행은 사용자**, 합격 시 `ollama create mova-understand` + `MOVA_ORCHESTRATOR_MODEL` 전환.
+  **코랩 실행은 사용자**. 합격 시 순서: `ollama create mova-understand` → `.env`
+  `MOVA_ORCHESTRATOR_SHADOW_MODEL=mova-understand`로 **섀도 비교 1주**(`shadow_log.jsonl` 불일치 검토) →
+  `MOVA_ORCHESTRATOR_MODEL` 전환. 09-28 저녁: 서수 지시어 치환, 에디터 리뷰 쿨다운, 게임 §P 정리, TMDB 최신작 500편.
 - 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동; 파일 하나만 바뀌면 파드에서
   리셋 없이 그 디렉터리만 넘겨도 됨 — `datasets/`는 hostPath) ② 7.8B 상주로 VRAM 7.8/8.2GB —
   mova 지연 실측되면 `PORTFOLIO_LLM_MODEL=exaone3.5:2.4b` 또는 `PORTFOLIO_LLM_BACKEND=gemini` ③ 후속 질문의
@@ -259,6 +261,7 @@ http://127.0.0.1:31386`.
   현재 위치·루프·산책 추적 저장. 웹 전용 그래프 시각화(레이어 토글·화면 간선)는 삭제, 장소 검색만 유지.
   **사용자 몫: Vercel에 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` 등록 + 재배포 후 실화면 검증.** 후속: 웹 산책
   기록 목록 화면(API `GET /walks`는 있음).
+- 09-28 저녁: 웹 산책 기록 화면 `/gildle/walks`(통계·목록·경로 지도).
 - 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 콘솔 인증 후 스토어
   등록정보(스크린샷·설명에 서울 한정·콘텐츠 등급·데이터 보안 양식) + `GILDLE_APP_STORE_URL` →
   FCM 발송(보낼 알림 결정 후) → ⑤ 그늘 실측(사진 5곳) → 모델 A(walks 쌓인 뒤) · 모델 D(DEM).
