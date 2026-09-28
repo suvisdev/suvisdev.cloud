@@ -85,6 +85,18 @@ type ChatState = {
 
 const CHAT_STORAGE_KEY = "mova-ai-chat-history-v2"
 
+/** 서버로 보내는 대화 기록 — 추천 카드 제목을 assistant 턴 앞에 붙인다. 카드는 화면에만 있고
+ *  응답 문장엔 제목이 없어 "두번째꺼 어디서 볼 수 있어"를 서버가 풀 수 없었다(2026-09-28).
+ *  서버(`market_chat_ordinal.py`)가 이 형식을 읽어 서수를 제목으로 바꾼다. 앞에 두는 이유는 서버
+ *  이해 단계가 턴당 앞 160자만 보기 때문이다. */
+function historyContent(m: ChatMessage): string {
+  if (m.role !== "assistant" || !m.recommendations?.length) return m.content
+  const cards = m.recommendations
+    .map((r, i) => `${i + 1}.『${r.title}』${r.year ? `(${r.year})` : ""}`)
+    .join(" ")
+  return `[추천 카드] ${cards}\n${m.content}`
+}
+
 type MovaAiChatBarProps = {
   /** 로그인 사용자 한정. null이면 새 대화(전송 시 서버가 생성). */
   conversationId?: number | null
@@ -525,7 +537,7 @@ export function MovaAiChatBar({
 
     const body = JSON.stringify({
       message: trimmed,
-      history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+      history: history.slice(-10).map((m) => ({ role: m.role, content: historyContent(m) })),
       model: "flash15",
       conversation_id: conversationIdRef.current,
     })

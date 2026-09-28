@@ -35,6 +35,7 @@ from mova.app.use_cases.market_chat_booking_interactor import (
     pending_title_from_history,
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
+from mova.app.use_cases.market_chat_ordinal import resolve_ordinal_reference
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
@@ -277,6 +278,13 @@ class ChatInteractor(ChatUseCase):
         logger.info(
             "[ChatInteractor] trace=%s question 수신 len=%d", trace_id, len(request.message)
         )
+        # -2. 서수 지시어("두번째꺼")를 직전 추천 카드 제목으로 치환 — 이후 모든 경로가 제목을 본다.
+        rewritten = resolve_ordinal_reference(request.message, request.history_dicts())
+        if rewritten:
+            logger.info(
+                "[ChatInteractor] trace=%s 서수 치환 %r → %r", trace_id, request.message, rewritten
+            )
+            request = request.model_copy(update={"message": rewritten})
 
         # -1. 대화 스레드 소유권 사전 검증(LLM 쿼터 소모 전에). 로그인 + 기존 id
         #     지정 시에만 조회. 없거나 남의 것이면 여기서 즉시 raise.
