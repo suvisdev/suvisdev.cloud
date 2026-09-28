@@ -279,8 +279,9 @@ def booking_result(t: str, r: str) -> str:
 
 
 def rec_reply(ts: list[str]) -> str:
-    names = ", ".join(f"『{t}』" for t in ts)
-    return f"이런 작품은 어떠세요? {names}를 골라봤어요."
+    # 운영 프론트가 추천 응답 앞에 카드 목록을 붙여 보낸다(2026-09-28, market_chat_ordinal) — 같은 모양으로.
+    cards = " ".join(f"{i}.『{t}』" for i, t in enumerate(ts, 1))
+    return f"[추천 카드] {cards}\n이런 작품은 어떠세요? 분위기에 맞춰 골라봤어요."
 
 
 def eval_reply(t: str) -> str:

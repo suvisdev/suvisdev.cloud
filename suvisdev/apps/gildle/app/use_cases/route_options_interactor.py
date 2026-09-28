@@ -139,8 +139,9 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         coords = path_coordinates(lookup, path)
         shortest_m = _length(lookup, self._path_for("fast", edges, start, end, None))
         places = self._search_places({"via": coords})
+        # 들렀다 가기는 사용자가 고른 경로라 '추천' 배지를 달지 않는다(원래 추천과 배지가 둘이 됐다)
         return self._build(
-            "via", path, coords, lookup, shade_lookup, shortest_m, places, True, via_name=via_name
+            "via", path, coords, lookup, shade_lookup, shortest_m, places, False, via_name=via_name
         )
 
     # --- 수치·장소 ------------------------------------------------------------------------
