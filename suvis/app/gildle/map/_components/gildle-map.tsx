@@ -119,41 +119,37 @@ function PlaceSearch({
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node))
-        setOpen(false)
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener("mousedown", handleOutside)
     return () => document.removeEventListener("mousedown", handleOutside)
   }, [])
 
-  const search = useCallback(
-    (q: string) => {
-      if (q.trim().length < 2) {
-        setResults([])
-        return
-      }
-      setSearching(true)
-      fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&viewbox=126.76,37.70,127.18,37.43&bounded=1&limit=5&accept-language=ko`,
-      )
-        .then((res) => res.json())
-        .then((data: NominatimResult[]) => {
-          if (data.length === 0) {
-            return fetch(
-              `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=kr&limit=5&accept-language=ko`,
-            ).then((r) => r.json())
-          }
-          return data
-        })
-        .then((data: NominatimResult[]) => {
-          setResults(data)
-          setOpen(data.length > 0)
-          setSearching(false)
-        })
-        .catch(() => setSearching(false))
-    },
-    [],
-  )
+  const search = useCallback((q: string) => {
+    if (q.trim().length < 2) {
+      setResults([])
+      return
+    }
+    setSearching(true)
+    fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&viewbox=126.76,37.70,127.18,37.43&bounded=1&limit=5&accept-language=ko`
+    )
+      .then((res) => res.json())
+      .then((data: NominatimResult[]) => {
+        if (data.length === 0) {
+          return fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=kr&limit=5&accept-language=ko`
+          ).then((r) => r.json())
+        }
+        return data
+      })
+      .then((data: NominatimResult[]) => {
+        setResults(data)
+        setOpen(data.length > 0)
+        setSearching(false)
+      })
+      .catch(() => setSearching(false))
+  }, [])
 
   const handleInput = (value: string) => {
     setQuery(value)
@@ -182,7 +178,7 @@ function PlaceSearch({
         className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-gray-200 placeholder:text-gray-500 focus:border-emerald-500/50 focus:outline-none"
       />
       {searching && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
+        <span className="absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-gray-500">
           검색 중…
         </span>
       )}
@@ -216,7 +212,7 @@ function PanTo({ lat, lng }: { lat: number; lng: number }) {
 function findNearestNode(
   lat: number,
   lng: number,
-  edges: ScoredEdge[],
+  edges: ScoredEdge[]
 ): { nodeId: string; lat: number; lng: number } | null {
   if (edges.length === 0) return null
   let bestDist = Infinity
@@ -224,8 +220,7 @@ function findNearestNode(
   let bestLat = 0
   let bestLng = 0
   for (const e of edges) {
-    const dFrom =
-      (e.from_lat - lat) ** 2 + (e.from_lng - lng) ** 2
+    const dFrom = (e.from_lat - lat) ** 2 + (e.from_lng - lng) ** 2
     if (dFrom < bestDist) {
       bestDist = dFrom
       bestNode = e.from_node
@@ -339,9 +334,7 @@ export default function GildleMap() {
     ratio: number | null
     night: boolean
   } | null>(null)
-  const [panTarget, setPanTarget] = useState<{ lat: number; lng: number } | null>(
-    null,
-  )
+  const [panTarget, setPanTarget] = useState<{ lat: number; lng: number } | null>(null)
 
   const handleEdgesLoaded = useCallback((data: ScoredEdge[]) => {
     setEdges(data)
@@ -373,7 +366,7 @@ export default function GildleMap() {
         setRouteError(null)
       }
     },
-    [edges, startPoint, endPoint],
+    [edges, startPoint, endPoint]
   )
 
   const edgeLookup = useMemo(() => {
@@ -414,38 +407,37 @@ export default function GildleMap() {
           edge_shades?: number[] | null
           night?: boolean
         }) => {
-        if (data.path.length === 0) {
-          setRouteError("경로를 찾을 수 없습니다")
-          setRouteSegments([])
-        } else {
-          const coords: [number, number][] = [
-            [startPoint.lat, startPoint.lng],
-            ...data.coordinates.map(
-              (c) => [c[0], c[1]] as [number, number],
-            ),
-            [endPoint.lat, endPoint.lng],
-          ]
-          const numEdges = data.path.length - 1
-          const segments: RouteSegment[] = []
-          for (let i = 0; i < coords.length - 1; i++) {
-            const edgeIdx = Math.min(i, numEdges - 1)
-            const key = `${data.path[edgeIdx]}-${data.path[edgeIdx + 1]}`
-            segments.push({
-              from: coords[i],
-              to: coords[i + 1],
-              edge: edgeLookup.get(key) ?? null,
-              shade: data.edge_shades?.[edgeIdx] ?? null,
-            })
+          if (data.path.length === 0) {
+            setRouteError("경로를 찾을 수 없습니다")
+            setRouteSegments([])
+          } else {
+            const coords: [number, number][] = [
+              [startPoint.lat, startPoint.lng],
+              ...data.coordinates.map((c) => [c[0], c[1]] as [number, number]),
+              [endPoint.lat, endPoint.lng],
+            ]
+            const numEdges = data.path.length - 1
+            const segments: RouteSegment[] = []
+            for (let i = 0; i < coords.length - 1; i++) {
+              const edgeIdx = Math.min(i, numEdges - 1)
+              const key = `${data.path[edgeIdx]}-${data.path[edgeIdx + 1]}`
+              segments.push({
+                from: coords[i],
+                to: coords[i + 1],
+                edge: edgeLookup.get(key) ?? null,
+                shade: data.edge_shades?.[edgeIdx] ?? null,
+              })
+            }
+            setRouteSegments(segments)
+            setRouteShade(
+              season === "summer_shade"
+                ? { ratio: data.shade_ratio ?? null, night: data.night ?? false }
+                : null
+            )
           }
-          setRouteSegments(segments)
-          setRouteShade(
-            season === "summer_shade"
-              ? { ratio: data.shade_ratio ?? null, night: data.night ?? false }
-              : null,
-          )
+          setRouteLoading(false)
         }
-        setRouteLoading(false)
-      })
+      )
       .catch((e: unknown) => {
         setRouteError(e instanceof Error ? e.message : "경로 조회 실패")
         setRouteLoading(false)
@@ -457,7 +449,7 @@ export default function GildleMap() {
       setPanTarget({ lat, lng })
       handleMapClick(lat, lng)
     },
-    [handleMapClick],
+    [handleMapClick]
   )
 
   const handleClear = () => {
@@ -488,7 +480,7 @@ export default function GildleMap() {
       () => {
         setRouteError("위치 권한이 거부되었습니다")
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 10000 }
     )
   }, [edges])
 
@@ -536,9 +528,7 @@ export default function GildleMap() {
       .filter((s) => s.edge!.tree_score >= 0.5)
       .map((s) => s.edge!.road_name ?? "이름 없는 도로")
 
-    const roads = withEdge
-      .map((s) => s.edge!.road_name)
-      .filter((n): n is string => n !== null)
+    const roads = withEdge.map((s) => s.edge!.road_name).filter((n): n is string => n !== null)
     const uniqueRoads: string[] = []
     for (const r of roads) {
       if (uniqueRoads.at(-1) !== r) uniqueRoads.push(r)
@@ -554,15 +544,10 @@ export default function GildleMap() {
   return (
     <div className="relative flex h-screen flex-col bg-[#0a0d0a]">
       <header className="z-[1000] flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-[#0a0d0a]/90 px-4 backdrop-blur">
-        <Link
-          href="/gildle"
-          className="text-xs text-gray-400 transition-colors hover:text-white"
-        >
+        <Link href="/gildle" className="text-xs text-gray-400 transition-colors hover:text-white">
           ← Gildle
         </Link>
-        <h1 className="text-sm font-semibold text-emerald-400">
-          서울 보행 그래프
-        </h1>
+        <h1 className="text-sm font-semibold text-emerald-400">서울 보행 그래프</h1>
         <span className="text-xs text-gray-500">
           {edges.length > 0 ? `${edges.length} edges` : ""}
         </span>
@@ -599,24 +584,21 @@ export default function GildleMap() {
         </div>
 
         <div className="flex items-center gap-1">
-          {(
-            Object.entries(LAYER_CONFIG) as [
-              ScoreLayer,
-              (typeof LAYER_CONFIG)[ScoreLayer],
-            ][]
-          ).map(([key, val]) => (
-            <button
-              key={key}
-              onClick={() => setLayer(key)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors sm:px-3 sm:text-xs ${
-                layer === key
-                  ? "bg-emerald-500/20 text-emerald-400"
-                  : "text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              {val.label}
-            </button>
-          ))}
+          {(Object.entries(LAYER_CONFIG) as [ScoreLayer, (typeof LAYER_CONFIG)[ScoreLayer]][]).map(
+            ([key, val]) => (
+              <button
+                key={key}
+                onClick={() => setLayer(key)}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors sm:px-3 sm:text-xs ${
+                  layer === key
+                    ? "bg-emerald-500/20 text-emerald-400"
+                    : "text-gray-400 hover:text-gray-200"
+                }`}
+              >
+                {val.label}
+              </button>
+            )
+          )}
 
           <span className="mx-1 h-4 w-px bg-white/10" />
 
@@ -633,7 +615,7 @@ export default function GildleMap() {
               >
                 {val.label}
               </button>
-            ),
+            )
           )}
 
           {season === "summer_shade" && (
@@ -673,12 +655,8 @@ export default function GildleMap() {
             </span>
           </div>
 
-          {routeLoading && (
-            <span className="text-xs text-amber-400">경로 계산 중…</span>
-          )}
-          {routeError && (
-            <span className="text-xs text-red-400">{routeError}</span>
-          )}
+          {routeLoading && <span className="text-xs text-amber-400">경로 계산 중…</span>}
+          {routeError && <span className="text-xs text-red-400">{routeError}</span>}
           {routeSegments.length > 0 && (
             <span className="text-xs font-medium text-emerald-400">
               {routeDistance >= 1000
@@ -693,23 +671,15 @@ export default function GildleMap() {
             </span>
           )}
           {routeShade?.night && (
-            <span className="text-xs text-indigo-300">
-              🌙 밤 시간대 — 최단 경로로 안내
-            </span>
+            <span className="text-xs text-indigo-300">🌙 밤 시간대 — 최단 경로로 안내</span>
           )}
           {routeSummary && (
             <>
               <span className="hidden h-4 w-px bg-white/10 sm:inline-block" />
               <div className="flex items-center gap-2 text-[11px]">
-                <span className="text-green-400">
-                  나무 {routeSummary.tree.toFixed(2)}
-                </span>
-                <span className="text-red-400">
-                  결빙 {routeSummary.hazard.toFixed(2)}
-                </span>
-                <span className="text-blue-400">
-                  반려견 {routeSummary.dog.toFixed(2)}
-                </span>
+                <span className="text-green-400">나무 {routeSummary.tree.toFixed(2)}</span>
+                <span className="text-red-400">결빙 {routeSummary.hazard.toFixed(2)}</span>
+                <span className="text-blue-400">반려견 {routeSummary.dog.toFixed(2)}</span>
               </div>
             </>
           )}
@@ -746,12 +716,12 @@ export default function GildleMap() {
 
       <div className="relative flex-1">
         {loading && (
-          <div className="absolute left-1/2 top-3 z-[1001] -translate-x-1/2 rounded-full bg-[#0a0d0a]/90 px-4 py-1.5 text-xs text-amber-400 backdrop-blur">
+          <div className="absolute top-3 left-1/2 z-[1001] -translate-x-1/2 rounded-full bg-[#0a0d0a]/90 px-4 py-1.5 text-xs text-amber-400 backdrop-blur">
             엣지 로딩 중…
           </div>
         )}
         {error && (
-          <div className="absolute left-1/2 top-3 z-[1001] -translate-x-1/2 rounded-lg bg-red-950/90 px-4 py-2 text-xs text-red-400 backdrop-blur">
+          <div className="absolute top-3 left-1/2 z-[1001] -translate-x-1/2 rounded-lg bg-red-950/90 px-4 py-2 text-xs text-red-400 backdrop-blur">
             {error}
           </div>
         )}
@@ -761,9 +731,12 @@ export default function GildleMap() {
           className="z-0 h-full"
           style={{ background: "#1a1a2e" }}
         >
+          {/* CARTO basemaps는 2026-09 이후 API 키 없이는 "API KEY REQUIRED" 워터마크 타일을 준다
+              (실사용 09-28 확인). 키 없는 OSM 표준 타일로 교체 — 밝은 지도라 다크 테마와는 덜 어울린다.
+              다크 타일이 필요하면 CARTO 무료 키를 받아 dark_all URL에 붙일 것. */}
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/">OSM</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <ViewportLoader
             onMapClick={handleMapClick}
@@ -790,9 +763,7 @@ export default function GildleMap() {
               >
                 <Tooltip>
                   <div className="text-xs">
-                    <p className="font-semibold">
-                      {edge.road_name ?? "이름 없는 도로"}
-                    </p>
+                    <p className="font-semibold">{edge.road_name ?? "이름 없는 도로"}</p>
                     <p>거리: {edge.base_distance_m.toFixed(0)}m</p>
                     <p>🌳 tree: {edge.tree_score.toFixed(2)}</p>
                     <p>⚠️ hazard: {edge.hazard_score.toFixed(2)}</p>
@@ -805,10 +776,7 @@ export default function GildleMap() {
 
           {routeSegments.length > 0 && (
             <Polyline
-              positions={[
-                routeSegments[0].from,
-                ...routeSegments.map((s) => s.to),
-              ]}
+              positions={[routeSegments[0].from, ...routeSegments.map((s) => s.to)]}
               pathOptions={{ color: "#000", weight: 8, opacity: 0.35 }}
             />
           )}
@@ -824,9 +792,7 @@ export default function GildleMap() {
                 />
               )
             }
-            const score = seg.edge
-              ? (seg.edge[cfg.key] as number)
-              : 0
+            const score = seg.edge ? (seg.edge[cfg.key] as number) : 0
             const color = score > 0 ? cfg.color(score) : "#facc15"
             return (
               <Polyline
