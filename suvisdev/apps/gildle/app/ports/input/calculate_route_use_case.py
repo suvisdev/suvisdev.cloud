@@ -45,3 +45,7 @@ class CalculateDogFriendlyRouteUseCase(ABC):
     ) -> list[str]:
         """걸은 거리(m)→슬롯 함수로 간선마다 그 시각의 그늘을 적용하는 여름 경로."""
         ...
+
+    def execute_shortest(self, edges: list[RouteEdge], start: str, end: str) -> list[str]:
+        """순수 거리 최단 경로(모드 선호 없음) — 경로 후보의 '빠른 길'. 기본 구현은 미지원."""
+        raise NotImplementedError

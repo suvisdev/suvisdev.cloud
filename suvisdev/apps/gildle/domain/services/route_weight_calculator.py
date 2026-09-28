@@ -8,6 +8,9 @@ from gildle.domain.value_objects.season_mode import SeasonMode
 
 # 가중치 규칙 상수.
 _SPRING_DISCOUNT_RATE = 0.3  # 보너스 수종 구간 30% 감면
+# 봄가을 "푸른 길": 간선 수관 점수(tree_score 0~1 — 숲·공원·가로수 OSM, 09-27)에 비례해 최대 60% 감면.
+# 예전엔 보너스 수종 샘플 CSV 3건만 봐서 봄가을 경로가 사실상 최단거리였다(2026-09-28 실측).
+_GREEN_DISCOUNT_RATE = 0.6
 _WINTER_PENALTY_RATE = 5.0  # 위험구역 근처 500% 증가(6배)
 _SUN_PENALTY_RATE = 4.0  # 완전 햇빛 구간 400% 증가(5배) — 그늘 강력 우선
 _PROXIMITY_MATCH_M = 10.0  # 도로명 매칭 실패 시 좌표 근접 보조 기준
@@ -30,7 +33,8 @@ class RouteWeightCalculator:
     ) -> RouteWeight:
         """간선 하나의 모드별 가중치를 계산한다.
 
-        - SPRING_AUTUMN: 보너스 수종(벚나무/느티나무) 가로수길과 매칭되면 30% 감면.
+        - SPRING_AUTUMN: 수관 점수(tree_score)에 비례해 최대 60% 감면, 보너스 수종(벚나무/느티나무)
+          가로수길과 매칭되면 추가 30% 감면.
         - WINTER_SAFETY: 결빙 위험구역이 간선 중간 좌표 20m 이내면 500% 증가.
         - SUMMER_SHADE: 그늘 비율(0~1)에 반비례해 최대 400% 증가.
           shade_fraction이 None(사전 계산 데이터 없음)이면 tree_score로 폴백.
@@ -38,9 +42,11 @@ class RouteWeightCalculator:
         base = RouteWeight(edge.base_distance_m)
 
         if mode is SeasonMode.SPRING_AUTUMN:
+            green = max(0.0, min(1.0, edge.tree_score))
+            weight = base.apply_discount(_GREEN_DISCOUNT_RATE * green) if green > 0 else base
             if self._matches_bonus_tree(edge, nearby_segments):
-                return base.apply_discount(_SPRING_DISCOUNT_RATE)
-            return base
+                return weight.apply_discount(_SPRING_DISCOUNT_RATE)
+            return weight
 
         if mode is SeasonMode.WINTER_SAFETY:
             if self._near_hazard(edge, nearby_hazards):
@@ -61,9 +67,10 @@ class RouteWeightCalculator:
     @staticmethod
     def min_multiplier(mode: SeasonMode) -> float:
         """모드별 `가중치 / 거리`의 하한 — A* 휴리스틱(직선거리 × 배율)이 이 값 이하여야
-        admissible하다. 봄가을만 감면(0.7)이 있고 겨울·여름은 페널티뿐이라 1.0."""
+        admissible하다. 봄가을만 감면(수관 최대 60% × 보너스 수종 30% → 0.28)이 있고
+        겨울·여름은 페널티뿐이라 1.0."""
         if mode is SeasonMode.SPRING_AUTUMN:
-            return 1.0 - _SPRING_DISCOUNT_RATE
+            return (1.0 - _GREEN_DISCOUNT_RATE) * (1.0 - _SPRING_DISCOUNT_RATE)
         return 1.0
 
     def _matches_bonus_tree(self, edge: RouteEdge, segments: list[TreeSegment]) -> bool:

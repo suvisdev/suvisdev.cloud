@@ -222,7 +222,7 @@ class TestSummerShadeCombinesBuildingAndCanopy:
 class TestMinMultiplier:
     def test_spring_is_discount_floor_and_others_one(self):
         calc = RouteWeightCalculator()
-        assert calc.min_multiplier(SeasonMode.SPRING_AUTUMN) == pytest.approx(0.7)
+        assert calc.min_multiplier(SeasonMode.SPRING_AUTUMN) == pytest.approx(0.28)
         assert calc.min_multiplier(SeasonMode.SUMMER_SHADE) == 1.0
         assert calc.min_multiplier(SeasonMode.WINTER_SAFETY) == 1.0
 
@@ -240,3 +240,37 @@ class TestMinMultiplier:
         for mode in SeasonMode:
             w = calc.calculate_edge_weight(edge, mode, [], [], shade_fraction=1.0).value
             assert w >= 100.0 * calc.min_multiplier(mode) - 1e-9
+
+
+class TestSpringGreenDiscount:
+    """봄가을 = 수관 점수 비례 감면(2026-09-28) — 샘플 가로수 3건만 보던 시절엔 사실상 최단거리였다."""
+
+    def _edge(self, tree_score: float) -> RouteEdge:
+        return RouteEdge(
+            from_node="a",
+            to_node="b",
+            base_distance_m=100.0,
+            midpoint=Coordinate(37.5, 127.0),
+            road_name=None,
+            tree_score=tree_score,
+        )
+
+    def test_green_edges_are_cheaper_in_proportion(self):
+        calc = RouteWeightCalculator()
+        assert (
+            calc.calculate_edge_weight(self._edge(0.0), SeasonMode.SPRING_AUTUMN, [], []).value
+            == 100.0
+        )
+        assert calc.calculate_edge_weight(
+            self._edge(0.5), SeasonMode.SPRING_AUTUMN, [], []
+        ).value == pytest.approx(70.0)
+        assert calc.calculate_edge_weight(
+            self._edge(1.0), SeasonMode.SPRING_AUTUMN, [], []
+        ).value == pytest.approx(40.0)
+
+    def test_winter_ignores_tree_score(self):
+        calc = RouteWeightCalculator()
+        assert (
+            calc.calculate_edge_weight(self._edge(1.0), SeasonMode.WINTER_SAFETY, [], []).value
+            == 100.0
+        )

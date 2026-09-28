@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,8 @@ from gildle.app.ports.input.get_map_data_use_case import (
     GetMapVisualizationDataUseCase,
 )
 from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
+from gildle.app.ports.input.route_options_use_case import RouteOptionsUseCase
+from gildle.app.ports.output.pet_place_port import PetPlacePort
 from gildle.app.use_cases.calculate_route_interactor import (
     CalculateDogFriendlyRouteInteractor,
 )
@@ -127,4 +130,19 @@ def get_map_data_use_case() -> GetMapVisualizationDataUseCase:
         hazard_repository=TrafficAuthorityHazardZoneRepository(
             csv_path=_hazard_csv_path(), encoding=encoding
         ),
+    )
+
+
+@lru_cache(maxsize=1)
+def _shared_pet_place_adapter() -> PetPlacePort:
+    from gildle.adapter.outbound.http.kakao_pet_place_adapter import KakaoPetPlaceAdapter
+
+    return KakaoPetPlaceAdapter()
+
+
+def get_route_options_use_case() -> RouteOptionsUseCase:
+    from gildle.app.use_cases.route_options_interactor import RouteOptionsInteractor
+
+    return RouteOptionsInteractor(
+        route=get_calculate_route_use_case(), places=_shared_pet_place_adapter()
     )

@@ -72,3 +72,28 @@ class LoopRequestSchema(BaseModel):
     mode: str = Field("spring_autumn", description="spring_autumn | winter_safety | summer_shade")
     departure_time: str | None = Field(None, description='출발 "HH:MM"(여름 그늘 슬롯용)')
     limit: int = Field(3, ge=1, le=6, description="반환 후보 수")
+
+
+class RouteOptionsRequestSchema(BaseModel):
+    """경로 후보 요청 — 빠른·그늘·푸른 길을 나란히(2026-09-28). mode는 '추천' 표시 기준."""
+
+    start_lat: float
+    start_lng: float
+    end_lat: float
+    end_lng: float
+    mode: str = Field(
+        "spring_autumn",
+        description="추천 표시 기준: summer_shade→그늘, spring_autumn→푸른, winter_safety→빠른",
+    )
+    departure_time: str | None = Field(
+        None, description='출발 "HH:MM"(KST). 그늘 계산용, 미지정 시 현재'
+    )
+
+
+class RouteViaRequestSchema(RouteOptionsRequestSchema):
+    """고른 장소에 들렀다 가는 경로."""
+
+    via_lat: float
+    via_lng: float
+    via_name: str = Field(..., max_length=80)
+    base_kind: str = Field("fast", pattern="^(fast|shade|green)$")

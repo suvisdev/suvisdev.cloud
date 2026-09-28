@@ -13,8 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from gildle.adapter.inbound.api.schemas.route_schema import (
     LoopRequestSchema,
     NavigateRequestSchema,
+    RouteOptionsRequestSchema,
     RouteRequestSchema,
+    RouteViaRequestSchema,
 )
+from gildle.app.dtos.route_option_dto import RouteOptionDto
 from gildle.app.ports.input.calculate_route_use_case import (
     CalculateDogFriendlyRouteUseCase,
 )
@@ -22,11 +25,14 @@ from gildle.app.ports.input.get_map_data_use_case import (
     GetMapVisualizationDataUseCase,
 )
 from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
+from gildle.app.ports.input.route_options_use_case import RouteOptionsUseCase
 from gildle.dependencies.route_provider import (
     get_calculate_route_use_case,
     get_map_data_use_case,
     get_plan_loop_use_case,
+    get_route_options_use_case,
 )
+from gildle.domain.services.route_geometry import path_coordinates
 from gildle.domain.services.sun_position import sun_altitude_azimuth
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.route_edge import RouteEdge
@@ -88,24 +94,8 @@ def _empty_route_response() -> dict[str, Any]:
 def _path_coordinates(
     edge_lookup: dict[tuple[str, str], RouteEdge], path: list[str]
 ) -> list[list[float]]:
-    """노드 경로 → 좌표열. 간선은 양방향으로 색인되므로 저장 방향이 아니라 **경로
-    진행 방향**의 끝점을 골라야 한다 — 예전엔 항상 from_coord를 써서 역방향 간선에서
-    폴리라인이 되돌아갔다(2026-09-27 수정). 좌표 없는 노드는 간선 중점으로 대체."""
-    coords: list[list[float]] = []
-    for i in range(len(path) - 1):
-        edge = edge_lookup.get((path[i], path[i + 1]))
-        if edge is None:
-            continue
-        src = edge.from_coord if edge.from_node == path[i] else edge.to_coord
-        pt = src or edge.midpoint
-        coords.append([pt.latitude, pt.longitude])
-    if len(path) >= 2:
-        last = edge_lookup.get((path[-2], path[-1]))
-        if last is not None:
-            dst = last.to_coord if last.to_node == path[-1] else last.from_coord
-            if dst is not None:
-                coords.append([dst.latitude, dst.longitude])
-    return coords
+    """노드 경로 → 좌표열(진행 방향 기준). 구현은 도메인 route_geometry로 옮김(09-28 경로 후보와 공유)."""
+    return path_coordinates(edge_lookup, path)
 
 
 def _path_length_m(edge_lookup: dict[tuple[str, str], RouteEdge], path: list[str]) -> float:
@@ -392,6 +382,9 @@ def _plan_route(
         elif shade_data is not None:
             shade_lookup = _build_shade_lookup(slot)
 
+    if max_detour_ratio is None and season is SeasonMode.SPRING_AUTUMN:
+        # 봄가을 수관 감면(최대 60%, 09-28)은 상한이 없으면 2.5배까지 돌 수 있다 — 최단 × 1.5로 묶는다.
+        max_detour_ratio = 0.5
     if max_detour_ratio is not None:
         # ④ 제약 최단경로 — 그늘·가로수 선호를 반영하되 길이 상한을 지킨다.
         path = use_case.execute_bounded(
@@ -592,3 +585,109 @@ def get_map_data(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return use_case.execute(season)
+
+
+_RECOMMENDED_KIND = {"summer_shade": "shade", "spring_autumn": "green", "winter_safety": "fast"}
+
+
+def _day_shade_lookup(departure_time: str | None) -> tuple[Any, bool]:
+    """(그늘 조회 또는 None, 밤 여부). 밤이면 그늘 후보를 내지 않는다."""
+    shade_data = _load_shade_scores()
+    slots = shade_data["slots"] if shade_data else list(range(7, 20))
+    slot = _resolve_slot(departure_time, slots)
+    if slot is None:
+        return None, True
+    return (_build_shade_lookup(slot) if shade_data is not None else None), False
+
+
+def _option_json(o: RouteOptionDto) -> dict[str, Any]:
+    return {
+        "kind": o.kind,
+        "label": o.label,
+        "reason": o.reason,
+        "highlights": o.highlights,
+        "recommended": o.recommended,
+        "path": o.path,
+        "coordinates": o.coordinates,
+        "length_m": o.length_m,
+        "minutes": o.minutes,
+        "extra_m": o.extra_m,
+        "shade_ratio": o.shade_ratio,
+        "green_ratio": o.green_ratio,
+        "places": [
+            {
+                "id": p.place_id,
+                "name": p.name,
+                "category": p.category,
+                "lat": p.coordinate.latitude,
+                "lng": p.coordinate.longitude,
+                "address": p.address,
+                "url": p.url,
+                "phone": p.phone,
+            }
+            for p in o.places
+        ],
+    }
+
+
+@route_router.post("/routes/options")
+def route_options(
+    request: RouteOptionsRequestSchema,
+    use_case: RouteOptionsUseCase = Depends(get_route_options_use_case),
+) -> dict[str, Any]:
+    """경로 후보(빠른·그늘·푸른 길) + 고를 이유 + 경로 곁 반려동물 장소(2026-09-28)."""
+    edges = _load_scored_edges()
+    if not edges:
+        raise HTTPException(status_code=404, detail="scored_edges.json 없음")
+    try:
+        start = Coordinate(request.start_lat, request.start_lng)
+        end = Coordinate(request.end_lat, request.end_lng)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    start_node = _find_nearest_node_id(edges, start)
+    end_node = _find_nearest_node_id(edges, end)
+    if start_node is None or end_node is None:
+        return {"options": [], "night": False}
+    shade_lookup, night = _day_shade_lookup(request.departure_time)
+    options = use_case.plan(
+        edges,
+        start_node,
+        end_node,
+        shade_lookup=shade_lookup,
+        recommended_kind=_RECOMMENDED_KIND.get(request.mode, "fast"),
+    )
+    return {"options": [_option_json(o) for o in options], "night": night}
+
+
+@route_router.post("/routes/via")
+def route_via(
+    request: RouteViaRequestSchema,
+    use_case: RouteOptionsUseCase = Depends(get_route_options_use_case),
+) -> dict[str, Any]:
+    """고른 반려동물 장소에 들렀다 가는 경로 — 출발→장소→도착을 같은 성격(빠른·그늘·푸른)으로."""
+    edges = _load_scored_edges()
+    if not edges:
+        raise HTTPException(status_code=404, detail="scored_edges.json 없음")
+    try:
+        start = Coordinate(request.start_lat, request.start_lng)
+        end = Coordinate(request.end_lat, request.end_lng)
+        via = Coordinate(request.via_lat, request.via_lng)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    nodes = [_find_nearest_node_id(edges, c) for c in (start, via, end)]
+    if any(n is None for n in nodes):
+        raise HTTPException(status_code=404, detail="경로를 만들 수 없는 위치예요.")
+    shade_lookup, _ = _day_shade_lookup(request.departure_time)
+    option = use_case.via(
+        edges,
+        nodes[0],  # type: ignore[arg-type]
+        nodes[1],  # type: ignore[arg-type]
+        nodes[2],  # type: ignore[arg-type]
+        base_kind=request.base_kind if request.base_kind != "shade" or shade_lookup else "fast",
+        shade_lookup=shade_lookup,
+        via_name=request.via_name,
+        via_point=via,
+    )
+    if option is None:
+        raise HTTPException(status_code=404, detail="들렀다 가는 경로를 찾지 못했어요.")
+    return {"option": _option_json(option)}

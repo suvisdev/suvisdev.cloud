@@ -96,6 +96,12 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
             heuristic_scale=self._weight_calculator.min_multiplier(mode),
         )
 
+    def execute_shortest(self, edges: list[RouteEdge], start: str, end: str) -> list[str]:
+        graph = self._route_graph.build_graph(edges)
+        return self._route_graph.find_shortest_path(
+            graph, start, end, lambda e: e.base_distance_m, heuristic_scale=1.0
+        )
+
     def execute_bounded(
         self,
         edges: list[RouteEdge],
