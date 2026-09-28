@@ -109,6 +109,11 @@
   2.4 km·33분 카드. **길들 프로덕션 지도 초기 버그**: 네이버 SDK가 컨테이너에 `position:relative`를 인라인
   강제해 `absolute inset-0`이 무효(높이 0) → `h-full w-full`로 수정·재배포·실측(789px, 타일 36장).
   관찰: 에디터 리뷰 스케줄러 오늘 주기 "생성 0 / 대상 15"(Gemini SKIP·기사 부족 추정, 오류 로그 없음).
+- **실패 3건·스킵 2건 후속**(사용자 "테스트해보고 이상 있으면 수정"): 실패 3건은 `test_market_reviews`가
+  08-31에 추가된 감성 분석 BG 의존(`get_review_sentiment_backfill_use_case`)만 오버라이드하지 않아 실제
+  provider가 DB 세션을 만들다 죽던 것 → `_FakeSentimentBackfill` 오버라이드 추가, 25/25 통과, 전체
+  **895 passed / 0 failed**. 스킵 2건(gildle 스크립트, shapely)은 컨테이너에 shapely 임시 설치 후 실행
+  → 10/10 통과, 코드 이상 없음(서빙 이미지에 shapely를 넣지 않는 방침은 유지).
 - **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
   제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
   프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.

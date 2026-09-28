@@ -35,6 +35,9 @@ from mova.dependencies.platform_user_taste_vector_provider import (  # noqa: E40
 from mova.dependencies.review_embedding_provider import (  # noqa: E402
     get_review_embedding_backfill_use_case,
 )
+from mova.dependencies.review_sentiment_provider import (  # noqa: E402
+    get_review_sentiment_backfill_use_case,
+)
 from mova.dependencies.review_spoiler_provider import (  # noqa: E402
     get_review_spoiler_backfill_use_case,
 )
@@ -138,6 +141,18 @@ class _FakeSpoilerBackfill:
         return "skipped"
 
 
+class _FakeSentimentBackfill:
+    """add_review가 BG에 넘기는 감성 분석 인터랙터의 fake — 실제 provider는 mova DB 세션을
+    요구해 DB 없는 테스트 컨테이너에서 'Mova URL이 설정되지 않았습니다'로 죽었다(09-22~09-28)."""
+
+    def __init__(self) -> None:
+        self.analyze_calls: list[int] = []
+
+    async def analyze_one(self, review_id: int) -> str:
+        self.analyze_calls.append(review_id)
+        return "ok"
+
+
 def _build_client(use_case: _FakeReviewsUseCase, *, principal: UserPrincipal | None) -> TestClient:
     app = FastAPI()
     app.include_router(market_reviews_router)
@@ -145,6 +160,7 @@ def _build_client(use_case: _FakeReviewsUseCase, *, principal: UserPrincipal | N
     app.dependency_overrides[get_review_embedding_backfill_use_case] = _FakeEmbeddingBackfill
     app.dependency_overrides[get_user_taste_vector_recompute_use_case] = _FakeTasteRecompute
     app.dependency_overrides[get_review_spoiler_backfill_use_case] = _FakeSpoilerBackfill
+    app.dependency_overrides[get_review_sentiment_backfill_use_case] = _FakeSentimentBackfill
     if principal is not None:
         app.dependency_overrides[require_user] = lambda: principal
     return TestClient(app)
