@@ -210,6 +210,76 @@
 - 코랩 재학습: 오늘 결정 없음 — 하네스 만점이고 실사용 오답 샘플이 0이라 학습 트리거(출력 계약 변경·
   체계적 실패·데이터 유의미 증분) 중 어느 것도 아직 없다.
 
+### 작업 내용 (밤 — 추천 기준 2단계 선행 수정 · v7 이해 데이터)
+- **`repeated_titles` 원인 규명**(추천 기준 2단계 착수 중): "비 오는 날" 운영 재현 → 로그 `RAG+태그 합집합 후보
+  16편(태그 keyword)`. 키워드가 `['오는','어울리는','영화',…]`이고 DB에서 `label ILIKE '%영화%'`가 **태그 "TV 영화"
+  10편**(캔터빌의 유령·캠프 락 3·180·마운틴헤드·위대한 계춘빈 등)을 물어왔다 — 기준선의 반복 4편·투표 미달 1편이
+  전부 이 10편. `_STOPWORDS`에 "영화"가 있었지만 `_fallback_raw`의 문장 토큰이 필터 없이 `normalize_keywords`의
+  `extracted`로 들어가 살아남았다(`나오는`·`추천`도). "좀비 영화"도 좀비∪TV 영화를 최신순으로 자르고 있었다.
+- 순위 기준(50편·점수·역할 3편)보다 이 버그가 먼저라 근본 원인만 고치고 측정 → 사용자 승인 후 배포.
+- **v7 이해 데이터**(사용자 "코랩 학습데이터 만들어줘" — 백로그 ③으로 해석): 섀도 불일치 15건 분류 결과 v6 약점은
+  맥락 제목·일반어 환각, followup 8건은 **7.8B가 자기 프롬프트 예시("군자"→true)와 어긋난 것**이라 라벨 유지.
+
+- **품질 하한**(사용자 "품질 하한 진행해줘"): 1차 "투표 30 미만 뒤로"(SSOT 원안) → low_vote 6→**7**로 효과 없음.
+  bge-m3로 분위기 질의 시맨틱 후보를 재현해 보니 k=8 중 투표 30 이상은 3~8편, 후보 8편이 전부 프롬프트(앞 12편)에
+  들어가 LoRA가 뒤쪽도 고른다. k를 넓히면(16·24) 좋은 작품은 늘지만 유사도 0.47~0.57 꼬리에 무관작이 섞인다 →
+  사용자 선택 "충분하면 제외"(30 이상 5편 이상이면 미만 제외, 모자라면 뒤로) → low_vote **5**. 남은 4질의는 k=8 안에
+  좋은 작품이 3~4편뿐인 경우(규칙대로 "뒤로").
+
+- **다양성**(사용자 "다양성 진행해줘"): 3편 안 같은 시리즈 금지만 구현(연대 몰림은 연대 지정 질의와 충돌·지표 없어 보류).
+  후보에서 시리즈당 앞선 1편만 남기고 "○○ 시리즈"·프랜차이즈 제목 매칭은 예외. 테스트 중 **숫자 제목 버그** 발견 —
+  하네스 규칙(`\s*` 번호 제거)대로면 "1987"·"300"·"180"이 빈 키로 같은 시리즈가 된다 → 번호 앞 공백 필수 + 빈 키면 원제목.
+  하네스 사본도 같이 수정. 사용자 질문 "v7 만들었어? 학습하면 되나?" → 준비 완료·실행 방법 안내.
+
+- **"기분 좋아지는 영화" 0편 원인 규명**(사용자 "확인해줘"): 운영 로그상 4/4가 `[ChatReplyService] JSON 파싱 실패` → 0편 →
+  Gemini 폴백. 운영 코드로 후보·프롬프트를 재현하는 스크립트(`k3s ctr run --net-host`, 스크래치 `lora_probe.py`)로 A(이전: 제목만)·
+  B(현재: 줄거리·하한·다양성) 프롬프트를 lora-server에 16회 → 전부 정상 JSON(temperature 0인데 운영과 다름 — llama-server 캐시
+  추정). 결정적 단서는 DB `chat.reply`의 원문: 후보 순서대로 4편째를 쓰는 중. llama-server `/tokenize`로 3편 136토큰·1편 41토큰
+  → 6편쯤에서 `max_new_tokens=256` 초과로 잘림. 수정: 잘린 응답에서 완결 pick만 복구(`_salvage_truncated`).
+
+- **역할 3편 보류**(사용자 결정): 코드가 3편 선택 vs 순서 유도 vs 보류 중 보류 — 4단계(심판 루브릭·재학습)에서 학습 데이터로 반영.
+
+### 수정/구현 (밤)
+- `intent_extraction.py` `_fallback_raw`: 토큰에 `_STOPWORDS` 적용. 테스트 `StopwordTokenTests` 2건.
+  `.claude/rules/mova-chat.md` §2의 "영화는 매칭 0건 비태그 어휘" 가정 정정 + 불용어 규칙 추가.
+- `build_understanding_dataset.py` v7: 패턴 4종 추가 — `latest_in_family`(시리즈 카드 연도로 최신/최고(最古)작 고르기,
+  연도는 합성해 세상 지식이 아니라 대화의 연도를 쓰게), `context_that`("그거 줄거리"·"그거 강남에서 예매"),
+  `choice_distinct`(운영처럼 서로 다른 제목 되묻기 → 연도·서수·부제로 선택), `generic_negative`("바로 예매할 수
+  있는 영화"·"○○ 근처 체인 지점" → title null). 추천 카드에 운영과 같은 연도 표기, 배경 장소("뉴욕 배경")는
+  region 아님, 시리즈 추천은 title null. 멀티턴 17번째 장면 정답 추가(하네스 17장면인데 정답 16개라 생성기가 멈춤),
+  섀도 실사례 3개를 평가셋에 추가(하네스와 겹치는 3개는 제외).
+- `mova_understanding_colab.ipynb` v7: 태그·경로·변경 내역·합격선(46/47/46) 갱신.
+- 품질 하한: `MovaSearchItemSchema.vote_count`(기본 0) + `_to_search_items`가 채움, 포트·Pg `get_catalog_items(ids)`
+  (시맨틱 히트를 연도·장르·줄거리·투표 수 아이템으로 — 입력 순서 유지, DB에 없으면 원래 히트), 인터랙터
+  `_quality_floor`(dedup 뒤). 테스트 3건(시맨틱 채우기·뒤로·제외) + 가짜 ORM 행 2곳에 `vote_count`.
+  `.claude/rules/mova-chat.md` §2에 규칙 추가, SSOT §2-2 결정값 갱신.
+
+### 오류·막힌 점 (밤)
+- 디스크 정리 때 도커 쪽 `suvisdev-app` 이미지가 지워져 일회용 테스트 컨테이너가 안 떴다 → containerd 이미지로
+  `sudo -n k3s ctr run --rm --mount type=bind,src=$PWD,dst=/src,options=rbind:ro … docker.io/library/suvisdev-app:latest`.
+- 로컬 `.venv`엔 fastapi·httpx가 없다 — 하네스는 `~/.venv-exaone/bin/python`(httpx 있음)으로 실행.
+
+### 데이터 (밤)
+- 이해 데이터 v7: train 1,440 · val 160 · eval 48(하네스 45 + 섀도 3). `datasets/understanding/`(gitignore)과
+  바탕화면 `mova/FT/understanding-v7/`(노트북 동봉).
+
+### 산출물 (밤)
+- **배포(`--build`)·하네스**: 단일턴 **28/28**, 멀티턴 **17/17**. 카드 지표(기준선→후): repeated_titles **4→0**,
+  cards 73→81, available 35→38, title_overlap 1→1, series_dup 1→1, **low_vote 1→6**(분위기 질의가 시맨틱
+  히트로 채워지며 투표 정렬 없음 — 2단계 품질 하한의 몫). 저장 `~/datasets/mova_eval/stopword_20260928.json`.
+- **품질 하한 배포(`--build` 2회)·하네스**: 최종 28/28 · 17/17, low_vote 6→5, repeated 0, series_dup 1→2(형사물: 나쁜
+  녀석들 1·포에버), title_overlap 1→2(여행→"엉망진창 가족 여행", 1차 실행). 저장 `qualityfloor_…`(1차)·`qualityfloor2_…`(최종).
+- **다양성 배포·하네스**: series_dup 2→**0**, low_vote 5→3, 멀티턴 17/17, 단일턴 27/28 — FAIL "기분 좋아지는 영화"는
+  LoRA 0편(후보 8편) → Gemini 503(재실행 3/3). 현재 파드에서 LoRA 0편 4건이 전부 이 질의(Gemini가 구제) — 원인 미확인.
+  테스트 426 passed. 저장 `diversity_20260928.json`.
+- **잘린 응답 복구 배포·하네스**: 28/28 · 17/17, series_dup 0, low_vote 3, 하네스 중 실제 1회 "pick 6개 복구"(같은 질의),
+  파싱 실패·폴백 0건. 테스트 428 passed(+2). 저장 `salvage_20260928.json`.
+- **이해 평가셋 48 기준선**(운영과 같은 호출: temp 0·format json·num_ctx 2048): v6 **45/48**(틀린 3개 = 체인 지점
+  '영화'·'바로'·"26년꺼"에 '스파이더맨'), 7.8B 36/48(followup 9·region 4), 학습 전 2.4B 11/48.
+- (커밋 대기) `intent_extraction.py`, `market_chat_interactor.py`, `market_chat_pg_repository.py`, `market_chat_repository.py`,
+  `studio_search_schema.py`, `movie_title.py`, `chat_reply.py`, 테스트 7개, `eval_chat_queries.py`, `build_understanding_dataset.py`,
+  `mova_understanding_colab.ipynb`, `MOVA_RECOMMENDATION_CRITERIA.md`, `.claude/rules/mova-chat.md`.
+
 ---
 
 ## 2026-09-27

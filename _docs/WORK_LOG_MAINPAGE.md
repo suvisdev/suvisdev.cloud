@@ -38,6 +38,11 @@
   옛 `swap.vhdx`(~9.6GB)·다운로드 v6 zip 삭제 → diskpart `compact vdisk` → `wsl --manage Ubuntu
   --set-sparse true`(이후 WSL 삭제분 자동 반환). **WSL 안에서 지운 만큼은 압축 전엔 C:로 안 돌아온다.**
   재기동 자동화 확인: k3s·ollama·docker enabled, lora-server user unit(Linger=yes), db·redis unless-stopped.
+  → **저녁 완료(사용자 실행)**: ① 중간물·09-17 GGUF·Temp 스왑 `rm`(WSL 114G→85G) ② 관리자 PowerShell에서
+  `wsl -u root fstrim` → `wsl --shutdown` → `--set-sparse true` → diskpart `compact vdisk`. **vhdx 191G→96.5G,
+  C: 여유 55G→143G.** 재기동 후 점검: 파드 3종 Running, lora-server v5 GGUF `model_loaded`, db·redis healthy,
+  외부 `api.suvisdev.cloud` 200·`/portfolio/chat` 정답. nginx는 Exited 유지(재부팅 후 되살아나지 않음).
+  (`!` 접두 sudo는 터미널이 없어 비밀번호 입력 불가 → `wsl -u root`로 우회.)
 - **백엔드 이미지 슬림화 — CPU 전용 torch 전환**(09-11 결정 사항 착수, 사용자 "재빌드 실행해줘").
   파드 안 실측 `torch.__version__=2.12.1+cu126`·`cuda.is_available()=False`, 이미지 14.9GB(docker).
 - **"배포 대기" 표기 검증**(PROGRESS에 09-11·09-17부터 남아 있던 것): 파드 안 파일로 직접 확인 —
