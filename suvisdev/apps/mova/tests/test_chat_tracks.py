@@ -1045,6 +1045,35 @@ class ChoiceListPickerTests(unittest.TestCase):
         self.assertIsNone(pick_from_choice_list("안녕하세요!", "26년꺼"))
 
 
+class ShowtimeDateParsingTests(unittest.TestCase):
+    """예매 발화의 날짜 표현 → YYYY-MM-DD(KST). 2026-09-28 "9월 30일자로 찾아줘" 실사용."""
+
+    def test_words_and_month_day(self) -> None:
+        from datetime import datetime
+
+        from mova.app.use_cases.market_chat_booking_interactor import parse_showtime_date
+
+        today = datetime(2026, 9, 28)
+        self.assertEqual(parse_showtime_date("오늘 몇 시에 해?", today=today), "2026-09-28")
+        self.assertEqual(parse_showtime_date("내일 볼 수 있어?", today=today), "2026-09-29")
+        self.assertEqual(parse_showtime_date("모레는?", today=today), "2026-09-30")
+        self.assertEqual(parse_showtime_date("9월 30일자로 찾아줘", today=today), "2026-09-30")
+        self.assertEqual(parse_showtime_date("10월 2일에", today=today), "2026-10-02")
+        self.assertEqual(parse_showtime_date("30일자로", today=today), "2026-09-30")
+        self.assertEqual(
+            parse_showtime_date("3일에 볼래", today=today), "2026-10-03"
+        )  # 지난 날 → 다음 달
+
+    def test_no_date(self) -> None:
+        from datetime import datetime
+
+        from mova.app.use_cases.market_chat_booking_interactor import parse_showtime_date
+
+        today = datetime(2026, 9, 28)
+        for msg in ("인턴 예매하고 싶어", "군자", "2관에서", "1일 1영화"):
+            self.assertIsNone(parse_showtime_date(msg, today=today), msg)
+
+
 class RegionTransportParsingTests(unittest.TestCase):
     def test_car_widens_radius(self) -> None:
         from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
@@ -1119,6 +1148,56 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
             theaters=theaters,
             showtimes=showtime_port,
         )
+
+    async def test_date_followup_keeps_movie_and_region(self) -> None:
+        """ "9월 30일자로 찾아줘" — 직전 예매 응답(『옵세션』 '서울' 근처 …)의 작품·지역을 잇고
+        시간표를 그 날짜로 조회한다(2026-09-28 실사용: 제목을 되묻던 문제)."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._repository.find_movie_titled_in_text.return_value = _item(7, "호프")
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(
+                name="롯데시네마 강남", address="서울", distance_m=200, place_url="", phone=""
+            )
+        ]
+        history = [
+            {"role": "user", "content": "서울 전체로 찾아줘"},
+            {
+                "role": "assistant",
+                "content": "『호프』 — '서울' 근처(반경 10km) 영화관 5곳을 가까운 순으로 찾았어요.",
+            },
+        ]
+        result = await service.assist_slots(
+            message="9월 30일자로 찾아줘",
+            title_text=None,
+            verified_title=None,
+            region=None,
+            trace_id="t",
+            history=history,
+        )
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.booking.region, "서울")
+        self.assertTrue(
+            service._showtimes.fetch_showtimes.await_args.kwargs["date"].endswith("-09-30")
+        )
+        self.assertIn("『호프』", result.reply)
+        self.assertIn("9월 30일", result.reply)
+
+    async def test_showing_reply_carries_title_marker(self) -> None:
+        """예매 결과 문구에 『제목』이 들어가야 다음 턴이 작품을 되찾는다."""
+        from mova.app.dtos.market_chat_dto import ChatTheaterDto
+
+        service = self._service_with_showtimes()
+        service._theaters.search_theaters.return_value = [
+            ChatTheaterDto(name="CGV 강남", address="서울", distance_m=300, place_url="", phone="")
+        ]
+        result = await service.assist(
+            message="강남", entities=[], trace_id="t", pending_title="호프"
+        )
+        self.assertIn("『호프』", result.reply)
+        self.assertIn("'강남' 근처", result.reply)
 
     async def test_lotte_theater_gets_showtimes(self) -> None:
         from mova.app.dtos.market_chat_dto import ChatTheaterDto

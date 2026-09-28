@@ -98,6 +98,75 @@ class BookingResult:
     resolved_movie_id: int | None = None  # 예매 의지 신호(booking_intent) 기록용
 
 
+_DATE_MD = re.compile(r"(\d{1,2})\s*월\s*(\d{1,2})\s*일")
+_DATE_D = re.compile(r"(?<![\d월])(\d{1,2})\s*일(?:자|에|날)?(?!\s*[월간\d])")
+_DATE_WORDS = {"오늘": 0, "내일": 1, "모레": 2}
+
+
+def _kst_today() -> datetime:
+    return datetime.now(UTC) + timedelta(hours=9)
+
+
+def parse_showtime_date(message: str, *, today: datetime | None = None) -> str | None:
+    """발화의 날짜 표현 → "YYYY-MM-DD"(KST). 오늘/내일/모레, "9월 30일", "30일(자)". 없으면 None.
+
+    예매 트랙에 날짜 슬롯이 없어 "9월 30일자로 찾아줘"가 오늘 시간표를 다시 주거나 제목을
+    되묻던 것(2026-09-28 실사용) 대응. 지난 날짜(같은 달 앞 날)는 다음 달로 본다.
+    """
+    base = today or _kst_today()
+    for word, delta in _DATE_WORDS.items():
+        if word in message:
+            return (base + timedelta(days=delta)).strftime("%Y-%m-%d")
+    m = _DATE_MD.search(message)
+    if m:
+        month, day = int(m.group(1)), int(m.group(2))
+        year = base.year + (
+            1 if (month, day) < (base.month, base.day) and month < base.month else 0
+        )
+        try:
+            return datetime(year, month, day).strftime("%Y-%m-%d")
+        except ValueError:
+            return None
+    m = _DATE_D.search(message)
+    if m:
+        day = int(m.group(1))
+        month, year = base.month, base.year
+        if day < base.day:
+            month += 1
+            if month > 12:
+                month, year = 1, year + 1
+        try:
+            return datetime(year, month, day).strftime("%Y-%m-%d")
+        except ValueError:
+            return None
+    return None
+
+
+def _date_label(date: str | None) -> str:
+    if not date:
+        return "오늘"
+    base = _kst_today()
+    if date == base.strftime("%Y-%m-%d"):
+        return "오늘"
+    if date == (base + timedelta(days=1)).strftime("%Y-%m-%d"):
+        return "내일"
+    d = datetime.strptime(date, "%Y-%m-%d")
+    return f"{d.month}월 {d.day}일"
+
+
+_REGION_IN_REPLY = re.compile(r"'([^']{1,20})' 근처")
+
+
+def region_from_history(history: list[dict[str, str]] | None) -> str | None:
+    """직전 assistant 예매 응답("'서울' 근처(…) 영화관 …")에서 지역을 복원한다."""
+    for msg in reversed(history or []):
+        if msg.get("role") != "assistant":
+            continue
+        m = _REGION_IN_REPLY.search(msg.get("content") or "")
+        return m.group(1) if m else None
+    return None
+
+
 def pending_title_from_history(history: list[dict[str, str]]) -> str | None:
     """직전 assistant 응답이 지역 되묻기였으면 『』 안의 제목을 복원한다."""
     for msg in reversed(history):
@@ -185,9 +254,10 @@ class BookingAssistService:
         - 아무것도 없음 → 탐색형이면 상영작 목록, 아니면 기존 경로
         """
         title = verified_title or title_text
+        date = parse_showtime_date(message)
         if title and region:
             return await self._assist_with_region(
-                title_term=title, region=region, trace_id=trace_id
+                title_term=title, region=region, trace_id=trace_id, date=date
             )
         if title:
             return await self.assist(
@@ -197,7 +267,7 @@ class BookingAssistService:
             context = await self._context_movie_from_history(history)
             if context is not None:
                 return await self._assist_with_region(
-                    title_term=context.title, region=region, trace_id=trace_id
+                    title_term=context.title, region=region, trace_id=trace_id, date=date
                 )
             return BookingResult(
                 status="not_found",
@@ -208,9 +278,46 @@ class BookingAssistService:
                 card=None,
                 booking=None,
             )
+        if date:
+            followed = await self._follow_up_by_date(message, history, trace_id, date)
+            if followed is not None:
+                return followed
         if _DISCOVERY_PATTERN.search(message):
             return await self._discovery_reply(trace_id)
         return await self.assist(message=message, entities=[], trace_id=trace_id, history=history)
+
+    async def _follow_up_by_date(
+        self,
+        message: str,
+        history: list[dict[str, str]] | None,
+        trace_id: str,
+        date: str,
+    ) -> BookingResult | None:
+        """ "9월 30일자로 찾아줘"처럼 날짜만 바뀐 후속 — 직전 예매 응답의 작품·지역을 그대로 잇는다.
+        작품이 없으면 None(기존 경로), 지역이 없으면 지역 되묻기."""
+        context = await self._context_movie_from_history(history)
+        if context is None:
+            return None
+        region = _extract_region_signal(message) or region_from_history(history)
+        if region:
+            logger.info(
+                "[BookingAssist] trace=%s 날짜 후속 title=%s region=%s date=%s",
+                trace_id,
+                context.title,
+                region,
+                date,
+            )
+            return await self._assist_with_region(
+                title_term=context.title, region=region, trace_id=trace_id, date=date
+            )
+        return BookingResult(
+            status="ok",
+            reply=f"『{context.title}』 {_date_label(date)} 상영관을 찾아드릴게요. {REGION_ASK_MARKER}?",
+            card=None,
+            booking=ChatBookingDto(
+                status="need_region", region=None, theaters=[], booking_links=[]
+            ),
+        )
 
     async def assist(
         self,
@@ -238,6 +345,7 @@ class BookingAssistService:
         # 군자쪽에 예매" 흐름. 기존 pending_title 마커는 "제목 먼저 → 지역
         # 되묻기" 순서만 지원해 이 역순이 지명 퍼지 매칭 되묻기로 새고 있었다.
         if resolution.status != "ok":
+            date = parse_showtime_date(message)
             region = _extract_region_signal(message)
             if region:
                 context = await self._context_movie_from_history(history)
@@ -249,7 +357,7 @@ class BookingAssistService:
                         region,
                     )
                     return await self._assist_with_region(
-                        title_term=context.title, region=region, trace_id=trace_id
+                        title_term=context.title, region=region, trace_id=trace_id, date=date
                     )
                 # 맥락 영화도 없으면 지명을 제목 후보로 되묻지 않고 제목을 묻는다.
                 return BookingResult(
@@ -261,6 +369,10 @@ class BookingAssistService:
                     card=None,
                     booking=None,
                 )
+            if date:
+                followed = await self._follow_up_by_date(message, history, trace_id, date)
+                if followed is not None:
+                    return followed
 
         if resolution.status == "not_found":
             return BookingResult(
@@ -391,7 +503,7 @@ class BookingAssistService:
         return None
 
     async def _assist_with_region(
-        self, *, title_term: str, region: str, trace_id: str
+        self, *, title_term: str, region: str, trace_id: str, date: str | None = None
     ) -> BookingResult:
         region, radius_m, transport = _parse_region_transport(region)
         resolution = await resolve_movie_title(
@@ -431,11 +543,13 @@ class BookingAssistService:
             )
 
         links = _booking_links(detail.title)
-        cinema_showtimes = await self._fetch_lotte_showtimes(theaters, detail.title)
+        cinema_showtimes = await self._fetch_lotte_showtimes(theaters, detail.title, date=date)
         basis = f"{transport} 기준 반경 {radius_m // 1000}km" if transport else "반경 10km"
+        # 응답에 『제목』을 남겨 다음 턴("9월 30일자로", "강남으로")이 작품을 되찾게 한다
+        # (2026-09-28 실사용: 제목 없는 응답 뒤 날짜 후속이 "제목을 알려주세요"로 새던 문제).
         if not theaters:
             reply = (
-                f"'{region}' 근처 {basis} 안에서 영화관을 찾지 못했어요. "
+                f"『{detail.title}』 — '{region}' 근처 {basis} 안에서 영화관을 찾지 못했어요. "
                 + (
                     "차로 이동하신다면 '강남 차로'처럼 알려주시면 반경을 넓혀 다시 찾아드려요. "
                     if not transport
@@ -447,18 +561,19 @@ class BookingAssistService:
             top = theaters[0]
             distance = f"약 {top.distance_m}m" if top.distance_m is not None else "가장 가까움"
             reply = (
-                f"'{region}' 근처({basis}) 영화관 {len(theaters)}곳을 가까운 순으로 찾았어요. "
-                f"가장 가까운 곳은 {top.name}({distance})이에요."
+                f"『{detail.title}』 — '{region}' 근처({basis}) 영화관 {len(theaters)}곳을 가까운 순으로 "
+                f"찾았어요. 가장 가까운 곳은 {top.name}({distance})이에요."
             )
             if cinema_showtimes:
                 total_slots = sum(len(cs.slots) for cs in cinema_showtimes)
                 reply += (
-                    f" 롯데시네마 기준 오늘 상영 시간표 {total_slots}회차를 찾았어요."
+                    f" 롯데시네마 기준 {_date_label(date)} 상영 시간표 {total_slots}회차를 찾았어요."
                     " 다른 체인은 아래 예매 링크에서 확인해 주세요."
                 )
             else:
                 reply += (
-                    " 상영 시간표와 예매는 각 체인 링크에서 확인해 주세요"
+                    f" 롯데시네마 {_date_label(date)} 시간표엔 이 작품이 없었어요. "
+                    "상영 시간표와 예매는 각 체인 링크에서 확인해 주세요"
                     "(시간표는 극장 사정에 따라 달라져요)."
                 )
         logger.info(
@@ -547,7 +662,7 @@ class BookingAssistService:
         return out
 
     async def _fetch_lotte_showtimes(
-        self, theaters: list[ChatTheaterDto], movie_title: str
+        self, theaters: list[ChatTheaterDto], movie_title: str, *, date: str | None = None
     ) -> list[CinemaShowtimeDto]:
         """근처 영화관 중 롯데시네마에 대해 시간표를 조회한다(최대 2곳).
 
@@ -561,7 +676,7 @@ class BookingAssistService:
             if "롯데" not in theater.name:
                 continue
             try:
-                cs = await self._showtimes.fetch_showtimes(theater.name, movie_title)
+                cs = await self._showtimes.fetch_showtimes(theater.name, movie_title, date=date)
             except Exception:
                 logger.warning(
                     "[BookingAssistService] 시간표 조회 예외 theater=%s",
@@ -582,6 +697,7 @@ class BookingAssistService:
                         anchor.lat,
                         anchor.lng,
                         movie_title,
+                        date=date,
                     )
                 except Exception:
                     logger.warning(
