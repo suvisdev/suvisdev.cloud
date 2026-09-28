@@ -828,8 +828,15 @@ function ChatEvaluationPanel({ evaluation }: { evaluation: ChatEvaluation }) {
   )
 }
 
+/** 네이버 검색은 "극장명 상영시간표" 질의에 그 극장의 오늘 시간표·예매 버튼을 바로 보여준다.
+ *  CGV·메가박스는 시간표 수집이 약관으로 막혀 있어(공식 딥링크는 지점 코드 표가 필요) 이 공개
+ *  검색 페이지로 보낸다(2026-09-28 사용자 결정). */
+function naverTimetableUrl(theaterName: string): string {
+  return `https://search.naver.com/search.naver?query=${encodeURIComponent(`${theaterName} 상영시간표`)}`
+}
+
 function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
-  // 극장 이름 → 롯데 시간표 페이지(있을 때만). 없으면 종전대로 카카오 장소 링크.
+  // 극장 이름 → 롯데 시간표 페이지(있을 때만). 그 외 극장은 네이버 상영시간표 검색.
   const timetableByCinema = new Map(
     booking.showtimes
       .filter((cs) => cs.timetable_url)
@@ -842,7 +849,7 @@ function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
           {booking.theaters.map((t) => (
             <li key={`${t.name}-${t.address}`} className="text-xs leading-relaxed">
               <a
-                href={timetableByCinema.get(t.name) || t.place_url || undefined}
+                href={timetableByCinema.get(t.name) || naverTimetableUrl(t.name)}
                 target="_blank"
                 rel="noreferrer"
                 className="text-mova-text hover:text-mova-accent-bright font-semibold"
