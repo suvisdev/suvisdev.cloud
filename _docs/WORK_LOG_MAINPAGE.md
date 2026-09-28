@@ -124,6 +124,7 @@
   사본을 둬 파드에서 `--reset` 전체 재색인: 프로필+suvisjk 162 + ARDA(`portfolio:arda/…`) 115 = 277청크.
   "ARDA 기술 스택·일정·어려웠던 점" 지킬 근거로 답함. 문서 갱신 시 두 사본을 다시 복사하고 스크립트 docstring
   명령 두 줄 실행.
+- 홈 로고 이미지 제거(사용자) — 제목 "Suvisdev" 텍스트만.
 - **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
   제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
   프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.
