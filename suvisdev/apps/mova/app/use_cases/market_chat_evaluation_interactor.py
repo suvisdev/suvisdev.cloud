@@ -31,18 +31,17 @@ _SMALL_SAMPLE_THRESHOLD = 3
 
 _EVALUATION_SYSTEM_PROMPT = (
     "너는 mova의 영화 평가 도우미다. 아래 [데이터]만 근거로 해당 작품을 한국어로 "
-    "간결하게(4~6문장) 평가한다. 규칙:\n"
-    "1) 정량(평점·리뷰 수)과 정성(리뷰 내용 요약)을 구분해 서술한다.\n"
-    "2) 데이터에 없는 내용을 지어내지 않는다 — 수상 이력·흥행 성적 등 근거 없는 "
-    "사실 언급 금지.\n"
-    "3) 자체 리뷰가 표본 부족(임계 미만)으로 표시돼 있으면 '참고용'임을 명시한다.\n"
-    "4) 외부(TMDB) 리뷰가 영어면 내용을 한국어로 요약해 반영한다.\n"
-    "5) 스포일러(결말·반전)를 언급하지 않는다.\n"
-    "6) 마지막 문장은 어떤 취향에게 맞을지 한 줄 제안으로 끝낸다.\n"
-    "7) [시놉시스]가 있으면 앞부분 1~2문장으로 줄거리를 먼저 소개한 뒤 평가로 "
-    "넘어간다 — 줄거리 없이 평가만 나열하지 않는다.\n"
-    "8) 리뷰 발췌([자체 리뷰]·[TMDB 리뷰])가 있으면 공통 반응을 반드시 한 문장 "
-    "이상으로 종합한다 — 평점 숫자만 언급하고 리뷰 내용을 생략하지 않는다."
+    "**짧게(2~4문장)** 평가한다. 규칙:\n"
+    "1) [시놉시스]가 있으면 첫 문장은 스포일러 없는 한 줄 줄거리.\n"
+    "2) 이어서 리뷰 발췌([mova 리뷰]·[관객 리뷰])의 공통 반응을 1~2문장으로 **요약**한다 — "
+    "발췌를 그대로 옮기거나 나열하지 말고, 좋았다는 점과 아쉬웠다는 점을 압축한다. "
+    "리뷰가 없으면 그 문장은 생략한다.\n"
+    "3) mova 리뷰 평균 별점은 '별점 4.5(리뷰 3건)'처럼 한 번만 짧게 언급하고, 표본 부족 표시가 있으면 "
+    "'참고용'이라고 덧붙인다. 다른 사이트 평점은 언급하지 않는다.\n"
+    "4) 데이터에 없는 내용(수상·흥행·감독 의도 등)을 지어내지 않는다.\n"
+    "5) 영어 리뷰는 한국어로 요약해 반영한다.\n"
+    "6) '[정량]'·'[정성]' 같은 라벨·머리말·목록 없이 자연스러운 문장으로만 쓴다.\n"
+    "7) 마지막 문장은 어떤 취향에게 맞을지 한 줄로 끝낸다."
 )
 
 
@@ -144,7 +143,6 @@ class MovieEvaluationService:
                 year=detail.release_year,
                 genres=detail.genres,
                 synopsis=detail.synopsis or "",
-                tmdb_rating=detail.rating,
                 aggregate_count=aggregate.review_count,
                 aggregate_avg=aggregate.avg_rating,
                 excerpts=aggregate.excerpts,
@@ -187,26 +185,26 @@ class MovieEvaluationService:
         year: int,
         genres: list[str],
         synopsis: str,
-        tmdb_rating: float,
         aggregate_count: int,
         aggregate_avg: float | None,
         excerpts: list[str],
         external: list[str],
     ) -> str:
+        # 평점은 mova 자체 리뷰 기준만 — TMDB 유래 평점은 넣지 않는다(2026-09-28 사용자 결정
+        # "우리 mova 기준으로 봐야지"). 외부(TMDB) 리뷰 본문은 관객 반응 근거로만 쓴다.
         lines = [
             f"[작품] {title} ({year or '연도 미상'}) | 장르: {', '.join(genres) or '미상'}",
-            f"[정량] TMDB 유래 평점(5점 만점): {tmdb_rating or '없음'} | "
-            f"mova 자체 리뷰: {aggregate_count}건"
-            + (f", 평균 {aggregate_avg}점" if aggregate_avg is not None else ""),
+            f"[mova 리뷰] {aggregate_count}건"
+            + (f", 평균 별점 {aggregate_avg}(5점 만점)" if aggregate_avg is not None else ""),
         ]
         if aggregate_count < _SMALL_SAMPLE_THRESHOLD:
-            lines.append(f"[주의] 자체 리뷰 표본 부족(임계 {_SMALL_SAMPLE_THRESHOLD}건 미만).")
+            lines.append(f"[주의] mova 리뷰 표본 부족(임계 {_SMALL_SAMPLE_THRESHOLD}건 미만).")
         if synopsis:
             lines.append(f"[시놉시스] {synopsis[:300]}")
         for i, text in enumerate(excerpts, 1):
-            lines.append(f"[자체 리뷰 발췌 {i}] {text}")
+            lines.append(f"[mova 리뷰 {i}] {text}")
         for i, text in enumerate(external, 1):
-            lines.append(f"[TMDB 리뷰 발췌 {i}] {text}")
+            lines.append(f"[관객 리뷰 {i}] {text}")
         try:
             answer = await self._general.ask(
                 MycroftAskCommand(
@@ -218,11 +216,9 @@ class MovieEvaluationService:
             # Gemini 503/429가 HubRagError로 올라와 500이 되던 경로(2026-09-22 멀티턴 "26년꺼"
             # 장면 실측). 정량 데이터는 이미 손에 있으니 LLM 없이 숫자만 정직하게 전한다.
             logger.warning("[MovieEvaluationService] LLM 실패 → 정량 요약 강등 | %s", e.detail)
-            summary = f"{title}({year or '연도 미상'})은(는) TMDB 유래 평점 {tmdb_rating or '없음'}점(5점 만점)"
-            if aggregate_count:
-                summary += f", mova 리뷰 {aggregate_count}건"
-                if aggregate_avg is not None:
-                    summary += f"(평균 {aggregate_avg}점)"
+            summary = f"{title}({year or '연도 미상'})은(는) mova 리뷰 {aggregate_count}건"
+            if aggregate_avg is not None:
+                summary += f", 평균 별점 {aggregate_avg}"
             summary += "이에요."
             if synopsis:
                 summary += f" 줄거리: {synopsis[:150]}"
