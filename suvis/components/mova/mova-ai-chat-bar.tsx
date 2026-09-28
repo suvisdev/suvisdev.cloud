@@ -325,7 +325,11 @@ export function MovaAiChatBar({
   const patchChat = (patch: Partial<ChatState>) => patchState(setChat, patch)
 
   const listRef = useRef<HTMLDivElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const lastUserRef = useRef<HTMLDivElement>(null)
+  const spacerRef = useRef<HTMLDivElement>(null)
+  const prevCountRef = useRef(0)
+  const prevLastUserIdxRef = useRef(-1)
   const heroInputRef = useRef<HTMLTextAreaElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
@@ -442,12 +446,44 @@ export function MovaAiChatBar({
     }
   }, [conversationIdProp, dbMode])
 
+  // 스크롤 규칙(클로드·제미나이식, 2026-09-28 사용자 요청): 메시지를 보내면 **내 말풍선이 리스트
+  // 맨 위**에 오도록 올리고, 답변은 그 아래에서 자라난다. 예전엔 매번 맨 아래로 붙여 새 말풍선이
+  // 화면 중간에 어중간하게 걸쳤다. 마지막 말풍선이 맨 위까지 올라갈 수 있게 하단에 스페이서를 두고,
+  // 답변·로딩이 자라면 그만큼 스페이서를 줄인다(위치는 그대로). DB에서 대화를 통째로 불러온 경우만
+  // 맨 아래로 간다.
+  const lastUserIdx = chat.messages.reduce((acc, m, i) => (m.role === "user" ? i : acc), -1)
   useEffect(() => {
-    if (isInitial) return
-    requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
-    })
-  }, [chat.messages, chat.loading, isInitial])
+    const list = listRef.current
+    const content = contentRef.current
+    const spacer = spacerRef.current
+    if (!list || !content || !spacer) return
+
+    const fit = () => {
+      const anchor = lastUserRef.current
+      if (!anchor) {
+        spacer.style.minHeight = "0px"
+        return
+      }
+      const tail = content.offsetHeight - anchor.offsetTop // 마지막 내 말풍선부터 끝까지
+      spacer.style.minHeight = `${Math.max(0, list.clientHeight - tail - 16)}px`
+    }
+    fit()
+
+    const bulkLoaded = chat.messages.length - prevCountRef.current > 1
+    const newUserTurn = lastUserIdx !== prevLastUserIdxRef.current && lastUserIdx >= 0
+    prevCountRef.current = chat.messages.length
+    prevLastUserIdxRef.current = lastUserIdx
+    if (bulkLoaded) {
+      list.scrollTo({ top: list.scrollHeight })
+    } else if (newUserTurn && lastUserRef.current) {
+      list.scrollTo({ top: lastUserRef.current.offsetTop - 12, behavior: "smooth" })
+    }
+
+    const ro = new ResizeObserver(fit)
+    ro.observe(content)
+    ro.observe(list)
+    return () => ro.disconnect()
+  }, [chat.messages, chat.loading, lastUserIdx])
 
   // 히어로 → 채팅 모드 전환 후 채팅 입력창에 자동 포커스
   useEffect(() => {
@@ -648,106 +684,109 @@ export function MovaAiChatBar({
     // min-h-0: flex-1 child의 기본 min-height:auto가 콘텐츠 높이를 요구해
     // 리스트의 overflow-y-auto가 안 걸리는 flexbox 관용적 함정 방지.
     <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 md:px-6">
-      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3">
-        {chat.messages.map((msg, i) => (
-          <div
-            key={i}
-            className={cn(
-              "flex w-full min-w-0 gap-2.5",
-              msg.role === "user" ? "flex-row-reverse" : "flex-row"
-            )}
-          >
-            {msg.role === "assistant" && (
-              <span className="border-mova-border bg-mova-surface-2 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
-                <Sparkles className="text-mova-accent h-3.5 w-3.5" />
-              </span>
-            )}
+      <div ref={listRef} className="relative min-h-0 flex-1 overflow-y-auto py-3">
+        <div ref={contentRef} className="space-y-4">
+          {chat.messages.map((msg, i) => (
             <div
+              key={i}
+              ref={i === lastUserIdx ? lastUserRef : undefined}
               className={cn(
-                "flex min-w-0 flex-col gap-1",
-                msg.role === "user"
-                  ? "max-w-[min(85%,100%)] items-end"
-                  : "max-w-[calc(100%-2.75rem)] flex-1 sm:max-w-[calc(100%-3rem)]"
+                "flex w-full min-w-0 gap-2.5",
+                msg.role === "user" ? "flex-row-reverse" : "flex-row"
               )}
             >
+              {msg.role === "assistant" && (
+                <span className="border-mova-border bg-mova-surface-2 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
+                  <Sparkles className="text-mova-accent h-3.5 w-3.5" />
+                </span>
+              )}
               <div
                 className={cn(
-                  "max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere] break-words",
+                  "flex min-w-0 flex-col gap-1",
                   msg.role === "user"
-                    ? "from-mova-accent shadow-mova-accent-soft rounded-tr-md bg-gradient-to-br to-[#b84a72] text-white shadow-md"
-                    : "border-mova-border bg-mova-surface-2 text-mova-text rounded-tl-md border"
+                    ? "max-w-[min(85%,100%)] items-end"
+                    : "max-w-[calc(100%-2.75rem)] flex-1 sm:max-w-[calc(100%-3rem)]"
                 )}
               >
-                {msg.content}
-              </div>
-              {msg.role === "assistant" &&
-                msg.recommendations &&
-                msg.recommendations.length > 0 && (
-                  <div className="w-full max-w-full min-w-0 overflow-hidden">
-                    <MovaRecommendationCards items={msg.recommendations} />
+                <div
+                  className={cn(
+                    "max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere] break-words",
+                    msg.role === "user"
+                      ? "from-mova-accent shadow-mova-accent-soft rounded-tr-md bg-gradient-to-br to-[#b84a72] text-white shadow-md"
+                      : "border-mova-border bg-mova-surface-2 text-mova-text rounded-tl-md border"
+                  )}
+                >
+                  {msg.content}
+                </div>
+                {msg.role === "assistant" &&
+                  msg.recommendations &&
+                  msg.recommendations.length > 0 && (
+                    <div className="w-full max-w-full min-w-0 overflow-hidden">
+                      <MovaRecommendationCards items={msg.recommendations} />
+                    </div>
+                  )}
+                {msg.role === "assistant" && msg.evaluation && (
+                  <ChatEvaluationPanel evaluation={msg.evaluation} />
+                )}
+                {msg.role === "assistant" && msg.booking && msg.booking.status === "showing" && (
+                  <ChatBookingPanel booking={msg.booking} />
+                )}
+                {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 px-1">
+                    {msg.choices.map((choice) => (
+                      <button
+                        key={choice.slug}
+                        type="button"
+                        disabled={chat.loading}
+                        onClick={() => void sendMessage(`${choice.title} 어때?`)}
+                        className="border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
+                      >
+                        {choice.year ? `${choice.title} (${choice.year})` : choice.title}
+                      </button>
+                    ))}
                   </div>
                 )}
-              {msg.role === "assistant" && msg.evaluation && (
-                <ChatEvaluationPanel evaluation={msg.evaluation} />
-              )}
-              {msg.role === "assistant" && msg.booking && msg.booking.status === "showing" && (
-                <ChatBookingPanel booking={msg.booking} />
-              )}
-              {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 px-1">
-                  {msg.choices.map((choice) => (
-                    <button
-                      key={choice.slug}
-                      type="button"
-                      disabled={chat.loading}
-                      onClick={() => void sendMessage(`${choice.title} 어때?`)}
-                      className="border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
-                    >
-                      {choice.year ? `${choice.title} (${choice.year})` : choice.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {msg.role === "user" && msg.intentLabel && (
-                <p className="max-w-full px-1 text-right text-[10px] [overflow-wrap:anywhere] break-words text-neutral-500">
-                  DB 저장 · <span className="text-mova-accent-bright">{msg.intentLabel}</span>
-                </p>
-              )}
+                {msg.role === "user" && msg.intentLabel && (
+                  <p className="max-w-full px-1 text-right text-[10px] [overflow-wrap:anywhere] break-words text-neutral-500">
+                    DB 저장 · <span className="text-mova-accent-bright">{msg.intentLabel}</span>
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        {chat.loading && (
-          <div className="flex gap-2.5">
-            <span className="border-mova-border bg-mova-surface-2 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
-              <Sparkles className="text-mova-accent h-3.5 w-3.5 animate-pulse" />
-            </span>
-            <div className="flex flex-col gap-2">
-              {/* 3D 클래퍼보드 감성 로딩 — 채팅 대기 시간(3~10초)이 브랜드 순간이
+          ))}
+          {chat.loading && (
+            <div className="flex gap-2.5">
+              <span className="border-mova-border bg-mova-surface-2 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
+                <Sparkles className="text-mova-accent h-3.5 w-3.5 animate-pulse" />
+              </span>
+              <div className="flex flex-col gap-2">
+                {/* 3D 클래퍼보드 감성 로딩 — 채팅 대기 시간(3~10초)이 브랜드 순간이
                   되도록 인라인 재생. muted+playsInline+loop로 자동 재생 정책 회피. */}
-              {/* 원본 1280×720 하단 문구("Mova가 찾아줄게")가 폭 ~85%까지 차므로
+                {/* 원본 1280×720 하단 문구("Mova가 찾아줄게")가 폭 ~85%까지 차므로
                   크롭 없이 16:9 그대로 보여준다(예전 7:5 크롭은 문구를 잘랐다). */}
-              <div className="border-mova-border aspect-video w-40 overflow-hidden rounded-2xl border bg-black shadow-sm md:w-48">
-                <video
-                  src="/mova-clapperboard-loading.mp4"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="auto"
-                  aria-hidden
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="text-mova-muted flex items-center gap-2 text-xs">
-                <Loader2 className="text-mova-accent h-3.5 w-3.5 shrink-0 animate-spin" />
-                <span key={loadingHintIdx} className="animate-in fade-in duration-300">
-                  {LOADING_HINTS[loadingHintIdx]}
-                </span>
+                <div className="border-mova-border aspect-video w-40 overflow-hidden rounded-2xl border bg-black shadow-sm md:w-48">
+                  <video
+                    src="/mova-clapperboard-loading.mp4"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                    aria-hidden
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="text-mova-muted flex items-center gap-2 text-xs">
+                  <Loader2 className="text-mova-accent h-3.5 w-3.5 shrink-0 animate-spin" />
+                  <span key={loadingHintIdx} className="animate-in fade-in duration-300">
+                    {LOADING_HINTS[loadingHintIdx]}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+        </div>
+        <div ref={spacerRef} aria-hidden />
       </div>
 
       {chat.error && (
