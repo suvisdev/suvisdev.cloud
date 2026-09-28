@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from shared.security.require_user import UserPrincipal, optional_user, require_user
 
 from mova.adapter.inbound.api.schemas.games_schema import (
@@ -18,9 +18,14 @@ from mova.adapter.inbound.api.schemas.games_schema import (
     ScoreSaveSchema,
 )
 from mova.app.ports.input.games_use_case import GamesUseCase
+from mova.app.ports.output.games_errors import GamesError
 from mova.dependencies.games_provider import get_games_use_case
 
 games_router = APIRouter(prefix="/games", tags=["mova-games"])
+
+
+def _http(e: GamesError) -> HTTPException:
+    return HTTPException(status_code=e.status_code, detail=e.detail)
 
 
 @games_router.get("/chosung/next", response_model=ChosungQuestionSchema)
@@ -34,7 +39,10 @@ async def next_chosung_question(
         tok = tok.strip()
         if tok.isdigit():
             exclude_ids.append(int(tok))
-    return (await use_case.next_chosung_question(category, exclude_ids)).to_schema()
+    try:
+        return (await use_case.next_chosung_question(category, exclude_ids)).to_schema()
+    except GamesError as e:
+        raise _http(e) from e
 
 
 @games_router.get("/memory/deck", response_model=MemoryDeckSchema)
@@ -42,7 +50,10 @@ async def memory_deck(
     stage: int = Query(..., ge=1, le=10),
     use_case: GamesUseCase = Depends(get_games_use_case),
 ) -> MemoryDeckSchema:
-    return (await use_case.memory_deck(stage)).to_schema()
+    try:
+        return (await use_case.memory_deck(stage)).to_schema()
+    except GamesError as e:
+        raise _http(e) from e
 
 
 @games_router.post("/scores", status_code=201)
@@ -51,7 +62,10 @@ async def save_score(
     principal: UserPrincipal = Depends(require_user),
     use_case: GamesUseCase = Depends(get_games_use_case),
 ) -> dict[str, str]:
-    await use_case.save_score(principal.user_id, payload)
+    try:
+        await use_case.save_score(principal.user_id, payload)
+    except GamesError as e:
+        raise _http(e) from e
     return {"status": "saved"}
 
 
@@ -64,6 +78,10 @@ async def leaderboard(
     use_case: GamesUseCase = Depends(get_games_use_case),
 ) -> LeaderboardSchema:
     me_user_id = principal.user_id if principal else None
-    return (
-        await use_case.leaderboard(game_type=game, stage=stage, limit=limit, me_user_id=me_user_id)
-    ).to_schema()
+    try:
+        dto = await use_case.leaderboard(
+            game_type=game, stage=stage, limit=limit, me_user_id=me_user_id
+        )
+    except GamesError as e:
+        raise _http(e) from e
+    return dto.to_schema()
