@@ -132,3 +132,6 @@ datasets/arda_jekyll/
 datasets/suvisjk_jekyll/
 # 에디터 리뷰 스케줄러 상태(실패 쿨다운·마지막 주기) — 파드가 hostPath로 씀(09-28)
 datasets/editor_reviews_state.json
+
+# SRTM 고도(09-28) — compute_node_elevation.py 산출물
+apps/gildle/data/node_elevation.json

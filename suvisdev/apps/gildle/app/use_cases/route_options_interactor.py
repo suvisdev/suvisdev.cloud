@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import replace
 
 from gildle.app.dtos.route_option_dto import RouteOptionDto
 from gildle.app.ports.input.calculate_route_use_case import CalculateDogFriendlyRouteUseCase
+from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
 from gildle.app.ports.input.route_options_use_case import RouteOptionsUseCase
 from gildle.app.ports.output.pet_place_port import PetPlacePort
 from gildle.domain.services.route_geometry import (
@@ -23,6 +25,7 @@ from gildle.domain.services.route_geometry import (
     path_edges,
 )
 from gildle.domain.services.route_option_describer import RouteOptionMetrics, describe
+from gildle.domain.services.walk_preference import Elevation, climb_m, make_weight
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.pet_place import PetPlace
 from gildle.domain.value_objects.route_edge import RouteEdge
@@ -41,9 +44,15 @@ def _edge_key(e: RouteEdge) -> tuple[str, str]:
 
 
 class RouteOptionsInteractor(RouteOptionsUseCase):
-    def __init__(self, route: CalculateDogFriendlyRouteUseCase, places: PetPlacePort) -> None:
+    def __init__(
+        self,
+        route: CalculateDogFriendlyRouteUseCase,
+        places: PetPlacePort,
+        loops: PlanLoopRouteUseCase | None = None,
+    ) -> None:
         self._route = route
         self._places = places
+        self._loops = loops
 
     # --- 후보 계산 -------------------------------------------------------------------------
 
@@ -54,21 +63,15 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         start: str,
         end: str,
         shade_lookup: Mapping[tuple[str, str], float] | None,
+        elevation: Elevation | None = None,
     ) -> list[str]:
-        if kind == "shade":
-            return self._route.execute_bounded(
-                edges,
-                start,
-                end,
-                SeasonMode.SUMMER_SHADE,
-                shade_lookup=shade_lookup,
-                max_detour_ratio=MAX_DETOUR_RATIO,
-            )
-        if kind == "green":
-            return self._route.execute_bounded(
-                edges, start, end, SeasonMode.SPRING_AUTUMN, max_detour_ratio=MAX_DETOUR_RATIO
-            )
-        return self._route.execute_shortest(edges, start, end)
+        """선호(walk_preference)별 가중치로 최단거리 × 1.5 안에서 A*."""
+        if kind in ("fast", "via"):
+            return self._route.execute_shortest(edges, start, end)
+        weight, floor = make_weight(kind, shade_lookup=shade_lookup, elevation=elevation)
+        return self._route.execute_weighted(
+            edges, start, end, weight, floor, max_detour_ratio=MAX_DETOUR_RATIO
+        )
 
     def plan(
         self,
@@ -78,18 +81,28 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         *,
         shade_lookup: Mapping[tuple[str, str], float] | None,
         recommended_kind: str,
+        elevation: Elevation | None = None,
+        extra_kinds: tuple[str, ...] = (),
     ) -> list[RouteOptionDto]:
         lookup = _lookup(edges)
         fast = self._path_for("fast", edges, start, end, None)
         if not fast:
             return []
         prefs = (["shade"] if shade_lookup is not None else []) + ["green"]
+        if elevation:  # 고도가 있어야 편한 길·언덕길을 계산할 수 있다
+            prefs.append("flat")
+            if "hilly" in extra_kinds or recommended_kind == "hilly":
+                prefs.append("hilly")
         # 두 후보가 같은 길이면 먼저 계산한 쪽이 남는다 — 추천 종류를 앞에 둬서 그쪽 이름으로 남긴다.
         prefs.sort(key=lambda k: k != recommended_kind)
         kinds = ["fast", *prefs]
         kept: list[tuple[str, list[str], set[tuple[str, str]]]] = []
         for kind in kinds:
-            path = fast if kind == "fast" else self._path_for(kind, edges, start, end, shade_lookup)
+            path = (
+                fast
+                if kind == "fast"
+                else self._path_for(kind, edges, start, end, shade_lookup, elevation)
+            )
             if not path:
                 continue
             keys = {_edge_key(e) for e in path_edges(lookup, path)}
@@ -104,7 +117,15 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         rec = recommended_kind if recommended_kind in kinds_kept else kinds_kept[0]
         out = [
             self._build(
-                kind, path, coords[kind], lookup, shade_lookup, shortest_m, places, rec == kind
+                kind,
+                path,
+                coords[kind],
+                lookup,
+                shade_lookup,
+                shortest_m,
+                places,
+                rec == kind,
+                elevation=elevation,
             )
             for kind, path, _ in kept
         ]
@@ -129,10 +150,11 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
         via_point: Coordinate,
+        elevation: Elevation | None = None,
     ) -> RouteOptionDto | None:
         lookup = _lookup(edges)
-        first = self._path_for(base_kind, edges, start, via_node, shade_lookup)
-        second = self._path_for(base_kind, edges, via_node, end, shade_lookup)
+        first = self._path_for(base_kind, edges, start, via_node, shade_lookup, elevation)
+        second = self._path_for(base_kind, edges, via_node, end, shade_lookup, elevation)
         if not first or not second:
             return None
         path = first + second[1:]
@@ -141,8 +163,86 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         places = self._search_places({"via": coords})
         # 들렀다 가기는 사용자가 고른 경로라 '추천' 배지를 달지 않는다(원래 추천과 배지가 둘이 됐다)
         return self._build(
-            "via", path, coords, lookup, shade_lookup, shortest_m, places, False, via_name=via_name
+            "via",
+            path,
+            coords,
+            lookup,
+            shade_lookup,
+            shortest_m,
+            places,
+            False,
+            via_name=via_name,
+            elevation=elevation,
         )
+
+    def loops(
+        self,
+        edges: list[RouteEdge],
+        start: str,
+        *,
+        target_m: float,
+        max_m: float | None,
+        preference: str,
+        shade_lookup: Mapping[tuple[str, str], float] | None,
+        elevation: Elevation | None,
+        stop_categories: tuple[str, ...],
+        nearest_node: Callable[[Coordinate], str | None],
+        limit: int = 3,
+    ) -> list[RouteOptionDto]:
+        """출발지로 돌아오는 목표 거리 루프 — 선호 가중치로 찾고, 들를 곳 종류를 지나는 루프를 앞에."""
+        if self._loops is None:
+            return []
+        weight, floor = make_weight(preference, shade_lookup=shade_lookup, elevation=elevation)
+        found = self._loops.execute(
+            edges,
+            start,
+            target_m,
+            SeasonMode.SPRING_AUTUMN,  # weight_fn을 넘기므로 계절 가중치는 쓰이지 않는다
+            nearest_node=nearest_node,
+            shade_lookup=shade_lookup,
+            limit=limit * 2,
+            weight_fn=weight,
+            heuristic_scale=floor,
+        )
+        if max_m:  # 제한 시간 안에 못 도는 루프는 뺀다(전부 넘으면 가장 짧은 하나만)
+            within = [c for c in found if c.length_m <= max_m]
+            found = within or sorted(found, key=lambda c: c.length_m)[:1]
+        if not found:
+            return []
+        lookup = _lookup(edges)
+        coords = {str(i): path_coordinates(lookup, c.path) for i, c in enumerate(found)}
+        places = self._search_places(coords)
+        built = [
+            self._build(
+                preference,
+                c.path,
+                coords[str(i)],
+                lookup,
+                shade_lookup,
+                _length(lookup, c.path),
+                places,
+                False,
+                elevation=elevation,
+                loop_target_m=target_m,
+            )
+            for i, c in enumerate(found)
+        ]
+        wanted = set(stop_categories)
+        # 들를 곳을 지나는 루프 먼저, 그다음 고른 성격이 가장 뚜렷한 루프(모두 제한 시간 안)
+        built.sort(
+            key=lambda o: (-len(wanted & {p.category for p in o.places}), _pref_rank(preference, o))
+        )
+        out = built[:limit]
+        out[0] = replace(out[0], recommended=True)
+        logger.info(
+            "[RouteOptions] 루프 %s 목표 %dm 선호 %s 들를곳 %s → %s",
+            start,
+            round(target_m),
+            preference,
+            ",".join(stop_categories) or "-",
+            ",".join(f"{round(o.length_m)}m" for o in out),
+        )
+        return out
 
     # --- 수치·장소 ------------------------------------------------------------------------
 
@@ -173,6 +273,8 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         recommended: bool,
         *,
         via_name: str | None = None,
+        elevation: Elevation | None = None,
+        loop_target_m: float | None = None,
     ) -> RouteOptionDto:
         es = path_edges(lookup, path)
         length = sum(e.base_distance_m for e in es) or 1.0
@@ -207,6 +309,8 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
             roads=roads,
             place_categories=tuple(p.category for p in places),
             via_name=via_name,
+            climb_m=climb_m(path, elevation) if elevation else None,
+            loop_target_m=loop_target_m,
         )
         text = describe(kind, metrics, shortest_m)
         return RouteOptionDto(
@@ -223,6 +327,7 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
             shade_ratio=round(shade, 2) if shade is not None else None,
             green_ratio=round(green, 2),
             places=places,
+            climb_m=round(metrics.climb_m) if metrics.climb_m is not None else None,
         )
 
 
@@ -244,3 +349,16 @@ def _lookup(edges: list[RouteEdge]) -> EdgeLookup:
 
 def _length(lookup: EdgeLookup, path: list[str]) -> float:
     return sum(e.base_distance_m for e in path_edges(lookup, path))
+
+
+def _pref_rank(preference: str, o: RouteOptionDto) -> float:
+    """작을수록 그 성격에 맞는 루프."""
+    if preference == "flat" and o.climb_m is not None:
+        return o.climb_m
+    if preference == "hilly" and o.climb_m is not None:
+        return -o.climb_m
+    if preference == "shade" and o.shade_ratio is not None:
+        return -o.shade_ratio
+    if preference == "green":
+        return -o.green_ratio
+    return o.length_m

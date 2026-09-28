@@ -22,6 +22,7 @@ from gildle.app.ports.input.get_map_data_use_case import (
 )
 from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
 from gildle.app.ports.input.route_options_use_case import RouteOptionsUseCase
+from gildle.app.ports.input.walk_plan_use_case import WalkPlanUseCase
 from gildle.app.ports.output.pet_place_port import PetPlacePort
 from gildle.app.use_cases.calculate_route_interactor import (
     CalculateDogFriendlyRouteInteractor,
@@ -144,5 +145,27 @@ def get_route_options_use_case() -> RouteOptionsUseCase:
     from gildle.app.use_cases.route_options_interactor import RouteOptionsInteractor
 
     return RouteOptionsInteractor(
-        route=get_calculate_route_use_case(), places=_shared_pet_place_adapter()
+        route=get_calculate_route_use_case(),
+        places=_shared_pet_place_adapter(),
+        loops=get_plan_loop_use_case(),
+    )
+
+
+@lru_cache(maxsize=1)
+def _shared_walk_understanding() -> Any:
+    from gildle.adapter.outbound.llm.exaone_walk_understanding_adapter import (
+        ExaoneWalkUnderstandingAdapter,
+    )
+
+    return ExaoneWalkUnderstandingAdapter()
+
+
+def get_walk_plan_use_case() -> WalkPlanUseCase:
+    """자연어 산책 요청 → 7.8B 이해 + 규칙 검증 → 루프/경로 후보(2026-09-28)."""
+    from gildle.app.use_cases.walk_plan_interactor import WalkPlanInteractor
+
+    enabled = os.getenv("GILDLE_UNDERSTANDING", "llm") == "llm"
+    return WalkPlanInteractor(
+        options=get_route_options_use_case(),
+        understanding=_shared_walk_understanding() if enabled else None,
     )

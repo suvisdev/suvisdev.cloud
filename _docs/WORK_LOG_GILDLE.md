@@ -64,6 +64,28 @@
   서비스 URL에 `https://suvisdev.cloud` 등록 확인(스크린샷), `http://localhost:3000` 추가 권고. 인증 실패
   시 `navermap_authFailure` 훅으로 상단 안내.
 
+- **시간·거리로 돌아오는 산책 추천 + mova식 오케스트레이터**(사용자 "출발지 선택하면 몇 분 동안 몇 키로 산책하고
+  싶다고 지정 → 편한 길·언덕길 골라 제한 시간 안에 키로수 맞춰 집까지"): ① **고도**: SRTM1 타일 N37E126·N37E127
+  (AWS `elevation-tiles-prod/skadi`)을 쌍선형 보간해 `apps/gildle/data/node_elevation.json`(16.5만 노드, -11~711m,
+  남산 268m·여의도 18m 검증, gitignore·hostPath) — `scripts/compute_node_elevation.py`. ② `walk_preference`
+  도메인 서비스: fast·shade·green·flat(경사 페널티 ×(1+10·경사))·hilly(경사 할인 최대 60%) 가중치 + 휴리스틱
+  하한, 누적 오르막 `climb_m`. 경로 유스케이스에 `execute_weighted`·`execute_shortest`, 루프 유스케이스에
+  `weight_fn`·`heuristic_scale` 주입. ③ `RouteOptionsInteractor`가 모든 후보를 선호 가중치로 계산(고도 있으면
+  편한 길 후보 추가, 요청 시 언덕길), `loops()`로 선호 루프 → 제한 시간 넘는 루프 제외 → 들를 곳 종류를 지나는
+  루프 우선 → 선호가 가장 뚜렷한 순. 설명문에 "목표 N km에 맞춰 출발지로 돌아오는 …"·오르막 문장.
+  ④ **이해**: `ExaoneWalkUnderstandingAdapter`(Ollama exaone3.5:7.8b JSON 모드, 슬롯 kind·minutes·distance_km·
+  preference·stops) → `walk_request.verify`(문장에 근거 있는 숫자·키워드는 규칙 우선, 모델은 규칙이 못 잡은
+  표현만 채움, 목록 밖 값 버림, 범위 클램프) → 폼 값 최우선. 모델 장애 시 규칙 이해로 폴백
+  (`GILDLE_UNDERSTANDING=rules`로 끌 수 있음). 시간→거리는 1.2 m/s, 시간만 주면 목표=95%·상한=100%.
+  ⑤ `POST /api/gildle/walk/plan`(응답 understood·source·target_m·max_m·options), `/routes/options`·`/routes/via`
+  에도 고도 전달(일반 경로에도 편한 길 후보). ⑥ 웹 루프 시트를 "시간·거리로 돌아오는 산책 추천"으로 교체
+  (자연어 입력·분·km·길 성격 칩·들를 곳 칩), 이해 요약 줄("40분 안에 · 2km · 편한 길 (AI가 이해)"), 편한 길
+  하늘색·언덕길 주황, 구 `/loops` 칩 UI·`findLoops` 제거. ⑦ **"여름 그늘" → "그늘 모드"** 명칭 변경(웹 지도·
+  산책 기록, Flutter 라벨 2곳; API 값 `summer_shade` 유지). ⑧ 경로 후보 아래 안내 문구 "업데이트가 안된 경우에는
+  길이 조금 다를 수 있는 점 양해 부탁드리겠습니다." 운영 실측: "40분 2키로 편하게"→편한 길 2.08km 오르막 41m,
+  "오르막 한 시간 반, 사료도"→언덕길 6.3km 오르막 434m·용품점, "사십 분쯤 나무 많은 데로"→규칙이 못 읽는
+  "사십 분"을 모델이 40분으로 이해(첫 호출 7s는 모델 로드, 이후 2~3s). 테스트 gildle 237·전체 941.
+
 ### 오류·막힌 점
 - 노트북 `node_modules`는 pnpm 11.21.0으로 설치돼 있어 `npx pnpm@10`이 스토어 불일치로 실패 —
   `npx -y pnpm@11.21.0`으로 add/remove.

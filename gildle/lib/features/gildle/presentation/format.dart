@@ -19,7 +19,7 @@ String formatDate(DateTime t) =>
 
 const seasonLabels = {
   'spring_autumn': '봄·가을',
-  'summer_shade': '여름 그늘',
+  'summer_shade': '그늘 모드',
   'winter_safety': '겨울 안전',
 };
 

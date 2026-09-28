@@ -121,11 +121,24 @@ class CalculateDogFriendlyRouteInteractor(CalculateDogFriendlyRouteUseCase):
         segments = self._tree_repository.find_all()
         hazards = self._hazard_repository.find_all()
         full = build_weight_fn(self._weight_calculator, mode, segments, hazards, shade_lookup)
-        graph = self._route_graph.build_graph(edges)
+        return self.execute_weighted(
+            edges, start, end, full, self._weight_calculator.min_multiplier(mode), max_detour_ratio
+        )
 
-        # 순수 거리 탐색은 배율 1.0, 모드 가중치를 섞은 탐색은 모드 하한(봄가을 0.7).
-        # scaled(t) = 거리 + t·(모드가중치 − 거리) ≥ 거리 × 모드 하한이라 같은 값이 안전하다.
-        scale = self._weight_calculator.min_multiplier(mode)
+    def execute_weighted(
+        self,
+        edges: list[RouteEdge],
+        start: str,
+        end: str,
+        weight_fn: Callable[[RouteEdge], float],
+        min_multiplier: float,
+        max_detour_ratio: float = 0.5,
+    ) -> list[str]:
+        full = weight_fn
+        graph = self._route_graph.build_graph(edges)
+        # 순수 거리 탐색은 배율 1.0, 선호 가중치를 섞은 탐색은 그 하한(min_multiplier).
+        # scaled(t) = 거리 + t·(선호가중치 − 거리) ≥ 거리 × 하한이라 같은 값이 안전하다.
+        scale = min(1.0, min_multiplier)
         shortest = self._route_graph.find_shortest_path(
             graph, start, end, lambda e: e.base_distance_m, heuristic_scale=1.0
         )

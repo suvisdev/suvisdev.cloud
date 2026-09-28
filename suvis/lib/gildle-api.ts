@@ -11,17 +11,6 @@ type ApiErrorBody = { detail?: unknown }
 
 export type SeasonMode = "spring_autumn" | "summer_shade" | "winter_safety"
 
-export type LoopCandidate = {
-  path: string[]
-  coordinates: [number, number][]
-  length_m: number
-  overlap_ratio: number
-  bearing_deg: number
-  shade_ratio: number | null
-}
-
-export type LoopResult = { candidates: LoopCandidate[]; night: boolean }
-
 export type WalkCreateBody = {
   started_at: string
   ended_at: string
@@ -65,19 +54,6 @@ async function gildleFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data
 }
 
-export function findLoops(body: {
-  lat: number
-  lng: number
-  target_m: number
-  mode: SeasonMode
-  limit?: number
-}): Promise<LoopResult> {
-  return gildleFetch<LoopResult>("/loops", {
-    method: "POST",
-    body: JSON.stringify({ limit: 3, ...body }),
-  })
-}
-
 export function createWalk(body: WalkCreateBody): Promise<WalkDetail> {
   return gildleFetch<WalkDetail>("/walks", { method: "POST", body: JSON.stringify(body) })
 }
@@ -105,7 +81,8 @@ export type PetPlaceItem = {
   phone: string
 }
 
-export type RouteOptionKind = "fast" | "shade" | "green" | "via"
+export type RouteOptionKind = "fast" | "shade" | "green" | "flat" | "hilly" | "via"
+export type WalkPreference = Exclude<RouteOptionKind, "via">
 
 /** 경로 후보 — 빠른·그늘·푸른 길과 고를 이유, 경로 곁 반려동물 장소(2026-09-28). */
 export type RouteOption = {
@@ -121,6 +98,7 @@ export type RouteOption = {
   extra_m: number
   shade_ratio: number | null
   green_ratio: number
+  climb_m: number | null
   places: PetPlaceItem[]
 }
 
@@ -144,8 +122,39 @@ export function getRouteVia(
     via_lat: number
     via_lng: number
     via_name: string
-    base_kind: "fast" | "shade" | "green"
+    base_kind: WalkPreference
   }
 ): Promise<{ option: RouteOption }> {
   return gildleFetch("/routes/via", { method: "POST", body: JSON.stringify(body) })
+}
+
+export type WalkStopCategory = "동물병원" | "펫샵" | "용품점" | "애견카페"
+
+/** 시간·거리·선호로 산책 추천 — 자연어는 7.8B가 이해하고 규칙이 검증한다(2026-09-28). */
+export type WalkPlanResult = {
+  understood: {
+    kind: "loop" | "route"
+    minutes: number | null
+    distance_km: number | null
+    preference: WalkPreference
+    stops: WalkStopCategory[]
+    source: "llm" | "rules" | "form"
+  }
+  target_m: number
+  max_m: number | null
+  options: RouteOption[]
+  night: boolean
+}
+
+export function planWalk(body: {
+  lat: number
+  lng: number
+  text?: string
+  minutes?: number
+  distance_km?: number
+  preference?: WalkPreference
+  stops?: WalkStopCategory[]
+  departure_time?: string
+}): Promise<WalkPlanResult> {
+  return gildleFetch("/walk/plan", { method: "POST", body: JSON.stringify(body) })
 }

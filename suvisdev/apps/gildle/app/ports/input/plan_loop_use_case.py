@@ -22,4 +22,6 @@ class PlanLoopRouteUseCase(ABC):
         nearest_node: Callable[[Coordinate], str | None],
         shade_lookup: Mapping[tuple[str, str], float] | None = None,
         limit: int = 3,
+        weight_fn: Callable[[RouteEdge], float] | None = None,
+        heuristic_scale: float | None = None,
     ) -> list[LoopCandidateDto]: ...

@@ -96,4 +96,19 @@ class RouteViaRequestSchema(RouteOptionsRequestSchema):
     via_lat: float
     via_lng: float
     via_name: str = Field(..., max_length=80)
-    base_kind: str = Field("fast", pattern="^(fast|shade|green)$")
+    base_kind: str = Field("fast", pattern="^(fast|shade|green|flat|hilly)$")
+
+
+class WalkPlanRequestSchema(BaseModel):
+    """시간·거리·선호로 산책 추천 — 자연어(text)와 폼 값을 함께 받는다. 폼 값이 우선(2026-09-28)."""
+
+    lat: float
+    lng: float
+    text: str | None = Field(None, max_length=300, description="예: 40분 동안 3키로 편하게")
+    minutes: int | None = Field(None, ge=1, le=600)
+    distance_km: float | None = Field(None, gt=0, le=50)
+    preference: str | None = Field(None, pattern="^(fast|shade|green|flat|hilly)$")
+    stops: list[str] | None = Field(None, max_length=4)
+    end_lat: float | None = None
+    end_lng: float | None = None
+    departure_time: str | None = Field(None, description='출발 "HH:MM"(KST)')

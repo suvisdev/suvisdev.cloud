@@ -16,6 +16,7 @@ from gildle.adapter.inbound.api.schemas.route_schema import (
     RouteOptionsRequestSchema,
     RouteRequestSchema,
     RouteViaRequestSchema,
+    WalkPlanRequestSchema,
 )
 from gildle.app.dtos.route_option_dto import RouteOptionDto
 from gildle.app.ports.input.calculate_route_use_case import (
@@ -26,11 +27,13 @@ from gildle.app.ports.input.get_map_data_use_case import (
 )
 from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase
 from gildle.app.ports.input.route_options_use_case import RouteOptionsUseCase
+from gildle.app.ports.input.walk_plan_use_case import WalkPlanUseCase
 from gildle.dependencies.route_provider import (
     get_calculate_route_use_case,
     get_map_data_use_case,
     get_plan_loop_use_case,
     get_route_options_use_case,
+    get_walk_plan_use_case,
 )
 from gildle.domain.services.route_geometry import path_coordinates
 from gildle.domain.services.sun_position import sun_altitude_azimuth
@@ -614,6 +617,7 @@ def _option_json(o: RouteOptionDto) -> dict[str, Any]:
         "extra_m": o.extra_m,
         "shade_ratio": o.shade_ratio,
         "green_ratio": o.green_ratio,
+        "climb_m": o.climb_m,
         "places": [
             {
                 "id": p.place_id,
@@ -655,6 +659,7 @@ def route_options(
         end_node,
         shade_lookup=shade_lookup,
         recommended_kind=_RECOMMENDED_KIND.get(request.mode, "fast"),
+        elevation=_load_elevation(),
     )
     return {"options": [_option_json(o) for o in options], "night": night}
 
@@ -687,7 +692,82 @@ def route_via(
         shade_lookup=shade_lookup,
         via_name=request.via_name,
         via_point=via,
+        elevation=_load_elevation(),
     )
     if option is None:
         raise HTTPException(status_code=404, detail="들렀다 가는 경로를 찾지 못했어요.")
     return {"option": _option_json(option)}
+
+
+_elevation_cache: tuple[float, dict[str, float]] | None = None
+
+
+def _load_elevation() -> dict[str, float] | None:
+    """노드 고도(SRTM 30m, scripts/compute_node_elevation.py) — 파일이 바뀌면 다시 읽는다."""
+    global _elevation_cache  # noqa: PLW0603
+    path = Path(os.getenv("GILDLE_ELEVATION_JSON", str(_DATA_DIR / "node_elevation.json")))
+    if not path.exists():
+        return None
+    mtime = path.stat().st_mtime
+    if _elevation_cache is None or _elevation_cache[0] != mtime:
+        with path.open(encoding="utf-8") as f:
+            _elevation_cache = (mtime, {k: float(v) for k, v in json.load(f)["nodes"].items()})
+        logger.info("[gildle] 노드 고도 %d개 로드", len(_elevation_cache[1]))
+    return _elevation_cache[1]
+
+
+@route_router.post("/walk/plan")
+def walk_plan(
+    request: WalkPlanRequestSchema,
+    use_case: WalkPlanUseCase = Depends(get_walk_plan_use_case),
+) -> dict[str, Any]:
+    """ "오늘은 40분 동안 3키로, 편한 길로" — 이해(7.8B+규칙) 후 출발지로 돌아오는 루프를 추천."""
+    edges = _load_scored_edges()
+    if not edges:
+        raise HTTPException(status_code=404, detail="scored_edges.json 없음")
+    try:
+        start = Coordinate(request.lat, request.lng)
+        end = (
+            Coordinate(request.end_lat, request.end_lng)
+            if request.end_lat is not None and request.end_lng is not None
+            else None
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    understood = use_case.understand(
+        request.text,
+        minutes=request.minutes,
+        distance_km=request.distance_km,
+        preference=request.preference,
+        stops=request.stops,
+        has_end=end is not None,
+    )
+    start_node = _find_nearest_node_id(edges, start)
+    end_node = _find_nearest_node_id(edges, end) if end is not None else None
+    if start_node is None:
+        raise HTTPException(status_code=404, detail="이 위치 근처엔 길 데이터가 없어요.")
+    shade_lookup, night = _day_shade_lookup(request.departure_time)
+    result = use_case.plan(
+        understood,
+        edges,
+        start_node,
+        end_node,
+        shade_lookup=shade_lookup,
+        elevation=_load_elevation(),
+        nearest_node=lambda c: _find_nearest_node_id(edges, c),
+    )
+    u = result.understood
+    return {
+        "understood": {
+            "kind": u.kind,
+            "minutes": u.minutes,
+            "distance_km": u.distance_km,
+            "preference": u.preference,
+            "stops": list(u.stops),
+            "source": u.source,
+        },
+        "target_m": round(result.target_m),
+        "max_m": round(result.max_m) if result.max_m else None,
+        "options": [_option_json(o) for o in result.options],
+        "night": night,
+    }

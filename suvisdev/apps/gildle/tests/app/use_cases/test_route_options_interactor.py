@@ -102,8 +102,118 @@ def test_describer_uses_numbers_only():
 
 
 def test_describer_josa():
-    m = RouteOptionMetrics(length_m=1000, shade_ratio=None, green_ratio=0.1, roads=("종로", "다동길"))
+    m = RouteOptionMetrics(
+        length_m=1000, shade_ratio=None, green_ratio=0.1, roads=("종로", "다동길")
+    )
     assert "종로·다동길을 지나요" in describe("fast", m, 1000).reason
     m2 = RouteOptionMetrics(length_m=1000, shade_ratio=None, green_ratio=0.1, roads=("양화로",))
     assert "양화로를 지나요" in describe("fast", m2, 1000).reason
 
+
+# --- 편한 길·언덕길·시간 루프(2026-09-28) -----------------------------------------------------
+
+from gildle.app.dtos.loop_dto import LoopCandidateDto  # noqa: E402
+from gildle.app.ports.input.plan_loop_use_case import PlanLoopRouteUseCase  # noqa: E402
+from gildle.app.ports.output.walk_understanding_port import (  # noqa: E402
+    WalkUnderstandingError,
+    WalkUnderstandingPort,
+)
+from gildle.app.use_cases.walk_plan_interactor import WalkPlanInteractor  # noqa: E402
+
+ELEV = {"A": 0.0, "B": 30.0, "C": 0.0, "D": 0.0}  # 맨길 가운데가 30m 언덕
+
+
+def test_flat_option_avoids_hill_and_reports_climb():
+    opts = _interactor().plan(
+        EDGES, "A", "D", shade_lookup=None, recommended_kind="flat", elevation=ELEV
+    )
+    assert [o.kind for o in opts] == ["fast", "flat"]  # 푸른 길은 편한 길과 같은 길이라 빠진다
+    fast, flat = opts
+    assert flat.path == ["A", "C", "D"] and flat.recommended
+    assert fast.climb_m == 30 and flat.climb_m == 0
+    assert "오르막" in flat.reason
+
+
+class _Loops(PlanLoopRouteUseCase):
+    def __init__(self) -> None:
+        self.kwargs: dict = {}
+
+    def execute(self, edges, start, target_m, mode, nearest_node, **kw):  # type: ignore[override]
+        self.kwargs = kw
+        return [
+            LoopCandidateDto(["A", "B", "D", "B", "A"], 720, 1.0, None, 90),  # 너무 길다
+            LoopCandidateDto(["A", "B", "A"], 360, 1.0, None, 0),
+            LoopCandidateDto(["A", "C", "A"], 400, 1.0, None, 45),  # 동물병원 옆
+        ]
+
+
+def _with_loops() -> tuple[RouteOptionsInteractor, _Loops]:
+    loops = _Loops()
+    base = _interactor()
+    return RouteOptionsInteractor(route=base._route, places=_Places(), loops=loops), loops
+
+
+def test_loops_respect_time_cap_and_prefer_requested_stops():
+    it, loops = _with_loops()
+    opts = it.loops(
+        EDGES,
+        "A",
+        target_m=380,
+        max_m=500,
+        preference="flat",
+        shade_lookup=None,
+        elevation=ELEV,
+        stop_categories=("동물병원",),
+        nearest_node=lambda c: None,
+    )
+    assert [o.length_m for o in opts] == [400, 360]  # 720m는 제한 시간 초과로 빠짐
+    assert opts[0].recommended and not opts[1].recommended
+    assert "출발지로 돌아오는" in opts[0].reason
+    assert loops.kwargs["weight_fn"] is not None  # 선호 가중치가 루프 탐색에 들어간다
+
+
+class _Understand(WalkUnderstandingPort):
+    def __init__(self, reply: dict | None) -> None:
+        self.reply = reply
+
+    def understand(self, text: str) -> dict[str, object]:
+        if self.reply is None:
+            raise WalkUnderstandingError("down")
+        return self.reply
+
+
+def test_walk_plan_understands_then_runs_loop_and_falls_back_to_rules():
+    it, _ = _with_loops()
+    plan = WalkPlanInteractor(options=it, understanding=_Understand({"preference": "hilly"}))
+    req = plan.understand(
+        "강아지랑 가볍게 한 바퀴",
+        minutes=10,
+        distance_km=None,
+        preference=None,
+        stops=None,
+        has_end=False,
+    )
+    assert (req.preference, req.minutes, req.source) == ("hilly", 10, "llm")
+    result = plan.plan(
+        req, EDGES, "A", None, shade_lookup=None, elevation=ELEV, nearest_node=lambda c: None
+    )
+    assert result.max_m == 720 and result.options  # 10분 × 1.2m/s
+
+    down = WalkPlanInteractor(options=it, understanding=_Understand(None))
+    req = down.understand(
+        "20분 편하게", minutes=None, distance_km=None, preference=None, stops=None, has_end=False
+    )
+    assert (req.minutes, req.preference, req.source) == (20, "flat", "rules")
+
+
+def test_walk_plan_route_mode_uses_options_and_downgrades_without_elevation():
+    it, _ = _with_loops()
+    plan = WalkPlanInteractor(options=it, understanding=None)
+    req = plan.understand(
+        None, minutes=None, distance_km=None, preference="hilly", stops=None, has_end=True
+    )
+    assert req.kind == "route" and req.source == "form"
+    result = plan.plan(
+        req, EDGES, "A", "D", shade_lookup=None, elevation=None, nearest_node=lambda c: None
+    )
+    assert result.options[0].kind == "fast" and result.options[0].recommended  # 고도 없으면 빠른 길

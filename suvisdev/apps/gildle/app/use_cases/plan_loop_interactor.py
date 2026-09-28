@@ -69,7 +69,10 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
         nearest_node: Callable[[Coordinate], str | None],
         shade_lookup: ShadeLookup | None = None,
         limit: int = 3,
+        weight_fn: WeightFn | None = None,
+        heuristic_scale: float | None = None,
     ) -> list[LoopCandidateDto]:
+        """weight_fn을 주면 계절 모드 대신 그 가중치(산책 선호, 09-28)로 루프를 만든다."""
         origin = self._node_coord(edges, start)
         if origin is None:
             return []
@@ -77,11 +80,18 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
         edge_map = {_key(e.from_node, e.to_node): e for e in edges}
         segments = self._tree_repository.find_all()
         hazards = self._hazard_repository.find_all()
-        base = build_weight_fn(self._weight_calculator, mode, segments, hazards, shade_lookup)
+        base = weight_fn or build_weight_fn(
+            self._weight_calculator, mode, segments, hazards, shade_lookup
+        )
+        scale = (
+            heuristic_scale
+            if heuristic_scale is not None
+            else self._weight_calculator.min_multiplier(mode)
+        )
 
         def sweep(leg: float) -> list[LoopCandidateDto]:
             return self._sweep(
-                graph, edge_map, start, origin, leg, nearest_node, base, mode, shade_lookup
+                graph, edge_map, start, origin, leg, nearest_node, base, mode, shade_lookup, scale
             )
 
         found = sweep(target_m / 3.0)
@@ -110,6 +120,7 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
         base: WeightFn,
         mode: SeasonMode,
         shade_lookup: ShadeLookup | None,
+        scale: float,
     ) -> list[LoopCandidateDto]:
         out: list[LoopCandidateDto] = []
         for bearing in range(0, 360, _BEARING_STEP_DEG):
@@ -118,7 +129,6 @@ class PlanLoopRouteInteractor(PlanLoopRouteUseCase):
             if not m1 or not m2 or len({start, m1, m2}) < 3:
                 continue
             used: set[tuple[str, str]] = set()
-            scale = self._weight_calculator.min_multiplier(mode)
 
             def penalized(e: RouteEdge, used: set[tuple[str, str]] = used) -> float:
                 w = base(e)

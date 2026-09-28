@@ -49,3 +49,15 @@ class CalculateDogFriendlyRouteUseCase(ABC):
     def execute_shortest(self, edges: list[RouteEdge], start: str, end: str) -> list[str]:
         """순수 거리 최단 경로(모드 선호 없음) — 경로 후보의 '빠른 길'. 기본 구현은 미지원."""
         raise NotImplementedError
+
+    def execute_weighted(
+        self,
+        edges: list[RouteEdge],
+        start: str,
+        end: str,
+        weight_fn: Callable[[RouteEdge], float],
+        min_multiplier: float,
+        max_detour_ratio: float = 0.5,
+    ) -> list[str]:
+        """임의 가중치(산책 선호)로, 길이가 최단의 (1+max_detour_ratio)배를 넘지 않는 경로."""
+        raise NotImplementedError

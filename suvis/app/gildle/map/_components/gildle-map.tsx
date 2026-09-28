@@ -8,14 +8,16 @@ import { cn } from "@/lib/utils"
 import { getSuvisSession } from "@/lib/suvis-session"
 import {
   createWalk,
-  findLoops,
-  type LoopCandidate,
   getRouteOptions,
   getRouteVia,
+  planWalk,
   type PetPlaceItem,
   type RouteOption,
   type RouteOptionKind,
   type SeasonMode,
+  type WalkPlanResult,
+  type WalkPreference,
+  type WalkStopCategory,
 } from "@/lib/gildle-api"
 
 /**
@@ -23,6 +25,10 @@ import {
  * "웹도 앱이랑 동일하게"): 네이버 지도, 지도 탭으로 출발→도착→경로, 계절 모드 3종, 현재 위치·루프·
  * 지우기 버튼, 하단 결과 카드, 산책 시작(추적·저장). 앱에 없는 장소 검색만 데스크톱용으로 남겼다.
  * 그래프 시각화(레이어 토글·화면 간선)는 없앴다.
+ *
+ * 루프 버튼은 "시간·거리로 추천"(2026-09-28): "40분 동안 3키로 편하게" 같은 말이나 시간·거리·
+ * 선호(편한 길·언덕길·그늘·푸른 길·빠른 길)·들를 곳을 받아, 출발지로 돌아오는 코스를 추천한다.
+ * 말은 서버에서 7.8B가 이해하고 규칙이 검증한다(mova 오케스트레이터와 같은 구조).
  */
 
 const NAVER_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? ""
@@ -33,21 +39,37 @@ const MAX_WALK_POINTS = 5000 // WalkCreateSchema path 상한
 const COLOR_ACCENT = "#34d399" // --gildle-accent (그늘)
 const COLOR_WARM = "#d4a574" // --gildle-warm (햇빛)
 const COLOR_MUTED = "#9ca3af"
-// 경로 후보 색 — 빠른 길(파랑)·그늘(초록 accent)·푸른 길(연두)·들렀다 가기(분홍)
+// 경로 후보 색 — 빠른 길(파랑)·그늘(초록 accent)·푸른 길(연두)·편한 길(하늘)·언덕길(주황)·들렀다 가기(분홍)
 const KIND_COLOR: Record<RouteOptionKind, string> = {
   fast: "#60a5fa",
   shade: COLOR_ACCENT,
   green: "#a3e635",
+  flat: "#67e8f9",
+  hilly: "#fb923c",
   via: "#f472b6",
 }
+const PREF_LABEL: Record<WalkPreference, string> = {
+  flat: "편한 길",
+  hilly: "언덕길",
+  shade: "그늘 많은 길",
+  green: "푸른 길",
+  fast: "빠른 길",
+}
+const PREF_ORDER: WalkPreference[] = ["flat", "hilly", "shade", "green", "fast"]
+const STOP_ORDER: WalkStopCategory[] = ["동물병원", "펫샵", "용품점", "애견카페"]
+const SOURCE_LABEL: Record<WalkPlanResult["understood"]["source"], string> = {
+  llm: "AI가 이해",
+  rules: "문장에서 읽음",
+  form: "직접 선택",
+}
+const ROUTE_NOTICE = "업데이트가 안된 경우에는 길이 조금 다를 수 있는 점 양해 부탁드리겠습니다."
 
 const SEASON_LABEL: Record<SeasonMode, string> = {
   spring_autumn: "봄·가을",
-  summer_shade: "여름 그늘",
+  summer_shade: "그늘 모드",
   winter_safety: "겨울 안전",
 }
 const SEASON_ORDER: SeasonMode[] = ["spring_autumn", "summer_shade", "winter_safety"]
-const BEARING_LABEL = ["북", "북동", "동", "남동", "남", "남서", "서", "북서"]
 
 type Point = { lat: number; lng: number }
 type WalkStatus = "idle" | "tracking" | "saving" | "saved"
@@ -83,10 +105,6 @@ function haversineM(a: Point, b: Point): number {
     Math.sin(dLat / 2) ** 2 +
     Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
   return 2 * r * Math.asin(Math.sqrt(s))
-}
-
-function bearingLabel(deg: number): string {
-  return BEARING_LABEL[Math.round((((deg % 360) + 360) % 360) / 45) % 8]
 }
 
 function km(m: number): string {
@@ -237,24 +255,32 @@ export default function GildleMap() {
   const [selectedOpt, setSelectedOpt] = useState(0)
   const [night, setNight] = useState(false)
   const [viaLoading, setViaLoading] = useState<string | null>(null)
-  const [loops, setLoops] = useState<LoopCandidate[]>([])
-  const [selectedLoop, setSelectedLoop] = useState<number | null>(null)
+  // 시간·거리로 추천한 루프면 목표 정보(이때 options는 출발지로 돌아오는 코스들)
+  const [plan, setPlan] = useState<WalkPlanResult | null>(null)
   const [loopSheet, setLoopSheet] = useState(false)
-  const [loopKm, setLoopKm] = useState(2)
+  const [planText, setPlanText] = useState("")
+  const [planMinutes, setPlanMinutes] = useState("")
+  const [planKm, setPlanKm] = useState("")
+  const [planPref, setPlanPref] = useState<WalkPreference | null>(null)
+  const [planStops, setPlanStops] = useState<WalkStopCategory[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [walk, setWalk] = useState<WalkState>(WALK_IDLE)
 
-  const currentLoop =
-    selectedLoop !== null && selectedLoop < loops.length ? loops[selectedLoop] : null
   const option: RouteOption | null = options[selectedOpt] ?? null
-  const routeCoords = useMemo<Point[]>(() => {
-    if (currentLoop) return currentLoop.coordinates.map(([lat, lng]) => ({ lat, lng }))
-    if (!option || !start || !end) return []
-    return [start, ...option.coordinates.map(([lat, lng]) => ({ lat, lng })), end]
-  }, [currentLoop, option, start, end])
-  const lengthM = currentLoop ? currentLoop.length_m : (option?.length_m ?? null)
-  const shadeRatio = currentLoop ? currentLoop.shade_ratio : (option?.shade_ratio ?? null)
+  const isLoop = plan !== null
+  // 후보 좌표 앞뒤에 탭한 지점을 붙인다(루프는 출발지로 돌아온다).
+  const withEnds = useCallback(
+    (o: RouteOption): Point[] => {
+      const tail = isLoop ? start : end
+      if (!start || !tail) return []
+      return [start, ...o.coordinates.map(([lat, lng]) => ({ lat, lng })), tail]
+    },
+    [isLoop, start, end]
+  )
+  const routeCoords = useMemo<Point[]>(() => (option ? withEnds(option) : []), [option, withEnds])
+  const lengthM = option?.length_m ?? null
+  const shadeRatio = option?.shade_ratio ?? null
 
   // --- 지도 초기화 (앱과 동일: 서울시청, zoom 13, minZoom 10, 로고 오른쪽 위) ---
   useEffect(() => {
@@ -283,6 +309,7 @@ export default function GildleMap() {
   const computeRoute = useCallback(async (s: Point, e: Point, m: SeasonMode) => {
     setLoading(true)
     setError(null)
+    setPlan(null)
     try {
       const result = await getRouteOptions({
         start_lat: s.lat,
@@ -309,7 +336,7 @@ export default function GildleMap() {
 
   // 고른 장소에 들렀다 가는 경로 — 지금 고른 후보와 같은 성격으로 계산해 후보 목록에 붙인다.
   const viaPlace = async (place: PetPlaceItem) => {
-    if (!start || !end || !option) return
+    if (!start || !end || !option || isLoop) return
     setViaLoading(place.id)
     setError(null)
     try {
@@ -342,14 +369,11 @@ export default function GildleMap() {
         setStart(p)
         setEnd(null)
         setOptions([])
-        setLoops([])
-        setSelectedLoop(null)
+        setPlan(null)
         setError(null)
         return
       }
       setEnd(p)
-      setLoops([])
-      setSelectedLoop(null)
       void computeRoute(s, p, m)
     },
     [computeRoute]
@@ -408,24 +432,23 @@ export default function GildleMap() {
     const overlays: naver.maps.Polyline[] = []
     const listeners: naver.maps.MapEventListener[] = []
     const allPts: Point[] = [...routeCoords]
-    if (!currentLoop && start && end) {
-      options.forEach((o, i) => {
-        if (i === selectedOpt) return
-        const pts = [start, ...o.coordinates.map(([lat, lng]) => ({ lat, lng })), end]
-        allPts.push(...pts)
-        const line = new nv.maps.Polyline({
-          map,
-          path: toPath(pts),
-          strokeColor: KIND_COLOR[o.kind],
-          strokeOpacity: 0.45,
-          strokeWeight: 6,
-          clickable: true,
-        })
-        listeners.push(nv.maps.Event.addListener(line, "click", () => setSelectedOpt(i)))
-        overlays.push(line)
+    options.forEach((o, i) => {
+      if (i === selectedOpt) return
+      const pts = withEnds(o)
+      if (pts.length < 2) return
+      allPts.push(...pts)
+      const line = new nv.maps.Polyline({
+        map,
+        path: toPath(pts),
+        strokeColor: KIND_COLOR[o.kind],
+        strokeOpacity: 0.45,
+        strokeWeight: 6,
+        clickable: true,
       })
-    }
-    const color = currentLoop || !option ? COLOR_ACCENT : KIND_COLOR[option.kind]
+      listeners.push(nv.maps.Event.addListener(line, "click", () => setSelectedOpt(i)))
+      overlays.push(line)
+    })
+    const color = option ? KIND_COLOR[option.kind] : COLOR_ACCENT
     const path = toPath(routeCoords)
     overlays.push(
       new nv.maps.Polyline({
@@ -438,7 +461,7 @@ export default function GildleMap() {
       new nv.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: 1, strokeWeight: 8 })
     )
     routeOverlaysRef.current = overlays
-    if (!currentLoop && option) {
+    if (option) {
       placeMarkersRef.current = option.places.map(
         (pl) =>
           new nv.maps.Marker({
@@ -462,7 +485,7 @@ export default function GildleMap() {
       { top: 60, right: 60, bottom: 260, left: 60 }
     )
     return () => nv.maps.Event.removeListener(listeners)
-  }, [routeCoords, options, selectedOpt, option, currentLoop, start, end, sdkReady])
+  }, [routeCoords, options, selectedOpt, option, withEnds, sdkReady])
 
   // --- 산책 추적 오버레이: 계획 경로는 회색 점선, 걸은 길은 accent 실선(앱 WalkScreen과 동일) ---
   useEffect(() => {
@@ -527,9 +550,7 @@ export default function GildleMap() {
   // --- 버튼 동작 ---
   const changeMode = (m: SeasonMode) => {
     setMode(m)
-    setLoops([])
-    setSelectedLoop(null)
-    if (start && end) void computeRoute(start, end, m)
+    if (start && end && !isLoop) void computeRoute(start, end, m)
   }
 
   const locateMe = () => {
@@ -543,8 +564,7 @@ export default function GildleMap() {
         const nv = getNaver()
         mapRef.current?.morph(new nv!.maps.LatLng(p.lat, p.lng), 16)
         setStart(p)
-        setLoops([])
-        setSelectedLoop(null)
+        setPlan(null)
         setError(null)
         if (end) void computeRoute(p, end, mode)
         else setOptions([])
@@ -559,32 +579,47 @@ export default function GildleMap() {
       setLoopSheet(false)
       return
     }
+    const minutesNum = parseFloat(planMinutes)
+    const kmNum = parseFloat(planKm)
     setLoopSheet(false)
     setLoading(true)
     setError(null)
     try {
-      const result = await findLoops({
+      const result = await planWalk({
         lat: start.lat,
         lng: start.lng,
-        target_m: loopKm * 1000,
-        mode,
+        ...(planText.trim() ? { text: planText.trim() } : {}),
+        ...(minutesNum > 0 ? { minutes: Math.round(minutesNum) } : {}),
+        ...(kmNum > 0 ? { distance_km: kmNum } : {}),
+        ...(planPref ? { preference: planPref } : {}),
+        ...(planStops.length > 0 ? { stops: planStops } : {}),
       })
-      setLoops(result.candidates)
-      setSelectedLoop(result.candidates.length > 0 ? 0 : null)
-      if (result.candidates.length === 0)
-        setError("돌아오는 루프를 찾지 못했어요. 거리를 바꿔 보세요.")
+      setEnd(null)
+      setPlan(result)
+      setOptions(result.options)
+      setNight(result.night)
+      setSelectedOpt(
+        Math.max(
+          0,
+          result.options.findIndex((o) => o.recommended)
+        )
+      )
+      if (result.options.length === 0)
+        setError("돌아오는 코스를 찾지 못했어요. 시간이나 거리를 바꿔 보세요.")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "루프를 만들지 못했어요.")
+      setError(err instanceof Error ? err.message : "코스를 만들지 못했어요.")
     }
     setLoading(false)
   }
+
+  const toggleStop = (c: WalkStopCategory) =>
+    setPlanStops((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
 
   const clearAll = () => {
     setStart(null)
     setEnd(null)
     setOptions([])
-    setLoops([])
-    setSelectedLoop(null)
+    setPlan(null)
     setError(null)
     setWalk(WALK_IDLE)
   }
@@ -645,8 +680,8 @@ export default function GildleMap() {
   // --- 결과 카드 문구(앱과 동일) ---
   const hint = !start
     ? "지도를 눌러 출발지를 정하세요"
-    : !end && !currentLoop
-      ? "도착지를 누르거나 루프 버튼으로 돌아오는 길을 만드세요"
+    : !end && !isLoop
+      ? "도착지를 누르거나 루프 버튼으로 시간·거리에 맞춰 돌아오는 길을 추천받으세요"
       : null
   const tracking = walk.status === "tracking" || walk.status === "saving"
   const scriptSrc = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${NAVER_CLIENT_ID}`
@@ -729,7 +764,7 @@ export default function GildleMap() {
             <LocateFixed className="h-4 w-4" />
           </Fab>
           <Fab
-            label="돌아오는 산책 루프"
+            label="시간·거리로 돌아오는 산책 추천"
             onClick={() => setLoopSheet(true)}
             disabled={tracking || loading}
           >
@@ -748,19 +783,88 @@ export default function GildleMap() {
 
         {loopSheet && (
           <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3">
-            <div className="border-gildle-border bg-gildle-surface w-full max-w-md rounded-2xl border p-4 shadow-2xl">
-              <p className="text-sm font-semibold">출발지로 돌아오는 산책</p>
-              <p className="text-gildle-muted mt-1 text-xs">목표 거리 {loopKm.toFixed(1)} km</p>
-              <input
-                type="range"
-                min={0.5}
-                max={8}
-                step={0.5}
-                value={loopKm}
-                onChange={(e) => setLoopKm(parseFloat(e.target.value))}
-                className="accent-gildle-accent mt-3 w-full"
+            <div className="border-gildle-border bg-gildle-surface max-h-[80%] w-full max-w-md overflow-y-auto rounded-2xl border p-4 shadow-2xl">
+              <p className="text-sm font-semibold">시간·거리로 돌아오는 산책 추천</p>
+              <p className="text-gildle-muted mt-1 text-xs">
+                출발지에서 시작해 다시 출발지로 돌아오는 코스를 찾아요. 말로 적거나 직접 골라
+                주세요.
+              </p>
+              <textarea
+                value={planText}
+                onChange={(e) => setPlanText(e.target.value)}
+                maxLength={300}
+                rows={2}
+                placeholder="예: 오늘은 40분 동안 3키로 정도 편하게 걷고, 가는 길에 사료 사고 싶어"
+                className="border-gildle-border bg-gildle-bg text-gildle-text placeholder:text-gildle-muted focus:border-gildle-accent mt-3 w-full resize-none rounded-lg border px-3 py-2 text-xs outline-none"
               />
-              <div className="mt-3 flex justify-end gap-2">
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="text-gildle-muted text-[11px]">
+                  시간(분)
+                  <input
+                    type="number"
+                    min={5}
+                    max={180}
+                    inputMode="numeric"
+                    value={planMinutes}
+                    onChange={(e) => setPlanMinutes(e.target.value)}
+                    placeholder="예: 30"
+                    className="border-gildle-border bg-gildle-bg text-gildle-text focus:border-gildle-accent mt-1 w-full rounded-lg border px-2 py-1.5 text-xs outline-none"
+                  />
+                </label>
+                <label className="text-gildle-muted text-[11px]">
+                  거리(km)
+                  <input
+                    type="number"
+                    min={0.3}
+                    max={15}
+                    step={0.1}
+                    inputMode="decimal"
+                    value={planKm}
+                    onChange={(e) => setPlanKm(e.target.value)}
+                    placeholder="예: 2"
+                    className="border-gildle-border bg-gildle-bg text-gildle-text focus:border-gildle-accent mt-1 w-full rounded-lg border px-2 py-1.5 text-xs outline-none"
+                  />
+                </label>
+              </div>
+              <p className="text-gildle-muted mt-3 text-[11px]">
+                어떤 길로? (안 고르면 말한 대로, 없으면 편한 길)
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {PREF_ORDER.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setPlanPref((prev) => (prev === k ? null : k))}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                      planPref === k
+                        ? "border-gildle-accent bg-gildle-accent-soft text-gildle-text"
+                        : "border-gildle-border text-gildle-muted hover:text-gildle-text"
+                    )}
+                  >
+                    {PREF_LABEL[k]}
+                  </button>
+                ))}
+              </div>
+              <p className="text-gildle-muted mt-3 text-[11px]">🐾 가는 길에 들를 곳</p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {STOP_ORDER.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => toggleStop(c)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                      planStops.includes(c)
+                        ? "border-gildle-accent bg-gildle-accent-soft text-gildle-text"
+                        : "border-gildle-border text-gildle-muted hover:text-gildle-text"
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setLoopSheet(false)}
@@ -773,7 +877,7 @@ export default function GildleMap() {
                   onClick={() => void makeLoops()}
                   className="bg-gildle-accent rounded-lg px-3 py-1.5 text-xs font-semibold text-[#0a0d0a]"
                 >
-                  루프 만들기
+                  코스 추천받기
                 </button>
               </div>
             </div>
@@ -785,8 +889,9 @@ export default function GildleMap() {
             {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
             {walk.status === "idle" && hint && <p className="text-gildle-muted text-xs">{hint}</p>}
 
-            {walk.status === "idle" && !currentLoop && options.length > 0 && (
+            {walk.status === "idle" && options.length > 0 && (
               <div className="mb-2 flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto">
+                {plan && <PlanSummary plan={plan} />}
                 {night && (
                   <p className="text-gildle-muted text-[11px]">밤이라 그늘 길은 빼고 보여드려요.</p>
                 )}
@@ -827,7 +932,13 @@ export default function GildleMap() {
                     </p>
                   </button>
                 ))}
-                {option && option.places.length > 0 && (
+                {option && option.places.length > 0 && isLoop && (
+                  <p className="text-gildle-muted mt-1 text-[11px]">
+                    🐾 이 코스 곁:{" "}
+                    {option.places.map((pl) => `${pl.category} ${pl.name}`).join(" · ")}
+                  </p>
+                )}
+                {option && option.places.length > 0 && !isLoop && (
                   <div className="mt-1">
                     <p className="text-gildle-muted mb-1 text-[11px]">
                       🐾 이 길 곁 반려동물 장소 — 누르면 들렀다 가는 길을 만들어요
@@ -848,6 +959,7 @@ export default function GildleMap() {
                     </div>
                   </div>
                 )}
+                <p className="text-gildle-muted text-[10px]">{ROUTE_NOTICE}</p>
               </div>
             )}
 
@@ -863,30 +975,10 @@ export default function GildleMap() {
                   onClick={startWalk}
                   className="bg-gildle-accent ml-auto rounded-lg px-3 py-2 text-xs font-semibold text-[#0a0d0a]"
                 >
-                  {option && !currentLoop && option.kind !== "via"
+                  {option && !isLoop && option.kind !== "via"
                     ? `${option.label}로 산책 시작`
                     : "이 길로 산책 시작"}
                 </button>
-              </div>
-            )}
-
-            {walk.status === "idle" && loops.length > 1 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {loops.map((l, i) => (
-                  <button
-                    key={`${l.bearing_deg}-${l.length_m}`}
-                    type="button"
-                    onClick={() => setSelectedLoop(i)}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                      selectedLoop === i
-                        ? "border-gildle-accent bg-gildle-accent-soft text-gildle-text"
-                        : "border-gildle-border text-gildle-muted hover:text-gildle-text"
-                    )}
-                  >
-                    {km(l.length_m)} · {bearingLabel(l.bearing_deg)}
-                  </button>
-                ))}
               </div>
             )}
 
@@ -947,4 +1039,20 @@ function AuthFailureListener({ onFail }: { onFail: () => void }) {
     return () => window.removeEventListener("navermap-auth-failure", onFail)
   }, [onFail])
   return null
+}
+
+function PlanSummary({ plan }: { plan: WalkPlanResult }) {
+  const u = plan.understood
+  const parts = [
+    u.minutes ? `${u.minutes}분 안에` : null,
+    u.distance_km ? `${u.distance_km}km` : null,
+    `목표 ${km(plan.target_m)}`,
+    PREF_LABEL[u.preference],
+    u.stops.length > 0 ? `${u.stops.join("·")} 들르기` : null,
+  ].filter((x): x is string => x !== null)
+  return (
+    <p className="text-gildle-muted text-[11px]">
+      {parts.join(" · ")} <span className="opacity-70">({SOURCE_LABEL[u.source]})</span>
+    </p>
+  )
 }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from gildle.app.dtos.route_option_dto import RouteOptionDto
 from gildle.domain.value_objects.coordinate import Coordinate
@@ -20,6 +20,8 @@ class RouteOptionsUseCase(ABC):
         *,
         shade_lookup: Mapping[tuple[str, str], float] | None,
         recommended_kind: str,
+        elevation: Mapping[str, float] | None = None,
+        extra_kinds: tuple[str, ...] = (),
     ) -> list[RouteOptionDto]: ...
 
     @abstractmethod
@@ -34,4 +36,21 @@ class RouteOptionsUseCase(ABC):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
         via_point: Coordinate,
+        elevation: Mapping[str, float] | None = None,
     ) -> RouteOptionDto | None: ...
+
+    @abstractmethod
+    def loops(
+        self,
+        edges: list[RouteEdge],
+        start: str,
+        *,
+        target_m: float,
+        max_m: float | None,
+        preference: str,
+        shade_lookup: Mapping[tuple[str, str], float] | None,
+        elevation: Mapping[str, float] | None,
+        stop_categories: tuple[str, ...],
+        nearest_node: Callable[[Coordinate], str | None],
+        limit: int = 3,
+    ) -> list[RouteOptionDto]: ...
