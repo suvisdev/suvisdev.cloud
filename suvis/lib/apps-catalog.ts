@@ -54,7 +54,7 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     gradient: "from-sky-400 via-blue-500 to-cyan-600",
     image: "/apps-yaksok.jpg",
     team: "Team Seuk",
-    kind: "팀 프로젝트 · 충북 AI 해커톤 출품작",
+    kind: "팀 프로젝트 · 문화체육관광 해커톤 출품작",
   },
   {
     id: "arda",
