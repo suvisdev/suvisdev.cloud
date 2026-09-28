@@ -154,7 +154,7 @@ def _date_label(date: str | None) -> str:
     return f"{d.month}월 {d.day}일"
 
 
-_REGION_IN_REPLY = re.compile(r"'([^']{1,20})' (?:근처|전역)")
+_REGION_IN_REPLY = re.compile(r"'([^']{1,20})' (?:근처|전역|일대)")
 
 # 광역(시·도) 요청 — "서울 전체로 찾아줘"는 좌표 하나 반경 검색이 아니라 그 광역의 상영관 전부를
 # 봐야 한다(2026-09-28 사용자: 예전엔 "서울"이 시청 좌표 반경 10km 5곳으로 좁혀졌다).
@@ -166,6 +166,19 @@ _WIDE_NOISE = re.compile(
     r"(특별자치시|특별자치도|특별시|광역시|전체|전역|어디서든|어디든|지역|권|쪽|\s)"
 )
 _MAX_WIDE_CINEMAS = 5
+# 구·군 단위 요청("강남구에서 찾아줘") — 롯데 극장 목록엔 구 정보가 없어 구 중심점 반경으로 근사한다.
+_DISTRICT = re.compile(
+    r"^(?:서울|부산|대구|인천|광주|대전|울산|경기|강원|제주)?([가-힣]{1,4}[구군])$"
+)
+_DISTRICT_RADIUS_KM = 5.0
+
+
+def district_of(region: str | None) -> str | None:
+    """ "강남구", "서울 강남구", "강남구 전체" → "강남구". 역·동·시도면 None."""
+    if not region:
+        return None
+    m = _DISTRICT.match(_WIDE_NOISE.sub("", region))
+    return m.group(1) if m else None
 
 
 def wide_area(region: str | None) -> str | None:
@@ -621,6 +634,18 @@ class BookingAssistService:
             return await self._wide_area_reply(
                 detail=detail, card=card, area=area, date=date, trace_id=trace_id
             )
+        district = district_of(region)
+        if district and self._showtimes is not None:
+            point = await self._theaters.resolve_point(region)
+            if point is not None:
+                return await self._wide_area_reply(
+                    detail=detail,
+                    card=card,
+                    area=district,
+                    date=date,
+                    trace_id=trace_id,
+                    near=point,
+                )
 
         theaters = await self._theaters.search_theaters(region, radius_m=radius_m)
         if theaters is None:
@@ -703,12 +728,19 @@ class BookingAssistService:
         area: str,
         date: str | None,
         trace_id: str,
+        near: tuple[float, float] | None = None,
     ) -> BookingResult:
-        """광역 요청 — 그 광역의 롯데시네마 전부에서 이 작품 상영관만 모아 이른 회차 순으로 답한다.
-        CGV·메가박스는 시간표를 가져올 수 없어 링크로 넘긴다."""
+        """광역 요청 — 그 광역(시·도) 또는 구 중심 반경(near)의 롯데시네마에서 이 작품 상영관만
+        모아 남은 첫 회차 순으로 답한다. CGV·메가박스는 시간표를 가져올 수 없어 링크로 넘긴다."""
         assert self._showtimes is not None
+        scope = f"'{area}' 일대(반경 {_DISTRICT_RADIUS_KM:.0f}km)" if near else f"'{area}' 전역"
         try:
-            showing = await self._showtimes.find_showing_cinemas(area, detail.title, date=date)
+            if near:
+                showing = await self._showtimes.find_showing_cinemas_near(
+                    near[0], near[1], detail.title, date=date, max_km=_DISTRICT_RADIUS_KM
+                )
+            else:
+                showing = await self._showtimes.find_showing_cinemas(area, detail.title, date=date)
         except Exception:
             logger.warning(
                 "[BookingAssistService] 광역 시간표 조회 예외 area=%s", area, exc_info=True
@@ -720,7 +752,7 @@ class BookingAssistService:
         if showing:
             upcoming = _upcoming_first(showing, date)
             reply = (
-                f"『{detail.title}』 — '{area}' 전역 롯데시네마 중 {label} 상영관 {len(showing)}곳을 "
+                f"『{detail.title}』 — {scope} 롯데시네마 중 {label} 상영관 {len(showing)}곳을 "
                 f"찾았어요."
                 + (f" 가장 이른 회차는 {upcoming[1]} {upcoming[0]}이에요." if upcoming else "")
                 + (
@@ -733,7 +765,7 @@ class BookingAssistService:
         else:
             far = bool(date) and date > (_kst_today() + timedelta(days=1)).strftime("%Y-%m-%d")
             reply = (
-                f"『{detail.title}』 — '{area}' 전역 롯데시네마 {label} 시간표엔 이 작품이 없었어요"
+                f"『{detail.title}』 — {scope} 롯데시네마 {label} 시간표엔 이 작품이 없었어요"
                 + ("(그날 예매 일정이 아직 안 열렸을 수 있어요)." if far else ".")
                 + " CGV·메가박스는 아래 예매 링크에서 확인해 주세요."
             )

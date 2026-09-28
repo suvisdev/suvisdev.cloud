@@ -78,6 +78,24 @@ class KakaoLocalTheaterAdapter(TheaterSearchPort):
         logger.info("[KakaoLocalTheaterAdapter] region=%s theaters=%d", region, len(theaters))
         return theaters
 
+    async def resolve_point(self, region: str) -> tuple[float, float] | None:
+        region = (region or "").strip()
+        if not region or not self._api_key:
+            return None
+        headers = {"Authorization": f"KakaoAK {self._api_key}"}
+        try:
+            async with httpx.AsyncClient(
+                base_url=_KAKAO_BASE, headers=headers, timeout=_TIMEOUT_S
+            ) as client:
+                coords = await self._resolve_coords(client, region)
+        except httpx.HTTPError as e:
+            logger.warning("[KakaoLocalTheaterAdapter] 좌표 해석 실패 region=%s | %s", region, e)
+            return None
+        if coords is None:
+            return None
+        x, y = coords
+        return float(y), float(x)
+
     async def _resolve_coords(
         self, client: httpx.AsyncClient, region: str
     ) -> tuple[str, str] | None:

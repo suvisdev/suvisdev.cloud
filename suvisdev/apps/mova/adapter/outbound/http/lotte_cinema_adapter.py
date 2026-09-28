@@ -124,7 +124,51 @@ class LotteCinemaAdapter(ShowtimePort):
             if c.division_code == 1 and c.detail_division_code == code and c.cinema_id not in seen:
                 seen.add(c.cinema_id)
                 targets.append(c)
-        date = date or _kst_today()
+        results = await self._scan(targets, movie_title, date or _kst_today())
+        logger.info(
+            "[LotteCinemaAdapter] 광역 조회 area=%s cinemas=%d showing=%d date=%s",
+            area,
+            len(targets),
+            len(results),
+            date,
+        )
+        return results
+
+    async def find_showing_cinemas_near(
+        self,
+        lat: float,
+        lng: float,
+        movie_title: str,
+        *,
+        date: str | None = None,
+        max_km: float = 5.0,
+    ) -> list[CinemaShowtimeDto]:
+        if not (movie_title or "").strip():
+            return []
+        await self._ensure_cinemas()
+        seen: set[int] = set()
+        targets: list[_LotteCinema] = []
+        for c in self._cinemas:
+            if c.cinema_id in seen or (c.lat == 0.0 and c.lng == 0.0):
+                continue
+            if _haversine_km(lat, lng, c.lat, c.lng) <= max_km:
+                seen.add(c.cinema_id)
+                targets.append(c)
+        results = await self._scan(targets, movie_title, date or _kst_today())
+        logger.info(
+            "[LotteCinemaAdapter] 반경 조회 %.4f,%.4f %.1fkm cinemas=%d showing=%d",
+            lat,
+            lng,
+            max_km,
+            len(targets),
+            len(results),
+        )
+        return results
+
+    async def _scan(
+        self, targets: list[_LotteCinema], movie_title: str, date: str
+    ) -> list[CinemaShowtimeDto]:
+        """극장들의 회차를 병렬(동시 6)로 받아 이 작품 상영관만, 첫 회차 순으로."""
         sem = asyncio.Semaphore(_PARALLEL)
 
         async def one(c: _LotteCinema) -> CinemaShowtimeDto | None:
@@ -134,13 +178,6 @@ class LotteCinemaAdapter(ShowtimePort):
 
         results = [r for r in await asyncio.gather(*(one(c) for c in targets)) if r is not None]
         results.sort(key=lambda cs: cs.slots[0].start_time)
-        logger.info(
-            "[LotteCinemaAdapter] 광역 조회 area=%s cinemas=%d showing=%d date=%s",
-            area,
-            len(targets),
-            len(results),
-            date,
-        )
         return results
 
     async def _play_items(self, cinema: _LotteCinema, date: str) -> list[dict[str, Any]] | None:

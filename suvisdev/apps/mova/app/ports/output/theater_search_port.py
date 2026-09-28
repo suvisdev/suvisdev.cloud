@@ -19,3 +19,7 @@ class TheaterSearchPort(ABC):
         외부 API 오류 포함) — 호출자는 다른 지역명으로 다시 물어보게 안내한다.
         [] = 지역은 찾았지만 근처에 영화관이 없음.
         """
+
+    async def resolve_point(self, region: str) -> tuple[float, float] | None:
+        """지역명 → (위도, 경도). 구 단위 광역 검색의 중심점. 미지원·실패면 None."""
+        return None

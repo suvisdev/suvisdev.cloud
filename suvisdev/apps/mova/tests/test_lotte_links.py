@@ -77,6 +77,29 @@ class LotteAreaScanTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(await adapter.find_showing_cinemas("화성", "옵세션"), [])
 
+    async def test_near_scan_uses_distance(self) -> None:
+        import time
+
+        from mova.adapter.outbound.http.lotte_cinema_adapter import LotteCinemaAdapter, _LotteCinema
+
+        adapter = LotteCinemaAdapter()
+        adapter._cinemas = [
+            _LotteCinema(1, 1, "0001", "도곡", lat=37.4906, lng=127.0555),  # 강남구청에서 ~3km
+            _LotteCinema(2, 1, "0001", "노원", lat=37.6547, lng=127.0610),  # ~15km — 제외
+            _LotteCinema(1, 2, "0986", "도곡", lat=37.4906, lng=127.0555),  # 중복 — 제외
+        ]
+        adapter._cinemas_fetched_at = time.monotonic()
+        calls: list[int] = []
+
+        async def fake_items(cinema: _LotteCinema, date: str) -> list[dict]:
+            calls.append(cinema.cinema_id)
+            return [{"MovieNameKR": "인턴", "StartTime": "19:00", "ScreenID": 1}]
+
+        adapter._play_items = fake_items  # type: ignore[method-assign]
+        result = await adapter.find_showing_cinemas_near(37.5172, 127.0473, "인턴", max_km=5)
+        self.assertEqual(calls, [1])
+        self.assertEqual([c.cinema_name for c in result], ["롯데시네마 도곡"])
+
 
 if __name__ == "__main__":
     unittest.main()

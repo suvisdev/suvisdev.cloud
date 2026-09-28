@@ -1098,6 +1098,21 @@ class WideAreaDetectionTests(unittest.TestCase):
             self.assertIsNone(wide_area(msg), msg)
 
 
+class DistrictDetectionTests(unittest.TestCase):
+    def test_districts(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import district_of
+
+        for msg, want in (
+            ("강남구", "강남구"),
+            ("서울 강남구", "강남구"),
+            ("마포구 전체", "마포구"),
+            ("양평군", "양평군"),
+        ):
+            self.assertEqual(district_of(msg), want, msg)
+        for msg in ("강남", "강남역", "서울", "강남구청역", "구로디지털단지", None):
+            self.assertIsNone(district_of(msg), msg)
+
+
 class RegionTransportParsingTests(unittest.TestCase):
     def test_car_widens_radius(self) -> None:
         from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
@@ -1258,6 +1273,40 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("7곳", result.reply)
         self.assertEqual(len(result.booking.showtimes), 5)
         self.assertEqual(result.booking.region, "서울")
+
+    async def test_district_scans_radius_around_district_center(self) -> None:
+        """ "강남구" — 구 중심(카카오 좌표) 반경 5km 롯데관에서 상영관만, 카카오 극장 검색은 안 탄다."""
+        from datetime import datetime
+        from unittest.mock import patch
+
+        from mova.app.dtos.market_chat_dto import CinemaShowtimeDto, ShowtimeSlotDto
+
+        service = self._service_with_showtimes()
+        service._theaters.resolve_point.return_value = (37.5172, 127.0473)
+        slot = ShowtimeSlotDto(
+            screen="1관",
+            start_time="20:00",
+            end_time="",
+            film_type="",
+            seats_available=5,
+            seats_total=90,
+        )
+        service._showtimes.find_showing_cinemas_near.return_value = [
+            CinemaShowtimeDto(cinema_name="롯데시네마 도곡", slots=[slot])
+        ]
+        with patch(
+            "mova.app.use_cases.market_chat_booking_interactor._kst_today",
+            return_value=datetime(2026, 9, 28, 10, 0),
+        ):
+            result = await service.assist(
+                message="강남구", entities=[], trace_id="t", pending_title="호프"
+            )
+
+        service._theaters.search_theaters.assert_not_awaited()
+        args = service._showtimes.find_showing_cinemas_near.await_args
+        self.assertEqual(args.args[:2], (37.5172, 127.0473))
+        self.assertIn("'강남구' 일대", result.reply)
+        self.assertIn("롯데시네마 도곡 20:00", result.reply)
 
     def test_wide_drops_past_slots_and_sorts_by_next(self) -> None:
         from datetime import datetime
