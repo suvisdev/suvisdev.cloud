@@ -26,6 +26,28 @@ _CINEMA_PATH = "/Cinema/CinemaData.aspx"
 _TICKET_PATH = "/Ticketing/TicketingData.aspx"
 _TIMEOUT_S = 10.0
 _CINEMA_CACHE_TTL_S = 86_400  # 24시간
+_WEB = "https://www.lottecinema.co.kr/NLCHS"
+
+
+def booking_url(
+    *, cinema_id: int, movie_code: str, play_date: str, start_time: str, screen_id: str
+) -> str:
+    """예매 화면 딥링크. 롯데 웹 `TicketingIndex.bundle.js`가 `link_channelCode=naver`일 때만
+    `link_cinemaCode`(CinemaID)·`link_movieCd`·`link_date`를 선택 상태로 넣고, `link_time`+
+    `link_screenId`와 일치하는 회차를 강조한다(2026-09-28 번들 실측)."""
+    return (
+        f"{_WEB}/Ticketing?link_channelCode=naver&link_cinemaCode={cinema_id}"
+        f"&link_movieCd={movie_code}&link_date={play_date}"
+        f"&link_time={start_time}&link_screenId={screen_id}"
+    )
+
+
+def timetable_url(*, division_code: int, detail_division_code: str, cinema_id: int) -> str:
+    """극장 상세(시간표) 페이지 — 사이트 링크 형식은 detailDivisionCode를 정수로 쓴다("0001"→1)."""
+    return (
+        f"{_WEB}/Cinema/Detail?divisionCode={division_code}"
+        f"&detailDivisionCode={int(detail_division_code or 1)}&cinemaID={cinema_id}"
+    )
 
 
 @dataclass(frozen=True)
@@ -105,6 +127,15 @@ class LotteCinemaAdapter(ShowtimePort):
                     film_type=str(item.get("FilmNameKR") or ""),
                     seats_available=max(total - booked, 0),
                     seats_total=total,
+                    booking_url=booking_url(
+                        cinema_id=cinema.cinema_id,
+                        movie_code=str(
+                            item.get("RepresentationMovieCode") or item.get("MovieCode") or ""
+                        ),
+                        play_date=str(item.get("PlayDt") or date),
+                        start_time=str(item.get("StartTime") or ""),
+                        screen_id=str(item.get("ScreenID") or ""),
+                    ),
                 )
             )
 
@@ -112,7 +143,15 @@ class LotteCinemaAdapter(ShowtimePort):
             return None
 
         slots.sort(key=lambda s: s.start_time)
-        return CinemaShowtimeDto(cinema_name=f"롯데시네마 {cinema.name}", slots=slots)
+        return CinemaShowtimeDto(
+            cinema_name=f"롯데시네마 {cinema.name}",
+            slots=slots,
+            timetable_url=timetable_url(
+                division_code=cinema.division_code,
+                detail_division_code=cinema.detail_division_code,
+                cinema_id=cinema.cinema_id,
+            ),
+        )
 
     async def fetch_nearest_showtimes(
         self,

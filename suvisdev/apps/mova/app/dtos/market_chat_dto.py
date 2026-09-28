@@ -72,6 +72,8 @@ class ShowtimeSlotDto:
     film_type: str
     seats_available: int
     seats_total: int
+    # 롯데시네마 예매 화면 딥링크(영화·극장·날짜 선택 + 해당 회차 강조). 없으면 "".
+    booking_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,8 @@ class CinemaShowtimeDto:
 
     cinema_name: str
     slots: list[ShowtimeSlotDto]
+    # 롯데시네마 극장 상세(시간표) 페이지. 없으면 "".
+    timetable_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -162,6 +166,7 @@ class ChatResponseDto:
                 showtimes=[
                     MovaChatCinemaShowtimeSchema(
                         cinema_name=cs.cinema_name,
+                        timetable_url=cs.timetable_url,
                         slots=[
                             MovaChatShowtimeSlotSchema(
                                 screen=s.screen,
@@ -170,6 +175,7 @@ class ChatResponseDto:
                                 film_type=s.film_type,
                                 seats_available=s.seats_available,
                                 seats_total=s.seats_total,
+                                booking_url=s.booking_url,
                             )
                             for s in cs.slots
                         ],

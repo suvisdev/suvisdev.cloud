@@ -65,10 +65,12 @@ class MovaChatShowtimeSlotSchema(BaseModel):
     film_type: str = ""
     seats_available: int = 0
     seats_total: int = 0
+    booking_url: str = ""
 
 
 class MovaChatCinemaShowtimeSchema(BaseModel):
     cinema_name: str
+    timetable_url: str = ""
     slots: list[MovaChatShowtimeSlotSchema] = Field(default_factory=list)
 
 
