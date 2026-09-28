@@ -210,6 +210,22 @@ SCENES: list[dict[str, Any]] = [
         "watch_links_min": 2,
         "note": "2026-09-28: 상영작이 아니면 OTT 검색 링크 + TMDB 시청처를 watch_links로",
     },
+    {
+        "name": "시리즈 추천 뒤 '제일 최신 ○○가 뭐야' → 그 작품 소개",
+        "history": [
+            {"role": "user", "content": "스파이더맨 시리즈 추천해줘"},
+            {
+                "role": "assistant",
+                "content": "[추천 카드] 1.『스파이더맨』(2002) 2.『스파이더맨: 브랜드 뉴 데이』(2026) "
+                "3.『스파이더맨 2』(2004)\n스파이더맨 시리즈의 다양한 매력을 느낄 수 있는 작품들을 추천해 드립니다.",
+            },
+        ],
+        "q": "제일 최신 스파이더맨이 뭐야",
+        "intent": "evaluate",
+        "rec_title_contains": "브랜드 뉴 데이",
+        "must_not": ["카탈로그에 없어요"],
+        "note": "2026-09-28 실사용 — recommend로 분류돼 기추천 dedup으로 0건 '카탈로그에 없어요'",
+    },
 ]
 
 
