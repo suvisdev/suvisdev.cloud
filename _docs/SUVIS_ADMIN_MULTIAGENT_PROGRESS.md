@@ -119,8 +119,9 @@ http://127.0.0.1:31386`.
   `/mova/**` 다크·그 외 라이트를 `forcedTheme`로, 토글·`setTheme` 코드 전부 삭제(탭 간 storage 동기화로
   라이트 뒤집히던 버그도 함께 해소).
 - 09-28 오후: 홈 채팅 **범위 제한**(모델 `[범위밖]` 판정 → 고정 거절), **ARDA 지킬 색인**(277청크, `--ref-prefix arda`).
-  mova: 서울 등 **광역 롯데 상영관 검색**, 상영 안 하는 작품 **OTT 시청 링크**. 구 단위(구 중심 반경 5km) 완료. **다음: 이해 단계
-  2.4B 파인튜닝 코랩 노트북**(데이터 `mova/FT/understanding-v1/` 준비됨, 기준선 7.8B 28/36·2.4B 6/36).
+  mova: 서울 등 **광역 롯데 상영관 검색**, 상영 안 하는 작품 **OTT 시청 링크**. 구 단위(구 중심 반경 5km) 완료. **이해 단계 2.4B
+  코랩 준비 완료**(바탕화면 `mova/FT/understanding-v1/` 데이터+노트북+README, 기준선 7.8B 28/36·2.4B 6/36) —
+  **코랩 실행은 사용자**, 합격 시 `ollama create mova-understand` + `MOVA_ORCHESTRATOR_MODEL` 전환.
 - 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동; 파일 하나만 바뀌면 파드에서
   리셋 없이 그 디렉터리만 넘겨도 됨 — `datasets/`는 hostPath) ② 7.8B 상주로 VRAM 7.8/8.2GB —
   mova 지연 실측되면 `PORTFOLIO_LLM_MODEL=exaone3.5:2.4b` 또는 `PORTFOLIO_LLM_BACKEND=gemini` ③ 후속 질문의

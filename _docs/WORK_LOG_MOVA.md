@@ -123,6 +123,11 @@
     어댑터 SYSTEM_PROMPT·히스토리 렌더를 ast로 읽어 입력을 운영과 동일하게. 바탕화면 `mova/FT/understanding-v1/`.
   - **기준선(평가셋 전 필드 정답)**: 운영 7.8B 28/36, 학습 전 2.4B 6/36(title 11/36 — 제목을 못 뽑음).
     7.8B 실수는 followup 누락·"군자역 근처" 그대로·"송강호 나오는 영화"를 제목으로.
+  - **코랩 노트북** `suvisdev/scripts/mova_understanding_colab.ipynb`(바탕화면 `understanding-v1/`에도): v5 노트북의
+    설치·드라이브 폴백·학습 루프·GGUF 변환(304665f + layer_norm_rms_eps 패치)을 재사용, Gemini 제거. 학습 전 2.4B
+    채점 → 에폭별 검증 손실 → 최적 에폭 평가셋 채점 → 합격 판정(28/36·intent 35·title 34·JSON 실패 0) → 전체
+    재학습·GGUF·**Ollama Modelfile**(운영 exaone3.5:2.4b 템플릿, temperature 0). 로컬 검증: 셀 17개 컴파일, 실제
+    EXAONE 토크나이저로 HF 템플릿 == Ollama 템플릿(접두 차이 0), 채점 함수 정답 주입 36/36.
 - 코랩 재학습: 오늘 결정 없음 — 하네스 만점이고 실사용 오답 샘플이 0이라 학습 트리거(출력 계약 변경·
   체계적 실패·데이터 유의미 증분) 중 어느 것도 아직 없다.
 
