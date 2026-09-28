@@ -98,8 +98,8 @@ function AppTile({ app }: { app: AppCatalogItem }) {
       <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
         {app.titleKo}
       </span>
-      <span className="text-xs text-neutral-500">{app.available ? app.titleEn : "준비 중"}</span>
-      <span className="text-[11px] text-neutral-400">{app.kind}</span>
+      <span className="text-xs text-neutral-500">{app.kind}</span>
+      {!app.available && <span className="text-[11px] text-neutral-400">준비 중</span>}
     </>
   )
   const className = "group flex w-24 flex-col items-center gap-2 text-center sm:w-28"
