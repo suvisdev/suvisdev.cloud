@@ -91,6 +91,15 @@
 - **홈 타일 후속**(사용자): 헤드라인·"알아보기" CTA 삭제, 영문 부제 줄 삭제(준비 중은 gildle에만), 팀
   프로젝트 **'약속'(알약 식별, https://www.seuk.cloud/) 카드 복원** — 08-26 SEUK 카드로 교체되며 지워졌던
   항목·이미지(`apps-yaksok.jpg`)를 git에서 되살림. `/apps` 페이지에도 같은 데이터로 노출.
+- **mova 채팅 스크롤 클로드식 전환의 후속 버그 수정**(사용자 "채팅창이 이상해졌어"): 입력창이 사라지고 큰
+  빈 영역이 생김. 노트북엔 브라우저가 없어 **Playwright+Chromium을 스크래치에 설치**(누락 `libasound2`는
+  `apt-get download`+`dpkg -x`로 로컬 추출, `LD_LIBRARY_PATH`)해 프로덕션 빌드(`next start`)로 재현·실측:
+  ① 익명 채팅 래퍼에 `min-h-0 overflow-hidden`이 없어 리스트가 콘텐츠만큼 자라고, 스페이서가 그 높이를 기준
+  으로 또 커지는 되먹임(리스트 7,205px→152,946px) ② 근본은 mova 레이아웃 루트가 `min-h-dvh`(auto 높이)라
+  `flex-1 min-h-0` 체인이 뷰포트에 안 묶임(루트 1,130px > 900px). 수정: 스페이서 상한을 `min(리스트,
+  뷰포트)`로, 익명 래퍼에 제약 추가, **채팅 페이지 높이를 `calc(100dvh − 헤더)`로 명시**(헤더 실측 데스크톱
+  57px·모바일 86px). 재검사: 리스트 769px 고정, 입력창 826~900px, 2턴째 내 말풍선이 상단(scrollTop 622).
+- **약속 카드 라벨** "팀 프로젝트 · 충북 AI 해커톤 출품작"(사용자 "충붕"은 충북으로 해석).
 - **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
   제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
   프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.
