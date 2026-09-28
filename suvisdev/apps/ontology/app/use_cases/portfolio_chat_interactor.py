@@ -27,6 +27,11 @@ TOP_K = 6
 # hub_rag_interactor._MIN_HIT_SCORE와 같은 값·같은 이유(임베딩 공간 불일치 잡음 컷, 2026-08-07 사고).
 MIN_HIT_SCORE = 0.15
 MAX_HISTORY_TURNS = 6
+# 진수택 본인 프로필 청크는 검색 순위와 무관하게 상위 2개를 근거에 넣는다. ARDA(채용 ATS) 지킬이
+# "지원자 학력·이력서" 청크를 많이 갖고 있어 "학력이 어떻게 돼"에서 프로필이 밀려났다(2026-09-28).
+PROFILE_REF_PREFIX = "portfolio:profile#"
+PROFILE_KEEP = 2
+_SEARCH_POOL = 30
 
 NO_CONTEXT_REPLY = (
     "저는 Suvisdev예요. 제가 가진 자료에서는 그 내용을 찾지 못했어요. Mova·Gildle·ARDA 같은 "
@@ -71,8 +76,17 @@ class PortfolioChatInteractor(PortfolioChatUseCase):
 
     async def chat(self, command: PortfolioChatCommand) -> PortfolioChatAnswerDto:
         vector = await self._embedding.embed(command.message)
-        raw_hits = await self._repository.search(vector, k=TOP_K, source=SOURCE)
+        pool = await self._repository.search(vector, k=_SEARCH_POOL, source=SOURCE)
+        raw_hits = pool[:TOP_K]
         hits = [h for h in raw_hits if h.score >= MIN_HIT_SCORE]
+        if hits:
+            have = {h.source_ref for h in hits}
+            profile = [
+                h
+                for h in pool
+                if h.source_ref.startswith(PROFILE_REF_PREFIX) and h.source_ref not in have
+            ][: max(0, PROFILE_KEEP - sum(r.startswith(PROFILE_REF_PREFIX) for r in have))]
+            hits = profile + hits
         logger.info(
             "[PortfolioChat] hits=%d(raw %d) top1=%s score=%.3f",
             len(hits),

@@ -119,10 +119,38 @@ class PortfolioChatInteractorTests(unittest.IsolatedAsyncioTestCase):
         await interactor.chat(PortfolioChatCommand(message="mova가 뭐야"))
         self.assertIn("[범위밖]", llm.calls[0][1] or "")
 
+    async def test_profile_chunks_always_included(self) -> None:
+        """프로필 청크가 상위 6개 밖이어도 2개는 근거에 들어간다(ARDA 채용 문서가 '학력'을 선점)."""
+        llm = _FakeLlm()
+        pool = [_hit(f"ARDA {i}", "지원자 학력 필터", 0.6 - i * 0.01) for i in range(8)]
+        pool += [
+            HubKnowledgeHitDto(
+                source_ref="portfolio:profile#2",
+                title="프로필 — 학력",
+                content="경상대학교",
+                score=0.3,
+            ),
+            HubKnowledgeHitDto(
+                source_ref="portfolio:profile#0", title="프로필 — 소개", content="풀스택", score=0.2
+            ),
+            HubKnowledgeHitDto(
+                source_ref="portfolio:profile#4",
+                title="프로필 — 기술",
+                content="FastAPI",
+                score=0.1,
+            ),
+        ]
+        interactor, _ = _interactor(pool, llm)
+        await interactor.chat(PortfolioChatCommand(message="학력이 어떻게 돼"))
+        prompt = llm.calls[0][0]
+        self.assertIn("경상대학교", prompt)
+        self.assertIn("풀스택", prompt)
+        self.assertNotIn("FastAPI", prompt)  # 프로필은 2개까지
+
     async def test_search_uses_portfolio_source(self) -> None:
         interactor, repo = _interactor([], _FakeLlm())
         await interactor.chat(PortfolioChatCommand(message="q"))
-        repo.search.assert_awaited_once_with(ANY, k=6, source="portfolio_doc")
+        repo.search.assert_awaited_once_with(ANY, k=30, source="portfolio_doc")
 
 
 if __name__ == "__main__":
