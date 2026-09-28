@@ -622,6 +622,12 @@ export default function GildleMap() {
           ← Gildle
         </Link>
         <h1 className="text-gildle-text ml-1 text-sm font-semibold">길들</h1>
+        <Link
+          href="/gildle/walks"
+          className="text-gildle-muted hover:text-gildle-text ml-2 text-xs"
+        >
+          내 산책 기록
+        </Link>
         <div className="border-gildle-border ml-auto flex overflow-hidden rounded-lg border">
           {SEASON_ORDER.map((m) => (
             <button
@@ -797,10 +803,16 @@ export default function GildleMap() {
                   산책 기록 #{walk.savedId} 저장됨 · {km(walk.distanceM)} ·{" "}
                   {Math.round(walk.elapsedS / 60)}분
                 </p>
+                <Link
+                  href="/gildle/walks"
+                  className="text-gildle-accent ml-auto rounded-lg px-3 py-1.5 text-xs hover:underline"
+                >
+                  기록 보기
+                </Link>
                 <button
                   type="button"
                   onClick={clearAll}
-                  className="text-gildle-muted hover:text-gildle-text ml-auto rounded-lg px-3 py-1.5 text-xs"
+                  className="text-gildle-muted hover:text-gildle-text rounded-lg px-3 py-1.5 text-xs"
                 >
                   새 산책
                 </button>

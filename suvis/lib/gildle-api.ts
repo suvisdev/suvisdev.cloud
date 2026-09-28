@@ -41,7 +41,7 @@ export type WalkCreateBody = {
   avg_shade_score?: number
 }
 
-export type WalkDetail = {
+export type WalkSummary = {
   id: number
   started_at: string
   ended_at: string
@@ -50,6 +50,13 @@ export type WalkDetail = {
   season_mode: string
   avg_shade_score: number | null
 }
+
+export type WalkDetail = WalkSummary & {
+  path?: [number, number][]
+  memo?: string | null
+}
+
+export type WalkStats = { total_count: number; total_distance_m: number; total_duration_s: number }
 
 async function gildleFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}/api/gildle${path}`, {
@@ -92,4 +99,16 @@ export function findLoops(body: {
 
 export function createWalk(body: WalkCreateBody): Promise<WalkDetail> {
   return gildleFetch<WalkDetail>("/walks", { method: "POST", body: JSON.stringify(body) })
+}
+
+export function listWalks(limit = 20, offset = 0): Promise<WalkSummary[]> {
+  return gildleFetch<WalkSummary[]>(`/walks?limit=${limit}&offset=${offset}`)
+}
+
+export function getWalk(id: number): Promise<WalkDetail> {
+  return gildleFetch<WalkDetail>(`/walks/${id}`)
+}
+
+export function walkStats(): Promise<WalkStats> {
+  return gildleFetch<WalkStats>("/walks/stats")
 }
