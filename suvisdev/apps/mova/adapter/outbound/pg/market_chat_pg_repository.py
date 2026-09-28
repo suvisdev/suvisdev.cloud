@@ -15,6 +15,7 @@ from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItem
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
 from mova.adapter.outbound.orm.market_picks_orm import MovaPick
 from mova.adapter.outbound.orm.market_user_actions_orm import (
+    ACTION_WATCHED,
     EVENT_ACTION_TYPES,
     MovaUserAction,
 )
@@ -432,6 +433,19 @@ class ChatPgRepository(ChatRepositoryPort):
             .all()
         )
         return list(rows)
+
+    async def get_watched_movie_ids(self, user_id: int) -> set[str]:
+        rows = (
+            await self._session.execute(
+                select(MovaUserAction.movie_id)
+                .where(
+                    MovaUserAction.user_id == user_id,
+                    MovaUserAction.action_type == ACTION_WATCHED,
+                )
+                .distinct()
+            )
+        ).all()
+        return {str(r[0]) for r in rows if r[0] is not None}
 
     async def save_chat(
         self,

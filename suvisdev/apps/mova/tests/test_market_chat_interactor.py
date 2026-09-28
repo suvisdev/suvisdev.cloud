@@ -312,6 +312,27 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
         self.assertEqual([c.id for c in catalog], ["1"])
 
+    async def test_watched_movies_are_excluded_for_logged_in_user(self) -> None:
+        """ "봤어요"로 표시한 영화는 후보에서 빠진다 — 본 영화를 또 추천하지 않는다(2026-09-28).
+        비로그인은 조회 자체를 하지 않는다."""
+        rag_hits = [Mock(source_ref="1", title="본 영화"), Mock(source_ref="2", title="안 본 영화")]
+        interactor, repo, recommender = self._build(rag_hits=rag_hits, tag_items=[])
+        repo.get_watched_movie_ids.return_value = {"1"}
+
+        await interactor.chat(MovaChatRequest(message="좀비 영화", history=[], user_id=42))
+
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["2"])
+        repo.get_watched_movie_ids.assert_awaited_once_with(42)
+
+        interactor2, repo2, recommender2 = self._build(rag_hits=rag_hits, tag_items=[])
+        await interactor2.chat(MovaChatRequest(message="좀비 영화", history=[]))
+        repo2.get_watched_movie_ids.assert_not_awaited()
+        self.assertEqual(
+            [c.id for c in recommender2.generate_recommendation.await_args.kwargs["tag_catalog"]],
+            ["1", "2"],
+        )
+
     async def test_popular_fallback_joins_when_year_filter_present(self) -> None:
         """연도 하드 필터가 있으면 popular_fallback도 합류한다(2026-09-02
         "최신영화 알려줘" 실사고): hub에 연도 메타데이터가 없어 시맨틱 히트는

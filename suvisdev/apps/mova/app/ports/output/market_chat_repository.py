@@ -83,6 +83,10 @@ class ChatRepositoryPort(ABC):
         """사용자 최근 검색 의도 (MovaChat rows)."""
 
     @abstractmethod
+    async def get_watched_movie_ids(self, user_id: int) -> set[str]:
+        """사용자가 "봤어요"(user_actions watched)로 표시한 영화 id 집합(문자열, 후보 id와 같은 형식)."""
+
+    @abstractmethod
     async def save_chat(
         self,
         *,

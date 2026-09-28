@@ -536,6 +536,10 @@ class ChatInteractor(ChatUseCase):
         # 2.5. 대화 스레드에서 이미 추천한 영화 슬러그를 뽑아 후보에서 제거한다.
         #      "다른 것도 추천해줘" 같은 후속 질의에서 같은 영화 재소개 방지.
         already_shown_slugs = await self._recently_recommended_slugs(request)
+        # 2.6. 로그인 사용자가 "봤어요"로 표시한 영화도 같은 제외 집합에 넣는다 — 본 영화를
+        #      또 추천하지 않는다(2026-09-28 사용자: "본 거 또 볼 순 없잖아"). 아래 dedup
+        #      소진·재검색·최종 recs 필터가 그대로 이 집합을 쓴다.
+        already_shown_slugs = already_shown_slugs | await self._watched_slugs(request)
         if already_shown_slugs:
             filtered = [c for c in catalog if c.id not in already_shown_slugs]
             if not filtered and search_wider is not None:
@@ -1067,6 +1071,16 @@ class ChatInteractor(ChatUseCase):
         pool = with_shown if retry_after_shown else cold
         _ = user_id, already_shown_slugs  # 시그니처는 유지(추후 개인화·인라인 추천 확장 여지)
         return random.choice(pool)
+
+    async def _watched_slugs(self, request: MovaChatRequest) -> set[str]:
+        """사용자가 봤다고 표시한 영화 id 집합. 비로그인이면 빈 집합, 조회 실패도 빈 집합."""
+        if not request.user_id:
+            return set()
+        try:
+            ids = await self._repo.get_watched_movie_ids(request.user_id)
+            return {str(i) for i in ids}
+        except Exception:
+            return set()
 
     async def _recently_recommended_slugs(self, request: MovaChatRequest) -> set[str]:
         """대화 스레드에서 이전에 소개한 영화 슬러그 집합. 스레드 없거나 conversations

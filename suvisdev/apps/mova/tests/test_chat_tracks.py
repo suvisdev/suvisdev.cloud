@@ -282,6 +282,7 @@ class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.card.movie_id, 7)
         self.assertIn("호프", result.reply)
         self.assertIn("리뷰 5건", result.reply)
+        self.assertNotIn("TMDB", result.reply)
         self.assertIn("혼잡", result.reply)
 
     async def test_ok_builds_card_and_payload(self) -> None:
@@ -293,8 +294,9 @@ class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.card.movie_id, 7)
         self.assertEqual(result.evaluation.review_count, 5)
         question = general.ask.await_args.args[0].question
-        self.assertIn("자체 리뷰 발췌", question)
-        self.assertIn("TMDB 리뷰 발췌", question)
+        self.assertIn("[mova 리뷰 1]", question)
+        self.assertIn("[관객 리뷰 1]", question)
+        self.assertNotIn("TMDB", question)  # 평점은 mova 기준만(2026-09-28)
         self.assertNotIn("표본 부족", question)
 
     async def test_small_sample_is_flagged_in_prompt(self) -> None:
