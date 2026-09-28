@@ -12,8 +12,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import time
+from pathlib import Path
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
@@ -25,6 +28,37 @@ _GEMINI_SLEEP_SECONDS = 4.5  # 무료 티어 15req/min
 EDITOR_REVIEWS_INTERVAL_SECONDS = 24 * 60 * 60  # 24시간
 # 사용자 지정: 하루 10~20편 — 기본 15, env로 조절.
 _DAILY_LIMIT = int(os.getenv("EDITOR_REVIEWS_DAILY_LIMIT", "15"))
+# 생성에 실패한 영화(기사 부족·Gemini SKIP)는 30일 쉬게 한다. 예전엔 실패가 기록되지 않아 같은 상위
+# 15편이 매 주기 다시 뽑혀 큐를 막았다 — "라이즈"는 아이돌 그룹, "비틀쥬스"는 뮤지컬 기사만 잡혀
+# Gemini가 SKIP(2026-09-28 실측: 생성 0/15). 파드 재시작마다 주기가 돌던 것도 20시간 간격으로 묶는다.
+# datasets/는 hostPath라 재시작에도 남는다.
+_STATE_PATH = Path(os.getenv("EDITOR_REVIEWS_STATE", "datasets/editor_reviews_state.json"))
+_SKIP_COOLDOWN_S = 30 * 86_400
+_MIN_CYCLE_GAP_S = 20 * 3_600
+_POOL_FACTOR = 5  # 쉬는 영화를 빼고도 limit편을 채우도록 후보를 넉넉히
+
+
+def _load_state() -> dict:
+    try:
+        return json.loads(_STATE_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return {"last_cycle": 0, "skips": {}}
+
+
+def active_skips(state: dict, now: float) -> dict[str, float]:
+    """쿨다운(30일)이 안 지난 실패 기록만."""
+    return {k: v for k, v in state.get("skips", {}).items() if now - v < _SKIP_COOLDOWN_S}
+
+
+def pick_candidates(pool: list, skips: dict[str, float], limit: int) -> list:
+    """(movie_id, title, year) 후보 중 쉬는 영화를 빼고 앞에서 limit편."""
+    return [m for m in pool if str(m[0]) not in skips][:limit]
+
+
+def _save_state(state: dict) -> None:
+    _STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _STATE_PATH.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+
 
 REVIEW_PROMPT = """아래는 영화 "{title}"({year})에 대한 최근 뉴스 기사 제목·요약 목록입니다.
 이를 바탕으로 영화 소개 리뷰를 한국어 3~4문장으로 작성하세요.
@@ -95,9 +129,12 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
     from mova.adapter.outbound.pg.weighted_rating import weighted_rating_expr
 
     editor_id = await _ensure_editor_user()
+    state = _load_state()
+    now = time.time()
+    skips = active_skips(state, now)
     factory = get_mova_session_factory()
     async with factory() as session:
-        movies = (
+        pool = (
             await session.execute(
                 select(MovaMovie.id, MovaMovie.title, MovaMovie.release_year)
                 .where(
@@ -107,15 +144,17 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
                     ),
                 )
                 .order_by(weighted_rating_expr().desc())
-                .limit(limit)
+                .limit(limit * _POOL_FACTOR)
             )
         ).all()
+    movies = pick_candidates(pool, skips, limit)
 
     created = 0
     for movie_id, title, year in movies:
         # RSS·Gemini는 블로킹 호출 — 이벤트 루프를 막지 않게 스레드로 위임.
         articles = await asyncio.to_thread(_fetch_news, title)
         if len(articles) < 2:
+            skips[str(movie_id)] = now
             continue
         try:
             body = (
@@ -130,6 +169,7 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
             await asyncio.sleep(_GEMINI_SLEEP_SECONDS)
             continue
         if not body or "SKIP" in body[:20] or len(body) < 40:
+            skips[str(movie_id)] = now
             await asyncio.sleep(_GEMINI_SLEEP_SECONDS)
             continue
 
@@ -148,7 +188,14 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
         logger.info("[editor-reviews] 생성: %s (%d자)", title, len(body))
         await asyncio.sleep(_GEMINI_SLEEP_SECONDS)
 
-    logger.info("[editor-reviews] 주기 완료 — 생성 %d / 대상 %d", created, len(movies))
+    state["skips"] = skips
+    _save_state(state)
+    logger.info(
+        "[editor-reviews] 주기 완료 — 생성 %d / 대상 %d (쉬는 영화 %d편)",
+        created,
+        len(movies),
+        len(skips),
+    )
     return created, len(movies)
 
 
@@ -159,7 +206,20 @@ async def run_editor_reviews_scheduler() -> None:
     앱 종료 시 task.cancel()이 asyncio.sleep에 CancelledError를 던져 루프가 끝난다.
     """
     while True:
+        state = _load_state()
+        wait = _MIN_CYCLE_GAP_S - (time.time() - state.get("last_cycle", 0))
+        if wait > 0:
+            # 재배포로 파드가 자주 뜨면 주기가 하루에 여러 번 돌아 Gemini 쿼터를 쓰던 것 방지
+            logger.info(
+                "[editor-reviews] 최근 주기 %.1f시간 전 — %.1f시간 뒤 실행",
+                (_MIN_CYCLE_GAP_S - wait) / 3600,
+                wait / 3600,
+            )
+            await asyncio.sleep(wait)
         try:
+            state = _load_state()
+            state["last_cycle"] = time.time()
+            _save_state(state)
             await generate_editor_reviews_once()
         except Exception as e:
             logger.warning("[editor-reviews] 주기 실행 실패: %s", e)

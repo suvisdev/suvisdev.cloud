@@ -130,3 +130,5 @@ cache/
 # ARDA(Seuk-Team/jekyll) 지킬 문서 사본 — 홈 AI 채팅 색인용. 원본은 GitHub 저장소(09-28)
 datasets/arda_jekyll/
 datasets/suvisjk_jekyll/
+# 에디터 리뷰 스케줄러 상태(실패 쿨다운·마지막 주기) — 파드가 hostPath로 씀(09-28)
+datasets/editor_reviews_state.json
