@@ -98,7 +98,7 @@ _REPEAT_QUERIES = 3
 _GENERIC_WORDS = frozenset(
     "영화 추천 추천해줘 알려줘 어울리는 좋은 보기 나오는 배경 소재 전에 가기 사람용 처음 보는".split()
 )
-_SEQUEL_TAIL = re.compile(r"\s*(?:\d+|[IVX]+|시즌\s*\d+|part\s*\d+)$", re.IGNORECASE)
+_SEQUEL_TAIL = re.compile(r"\s+(?:\d+|[IVX]+|시즌\s*\d+|part\s*\d+)$", re.IGNORECASE)
 
 
 def _year_of(rec: dict[str, Any]) -> int | None:
@@ -132,8 +132,9 @@ def _evaluate(spec: dict[str, Any], recs: list[dict[str, Any]]) -> list[str]:
 
 def _series_key(title: str) -> str:
     """'스파이더맨: 브랜드 뉴 데이'·'스파이더맨 2' → '스파이더맨'(부제·번호 제거)."""
+    # 앱의 mova.domain.value_objects.movie_title.series_key와 같은 규칙(스크립트는 앱 import 없이 돈다)
     base = re.split(r"[:：]", title, maxsplit=1)[0].strip()
-    return _SEQUEL_TAIL.sub("", base).strip()
+    return _SEQUEL_TAIL.sub("", base).strip() or title
 
 
 def _words(text: str) -> list[str]:

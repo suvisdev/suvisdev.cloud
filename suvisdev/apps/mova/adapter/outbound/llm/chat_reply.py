@@ -271,5 +271,35 @@ class ChatReplyService:
             except json.JSONDecodeError:
                 pass
 
+        salvaged = self._salvage_truncated(text)
+        if salvaged is not None:
+            return salvaged
         logger.warning("[ChatReplyService] JSON 파싱 실패")
         return None
+
+    @staticmethod
+    def _salvage_truncated(text: str) -> dict[str, Any] | None:
+        """생성 한도에서 잘린 응답의 완결된 pick만 건진다.
+
+        2026-09-28 실측: LoRA가 3편에서 멈추지 않고 후보를 계속 나열하다 max_new_tokens(256,
+        3편≈136토큰)에서 잘려 JSON 전체가 파싱 실패 → 0편 → Gemini 폴백(503이면 빈 응답).
+        앞쪽 완결 pick은 멀쩡하므로 버리지 않는다.
+        """
+        picks_at = text.find('"picks"')
+        bracket = text.find("[", picks_at) if picks_at != -1 else -1
+        if bracket == -1:
+            return None
+        decoder = json.JSONDecoder()
+        picks: list[Any] = []
+        pos = bracket + 1
+        while (start := text.find("{", pos)) != -1:
+            try:
+                obj, pos = decoder.raw_decode(text, start)
+            except json.JSONDecodeError:
+                break
+            picks.append(obj)
+        if not picks:
+            return None
+        intro = re.search(r'"intro"\s*:\s*("(?:[^"\\]|\\.)*")', text)
+        logger.warning("[ChatReplyService] 잘린 응답에서 pick %d개 복구", len(picks))
+        return {"intro": json.loads(intro.group(1)) if intro else "", "picks": picks}

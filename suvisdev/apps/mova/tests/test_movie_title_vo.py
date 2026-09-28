@@ -11,7 +11,11 @@ if str(ROOT / "apps") not in sys.path:
     sys.path.insert(0, str(ROOT / "apps"))
 
 from mova.domain.services.showing_title_policy import prefer_showing_year  # noqa: E402
-from mova.domain.value_objects.movie_title import MovieTitle, normalize_title  # noqa: E402
+from mova.domain.value_objects.movie_title import (  # noqa: E402
+    MovieTitle,
+    normalize_title,
+    series_key,
+)
 
 
 class MovieTitleTests(unittest.TestCase):
@@ -33,6 +37,18 @@ class MovieTitleTests(unittest.TestCase):
 
     def test_normalize_title(self) -> None:
         self.assertEqual(normalize_title("  A  B "), "ab")
+
+
+class SeriesKeyTests(unittest.TestCase):
+    def test_sequel_number_and_subtitle_removed(self) -> None:
+        self.assertEqual(series_key("범죄도시 3"), series_key("범죄도시"))
+        self.assertEqual(series_key("나쁜 녀석들: 포에버"), series_key("나쁜 녀석들"))
+        self.assertEqual(series_key("스파이더맨: 브랜드 뉴 데이"), series_key("스파이더맨 2"))
+
+    def test_different_titles_differ(self) -> None:
+        self.assertNotEqual(series_key("범죄도시"), series_key("범죄와의 전쟁"))
+        # 숫자뿐인 제목끼리 빈 키로 뭉치면 안 된다
+        self.assertNotEqual(series_key("1987"), series_key("300"))
 
 
 class PreferShowingYearTests(unittest.TestCase):

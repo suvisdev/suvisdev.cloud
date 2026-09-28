@@ -21,6 +21,8 @@ class MovaSearchItemSchema(BaseModel):
     # 기본값을 둬서 이 스키마를 쓰는 다른 경로는 그대로 동작한다.
     genres: str = ""
     summary: str = ""
+    # 2026-09-28: 추천 품질 하한(투표 30 미만은 뒤로) 판정용 — TMDB vote_count, 0=미수집
+    vote_count: int = 0
 
 
 class SearchResultSchema(BaseModel):

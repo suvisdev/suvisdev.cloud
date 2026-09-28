@@ -105,7 +105,7 @@ class ChatInteractorDedupTests(unittest.IsolatedAsyncioTestCase):
     @staticmethod
     def _item(i: int) -> MovaSearchItemSchema:
         return MovaSearchItemSchema(
-            id=f"tmdb-{i}", title=f"영화 {i}", year="", rating=0.0, poster="", match_type="tag"
+            id=f"tmdb-{i}", title=f"영화{i}", year="", rating=0.0, poster="", match_type="tag"
         )
 
     async def _run_chat(

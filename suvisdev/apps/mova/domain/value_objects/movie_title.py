@@ -27,6 +27,20 @@ def loose_title_key(text: str) -> str:
     return _LOOSE.sub("", text).lower()
 
 
+# 번호 앞 공백 필수 — "1987"·"300"처럼 숫자뿐인 제목이 빈 키로 뭉치지 않게
+_SEQUEL_TAIL = re.compile(r"\s+(?:\d+|[IVX]+|시즌\s*\d+|part\s*\d+)$", re.IGNORECASE)
+
+
+def series_key(text: str) -> str:
+    """같은 시리즈 판정 — 부제(콜론 뒤)와 끝 번호를 뗀다("범죄도시 3"·"나쁜 녀석들: 포에버" → 본편).
+
+    추천 3편 다양성(MOVA_RECOMMENDATION_CRITERIA §2-3)에 쓴다. 하네스 `eval_chat_queries.py`의
+    `series_dup` 지표도 같은 규칙이다(스크립트는 앱 import 없이 돌아야 해서 사본을 둔다).
+    """
+    base = re.split(r"[:：]", text, maxsplit=1)[0].strip()
+    return normalize_title(_SEQUEL_TAIL.sub("", base)) or normalize_title(text)
+
+
 @dataclass(frozen=True)
 class MovieTitle:
     raw: str

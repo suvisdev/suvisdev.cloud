@@ -385,7 +385,12 @@ class IntentExtractionService:
         cleaned = _FILLER.sub("", message).strip()
         cleaned = re.sub(r"\s+", " ", cleaned)
         refined = cleaned[:40] if cleaned else message[:40]
-        tokens = [t for t in re.split(r"[\s,·/]+", cleaned) if len(t) >= 2]
+        # 불용어를 여기서 빼야 한다 — normalize_keywords는 이 목록(extracted)을 거르지 않고
+        # 합친다. "영화"가 남으면 태그 검색 ILIKE가 "TV 영화" 10편을 실매칭으로 물어와
+        # 분위기 질의가 같은 2025~26년 TV 영화로 채워졌다(2026-09-28 repeated_titles 4건 전부).
+        tokens = [
+            t for t in re.split(r"[\s,·/]+", cleaned) if len(t) >= 2 and t.lower() not in _STOPWORDS
+        ]
         intent_type, search_filters = build_search_filters(message, tokens, {})
         keywords = normalize_keywords(message, refined, tokens, search_filters=search_filters)
         return {

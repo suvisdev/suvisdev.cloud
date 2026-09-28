@@ -116,6 +116,26 @@ class ParseGeminiReplyTests(unittest.TestCase):
         self.assertEqual(len(recs), 3)
         self.assertEqual([r.movie_id for r in recs], [1, 2, 3])
 
+    def test_truncated_reply_keeps_complete_picks(self) -> None:
+        """생성 한도에서 잘린 응답(후보를 계속 나열하다 끊김)도 완결된 pick은 살린다(2026-09-28 실측)."""
+        raw = (
+            '{"intro": "좋은 기분을 느낄 수 있는 영화들을 골라보았습니다.", "picks": ['
+            '{"movie_id": 6079, "title": "심슨 가족", "hook": "따뜻한 웃음."}, '
+            '{"movie_id": 4206, "title": "그날의 분위기", "hook": "작은 행복."}, '
+            '{"movie_id": 5006, "title": "굿 포츈", "hook": "새로운 시작."}, '
+            '{"movie_id": 2642, "title": "싸이보그지만 괜'
+        )
+        intro, recs = self.svc.parse_gemini_reply(raw)
+
+        self.assertEqual(intro, "좋은 기분을 느낄 수 있는 영화들을 골라보았습니다.")
+        self.assertEqual([r.movie_id for r in recs], [6079, 4206, 5006])
+
+    def test_truncated_before_any_pick_is_still_failure(self) -> None:
+        intro, recs = self.svc.parse_gemini_reply(
+            '{"intro": "골라볼게요", "picks": [{"movie_id": 60'
+        )
+        self.assertEqual(recs, [])
+
 
 class EnrichFromDbTests(unittest.IsolatedAsyncioTestCase):
     """movie_id로 직접 조회 — title 매칭 경로(find_by_title 등) 사용 안 함."""

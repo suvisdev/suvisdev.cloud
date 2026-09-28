@@ -277,6 +277,98 @@ class ChatInteractorRagTagUnionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(catalog[0].match_type, "keyword")
         self.assertEqual(catalog[2].match_type, "semantic")
 
+    async def test_semantic_hits_are_described_from_db(self) -> None:
+        """제목뿐인 RAG 히트를 연도·줄거리·투표 수로 채운다 — DB에 없는 히트는 그대로(2026-09-28)."""
+        rag_hits = [
+            Mock(source_ref="1", title="이터널 선샤인"),
+            Mock(source_ref="7", title="없는 작품"),
+        ]
+        interactor, repo, recommender = self._build(rag_hits=rag_hits, tag_items=[])
+        repo.get_catalog_items.return_value = [
+            MovaSearchItemSchema(
+                id="1",
+                title="이터널 선샤인",
+                year="2004",
+                rating=4.2,
+                poster="",
+                match_type="semantic",
+                summary="헤어진 연인의 기억을 지우는 이야기.",
+                vote_count=900,
+            )
+        ]
+
+        await interactor.chat(MovaChatRequest(message="잔잔한 영화", history=[]))
+
+        repo.get_catalog_items.assert_awaited_once_with([1, 7])
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["1", "7"])
+        self.assertEqual(catalog[0].year, "2004")
+        self.assertEqual(catalog[1].year, "")  # DB에 없으면 원래 히트 유지
+
+    @staticmethod
+    def _voted(movie_id: str, votes: int) -> MovaSearchItemSchema:
+        return MovaSearchItemSchema(
+            id=movie_id,
+            title=f"작품{movie_id}",
+            year="2020",
+            rating=3.5,
+            poster="",
+            match_type="keyword",
+            vote_count=votes,
+        )
+
+    async def _catalog_for(self, tag_items: list[MovaSearchItemSchema]) -> list[str]:
+        interactor, _repo, recommender = self._build(rag_hits=[], tag_items=tag_items)
+        await interactor.chat(MovaChatRequest(message="좀비 영화", history=[]))
+        return [c.id for c in recommender.generate_recommendation.await_args.kwargs["tag_catalog"]]
+
+    async def test_low_vote_candidates_move_to_back_when_few_solid(self) -> None:
+        """투표 30 이상이 5편 미만이면 미만은 빼지 않고 뒤로만 — 순서 유지(추천 기준 §2-2)."""
+        items = [
+            self._voted("1", 0),
+            self._voted("2", 500),
+            self._voted("3", 29),
+            self._voted("4", 30),
+        ]
+        self.assertEqual(await self._catalog_for(items), ["2", "4", "1", "3"])
+
+    async def test_low_vote_candidates_dropped_when_enough_solid(self) -> None:
+        """투표 30 이상이 5편 이상이면 미만은 뺀다 — 뒤로만 보내면 LoRA가 그래도 골랐다
+        (2026-09-28 실측 low_vote 6→7, 사용자 결정으로 강화)."""
+        items = [self._voted("0", 3)] + [self._voted(str(i), 100 + i) for i in range(1, 6)]
+        self.assertEqual(await self._catalog_for(items), ["1", "2", "3", "4", "5"])
+
+    @staticmethod
+    def _titled(movie_id: str, title: str) -> MovaSearchItemSchema:
+        return MovaSearchItemSchema(
+            id=movie_id,
+            title=title,
+            year="2020",
+            rating=3.5,
+            poster="",
+            match_type="keyword",
+            vote_count=100,
+        )
+
+    async def test_one_candidate_per_series(self) -> None:
+        """같은 시리즈는 앞선 1편만 — "마동석 액션"에 범죄도시·범죄도시 3이 같이 나가던 것(§2-3)."""
+        items = [
+            self._titled("1", "범죄도시"),
+            self._titled("2", "범죄도시 3"),
+            self._titled("3", "악인전"),
+            self._titled("4", "나쁜 녀석들: 포에버"),
+            self._titled("5", "나쁜 녀석들"),
+        ]
+        self.assertEqual(await self._catalog_for(items), ["1", "3", "4"])
+
+    async def test_series_request_keeps_series(self) -> None:
+        """ "○○ 시리즈" 요청은 시리즈가 곧 조건이라 묶지 않는다."""
+        items = [self._titled("1", "범죄도시"), self._titled("2", "범죄도시 3")]
+        interactor, _repo, recommender = self._build(rag_hits=[], tag_items=items)
+        await interactor.chat(MovaChatRequest(message="범죄도시 시리즈 추천해줘", history=[]))
+        catalog = recommender.generate_recommendation.await_args.kwargs["tag_catalog"]
+        self.assertEqual([c.id for c in catalog], ["1", "2"])
+
     async def test_actor_matches_exclude_semantic_tail(self) -> None:
         """배우 매칭이 받쳐주면 시맨틱 꼬리를 섞지 않는다.
 

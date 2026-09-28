@@ -40,6 +40,15 @@ class ChatRepositoryPort(ABC):
         """
 
     @abstractmethod
+    async def get_catalog_items(self, movie_ids: list[int]) -> list[MovaSearchItemSchema]:
+        """RAG 시맨틱 히트의 movie_id를 카탈로그 아이템(연도·장르·줄거리·투표 수)으로 채운다.
+
+        hub 히트는 제목뿐이라 프롬프트에 "연도 미상"·줄거리 없음으로 실려 LLM이 제목만 보고
+        골랐고(2026-09-28 "비 오는 날"→"비와 당신의 이야기"), 품질 하한도 판정할 수 없었다.
+        입력 순서를 유지하며, DB에 없는 id는 빠진다.
+        """
+
+    @abstractmethod
     async def filter_movie_ids_by_year(
         self,
         movie_ids: list[int],

@@ -61,6 +61,7 @@ def _to_search_items(
             match_type=match_type,
             genres=", ".join(gmap.get(m.id, [])),
             summary=_shorten(m.synopsis),
+            vote_count=int(m.vote_count or 0),
         )
         for m in rows
     ]
@@ -317,6 +318,14 @@ class ChatPgRepository(ChatRepositoryPort):
         )
         fb = list(fallback_rows.scalars().all())
         return _to_search_items(fb, "popular_fallback", await self._genres_for(fb))
+
+    async def get_catalog_items(self, movie_ids: list[int]) -> list[MovaSearchItemSchema]:
+        if not movie_ids:
+            return []
+        rows = await self._session.execute(select(MovaMovie).where(MovaMovie.id.in_(movie_ids)))
+        by_id = {m.id: m for m in rows.scalars().all()}
+        ordered = [by_id[i] for i in movie_ids if i in by_id]
+        return _to_search_items(ordered, "semantic", await self._genres_for(ordered))
 
     async def filter_movie_ids_by_year(
         self,

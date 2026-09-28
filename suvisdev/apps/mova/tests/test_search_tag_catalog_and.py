@@ -14,7 +14,13 @@ from mova.adapter.outbound.pg.market_chat_pg_repository import ChatPgRepository
 
 def _movie(mid: int) -> SimpleNamespace:
     return SimpleNamespace(
-        id=mid, title=f"영화{mid}", release_year=2020, rating=4.0, poster_url="", synopsis=""
+        id=mid,
+        title=f"영화{mid}",
+        release_year=2020,
+        rating=4.0,
+        poster_url="",
+        synopsis="",
+        vote_count=100,
     )
 
 

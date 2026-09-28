@@ -36,6 +36,7 @@ from mova.app.use_cases.market_chat_booking_interactor import (
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
 from mova.app.use_cases.market_chat_ordinal import resolve_ordinal_reference
+from mova.domain.value_objects.movie_title import series_key
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
@@ -123,6 +124,39 @@ _RECOMMEND_WORDS = re.compile(r"(추천|비슷한|같은\s*영화|볼\s*만한)"
 
 def _is_synopsis_request(message: str) -> bool:
     return bool(_SYNOPSIS_WORDS.search(message)) and not _RECOMMEND_WORDS.search(message)
+
+
+_MIN_VOTES = 30  # MOVA_RECOMMENDATION_CRITERIA §2-2
+_MIN_SOLID_CANDIDATES = 5
+
+
+def _quality_floor(catalog: list[MovaSearchItemSchema]) -> list[MovaSearchItemSchema]:
+    """투표 _MIN_VOTES 이상이 _MIN_SOLID_CANDIDATES편 이상이면 미만(0=미수집 포함)을 빼고,
+    모자라면 뒤로만 보낸다(안정 정렬 — 나머지 순서는 그대로).
+
+    뒤로만 보내는 방식은 효과가 없었다(2026-09-28 실측 low_vote 6→7): 분위기 질의는 시맨틱
+    후보가 8편이라 전부 프롬프트에 실리고, LoRA가 뒤쪽 작품도 고른다. 사용자 결정으로 제외로 강화.
+    """
+    solid = [c for c in catalog if c.vote_count >= _MIN_VOTES]
+    if len(solid) >= _MIN_SOLID_CANDIDATES:
+        return solid
+    return sorted(catalog, key=lambda c: c.vote_count < _MIN_VOTES)
+
+
+def _one_per_series(catalog: list[MovaSearchItemSchema]) -> list[MovaSearchItemSchema]:
+    """시리즈마다 앞선 후보 하나만 — 3편이 한 시리즈로 몰리지 않게(추천 기준 §2-3).
+
+    2026-09-28 하네스: "마동석 액션"→범죄도시·범죄도시 3, "형사물"→나쁜 녀석들·포에버.
+    """
+    seen: set[str] = set()
+    out: list[MovaSearchItemSchema] = []
+    for c in catalog:
+        key = series_key(c.title)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(c)
+    return out
 
 
 def _is_bare_eval_followup(message: str) -> bool:
@@ -465,6 +499,16 @@ class ChatInteractor(ChatUseCase):
                 )
                 for h in hits
             ]
+            # 제목뿐인 히트를 DB 카탈로그 아이템(연도·장르·줄거리·투표 수)으로 채운다 —
+            # 프롬프트에 "연도 미상"으로만 실리면 LLM이 제목만 보고 고르고(2026-09-28 "비 오는 날"
+            # →"비와 당신의 이야기"), 품질 하한도 판정할 수 없다. DB에 없는 히트는 그대로 둔다.
+            described = {
+                c.id: c
+                for c in await self._repo.get_catalog_items(
+                    [int(c.id) for c in catalog if str(c.id).isdigit()]
+                )
+            }
+            catalog = [described.get(c.id, c) for c in catalog]
             # RAG 히트는 hub에 연도 메타데이터가 없어 연도 하드 필터를 못
             # 지킨다(2026-09-03 "클래식 명작 처음 보는 사람용" 실사고,
             # trace=f4552cee: year_max=1999 요청에 시맨틱 tail의 2003·2007년작이
@@ -574,6 +618,13 @@ class ChatInteractor(ChatUseCase):
                         len(already_shown_slugs),
                     )
                 catalog = filtered
+
+        # 2.7. 품질 하한 — 투표 30 이상이 충분하면 미만을 빼고, 모자라면 뒤로(MOVA_RECOMMENDATION_CRITERIA §2-2).
+        catalog = _quality_floor(catalog)
+        # 2.8. 다양성 — 시리즈를 직접 원한 요청("○○ 시리즈", 프랜차이즈 제목 매칭)은 제외.
+        wants_series = "시리즈" in request.message or any(c.match_type == "title" for c in catalog)
+        if not wants_series:
+            catalog = _one_per_series(catalog)
 
         # 3. 추천 생성 (프롬프트·Gemini·파싱·DB 보강은 포트 구현체 내부)
         reply, recs = await self._llm.generate_recommendation(

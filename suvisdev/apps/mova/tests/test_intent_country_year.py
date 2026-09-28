@@ -145,5 +145,26 @@ class FillerWordBoundaryTests(unittest.TestCase):
             self.assertIn(kept, intent["keywords"], message)
 
 
+class StopwordTokenTests(unittest.TestCase):
+    """문장 토큰에서도 불용어를 뺀다 — "영화"가 태그 "TV 영화"에 ILIKE로 걸려 분위기
+    질의가 같은 TV 영화로 채워졌다(2026-09-28 repeated_titles 4건 전부)."""
+
+    def _extract(self, message: str) -> dict:
+        from mova.adapter.outbound.llm.intent_extraction import IntentExtractionService
+
+        return IntentExtractionService().extract(message, [])
+
+    def test_generic_words_dropped(self) -> None:
+        for message in ("비 오는 날 어울리는 영화", "송강호 나오는 영화", "한국 액션 영화 추천"):
+            keywords = self._extract(message)["keywords"]
+            for word in ("영화", "나오는", "추천"):
+                self.assertNotIn(word, keywords, message)
+
+    def test_content_words_kept(self) -> None:
+        keywords = self._extract("좀비 영화 추천해줘")["keywords"]
+        self.assertIn("좀비", keywords)
+        self.assertIn("송강호", self._extract("송강호 나오는 영화")["keywords"])
+
+
 if __name__ == "__main__":
     unittest.main()
