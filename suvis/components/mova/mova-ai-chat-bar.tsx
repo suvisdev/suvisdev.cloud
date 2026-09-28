@@ -446,6 +446,15 @@ export function MovaAiChatBar({
     }
   }, [conversationIdProp, dbMode])
 
+  // 입력창 자동 높이 — 내용만큼 늘고(최대 max-h-40) 전송 후 비면 한 줄로 돌아간다.
+  useEffect(() => {
+    for (const el of [heroInputRef.current, chatInputRef.current]) {
+      if (!el) continue
+      el.style.height = "auto"
+      el.style.height = `${el.scrollHeight}px`
+    }
+  }, [inputValue, isInitial])
+
   // 스크롤 규칙(클로드·제미나이식, 2026-09-28 사용자 요청): 메시지를 보내면 **내 말풍선이 리스트
   // 맨 위**에 오도록 올리고, 답변은 그 아래에서 자라난다. 예전엔 매번 맨 아래로 붙여 새 말풍선이
   // 화면 중간에 어중간하게 걸쳤다. 마지막 말풍선이 맨 위까지 올라갈 수 있게 하단에 스페이서를 두고,
@@ -630,7 +639,7 @@ export function MovaAiChatBar({
 
         <form
           onSubmit={handleSubmit}
-          className="border-mova-border bg-mova-surface focus-within:border-mova-accent/40 relative w-full rounded-2xl border shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-shadow focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.45)]"
+          className="border-mova-border bg-mova-surface focus-within:border-mova-accent/40 flex w-full items-end gap-2 rounded-2xl border px-4 py-2.5 shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-shadow focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)] sm:px-5 dark:shadow-[0_8px_40px_rgba(0,0,0,0.45)]"
         >
           <textarea
             ref={heroInputRef}
@@ -641,14 +650,14 @@ export function MovaAiChatBar({
             onKeyDown={onKeyDown}
             disabled={chat.loading}
             placeholder="장르, 분위기, 배우를 알려주세요…"
-            className="text-mova-text max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed outline-none placeholder:text-neutral-500 disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
+            className="text-mova-text block max-h-40 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-base leading-6 outline-none placeholder:text-neutral-500 disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={!canSubmit}
             aria-label="AI 추천 받기"
             className={cn(
-              "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-lg transition-all",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all",
               canSubmit
                 ? "bg-mova-accent text-white shadow-md hover:brightness-110"
                 : "bg-mova-surface-2 text-mova-muted",
@@ -802,7 +811,10 @@ export function MovaAiChatBar({
         onSubmit={handleSubmit}
         className="border-mova-border bg-mova-bg/95 sticky bottom-0 z-10 border-t py-2 backdrop-blur-md"
       >
-        <div className="border-mova-border bg-mova-surface focus-within:border-mova-accent/40 relative rounded-2xl border shadow-sm transition-shadow focus-within:shadow-[0_4px_24px_rgba(190,24,93,0.12)]">
+        {/* 글자 줄과 전송 버튼을 같은 행에 두고(items-end) 입력에 맞춰 위로 늘어난다 — 클로드·
+            제미나이식. 예전엔 textarea가 인라인이라 아래 9px 빈 줄이 생기고 버튼이 떠 있어 6px
+            어긋났다(2026-09-28 실측). */}
+        <div className="border-mova-border bg-mova-surface focus-within:border-mova-accent/40 flex items-end gap-2 rounded-2xl border px-4 py-2 shadow-sm transition-shadow focus-within:shadow-[0_4px_24px_rgba(190,24,93,0.12)]">
           <textarea
             ref={chatInputRef}
             name="message"
@@ -812,14 +824,14 @@ export function MovaAiChatBar({
             onKeyDown={onKeyDown}
             disabled={chat.loading}
             placeholder="장르, 분위기, 배우를 알려주세요…"
-            className="text-mova-text max-h-32 min-h-[3rem] w-full resize-none bg-transparent px-4 py-3 pr-12 text-sm leading-relaxed outline-none placeholder:text-neutral-500 disabled:opacity-60"
+            className="text-mova-text block max-h-40 min-w-0 flex-1 resize-none bg-transparent py-1 text-sm leading-6 outline-none placeholder:text-neutral-500 disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={!canSubmit}
             aria-label="전송"
             className={cn(
-              "absolute right-2.5 bottom-2.5 flex h-8 w-8 items-center justify-center rounded-lg transition-all",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all",
               canSubmit
                 ? "bg-mova-accent text-white shadow-md hover:brightness-110"
                 : "bg-mova-surface-2 text-mova-muted",
