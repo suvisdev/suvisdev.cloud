@@ -104,6 +104,38 @@ mova 탭이 뒤집힌다. `theme` 변화를 감시해 다시 dark로 쓰면 이�
 보존했다(청크 ID가 `portfolio:<stem>#<n>`이라 같은 파일은 덮어쓴다).
 </details>
 
+### Q10. 롯데시네마 예매 딥링크 파라미터는 어떻게 알아냈고, 왜 `link_channelCode=naver`를 붙이나?
+
+<details><summary>답 확인</summary>
+
+공식 문서가 없어 예매 페이지의 번들 JS(`TicketingIndex.bundle.js`)를 받아 `location.search`를 읽는
+부분을 찾았다. `link_cinemaCode`·`link_movieCd`·`link_date`·`link_time`·`link_screenId`를 읽지만, 극장·영화·
+날짜를 선택 상태로 반영하는 분기는 `h&&"naver"==h`, 즉 `link_channelCode`가 `naver`일 때만 탄다(네이버
+검색 연동용 경로). 그래서 그 값을 그대로 붙여야 딥링크가 동작한다. 회차 강조는 `ScreenID`와 `StartTime`이
+같은 항목에 클래스를 붙이는 방식이라 시간표 API의 `ScreenID`·`PlayDt`를 회차별 URL에 넣었다.
+</details>
+
+### Q11. "봤어요" 영화가 추천에서 빠지지 않던 건 왜였고, 어디에 끼워 넣었나?
+
+<details><summary>답 확인</summary>
+
+추천 트랙의 제외 로직은 "같은 대화에서 이미 소개한 영화"(스레드 dedup)뿐이었고, 시청 기록(user_actions
+watched)은 리뷰 작성 게이트에만 쓰였다. 새 조회 메서드로 시청 영화 id 집합을 받아 기존
+`already_shown_slugs`에 합집합으로 넣었다 — 후보 필터·dedup 소진 시 풀 확장 재검색·최종 recs 필터가 전부
+그 집합을 쓰므로 한 곳만 바꿔도 전 경로에 적용된다. 비로그인은 조회하지 않고, 조회 실패는 빈 집합으로
+채팅을 계속한다.
+</details>
+
+### Q12. 평가 응답에서 TMDB 평점을 빼고 "짧게 요약"으로 바꿀 때 DTO의 `tmdb_rating`은 왜 남겼나?
+
+<details><summary>답 확인</summary>
+
+사용자 요구는 "응답 문장과 카드에서 mova 기준으로 보이게"였지 데이터 계약 변경이 아니다. 필드를 지우면
+프론트 파서·스키마·테스트까지 같이 바뀌어 diff가 커지고, 나중에 다시 쓸 여지도 없앤다. 프롬프트 입력
+라인과 카드 표시만 걷어내는 게 정밀한 수정이다. 프롬프트는 라벨(`[정량]`·`[정성]`) 금지·2~4문장·리뷰
+발췌를 나열하지 말고 압축하라는 규칙으로 바꿨다.
+</details>
+
 ---
 
 ## 2026-09-27 (gildle — 앱 지도 화면 · `/routes` 결함 · 수관 데이터 · A* 모드별 배율)

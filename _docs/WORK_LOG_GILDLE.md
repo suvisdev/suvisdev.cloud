@@ -28,6 +28,24 @@
 
 ---
 
+## 2026-09-28
+
+### 작업 내용
+- 사용자 스크린샷: 웹 지도(`/gildle/map`)의 배경 타일이 전부 "API KEY REQUIRED carto.com/basemaps/apikey"
+  워터마크로 나옴. 원인은 코드가 아니라 **CARTO basemaps 정책 변경** — `basemaps.cartocdn.com/dark_all`
+  타일이 API 키 없는 요청에 워터마크 타일을 돌려준다(08-27 도입 당시엔 무료·무키). 보행 그래프 간선
+  (초록)은 우리 API라 정상.
+
+### 수정/구현
+- `gildle-map.tsx` TileLayer를 키 없는 OSM 표준 타일(`tile.openstreetmap.org`)로 교체, attribution 정정.
+  밝은 지도라 다크 UI와 덜 어울림 — 다크 타일이 필요하면 CARTO 무료 키를 받아 `dark_all` URL에 붙이는
+  게 후속 선택지. Flutter 앱은 네이버 지도라 무관.
+
+### 산출물
+- 커밋(프론트 2차 묶음)에 포함.
+
+---
+
 ## 2026-09-27
 
 ### 작업 내용 (밤 — 아키텍처 감사 후속: 인터랙터의 HTTPException 제거)

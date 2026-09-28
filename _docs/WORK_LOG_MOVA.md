@@ -71,6 +71,26 @@
 - **배포·검증(CPU torch 이미지와 함께 `deploy.sh --external-db --build`, `[P]` 09-28)**: 단일턴 **23/23**·
   멀티턴 **12/12** PASS. 실호출 "기생충 줄거리 알려줘" → 오케스트레이터 `intent=evaluate title='기생충'
   movie=기생충(2019)` → 줄거리 선행 evaluation 응답(결정론 분기는 폴백용이라 이 경로에선 미발동, 의도대로).
+- **오후 2차(사용자 스크린샷·질문 4건, 별도 커밋)**:
+  - **롯데시네마 예매 딥링크·극장 시간표 링크**: 롯데 웹 `TicketingIndex.bundle.js`를 받아 분석 —
+    `RequestParams(location.search)`에서 `link_channelCode`·`link_cinemaCode`·`link_movieCd`·`link_date`·
+    `link_time`·`link_screenId`를 읽고, **`link_channelCode=naver`일 때만** 극장(CinemaID)·영화
+    (RepresentationMovieCode)·날짜를 선택 상태로 넣고 `link_time`+`link_screenId`가 맞는 회차에 강조 클래스
+    (`bixbi`)를 붙인다. GetPlaySequence 응답에 `ScreenID`·`PlayDt`·`RepresentationMovieCode`가 있어 어댑터가
+    회차마다 `booking_url`을, 극장에는 `timetable_url`(`/NLCHS/Cinema/Detail?divisionCode&detailDivisionCode
+    (정수)&cinemaID`)을 만든다. DTO·스키마·`to_schema`·프론트 파서까지 배선: 회차 칩은 `<a>`(새 탭), 헤더
+    "롯데시네마 ○○ 시간표"도 링크, 극장 목록의 같은 이름 항목은 카카오 장소 대신 시간표로. 테스트
+    `test_lotte_links.py` 2건. CGV·메가박스는 약관·robots 배제(종전대로 검색 링크만).
+  - **평가 응답에서 TMDB 평점 제거 + 짧은 리뷰 요약**(사용자 "우리 mova 기준으로", "리뷰 요약해서
+    짧게"): `_compose_reply` 데이터 라인을 `[mova 리뷰] N건, 평균 별점 x`로 바꾸고 TMDB 유래 평점은 넣지
+    않는다(외부 리뷰 본문은 `[관객 리뷰]`로 근거만). 시스템 프롬프트를 2~4문장·라벨 금지·리뷰 반응 요약
+    중심으로 재작성. 장애 강등 문구도 mova 리뷰 기준. 프론트 평가 카드의 "TMDB x점" 통계도 제거
+    (DTO `tmdb_rating` 필드는 남김 — 표시만 안 함).
+  - **"봤어요" 영화 추천 제외**(사용자 "본 거 또 볼 순 없잖아"): 종전엔 대화 스레드 dedup만 있고 시청
+    기록 제외가 **없었다**. `ChatRepositoryPort.get_watched_movie_ids`(user_actions watched, PG 구현) 추가,
+    `_reply_recommend`가 `already_shown_slugs | watched`로 합쳐 후보·최종 recs에서 제거(dedup 소진 시 풀
+    확장 재검색도 같은 집합). 비로그인은 조회 안 함, 조회 실패는 빈 집합. 테스트 1건. "이전에 본 영화"
+    표시는 제외가 되므로 불필요.
 - 코랩 재학습: 오늘 결정 없음 — 하네스 만점이고 실사용 오답 샘플이 0이라 학습 트리거(출력 계약 변경·
   체계적 실패·데이터 유의미 증분) 중 어느 것도 아직 없다.
 
