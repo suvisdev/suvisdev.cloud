@@ -11,15 +11,6 @@ type ApiErrorBody = { detail?: unknown }
 
 export type SeasonMode = "spring_autumn" | "summer_shade" | "winter_safety"
 
-export type RouteResult = {
-  path: string[]
-  coordinates: [number, number][]
-  length_m: number | null
-  shade_ratio: number | null
-  edge_shades: number[]
-  night: boolean
-}
-
 export type LoopCandidate = {
   path: string[]
   coordinates: [number, number][]
@@ -74,16 +65,6 @@ async function gildleFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return data
 }
 
-export function calculateRoute(body: {
-  start_lat: number
-  start_lng: number
-  end_lat: number
-  end_lng: number
-  mode: SeasonMode
-}): Promise<RouteResult> {
-  return gildleFetch<RouteResult>("/routes", { method: "POST", body: JSON.stringify(body) })
-}
-
 export function findLoops(body: {
   lat: number
   lng: number
@@ -111,4 +92,60 @@ export function getWalk(id: number): Promise<WalkDetail> {
 
 export function walkStats(): Promise<WalkStats> {
   return gildleFetch<WalkStats>("/walks/stats")
+}
+
+export type PetPlaceItem = {
+  id: string
+  name: string
+  category: string
+  lat: number
+  lng: number
+  address: string
+  url: string
+  phone: string
+}
+
+export type RouteOptionKind = "fast" | "shade" | "green" | "via"
+
+/** 경로 후보 — 빠른·그늘·푸른 길과 고를 이유, 경로 곁 반려동물 장소(2026-09-28). */
+export type RouteOption = {
+  kind: RouteOptionKind
+  label: string
+  reason: string
+  highlights: string[]
+  recommended: boolean
+  path: string[]
+  coordinates: [number, number][]
+  length_m: number
+  minutes: number
+  extra_m: number
+  shade_ratio: number | null
+  green_ratio: number
+  places: PetPlaceItem[]
+}
+
+type RouteOptionsBody = {
+  start_lat: number
+  start_lng: number
+  end_lat: number
+  end_lng: number
+  mode: SeasonMode
+  departure_time?: string
+}
+
+export function getRouteOptions(
+  body: RouteOptionsBody
+): Promise<{ options: RouteOption[]; night: boolean }> {
+  return gildleFetch("/routes/options", { method: "POST", body: JSON.stringify(body) })
+}
+
+export function getRouteVia(
+  body: RouteOptionsBody & {
+    via_lat: number
+    via_lng: number
+    via_name: string
+    base_kind: "fast" | "shade" | "green"
+  }
+): Promise<{ option: RouteOption }> {
+  return gildleFetch("/routes/via", { method: "POST", body: JSON.stringify(body) })
 }

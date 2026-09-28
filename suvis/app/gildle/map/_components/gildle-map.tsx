@@ -7,11 +7,14 @@ import { Eraser, Loader2, LocateFixed, Repeat, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getSuvisSession } from "@/lib/suvis-session"
 import {
-  calculateRoute,
   createWalk,
   findLoops,
   type LoopCandidate,
-  type RouteResult,
+  getRouteOptions,
+  getRouteVia,
+  type PetPlaceItem,
+  type RouteOption,
+  type RouteOptionKind,
   type SeasonMode,
 } from "@/lib/gildle-api"
 
@@ -30,6 +33,13 @@ const MAX_WALK_POINTS = 5000 // WalkCreateSchema path 상한
 const COLOR_ACCENT = "#34d399" // --gildle-accent (그늘)
 const COLOR_WARM = "#d4a574" // --gildle-warm (햇빛)
 const COLOR_MUTED = "#9ca3af"
+// 경로 후보 색 — 빠른 길(파랑)·그늘(초록 accent)·푸른 길(연두)·들렀다 가기(분홍)
+const KIND_COLOR: Record<RouteOptionKind, string> = {
+  fast: "#60a5fa",
+  shade: COLOR_ACCENT,
+  green: "#a3e635",
+  via: "#f472b6",
+}
 
 const SEASON_LABEL: Record<SeasonMode, string> = {
   spring_autumn: "봄·가을",
@@ -73,19 +83,6 @@ function haversineM(a: Point, b: Point): number {
     Math.sin(dLat / 2) ** 2 +
     Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
   return 2 * r * Math.asin(Math.sqrt(s))
-}
-
-/** 두 색(#rrggbb)을 t(0=a, 1=b)로 섞는다 — 앱의 Color.lerp(sun, shade, t)와 동일. */
-function lerpColor(a: string, b: string, t: number): string {
-  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
-  const [ar, ag, ab] = p(a)
-  const [br, bg, bb] = p(b)
-  const k = Math.min(1, Math.max(0, t))
-  const c = (x: number, y: number) =>
-    Math.round(x + (y - x) * k)
-      .toString(16)
-      .padStart(2, "0")
-  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`
 }
 
 function bearingLabel(deg: number): string {
@@ -236,7 +233,10 @@ export default function GildleMap() {
   const [mode, setMode] = useState<SeasonMode>("spring_autumn")
   const [start, setStart] = useState<Point | null>(null)
   const [end, setEnd] = useState<Point | null>(null)
-  const [route, setRoute] = useState<RouteResult | null>(null)
+  const [options, setOptions] = useState<RouteOption[]>([])
+  const [selectedOpt, setSelectedOpt] = useState(0)
+  const [night, setNight] = useState(false)
+  const [viaLoading, setViaLoading] = useState<string | null>(null)
   const [loops, setLoops] = useState<LoopCandidate[]>([])
   const [selectedLoop, setSelectedLoop] = useState<number | null>(null)
   const [loopSheet, setLoopSheet] = useState(false)
@@ -247,15 +247,14 @@ export default function GildleMap() {
 
   const currentLoop =
     selectedLoop !== null && selectedLoop < loops.length ? loops[selectedLoop] : null
+  const option: RouteOption | null = options[selectedOpt] ?? null
   const routeCoords = useMemo<Point[]>(() => {
     if (currentLoop) return currentLoop.coordinates.map(([lat, lng]) => ({ lat, lng }))
-    if (!route || route.path.length === 0 || !start || !end) return []
-    // 앱과 동일: [탭한 출발, 서버 노드들…, 탭한 도착]
-    return [start, ...route.coordinates.map(([lat, lng]) => ({ lat, lng })), end]
-  }, [currentLoop, route, start, end])
-  const lengthM = currentLoop ? currentLoop.length_m : (route?.length_m ?? null)
-  const shadeRatio = currentLoop ? currentLoop.shade_ratio : (route?.shade_ratio ?? null)
-  const night = route?.night ?? false
+    if (!option || !start || !end) return []
+    return [start, ...option.coordinates.map(([lat, lng]) => ({ lat, lng })), end]
+  }, [currentLoop, option, start, end])
+  const lengthM = currentLoop ? currentLoop.length_m : (option?.length_m ?? null)
+  const shadeRatio = currentLoop ? currentLoop.shade_ratio : (option?.shade_ratio ?? null)
 
   // --- 지도 초기화 (앱과 동일: 서울시청, zoom 13, minZoom 10, 로고 오른쪽 위) ---
   useEffect(() => {
@@ -280,25 +279,60 @@ export default function GildleMap() {
   const stateRef = useRef({ start, end, mode, walkStatus: walk.status })
   stateRef.current = { start, end, mode, walkStatus: walk.status }
 
+  // 경로 후보(빠른·그늘·푸른 길) — 이유와 경로 곁 반려동물 장소를 함께 받는다(2026-09-28).
   const computeRoute = useCallback(async (s: Point, e: Point, m: SeasonMode) => {
     setLoading(true)
     setError(null)
     try {
-      const result = await calculateRoute({
+      const result = await getRouteOptions({
         start_lat: s.lat,
         start_lng: s.lng,
         end_lat: e.lat,
         end_lng: e.lng,
         mode: m,
       })
-      setRoute(result)
-      if (result.path.length === 0) setError("두 지점을 잇는 보행 경로를 찾지 못했어요.")
+      setOptions(result.options)
+      setNight(result.night)
+      setSelectedOpt(
+        Math.max(
+          0,
+          result.options.findIndex((o) => o.recommended)
+        )
+      )
+      if (result.options.length === 0) setError("두 지점을 잇는 보행 경로를 찾지 못했어요.")
     } catch (err) {
-      setRoute(null)
+      setOptions([])
       setError(err instanceof Error ? err.message : "경로를 계산하지 못했어요.")
     }
     setLoading(false)
   }, [])
+
+  // 고른 장소에 들렀다 가는 경로 — 지금 고른 후보와 같은 성격으로 계산해 후보 목록에 붙인다.
+  const viaPlace = async (place: PetPlaceItem) => {
+    if (!start || !end || !option) return
+    setViaLoading(place.id)
+    setError(null)
+    try {
+      const base = option.kind === "via" ? "fast" : option.kind
+      const { option: via } = await getRouteVia({
+        start_lat: start.lat,
+        start_lng: start.lng,
+        end_lat: end.lat,
+        end_lng: end.lng,
+        mode,
+        via_lat: place.lat,
+        via_lng: place.lng,
+        via_name: place.name,
+        base_kind: base,
+      })
+      const rest = options.filter((o) => o.kind !== "via")
+      setOptions([...rest, via])
+      setSelectedOpt(rest.length)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "들렀다 가는 길을 만들지 못했어요.")
+    }
+    setViaLoading(null)
+  }
 
   const placePoint = useCallback(
     (p: Point) => {
@@ -307,7 +341,7 @@ export default function GildleMap() {
       if (!s || (s && e)) {
         setStart(p)
         setEnd(null)
-        setRoute(null)
+        setOptions([])
         setLoops([])
         setSelectedLoop(null)
         setError(null)
@@ -358,62 +392,77 @@ export default function GildleMap() {
     draw(endMarkerRef, end, "도착", COLOR_WARM)
   }, [start, end, sdkReady])
 
-  // --- 경로 폴리라인: 여름+그늘 값이면 구간별 햇빛→그늘 그라데이션, 아니면 accent 단색. 흰 외곽선. ---
+  // --- 경로 폴리라인: 후보를 모두 그리고(고른 것 굵게, 나머지는 옅게·클릭하면 선택) 흰 외곽선.
+  //     루프를 고른 경우엔 루프만. 고른 후보 곁 반려동물 장소는 🐾 마커. ---
+  const placeMarkersRef = useRef<naver.maps.Marker[]>([])
   useEffect(() => {
     const nv = getNaver()
     const map = mapRef.current
     if (!nv || !map) return
     routeOverlaysRef.current.forEach((o) => o.setMap(null))
     routeOverlaysRef.current = []
+    placeMarkersRef.current.forEach((m) => m.setMap(null))
+    placeMarkersRef.current = []
     if (routeCoords.length < 2) return
-    const path = routeCoords.map((p) => new nv.maps.LatLng(p.lat, p.lng))
-    const overlays: naver.maps.Polyline[] = [
+    const toPath = (pts: Point[]) => pts.map((p) => new nv.maps.LatLng(p.lat, p.lng))
+    const overlays: naver.maps.Polyline[] = []
+    const listeners: naver.maps.MapEventListener[] = []
+    const allPts: Point[] = [...routeCoords]
+    if (!currentLoop && start && end) {
+      options.forEach((o, i) => {
+        if (i === selectedOpt) return
+        const pts = [start, ...o.coordinates.map(([lat, lng]) => ({ lat, lng })), end]
+        allPts.push(...pts)
+        const line = new nv.maps.Polyline({
+          map,
+          path: toPath(pts),
+          strokeColor: KIND_COLOR[o.kind],
+          strokeOpacity: 0.45,
+          strokeWeight: 6,
+          clickable: true,
+        })
+        listeners.push(nv.maps.Event.addListener(line, "click", () => setSelectedOpt(i)))
+        overlays.push(line)
+      })
+    }
+    const color = currentLoop || !option ? COLOR_ACCENT : KIND_COLOR[option.kind]
+    const path = toPath(routeCoords)
+    overlays.push(
       new nv.maps.Polyline({
         map,
         path,
         strokeColor: "#ffffff",
-        strokeOpacity: 0.8,
+        strokeOpacity: 0.85,
         strokeWeight: 12,
       }),
-    ]
-    const shades = !currentLoop && mode === "summer_shade" ? (route?.edge_shades ?? []) : []
-    if (shades.length === 0) {
-      overlays.push(
-        new nv.maps.Polyline({
-          map,
-          path,
-          strokeColor: COLOR_ACCENT,
-          strokeOpacity: 1,
-          strokeWeight: 8,
-        })
-      )
-    } else {
-      // 구간 수 = 간선 수 + 2 — 앞뒤 연결 구간은 이웃 간선의 그늘을 쓴다(앱과 동일).
-      for (let i = 0; i + 1 < path.length; i++) {
-        const idx = Math.min(Math.max(i - 1, 0), shades.length - 1)
-        overlays.push(
-          new nv.maps.Polyline({
-            map,
-            path: [path[i], path[i + 1]],
-            strokeColor: lerpColor(COLOR_WARM, COLOR_ACCENT, shades[idx]),
-            strokeOpacity: 1,
-            strokeWeight: 8,
-            strokeLineCap: "round",
-          })
-        )
-      }
-    }
+      new nv.maps.Polyline({ map, path, strokeColor: color, strokeOpacity: 1, strokeWeight: 8 })
+    )
     routeOverlaysRef.current = overlays
-    const lats = routeCoords.map((p) => p.lat)
-    const lngs = routeCoords.map((p) => p.lng)
+    if (!currentLoop && option) {
+      placeMarkersRef.current = option.places.map(
+        (pl) =>
+          new nv.maps.Marker({
+            map,
+            position: new nv.maps.LatLng(pl.lat, pl.lng),
+            title: `${pl.category} · ${pl.name}`,
+            icon: {
+              content: `<div style="font-size:18px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">🐾</div>`,
+              anchor: new nv.maps.Point(9, 9),
+            },
+          })
+      )
+    }
+    const lats = allPts.map((p) => p.lat)
+    const lngs = allPts.map((p) => p.lng)
     map.fitBounds(
       new nv.maps.LatLngBounds(
         new nv.maps.LatLng(Math.min(...lats), Math.min(...lngs)),
         new nv.maps.LatLng(Math.max(...lats), Math.max(...lngs))
       ),
-      { top: 60, right: 60, bottom: 200, left: 60 }
+      { top: 60, right: 60, bottom: 260, left: 60 }
     )
-  }, [routeCoords, mode, route, currentLoop, sdkReady])
+    return () => nv.maps.Event.removeListener(listeners)
+  }, [routeCoords, options, selectedOpt, option, currentLoop, start, end, sdkReady])
 
   // --- 산책 추적 오버레이: 계획 경로는 회색 점선, 걸은 길은 accent 실선(앱 WalkScreen과 동일) ---
   useEffect(() => {
@@ -498,7 +547,7 @@ export default function GildleMap() {
         setSelectedLoop(null)
         setError(null)
         if (end) void computeRoute(p, end, mode)
-        else setRoute(null)
+        else setOptions([])
       },
       () => setError("현재 위치를 가져오지 못했어요. 브라우저 위치 권한을 확인해 주세요.")
     )
@@ -533,7 +582,7 @@ export default function GildleMap() {
   const clearAll = () => {
     setStart(null)
     setEnd(null)
-    setRoute(null)
+    setOptions([])
     setLoops([])
     setSelectedLoop(null)
     setError(null)
@@ -736,24 +785,87 @@ export default function GildleMap() {
             {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
             {walk.status === "idle" && hint && <p className="text-gildle-muted text-xs">{hint}</p>}
 
+            {walk.status === "idle" && !currentLoop && options.length > 0 && (
+              <div className="mb-2 flex max-h-[42vh] flex-col gap-1.5 overflow-y-auto">
+                {night && (
+                  <p className="text-gildle-muted text-[11px]">밤이라 그늘 길은 빼고 보여드려요.</p>
+                )}
+                {options.map((o, i) => (
+                  <button
+                    key={`${o.kind}-${i}`}
+                    type="button"
+                    onClick={() => setSelectedOpt(i)}
+                    className={cn(
+                      "rounded-xl border px-3 py-2 text-left transition-colors",
+                      i === selectedOpt
+                        ? "border-gildle-accent bg-gildle-surface-2"
+                        : "border-gildle-border hover:bg-gildle-surface-2"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: KIND_COLOR[o.kind] }}
+                      />
+                      <span className="text-sm font-semibold">{o.label}</span>
+                      {o.recommended && (
+                        <span className="bg-gildle-accent-soft text-gildle-accent rounded-full px-1.5 py-0.5 text-[10px]">
+                          추천
+                        </span>
+                      )}
+                      <span className="text-gildle-muted ml-auto text-[11px]">
+                        {o.highlights.join(" · ")}
+                      </span>
+                    </div>
+                    <p
+                      className={cn(
+                        "text-gildle-muted mt-1 text-xs leading-relaxed",
+                        i !== selectedOpt && "line-clamp-1"
+                      )}
+                    >
+                      {o.reason}
+                    </p>
+                  </button>
+                ))}
+                {option && option.places.length > 0 && (
+                  <div className="mt-1">
+                    <p className="text-gildle-muted mb-1 text-[11px]">
+                      🐾 이 길 곁 반려동물 장소 — 누르면 들렀다 가는 길을 만들어요
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {option.places.map((pl) => (
+                        <button
+                          key={pl.id}
+                          type="button"
+                          disabled={viaLoading !== null}
+                          onClick={() => void viaPlace(pl)}
+                          title={pl.address}
+                          className="border-gildle-border text-gildle-text hover:border-gildle-accent rounded-full border px-2.5 py-1 text-[11px] disabled:opacity-50"
+                        >
+                          {viaLoading === pl.id ? "계산 중…" : `${pl.category} · ${pl.name}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {walk.status === "idle" && lengthM !== null && (
               <div className="flex flex-wrap items-center gap-2">
                 <StatTile label="거리" value={km(lengthM)} />
                 <StatTile label="예상" value={`약 ${minutes(lengthM)}분`} />
-                {mode === "summer_shade" &&
-                  (night ? (
-                    <p className="text-gildle-muted text-xs">밤이라 그늘 계산 없이 최단 경로</p>
-                  ) : (
-                    shadeRatio !== null && (
-                      <StatTile label="그늘" value={`${Math.round(shadeRatio * 100)}%`} />
-                    )
-                  ))}
+                {shadeRatio !== null && (
+                  <StatTile label="그늘" value={`${Math.round(shadeRatio * 100)}%`} />
+                )}
                 <button
                   type="button"
                   onClick={startWalk}
                   className="bg-gildle-accent ml-auto rounded-lg px-3 py-2 text-xs font-semibold text-[#0a0d0a]"
                 >
-                  이 길로 산책 시작
+                  {option && !currentLoop && option.kind !== "via"
+                    ? `${option.label}로 산책 시작`
+                    : "이 길로 산책 시작"}
                 </button>
               </div>
             )}
