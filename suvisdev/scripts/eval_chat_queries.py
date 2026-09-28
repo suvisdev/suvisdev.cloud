@@ -8,6 +8,12 @@ Usage (suvisdev 폴더에서):
   python scripts/eval_chat_queries.py                 # 프로덕션
   python scripts/eval_chat_queries.py --base-url http://127.0.0.1:8000
   python scripts/eval_chat_queries.py --only 좀비     # 질의 부분 문자열 필터
+  python scripts/eval_chat_queries.py --catalog ~/datasets/movielens/catalog.tsv --save before.json
+
+카드 품질 지표(2026-09-28, 추천 기준 `apps/mova/_docs/MOVA_RECOMMENDATION_CRITERIA.md` §5)는
+PASS/FAIL과 별개로 집계한다 — 투표 30건 미만 카드, 같은 시리즈 중복, 볼 수 있는 곳 있음,
+질의 단어가 제목에 겹치는 카드(표면 매칭 의심, 사람이 확인). 투표 수는 --catalog(TSV: slug,
+title, year, vote_count — 운영 DB에서 추출)가 있을 때만 센다.
 
 레이트리밋(IP당 20회/60s)을 고려해 질의 사이에 짧게 쉰다.
 """
@@ -16,7 +22,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -74,7 +82,23 @@ SPECS: list[dict[str, Any]] = [
     {"q": "뉴욕 배경 영화", "note": "스킵: no grounded picks"},
     {"q": "춤 나오는 영화", "note": "스킵: no grounded picks"},
     {"q": "직장인 공감 영화", "note": "스킵: no grounded picks"},
+    # --- 분위기 질의 (09-28 추천 기준 작업 — 실사용 대화 38·40에서 품질이 약했던 유형) ---
+    {"q": "비 오는 날 어울리는 영화", "note": "09-28 대화 38 — 제목 '날' 표면 매칭 의심(바람피기 좋은 날)"},
+    {"q": "여행 가기 전에 보기 좋은 영화", "note": "09-28 대화 40"},
+    {"q": "기분 좋아지는 영화", "note": "09-28 추천 기준 — 분위기"},
+    {"q": "잔잔한 영화 추천해줘", "note": "09-28 추천 기준 — 분위기"},
+    {"q": "소름 돋는 반전 영화", "note": "09-28 추천 기준 — 분위기"},
 ]
+
+_LOW_VOTES = 30
+# 서로 다른 질의 N개 이상에 같은 작품이 나오면 "조건과 무관한 채움" 의심(09-28 기준선: 분위기
+# 질의 4개에 캔터빌의 유령·캠프 락 3·마운틴헤드가 반복 — 기존 지표로는 전부 PASS였다)
+_REPEAT_QUERIES = 3
+# 제목 겹침 판정에서 빼는 일반어 — 질의에 흔하지만 작품을 가리키지 않는 말
+_GENERIC_WORDS = frozenset(
+    "영화 추천 추천해줘 알려줘 어울리는 좋은 보기 나오는 배경 소재 전에 가기 사람용 처음 보는".split()
+)
+_SEQUEL_TAIL = re.compile(r"\s*(?:\d+|[IVX]+|시즌\s*\d+|part\s*\d+)$", re.IGNORECASE)
 
 
 def _year_of(rec: dict[str, Any]) -> int | None:
@@ -106,12 +130,99 @@ def _evaluate(spec: dict[str, Any], recs: list[dict[str, Any]]) -> list[str]:
     return problems
 
 
+def _series_key(title: str) -> str:
+    """'스파이더맨: 브랜드 뉴 데이'·'스파이더맨 2' → '스파이더맨'(부제·번호 제거)."""
+    base = re.split(r"[:：]", title, maxsplit=1)[0].strip()
+    return _SEQUEL_TAIL.sub("", base).strip()
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[0-9A-Za-z가-힣]+", text)
+
+
+def _query_words(q: str) -> set[str]:
+    return {w for w in _words(q) if w not in _GENERIC_WORDS}
+
+
+def _quality_metrics(
+    q: str, recs: list[dict[str, Any]], votes: dict[str, int] | None
+) -> dict[str, Any]:
+    titles = [str(r.get("title", "")) for r in recs]
+    keys = [_series_key(t) for t in titles]
+    words = _query_words(q)
+    m: dict[str, Any] = {
+        "cards": len(recs),
+        "series_dup": len(keys) != len(set(keys)),
+        "available": sum(1 for r in recs if r.get("platform")),
+        # 어절 단위로 같은 말이 있을 때만 — '비'가 '비와'에 걸리는 부분 문자열 오탐 방지
+        "title_overlap": [t for t in titles if words & set(_words(t))],
+    }
+    if votes is not None:
+        m["low_votes"] = [
+            t for r, t in zip(recs, titles) if votes.get(str(r.get("id")), 0) < _LOW_VOTES
+        ]
+    return m
+
+
+def _load_votes(path: Path) -> dict[str, int]:
+    votes: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 4 and parts[3].isdigit():
+            votes[parts[0]] = int(parts[3])
+    return votes
+
+
+def _print_quality(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    ms = [r["metrics"] for r in rows]
+    cards = sum(m["cards"] for m in ms)
+    summary: dict[str, Any] = {
+        "queries": len(ms),
+        "cards": cards,
+        "zero_card_queries": sum(1 for m in ms if m["cards"] == 0),
+        "series_dup_queries": sum(1 for m in ms if m["series_dup"]),
+        "available_cards": sum(m["available"] for m in ms),
+        "title_overlap_cards": sum(len(m["title_overlap"]) for m in ms),
+    }
+    if ms and "low_votes" in ms[0]:
+        summary["low_vote_cards"] = sum(len(m["low_votes"]) for m in ms)
+    seen: dict[str, set[str]] = {}
+    for r in rows:
+        for t in r["titles"]:
+            seen.setdefault(t, set()).add(r["q"])
+    repeated = {t: sorted(qs) for t, qs in seen.items() if len(qs) >= _REPEAT_QUERIES}
+    summary["repeated_titles"] = len(repeated)
+    print("\n카드 품질 지표:")
+    for k, v in summary.items():
+        print(f"  {k:22} {v}")
+    for r in rows:
+        m = r["metrics"]
+        notes = []
+        if m["series_dup"]:
+            notes.append("시리즈 중복")
+        if m.get("low_votes"):
+            notes.append(f"투표<{_LOW_VOTES}: {m['low_votes']}")
+        if m["title_overlap"]:
+            notes.append(f"제목 겹침: {m['title_overlap']}")
+        if notes:
+            print(f"  - {r['q']}: {' / '.join(notes)}")
+    for t, qs in repeated.items():
+        print(f"  - 반복 등장 {t}: {len(qs)}개 질의 {qs}")
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default=_DEFAULT_BASE_URL)
     parser.add_argument("--only", default=None, help="질의 부분 문자열 필터")
     parser.add_argument("--sleep", type=float, default=2.0)
+    parser.add_argument(
+        "--catalog", type=Path, default=None, help="투표 수 TSV(slug·title·year·votes)"
+    )
+    parser.add_argument("--save", type=Path, default=None, help="질의별 카드·지표 JSON 저장")
     args = parser.parse_args()
+    votes = _load_votes(args.catalog.expanduser()) if args.catalog else None
+    rows: list[dict[str, Any]] = []
 
     specs = [s for s in SPECS if not args.only or args.only in s["q"]]
     passed = 0
@@ -134,6 +245,8 @@ def main() -> None:
             continue
 
         titles = [f"{x.get('title')}({x.get('year')})" for x in recs]
+        metrics = _quality_metrics(spec["q"], recs, votes)
+        rows.append({"q": spec["q"], "titles": titles, "metrics": metrics})
         problems = _evaluate(spec, recs)
         status = "PASS" if not problems else "FAIL"
         if problems:
@@ -150,6 +263,12 @@ def main() -> None:
     print(f"\n결과: {passed}/{len(specs)} PASS")
     for q, problems, titles in failures:
         print(f"  FAIL {q}: {'; '.join(problems)} | picks={titles}")
+    summary = _print_quality(rows)
+    if args.save:
+        args.save.write_text(
+            json.dumps({"summary": summary, "rows": rows}, ensure_ascii=False, indent=1),
+            encoding="utf-8",
+        )
     print(json.dumps({"passed": passed, "total": len(specs)}, ensure_ascii=False))
 
 
