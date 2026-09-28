@@ -29,3 +29,10 @@ class ShowtimePort(ABC):
     ) -> CinemaShowtimeDto | None:
         """좌표 기반 최근접 극장 시간표. 구현체가 지원하지 않으면 None."""
         return None
+
+    async def find_showing_cinemas(
+        self, area: str, movie_title: str, *, date: str | None = None
+    ) -> list[CinemaShowtimeDto]:
+        """광역(시·도, 예: "서울") 안에서 이 작품을 상영하는 극장 전부의 시간표.
+        가장 이른 회차 순. 구현체가 지원하지 않으면 []."""
+        return []

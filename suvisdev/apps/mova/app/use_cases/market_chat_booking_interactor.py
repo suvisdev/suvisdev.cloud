@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
@@ -154,7 +154,54 @@ def _date_label(date: str | None) -> str:
     return f"{d.month}월 {d.day}일"
 
 
-_REGION_IN_REPLY = re.compile(r"'([^']{1,20})' 근처")
+_REGION_IN_REPLY = re.compile(r"'([^']{1,20})' (?:근처|전역)")
+
+# 광역(시·도) 요청 — "서울 전체로 찾아줘"는 좌표 하나 반경 검색이 아니라 그 광역의 상영관 전부를
+# 봐야 한다(2026-09-28 사용자: 예전엔 "서울"이 시청 좌표 반경 10km 5곳으로 좁혀졌다).
+_WIDE_AREAS = frozenset(
+    {"서울", "경기", "인천", "부산", "대구", "광주", "대전", "울산", "세종", "강원", "제주"}
+    | {"충북", "충남", "전북", "전남", "경북", "경남", "충청", "전라", "경상"}
+)
+_WIDE_NOISE = re.compile(
+    r"(특별자치시|특별자치도|특별시|광역시|전체|전역|어디서든|어디든|지역|권|쪽|\s)"
+)
+_MAX_WIDE_CINEMAS = 5
+
+
+def wide_area(region: str | None) -> str | None:
+    """ "서울", "서울 전체", "서울특별시", "경기도" → 광역 이름. 역·동·구 같은 지점이면 None."""
+    if not region:
+        return None
+    name = _WIDE_NOISE.sub("", region)
+    if name.endswith("도") and name[:-1] in _WIDE_AREAS:
+        name = name[:-1]
+    return name if name in _WIDE_AREAS else None
+
+
+def _drop_past_slots(showing: list[CinemaShowtimeDto], date: str | None) -> list[CinemaShowtimeDto]:
+    """오늘 조회면 이미 지난 회차를 빼고, 남은 회차가 없는 극장은 제외, 남은 첫 회차 순으로 정렬.
+    (2026-09-28 실측: 12:30 지난 회차가 "이른 회차 순" 맨 앞에 왔다.)"""
+    now = _kst_today()
+    if date and date != now.strftime("%Y-%m-%d"):
+        return showing
+    cutoff = now.strftime("%H:%M")
+    kept = []
+    for cs in showing:
+        slots = [sl for sl in cs.slots if sl.start_time >= cutoff]
+        if slots:
+            kept.append(replace(cs, slots=slots))
+    kept.sort(key=lambda cs: cs.slots[0].start_time)
+    return kept
+
+
+def _upcoming_first(showing: list[CinemaShowtimeDto], date: str | None) -> tuple[str, str] | None:
+    """(가장 이른 남은 회차 시각, 극장명). 오늘이면 이미 지난 회차는 뺀다."""
+    now = _kst_today()
+    cutoff = now.strftime("%H:%M") if (not date or date == now.strftime("%Y-%m-%d")) else ""
+    cands = [
+        (s.start_time, cs.cinema_name) for cs in showing for s in cs.slots if s.start_time >= cutoff
+    ]
+    return min(cands) if cands else None
 
 
 def region_from_history(history: list[dict[str, str]] | None) -> str | None:
@@ -207,6 +254,38 @@ def _parse_region_transport(text: str) -> tuple[str, int, str | None]:
     region = " ".join(region_tokens).strip() or text.strip()
     region = _REGION_TAIL.sub("", region).strip() or region
     return region, radius, label
+
+
+# OTT 검색 딥링크 — TMDB가 주는 제공자 URL은 전부 TMDB 시청처 페이지 하나라, 서비스별 검색으로 보낸다
+# (2026-09-28 사용자: "상영 안 하면 어디서 볼 수 있는지 링크로"). 키는 movies.platforms[].provider.
+_OTT_LINKS: dict[str, tuple[str, str]] = {
+    "netflix": ("넷플릭스", "https://www.netflix.com/search?q={q}"),
+    "netflixstandardwithads": ("넷플릭스", "https://www.netflix.com/search?q={q}"),
+    "disneyplus": ("디즈니+", "https://www.disneyplus.com/ko-kr/search?q={q}"),
+    "wavve": ("웨이브", "https://www.wavve.com/search?searchWord={q}"),
+    "watcha": ("왓챠", "https://watcha.com/search?query={q}"),
+    "tving": ("티빙", "https://www.tving.com/search?keyword={q}"),
+    "googleplaymovies": ("구글 플레이", "https://play.google.com/store/search?q={q}&c=movies"),
+    "appletv": ("Apple TV", "https://tv.apple.com/kr/search?term={q}"),
+    "amazonprimevideo": ("프라임 비디오", "https://www.primevideo.com/search?phrase={q}"),
+}
+
+
+def _watch_links(detail: MovieDetailDto) -> list[ChatBookingLinkDto]:
+    """상영작이 아닐 때 볼 수 있는 곳 — 알려진 OTT는 검색 링크, 끝에 TMDB 시청처 페이지."""
+    q = quote(detail.title)
+    links: list[ChatBookingLinkDto] = []
+    seen: set[str] = set()
+    tmdb_url = ""
+    for p in detail.platforms:
+        tmdb_url = tmdb_url or (p.url or "")
+        known = _OTT_LINKS.get((p.provider or "").lower())
+        if known and known[0] not in seen:
+            seen.add(known[0])
+            links.append(ChatBookingLinkDto(chain=known[0], url=known[1].format(q=q)))
+    if tmdb_url:
+        links.append(ChatBookingLinkDto(chain="전체 시청처(TMDB)", url=tmdb_url))
+    return links
 
 
 def _booking_links(title: str) -> list[ChatBookingLinkDto]:
@@ -408,11 +487,16 @@ class BookingAssistService:
         card = self._card(detail, movie_id)
 
         if not await self._is_showing(detail.title):
-            platforms = ", ".join(p.provider for p in detail.platforms if p.provider)
+            watch = _watch_links(detail)
+            names = [link.chain for link in watch if link.chain != "전체 시청처(TMDB)"]
             ott_line = (
-                f" 대신 {platforms}에서 감상하실 수 있어요."
-                if platforms
-                else " OTT 공개 정보도 아직 없어요."
+                f" 대신 {', '.join(names)}에서 감상하실 수 있어요. 아래 링크로 바로 찾아보세요."
+                if names
+                else (
+                    " 아래 링크에서 시청처를 확인해 보세요."
+                    if watch
+                    else " OTT 공개 정보도 아직 없어요."
+                )
             )
             return BookingResult(
                 status="ok",
@@ -422,7 +506,11 @@ class BookingAssistService:
                 ),
                 card=card,
                 booking=ChatBookingDto(
-                    status="not_showing", region=None, theaters=[], booking_links=[]
+                    status="not_showing",
+                    region=None,
+                    theaters=[],
+                    booking_links=[],
+                    watch_links=watch,
                 ),
                 resolved_movie_id=movie_id,
             )
@@ -528,6 +616,12 @@ class BookingAssistService:
             )
         card = self._card(detail, movie_id)
 
+        area = wide_area(region)
+        if area and self._showtimes is not None:
+            return await self._wide_area_reply(
+                detail=detail, card=card, area=area, date=date, trace_id=trace_id
+            )
+
         theaters = await self._theaters.search_theaters(region, radius_m=radius_m)
         if theaters is None:
             return BookingResult(
@@ -598,6 +692,69 @@ class BookingAssistService:
                 theaters=theaters,
                 booking_links=links,
                 showtimes=cinema_showtimes,
+            ),
+        )
+
+    async def _wide_area_reply(
+        self,
+        *,
+        detail: MovieDetailDto,
+        card: ChatRecommendationDto,
+        area: str,
+        date: str | None,
+        trace_id: str,
+    ) -> BookingResult:
+        """광역 요청 — 그 광역의 롯데시네마 전부에서 이 작품 상영관만 모아 이른 회차 순으로 답한다.
+        CGV·메가박스는 시간표를 가져올 수 없어 링크로 넘긴다."""
+        assert self._showtimes is not None
+        try:
+            showing = await self._showtimes.find_showing_cinemas(area, detail.title, date=date)
+        except Exception:
+            logger.warning(
+                "[BookingAssistService] 광역 시간표 조회 예외 area=%s", area, exc_info=True
+            )
+            showing = []
+        showing = _drop_past_slots(showing, date)
+        label = _date_label(date)
+        links = _booking_links(detail.title)
+        if showing:
+            upcoming = _upcoming_first(showing, date)
+            reply = (
+                f"『{detail.title}』 — '{area}' 전역 롯데시네마 중 {label} 상영관 {len(showing)}곳을 "
+                f"찾았어요."
+                + (f" 가장 이른 회차는 {upcoming[1]} {upcoming[0]}이에요." if upcoming else "")
+                + (
+                    f" 이른 회차 순으로 {_MAX_WIDE_CINEMAS}곳만 보여드려요."
+                    if len(showing) > _MAX_WIDE_CINEMAS
+                    else ""
+                )
+                + " CGV·메가박스는 아래 예매 링크에서 확인해 주세요."
+            )
+        else:
+            far = bool(date) and date > (_kst_today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            reply = (
+                f"『{detail.title}』 — '{area}' 전역 롯데시네마 {label} 시간표엔 이 작품이 없었어요"
+                + ("(그날 예매 일정이 아직 안 열렸을 수 있어요)." if far else ".")
+                + " CGV·메가박스는 아래 예매 링크에서 확인해 주세요."
+            )
+        logger.info(
+            "[BookingAssistService] trace=%s 광역 area=%s title=%s showing=%d date=%s",
+            trace_id,
+            area,
+            detail.title,
+            len(showing),
+            date,
+        )
+        return BookingResult(
+            status="ok",
+            reply=reply,
+            card=card,
+            booking=ChatBookingDto(
+                status="showing",
+                region=area,
+                theaters=[],
+                booking_links=links,
+                showtimes=showing[:_MAX_WIDE_CINEMAS],
             ),
         )
 

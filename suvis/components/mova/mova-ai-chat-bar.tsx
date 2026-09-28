@@ -56,6 +56,8 @@ type ChatBooking = {
   region: string | null
   theaters: ChatTheater[]
   booking_links: ChatBookingLink[]
+  /** 상영 중이 아닐 때 OTT 시청 링크(chain = 서비스 표시명) */
+  watch_links: ChatBookingLink[]
   showtimes: CinemaShowtime[]
 }
 
@@ -218,15 +220,18 @@ function normalizeBooking(raw: unknown): ChatBooking | null {
         ]
       })
     : []
-  const bookingLinks: ChatBookingLink[] = Array.isArray(o.booking_links)
-    ? o.booking_links.flatMap((l) => {
-        if (!l || typeof l !== "object") return []
-        const link = l as Record<string, unknown>
-        return typeof link.chain === "string" && typeof link.url === "string"
-          ? [{ chain: link.chain, url: link.url }]
-          : []
-      })
-    : []
+  const parseLinks = (raw: unknown): ChatBookingLink[] =>
+    Array.isArray(raw)
+      ? raw.flatMap((l) => {
+          if (!l || typeof l !== "object") return []
+          const link = l as Record<string, unknown>
+          return typeof link.chain === "string" && typeof link.url === "string"
+            ? [{ chain: link.chain, url: link.url }]
+            : []
+        })
+      : []
+  const bookingLinks = parseLinks(o.booking_links)
+  const watchLinks = parseLinks(o.watch_links)
   const showtimes: CinemaShowtime[] = Array.isArray(o.showtimes)
     ? o.showtimes.flatMap((cs) => {
         if (!cs || typeof cs !== "object") return []
@@ -268,6 +273,7 @@ function normalizeBooking(raw: unknown): ChatBooking | null {
     region: typeof o.region === "string" ? o.region : null,
     theaters,
     booking_links: bookingLinks,
+    watch_links: watchLinks,
     showtimes,
   }
 }
@@ -740,9 +746,11 @@ export function MovaAiChatBar({
                 {msg.role === "assistant" && msg.evaluation && (
                   <ChatEvaluationPanel evaluation={msg.evaluation} />
                 )}
-                {msg.role === "assistant" && msg.booking && msg.booking.status === "showing" && (
-                  <ChatBookingPanel booking={msg.booking} />
-                )}
+                {msg.role === "assistant" &&
+                  msg.booking &&
+                  (msg.booking.status === "showing" || msg.booking.watch_links.length > 0) && (
+                    <ChatBookingPanel booking={msg.booking} />
+                  )}
                 {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 px-1">
                     {msg.choices.map((choice) => (
@@ -983,6 +991,21 @@ function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
               className="border-mova-border bg-mova-bg text-mova-text hover:border-mova-accent hover:text-mova-accent-bright rounded-full border px-3 py-1 text-[11px] transition-colors"
             >
               {link.chain} 예매 검색
+            </a>
+          ))}
+        </div>
+      )}
+      {booking.watch_links.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {booking.watch_links.map((link) => (
+            <a
+              key={link.chain}
+              href={link.url}
+              target="_blank"
+              rel="noreferrer"
+              className="border-mova-border bg-mova-bg text-mova-text hover:border-mova-accent hover:text-mova-accent-bright rounded-full border px-3 py-1 text-[11px] transition-colors"
+            >
+              {link.chain.startsWith("전체") ? link.chain : `${link.chain}에서 보기`}
             </a>
           ))}
         </div>

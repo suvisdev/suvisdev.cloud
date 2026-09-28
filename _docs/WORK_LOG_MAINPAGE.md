@@ -114,6 +114,16 @@
   provider가 DB 세션을 만들다 죽던 것 → `_FakeSentimentBackfill` 오버라이드 추가, 25/25 통과, 전체
   **895 passed / 0 failed**. 스킵 2건(gildle 스크립트, shapely)은 컨테이너에 shapely 임시 설치 후 실행
   → 10/10 통과, 코드 이상 없음(서빙 이미지에 shapely를 넣지 않는 방침은 유지).
+- **홈 AI 채팅 범위 제한**(사용자 "나에 관한 질문 말고는 대답하지 말아야"): 검색 top1 점수가 주제 밖(날씨·레시피
+  0.31~0.51)과 주제 안(학력·mova 0.41~0.64)이 겹쳐 임계값으로는 못 가른다 → 시스템 프롬프트 규칙 0(범위 판정)
+  + 범위 밖이면 `[범위밖]`만 출력 → 인터랙터가 고정 거절 문구로 치환. 실측 10문항(주제 안 4·밖 6) 모두 의도대로.
+- **ARDA 지킬 색인**(사용자 "아르다도 지킬 있잖아"): `Seuk-Team/jekyll`(ats.suvisdev.cloud) 공개 저장소를
+  스크래치에 클론, 민감 패턴 검사(이메일·IP·키 0건) 후 `datasets/arda_jekyll/`(gitignore)에 복사해 파드에서 색인.
+  **사고**: 청크 ID가 `portfolio:<파일명>#n`이라 ARDA의 index·overview·devlog 등이 suvisjk 같은 이름 청크를
+  덮어씀(126+115→224) → 색인 스크립트에 `--ref-prefix` 추가, suvisjk도 `datasets/suvisjk_jekyll/`(gitignore)에
+  사본을 둬 파드에서 `--reset` 전체 재색인: 프로필+suvisjk 162 + ARDA(`portfolio:arda/…`) 115 = 277청크.
+  "ARDA 기술 스택·일정·어려웠던 점" 지킬 근거로 답함. 문서 갱신 시 두 사본을 다시 복사하고 스크립트 docstring
+  명령 두 줄 실행.
 - **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
   제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
   프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.

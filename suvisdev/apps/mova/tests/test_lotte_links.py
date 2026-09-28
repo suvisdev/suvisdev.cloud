@@ -47,5 +47,36 @@ class LotteLinkTests(unittest.TestCase):
         )
 
 
+class LotteAreaScanTests(unittest.IsolatedAsyncioTestCase):
+    async def test_scans_only_area_group_once_per_cinema_sorted_by_first_slot(self) -> None:
+        import time
+
+        from mova.adapter.outbound.http.lotte_cinema_adapter import LotteCinemaAdapter, _LotteCinema
+
+        adapter = LotteCinemaAdapter()
+        adapter._cinemas = [
+            _LotteCinema(1004, 1, "0001", "건대입구"),
+            _LotteCinema(1016, 1, "0001", "월드타워"),
+            _LotteCinema(1004, 2, "0986", "건대입구"),  # 특별관 묶음 중복 — 제외
+            _LotteCinema(3001, 1, "0002", "광교"),  # 경기 — 제외
+        ]
+        adapter._cinemas_fetched_at = time.monotonic()
+        calls: list[int] = []
+
+        async def fake_items(cinema: _LotteCinema, date: str) -> list[dict]:
+            calls.append(cinema.cinema_id)
+            start = {1004: "15:00", 1016: "11:00"}[cinema.cinema_id]
+            return [{"MovieNameKR": "옵세션", "StartTime": start, "ScreenID": 1}]
+
+        adapter._play_items = fake_items  # type: ignore[method-assign]
+        result = await adapter.find_showing_cinemas("서울", "옵세션", date="2026-09-28")
+
+        self.assertEqual(sorted(calls), [1004, 1016])
+        self.assertEqual(
+            [c.cinema_name for c in result], ["롯데시네마 월드타워", "롯데시네마 건대입구"]
+        )
+        self.assertEqual(await adapter.find_showing_cinemas("화성", "옵세션"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

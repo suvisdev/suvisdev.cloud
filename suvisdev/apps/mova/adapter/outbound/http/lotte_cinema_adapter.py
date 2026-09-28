@@ -7,6 +7,7 @@ robots.txt 전체 허용(2026-08-28·08-31 실확인). 설계서 §5 완화책 �
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import time
@@ -26,6 +27,31 @@ _CINEMA_PATH = "/Cinema/CinemaData.aspx"
 _TICKET_PATH = "/Ticketing/TicketingData.aspx"
 _TIMEOUT_S = 10.0
 _CINEMA_CACHE_TTL_S = 86_400  # 24시간
+_PLAY_CACHE_TTL_S = 600  # 극장·날짜별 회차 캐시 — 광역 조회가 극장 수만큼 호출하므로
+_PARALLEL = 6
+# 롯데 극장 목록의 지역 그룹(DivisionCode=1의 DetailDivisionCode) — 2026-09-28 극장 이름으로 실측.
+_AREA_DETAIL_CODE = {
+    "서울": "0001",
+    "경기": "0002",
+    "인천": "0002",
+    "대전": "0003",
+    "세종": "0003",
+    "충북": "0003",
+    "충남": "0003",
+    "충청": "0003",
+    "광주": "0004",
+    "전북": "0004",
+    "전남": "0004",
+    "전라": "0004",
+    "대구": "0005",
+    "부산": "0005",
+    "울산": "0005",
+    "경북": "0005",
+    "경남": "0005",
+    "경상": "0005",
+    "강원": "0006",
+    "제주": "0007",
+}
 _WEB = "https://www.lottecinema.co.kr/NLCHS"
 
 
@@ -64,6 +90,7 @@ class LotteCinemaAdapter(ShowtimePort):
     def __init__(self) -> None:
         self._cinemas: list[_LotteCinema] = []
         self._cinemas_fetched_at: float = 0.0
+        self._play_cache: dict[tuple[int, str], tuple[float, list[dict[str, Any]]]] = {}
 
     async def fetch_showtimes(
         self, cinema_name: str, movie_title: str, *, date: str | None = None
@@ -77,11 +104,51 @@ class LotteCinemaAdapter(ShowtimePort):
         if cinema is None:
             return None
 
-        if date is None:
-            from datetime import UTC, datetime, timedelta
+        date = date or _kst_today()
+        items = await self._play_items(cinema, date)
+        if items is None:
+            return None
+        return self._to_showtime(cinema, items, movie_title, date)
 
-            date = (datetime.now(UTC) + timedelta(hours=9)).strftime("%Y-%m-%d")
+    async def find_showing_cinemas(
+        self, area: str, movie_title: str, *, date: str | None = None
+    ) -> list[CinemaShowtimeDto]:
+        code = _AREA_DETAIL_CODE.get((area or "").strip())
+        if not code or not (movie_title or "").strip():
+            return []
+        await self._ensure_cinemas()
+        seen: set[int] = set()
+        targets: list[_LotteCinema] = []
+        for c in self._cinemas:
+            # DivisionCode=2는 특별관 묶음(같은 극장 중복) — 지역 그룹만, 극장당 한 번.
+            if c.division_code == 1 and c.detail_division_code == code and c.cinema_id not in seen:
+                seen.add(c.cinema_id)
+                targets.append(c)
+        date = date or _kst_today()
+        sem = asyncio.Semaphore(_PARALLEL)
 
+        async def one(c: _LotteCinema) -> CinemaShowtimeDto | None:
+            async with sem:
+                items = await self._play_items(c, date)
+            return self._to_showtime(c, items, movie_title, date) if items else None
+
+        results = [r for r in await asyncio.gather(*(one(c) for c in targets)) if r is not None]
+        results.sort(key=lambda cs: cs.slots[0].start_time)
+        logger.info(
+            "[LotteCinemaAdapter] 광역 조회 area=%s cinemas=%d showing=%d date=%s",
+            area,
+            len(targets),
+            len(results),
+            date,
+        )
+        return results
+
+    async def _play_items(self, cinema: _LotteCinema, date: str) -> list[dict[str, Any]] | None:
+        """극장 하루 회차 원본(모든 작품). 10분 캐시. 실패는 None."""
+        key = (cinema.cinema_id, date)
+        hit = self._play_cache.get(key)
+        if hit and time.monotonic() - hit[0] < _PLAY_CACHE_TTL_S:
+            return hit[1]
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
                 cinema_id_param = (
@@ -105,12 +172,17 @@ class LotteCinemaAdapter(ShowtimePort):
         except (httpx.HTTPError, ValueError) as e:
             logger.warning("[LotteCinemaAdapter] 시간표 조회 실패 cinema=%s | %s", cinema.name, e)
             return None
-
         if data.get("IsOK") not in ("true", True):
             logger.info("[LotteCinemaAdapter] IsOK=false cinema=%s", cinema.name)
             return None
+        items = list((data.get("PlaySeqs") or {}).get("Items") or [])
+        self._play_cache[key] = (time.monotonic(), items)
+        return items
 
-        items = (data.get("PlaySeqs") or {}).get("Items") or []
+    @staticmethod
+    def _to_showtime(
+        cinema: _LotteCinema, items: list[dict[str, Any]], movie_title: str, date: str
+    ) -> CinemaShowtimeDto | None:
         wanted = MovieTitle(movie_title)
         slots: list[ShowtimeSlotDto] = []
         for item in items:
@@ -138,10 +210,8 @@ class LotteCinemaAdapter(ShowtimePort):
                     ),
                 )
             )
-
         if not slots:
             return None
-
         slots.sort(key=lambda s: s.start_time)
         return CinemaShowtimeDto(
             cinema_name=f"롯데시네마 {cinema.name}",
@@ -254,6 +324,12 @@ class LotteCinemaAdapter(ShowtimePort):
         self._cinemas = cinemas
         self._cinemas_fetched_at = time.monotonic()
         logger.info("[LotteCinemaAdapter] 극장 목록 캐시 갱신: %d곳", len(cinemas))
+
+
+def _kst_today() -> str:
+    from datetime import UTC, datetime, timedelta
+
+    return (datetime.now(UTC) + timedelta(hours=9)).strftime("%Y-%m-%d")
 
 
 def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

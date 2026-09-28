@@ -418,7 +418,11 @@ class BookingAssistServiceTests(unittest.IsolatedAsyncioTestCase):
         result = await service.assist(message="호프 예매하고 싶어", entities=["호프"], trace_id="t")
 
         self.assertEqual(result.booking.status, "not_showing")
-        self.assertIn("Netflix", result.reply)
+        self.assertIn("넷플릭스", result.reply)
+        # 상영 안 하면 볼 수 있는 곳을 링크로(2026-09-28) — OTT 검색 + TMDB 시청처
+        chains = [link.chain for link in result.booking.watch_links]
+        self.assertEqual(chains[0], "넷플릭스")
+        self.assertIn("netflix.com/search?q=", result.booking.watch_links[0].url)
 
     async def test_region_continuation_lists_theaters(self) -> None:
         from mova.app.dtos.market_chat_dto import ChatTheaterDto
@@ -1074,6 +1078,26 @@ class ShowtimeDateParsingTests(unittest.TestCase):
             self.assertIsNone(parse_showtime_date(msg, today=today), msg)
 
 
+class WideAreaDetectionTests(unittest.TestCase):
+    def test_wide_areas(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import wide_area
+
+        for msg, want in (
+            ("서울", "서울"),
+            ("서울 전체", "서울"),
+            ("서울특별시", "서울"),
+            ("경기도", "경기"),
+            ("부산 전역", "부산"),
+        ):
+            self.assertEqual(wide_area(msg), want, msg)
+
+    def test_points_are_not_wide(self) -> None:
+        from mova.app.use_cases.market_chat_booking_interactor import wide_area
+
+        for msg in ("강남", "서울역", "서울대입구", "홍대입구역", "군자", None):
+            self.assertIsNone(wide_area(msg), msg)
+
+
 class RegionTransportParsingTests(unittest.TestCase):
     def test_car_widens_radius(self) -> None:
         from mova.app.use_cases.market_chat_booking_interactor import _parse_region_transport
@@ -1155,6 +1179,7 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
         from mova.app.dtos.market_chat_dto import ChatTheaterDto
 
         service = self._service_with_showtimes()
+        service._showtimes.find_showing_cinemas.return_value = []
         service._repository.find_movie_titled_in_text.return_value = _item(7, "호프")
         service._theaters.search_theaters.return_value = [
             ChatTheaterDto(
@@ -1179,8 +1204,9 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.status, "ok")
         self.assertEqual(result.booking.region, "서울")
+        # '서울'은 광역이라 서울 롯데관 전체 조회로 간다 — 날짜가 그대로 넘어가야 한다.
         self.assertTrue(
-            service._showtimes.fetch_showtimes.await_args.kwargs["date"].endswith("-09-30")
+            service._showtimes.find_showing_cinemas.await_args.kwargs["date"].endswith("-09-30")
         )
         self.assertIn("『호프』", result.reply)
         self.assertIn("9월 30일", result.reply)
@@ -1198,6 +1224,72 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("『호프』", result.reply)
         self.assertIn("'강남' 근처", result.reply)
+
+    async def test_wide_area_scans_area_cinemas_without_kakao(self) -> None:
+        """ "서울 전체" — 카카오 반경 검색 대신 서울 롯데관 전부에서 상영관만 모은다(2026-09-28)."""
+        from mova.app.dtos.market_chat_dto import CinemaShowtimeDto, ShowtimeSlotDto
+
+        service = self._service_with_showtimes()
+        slot = ShowtimeSlotDto(
+            screen="3관",
+            start_time="23:50",
+            end_time="01:40",
+            film_type="2D",
+            seats_available=10,
+            seats_total=100,
+        )
+        service._showtimes.find_showing_cinemas.return_value = [
+            CinemaShowtimeDto(cinema_name=f"롯데시네마 {n}", slots=[slot]) for n in "ABCDEFG"
+        ]
+        from datetime import datetime
+        from unittest.mock import patch
+
+        with patch(
+            "mova.app.use_cases.market_chat_booking_interactor._kst_today",
+            return_value=datetime(2026, 9, 28, 10, 0),
+        ):
+            result = await service.assist(
+                message="서울 전체", entities=[], trace_id="t", pending_title="호프"
+            )
+
+        service._theaters.search_theaters.assert_not_awaited()
+        self.assertEqual(service._showtimes.find_showing_cinemas.await_args.args[0], "서울")
+        self.assertIn("'서울' 전역", result.reply)
+        self.assertIn("7곳", result.reply)
+        self.assertEqual(len(result.booking.showtimes), 5)
+        self.assertEqual(result.booking.region, "서울")
+
+    def test_wide_drops_past_slots_and_sorts_by_next(self) -> None:
+        from datetime import datetime
+        from unittest.mock import patch
+
+        from mova.app.dtos.market_chat_dto import CinemaShowtimeDto, ShowtimeSlotDto
+        from mova.app.use_cases.market_chat_booking_interactor import _drop_past_slots
+
+        def slot(t: str) -> ShowtimeSlotDto:
+            return ShowtimeSlotDto(
+                screen="1관",
+                start_time=t,
+                end_time="",
+                film_type="",
+                seats_available=1,
+                seats_total=1,
+            )
+
+        showing = [
+            CinemaShowtimeDto(cinema_name="김포공항", slots=[slot("12:30"), slot("22:20")]),
+            CinemaShowtimeDto(cinema_name="월드타워", slots=[slot("13:10")]),
+            CinemaShowtimeDto(cinema_name="지난것만", slots=[slot("09:00")]),
+        ]
+        with patch(
+            "mova.app.use_cases.market_chat_booking_interactor._kst_today",
+            return_value=datetime(2026, 9, 28, 12, 40),
+        ):
+            kept = _drop_past_slots(showing, None)
+            other_day = _drop_past_slots(showing, "2026-09-29")
+        self.assertEqual([c.cinema_name for c in kept], ["월드타워", "김포공항"])
+        self.assertEqual([s.start_time for s in kept[1].slots], ["22:20"])
+        self.assertEqual(len(other_day), 3)  # 다른 날은 그대로
 
     async def test_lotte_theater_gets_showtimes(self) -> None:
         from mova.app.dtos.market_chat_dto import ChatTheaterDto

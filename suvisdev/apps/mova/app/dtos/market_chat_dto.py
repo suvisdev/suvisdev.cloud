@@ -101,6 +101,8 @@ class ChatBookingDto:
     theaters: list[ChatTheaterDto]
     booking_links: list[ChatBookingLinkDto]
     showtimes: list[CinemaShowtimeDto] = dataclasses_field(default_factory=list)
+    # 상영 중이 아닐 때 OTT 시청 링크(chain=서비스 표시명) — 2026-09-28
+    watch_links: list[ChatBookingLinkDto] = dataclasses_field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -162,6 +164,10 @@ class ChatResponseDto:
                 booking_links=[
                     MovaChatBookingLinkSchema(chain=link.chain, url=link.url)
                     for link in self.booking.booking_links
+                ],
+                watch_links=[
+                    MovaChatBookingLinkSchema(chain=link.chain, url=link.url)
+                    for link in self.booking.watch_links
                 ],
                 showtimes=[
                     MovaChatCinemaShowtimeSchema(

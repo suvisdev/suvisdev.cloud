@@ -79,6 +79,7 @@ class MovaChatBookingSchema(BaseModel):
     region: str | None = None
     theaters: list[MovaChatTheaterSchema] = Field(default_factory=list)
     booking_links: list[MovaChatBookingLinkSchema] = Field(default_factory=list)
+    watch_links: list[MovaChatBookingLinkSchema] = Field(default_factory=list)
     showtimes: list[MovaChatCinemaShowtimeSchema] = Field(default_factory=list)
 
 

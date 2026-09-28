@@ -33,10 +33,19 @@ NO_CONTEXT_REPLY = (
     "프로젝트나 진수택의 경력·기술 스택에 대해 물어봐 주세요."
 )
 
+# 범위 밖 질문 표식 — 모델이 이것만 출력하면 고정 거절 문구로 바꾼다. 검색 점수로는 가를 수 없었다
+# (2026-09-28 실측: "오늘 날씨"·"김치찌개 레시피" top1 0.31~0.51, "학력"·"mova" 0.41~0.64로 겹침).
+OUT_OF_SCOPE_MARK = "[범위밖]"
+OUT_OF_SCOPE_REPLY = (
+    "저는 진수택과 그가 만든 프로젝트(Mova·Gildle·약속·ARDA), 이 사이트에 대한 질문에만 답하고 있어요. "
+    "경력·기술 스택·프로젝트에 대해 물어봐 주세요."
+)
+
 SYSTEM_PROMPT = """당신의 이름은 Suvisdev(수비스데브)입니다. 개발자 진수택이 만든 포트폴리오 사이트(suvisdev.cloud)의 \
 AI 비서로, 이름은 진수택의 '수'와 아이언맨의 AI 비서 자비스(JARVIS)의 '비스'를 합친 것입니다. 자신을 소개할 때는 \
 "Suvisdev"라고 하고, 자비스처럼 차분하고 정중하되 딱딱하지 않게 말합니다.
 규칙:
+0. 먼저 [질문]이 답할 범위인지 판단합니다. 범위는 진수택(경력·학력·기술·연락 안내), 그의 프로젝트(Mova·Gildle·약속·ARDA 등)와 개발 과정, 이 사이트(suvisdev.cloud), 그리고 Suvisdev 자신에 대한 인사·소개뿐입니다. 일반 상식·시사·날씨·요리·코딩 대행·수학·다른 사람·다른 회사 등 범위 밖이면 다른 말 없이 정확히 "[범위밖]"만 출력합니다.
 1. [자료]에 있는 내용만 근거로 답합니다. 자료에 없으면 "자료에서 찾지 못했다"고 말하고 지어내지 않습니다.
 2. 개인정보는 이름·학력·경력·기술처럼 자료에 공개된 것만 말합니다. 전화번호·이메일·주소·생년월일은 답하지 않고 "사이트의 Contact 페이지를 참고해 달라"고 안내합니다.
 3. 한국어 존댓말로 3~5문장 이내로 간결하게 답합니다. 필요하면 짧은 목록을 씁니다.
@@ -75,6 +84,9 @@ class PortfolioChatInteractor(PortfolioChatUseCase):
             return PortfolioChatAnswerDto(reply=NO_CONTEXT_REPLY, sources=())
 
         prompt = build_prompt(hits, command.history[-MAX_HISTORY_TURNS:], command.message)
-        reply = await self._llm.generate(prompt, system=SYSTEM_PROMPT)
+        reply = (await self._llm.generate(prompt, system=SYSTEM_PROMPT)).strip()
+        if OUT_OF_SCOPE_MARK in reply:
+            logger.info("[PortfolioChat] 범위 밖 질문 거절")
+            return PortfolioChatAnswerDto(reply=OUT_OF_SCOPE_REPLY, sources=())
         sources = tuple(dict.fromkeys(h.title for h in hits))
-        return PortfolioChatAnswerDto(reply=reply.strip(), sources=sources)
+        return PortfolioChatAnswerDto(reply=reply, sources=sources)

@@ -1,11 +1,15 @@
 """공개 문서(마크다운)를 hub_knowledge(source='portfolio_doc')에 색인 — 홈 포트폴리오 AI 채팅 근거.
 
 Usage (suvisdev 폴더에서):
-  python scripts/ingest_portfolio_docs.py datasets/portfolio_corpus ~/projects/suvisjk/about.markdown \
-      ~/projects/suvisjk/_posts --reset
+  # 파드 안(datasets/는 hostPath). 지킬 사본은 datasets/{suvisjk,arda}_jekyll(gitignore)에 복사해 둔다.
+  python scripts/ingest_portfolio_docs.py datasets/portfolio_corpus datasets/suvisjk_jekyll --reset
+  python scripts/ingest_portfolio_docs.py datasets/arda_jekyll --ref-prefix arda
   --reset                   시작 전 기존 source='portfolio_doc' 로우 전부 삭제(재색인 시 권장 — 청크 수가
                             줄어든 파일의 잔여 청크가 남지 않게).
   --dry-run                 DB에 쓰지 않고 파일별 청크 수·제목만 출력.
+  --ref-prefix NAME         청크 ID를 portfolio:NAME/<파일명>#n으로 만든다. 다른 지킬 사이트처럼
+                            파일명이 겹치는 문서 묶음에 쓴다(2026-09-28: ARDA의 index·overview가
+                            suvisjk 같은 이름 청크를 덮어쓴 사고). 예: --ref-prefix arda
   --embedding-backend       ollama|gemini. 미지정 시 EMBEDDING_BACKEND(기본 ollama). 저장된 벡터와
                             같은 백엔드여야 한다(의미 공간 불일치 사고 2026-08-07).
 경로 인자는 파일 또는 디렉터리(*.md, *.markdown 재귀). **공개해도 되는 문서만** 넘길 것 — 여기 넣은
@@ -158,7 +162,7 @@ async def main(args: argparse.Namespace) -> None:
 
         succeeded, failed = 0, []
         for f, chunks in plan:
-            stem = f.stem[:100]
+            stem = f"{args.ref_prefix}/{f.stem}"[:100] if args.ref_prefix else f.stem[:100]
             for i, (title, body) in enumerate(chunks):
                 command = HubKnowledgeUpsertCommand(
                     source=SOURCE, source_ref=f"portfolio:{stem}#{i}", title=title, content=body
@@ -187,5 +191,6 @@ if __name__ == "__main__":
     parser.add_argument("paths", nargs="+", help="마크다운 파일 또는 디렉터리")
     parser.add_argument("--reset", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--ref-prefix", default="", help="청크 ID 접두사(파일명 충돌 방지)")
     parser.add_argument("--embedding-backend", choices=["ollama", "gemini"], default=None)
     asyncio.run(main(parser.parse_args()))

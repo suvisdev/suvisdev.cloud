@@ -126,3 +126,7 @@ apps/gildle/data/graph_cache/
 *.local
 .cache/
 cache/
+
+# ARDA(Seuk-Team/jekyll) 지킬 문서 사본 — 홈 AI 채팅 색인용. 원본은 GitHub 저장소(09-28)
+datasets/arda_jekyll/
+datasets/suvisjk_jekyll/

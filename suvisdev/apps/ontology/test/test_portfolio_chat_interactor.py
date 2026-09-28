@@ -101,6 +101,24 @@ class PortfolioChatInteractorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("턴2", prompt)
         self.assertIn("턴7", prompt)
 
+    async def test_out_of_scope_mark_is_replaced_with_fixed_reply(self) -> None:
+        """모델이 [범위밖]을 내면 고정 거절 문구로 바꾸고 출처를 비운다(2026-09-28 사용자:
+        "나에 관한 질문 말고는 대답하지 말아야"). 검색 점수로는 주제 안·밖이 갈리지 않았다."""
+        from ontology.app.use_cases.portfolio_chat_interactor import OUT_OF_SCOPE_REPLY
+
+        llm = _FakeLlm()
+        llm.generate = AsyncMock(return_value=" [범위밖] ")  # type: ignore[method-assign]
+        interactor, _ = _interactor([_hit("Mova", "AI 영화 추천 앱", 0.45)], llm)
+        answer = await interactor.chat(PortfolioChatCommand(message="김치찌개 레시피 알려줘"))
+        self.assertEqual(answer.reply, OUT_OF_SCOPE_REPLY)
+        self.assertEqual(answer.sources, ())
+
+    async def test_system_prompt_defines_scope_rule(self) -> None:
+        llm = _FakeLlm()
+        interactor, _ = _interactor([_hit("Mova", "AI 영화 추천 앱", 0.7)], llm)
+        await interactor.chat(PortfolioChatCommand(message="mova가 뭐야"))
+        self.assertIn("[범위밖]", llm.calls[0][1] or "")
+
     async def test_search_uses_portfolio_source(self) -> None:
         interactor, repo = _interactor([], _FakeLlm())
         await interactor.chat(PortfolioChatCommand(message="q"))
