@@ -44,6 +44,19 @@ export const APPS_CATALOG: AppCatalogItem[] = [
 
 export const TEAM_PROJECTS: AppCatalogItem[] = [
   {
+    // 08-26 SEUK 카드로 교체됐던 팀 프로젝트 '약속'(알약 식별)을 복원(2026-09-28 사용자 요청).
+    id: "yaksok",
+    titleKo: "약속",
+    titleEn: "알약 식별",
+    href: "https://www.seuk.cloud/",
+    available: true,
+    imageFirst: true,
+    gradient: "from-sky-400 via-blue-500 to-cyan-600",
+    image: "/apps-yaksok.jpg",
+    team: "Team Seuk",
+    kind: "팀 프로젝트",
+  },
+  {
     id: "arda",
     titleKo: "ARDA",
     titleEn: "AI Recruitment Assistant",

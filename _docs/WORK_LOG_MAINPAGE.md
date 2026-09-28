@@ -88,6 +88,9 @@
 - **홈 채팅 UX**(사용자 제안): 대화 패널을 입력창 **위**에 쌓는다(메시지 위·입력 아래 관례).
 - **앱 타일 라벨**(사용자): 카탈로그에 `kind` 추가 — mova·gildle "개인 프로젝트", ARDA "팀 프로젝트 · 원티드
   해커톤 출품작". `/apps` 페이지는 같은 데이터를 쓰지만 라벨은 홈 타일에만 표시.
+- **홈 타일 후속**(사용자): 헤드라인·"알아보기" CTA 삭제, 영문 부제 줄 삭제(준비 중은 gildle에만), 팀
+  프로젝트 **'약속'(알약 식별, https://www.seuk.cloud/) 카드 복원** — 08-26 SEUK 카드로 교체되며 지워졌던
+  항목·이미지(`apps-yaksok.jpg`)를 git에서 되살림. `/apps` 페이지에도 같은 데이터로 노출.
 - **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
   제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
   프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.
