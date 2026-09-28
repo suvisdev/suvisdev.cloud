@@ -43,6 +43,14 @@ export function MovaLandingChatBar() {
     inputRef.current?.focus()
   }, [searchParams])
 
+  // 입력에 맞춰 높이를 늘린다 — /mova/main 입력창과 같은 방식(글자 줄·버튼 같은 행, items-end).
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
@@ -60,7 +68,7 @@ export function MovaLandingChatBar() {
     <div className="w-full">
       <form
         onSubmit={onSubmit}
-        className="relative rounded-2xl border border-mova-border bg-mova-surface shadow-[0_8px_40px_rgba(0,0,0,0.45)] transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)]"
+        className="flex items-end gap-2 rounded-2xl border border-mova-border bg-mova-surface px-4 py-2.5 shadow-[0_8px_40px_rgba(0,0,0,0.45)] sm:px-5 transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)]"
       >
         <textarea
           ref={inputRef}
@@ -71,14 +79,14 @@ export function MovaLandingChatBar() {
           onKeyDown={onKeyDown}
           disabled={loading}
           placeholder="장르, 분위기, 배우를 알려주세요…"
-          className="max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
+          className="block max-h-32 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-base leading-6 text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60"
         />
         <button
           type="submit"
           disabled={loading || !value.trim()}
           aria-label="AI 추천 받기"
           className={cn(
-            "absolute right-3 bottom-3 flex h-9 w-9 items-center justify-center rounded-lg transition-all",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all",
             value.trim()
               ? "bg-mova-accent text-white shadow-md hover:brightness-110"
               : "bg-mova-surface-2 text-mova-muted",
