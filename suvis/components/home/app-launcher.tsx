@@ -44,9 +44,9 @@ export function AppLauncher({ apps }: AppLauncherProps) {
   }
 
   return (
-    <div className="flex w-full flex-col items-center gap-10">
+    <div className="flex w-full flex-col items-center gap-8 lg:items-start">
       <form
-        className="flex w-full max-w-2xl items-center gap-3 rounded-full border border-neutral-300 bg-white px-5 py-3.5 shadow-sm transition-shadow focus-within:shadow-md dark:border-neutral-700 dark:bg-[#161a24]"
+        className="flex w-full max-w-2xl items-center gap-3 rounded-full border border-neutral-300 bg-[#f4f4f4] px-5 py-3.5 shadow-sm transition-shadow focus-within:shadow-md dark:border-neutral-700 dark:bg-[#0d0f14]"
         onSubmit={(e) => {
           e.preventDefault()
           void submit()
@@ -72,7 +72,7 @@ export function AppLauncher({ apps }: AppLauncherProps) {
         <PortfolioChatPanel messages={chat.messages} loading={chat.loading} error={chat.error} />
       )}
 
-      <ul className="flex flex-wrap justify-center gap-6 sm:gap-8">
+      <ul className="flex flex-wrap justify-center gap-6 sm:gap-8 lg:justify-start">
         {apps.map((app) => (
           <li key={app.id}>
             <AppTile app={app} />
