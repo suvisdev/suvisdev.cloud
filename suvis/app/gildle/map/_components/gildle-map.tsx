@@ -643,7 +643,9 @@ export default function GildleMap() {
       </header>
 
       <div className="relative min-h-0 flex-1">
-        <div ref={mapEl} className="absolute inset-0" />
+        {/* 네이버 SDK가 컨테이너에 position:relative를 인라인으로 강제하므로 absolute inset-0은
+            무효(높이 0, 2026-09-28 프로덕션 실측). 부모 높이를 그대로 받는 h-full로 둔다. */}
+        <div ref={mapEl} className="h-full w-full" />
 
         {!NAVER_CLIENT_ID && (
           <p className="text-gildle-muted absolute inset-0 flex items-center justify-center px-6 text-center text-sm">
