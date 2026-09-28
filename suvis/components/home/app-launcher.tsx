@@ -44,9 +44,14 @@ export function AppLauncher({ apps }: AppLauncherProps) {
   }
 
   return (
-    <div className="flex w-full flex-col items-center gap-8 lg:items-start">
+    <div className="flex w-full flex-col items-center gap-8">
+      {/* 대화는 입력창 위에 쌓인다 — 채팅 UI 관례(메시지 위, 입력 아래). 2026-09-28 사용자 제안 */}
+      {(chat.messages.length > 0 || chat.error) && (
+        <PortfolioChatPanel messages={chat.messages} loading={chat.loading} error={chat.error} />
+      )}
+
       <form
-        className="flex w-full max-w-2xl items-center gap-3 rounded-full border border-neutral-300 bg-[#f4f4f4] px-5 py-3.5 shadow-sm transition-shadow focus-within:shadow-md dark:border-neutral-700 dark:bg-[#0d0f14]"
+        className="flex w-full max-w-2xl items-center gap-3 rounded-full border border-neutral-300 bg-white px-5 py-3.5 shadow-sm transition-shadow focus-within:border-[#f0dc3a] focus-within:shadow-md dark:border-neutral-700 dark:bg-[#161a24]"
         onSubmit={(e) => {
           e.preventDefault()
           void submit()
@@ -68,11 +73,7 @@ export function AppLauncher({ apps }: AppLauncherProps) {
         />
       </form>
 
-      {(chat.messages.length > 0 || chat.error) && (
-        <PortfolioChatPanel messages={chat.messages} loading={chat.loading} error={chat.error} />
-      )}
-
-      <ul className="flex flex-wrap justify-center gap-6 sm:gap-8 lg:justify-start">
+      <ul className="flex flex-wrap justify-center gap-6 sm:gap-8">
         {apps.map((app) => (
           <li key={app.id}>
             <AppTile app={app} />
@@ -98,6 +99,7 @@ function AppTile({ app }: { app: AppCatalogItem }) {
         {app.titleKo}
       </span>
       <span className="text-xs text-neutral-500">{app.available ? app.titleEn : "준비 중"}</span>
+      <span className="text-[11px] text-neutral-400">{app.kind}</span>
     </>
   )
   const className = "group flex w-24 flex-col items-center gap-2 text-center sm:w-28"

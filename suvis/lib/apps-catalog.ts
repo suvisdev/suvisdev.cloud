@@ -13,6 +13,8 @@ export type AppCatalogItem = {
   icon?: string
   /** 카드 이미지 영역에 표시할 커버 사진 (public 경로) */
   image?: string
+  /** 홈 타일 아래 한 줄 — 개인/팀 프로젝트 구분 */
+  kind: string
 }
 
 export const APPS_CATALOG: AppCatalogItem[] = [
@@ -25,6 +27,7 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     imageFirst: false,
     gradient: "from-zinc-900 via-red-950 to-black",
     image: "/apps-mova.jpg",
+    kind: "개인 프로젝트",
   },
   {
     id: "gildle",
@@ -35,6 +38,7 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     imageFirst: true,
     gradient: "from-emerald-400 via-green-500 to-teal-600",
     image: "/apps-gildle.jpg",
+    kind: "개인 프로젝트",
   },
 ]
 
@@ -49,5 +53,6 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     gradient: "from-violet-500 via-purple-600 to-indigo-700",
     image: "/apps-arda.svg",
     team: "Team Seuk",
+    kind: "팀 프로젝트 · 원티드 해커톤 출품작",
   },
 ]

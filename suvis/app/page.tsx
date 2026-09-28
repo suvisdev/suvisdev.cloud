@@ -2,62 +2,49 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowUpRight } from "lucide-react"
 import { AppLauncher } from "@/components/home/app-launcher"
-import { HeritadeHeadline } from "@/components/home/heritade-headline"
-import { HeroImagePanel } from "@/components/home/hero-image-panel"
 import { APPS_CATALOG, TEAM_PROJECTS } from "@/lib/apps-catalog"
 
 const HOME_APPS = [...APPS_CATALOG, ...TEAM_PROJECTS]
 
 /**
- * 홈 — 09-27 검색창·앱 타일 구조에 07월 컨셉(대형 콘덴스드 헤드라인 · 홀로그램 영상 패널 ·
- * 노란 CTA)을 다시 섞은 2열 레이아웃. 기능(AI 채팅·앱 진입)은 왼쪽 카드에 그대로 둔다.
+ * 홈 — 09-27 심플 구조(로고 → AI 채팅 → 앱 타일)를 유지하고, 07월 컨셉에서 포인트만 가져온다:
+ * 콘덴스드 디스플레이 헤드라인(회색/검정 교차)과 노란 악센트(#f0dc3a). 2열 카드·영상 패널은 쓰지 않는다
+ * (2026-09-28 사용자: "심플하게 가는데 포인트만 컨셉 따와서").
  */
 export default function Home() {
   return (
-    <div className="min-h-[calc(100vh-4rem-1rem)] bg-[#e8e8e8] px-4 pt-3 pb-4 md:px-6 md:pt-4 md:pb-6 dark:bg-[#0d0f14]">
-      <main className="grid min-h-[calc(100vh-4rem-2.5rem)] gap-6 lg:grid-cols-[1.15fr_1fr] lg:gap-8">
-        <section className="flex flex-col gap-10 rounded-3xl bg-white px-6 py-8 sm:px-10 sm:py-10 lg:px-12 lg:py-12 dark:bg-[#161a24]">
-          <div className="space-y-6">
-            <div className="flex items-center justify-between gap-6">
-              <div className="flex items-center gap-2.5">
-                <Image src="/suvis-logo.png" alt="" width={32} height={32} priority />
-                <span className="text-lg font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-                  Suvisdev
-                </span>
-              </div>
-              <ArrowUpRight
-                className="h-6 w-6 shrink-0 text-neutral-900 dark:text-neutral-100"
-                strokeWidth={2}
-                aria-hidden
-              />
-            </div>
-            <p className="max-w-xl text-sm leading-[1.65] tracking-[-0.01em] text-neutral-700 sm:text-[0.9375rem] sm:leading-[1.7] dark:text-neutral-300">
-              웹·백엔드·AI를 아우르며, 확장 가능한 설계와 단순한 구현 사이의 균형을 맞춥니다.
-              도메인별 AI 앱을 만들고, 지속 가능한 시스템을 구축합니다.
-            </p>
+    <div className="min-h-[calc(100vh-4rem-1rem)] bg-[#e8e8e8] px-4 md:px-6 dark:bg-[#0d0f14]">
+      <main className="mx-auto flex min-h-[calc(100vh-4rem-1rem)] w-full max-w-4xl flex-col items-center justify-center gap-10 py-16">
+        <div className="flex flex-col items-center gap-5 text-center">
+          <div className="flex items-center gap-3">
+            <Image src="/suvis-logo.png" alt="" width={40} height={40} priority />
+            <span className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+              Suvisdev
+            </span>
           </div>
+          <h1 className="font-display text-[clamp(2rem,5vw,3.5rem)] leading-[0.95] font-bold tracking-[-0.01em] uppercase">
+            <span className="block">
+              <span className="text-[#b3b3b3]">Simplify</span>{" "}
+              <span className="text-neutral-900 dark:text-neutral-100">Complexity,</span>
+            </span>
+            <span className="block">
+              <span className="text-[#b3b3b3]">Scale</span>{" "}
+              <span className="text-neutral-900 dark:text-neutral-100">Without Limits.</span>
+            </span>
+          </h1>
+        </div>
 
-          <hr className="border-neutral-300 dark:border-neutral-700" />
+        <AppLauncher apps={HOME_APPS} />
 
-          <div className="overflow-hidden rounded-2xl border border-neutral-300 shadow-sm lg:hidden dark:border-neutral-700">
-            <HeroImagePanel compact />
-          </div>
-
-          <HeritadeHeadline />
-
-          <AppLauncher apps={HOME_APPS} />
-
-          <Link
-            href="/contact"
-            className="inline-flex w-full items-center justify-center rounded-2xl bg-[#f0dc3a] px-8 py-4 text-base font-bold text-neutral-900 shadow-sm transition-colors hover:bg-[#e8d020] sm:w-fit"
-          >
-            Suvisdev 알아보기
-          </Link>
-        </section>
-
-        <section className="hidden min-h-[400px] overflow-hidden rounded-3xl border border-neutral-400/40 shadow-md lg:block dark:border-neutral-700/40">
-          <HeroImagePanel />
-        </section>
+        <Link
+          href="/contact"
+          className="group inline-flex items-center gap-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+        >
+          Suvisdev 알아보기
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#f0dc3a] text-neutral-900 transition-colors group-hover:bg-[#e8d020]">
+            <ArrowUpRight className="h-4 w-4" strokeWidth={2} aria-hidden />
+          </span>
+        </Link>
       </main>
     </div>
   )
