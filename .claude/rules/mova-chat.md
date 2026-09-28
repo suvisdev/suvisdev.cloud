@@ -42,6 +42,11 @@ paths:
 
 ### 2. 후보 생성 불변식
 
+> **순위 기준**(품질 하한·다양성·볼 수 있음·역할 3편·"더 보기")은
+> `suvisdev/apps/mova/_docs/MOVA_RECOMMENDATION_CRITERIA.md`가 SSOT다(2026-09-28 결정). 아래 불변식은
+> 그대로 유지되고, 그 문서는 위에 순위만 더한다. 추천 경로를 고친 뒤엔
+> `eval_chat_queries.py --catalog … --save …`로 카드 품질 지표(특히 `repeated_titles`)를 전후 비교한다.
+
 - **LLM은 카탈로그의 movie_id 중에서만 고른다.** 후보가 0이면 빈 목록 대신
   인기작 폴백을 준다 — 빈 후보를 주면 LLM이 movie_id를 지어내고 enrich에서
   전부 드롭돼 "reply는 자신 있는데 카드 0개"가 된다(2026-08-06 재현).

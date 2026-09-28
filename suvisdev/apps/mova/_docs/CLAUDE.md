@@ -194,6 +194,8 @@ from core.matrix.grid_oracle_database_manager import get_mova_db
 | **본 파일** | Mova 백엔드 규칙·진행·API SSOT |
 | `MOVA_ERD.md` | 테이블·FK·ORM |
 | 루트 `.claude/rules/mova-chat.md` | 채팅 파이프라인·UX 규칙 (구 `MOVA_CHAT_UX.md` 흡수, 2026-08-28) |
+| `MOVA_CHAT_ORCHESTRATOR.md` | 채팅 이해 층(7.8B)·intent 경계·v6 섀도 비교 |
+| `MOVA_RECOMMENDATION_CRITERIA.md` | **추천 순위 기준 SSOT**(09-28 결정)·카드 품질 지표·기준선·외부 데이터 검토 |
 | [`.cursorrules`](.cursorrules) | Cursor 진입 요약 (본 문서 링크) |
 
 **통합·삭제됨 (내용은 본 문서·ERD·suvis로 이전):**  

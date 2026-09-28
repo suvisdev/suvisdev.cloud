@@ -208,6 +208,10 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   배포 후 확인: `kubectl -n suvisdev exec deploy/backend -- printenv |
   grep -E 'RECOMMENDATION_BACKEND|LORA_SERVER_URL'`. 데스크톱 GGUF 서버를
   쓰려면 `LORA_SERVER_URL=https://lora.suvisdev.cloud`로 전환(현재 미사용).
+- **`MOVA_ORCHESTRATOR_SHADOW_MODEL`(2026-09-28, 노트북 `mova-understand`)**: 학습한 이해 모델을
+  응답에 영향 없이 백그라운드로 비교해 `suvisdev/datasets/understanding/shadow_log.jsonl`에 쌓는다.
+  v6는 Modelfile `num_gpu 0`으로 **CPU 전용**(GPU는 운영 7.8B·lora-server로 꽉 참). 비우면 꺼짐.
+  설명 `suvisdev/apps/mova/_docs/MOVA_CHAT_ORCHESTRATOR.md` §7.
 
 ## 브랜치 전략
 

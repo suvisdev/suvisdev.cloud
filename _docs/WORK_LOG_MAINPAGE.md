@@ -31,6 +31,13 @@
 ## 2026-09-28
 
 ### 작업 내용
+- **노트북 C 드라이브 정리(476GB 중 여유 41GB)**: 최대 점유는 WSL `ext4.vhdx` 178GB(홈 100GB — lora_adapters
+  45GB·캐시 34GB). 완료: docker 빌드 캐시 25.3GB·미사용 이미지 8.0GB·uv 캐시 12.9GB·npm 캐시 ~3.3GB
+  (db·redis·arda-test-db 컨테이너 유지). **대기(사용자 집에서)**: ① LoRA 변환 중간물(f16 GGUF·merged·work
+  ~37GB)·폐기 GGUF(09-09·09-17)·데이터셋 원본 `rm`(권한 검사로 사용자 실행) ② Windows `wsl --shutdown` →
+  옛 `swap.vhdx`(~9.6GB)·다운로드 v6 zip 삭제 → diskpart `compact vdisk` → `wsl --manage Ubuntu
+  --set-sparse true`(이후 WSL 삭제분 자동 반환). **WSL 안에서 지운 만큼은 압축 전엔 C:로 안 돌아온다.**
+  재기동 자동화 확인: k3s·ollama·docker enabled, lora-server user unit(Linger=yes), db·redis unless-stopped.
 - **백엔드 이미지 슬림화 — CPU 전용 torch 전환**(09-11 결정 사항 착수, 사용자 "재빌드 실행해줘").
   파드 안 실측 `torch.__version__=2.12.1+cu126`·`cuda.is_available()=False`, 이미지 14.9GB(docker).
 - **"배포 대기" 표기 검증**(PROGRESS에 09-11·09-17부터 남아 있던 것): 파드 안 파일로 직접 확인 —

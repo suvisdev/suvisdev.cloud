@@ -136,6 +136,12 @@ http://127.0.0.1:31386`.
   것이 원인, CPU bf16 경로 추가 + 호스트 HF 캐시 마운트(`[M]` 09-27). 백로그 430/430 완료, 이후 24h 스케줄.
 
 ### mova 채팅 품질 잔여
+- **09-28 저녁(`[M]` 09-28)**: 이해 프롬프트 intent 경계("작품 하나가 무엇인지"=evaluate) 배포 — 멀티턴 17/17·
+  단일 22/23(법정 드라마는 추천 단계 변동). v6 이해 모델 **CPU 섀도 가동**(`MOVA_ORCHESTRATOR_SHADOW_MODEL`) —
+  첫 판정 v6 전환 불가(맥락 제목·일반어 환각) → v7 데이터 항목. 실패 채굴 `scripts/mine_chat_failures.py`
+  (파드 exec, 규칙 5종). **다음(우선순위)**: ① 추천 기준 2단계 — 후보 50편·제목 표면 매칭 제외·점수 순위·
+  역할 3편(목표 `repeated_titles` 4→0, SSOT `MOVA_RECOMMENDATION_CRITERIA.md`) ② "더 보기"·반복 요청 ③ v7
+  이해 데이터(맥락 지시어·일반어 반례·followup 통일, 코랩) ④ 셀프플레이 실패 탐지 2단계 ⑤ 실패 채굴 CronJob.
 - **오케스트레이터 층 도입(09-27 저녁, `[M]` 09-27)**: EXAONE 7.8B 이해 → 카탈로그 검증 → 트랙 실행.
   기존 결정론 경로는 폴백으로 유지. core/lol은 `suvisdev_orchestrator.py`(`SuvisdevOrchestrator`,
   `understand_json`)·`lora_server_client.py`로 개명. **다음**: 프로덕션 한 주 관찰 후 폴백 선분기 4단·트랙 정규식

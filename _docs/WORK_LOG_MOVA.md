@@ -155,6 +155,58 @@
 - **이해 단계 v6 패키지**: 데이터 재생성(평가 39장면, 추천 직후 대화에 운영과 같은 `[추천 카드]` 목록),
   기준선 재측정 7.8B 29/39·2.4B 7/39, 노트북에 "추천 모델 아님" 머리말·추천 데이터 업로드 차단 가드·
   섀도 단계 안내. 바탕화면 `mova/FT/mova-colab-v6-understanding/`.
+- **v6 이해 모델 결과 수령·섀도 가동(17시)**: 코랩 리포트 `passed: true`(best epoch 1, val_loss 0.0028).
+  드라이브 zip(다운로드 폴더)에서 gguf·Modelfile을 `~/models/mova-understand-v6/`로 풀어 Ollama
+  `mova-understand`로 등록. **Modelfile에 `PARAMETER num_gpu 0`(CPU 전용)** — GPU 8GB에 lora-server 2.5GB +
+  운영 7.8B 4.7GB가 이미 올라가 v6(2GB)까지 올리면 Ollama가 요청마다 모델을 교체(스래싱)해 운영 응답이
+  느려진다. 실측: 7.8B GPU 전량 + v6 램 1.9GB 공존, VRAM 7.3/8.2GB, v6 웜 1.7s·콜드 13s(타임아웃 20s 이내).
+  `.env`에 `MOVA_ORCHESTRATOR_SHADOW_MODEL=mova-understand` 추가 → `deploy.sh --external-db` + backend
+  rollout restart(15:46 빌드 이미지에 섀도 코드 포함 확인, 재빌드 생략). 기록은
+  `suvisdev/datasets/understanding/shadow_log.jsonl`(`shadow_s`는 CPU 값이라 속도 비교에 쓰지 말 것).
+- **오류 — WSL 재시작으로 세션 끊김**: zip에서 1.7GB gguf를 `z.read()`로 통째 메모리에 올리다 WSL이
+  16:58에 재부팅(`uptime -s`), 파일은 0바이트로 남고 파드 전부 재시작. `z.open()`+`shutil.copyfileobj`
+  스트리밍으로 재추출해 해결. 큰 파일은 항상 스트리밍으로 다룰 것.
+- **`/mova` 랜딩 입력창을 채팅 입력창과 같은 구조로**: 버튼이 `absolute right-3 bottom-3`에 떠 있고
+  textarea가 `py-3.5 leading-relaxed`라 글자 줄과 버튼이 어긋났다 → `/mova/main`(4e68ae6)과 같은
+  form `flex items-end` + textarea `block flex-1 py-1.5 leading-6` + 버튼 `shrink-0` + 자동 높이 effect.
+  `mova-landing-chat-bar.tsx`만 수정, tsc·eslint 통과.
+- **"제일 최신 스파이더맨이 뭐야" 맥락 실패(사용자 "너무 멍청해")**: 시리즈 추천 직후 발화에 7.8B가
+  title=브랜드 뉴 데이는 맞게 짚었지만 intent=recommend → 추천 트랙은 슬롯 제목을 안 쓰고 의도를 재추출,
+  브랜드 뉴 데이는 스레드 기추천이라 dedup → 0건 "카탈로그에 없어요"(NodePort 재현). 수정은 이해
+  프롬프트만: evaluate = "특정 작품 하나가 어떤지·**무엇인지**"(무슨 영화야·제일 최신 ○○가 뭐야),
+  recommend = "여러 편" + "최신 영화 뭐 있어" 같은 비특정 목록 질문 명시, 쥬라기 예시 1줄(스파이더맨
+  과적합 회피). 7.8B 프로브 12/13 → 20/20(첫 수정에서 "최신 영화 뭐 있어"가 evaluate로 새는 회귀를
+  잡아 경계 문구 추가). mova 테스트 408 통과(운영 이미지에 코드 마운트). 멀티턴 하네스에 장면 추가.
+  **한계**: "가장 최근 해리포터"는 7.8B가 제목을 '비밀의 방'으로 지어냄 — 프랜차이즈 최신작은
+  세상 지식 대신 카탈로그 연도로 풀어야 함(미해결). 배포는 `--build` 필요(사용자 실행 대기).
+- **실패 자동 탐지 1단계 `scripts/mine_chat_failures.py`**(사용자 "매번 내가 테스트해야 하나"): 규칙 판정만
+  (API 비용 0). 입력 chat_messages(로그인 대화, 카드 meta를 프론트와 같은 `[추천 카드]` 모양으로 히스토리에
+  재구성) + 섀도 로그. 규칙 zero_with_context·zero_result·reask_with_context·user_correction·shadow_diff.
+  출력 `datasets/understanding/failures/failures_YYYYMMDD.jsonl`. 테스트 9건(`test_mine_chat_failures.py`,
+  오늘 스파이더맨 실사례 포함). `--no-db` 실행: 섀도 8건 중 5건 불일치 — 전부 맥락 발화("그거 줄거리",
+  "제일 최신 스파이더맨")에서 v6가 title을 놓침 → v7 데이터 후보. DB 모드는 파드 exec 필요(배포 후 사용자 실행).
+  다음: 2단계 셀프플레이(사용자 역 LLM + 심판).
+- **배포(`--build`) 후 검증·첫 채굴 분류**: 멀티턴 하네스 17/17(스파이더맨 장면 포함), 23질의 22/23(법정
+  드라마 0건 — 이해 결과는 수정 전후 동일 recommend, 재실행 1/1 통과 → 추천 단계 변동, 기존 불안정 질의).
+  파드 실행 결과 대화 7·섀도 50 → 후보 22. **대화 후보(7)**: conv34 3건(09-22 수정분)·conv38 서수(오늘
+  19b56eb)·conv40 스파이더맨(오늘) — 운영 재현 결과 전부 해결 확인. **남은 코드 문제 1건**: conv38 사용자가
+  "비 오는 날 어울리는 영화"를 4번 반복 → 3번째부터 기추천 dedup 소진으로 0건 안내. **섀도 불일치(15)**:
+  v6 약점 = 맥락 제목(스파이더맨·"그거"·"26년꺼"에서 누락/오답), 일반어 제목 환각('바로'·'영화'),
+  followup 정의가 7.8B와 어긋남(8건, v6 true). 7.8B 약점 = "군자역 근처 체인 지점"을 general(결정론
+  booking 어휘 가드가 받침). → v6 전환 불가, v7 데이터 항목으로.
+- **추천 기준 1단계(사용자 "어떤 기준으로 추천하는지 정해야")**: 현행은 후보 16편 → LoRA가 3편 선택인데
+  선택 기준이 프롬프트에 없고, 학습(교사 Gemini·RS 심판 루브릭 4줄)도 같은 공백 → "Gemini 취향"이 기준.
+  사용자 결정(전부 권장값): 투표 30 미만 뒤로 · 역할 3편(최적·대중·숨은) · 볼 수 있음 가산점만 ·
+  반복/"더 보기"=순위 다음 · 최근 15년 약한 가산. SSOT `apps/mova/_docs/MOVA_RECOMMENDATION_CRITERIA.md`.
+  `eval_chat_queries.py`에 분위기 질의 5개 + 카드 품질 지표(시리즈 중복·투표<30·볼 수 있음·제목 어절
+  겹침·**서로 다른 질의 3개+ 반복 등장**) + `--catalog`/`--save`. **기준선 28/28 PASS인데 repeated_titles 4** —
+  "비 오는 날"·"기분 좋아지는"·"잔잔한"·"소름 돋는 반전"·"조선시대 사극"에 캔터빌의 유령·마운틴헤드·
+  캠프 락 3·180이 반복(분위기 질의가 조건 무관 최신작으로 채워짐). 저장 `~/datasets/mova_eval/baseline_20260928.json`.
+  카탈로그 추출은 이미지 재빌드 없이 `kubectl exec -i … python - < script.py > out.tsv`(stdin 실행).
+- **외부 데이터 검토**: 한국어 영화 추천 대화 데이터·학습된 모델은 없음. ReDial(CC BY 4.0) 카탈로그
+  연결 821편, 7.8B 번역 시범 2건에서 화자·뜻 뒤틀림 → **제외**(사용자 동의). Tag Genome 2021(CC BY-NC —
+  mova는 TMDB 때문에 비상업): 태그 대체로 정확·잡음 있음, 연결 805/3908(21%, 전부 2021 이전) →
+  **보류**(추천 기준 2단계 뒤 분위기 질의 전후 비교로 채택 판단). KMDb는 키 발급 후.
 - 코랩 재학습: 오늘 결정 없음 — 하네스 만점이고 실사용 오답 샘플이 0이라 학습 트리거(출력 계약 변경·
   체계적 실패·데이터 유의미 증분) 중 어느 것도 아직 없다.
 

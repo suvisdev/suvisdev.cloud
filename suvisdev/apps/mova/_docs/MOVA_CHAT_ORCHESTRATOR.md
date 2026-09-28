@@ -61,5 +61,29 @@ LLM은 이해만, 사실(카탈로그·극장·시간표·상영 여부)은 전�
 ## 5. 검증
 
 - 단위: `apps/mova/tests/test_chat_orchestrator.py`(정제·검증·디스패치·폴백 14건)
-- 회귀: `scripts/eval_chat_multiturn.py`(12장면) · `scripts/eval_chat_queries.py`(23질의)
+- 회귀: `scripts/eval_chat_multiturn.py`(17장면) · `scripts/eval_chat_queries.py`(28질의 + 카드 품질 지표)
+- 실패 채굴: `scripts/mine_chat_failures.py`(chat_messages + 섀도 로그 → 규칙 판정 후보, 아래 §7)
 - 로그: `[Orchestrator] trace= intent=…(llm=…) title= movie= region= followup=`
+
+## 6. intent 경계 — "작품 하나가 무엇인지"는 evaluate (2026-09-28)
+
+실사용: 스파이더맨 시리즈 추천 직후 "제일 최신 스파이더맨이 뭐야" → 7.8B가 title=브랜드 뉴 데이는 맞혔지만
+intent=recommend → 추천 트랙은 슬롯 제목을 쓰지 않고 의도를 재추출, 브랜드 뉴 데이는 기추천 dedup으로
+빠져 0건 "카탈로그에 없어요". 프롬프트 경계를 고쳤다:
+- **evaluate** = 특정 작품 하나가 어떤지·**무엇인지**("무슨 영화야", "제일 최신 ○○가 뭐야"). 답이 작품
+  하나로 정해지면 title에 그 작품.
+- **recommend** = 여러 편 골라 달라는 것 + "최신 영화 뭐 있어" 같은 **작품이 특정되지 않은 목록 질문**.
+- 예시는 스파이더맨이 아닌 쥬라기로(실패 문장은 평가에만 남겨 일반화를 잰다).
+7.8B 프로브 12/13 → 20/20(첫 수정에서 "최신 영화 뭐 있어"가 evaluate로 새는 회귀를 잡아 경계 문구 추가).
+한계: 앞 대화에 목록이 없을 때 "가장 최근 해리포터"는 7.8B가 세상 지식으로 제목을 지어낸다
+(비밀의 방) — 프랜차이즈 최신작은 카탈로그 연도로 풀어야 한다(미해결).
+
+## 7. 섀도 비교 — 학습한 이해 모델 v6 (2026-09-28 가동)
+
+`MOVA_ORCHESTRATOR_SHADOW_MODEL=mova-understand`(Ollama, `~/models/mova-understand-v6/`)이면 주 모델(7.8B)로
+응답한 뒤 같은 발화를 v6에 백그라운드로 한 번 더 읽혀 필드별로 비교해
+`datasets/understanding/shadow_log.jsonl`(hostPath)에 쌓는다. 응답엔 영향 없음, 비우면 꺼짐.
+- **v6는 CPU 전용**(Modelfile `PARAMETER num_gpu 0`): GPU 8GB에 lora-server 2.5 + 7.8B 4.7GB가 이미 올라가
+  v6까지 올리면 Ollama가 요청마다 모델을 교체한다. 웜 1.7s·콜드 13s, `shadow_s`는 CPU 값이라 속도 비교 금지.
+- **첫 판정(50건 중 불일치 15)**: v6는 맥락 제목 누락/오답("그거 줄거리"→스파이더맨 2, "26년꺼"), 일반어
+  제목 환각('바로'·'영화'), followup 정의 불일치(8건) → **7.8B→v6 전환 불가**, v7 데이터 항목으로.
