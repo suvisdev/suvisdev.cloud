@@ -85,6 +85,11 @@ class WalkPgRepository(WalkRepositoryPort):
         await self._session.execute(sa_delete(WalkOrm).where(WalkOrm.id == walk_id))
         await self._session.commit()
 
+    async def delete_all_by_user(self, user_id: int) -> int:
+        result = await self._session.execute(sa_delete(WalkOrm).where(WalkOrm.user_id == user_id))
+        await self._session.commit()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]
+
     async def stats(self, user_id: int) -> WalkStats:
         row = (
             await self._session.execute(

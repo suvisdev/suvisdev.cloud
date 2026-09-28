@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import bcrypt
-from sqlalchemy import ForeignKey, String, select
+from sqlalchemy import ForeignKey, String, delete, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -294,3 +294,71 @@ class UserRepository:
             await session.commit()
             await session.refresh(new_user)
             return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
+
+    async def find_by_email_credentials(self, email: str, password: str) -> User | None:
+        """앱 이메일 로그인 — users만 본다(관리자 계정은 앱으로 로그인하지 않는다)."""
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            row = (
+                await session.execute(
+                    select(UserMirror, GroupMirror.code)
+                    .join(GroupMirror, UserMirror.group_id == GroupMirror.id)
+                    .where(UserMirror.email == email)
+                    .order_by(UserMirror.id)
+                    .limit(1)
+                )
+            ).one_or_none()
+            if row is None:
+                return None
+            user, group_code = row
+            if not _verify_password(password, user.password_hash):
+                return None
+            await _rehash_if_legacy(session, user, password)
+            return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
+
+    async def create_email_user(self, *, email: str, password: str) -> User:
+        """앱 회원가입 — 필수 항목(이메일·비밀번호)만 받는다. username은 users 테이블
+        UNIQUE라 이메일 앞부분에 짧은 난수를 붙여 만들고, 닉네임은 이메일 앞부분."""
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            existing = (
+                await session.execute(select(UserMirror.id).where(UserMirror.email == email))
+            ).scalar_one_or_none()
+            if existing is not None:
+                raise EmailAlreadyExists("이미 가입된 이메일입니다.")
+            group_id = (
+                await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
+            ).scalar_one_or_none()
+            if group_id is None:
+                raise RuntimeError(
+                    "groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요."
+                )
+            local = email.split("@", 1)[0][:40] or "user"
+            username = f"{local}_{secrets.token_hex(3)}"
+            while (
+                await session.execute(select(UserMirror.id).where(UserMirror.username == username))
+            ).scalar_one_or_none() is not None:
+                username = f"{local}_{secrets.token_hex(3)}"
+            new_user = UserMirror(
+                group_id=group_id,
+                username=username,
+                password_hash=_hash_password(password),
+                email=email,
+                nickname=local[:50],
+                gender=_DEFAULT_GENDER,
+                preferred_genres=[],
+                bio="",
+            )
+            session.add(new_user)
+            await session.commit()
+            await session.refresh(new_user)
+            return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
+
+    async def delete_user(self, user_id: int) -> bool:
+        """회원 탈퇴 — users row 삭제. OAuth 연동·mova 데이터 등은 FK CASCADE로 함께
+        지워진다(viewer profile_pg_repository.delete_user와 같은 방식)."""
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            result = await session.execute(delete(UserMirror).where(UserMirror.id == user_id))
+            await session.commit()
+            return (result.rowcount or 0) > 0  # type: ignore[attr-defined]

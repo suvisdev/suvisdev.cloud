@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Response
 from fastapi.responses import RedirectResponse
 
 from auth.kakao_mobile_verifier import KakaoTokenInvalid
@@ -16,6 +16,7 @@ from auth.schemas import (
     KakaoMobileLoginRequest,
     KakaoMobileTokenResponse,
     LoginRequest,
+    MobileEmailRequest,
     OAuthExchangeRequest,
     RefreshRequest,
     SignupRequest,
@@ -131,6 +132,35 @@ async def kakao_mobile_login(body: KakaoMobileLoginRequest) -> KakaoMobileTokenR
         return await _service.login_with_kakao_mobile(body.access_token)
     except KakaoTokenInvalid as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.post("/auth/mobile/signup", response_model=KakaoMobileTokenResponse, status_code=201)
+async def mobile_signup(body: MobileEmailRequest) -> KakaoMobileTokenResponse:
+    """길들 앱 이메일 회원가입 — 이메일·비밀번호만 받고, 가입 즉시 로그인 상태로."""
+    try:
+        return await _service.mobile_signup(body.email, body.password)
+    except EmailAlreadyExists as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+
+@router.post("/auth/mobile/login", response_model=KakaoMobileTokenResponse)
+async def mobile_email_login(body: MobileEmailRequest) -> KakaoMobileTokenResponse:
+    try:
+        return await _service.mobile_email_login(body.email, body.password)
+    except InvalidCredentials as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.delete("/auth/mobile/account", status_code=204)
+async def delete_mobile_account(authorization: str | None = Header(default=None)) -> Response:
+    """길들 앱 회원 탈퇴(Google Play 계정 삭제 정책). 앱은 먼저 gildle 데이터를 지운다."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="인증이 필요합니다.")
+    try:
+        await _service.delete_mobile_account(authorization.removeprefix("Bearer ").strip())
+    except InvalidCredentials as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+    return Response(status_code=204)
 
 
 @router.post("/auth/mobile/refresh", response_model=TokenResponse)

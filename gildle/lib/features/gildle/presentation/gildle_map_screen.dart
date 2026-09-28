@@ -3,6 +3,7 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../../../auth.dart';
 import '../../../core/theme/gildle_theme.dart';
 import '../domain/geo_point.dart';
 import '../domain/season_mode.dart';
@@ -297,7 +298,7 @@ class _BottomPanel extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed: () => _startWalk(context),
+                onPressed: () => _startWalk(context, ref),
                 icon: const Icon(Icons.directions_walk),
                 label: Text(lengthM != null ? '이 길로 산책 시작' : '산책 시작'),
               ),
@@ -314,7 +315,9 @@ class _BottomPanel extends ConsumerWidget {
   }
 
   /// 경로가 있으면 계획 경로로 넘긴다 — 산책 중 화면이 회색 점선으로 깔고, 그늘 비율은 기록에 저장된다.
-  void _startWalk(BuildContext context) {
+  /// 산책 기록은 로그인한 사용자만 저장한다 — 게스트면 먼저 로그인·가입 화면(돌아오면 이어서 시작).
+  Future<void> _startWalk(BuildContext context, WidgetRef ref) async {
+    if (!await ensureLoggedIn(context, ref) || !context.mounted) return;
     final coords = state.displayedCoordinates;
     final loop = state.currentLoop;
     final planned = coords.length >= 2

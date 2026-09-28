@@ -22,6 +22,11 @@ class _FakeWalkRepository(WalkRepositoryPort):
         self.stored = stored or []
         self.deleted: list[int] = []
 
+    async def delete_all_by_user(self, user_id: int) -> int:
+        before = len(self.stored)
+        self.stored = [w for w in self.stored if w.user_id != user_id]
+        return before - len(self.stored)
+
     async def save(self, walk: Walk) -> Walk:
         saved = replace(walk, id=1)
         self.stored.append(saved)

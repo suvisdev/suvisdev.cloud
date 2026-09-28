@@ -61,3 +61,18 @@ class TokenPayload(BaseModel):
     exp: int
     iat: int
     jti: str
+
+
+class MobileEmailRequest(BaseModel):
+    """앱 이메일 회원가입·로그인 — 필수 항목(이메일·비밀번호)만 받는다(2026-09-28)."""
+
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _normalize_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        if not _EMAIL_RE.match(value):
+            raise ValueError("올바른 이메일 형식이 아닙니다.")
+        return value

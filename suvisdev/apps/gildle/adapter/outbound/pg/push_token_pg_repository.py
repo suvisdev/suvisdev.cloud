@@ -36,3 +36,10 @@ class PushTokenPgRepository(PushTokenRepositoryPort):
             )
         )
         await self._session.commit()
+
+    async def delete_all_by_user(self, user_id: int) -> int:
+        result = await self._session.execute(
+            sa_delete(PushTokenOrm).where(PushTokenOrm.user_id == user_id)
+        )
+        await self._session.commit()
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]

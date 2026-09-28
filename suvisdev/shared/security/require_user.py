@@ -20,6 +20,9 @@ from shared.security.token_verifier import verify_token, verify_viewer_session_t
 logger = logging.getLogger(__name__)
 
 _MOVA_AUD = "suvis-mova"
+# 길들 앱(Flutter)의 모바일 토큰 — 같은 게이트웨이·같은 사용자 id라 본인 확인엔 똑같이 유효하다.
+# 2026-09-28까지 이 aud를 받지 않아 앱의 산책 저장·기록·푸시 토큰 등록이 전부 401이었다.
+_MOBILE_AUD = "suvis-susu"
 
 
 @dataclass(frozen=True)
@@ -39,7 +42,7 @@ def require_user(authorization: str | None = Header(default=None)) -> UserPrinci
     # 왜 실패했는지 로그로 남긴다(원인 발견 후 로그는 유지, 소음 아님).
     rs_err: str | None = None
     try:
-        payload = verify_token(token, aud=_MOVA_AUD)
+        payload = verify_token(token, aud=[_MOVA_AUD, _MOBILE_AUD])
     except Exception as e:
         rs_err = repr(e)
         try:

@@ -50,6 +50,8 @@ dependencies:
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.5
   package_info_plus: ^9.0.1
+  # 가입 화면의 이용약관·개인정보처리방침 링크, 계정 삭제 안내(2026-09-28).
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

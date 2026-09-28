@@ -31,3 +31,8 @@ class WalkRepositoryPort(ABC):
     async def stats(self, user_id: int) -> WalkStats:
         """누적 횟수·거리·시간."""
         ...
+
+    @abstractmethod
+    async def delete_all_by_user(self, user_id: int) -> int:
+        """회원 탈퇴 — 이 사용자의 산책 기록을 모두 지우고 지운 건수를 돌려준다."""
+        ...

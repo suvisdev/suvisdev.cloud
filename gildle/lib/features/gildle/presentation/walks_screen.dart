@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth.dart';
 import '../../../core/theme/gildle_theme.dart';
 import '../data/models/walk.dart';
 import 'format.dart';
@@ -21,6 +22,12 @@ class WalksScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(loggedInProvider)) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('기록')),
+        body: const LoginPrompt(message: '로그인하면 산책 기록을 저장하고 다시 볼 수 있어요.'),
+      );
+    }
     final walks = ref.watch(walksListProvider);
     final stats = ref.watch(walkStatsProvider);
     final muted = Theme.of(context).extension<GildleExtras>()!.muted;

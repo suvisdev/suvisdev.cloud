@@ -30,7 +30,7 @@ def _load_public_key() -> str:
     return base64.b64decode(raw).decode("utf-8")
 
 
-def verify_token(token: str, aud: str) -> TokenPayload:
+def verify_token(token: str, aud: str | list[str]) -> TokenPayload:
     claims = jwt.decode(
         token,
         _load_public_key(),

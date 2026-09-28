@@ -86,6 +86,25 @@
   "오르막 한 시간 반, 사료도"→언덕길 6.3km 오르막 434m·용품점, "사십 분쯤 나무 많은 데로"→규칙이 못 읽는
   "사십 분"을 모델이 40분으로 이해(첫 호출 7s는 모델 로드, 이후 2~3s). 테스트 gildle 237·전체 941.
 
+- **Play 출시 준비(인증 완료 후, 사용자 "변경해야 하는 사항 다 변경 + 개인 회원가입, 필수 항목만")**:
+  ① **버그 발견·수정 — 앱 토큰이 산책 API에서 전부 401**: `shared/security/require_user`가 aud `suvis-mova`만
+  받아, 앱(aud `suvis-susu`)의 산책 저장·기록·푸시 토큰 등록이 운영에서 불가능했다. 두 aud를 모두 받게 수정.
+  ② 인증 게이트웨이: `POST /auth/mobile/signup`·`/auth/mobile/login`(이메일·비밀번호만, 이메일 정규화, 8자↑,
+  username은 UNIQUE라 `이메일앞_난수6`), `DELETE /auth/mobile/account`(모바일 토큰으로 본인 확인 → users 삭제,
+  FK CASCADE → 모바일 세션 폐기, 웹 토큰은 401). ③ gildle `DELETE /api/gildle/me/data`(산책 기록·기기 토큰 —
+  walks에 users FK가 없어 CASCADE로 안 지워짐). ④ 앱: 게스트 모드(스플래시가 항상 지도로, 기록·내 정보는
+  로그인 안내, 산책 시작 시 로그인 요구), 로그인 화면에 이메일 로그인·가입(필수 동의 체크 + 약관·방침 링크,
+  `url_launcher` 추가), 내 정보에 회원 탈퇴(확인 창)·정책 링크. ⑤ 웹: 개인정보처리방침 개정(산책 기록 저장,
+  이메일 가입, 포그라운드 기록, 네이버·카카오 장소 검색·Firebase 반영, 09-28 시행), 계정 삭제 안내 페이지.
+  ⑥ **노트북에서 AAB 빌드**: Flutter 3.47.5를 스크래치에, JDK 17·Android SDK를 `~/.cache/gildle-build`에 설치,
+  `key.properties` 경로만 임시로 `/mnt/c/...`로 바꿔 빌드 후 원복 → `길들/gildle-release-20260928.aab`
+  (targetSdk 36, 업로드 키 서명 확인). `flutter analyze` 0건·`flutter test` 통과. 도구가 바꾼
+  `analysis_options.yaml`은 되돌림. ⑦ 스토어 아이콘 512·그래픽 1024×500 생성, 심사용 이메일 계정 생성(비밀번호는
+  바탕화면 파일), 입력 가이드 `gildle/_docs/GILDLE_PLAY_CONSOLE_GUIDE.md`. 운영 E2E: 가입 201·중복 409·로그인
+  200/401·앱 토큰 산책 저장 201·데이터 삭제 {walks:1}·탈퇴 204·탈퇴 후 로그인 401. **정정**: 처음에 "위치
+  포그라운드 서비스 권한은 안 쓴다"고 답했으나 산책 중 화면 꺼짐 기록에 실제로 쓴다 — 권한 유지, Play 선언·
+  시연 영상 필요로 정정. 파이썬 기본 UA는 Cloudflare 1010으로 막힌다(테스트 시 UA 지정).
+
 ### 오류·막힌 점
 - 노트북 `node_modules`는 pnpm 11.21.0으로 설치돼 있어 `npx pnpm@10`이 스토어 불일치로 실패 —
   `npx -y pnpm@11.21.0`으로 add/remove.

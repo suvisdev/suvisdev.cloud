@@ -93,7 +93,11 @@ keytool -genkey -v -keystore ~/gildle-release.jks \
 | 개인정보처리방침 URL | ✅ `https://suvisdev.cloud/gildle/privacy` |
 | 최소 버전 API | ✅ `GET /api/gildle/app/version`(`.env` `GILDLE_APP_*`) |
 | 실기기 검증 | ❌ **아직** — 디버그 APK 설치 후 지도 인증·위치 권한·산책 저장 확인 필요 |
-| 스토어 등록정보 | ❌ 스크린샷·설명(서울 한정 명시)·콘텐츠 등급·데이터 보안 양식 |
+| 스토어 등록정보 | 🟡 09-28 입력값·설명 초안·아이콘 512·그래픽 1024×500 준비(`GILDLE_PLAY_CONSOLE_GUIDE.md`), 스크린샷은 실기기에서 |
+| Play Console | ✅ 09-28 개발자 인증 완료·앱 생성. 남은 것: 내부 테스트 업로드 → 비공개 테스트 12명·14일 → 프로덕션 신청 |
+| 로그인 없이 사용 | ✅ 09-28 지도·경로 추천은 게스트, 산책 저장·기록·내 정보만 로그인(심사자 접근) |
+| 이메일 가입·탈퇴 | ✅ 09-28 이메일·비밀번호만 받는 가입, 앱 내 회원 탈퇴 + 웹 `/gildle/account-deletion` |
+| 릴리스 AAB | ✅ 09-28 `gildle-release-20260928.aab`(노트북에서 빌드, targetSdk 36) |
 | FCM 발송 | ❌ 토큰 등록만(보낼 알림 미정) |
 
 ## 단계 6. 내부 테스트 → 출시

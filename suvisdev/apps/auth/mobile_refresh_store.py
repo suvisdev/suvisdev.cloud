@@ -95,3 +95,7 @@ class MobileRefreshTokenStore:
         data = json.loads(raw)
         if data["secret"] == secret:
             self._client.delete(_key(user_id))
+
+    def revoke_user(self, *, user_id: str) -> None:
+        """회원 탈퇴 — 이 사용자의 모바일 세션을 무조건 폐기한다."""
+        self._client.delete(_key(user_id))

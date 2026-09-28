@@ -153,6 +153,31 @@ class AuthService:
             email=identity.email,
             nickname=identity.nickname,
         )
+        return self._issue_mobile_pair(user, nickname=identity.nickname)
+
+    async def mobile_signup(self, email: str, password: str) -> KakaoMobileTokenResponse:
+        """앱 이메일 회원가입 — 가입과 동시에 모바일 세션을 발급한다. 중복이면 EmailAlreadyExists."""
+        user = await self._users.create_email_user(email=email, password=password)
+        return self._issue_mobile_pair(user, nickname=email.split("@", 1)[0])
+
+    async def mobile_email_login(self, email: str, password: str) -> KakaoMobileTokenResponse:
+        user = await self._users.find_by_email_credentials(email, password)
+        if user is None:
+            raise InvalidCredentials("이메일 또는 비밀번호가 올바르지 않습니다.")
+        return self._issue_mobile_pair(user, nickname=email.split("@", 1)[0])
+
+    async def delete_mobile_account(self, access_token: str) -> bool:
+        """앱 회원 탈퇴 — 모바일 access token으로 본인을 확인하고 계정·모바일 세션을 지운다.
+        토큰이 무효면 InvalidCredentials. 이미 없는 계정이면 False."""
+        try:
+            payload = self._tokens.verify(access_token, aud=_MOBILE_AUD)
+        except Exception as e:  # noqa: BLE001 — 만료·서명·aud 오류 모두 인증 실패
+            raise InvalidCredentials("유효하지 않은 세션입니다.") from e
+        deleted = await self._users.delete_user(int(payload.sub))
+        self._mobile_refresh.revoke_user(user_id=payload.sub)
+        return deleted
+
+    def _issue_mobile_pair(self, user: Any, *, nickname: str | None) -> KakaoMobileTokenResponse:
         access_jwt = self._tokens.issue_access_token(
             sub=str(user.user_id),
             roles=user.role_values(),
@@ -169,7 +194,7 @@ class AuthService:
             access_token=access_jwt,
             refresh_token=refresh_token,
             expires_in=_ACCESS_TTL_MIN * 60,
-            nickname=identity.nickname,
+            nickname=nickname,
         )
 
     async def mobile_refresh(self, refresh_token: str) -> TokenResponse:

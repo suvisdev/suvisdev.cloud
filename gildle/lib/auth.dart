@@ -1,18 +1,27 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'api_config.dart';
-import 'main.dart';
+import 'core/config/env.dart';
 
 /// 모바일 세션(백엔드가 발급한 자체 JWT/refresh token) 저장소.
 ///
 /// 웹 로그인과는 완전히 분리된 storage key를 쓴다 — gildle 앱(모바일)은 이 값만
 /// 다루고, 서버 쪽 Redis 네임스페이스 분리(auth:refresh:mobile:{userId})와
 /// 짝을 이룬다.
+/// 로그인 여부 — 로그인 없이도 지도·경로 추천은 쓸 수 있고(2026-09-28, 심사·게스트),
+/// 산책 기록 저장·기록 목록·내 정보만 로그인이 필요하다. 앱 시작 시 SplashScreen이 채운다.
+final loggedInProvider = StateProvider<bool>((ref) => false);
+
+const _termsUrl = 'https://suvisdev.cloud/terms';
+const _privacyUrl = 'https://suvisdev.cloud/gildle/privacy';
+
 class AuthSession {
   AuthSession._();
 
@@ -92,6 +101,40 @@ class AuthSession {
     await _storage.delete(key: _refreshTokenKey);
   }
 
+  /// 회원 탈퇴(Google Play 계정 삭제 정책) — ① gildle 데이터(산책 기록·기기 토큰)
+  /// ② 계정 자체(인증 게이트웨이) 순서로 지우고 로컬 세션을 비운다. 실패하면 예외.
+  static Future<void> deleteAccount() async {
+    Future<http.Response> send(Future<http.Response> Function(String token) call) async {
+      var token = await readAccessToken() ?? '';
+      var resp = await call(token);
+      if (resp.statusCode == 401 && await refresh()) {
+        token = await readAccessToken() ?? '';
+        resp = await call(token);
+      }
+      return resp;
+    }
+
+    final data = await send(
+      (t) => http.delete(
+        Uri.parse('${AppConfig.apiBaseUrl}/api/gildle/me/data'),
+        headers: {'Authorization': 'Bearer $t'},
+      ),
+    );
+    if (data.statusCode != 200) {
+      throw Exception('산책 기록을 지우지 못했습니다(${data.statusCode}).');
+    }
+    final account = await send(
+      (t) => http.delete(
+        Uri.parse('$authBaseUrl/auth/mobile/account'),
+        headers: {'Authorization': 'Bearer $t'},
+      ),
+    );
+    if (account.statusCode != 204) {
+      throw Exception('계정을 삭제하지 못했습니다(${account.statusCode}).');
+    }
+    await clear();
+  }
+
   /// 서버 쪽 refresh token 폐기(POST /auth/mobile/logout) 시도 후 로컬 세션을
   /// 지운다. 서버 호출이 실패해도(네트워크 등) 로컬 로그아웃은 항상 진행한다 —
   /// best-effort revoke.
@@ -112,37 +155,82 @@ class AuthSession {
   }
 }
 
-class AuthScreen extends StatefulWidget {
+/// 로그인·회원가입 화면 — 카카오 또는 이메일. 필요한 곳(산책 기록 저장·기록·내 정보)에서
+/// push로 열고, 성공하면 `true`로 닫힌다. 이메일 가입은 필수 항목(이메일·비밀번호)과
+/// 필수 동의만 받는다(2026-09-28).
+class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _isLoading = false;
   String? _errorMessage;
+  bool _signupMode = false;
+  bool _agreed = false;
+  final _email = TextEditingController();
+  final _password = TextEditingController();
 
-  Future<void> _handleKakaoLogin() async {
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<void> Function() action, String failPrefix) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-
     try {
-      final accessToken = await _obtainKakaoAccessToken();
-      await _loginWithBackend(accessToken);
-
+      await action();
+      ref.read(loggedInProvider.notifier).state = true;
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-        (route) => false,
-      );
+      Navigator.of(context).pop(true);
     } catch (e) {
-      setState(() => _errorMessage = '카카오 로그인에 실패했습니다: $e');
+      setState(() => _errorMessage = '$failPrefix: ${e is _AuthError ? e.message : e}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _handleKakaoLogin() => _run(() async {
+        final accessToken = await _obtainKakaoAccessToken();
+        await _loginWithBackend(accessToken);
+      }, '카카오 로그인에 실패했습니다');
+
+  Future<void> _handleEmail() async {
+    final email = _email.text.trim().toLowerCase();
+    final password = _password.text;
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      setState(() => _errorMessage = '이메일 형식을 확인해 주세요.');
+      return;
+    }
+    if (password.length < 8) {
+      setState(() => _errorMessage = '비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
+    if (_signupMode && !_agreed) {
+      setState(() => _errorMessage = '이용약관과 개인정보처리방침에 동의해 주세요.');
+      return;
+    }
+    await _run(() async {
+      final path = _signupMode ? '/auth/mobile/signup' : '/auth/mobile/login';
+      final resp = await http.post(
+        Uri.parse('$authBaseUrl$path'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+      if (resp.statusCode == 409) throw const _AuthError('이미 가입된 이메일입니다. 로그인해 주세요.');
+      if (resp.statusCode == 401) throw const _AuthError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      if (resp.statusCode != 200 && resp.statusCode != 201) {
+        throw _AuthError('서버 오류(${resp.statusCode})');
+      }
+      await _saveTokens(resp.body);
+    }, _signupMode ? '회원가입에 실패했습니다' : '로그인에 실패했습니다');
   }
 
   /// 카카오톡 앱으로 로그인을 시도하고, 미설치거나 실패하면 카카오계정 로그인으로
@@ -170,86 +258,176 @@ class _AuthScreenState extends State<AuthScreen> {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'access_token': kakaoAccessToken}),
     );
-
     if (resp.statusCode != 200) {
-      throw Exception('백엔드 로그인 실패(${resp.statusCode}): ${resp.body}');
+      throw _AuthError('서버 오류(${resp.statusCode})');
     }
+    await _saveTokens(resp.body);
+  }
 
-    final body = jsonDecode(resp.body) as Map<String, dynamic>;
+  Future<void> _saveTokens(String rawBody) async {
+    final body = jsonDecode(rawBody) as Map<String, dynamic>;
     await AuthSession.save(
       accessToken: body['access_token'] as String,
       refreshToken: body['refresh_token'] as String,
     );
   }
 
+  Future<void> _open(String url) async {
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted = isDark ? const Color(0xFFB3B3B3) : const Color(0xFF737373);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0F14) : const Color(0xFFE8E8E8),
+      appBar: AppBar(title: Text(_signupMode ? '회원가입' : '로그인')),
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            Text(
+              '산책 기록을 저장하려면 로그인하세요',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: muted),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _handleKakaoLogin,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFEE500),
+                  foregroundColor: const Color(0xFF191919),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  '카카오로 계속하기',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
               children: [
-                Text(
-                  '길들',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF171717),
-                  ),
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('또는 이메일', style: TextStyle(fontSize: 12, color: muted)),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '계속하려면 카카오로 로그인하세요',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? const Color(0xFFB3B3B3) : const Color(0xFF737373),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleKakaoLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFEE500),
-                      foregroundColor: const Color(0xFF191919),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            '카카오로 로그인',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                          ),
-                  ),
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    _errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red, fontSize: 13),
-                  ),
-                ],
+                const Expanded(child: Divider()),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              decoration: const InputDecoration(labelText: '이메일', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _password,
+              obscureText: true,
+              autofillHints: [_signupMode ? AutofillHints.newPassword : AutofillHints.password],
+              decoration: const InputDecoration(
+                labelText: '비밀번호(8자 이상)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (_signupMode) ...[
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: _agreed,
+                onChanged: _isLoading ? null : (v) => setState(() => _agreed = v ?? false),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('(필수) 이용약관·개인정보처리방침에 동의합니다', style: TextStyle(fontSize: 13)),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(onPressed: () => _open(_termsUrl), child: const Text('이용약관 보기')),
+                  TextButton(onPressed: () => _open(_privacyUrl), child: const Text('개인정보처리방침 보기')),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _isLoading ? null : _handleEmail,
+              style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+              child: _isLoading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(_signupMode ? '가입하기' : '이메일로 로그인'),
+            ),
+            TextButton(
+              onPressed: _isLoading
+                  ? null
+                  : () => setState(() {
+                        _signupMode = !_signupMode;
+                        _errorMessage = null;
+                      }),
+              child: Text(_signupMode ? '이미 계정이 있어요 — 로그인' : '처음이에요 — 이메일로 가입'),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red, fontSize: 13),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
+}
+
+class _AuthError implements Exception {
+  const _AuthError(this.message);
+  final String message;
+}
+
+/// 로그인이 필요한 화면(기록·내 정보)에 대신 보여 주는 안내 — 누르면 로그인 화면.
+class LoginPrompt extends StatelessWidget {
+  const LoginPrompt({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_outline, size: 40),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => Navigator.of(context).push<bool>(
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+              ),
+              child: const Text('로그인 / 회원가입'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 로그인이 필요하면 로그인 화면을 띄우고, 로그인돼 있거나 방금 로그인했으면 true.
+Future<bool> ensureLoggedIn(BuildContext context, WidgetRef ref) async {
+  if (ref.read(loggedInProvider)) return true;
+  final ok = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(builder: (_) => const AuthScreen()),
+  );
+  return ok == true;
 }

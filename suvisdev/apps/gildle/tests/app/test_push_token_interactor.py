@@ -22,6 +22,12 @@ class _FakeRepo(PushTokenRepositoryPort):
         self.rows[token.token] = saved
         return saved
 
+    async def delete_all_by_user(self, user_id: int) -> int:
+        mine = [k for k, v in self.rows.items() if v.user_id == user_id]
+        for k in mine:
+            del self.rows[k]
+        return len(mine)
+
     async def delete(self, user_id: int, token: str) -> None:
         row = self.rows.get(token)
         if row and row.user_id == user_id:
