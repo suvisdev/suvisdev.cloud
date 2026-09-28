@@ -19,7 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 
 # 4. 백엔드에 필요한 라이브러리들을 설치합니다.
-RUN pip install --no-cache-dir --timeout 120 --retries 5 -r requirements.txt
+#    torch 3종은 CPU 휠로 바꿔 설치한다 — 노트북 backend 파드엔 GPU 런타임이 없어
+#    (`k8s/backend.yaml`에 nvidia 설정 없음, 파드 안 `torch.cuda.is_available()`=False)
+#    cu126 휠 + nvidia-* 라이브러리 9GB가 전부 죽은 무게였다(2026-09-28, 이미지 14.9GB).
+#    requirements.txt는 데스크톱 `.venv`(학습·GPU 테스트)용 cu126 핀을 그대로 유지한다.
+RUN sed -e 's#whl/cu126#whl/cpu#' -e 's/+cu126/+cpu/' requirements.txt > /tmp/requirements-cpu.txt \
+    && pip install --no-cache-dir --timeout 120 --retries 5 -r /tmp/requirements-cpu.txt \
+    && rm /tmp/requirements-cpu.txt
 
 # 5. 내 컴퓨터의 suvisdev 폴더 안 소스코드를 도커 컴퓨터로 전부 복사합니다.
 COPY . .
