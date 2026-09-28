@@ -571,9 +571,13 @@ class BookingAssistService:
                     " 다른 체인은 아래 예매 링크에서 확인해 주세요."
                 )
             else:
+                # 롯데는 보통 이틀치 정도만 회차를 연다 — 먼 날짜는 "없다"가 아니라 "아직 안 열렸다"일
+                # 수 있다(2026-09-28 실측: 9/30 조회가 전 작품 0건).
+                far = bool(date) and date > (_kst_today() + timedelta(days=1)).strftime("%Y-%m-%d")
                 reply += (
-                    f" 롯데시네마 {_date_label(date)} 시간표엔 이 작품이 없었어요. "
-                    "상영 시간표와 예매는 각 체인 링크에서 확인해 주세요"
+                    f" 롯데시네마 {_date_label(date)} 시간표엔 이 작품이 없었어요"
+                    + ("(그날 예매 일정이 아직 안 열렸을 수 있어요). " if far else ". ")
+                    + "상영 시간표와 예매는 각 체인 링크에서 확인해 주세요"
                     "(시간표는 극장 사정에 따라 달라져요)."
                 )
         logger.info(
