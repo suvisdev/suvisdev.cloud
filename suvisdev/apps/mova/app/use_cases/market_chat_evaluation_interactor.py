@@ -22,6 +22,7 @@ from mova.app.ports.output.review_aggregation_port import ReviewAggregationPort
 from mova.app.use_cases.market_chat_title_resolver import resolve_movie_title
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
+from ontology.app.ports.output.hub_rag_errors import HubRagError
 
 logger = logging.getLogger(__name__)
 
@@ -206,10 +207,24 @@ class MovieEvaluationService:
             lines.append(f"[자체 리뷰 발췌 {i}] {text}")
         for i, text in enumerate(external, 1):
             lines.append(f"[TMDB 리뷰 발췌 {i}] {text}")
-        answer = await self._general.ask(
-            MycroftAskCommand(
-                question="[데이터]\n" + "\n".join(lines),
-                system=_EVALUATION_SYSTEM_PROMPT,
+        try:
+            answer = await self._general.ask(
+                MycroftAskCommand(
+                    question="[데이터]\n" + "\n".join(lines),
+                    system=_EVALUATION_SYSTEM_PROMPT,
+                )
             )
-        )
+        except HubRagError as e:
+            # Gemini 503/429가 HubRagError로 올라와 500이 되던 경로(2026-09-22 멀티턴 "26년꺼"
+            # 장면 실측). 정량 데이터는 이미 손에 있으니 LLM 없이 숫자만 정직하게 전한다.
+            logger.warning("[MovieEvaluationService] LLM 실패 → 정량 요약 강등 | %s", e.detail)
+            summary = f"{title}({year or '연도 미상'})은(는) TMDB 유래 평점 {tmdb_rating or '없음'}점(5점 만점)"
+            if aggregate_count:
+                summary += f", mova 리뷰 {aggregate_count}건"
+                if aggregate_avg is not None:
+                    summary += f"(평균 {aggregate_avg}점)"
+            summary += "이에요."
+            if synopsis:
+                summary += f" 줄거리: {synopsis[:150]}"
+            return summary + " 지금 상세 평가 문장을 만드는 응답이 혼잡해서 숫자만 먼저 전해드려요."
         return answer.text

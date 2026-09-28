@@ -111,6 +111,19 @@ _EVAL_STRIP = re.compile(
 )
 
 
+# 제목이 있는 줄거리 요청("기생충 줄거리 알려줘")을 결정론으로 evaluate에 보낸다.
+# 분류기(LLM)가 이런 발화를 recommend로 보내 줄거리 대신 비슷한 영화를 추천하던 것 대응
+# (2026-09-22 실사용). 추천 어휘가 같이 있으면("줄거리 반전 있는 영화 추천") 추천 요청이다.
+_SYNOPSIS_WORDS = re.compile(
+    r"(줄거리|시놉시스|(무슨|어떤)\s*내용|내용\s*(이|을|좀)?\s*(뭐|알려|설명))"
+)
+_RECOMMEND_WORDS = re.compile(r"(추천|비슷한|같은\s*영화|볼\s*만한)")
+
+
+def _is_synopsis_request(message: str) -> bool:
+    return bool(_SYNOPSIS_WORDS.search(message)) and not _RECOMMEND_WORDS.search(message)
+
+
 def _is_bare_eval_followup(message: str) -> bool:
     m = message.strip()
     if not _EVAL_TRIGGER_WORDS.search(m):
@@ -348,6 +361,18 @@ class ChatInteractor(ChatUseCase):
         if self._booking is not None and _is_booking_lexicon(request.message):
             logger.info("[ChatInteractor] trace=%s booking 어휘 선분기(분류기 생략)", trace_id)
             return await self._reply_booking(request, trace_id, entities=[], pending_title=None)
+
+        # 0-a. 제목 있는 줄거리 요청은 evaluate(시놉시스 선행 규칙)로 — 분류기가 recommend로
+        #      오분류하던 발화. 제목이 카탈로그에 없으면 그대로 분류기에 맡긴다.
+        if self._evaluation is not None and _is_synopsis_request(request.message):
+            movie = await self._repo.find_movie_titled_in_text(request.message)
+            if movie is not None:
+                logger.info(
+                    "[ChatInteractor] trace=%s 줄거리 선분기(분류기 생략) title=%s",
+                    trace_id,
+                    movie.title,
+                )
+                return await self._reply_evaluation(request, trace_id, entities=[movie.title])
 
         destination, entities = await self._classifier.classify(request.message)
         logger.info(

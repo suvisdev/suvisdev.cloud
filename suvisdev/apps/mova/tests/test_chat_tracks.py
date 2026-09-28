@@ -36,6 +36,7 @@ from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
     ChatInteractor,
     _is_bare_eval_followup,
     _is_booking_lexicon,
+    _is_synopsis_request,
     pick_from_choice_list,
 )
 from mova.app.use_cases.market_chat_title_resolver import (  # noqa: E402
@@ -228,6 +229,23 @@ class BareEvalFollowupDetectorTests(unittest.TestCase):
             self.assertFalse(_is_bare_eval_followup(msg), msg)
 
 
+class SynopsisRequestDetectorTests(unittest.TestCase):
+    """제목 있는 줄거리 요청 판별 — 추천 어휘가 섞이면 추천 요청이다."""
+
+    def test_synopsis_words_detected(self) -> None:
+        for msg in (
+            "기생충 줄거리 알려줘",
+            "옵세션 줄거리",
+            "인턴 시놉시스 좀",
+            "듄 무슨 내용이야",
+        ):
+            self.assertTrue(_is_synopsis_request(msg), msg)
+
+    def test_recommend_or_unrelated_excluded(self) -> None:
+        for msg in ("줄거리 반전 있는 영화 추천해줘", "기생충 어때", "좀비 영화 추천", "안녕"):
+            self.assertFalse(_is_synopsis_request(msg), msg)
+
+
 class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
     def _service(self, *, review_count: int = 5) -> tuple[MovieEvaluationService, AsyncMock]:
         repo = AsyncMock()
@@ -250,6 +268,21 @@ class MovieEvaluationServiceTests(unittest.IsolatedAsyncioTestCase):
             external_reviews=external,
         )
         return service, general
+
+    async def test_llm_failure_degrades_to_quantitative_summary(self) -> None:
+        """Gemini 503이 HubRagError로 올라와도 500이 아니라 정량 요약 200으로 강등된다
+        (2026-09-22 멀티턴 "26년꺼" 장면 실측)."""
+        from ontology.app.ports.output.hub_rag_errors import HubRagError
+
+        service, general = self._service()
+        general.ask.side_effect = HubRagError("503 UNAVAILABLE", status_code=502)
+        result = await service.evaluate(message="호프 어때??", entities=["호프"], trace_id="t")
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.card.movie_id, 7)
+        self.assertIn("호프", result.reply)
+        self.assertIn("리뷰 5건", result.reply)
+        self.assertIn("혼잡", result.reply)
 
     async def test_ok_builds_card_and_payload(self) -> None:
         service, general = self._service()
@@ -685,6 +718,31 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
             evaluation.evaluate.await_args.kwargs["entities"], ["스파이더맨: 브랜드 뉴 데이"]
         )
 
+    async def test_titled_synopsis_request_routes_to_evaluate(self) -> None:
+        """ "기생충 줄거리 알려줘"는 분류기가 recommend로 오분류해도 카탈로그 제목이 있으면
+        evaluate(시놉시스 선행)로 간다. 제목이 없으면 분류기 결과를 따른다."""
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        interactor, repo, evaluation, _ = self._interactor(destination="recommend")
+        repo.find_movie_titled_in_text.return_value = _item(9, "기생충", "2019")
+        evaluation.evaluate.return_value = EvaluationResult(
+            status="not_found", reply="자료 없음", card=None, evaluation=None
+        )
+
+        response = await interactor.chat(
+            MovaChatRequest(message="기생충 줄거리 알려줘", history=[])
+        )
+
+        self.assertEqual(response.intent_type, "evaluate")
+        self.assertEqual(evaluation.evaluate.await_args.kwargs["entities"], ["기생충"])
+        interactor._classifier.classify.assert_not_awaited()
+
+        interactor2, repo2, evaluation2, _ = self._interactor(destination="general")
+        repo2.find_movie_titled_in_text.return_value = None
+        await interactor2.chat(MovaChatRequest(message="없는영화 줄거리 알려줘", history=[]))
+        evaluation2.evaluate.assert_not_awaited()
+        interactor2._classifier.classify.assert_awaited_once()
+
     async def test_ambiguous_evaluate_carries_choices_to_schema(self) -> None:
         """evaluate 모호 응답의 candidates가 응답 DTO·스키마 choices까지 전달된다."""
         from mova.app.dtos.market_chat_dto import ChatChoiceDto
@@ -794,7 +852,7 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
     async def test_pending_region_yields_to_topic_change(self) -> None:
         """지역 되묻기 뒤 "옵세션 줄거리 알려줘"는 지역명이 아니다(2026-09-22 실사용:
         "'옵세션 줄거리 알려줘' 지역을 찾지 못했어요"). 제목이 있고 지명 신호가 없으면
-        분류기로 보낸다."""
+        새 요청으로 본다 — 줄거리 요청이라 결정론으로 evaluate에 간다(09-28, 분류기 생략)."""
         from mova.app.dtos.market_chat_dto import ChatRecommendationDto
         from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
 
@@ -828,7 +886,7 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(response.response_type, "evaluation")
-        interactor._classifier.classify.assert_awaited_once()
+        self.assertEqual(evaluation.evaluate.await_args.kwargs["entities"], ["옵세션"])
         booking.assist.assert_not_awaited()
 
     async def test_pending_region_still_taken_for_bare_region(self) -> None:
