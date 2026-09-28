@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { TreePine, ShieldCheck, Route, Dog, MapPin, Thermometer } from "lucide-react"
-import { ThemeToggle } from "@/components/theme-toggle"
 
 const FEATURES = [
   {
@@ -35,29 +34,28 @@ export default function GildlePage() {
       <header className="relative z-20 flex h-11 shrink-0 items-center justify-between px-4 sm:h-12 sm:px-6">
         <Link
           href="/"
-          className="text-xs text-gildle-muted transition-colors hover:text-gildle-text"
+          className="text-gildle-muted hover:text-gildle-text text-xs transition-colors"
         >
           ← suvisdev.cloud
         </Link>
-        <ThemeToggle />
       </header>
 
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-12 sm:py-16">
         <section className="w-full max-w-2xl text-center">
-          <p className="mb-2 text-[10px] font-medium tracking-[0.18em] text-gildle-muted uppercase sm:mb-3 sm:text-xs sm:tracking-[0.2em]">
+          <p className="text-gildle-muted mb-2 text-[10px] font-medium tracking-[0.18em] uppercase sm:mb-3 sm:text-xs sm:tracking-[0.2em]">
             반려견 산책 경로 추천
           </p>
 
-          <h1 className="text-3xl font-bold leading-tight tracking-tight text-gildle-text sm:text-4xl md:text-5xl">
+          <h1 className="text-gildle-text text-3xl leading-tight font-bold tracking-tight sm:text-4xl md:text-5xl">
             안전하고 쾌적한 산책,
             <br />
-            <span className="bg-gradient-to-r from-gildle-accent to-gildle-accent-bright bg-clip-text text-transparent">
+            <span className="from-gildle-accent to-gildle-accent-bright bg-gradient-to-r bg-clip-text text-transparent">
               Gildle
             </span>
             이 안내할게.
           </h1>
 
-          <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-gildle-muted sm:mt-5 sm:text-base">
+          <p className="text-gildle-muted mx-auto mt-4 max-w-md text-sm leading-relaxed sm:mt-5 sm:text-base">
             길+엮다에서 태어난 이름.
             <br />
             나무 그늘, 결빙 위험, 반려견 친화도를 계산해
@@ -68,14 +66,14 @@ export default function GildlePage() {
           <div className="mt-8 flex flex-col items-center gap-3 sm:mt-10 sm:flex-row sm:justify-center">
             <Link
               href="/gildle/map"
-              className="inline-flex items-center gap-2 rounded-full border border-gildle-accent/30 bg-gildle-accent-soft px-5 py-2.5 text-sm font-semibold text-gildle-accent transition-colors hover:bg-gildle-accent hover:text-white"
+              className="border-gildle-accent/30 bg-gildle-accent-soft text-gildle-accent hover:bg-gildle-accent inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm font-semibold transition-colors hover:text-white"
             >
               <MapPin className="h-4 w-4" strokeWidth={1.8} />
               보행 그래프 지도 보기
             </Link>
             <Link
               href="/gildle/map"
-              className="inline-flex items-center gap-2 rounded-full border border-gildle-border bg-gildle-surface/60 px-5 py-2.5 text-sm text-gildle-muted transition-colors hover:border-gildle-accent/30 hover:bg-gildle-accent-soft hover:text-gildle-accent"
+              className="border-gildle-border bg-gildle-surface/60 text-gildle-muted hover:border-gildle-accent/30 hover:bg-gildle-accent-soft hover:text-gildle-accent inline-flex items-center gap-2 rounded-full border px-5 py-2.5 text-sm transition-colors"
             >
               <Route className="h-4 w-4" strokeWidth={1.8} />
               경로 추천
@@ -88,40 +86,28 @@ export default function GildlePage() {
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="rounded-2xl border border-gildle-border bg-gildle-surface/80 p-5 sm:p-6"
+                className="border-gildle-border bg-gildle-surface/80 rounded-2xl border p-5 sm:p-6"
               >
-                <f.icon
-                  className="mb-3 h-6 w-6 text-gildle-accent"
-                  strokeWidth={1.8}
-                  aria-hidden
-                />
-                <h3 className="mb-1.5 text-sm font-semibold text-gildle-text">
-                  {f.title}
-                </h3>
-                <p className="text-xs leading-relaxed text-gildle-muted">
-                  {f.description}
-                </p>
+                <f.icon className="text-gildle-accent mb-3 h-6 w-6" strokeWidth={1.8} aria-hidden />
+                <h3 className="text-gildle-text mb-1.5 text-sm font-semibold">{f.title}</h3>
+                <p className="text-gildle-muted text-xs leading-relaxed">{f.description}</p>
               </div>
             ))}
           </div>
         </section>
 
         <section className="mt-12 w-full max-w-2xl sm:mt-16">
-          <h2 className="mb-4 text-center text-xs font-medium tracking-wider text-gildle-muted uppercase sm:mb-5">
+          <h2 className="text-gildle-muted mb-4 text-center text-xs font-medium tracking-wider uppercase sm:mb-5">
             데이터 기반
           </h2>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
             {DATA_SOURCES.map((d) => (
               <div
                 key={d.label}
-                className="flex items-center gap-2 rounded-full border border-gildle-border bg-gildle-surface/60 px-4 py-2"
+                className="border-gildle-border bg-gildle-surface/60 flex items-center gap-2 rounded-full border px-4 py-2"
               >
-                <d.icon
-                  className="h-4 w-4 text-gildle-accent"
-                  strokeWidth={1.8}
-                  aria-hidden
-                />
-                <span className="text-xs text-gildle-text">{d.label}</span>
+                <d.icon className="text-gildle-accent h-4 w-4" strokeWidth={1.8} aria-hidden />
+                <span className="text-gildle-text text-xs">{d.label}</span>
               </div>
             ))}
           </div>
