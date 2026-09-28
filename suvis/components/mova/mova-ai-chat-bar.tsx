@@ -40,10 +40,14 @@ type ShowtimeSlot = {
   film_type: string
   seats_available: number
   seats_total: number
+  /** 롯데시네마 예매 화면 딥링크(회차 강조). 없으면 "" */
+  booking_url: string
 }
 
 type CinemaShowtime = {
   cinema_name: string
+  /** 롯데시네마 극장 시간표 페이지. 없으면 "" */
+  timetable_url: string
   slots: ShowtimeSlot[]
 }
 
@@ -102,12 +106,8 @@ function normalizeRecommendation(raw: unknown): MovaRecommendation | null {
     year: typeof o.year === "string" ? o.year : "",
     poster: coercePosterUrl(o.poster) ?? "",
     synopsis: typeof o.synopsis === "string" ? o.synopsis : "",
-    platform:
-      typeof o.platform === "string" && o.platform.trim() ? o.platform : null,
-    hook:
-      typeof o.hook === "string" && o.hook.trim()
-        ? o.hook
-        : "취향에 맞는 작품이에요.",
+    platform: typeof o.platform === "string" && o.platform.trim() ? o.platform : null,
+    hook: typeof o.hook === "string" && o.hook.trim() ? o.hook : "취향에 맞는 작품이에요.",
   }
 }
 
@@ -123,7 +123,10 @@ function parseJsonReply(raw: string): { intro: string; picks: MovaRecommendation
   let text = raw.trim()
   if (!text) return { intro: "", picks: [] }
   if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim()
+    text = text
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim()
   }
   if (!text.startsWith("{")) return { intro: text, picks: [] }
 
@@ -131,15 +134,11 @@ function parseJsonReply(raw: string): { intro: string; picks: MovaRecommendation
     const data = JSON.parse(text) as Record<string, unknown>
     const intro = typeof data.intro === "string" ? data.intro.trim() : ""
     const picks = Array.isArray(data.picks)
-      ? data.picks
-          .map(normalizeRecommendation)
-          .filter((r): r is MovaRecommendation => r !== null)
+      ? data.picks.map(normalizeRecommendation).filter((r): r is MovaRecommendation => r !== null)
       : []
     if (intro || picks.length) {
       return {
-        intro:
-          intro ||
-          (picks.length ? "요청하신 취향에 맞춰 아래 작품을 골라봤어요." : text),
+        intro: intro || (picks.length ? "요청하신 취향에 맞춰 아래 작품을 골라봤어요." : text),
         picks,
       }
     }
@@ -161,7 +160,7 @@ function parseJsonReply(raw: string): { intro: string; picks: MovaRecommendation
 
 function normalizeAssistantReply(
   reply: string,
-  recommendations: MovaRecommendation[],
+  recommendations: MovaRecommendation[]
 ): { content: string; recommendations: MovaRecommendation[] } {
   const parsed = parseJsonReply(reply)
   const looksLikeJson = reply.trim().startsWith("{") || reply.trim().startsWith("```")
@@ -238,18 +237,30 @@ function normalizeBooking(raw: unknown): ChatBooking | null {
               if (!s || typeof s !== "object") return []
               const sl = s as Record<string, unknown>
               return typeof sl.start_time === "string"
-                ? [{
-                    screen: typeof sl.screen === "string" ? sl.screen : "",
-                    start_time: sl.start_time,
-                    end_time: typeof sl.end_time === "string" ? sl.end_time : "",
-                    film_type: typeof sl.film_type === "string" ? sl.film_type : "",
-                    seats_available: typeof sl.seats_available === "number" ? sl.seats_available : 0,
-                    seats_total: typeof sl.seats_total === "number" ? sl.seats_total : 0,
-                  }]
+                ? [
+                    {
+                      screen: typeof sl.screen === "string" ? sl.screen : "",
+                      start_time: sl.start_time,
+                      end_time: typeof sl.end_time === "string" ? sl.end_time : "",
+                      film_type: typeof sl.film_type === "string" ? sl.film_type : "",
+                      seats_available:
+                        typeof sl.seats_available === "number" ? sl.seats_available : 0,
+                      seats_total: typeof sl.seats_total === "number" ? sl.seats_total : 0,
+                      booking_url: typeof sl.booking_url === "string" ? sl.booking_url : "",
+                    },
+                  ]
                 : []
             })
           : []
-        return slots.length > 0 ? [{ cinema_name: c.cinema_name, slots }] : []
+        return slots.length > 0
+          ? [
+              {
+                cinema_name: c.cinema_name,
+                timetable_url: typeof c.timetable_url === "string" ? c.timetable_url : "",
+                slots,
+              },
+            ]
+          : []
       })
     : []
   return {
@@ -302,9 +313,7 @@ export function MovaAiChatBar({
     error: null,
   })
   const [inputValue, setInputValue] = useState("")
-  const [conversationId, setConversationId] = useState<number | null>(
-    conversationIdProp ?? null,
-  )
+  const [conversationId, setConversationId] = useState<number | null>(conversationIdProp ?? null)
   // URL ?q=X는 마운트 시점에 딱 한 번만 캡처. 이후엔 상태로만 흘려서 로드가
   // 끝난 뒤 기존 이력 뒤에 append하는 방식으로 send한다(기존 대화가 있어도
   // 키워드가 씹히지 않게 하기 위함).
@@ -340,7 +349,7 @@ export function MovaAiChatBar({
       "AI가 최고의 조합을 골라보는 중…",
       "곧 추천해 드릴게요, 잠시만요…",
     ],
-    [],
+    []
   )
   const [loadingHintIdx, setLoadingHintIdx] = useState(0)
   useEffect(() => {
@@ -388,10 +397,7 @@ export function MovaAiChatBar({
     if (dbMode) return
     if (typeof window === "undefined" || !hydrated) return
     try {
-      window.sessionStorage.setItem(
-        CHAT_STORAGE_KEY,
-        JSON.stringify({ messages: chat.messages }),
-      )
+      window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({ messages: chat.messages }))
     } catch {
       // ignore quota/storage errors
     }
@@ -449,105 +455,101 @@ export function MovaAiChatBar({
     chatInputRef.current?.focus({ preventScroll: true })
   }, [isInitial, chat.loading])
 
-  const sendMessage = useCallback(
-    async (text: string): Promise<boolean> => {
-      const trimmed = text.trim()
-      if (!trimmed || chatRef.current.loading) return false
+  const sendMessage = useCallback(async (text: string): Promise<boolean> => {
+    const trimmed = text.trim()
+    if (!trimmed || chatRef.current.loading) return false
 
-      patchChat({ error: null })
-      const history = chatRef.current.messages
-      const userMsg: ChatMessage = { role: "user", content: trimmed }
+    patchChat({ error: null })
+    const history = chatRef.current.messages
+    const userMsg: ChatMessage = { role: "user", content: trimmed }
+    setChat((prev) => ({
+      ...prev,
+      messages: [...prev.messages, userMsg],
+      loading: true,
+    }))
+    setInputValue("")
+
+    const body = JSON.stringify({
+      message: trimmed,
+      history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+      model: "flash15",
+      conversation_id: conversationIdRef.current,
+    })
+    const doFetch = (withAuth: boolean) =>
+      fetch("/api/mova/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(withAuth ? authHeader() : {}),
+        },
+        body,
+      })
+
+    try {
+      let res = await doFetch(true)
+      // 만료·손상된 JWT면 백엔드가 익명 강등 대신 401을 낸다(설계 의도).
+      // 프론트에선 세션을 조용히 정리하고 익명으로 1회 재시도해 채팅 자체는
+      // 끊기지 않게 한다.
+      if (res.status === 401 && getSuvisSession()) {
+        clearSuvisSession()
+        res = await doFetch(false)
+      }
+      const data = (await res.json()) as {
+        reply?: string
+        refined_query?: string
+        recommendations?: MovaRecommendation[]
+        conversation_id?: number | null
+        evaluation?: ChatEvaluation | null
+        booking?: ChatBooking | null
+        choices?: ChatChoice[]
+        detail?: unknown
+      }
+      if (!res.ok) throw new Error(parseError(data, res.status))
+      const replyRaw = typeof data.reply === "string" ? data.reply.trim() : ""
+      const refined = typeof data.refined_query === "string" ? data.refined_query.trim() : ""
+      const apiRecs = Array.isArray(data.recommendations)
+        ? data.recommendations
+            .slice(0, 3)
+            .map(normalizeRecommendation)
+            .filter((r): r is MovaRecommendation => r !== null)
+        : []
+      const { content, recommendations } = normalizeAssistantReply(replyRaw, apiRecs)
+
+      setChat((prev) => {
+        const messages = [...prev.messages]
+        const lastIdx = messages.length - 1
+        if (refined && lastIdx >= 0 && messages[lastIdx]?.role === "user") {
+          messages[lastIdx] = { ...messages[lastIdx], intentLabel: refined }
+        }
+        const choices = Array.isArray(data.choices) ? data.choices : []
+        messages.push({
+          role: "assistant",
+          content: content || "추천을 준비하지 못했어요. 다시 질문해 주세요.",
+          recommendations,
+          ...(data.evaluation ? { evaluation: data.evaluation } : {}),
+          ...(data.booking ? { booking: data.booking } : {}),
+          ...(choices.length > 0 ? { choices } : {}),
+        })
+        return { ...prev, messages, loading: false }
+      })
+      if (dbModeRef.current) {
+        const nextConvId = typeof data.conversation_id === "number" ? data.conversation_id : null
+        setConversationId(nextConvId)
+        onConversationChangedRef.current?.(nextConvId)
+      }
+      return true
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "알 수 없는 오류입니다."
       setChat((prev) => ({
         ...prev,
-        messages: [...prev.messages, userMsg],
-        loading: true,
+        error: msg,
+        messages: prev.messages.slice(0, -1),
+        loading: false,
       }))
-      setInputValue("")
-
-      const body = JSON.stringify({
-        message: trimmed,
-        history: history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-        model: "flash15",
-        conversation_id: conversationIdRef.current,
-      })
-      const doFetch = (withAuth: boolean) =>
-        fetch("/api/mova/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(withAuth ? authHeader() : {}),
-          },
-          body,
-        })
-
-      try {
-        let res = await doFetch(true)
-        // 만료·손상된 JWT면 백엔드가 익명 강등 대신 401을 낸다(설계 의도).
-        // 프론트에선 세션을 조용히 정리하고 익명으로 1회 재시도해 채팅 자체는
-        // 끊기지 않게 한다.
-        if (res.status === 401 && getSuvisSession()) {
-          clearSuvisSession()
-          res = await doFetch(false)
-        }
-        const data = (await res.json()) as {
-          reply?: string
-          refined_query?: string
-          recommendations?: MovaRecommendation[]
-          conversation_id?: number | null
-          evaluation?: ChatEvaluation | null
-          booking?: ChatBooking | null
-          choices?: ChatChoice[]
-          detail?: unknown
-        }
-        if (!res.ok) throw new Error(parseError(data, res.status))
-        const replyRaw = typeof data.reply === "string" ? data.reply.trim() : ""
-        const refined =
-          typeof data.refined_query === "string" ? data.refined_query.trim() : ""
-        const apiRecs = Array.isArray(data.recommendations)
-          ? data.recommendations
-              .slice(0, 3)
-              .map(normalizeRecommendation)
-              .filter((r): r is MovaRecommendation => r !== null)
-          : []
-        const { content, recommendations } = normalizeAssistantReply(replyRaw, apiRecs)
-
-        setChat((prev) => {
-          const messages = [...prev.messages]
-          const lastIdx = messages.length - 1
-          if (refined && lastIdx >= 0 && messages[lastIdx]?.role === "user") {
-            messages[lastIdx] = { ...messages[lastIdx], intentLabel: refined }
-          }
-          const choices = Array.isArray(data.choices) ? data.choices : []
-          messages.push({
-            role: "assistant",
-            content: content || "추천을 준비하지 못했어요. 다시 질문해 주세요.",
-            recommendations,
-            ...(data.evaluation ? { evaluation: data.evaluation } : {}),
-            ...(data.booking ? { booking: data.booking } : {}),
-            ...(choices.length > 0 ? { choices } : {}),
-          })
-          return { ...prev, messages, loading: false }
-        })
-        if (dbModeRef.current) {
-          const nextConvId = typeof data.conversation_id === "number" ? data.conversation_id : null
-          setConversationId(nextConvId)
-          onConversationChangedRef.current?.(nextConvId)
-        }
-        return true
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "알 수 없는 오류입니다."
-        setChat((prev) => ({
-          ...prev,
-          error: msg,
-          messages: prev.messages.slice(0, -1),
-          loading: false,
-        }))
-        setInputValue(trimmed)
-        return false
-      }
-    },
-    [],
-  )
+      setInputValue(trimmed)
+      return false
+    }
+  }, [])
 
   useEffect(() => {
     if (!hydrated) return
@@ -584,14 +586,12 @@ export function MovaAiChatBar({
     return (
       <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center px-4 py-8 md:px-6 md:py-12">
         <div className="mb-5 w-full text-center sm:mb-6">
-          <p className="text-base font-medium text-mova-muted sm:text-lg">
-            무엇이 궁금하세요?
-          </p>
+          <p className="text-mova-muted text-base font-medium sm:text-lg">무엇이 궁금하세요?</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="relative w-full rounded-2xl border border-mova-border bg-mova-surface shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.45)]"
+          className="border-mova-border bg-mova-surface focus-within:border-mova-accent/40 relative w-full rounded-2xl border shadow-[0_8px_40px_rgba(0,0,0,0.08)] transition-shadow focus-within:shadow-[0_8px_48px_rgba(190,24,93,0.15)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.45)]"
         >
           <textarea
             ref={heroInputRef}
@@ -602,7 +602,7 @@ export function MovaAiChatBar({
             onKeyDown={onKeyDown}
             disabled={chat.loading}
             placeholder="장르, 분위기, 배우를 알려주세요…"
-            className="max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
+            className="text-mova-text max-h-32 min-h-[3.25rem] w-full resize-none bg-transparent px-4 py-3.5 pr-12 text-base leading-relaxed outline-none placeholder:text-neutral-500 disabled:opacity-60 sm:px-5 sm:py-4 sm:pr-14"
           />
           <button
             type="submit"
@@ -613,7 +613,7 @@ export function MovaAiChatBar({
               canSubmit
                 ? "bg-mova-accent text-white shadow-md hover:brightness-110"
                 : "bg-mova-surface-2 text-mova-muted",
-              "disabled:opacity-40",
+              "disabled:opacity-40"
             )}
           >
             {chat.loading ? (
@@ -631,16 +631,14 @@ export function MovaAiChatBar({
               type="button"
               disabled={chat.loading}
               onClick={() => void sendMessage(hint)}
-              className="rounded-full border border-mova-border bg-mova-surface px-3 py-1.5 text-xs text-mova-muted transition-colors hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
+              className="border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
             >
               {hint}
             </button>
           ))}
         </div>
 
-        {chat.error && (
-          <p className="mt-4 text-xs text-red-500 dark:text-red-400">{chat.error}</p>
-        )}
+        {chat.error && <p className="mt-4 text-xs text-red-500 dark:text-red-400">{chat.error}</p>}
       </section>
     )
   }
@@ -649,22 +647,19 @@ export function MovaAiChatBar({
   return (
     // min-h-0: flex-1 child의 기본 min-height:auto가 콘텐츠 높이를 요구해
     // 리스트의 overflow-y-auto가 안 걸리는 flexbox 관용적 함정 방지.
-    <section className="mx-auto flex w-full min-h-0 max-w-3xl flex-1 flex-col px-4 md:px-6">
-      <div
-        ref={listRef}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3"
-      >
+    <section className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 md:px-6">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto py-3">
         {chat.messages.map((msg, i) => (
           <div
             key={i}
             className={cn(
               "flex w-full min-w-0 gap-2.5",
-              msg.role === "user" ? "flex-row-reverse" : "flex-row",
+              msg.role === "user" ? "flex-row-reverse" : "flex-row"
             )}
           >
             {msg.role === "assistant" && (
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2">
-                <Sparkles className="h-3.5 w-3.5 text-mova-accent" />
+              <span className="border-mova-border bg-mova-surface-2 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
+                <Sparkles className="text-mova-accent h-3.5 w-3.5" />
               </span>
             )}
             <div
@@ -672,24 +667,26 @@ export function MovaAiChatBar({
                 "flex min-w-0 flex-col gap-1",
                 msg.role === "user"
                   ? "max-w-[min(85%,100%)] items-end"
-                  : "max-w-[calc(100%-2.75rem)] flex-1 sm:max-w-[calc(100%-3rem)]",
+                  : "max-w-[calc(100%-2.75rem)] flex-1 sm:max-w-[calc(100%-3rem)]"
               )}
             >
               <div
                 className={cn(
-                  "max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words [overflow-wrap:anywhere]",
+                  "max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere] break-words",
                   msg.role === "user"
-                    ? "rounded-tr-md bg-gradient-to-br from-mova-accent to-[#b84a72] text-white shadow-md shadow-mova-accent-soft"
-                    : "rounded-tl-md border border-mova-border bg-mova-surface-2 text-mova-text",
+                    ? "from-mova-accent shadow-mova-accent-soft rounded-tr-md bg-gradient-to-br to-[#b84a72] text-white shadow-md"
+                    : "border-mova-border bg-mova-surface-2 text-mova-text rounded-tl-md border"
                 )}
               >
                 {msg.content}
               </div>
-              {msg.role === "assistant" && msg.recommendations && msg.recommendations.length > 0 && (
-                <div className="w-full min-w-0 max-w-full overflow-hidden">
-                  <MovaRecommendationCards items={msg.recommendations} />
-                </div>
-              )}
+              {msg.role === "assistant" &&
+                msg.recommendations &&
+                msg.recommendations.length > 0 && (
+                  <div className="w-full max-w-full min-w-0 overflow-hidden">
+                    <MovaRecommendationCards items={msg.recommendations} />
+                  </div>
+                )}
               {msg.role === "assistant" && msg.evaluation && (
                 <ChatEvaluationPanel evaluation={msg.evaluation} />
               )}
@@ -704,7 +701,7 @@ export function MovaAiChatBar({
                       type="button"
                       disabled={chat.loading}
                       onClick={() => void sendMessage(`${choice.title} 어때?`)}
-                      className="rounded-full border border-mova-border bg-mova-surface px-3 py-1.5 text-xs text-mova-muted transition-colors hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text disabled:opacity-50"
+                      className="border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
                     >
                       {choice.year ? `${choice.title} (${choice.year})` : choice.title}
                     </button>
@@ -712,7 +709,7 @@ export function MovaAiChatBar({
                 </div>
               )}
               {msg.role === "user" && msg.intentLabel && (
-                <p className="max-w-full px-1 text-right text-[10px] break-words text-neutral-500 [overflow-wrap:anywhere]">
+                <p className="max-w-full px-1 text-right text-[10px] [overflow-wrap:anywhere] break-words text-neutral-500">
                   DB 저장 · <span className="text-mova-accent-bright">{msg.intentLabel}</span>
                 </p>
               )}
@@ -721,15 +718,15 @@ export function MovaAiChatBar({
         ))}
         {chat.loading && (
           <div className="flex gap-2.5">
-            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-mova-border bg-mova-surface-2">
-              <Sparkles className="h-3.5 w-3.5 animate-pulse text-mova-accent" />
+            <span className="border-mova-border bg-mova-surface-2 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
+              <Sparkles className="text-mova-accent h-3.5 w-3.5 animate-pulse" />
             </span>
             <div className="flex flex-col gap-2">
               {/* 3D 클래퍼보드 감성 로딩 — 채팅 대기 시간(3~10초)이 브랜드 순간이
                   되도록 인라인 재생. muted+playsInline+loop로 자동 재생 정책 회피. */}
               {/* 원본 1280×720 하단 문구("Mova가 찾아줄게")가 폭 ~85%까지 차므로
                   크롭 없이 16:9 그대로 보여준다(예전 7:5 크롭은 문구를 잘랐다). */}
-              <div className="aspect-video w-40 overflow-hidden rounded-2xl border border-mova-border bg-black shadow-sm md:w-48">
+              <div className="border-mova-border aspect-video w-40 overflow-hidden rounded-2xl border bg-black shadow-sm md:w-48">
                 <video
                   src="/mova-clapperboard-loading.mp4"
                   autoPlay
@@ -741,8 +738,8 @@ export function MovaAiChatBar({
                   className="h-full w-full object-cover"
                 />
               </div>
-              <div className="flex items-center gap-2 text-xs text-mova-muted">
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-mova-accent" />
+              <div className="text-mova-muted flex items-center gap-2 text-xs">
+                <Loader2 className="text-mova-accent h-3.5 w-3.5 shrink-0 animate-spin" />
                 <span key={loadingHintIdx} className="animate-in fade-in duration-300">
                   {LOADING_HINTS[loadingHintIdx]}
                 </span>
@@ -761,9 +758,9 @@ export function MovaAiChatBar({
 
       <form
         onSubmit={handleSubmit}
-        className="sticky bottom-0 z-10 border-t border-mova-border bg-mova-bg/95 py-2 backdrop-blur-md"
+        className="border-mova-border bg-mova-bg/95 sticky bottom-0 z-10 border-t py-2 backdrop-blur-md"
       >
-        <div className="relative rounded-2xl border border-mova-border bg-mova-surface shadow-sm transition-shadow focus-within:border-mova-accent/40 focus-within:shadow-[0_4px_24px_rgba(190,24,93,0.12)]">
+        <div className="border-mova-border bg-mova-surface focus-within:border-mova-accent/40 relative rounded-2xl border shadow-sm transition-shadow focus-within:shadow-[0_4px_24px_rgba(190,24,93,0.12)]">
           <textarea
             ref={chatInputRef}
             name="message"
@@ -773,7 +770,7 @@ export function MovaAiChatBar({
             onKeyDown={onKeyDown}
             disabled={chat.loading}
             placeholder="장르, 분위기, 배우를 알려주세요…"
-            className="max-h-32 min-h-[3rem] w-full resize-none bg-transparent px-4 py-3 pr-12 text-sm leading-relaxed text-mova-text placeholder:text-neutral-500 outline-none disabled:opacity-60"
+            className="text-mova-text max-h-32 min-h-[3rem] w-full resize-none bg-transparent px-4 py-3 pr-12 text-sm leading-relaxed outline-none placeholder:text-neutral-500 disabled:opacity-60"
           />
           <button
             type="submit"
@@ -784,7 +781,7 @@ export function MovaAiChatBar({
               canSubmit
                 ? "bg-mova-accent text-white shadow-md hover:brightness-110"
                 : "bg-mova-surface-2 text-mova-muted",
-              "disabled:opacity-40",
+              "disabled:opacity-40"
             )}
           >
             {chat.loading ? (
@@ -802,14 +799,14 @@ export function MovaAiChatBar({
 function ChatEvaluationPanel({ evaluation }: { evaluation: ChatEvaluation }) {
   const stats: string[] = [`mova 리뷰 ${evaluation.review_count}건`]
   if (evaluation.avg_rating !== null) stats.push(`자체 평균 ${evaluation.avg_rating}점`)
-  if (evaluation.tmdb_rating !== null) stats.push(`TMDB ${evaluation.tmdb_rating}점`)
+  // TMDB 평점은 표시하지 않는다 — 평가는 mova 리뷰 기준(2026-09-28 사용자 결정)
   return (
-    <div className="w-full max-w-full rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-3">
+    <div className="border-mova-border bg-mova-surface-2 w-full max-w-full rounded-2xl rounded-tl-md border px-4 py-3">
       <div className="flex flex-wrap gap-1.5">
         {stats.map((s) => (
           <span
             key={s}
-            className="rounded-full border border-mova-border bg-mova-bg px-2.5 py-0.5 text-[11px] text-mova-text"
+            className="border-mova-border bg-mova-bg text-mova-text rounded-full border px-2.5 py-0.5 text-[11px]"
           >
             {s}
           </span>
@@ -820,7 +817,7 @@ function ChatEvaluationPanel({ evaluation }: { evaluation: ChatEvaluation }) {
           {evaluation.excerpts.map((text) => (
             <li
               key={text}
-              className="border-l-2 border-mova-accent pl-2 text-xs leading-relaxed text-neutral-400 break-words [overflow-wrap:anywhere]"
+              className="border-mova-accent border-l-2 pl-2 text-xs leading-relaxed [overflow-wrap:anywhere] break-words text-neutral-400"
             >
               “{text}”
             </li>
@@ -832,17 +829,23 @@ function ChatEvaluationPanel({ evaluation }: { evaluation: ChatEvaluation }) {
 }
 
 function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
+  // 극장 이름 → 롯데 시간표 페이지(있을 때만). 없으면 종전대로 카카오 장소 링크.
+  const timetableByCinema = new Map(
+    booking.showtimes
+      .filter((cs) => cs.timetable_url)
+      .map((cs) => [cs.cinema_name, cs.timetable_url])
+  )
   return (
-    <div className="w-full max-w-full rounded-2xl rounded-tl-md border border-mova-border bg-mova-surface-2 px-4 py-3">
+    <div className="border-mova-border bg-mova-surface-2 w-full max-w-full rounded-2xl rounded-tl-md border px-4 py-3">
       {booking.theaters.length > 0 && (
         <ul className="space-y-1.5">
           {booking.theaters.map((t) => (
             <li key={`${t.name}-${t.address}`} className="text-xs leading-relaxed">
               <a
-                href={t.place_url || undefined}
+                href={timetableByCinema.get(t.name) || t.place_url || undefined}
                 target="_blank"
                 rel="noreferrer"
-                className="font-semibold text-mova-text hover:text-mova-accent-bright"
+                className="text-mova-text hover:text-mova-accent-bright font-semibold"
               >
                 {t.name}
               </a>
@@ -859,14 +862,29 @@ function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
         <div className={cn("space-y-2", booking.theaters.length > 0 && "mt-3")}>
           {booking.showtimes.map((cs) => (
             <div key={cs.cinema_name}>
-              <p className="mb-1 text-[11px] font-semibold text-mova-accent">
-                {cs.cinema_name} 시간표
+              <p className="text-mova-accent mb-1 text-[11px] font-semibold">
+                {cs.timetable_url ? (
+                  <a
+                    href={cs.timetable_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:underline"
+                  >
+                    {cs.cinema_name} 시간표
+                  </a>
+                ) : (
+                  `${cs.cinema_name} 시간표`
+                )}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {cs.slots.map((s) => (
-                  <span
+                  <a
                     key={`${s.screen}-${s.start_time}`}
-                    className="inline-flex items-center gap-1 rounded-md border border-mova-border bg-mova-bg px-2 py-0.5 text-[11px] text-mova-text"
+                    href={s.booking_url || undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={s.booking_url ? "롯데시네마 예매 화면으로 이동" : undefined}
+                    className="border-mova-border bg-mova-bg text-mova-text hover:border-mova-accent hover:text-mova-accent-bright inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition-colors"
                   >
                     <span className="font-medium">{s.start_time}</span>
                     <span className="text-neutral-500">{s.screen}</span>
@@ -878,23 +896,30 @@ function ChatBookingPanel({ booking }: { booking: ChatBooking }) {
                         {s.seats_available}/{s.seats_total}석
                       </span>
                     )}
-                  </span>
+                  </a>
                 ))}
               </div>
             </div>
           ))}
-          <p className="text-[10px] text-neutral-500">롯데시네마 기준 · 실시간 좌석은 다를 수 있어요</p>
+          <p className="text-[10px] text-neutral-500">
+            롯데시네마 기준 · 회차를 누르면 예매 화면으로 이동 · 실시간 좌석은 다를 수 있어요
+          </p>
         </div>
       )}
       {booking.booking_links.length > 0 && (
-        <div className={cn("flex flex-wrap gap-1.5", (booking.theaters.length > 0 || booking.showtimes.length > 0) && "mt-2.5")}>
+        <div
+          className={cn(
+            "flex flex-wrap gap-1.5",
+            (booking.theaters.length > 0 || booking.showtimes.length > 0) && "mt-2.5"
+          )}
+        >
           {booking.booking_links.map((link) => (
             <a
               key={link.chain}
               href={link.url}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full border border-mova-border bg-mova-bg px-3 py-1 text-[11px] text-mova-text transition-colors hover:border-mova-accent hover:text-mova-accent-bright"
+              className="border-mova-border bg-mova-bg text-mova-text hover:border-mova-accent hover:text-mova-accent-bright rounded-full border px-3 py-1 text-[11px] transition-colors"
             >
               {link.chain} 예매 검색
             </a>
