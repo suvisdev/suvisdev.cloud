@@ -178,6 +178,38 @@ SCENES: list[dict[str, Any]] = [
         "must_not": ["제목을 알려주시겠어요"],
         "note": "2026-09-28 실사용: 날짜 후속이 작품을 잃고 제목을 되묻던 문제. 작품·지역을 잇고 그 날짜 시간표",
     },
+    {
+        "name": "예매 대기 → 광역(서울 전체로)",
+        "history": [
+            {"role": "user", "content": "옵세션 예매하고싶어"},
+            {"role": "assistant", "content": _REGION_ASK},
+        ],
+        "q": "서울 전체로 찾아줘",
+        "intent": "booking",
+        "must": ["옵세션", "'서울' 전역"],
+        "must_not": ["근처(반경 10km)"],
+        "note": "2026-09-28: 시·도 요청은 시청 좌표 반경 5곳이 아니라 서울 롯데관 전체에서 상영관 조회",
+    },
+    {
+        "name": "예매 대기 → 구 단위(강남구)",
+        "history": [
+            {"role": "user", "content": "인턴 예매하고 싶어"},
+            {"role": "assistant", "content": _INTERN_REGION_ASK},
+        ],
+        "q": "강남구에서 찾아줘",
+        "intent": "booking",
+        "must": ["인턴", "'강남구' 일대"],
+        "note": "2026-09-28: 구 단위는 구 중심 반경 5km 롯데관, 남은 첫 회차 순",
+    },
+    {
+        "name": "상영 안 하는 작품 → OTT 시청 링크",
+        "history": [],
+        "q": "인 타임은 어디서 볼 수 있어",
+        "intent": "booking",
+        "must": ["인 타임", "감상하실 수 있어요"],
+        "watch_links_min": 2,
+        "note": "2026-09-28: 상영작이 아니면 OTT 검색 링크 + TMDB 시청처를 watch_links로",
+    },
 ]
 
 
@@ -198,6 +230,10 @@ def _evaluate(scene: dict[str, Any], data: dict[str, Any]) -> list[str]:
     if scene.get("rec_year"):
         if not any(str(r.get("year")) == str(scene["rec_year"]) for r in recs):
             problems.append(f"카드 연도 {scene['rec_year']} 아님: {[r.get('year') for r in recs]}")
+    if scene.get("watch_links_min"):
+        links = (data.get("booking") or {}).get("watch_links") or []
+        if len(links) < scene["watch_links_min"]:
+            problems.append(f"watch_links {len(links)}개 < {scene['watch_links_min']}")
     if scene.get("rec_title_contains"):
         if not any(scene["rec_title_contains"] in (r.get("title") or "") for r in recs):
             problems.append(f"카드에 '{scene['rec_title_contains']}' 없음")

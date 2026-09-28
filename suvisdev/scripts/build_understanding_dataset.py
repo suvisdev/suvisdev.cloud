@@ -547,6 +547,9 @@ _MULTITURN_GOLD = [
     gold("evaluate", "스파이더맨: 브랜드 뉴 데이", followup=True),
     gold("booking", "옵세션", "강남", followup=True),
     gold("booking", "옵세션", None, "9월 30일", followup=True),
+    gold("booking", "옵세션", "서울 전체", followup=True),
+    gold("booking", "인턴", "강남구", followup=True),
+    gold("booking", "인 타임"),
 ]
 
 
