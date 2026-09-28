@@ -113,6 +113,7 @@ async def _ingest_tmdb_movie(
                 rating=snap.rating,
                 poster_url=snap.poster_url,
                 genres=snap.genres,
+                vote_count=snap.vote_count,  # 가중 평점 정렬 신호(09-28: 빠져 있어 신규작이 0표로 저장됐다)
                 synopsis=snap.overview,
                 original_language=snap.original_language,
                 origin_country=snap.origin_country,
