@@ -42,9 +42,11 @@ Next.js + Flutter 멀티플랫폼 프론트엔드를 설계·구현하고 직접
 - **Mova** — AI 영화 추천 플랫폼. EXAONE-3.5-2.4B LoRA 파인튜닝 모델과 Gemini 듀얼 백엔드로 개인화
   추천을 하고, AI 리뷰 자동 생성, 박스오피스 랭킹, 영화 AI 챗봇을 제공합니다. 기술: FastAPI, Next.js,
   EXAONE LoRA, Gemini, PostgreSQL, pgvector. 주소: https://suvisdev.cloud/mova
-- **Gildle** — 반려견 산책 경로 추천. OpenStreetMap 기반 233,964 edges 보행 그래프에 나무 그늘·결빙 위험·
-  반려견 친화라는 3축 환경 점수를 매겨 최적 경로를 찾습니다. 기술: FastAPI, OSM/osmnx, Leaflet, Next.js,
-  Overpass API. 주소: https://suvisdev.cloud/gildle
+- **Gildle(길들)** — 반려견 산책 경로 추천 앱. 한국어 이름은 "길들"(길을 들이다·길들이다에서 따온 이름)이고
+  영문 이름이 Gildle입니다. OpenStreetMap 기반 233,964 edges 보행 그래프에 나무 그늘·결빙 위험·
+  반려견 친화라는 3축 환경 점수를 매겨 계절별(봄가을·여름 그늘·겨울 안전) 최적 산책 경로를 찾습니다.
+  웹(Leaflet 지도)과 Flutter 안드로이드 앱이 있고, 앱은 Play 스토어 심사 대기 중입니다. 기술: FastAPI,
+  OSM/osmnx, Leaflet, Next.js, Flutter, Overpass API. 주소: https://suvisdev.cloud/gildle
 - **suvisdev.cloud** — 모듈러 모놀리식 풀스택 플랫폼. Clean Architecture와 Star Topology(Hub-Spoke)로
   여러 앱을 한 백엔드에 통합했고, 소셜 로그인(Google·Kakao·Naver), RBAC 어드민, 방문자 통계를 갖췄습니다.
   기술: FastAPI, Next.js, Flutter, Docker, Kubernetes(k3s), Cloudflare Tunnel, Vercel.

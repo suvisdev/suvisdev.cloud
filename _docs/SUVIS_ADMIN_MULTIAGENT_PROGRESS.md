@@ -82,6 +82,7 @@
   (`api.seuk.suvisdev.cloud`) + CD(2분 폴링) + DB alembic 0008 정합 +
   Vercel `VITE_API_BASE` 전환. Seuk-Team/Arda main 동기화·PR #2 머지,
   서버 remote 전환 완료.
+- **⛔ 09-28 사용자 지시: Arda는 해커톤이 끝날 때까지 손대지 않는다**(조회 포함). 아래는 종료 후 재개용.
 - **남은 것(Arda)**: ① SES 프로덕션 승인 → `MAIL_DRY_RUN=0` + api·worker
   재기동 ② GPU 쿼터 승인 → `arda-gpu`(g4dn.xlarge) 생성 + CloudWatch 자동
   중지(가이드 5단계) ③ 사용자 몫: main 보호 토글 복구·Team-Seuk/Arda 삭제
@@ -107,12 +108,18 @@ http://127.0.0.1:31386`.
   route_results` 드롭(`20260927_0002`). 남은 후보: 프론트 shadcn `button/card/dialog` 하위 export(라이브러리
   성격이라 보류), `eslint-config-next`(knip 오탐 — flat config compat이 씀).
 
-### 메인페이지 (2026-09-27)
+### 메인페이지 (2026-09-28 갱신)
+- **09-28 2차 개편(커밋·푸시 대기, `[P]` 09-28)**: 07월 컨셉(콘덴스드 헤드라인·홀로그램 영상 패널·노란 CTA)
+  을 2열로 재혼합, AI 검색창·타일은 왼쪽 카드 안. 우하단 플로팅 채팅 버튼(`gemini-chat-panel`) 삭제.
 - **홈 개편 배포 완료(`adef914`, Vercel 반영 확인, `[P]` 09-27)** — 이후 같은 날 입력창을 AI 채팅으로 전환(아래): 로고 → 검색창 → mova·gildle·arda 3타일. 데이터는 `apps-catalog.ts`.
 - **홈 AI 채팅 배포 완료(09-27 새벽, `[P]` 09-27)**: `POST /portfolio/chat` — ontology에 유스케이스·라우터 추가,
   `hub_knowledge(source='portfolio_doc')` 124청크(프로필 + 지킬), EXAONE 7.8B(ollama, num_ctx 8192)→Gemini 폴백,
   IP 20회/60s. 운영 스모크 4종 정상·mova 23/23 유지. 계획서 `suvisdev/_docs/plans/2026-09-27-portfolio-chat.md`.
-- 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동) ② 7.8B 상주로 VRAM 7.8/8.2GB —
+- 09-28: 프로필에 "Gildle(길들)" 별칭·유래 추가 후 파드에서 프로필만 재색인(리셋 없이 upsert). **테마는 경로 고정**(사용자 결정):
+  `/mova/**` 다크·그 외 라이트를 `forcedTheme`로, 토글·`setTheme` 코드 전부 삭제(탭 간 storage 동기화로
+  라이트 뒤집히던 버그도 함께 해소).
+- 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동; 파일 하나만 바뀌면 파드에서
+  리셋 없이 그 디렉터리만 넘겨도 됨 — `datasets/`는 hostPath) ② 7.8B 상주로 VRAM 7.8/8.2GB —
   mova 지연 실측되면 `PORTFOLIO_LLM_MODEL=exaone3.5:2.4b` 또는 `PORTFOLIO_LLM_BACKEND=gemini` ③ 후속 질문의
   검색어에 이전 턴 결합 ④ 스트리밍 ⑤ ontology `api/__init__.py` lazy import(테스트가 torch를 끌어옴).
 
@@ -142,8 +149,12 @@ http://127.0.0.1:31386`.
   차이는 형식·안정성 → 기본 Gemini(막히면 유료 $0.9/1,000행), Claude Haiku는 비상구.
 - ~~② "후보 N편 이상이면 0편 금지" 서빙 가드~~ **09-27 밤 완료**(폴백 어댑터가 빈 픽도 Gemini 재시도). "법정
   드라마 영화"는 Gemini도 0편 → 카탈로그 갭으로 재분류(단일턴 22/23의 1건).
-  ~~③ v5 결과 반영~~(09-27 완료) ④ 분류기 "줄거리" 오라우팅 결정론 분기 ⑤ **Gemini 503이
-  `HubRagError`→500으로 새는 경로**(`MycroftInteractor`, 멀티턴 5번 장면에서 실측) — 사용자 문구로 변환.
+  ~~③ v5 결과 반영~~(09-27 완료) ~~④ 분류기 "줄거리" 오라우팅 결정론 분기~~ **09-28 완료**(제목 있는
+  줄거리 요청→evaluate, 폴백 경로용) ~~⑤ Gemini 503이 `HubRagError`→500으로 새는 경로~~ **09-28 완료**
+  (평가 트랙 `_compose_reply`가 정량 요약으로 강등, `[M]` 09-28).
+- **오케스트레이터 관찰 전제(09-28)**: `chat`은 `hit_count` 합산이라 `last_used_at`으로 봐야 하고, 최근
+  7일 545건이 전부 하네스(user_id NULL) — **실사용 트래픽 0**. "한 주 관찰"은 하네스 재실행으로 대신하고
+  실사용이 생기면 재개.
 - 다음 지표 목표: 코랩 심판(v5 6.93 vs 8.86)과 운영 하네스가 두 회차 연속 반대로 갈림 — 내보내기 판단은
   운영 하네스 우선, 코랩 평가셋은 심판 루브릭·홀드아웃 구성 재검토 후보.
 - ~~멀티턴 재학습 — 코랩 실행 대기~~ — **09-22 v2·v3 학습 완료, v3 운영 반영**
@@ -240,7 +251,7 @@ http://127.0.0.1:31386`.
 - 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 콘솔 인증 후 스토어
   등록정보(스크린샷·설명에 서울 한정·콘텐츠 등급·데이터 보안 양식) + `GILDLE_APP_STORE_URL` →
   FCM 발송(보낼 알림 결정 후) → ⑤ 그늘 실측(사진 5곳) → 모델 A(walks 쌓인 뒤) · 모델 D(DEM).
-  **사용자 몫은 Play Console 인증 대기.** 준비 상태 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
+  **사용자 몫은 Play Console 인증 대기 — 09-28 기준 미승인, 최소 한 달 예상(그동안 출시 항목 보류).** 준비 상태 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
 
 ### RS 교사 루프(엑사온 데이터셋 v2) — 파이프라인 완성 (2026-09-11)
 - 학생(EXAONE) 온도 4종 후보 생성 → 그라운딩 하드 필터 → Gemini 루브릭
@@ -319,15 +330,15 @@ http://127.0.0.1:31386`.
 - ~~🔴② 노트북 lora-server 무인증~~ **완료**: backend `.env`엔 토큰이 이미
   있었고 serve_gguf 유닛에만 없어 검증을 안 하던 것 → 기존 토큰을 유닛
   드롭인에 추가·재기동. 무인증/오토큰 401·정상 200 실측.
-- ~~🟡 mova `POST /import/tmdb·/kofic` 무인증 쓰기~~ **코드 수정 완료(09-11,
-  배포 대기)**: `require_admin` 부착 + 401/200 테스트 4건
+- ~~🟡 mova `POST /import/tmdb·/kofic` 무인증 쓰기~~ **완료(09-11 수정, 09-28 파드
+  안 `require_admin` 부착 확인)**: `require_admin` 부착 + 401/200 테스트 4건
   (`test_import_router_auth.py`). 프론트 호출처 없음(수동/스케줄러 전용)이라
   토큰 전달 배선 불요. ~~🟡 media 오류 원문 노출·크기검사 전 전체 적재~~
-  **코드 수정 완료(09-11, 배포 대기)**: 502 detail 일반 문구화(원문은 로그),
+  **완료(09-11 수정, 09-17 f745447 빌드에 포함)**: 502 detail 일반 문구화(원문은 로그),
   업로드는 상한+1바이트까지만 read.
 - **🟡(잔여)**: access TTL 7일+웹 리프레시 미사용 · 토큰 localStorage(httpOnly
   쿠키 부재) — 인증 구조 변경이라 별도 설계 필요 · pgadmin admin/admin(replicas:0).
-- **09-11 전체 코드 리뷰 + 후속 수정 ①~⑤ 완료(배포 대기)** — 리뷰 결과·처리
+- **09-11 전체 코드 리뷰 + 후속 수정 ①~⑤ 완료(09-17 이후 빌드로 배포됨, 09-28 확인)** — 리뷰 결과·처리
   현황·잔여 목록의 SSOT는 `suvisdev/_docs/CODE_REVIEW_2026-09-11.md`. 요지:
   인증 3건(평문/pass-the-hash·미검증 이메일 admin·admin1234 시드) + 무인증
   엔드포인트 10곳 가드 + gildle DoS 상한 + 중간 1~5 + 성능 캐시 + 데드 코드
@@ -351,17 +362,19 @@ http://127.0.0.1:31386`.
   origin_country 백필·카탈로그 커버리지. 실오답 트레이스 시 표적 수정(A안).
 
 ### 구조·인프라 백로그 (착수 전, 우선순위 낮음)
-- **라우터 exaone3.5:2.4b 전환 코드 완료, 배포 대기(09-17)**: qwen2.5:1.5b 404→Gemini
+- ~~라우터 exaone3.5:2.4b 전환 코드 완료, 배포 대기(09-17)~~ **배포됨(09-28 파드 확인)**: qwen2.5:1.5b 404→Gemini
   폴백 상태를 EXAONE 2.4B(온도 0)로 교체, Gemini 일치 90%. 배포 후 확인: 로그에
   `FallbackHubLlmAdapter` 404 경고 소멸 + eval_chat_queries 23/23. 불일치(제목+어때 →
   recommend)는 라우터 LoRA 학습 후보.
-- **exaone3.5:7.8b 온디맨드 전환 코드 완료, 배포 대기(09-17 사용자 결정 1안)**: 7.8B 상주 시
+- ~~exaone3.5:7.8b 온디맨드 전환 코드 완료, 배포 대기(09-17 사용자 결정 1안)~~ **배포됨(09-28 파드 확인)**: 7.8B 상주 시
   bge-m3·2.4B가 밀려 재로드(최대 9s) 실측 → 기동 워밍업 제거(`get_faker_orchestrator`·
   `warmup` 함께 삭제), PDF 요약만 `keep_alive="0"`(요약 직후 언로드, 실측 확인). 7.8B
   추가 학습은 불요 판단 — 전용 출력 계약 없는 범용 요약만 담당.
 - **`train_mova_lora.py` LoRA 대상층이 EXAONE에서 q/k/v만 매칭**(09-17 발견) — 코랩
   노트북은 수정됨. 로컬 학습 경로를 다시 쓸 일이 있으면 같은 수정 필요.
-- **백엔드 이미지 슬림화 — CPU 전용 torch로 전환(09-11 결정, 별도 작업)**:
+- **백엔드 이미지 슬림화 — CPU 전용 torch로 전환 — 09-28 착수·배포(`[P]` 09-28, 결과 수치는 워크로그)**.
+  Dockerfile에서 requirements를 sed 치환해 설치(requirements.txt는 데스크톱용 cu126 유지). **결과: 14.9GB→6.83GB,
+  빌드 6분, 하네스·스모크 전부 정상.** 아래는 계획 기록:
   노트북 backend 파드엔 GPU 런타임이 없어(`k8s/backend.yaml`에 nvidia 설정
   없음) 파드 안 `torch.cuda.is_available()`이 **False로 실측**됐는데, 이미지는
   `torch==2.12.1+cu126`·torchaudio·torchvision cu126 + bitsandbytes로 pip
@@ -394,7 +407,9 @@ http://127.0.0.1:31386`.
   값 확정해 3키 보충 + Secret 갱신·rollout. `check_env_drift.py`가 잡는 케이스.
 - **노트북 k3s 잔여 단계**(1단계는 09-07 완료 — 완료됨 인덱스 참고):
   2단계 redis 이관, 3단계 db(pgvector)는 밖에 둬도 무방(`k8s/README.md`).
-  도커 backend·auth·nginx는 stop 상태로 롤백용 보존(`down` 금지). 배포는
+  도커 backend·auth·nginx는 stop 상태로 롤백용 보존(`down` 금지). **09-28 발견: nginx가
+  `restart=always`라 재부팅마다 되살아나 크래시루프** — `docker update --restart=no nginx && docker stop
+  nginx` 사용자 실행 필요(하네스 차단). 배포는
   `./k8s/deploy.sh --external-db [--build]`.
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가

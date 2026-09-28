@@ -28,6 +28,87 @@
 
 ---
 
+## 2026-09-28
+
+### 작업 내용
+- **백엔드 이미지 슬림화 — CPU 전용 torch 전환**(09-11 결정 사항 착수, 사용자 "재빌드 실행해줘").
+  파드 안 실측 `torch.__version__=2.12.1+cu126`·`cuda.is_available()=False`, 이미지 14.9GB(docker).
+- **"배포 대기" 표기 검증**(PROGRESS에 09-11·09-17부터 남아 있던 것): 파드 안 파일로 직접 확인 —
+  `import_router.py` `require_admin` 부착(09-11 보안 🟡), `exaone_small_llm_adapter.py` `exaone3.5:2.4b`
+  (09-17 라우터 전환), execsuite PDF 요약 `keep_alive="0"`(09-17 7.8B 온디맨드), `movie_title.py` VO
+  (어제 밤 15e6b8a). 09-17 f745447·09-22·09-27 빌드가 전부 포함했다 → PROGRESS 표기 정리.
+- 발견: 구 도커 `nginx` 컨테이너가 재부팅 뒤 `restart=always`로 되살아나 `host not found in upstream
+  "backend"`로 **크래시루프**(80/443 바인딩 시도). k3s 서비스엔 영향 없지만 문서상 "stop 보존" 상태와
+  어긋난다. 하네스가 `docker update --restart=no nginx && docker stop nginx`를 차단(워크로드 간섭 분류)해
+  **사용자 직접 실행 필요**.
+- 메모리 갱신: 감성 스케줄러 메모를 "수정 완료"로, Arda 금지·Play Console 대기 신규.
+
+### 수정/구현
+- `suvisdev/Dockerfile`: `requirements.txt`를 sed로 `whl/cu126→whl/cpu`, `+cu126→+cpu` 치환한 임시 파일로
+  pip 설치. **requirements.txt 원본은 데스크톱 `.venv`(학습·GPU 테스트)용 cu126 핀 그대로** — 파일을
+  둘로 가르지 않고 이미지 쪽에서만 바꾼다(한 줄, SSOT 유지). CPU 인덱스에 `torch-2.12.1+cpu`·
+  `torchvision-0.27.1+cpu`·`torchaudio-2.11.0+cpu` cp313 manylinux_2_28 휠 존재를 먼저 확인.
+- bitsandbytes는 유지 — 어댑터가 `cuda`일 때만 쓰고(어제 CPU bf16 분기 추가) 휠 자체는 수십 MB.
+  `torch.cuda.*` 비가드 호출은 `_docs/_tmp_h1_exaone_vram_check.py`(문서용 스크립트)뿐이라 런타임 영향 없음.
+
+- **홈 개편 2차 — 07월 컨셉 재혼합**(사용자 "예전 컨셉을 조금 섞어줘, 너무 밋밋하다"): 09-27 구글식
+  중앙 정렬(로고→검색창→타일)을 07-29 시점 2열 구조로 되돌리되 기능은 유지. 왼쪽 흰 카드에 로고·소개문·
+  `HeritadeHeadline`(콘덴스드 대형 "Simplify Complexity, Scale Without Limits.") → AI 검색창+타일
+  (`AppLauncher`, lg에서 좌측 정렬·입력창 배경 `#f4f4f4`로 카드와 대비) → 노란 CTA(`#f0dc3a`
+  "Suvisdev 알아보기" → `/contact`). 오른쪽은 홀로그램 마스크 영상 패널(lg 이상), 모바일은 카드 안 compact
+  영상. 09-27에 삭제했던 `heritade-headline.tsx`·`hero-image-panel.tsx`를 `git checkout adef914^`로
+  그대로 복원(새로 쓰지 않음).
+- **mova가 라이트 모드로 뜨는 원인·수정**(사용자 스크린샷 "왜 화이트 모드가 됐나"): mova는 08-28부터
+  다크 고정인데 구현이 `MovaThemeSetter`의 `setTheme("dark")`, 즉 **저장된 전역 테마를 바꾸는 방식**이었다.
+  메인 사이트는 `SiteChrome`이 경로 바뀔 때마다 `setTheme("light")`로 저장값을 되돌리는데, next-themes는
+  `storage` 이벤트로 저장값을 **모든 탭에 동기화**한다 → 스크린샷처럼 홈 탭과 mova 탭을 같이 열면 홈 탭이
+  저장값을 light로 쓰는 순간 mova 탭까지 라이트로 뒤집힌다. 수정: `components/theme-provider.tsx`가
+  `usePathname`으로 `/mova/**`일 때 `forcedTheme="dark"`를 준다(저장값 불변, 탭 간 간섭 없음, next-themes
+  0.4.6 소스에서 `forcedTheme ?? theme` 적용 확인). `MovaThemeSetter`는 불필요해져 삭제. 검증: `next dev`
+  SSR HTML의 next-themes 초기화 스크립트 인자가 `/mova`에선 `"dark"`, `/`에선 `null`.
+  → **이어서 사용자 결정 "변경하는 걸 없애고 메인은 화이트, mova는 블랙으로 고정"**: `forcedTheme`를
+  `/mova/**`→dark, 그 외→light로 **항상** 주고, 테마를 바꾸던 코드를 전부 삭제 — `SiteChrome`의
+  `setTheme("light")` effect, gildle 랜딩 헤더의 `ThemeToggle`, `components/theme-toggle.tsx`. 이제
+  `useTheme`·`setTheme` 호출처가 저장소에 없다(저장값·localStorage는 읽지도 쓰지도 않음). SSR 확인:
+  `/`·`/gildle`=`"light"`, `/mova`=`"dark"`.
+- **홈 AI 채팅이 "길들"을 모름**(사용자 "너가 안 가르쳤니"): 색인 126청크 중 `길들` 포함 0건, `Gildle` 26건 —
+  프로필·지킬 어디에도 한국어 이름이 없었다. `datasets/portfolio_corpus/profile.md` Gildle 항목에 "Gildle(길들)"
+  이름 유래·계절 모드·Flutter 앱·스토어 심사 대기를 보강하고, **파드에서 리셋 없이 프로필만 재색인**
+  (`datasets/`는 hostPath라 호스트 편집이 바로 보임, `python scripts/ingest_portfolio_docs.py
+  datasets/portfolio_corpus` → 5청크 upsert, 지킬 청크 보존). 실호출 "길들은 뭐야" → 이름·유래·3축 점수·심사
+  대기까지 정확히 답함.
+- **재빌드 찌꺼기 정리**(사용자 지시): 도커 빌드 캐시 27.8GB → 7.8GB(구 cu126 pip 레이어 13.3GB는 `until` 필터에
+  안 잡혀 id 지정 삭제, 오늘 레이어 5.2GB는 보존), containerd 미사용 이미지 `crictl rmi --prune`(구 cloudflared
+  다이제스트 삭제. **주의: pause 이미지도 같이 지워져 즉시 재pull**해 복구 — 다음엔 prune 대신 대상 지정).
+  댕글링 이미지는 0. 디스크 168G → 142G 사용.
+- **우하단 플로팅 채팅 버튼 삭제**(사용자 스크린샷 지시): `site-chrome.tsx`의 `SuvisChatPanel` 마운트
+  제거 + 유일 사용처였던 `components/gemini-chat-panel.tsx` 삭제. 이 패널이 부르던 `/api/v1/langchain/chat`
+  프록시는 다른 화면(`/langchain/chat`)이 쓰므로 그대로 둠.
+
+### 오류·막힌 점
+- 노트북엔 `node_modules`·pnpm이 없다(09-22 ⑳ corepack 문제) → `npx -y pnpm@10 install --frozen-lockfile`로
+  설치(`node_modules`는 gitignore). 이후 `tsc --noEmit` 0건·eslint 0건·prettier 정리·`next dev`로 SSR HTML
+  실측(헤드라인·영상·CTA·타일 존재, `bottom-4 right-4` 버튼 부재).
+- 이미지엔 `nvidia-nccl-cu12`·`nvidia-ml-py` 두 패키지가 아직 남는다(torch cpu 휠이 아닌 다른 의존이
+  끌어옴, 수백 MB) — 추적 안 함.
+
+### 데이터
+- 없음.
+
+### 산출물
+- **이미지 재빌드 결과**: 전체 5m59s(pip 168s·export 105s), 도커 이미지 **14.9GB → 6.83GB**, containerd
+  압축 **4.5GiB → 1.7GiB**, pip 레이어 9.01GB → 3.72GB. 파드 `torch 2.12.1+cpu / torchvision 0.27.1+cpu /
+  torchaudio 2.11.0+cpu`, `cuda.is_available()=False`(종전과 동일). 검증: mova 단일턴 23/23·멀티턴 12/12,
+  `/portfolio/chat` 15.9s 정상, gildle `/api/gildle/routes` 5.5s 정상, `/mova/movies` 200, echo·convnext
+  어댑터 import 정상, 파드 RSS 932Mi.
+- (커밋 대기) `suvisdev/Dockerfile`, `suvis/app/page.tsx`, `suvis/components/home/{app-launcher,
+  heritade-headline,hero-image-panel}.tsx`, `suvis/components/site-chrome.tsx`, `theme-provider.tsx`,
+  `app/mova/layout.tsx`, `app/gildle/page.tsx`, 삭제 `gemini-chat-panel.tsx`·`mova/mova-theme-setter.tsx`·
+  `theme-toggle.tsx`,
+  `suvisdev/datasets/portfolio_corpus/profile.md`.
+
+---
+
 ## 2026-09-27
 
 ### 작업 내용 (저녁 — 저장소 전체 데드 코드·낡은 이름 정리, 사용자 지시)

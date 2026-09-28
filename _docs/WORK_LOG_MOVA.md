@@ -28,6 +28,54 @@
 
 ---
 
+## 2026-09-28
+
+### 작업 내용
+- 사용자 요청 "오늘 할 일 정리" → 재개 요약·워크로그·메모리에서 할 일을 뽑고, 사용자 결정에 따라 실행:
+  ① mova 채팅 품질(진행) ② gildle 출시는 Play Console 승인 대기(최소 한 달, 손 안 댐) ③ "배포 대기"
+  표기 검증 ④ 백엔드 이미지 재빌드(CPU torch) ⑤ Arda는 **해커톤 끝날 때까지 금지**(메모리 저장).
+- **오케스트레이터 "한 주 관찰"의 전제 점검**: `chat` 테이블은 같은 발화를 `hit_count`로 합치므로
+  `created_at`이 아니라 `last_used_at`으로 봐야 한다. 최근 7일 545건·14시간 211건이 **전부 user_id NULL의
+  하네스 발화**(23질의·멀티턴 장면 반복)였다 — 즉 실사용 트래픽이 0이라 "프로덕션 로그 관찰"은 지금
+  데이터가 없다. 관찰은 하네스 재실행 + 새 장면 추가로 대신하고, 실사용이 생기면 재개.
+- 어제 밤 배포 이후 오케스트레이터 로그 35건 확인: intent·title 확정 모두 하네스 기대와 일치. LLM이
+  "송강호 나오는 영화"를 title로 넣은 1건은 카탈로그 검증에서 None이 돼 추천 경로 정상(설계 의도).
+- 파드 1회 재시작(09:32)은 노트북 재부팅(uptime 5분) 때문 — 크래시 아님.
+
+### 수정/구현
+- **④ 제목 있는 줄거리 요청 결정론 분기**(`market_chat_interactor.py`): 분류기(LLM)가 "기생충 줄거리
+  알려줘"를 recommend로 보내 줄거리 대신 비슷한 영화를 추천하던 오라우팅(09-22 실사용) 방어.
+  `_is_synopsis_request`(줄거리·시놉시스·"무슨/어떤 내용" 어휘 ∧ 추천 어휘 부재) ∧ `find_movie_titled_in_text`
+  히트 → evaluate(시놉시스 선행 규칙 7). 제목이 카탈로그에 없으면 종전대로 분류기. 오케스트레이터 성공
+  시엔 이미 evaluate로 가므로(어제 하네스 `옵세션 줄거리 알려줘`=evaluate 실측) 이 분기는 **폴백 경로용**.
+- **⑤ 평가 트랙 LLM 장애 강등**(`market_chat_evaluation_interactor.py` `_compose_reply`): Gemini 503/429가
+  `HubRagError`로 올라와 라우터가 매핑하지 못해 500이 되던 경로(09-22 멀티턴 "26년꺼" 장면 실측).
+  이미 손에 있는 정량 데이터(TMDB 평점·리뷰 수·평균·시놉시스 150자)로 문장을 만들어 200으로 답한다.
+  general 트랙의 09-03 강등과 같은 원칙.
+- 테스트: `SynopsisRequestDetectorTests` 2건 · `test_titled_synopsis_request_routes_to_evaluate`(제목 있음→
+  evaluate·분류기 미호출 / 제목 없음→분류기) · `test_llm_failure_degrades_to_quantitative_summary`.
+  기존 `test_pending_region_yields_to_topic_change`는 "분류기로 보낸다"→"줄거리라 evaluate로 직행" 으로
+  단언 갱신(더 결정적인 경로가 됐으니 의도 변경). mova 전체 **381 passed / 3 failed**(실패 3건은
+  `test_market_reviews` 라우터 DB 의존 기존 건, 09-22 ⑳과 동일). ruff·import-linter(6 kept) 통과.
+- 하네스 note "법정 드라마 영화 → 카탈로그 갭"은 어제 밤에 이미 반영돼 있었음(추가 작업 없음).
+
+### 오류·막힌 점
+- 노트북엔 pytest가 없어(09-22 ⑳) 이미지 일회용 컨테이너(`docker run --rm -v $PWD:/src:ro …`)로 실행.
+  ruff는 스크래치 uv venv — 최신 ruff가 미변경 파일 5건(B905·UP042)을 새로 지적하지만 이번 범위 밖.
+
+### 데이터
+- 변경 없음(감성 백로그는 어제 430/430 소진, 스케줄러 24h·50건 유지).
+
+### 산출물
+- (커밋 대기) `market_chat_interactor.py`·`market_chat_evaluation_interactor.py`·`test_chat_tracks.py`.
+- **배포·검증(CPU torch 이미지와 함께 `deploy.sh --external-db --build`, `[P]` 09-28)**: 단일턴 **23/23**·
+  멀티턴 **12/12** PASS. 실호출 "기생충 줄거리 알려줘" → 오케스트레이터 `intent=evaluate title='기생충'
+  movie=기생충(2019)` → 줄거리 선행 evaluation 응답(결정론 분기는 폴백용이라 이 경로에선 미발동, 의도대로).
+- 코랩 재학습: 오늘 결정 없음 — 하네스 만점이고 실사용 오답 샘플이 0이라 학습 트리거(출력 계약 변경·
+  체계적 실패·데이터 유의미 증분) 중 어느 것도 아직 없다.
+
+---
+
 ## 2026-09-27
 
 ### 작업 내용 (v5 코랩 노트북 — 드라이브 마운트 실패 대응)

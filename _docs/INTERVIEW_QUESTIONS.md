@@ -7,6 +7,105 @@
 
 ---
 
+## 2026-09-28 (mova 채팅 — 줄거리 결정론 분기 · 평가 트랙 장애 강등 · 이미지 CPU torch 전환 · 홈 컨셉 재혼합)
+
+### Q1. "프로덕션 한 주 관찰"을 시작하려다 왜 멈췄고, 어떤 쿼리 실수를 피해야 했나?
+
+<details><summary>답 확인</summary>
+
+`chat` 테이블은 같은 발화를 새 행으로 쌓지 않고 `hit_count`를 올리며 `last_used_at`만 갱신한다. 그래서
+`created_at >= 어제`로 세면 하네스가 어제 돌았는데도 0건이 나온다. `last_used_at`으로 다시 세니 7일간
+545건이 나왔지만 전부 `user_id NULL`인 하네스 발화였다 — 실사용이 0이라 관찰할 로그가 없다는 결론.
+"관찰"은 하네스 재실행·장면 추가로 대신하고, 실사용이 생기면 재개한다.
+</details>
+
+### Q2. 줄거리 요청 분기를 오케스트레이터가 아닌 결정론 코드에 왜 또 넣었나?
+
+<details><summary>답 확인</summary>
+
+오케스트레이터(EXAONE 7.8B)는 프롬프트에 "줄거리→evaluate"가 있어 성공하면 이미 맞게 간다. 하지만
+오케스트레이터는 이해 실패 시 `None`을 돌려 결정론 선분기·분류기 경로로 폴백하고, 그 경로의 분류기가
+"기생충 줄거리 알려줘"를 recommend로 보낸다. 폴백 경로의 품질도 같은 수준으로 맞추려면 결정론 분기가
+필요하다. 조건을 "줄거리 어휘 ∧ 추천 어휘 부재 ∧ 카탈로그 제목 히트"로 좁혀 "줄거리 반전 있는 영화
+추천"은 추천에, 제목 없는 줄거리 요청은 종전 분류기에 남긴다.
+</details>
+
+### Q3. Gemini 503이 500으로 새던 경로는 어디였고, 왜 재시도가 아닌 "정량 요약 강등"으로 고쳤나?
+
+<details><summary>답 확인</summary>
+
+평가 트랙 `_compose_reply`가 Mycroft(Gemini)를 부르는데 `HubRagError`를 잡지 않았고, 라우터는 `LLMError`만
+매핑해서 502/503이 FastAPI 기본 500으로 나갔다. 이 시점엔 평점·리뷰 수·평균·시놉시스가 이미 조회돼
+있으니 LLM 없이도 정직한 답을 만들 수 있다. 재시도는 지연을 늘리고 503이 잦은 날엔 소용없다. general
+트랙의 09-03 강등과 같은 원칙(장애는 200 + 정직 문구)으로 맞췄다.
+</details>
+
+### Q4. 기존 테스트 `test_pending_region_yields_to_topic_change`가 깨졌는데 왜 코드를 되돌리지 않고 테스트를 고쳤나?
+
+<details><summary>답 확인</summary>
+
+그 테스트가 지키려던 불변식은 "지역 되묻기 뒤 '옵세션 줄거리 알려줘'를 지역명으로 삼키지 않는다"다.
+새 코드에서도 그 불변식은 유지되고(booking.assist 미호출·evaluate 응답), 달라진 건 경유지가 분류기에서
+결정론 분기로 바뀐 것뿐이다. `classify.assert_awaited_once()`는 불변식이 아니라 구현 세부였으므로,
+단언을 "evaluate에 '옵세션'이 전달된다"로 바꿔 의도를 더 정확히 고정했다.
+</details>
+
+### Q5. 이미지 CPU torch 전환을 requirements.txt 분리가 아니라 Dockerfile sed로 한 이유는?
+
+<details><summary>답 확인</summary>
+
+requirements.txt는 데스크톱 `.venv`(학습·GPU 테스트)도 쓰는 SSOT라 cu126 핀을 유지해야 한다. 파일을
+base/cpu/gpu 셋으로 가르면 "-r requirements.txt만 설치하면 PyPI 기본 CUDA torch가 들어오는" 함정과
+중복 관리가 생긴다. Dockerfile에서 `whl/cu126→whl/cpu`, `+cu126→+cpu` 두 치환만 하면 파일 하나로
+양쪽을 만족하고 변경 지점도 한 줄이다. 대신 CPU 인덱스에 같은 버전의 cp313 휠이 실제로 있는지 먼저
+확인해야 한다(있었다).
+</details>
+
+### Q6. 재부팅 뒤 파드 RESTARTS=1과 도커 nginx "Restarting"을 각각 어떻게 판정했나?
+
+<details><summary>답 확인</summary>
+
+파드는 `describe`의 Last State가 `Completed`(exit 0)이고 `uptime`이 5분 — 크래시가 아니라 노드 재부팅에
+따른 정상 재시작. 도커 nginx는 `restart=always`라 재부팅 때 되살아났지만 upstream `backend` 컨테이너가
+stop 상태여서 `host not found`로 즉시 죽는 크래시루프다. 서빙은 k3s가 하므로 장애는 아니지만 문서상
+"stop 보존"과 어긋나니 `--restart=no`로 고정해야 재발하지 않는다.
+</details>
+
+### Q7. 홈에 "예전 컨셉을 섞어달라"는 요청을 어떻게 범위 지었고, 왜 컴포넌트를 새로 쓰지 않았나?
+
+<details><summary>답 확인</summary>
+
+09-27 개편이 삭제한 두 컴포넌트(콘덴스드 헤드라인·홀로그램 영상 패널)와 노란 CTA가 "예전 컨셉"의 실체다.
+git에서 `adef914^` 시점 파일을 그대로 복원해 이미 검증된 코드를 재사용했고, 새로 만든 건 없다. 09-27의
+기능(AI 검색창·앱 타일)은 왼쪽 카드 안으로 옮겨 유지하고, 정렬만 lg에서 좌측으로 바꿨다. 플로팅 채팅
+버튼 삭제는 별도 지시였고, 그 컴포넌트의 유일 사용처가 사라졌으니 파일도 함께 지웠다(변경으로 불필요해진
+코드만 제거). 반면 그 패널이 쓰던 API 프록시는 다른 화면이 쓰므로 남겼다.
+</details>
+
+### Q8. mova가 다크 고정인데 라이트로 뜬 원인은 무엇이고, 왜 `setTheme("dark")`를 더 세게 거는 대신 `forcedTheme`로 갔나?
+
+<details><summary>답 확인</summary>
+
+원인은 탭 간 동기화다. mova 진입 시 저장 테마를 dark로 바꾸고, 메인 사이트는 경로가 바뀔 때마다 light로
+되돌리는데, next-themes는 localStorage `storage` 이벤트를 받아 다른 탭에도 적용한다. 홈 탭이 light를 쓰면
+mova 탭이 뒤집힌다. `theme` 변화를 감시해 다시 dark로 쓰면 이번엔 홈 탭이 dark로 뒤집혀 핑퐁이 된다.
+`forcedTheme`는 저장값을 건드리지 않고 클래스만 강제하므로(`forcedTheme ?? theme`) 두 탭이 서로 간섭할 길이
+없다. 그리고 "다크 고정"이라는 요구 자체가 "저장된 선호"가 아니라 "강제"이므로 API 의미도 맞다.
+</details>
+
+### Q9. 홈 AI 채팅이 "길들"을 몰랐던 건 모델 문제였나, 데이터 문제였나? 어떻게 판정했나?
+
+<details><summary>답 확인</summary>
+
+데이터 문제. `hub_knowledge`에서 `길들` 포함 청크 0건·`Gildle` 26건을 세어, 검색 대상 문서에 한국어 이름이
+아예 없음을 확인했다. 모델은 "Gildle 서비스와 유사하게…"라고 답했으니 근거 청크는 받았지만 이름을 잇지
+못한 것이다. 프로필 문서에 "Gildle(길들)"과 유래를 넣고 재색인하니 바로 답했다 — 검색 기반 QA에서 별칭·
+한국어명은 문서에 명시돼야 임베딩이 잇는다. 재색인은 `--reset` 없이 프로필 파일만 upsert해 지킬 청크를
+보존했다(청크 ID가 `portfolio:<stem>#<n>`이라 같은 파일은 덮어쓴다).
+</details>
+
+---
+
 ## 2026-09-27 (gildle — 앱 지도 화면 · `/routes` 결함 · 수관 데이터 · A* 모드별 배율)
 
 ### Q1. `/routes` 좌표 응답의 "지그재그" 버그는 왜 생겼고, 테스트로는 어떻게 잡았나?
