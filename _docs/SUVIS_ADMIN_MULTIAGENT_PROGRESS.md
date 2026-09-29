@@ -445,8 +445,9 @@ http://127.0.0.1:31386`.
   값 확정해 3키 보충 + Secret 갱신·rollout. `check_env_drift.py`가 잡는 케이스.
 - **노트북 k3s 잔여 단계**(1단계는 09-07 완료 — 완료됨 인덱스 참고):
   2단계 redis 이관, 3단계 db(pgvector)는 밖에 둬도 무방(`k8s/README.md`).
-  도커 backend·auth·nginx는 stop 상태로 롤백용 보존(`down` 금지). 09-28 발견: nginx가
-  `restart=always`라 재부팅마다 되살아나 크래시루프 → 같은 날 사용자가 `--restart=no` + stop 처리 완료. 배포는
+  ~~도커 backend·auth·nginx 롤백용 보존~~ **09-29 정리 완료** — backend·auth 컨테이너는 이미 없었고 nginx 컨테이너·
+  이미지 삭제, 노트북 `docker-compose.yaml`(untracked)을 db·redis만 남기게 축소(원본 `~/docker-compose.yaml.bak-20260929`).
+  롤백은 이제 `kubectl rollout undo`. 배포는
   `./k8s/deploy.sh --external-db [--build]`.
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가

@@ -48,6 +48,16 @@
   사용자가 `kubectl -n suvisdev delete deploy/neo4j svc/neo4j pvc/neo4j-data` 실행 → 3개 삭제 완료.
   매니페스트가 빠졌으니 deploy.sh가 다시 만들지는 않는다.
 
+- **도커 롤백용 잔여물 정리**(k3s 1단계 3주 무사고): backend·auth 컨테이너는 이미 없었고, 남은 `nginx`
+  컨테이너(Exited)·`nginx:alpine` 이미지 삭제. `suvisdev-app:latest`(6.84GB)는 `deploy.sh --build`가 `docker save`로
+  k3s에 import하는 원본이자 레이어 캐시라 유지. `arda-*` 컨테이너는 해커톤 금지 규칙으로 미접촉.
+- 노트북 `docker-compose.yaml`(untracked)을 **db·redis만** 남기게 축소 — nginx·certbot·backend·auth·pgadmin·
+  cloudflared·neo4j 정의가 남아 있어 `docker compose up -d` 한 번이면 k3s와 백엔드·터널이 이중 기동될 수 있었다.
+  원본 `~/docker-compose.yaml.bak-20260929`. `compose config --services`=db·redis, `compose ps`가 기존 컨테이너를
+  그대로 인식(볼륨 `suvisdev_db_data` 동일) 확인.
+- k3s의 `service/nginx`는 nginx가 아니라 Traefik을 가리키는 ExternalName 별칭(`nginx-alias.yaml`) — Cloudflare
+  대시보드 라우트 `http://nginx:80`을 안 바꾸려고 둔 것. 실제 nginx 프로세스는 어디에도 없다.
+
 ### 산출물
 - 커밋 `chore: Neo4j 매니페스트·백로그 정리`.
 
