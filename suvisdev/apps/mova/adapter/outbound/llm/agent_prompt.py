@@ -1,23 +1,23 @@
-"""mova 채팅 '판단 단계' 프롬프트·도구 정의·행동 파서 (2026-09-29, v9).
+"""mova 채팅 '판단 단계' 도구 정의·시스템 프롬프트 (2026-09-29, v9).
 
-이해 단계(6칸 JSON)를 잇는 다음 구조다. 모델은 발화·최근 대화·이번 턴에 이미 받은 도구 결과를 읽고
-**다음 행동 하나**만 낸다 — 도구 호출 한 개(`<tool_call>{…}</tool_call>`) 또는 `FINAL`(도구 결과로
-충분하니 코드 템플릿이 답을 쓴다). 사실 문장은 모델이 쓰지 않는다(09-29 실측: 7.8B가 도구 결과를
-받고도 메가박스 시간표를 지어냈다).
-
-이 모듈은 의존성이 없다 — 학습 데이터 생성기(`scripts/build_agent_dataset.py`)와 서빙 어댑터가 같은
-문자열을 쓰도록 여기 한 곳에 둔다(입력 형식이 바이트 단위로 같아야 학습 분포 = 서빙 분포).
+형식(렌더·파싱·행동 문자열)은 허브 `ontology.domain.agent.action_protocol`에 있고 여기서 재수출한다 —
+학습 데이터 생성기(`scripts/build_agent_dataset.py`)와 서빙(`MovaChatAgent`)이 같은 문자열을 쓴다.
+이 파일에 있는 건 mova 고유의 것: 도구 6개 명세와 시스템 프롬프트.
 """
 
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
-_HISTORY_TURNS = 4
-_HISTORY_CHARS = 160
-_RESULT_CHARS = 400
+from ontology.domain.agent.action_protocol import (
+    FINAL,
+    format_action,
+    render_history,
+    render_prompt,
+    render_tool_results,
+)
+from ontology.domain.agent.action_protocol import parse_action as _parse_action
+
 MAX_STEPS = 3  # 한 턴에 도구 호출 최대 횟수 — 넘으면 코드가 FINAL로 강제
 
 # 도구 이름 → (설명, 인자 목록). 인자는 전부 문자열. 설명은 프롬프트에 그대로 들어간다.
@@ -35,6 +35,25 @@ TOOLS: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "where_to_watch": ("작품을 볼 수 있는 OTT", ("title",)),
 }
+TOOL_SPEC = {name: params for name, (_, params) in TOOLS.items()}
+
+
+def parse_action(text: str) -> dict[str, Any] | str | None:
+    return _parse_action(text, TOOL_SPEC)
+
+
+__all__ = [
+    "FINAL",
+    "MAX_STEPS",
+    "SYSTEM_PROMPT",
+    "TOOLS",
+    "TOOL_SPEC",
+    "format_action",
+    "parse_action",
+    "render_history",
+    "render_prompt",
+    "render_tool_results",
+]
 
 SYSTEM_PROMPT = """너는 영화 챗봇 mova의 '판단 담당'이다. 사용자 발화·최근 대화·이번 턴의 [도구 결과]를 읽고 다음 행동 하나만 출력한다. 설명·인사·답변 문장 금지.
 
@@ -66,76 +85,3 @@ FINAL
 발화 "타짜 요즘 개봉한 거 있지 않나" → <tool_call>{"name":"search_movie","arguments":{"title":"타짜"}}</tool_call>
 발화 "타짜 요즘 개봉한 거 있지 않나" · [도구 결과] search_movie → {"found":"타짜 (2006)","same_name_titles_newest_first":["타짜: 벨제붑의 노래 (2026)",…]} → FINAL
 발화 "안녕" → FINAL"""
-
-
-def render_history(history: list[dict[str, str]]) -> str:
-    lines = []
-    for m in history[-_HISTORY_TURNS:]:
-        content = (m.get("content") or "").strip()
-        if not content:
-            continue
-        who = "사용자" if m.get("role") == "user" else "도우미"
-        lines.append(f"{who}: {content[:_HISTORY_CHARS]}")
-    return "\n".join(lines)
-
-
-def render_tool_results(results: list[dict[str, Any]]) -> str:
-    """이번 턴에 이미 부른 도구와 그 결과 — [{"name","arguments","result"}]."""
-    lines = []
-    for r in results:
-        args = json.dumps(r.get("arguments") or {}, ensure_ascii=False)
-        body = json.dumps(r.get("result"), ensure_ascii=False)[:_RESULT_CHARS]
-        lines.append(f"{r['name']}({args}) → {body}")
-    return "\n".join(lines)
-
-
-def render_prompt(
-    message: str, history: list[dict[str, str]], results: list[dict[str, Any]] | None = None
-) -> str:
-    parts = []
-    rendered = render_history(history)
-    if rendered:
-        parts.append(f"[최근 대화]\n{rendered}")
-    parts.append(f"[발화]\n{message}")
-    if results:
-        parts.append(f"[도구 결과]\n{render_tool_results(results)}")
-    return "\n\n".join(parts)
-
-
-def format_action(action: dict[str, Any] | str) -> str:
-    """정답·모델 출력 문자열. dict면 도구 호출, "FINAL"이면 그대로."""
-    if action == "FINAL":
-        return "FINAL"
-    assert isinstance(action, dict)
-    return (
-        "<tool_call>"
-        + json.dumps(action, ensure_ascii=False, separators=(",", ":"))
-        + "</tool_call>"
-    )
-
-
-_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.S)
-
-
-def parse_action(text: str) -> dict[str, Any] | str | None:
-    """모델 출력 → {"name","arguments"} | "FINAL" | None(형식 아님). 호출이 여럿이면 첫 번째만."""
-    m = _CALL.search(text or "")
-    if m:
-        try:
-            data = json.loads(m.group(1))
-        except json.JSONDecodeError:
-            return None
-        name = data.get("name")
-        if name not in TOOLS:
-            return None
-        raw_args = data.get("arguments") or {}
-        allowed = TOOLS[name][1]
-        args = {
-            k: str(v).strip()
-            for k, v in raw_args.items()
-            if k in allowed and isinstance(v, str | int | float) and str(v).strip()
-        }
-        return {"name": name, "arguments": args}
-    if re.search(r"\bFINAL\b", text or ""):
-        return "FINAL"
-    return None

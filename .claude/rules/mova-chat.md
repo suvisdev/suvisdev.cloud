@@ -20,6 +20,10 @@ paths:
 
 ### 1. 파이프라인 순서 (바꾸지 말 것)
 
+**2026-09-29부터 `MOVA_CHAT_AGENT=1`이면 에이전트가 맨 앞이다** — `MovaChatAgent`(학습한 2.4B `mova-agent-v9`)가
+도구 호출로 다음 행동을 고르고, 사실은 코드 템플릿·트랙이 답한다(SSOT: `MOVA_CHAT_ORCHESTRATOR.md` §8). 판단 모델
+장애면 아래 오케스트레이터로 폴백. "오케스트레이터"라는 말은 허브 전체 두뇌용으로 예약됐고 앱 두뇌는 "에이전트"다.
+
 **2026-09-27부터 맨 앞에 오케스트레이터가 있다** — `ChatOrchestrator.plan()`이 EXAONE 7.8B로
 발화를 {의도, 작품명, 지역, 시각, 체인, 이어받기}로 읽고 작품명을 카탈로그로 검증한 뒤
 트랙에 슬롯을 넘긴다(SSOT: `apps/mova/_docs/MOVA_CHAT_ORCHESTRATOR.md`). 이해 실패 시에만

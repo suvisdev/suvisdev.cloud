@@ -30,6 +30,7 @@ from typing import Any
 
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT / "scripts"))
+sys.path.insert(0, str(_ROOT / "apps"))  # agent_prompt.py가 허브 action_protocol을 import한다
 import build_understanding_dataset as U  # noqa: E402, N812 — 어휘·조사·대화 템플릿 재사용
 
 _spec = importlib.util.spec_from_file_location(

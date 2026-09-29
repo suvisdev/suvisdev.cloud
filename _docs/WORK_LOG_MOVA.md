@@ -86,6 +86,24 @@
   비웠다. 층 이름: **오케스트레이터(허브 전체 두뇌, 미구현) → 에이전트(앱 두뇌, mova는 v9) → 도구 → 클라이언트/어댑터**.
   사용처 10곳 + 테스트 + 문서 sed, `import main`·핵심 테스트 81 passed. uvx ruff(0.16.9)가 무관 파일 17개를 재포맷해
   전부 원복(프로젝트에 ruff 버전 고정이 없음 — 후속: pyproject `required-version` 또는 pre-commit 복구).
+- (10) **[16시] MovaChatAgent 서빙 통합**(플래그 `MOVA_CHAT_AGENT`, 기본 0):
+  - 허브(ontology): `domain/agent/action_protocol.py`(렌더·파싱·행동 문자열 — mova `agent_prompt.py`에서 옮기고 재수출,
+    생성기 재생성 **바이트 동일** 확인), `app/ports/output/judge_port.py`(`JudgePort`·`JudgeError`), `app/agent/agent_loop.py`
+    (`AgentLoop`·`Tool`·`AgentDecision` — 근거 가드·반복 차단·예산 3, 데이터/터미널 도구 구분). 허브는 스포크 미import.
+  - mova: `ollama_judge_adapter.py`(v9를 같은 `/api/chat` 렌더로), `use_cases/chat_agent.py`(`MovaChatAgent` — 데이터 도구
+    search/details/now_showing 실행, 터미널 recommend/showtimes/where_to_watch는 트랙으로; `compose_facts` 템플릿;
+    `showing_cards` 박스오피스→카탈로그 카드), `ChatInteractor._act_on_agent`(터미널→`VerifiedSlots`→`_dispatch_slots`,
+    "어때?"→평가 트랙, now_showing→상영작 카드+intent booking, 그 외→`info` 템플릿, 결과 없음→잡담, `JudgeError`→이해 단계 폴백).
+    DI `get_chat_agent`. 테스트: 허브 루프 6 + 에이전트 6(가짜 판단·포트) = 12 passed, mova 채팅 114 passed.
+  - **측정(임시 컨테이너 :8012, 플래그 ON)**: 28질의 첫 실행 25/28 → 상영작 카드 수정 후 실패분 재실행 전부 PASS(정치
+    스릴러 502·반전 0건은 일시 오류, 재실행 PASS). 멀티턴 15/17 → 16/17(남은 1 = 날짜 의존 하네스, 운영도 동일).
+    **실사용 14턴 재생(에이전트 vs 운영)**: 출연진 2건·타짜 신작·최신 개봉작·카드 전체 후속·"군자역 근처 오늘"(운영은
+    서울역/하루/군함도 추천으로 새어 나감) 전부 에이전트 정답. 남은 오답: "예매 할 수 있는곳이 있나"의 지시 대상을 2턴
+    전 작품(데자뷰)으로 잇음(왕과 사는 남자가 정답 — v10 데이터 항목: 최근 작품 우선). 지연 평균 9.2s/턴(운영 1~5s,
+    CPU 판단 ~3s/단계) — 7.8B를 내리고 v9를 GPU에 올리면 해소 가능(홈 채팅·길들 2.4B 이관 뒤).
+  - 스모크에서 발견: 맥락 없이 "타짜 요즘 개봉한거"만 오면 v9가 전체 제목을 완성해 불러 가드에 막힘 → FINAL → 잡담 트랙이
+    상영작 근거로 맞게 답함(경로는 의도와 다름, 결과는 OK).
+  - 지킬(jk.suvisdev.cloud) 구조 페이지 4개 + 09-29 데블로그 갱신·푸시(`b74e987`), 색인 사본 동기화 후 파드에서 재색인.
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini

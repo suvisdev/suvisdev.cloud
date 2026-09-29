@@ -95,3 +95,32 @@ intent=recommend → 추천 트랙은 슬롯 제목을 쓰지 않고 의도를 �
 - **코랩 채점 ≠ GGUF 채점**: v7은 코랩(fp16 LoRA) 44/48로 미달이었지만 노트북 GGUF Q5_K_M로는 같은 48개에서 46/48
   ("군자역"→"군자" 2건이 GGUF에선 안 나옴, 대신 "밀실 탈출 스릴러"를 틀림). 내보내기 판단은 **GGUF 재채점** 기준.
   49개 평가셋(09-29) GGUF 실측: v7 46 · v6 46 · 7.8B 38.
+
+## 8. 에이전트(v9) — 판단 모델 + 도구 루프 (2026-09-29, 플래그 `MOVA_CHAT_AGENT`)
+
+**이름 정리(사용자 결정)**: 오케스트레이터 = 허브(ontology)에 생길 **전체 두뇌**(미구현) → **에이전트** = 앱 두뇌
+(`MovaChatAgent`) → **도구** → **클라이언트**(`core.lol.ollama_client.OllamaClient`, 구 SuvisdevOrchestrator는 전화기라 개명).
+이 문서의 §1~§7 "오케스트레이터"(`ChatOrchestrator`, 6칸 이해)는 롤백용으로 남고, 플래그가 켜지면 §8이 앞선다.
+
+왜: 09-29 실사용(cid 41) — 6칸 양식에 자리가 없는 질문(출연진·현재 상영작·직전 카드 전체)이 전부 오답, 발화에 없는
+제목 창작(타짜→타겟). 프로토타입 실측: 판단은 7.8B 13/14 > Gemini 10/14인데 답변 사실은 7.8B가 지어냄(메가박스 시간표)
+→ **판단은 학습한 2.4B(v9), 사실은 코드 템플릿, 문장은 트랙(추천 이유·리뷰 요약)만.**
+
+```
+ChatInteractor.chat()
+ └ MovaChatAgent.decide()  ── 허브 AgentLoop: v9가 행동 하나 → 가드 → 도구 → (결과 붙여 재판단) ≤ 3단계
+     ├ 데이터 도구(루프가 실행): search_movie · get_movie_details · now_showing
+     └ 터미널 도구(트랙이 실행): recommend_movies → 추천 트랙 · showtimes/where_to_watch → 예매 트랙(슬롯으로)
+ └ _act_on_agent(): 터미널이면 VerifiedSlots로 _dispatch_slots, 아니면
+     "어때?"류(get_movie_details 뒤) → 평가 트랙(리뷰 요약) / 그 외 → compose_facts 템플릿(intent_type="info") /
+     도구 결과 없음 → 잡담 트랙. JudgeError(Ollama 다운)면 §1 이해 단계로 폴백.
+```
+- 가드(허브 `AgentLoop`, 학습이 아니라 코드): ① title·region·date는 발화·대화·도구 결과에 나온 표기만(창작 시 오류를
+  결과로 돌려주고 재판단) ② 같은 호출 반복 → FINAL ③ 예산 3단계 → FINAL. 09-29 7.8B 과호출(턴당 3~10회)의 대응.
+- 형식(`ontology.domain.agent.action_protocol`)은 학습 데이터 생성기와 같은 함수 — 재생성 바이트 동일 확인(09-29).
+- 모델: `mova-agent-v9`(Ollama, CPU `num_gpu 0`, 단계당 ~3s). GPU는 lora 2.5 + 7.8B 4.7GB로 꽉 참 — 홈 채팅·길들이
+  7.8B를 계속 쓰므로 당분간 CPU. 환경변수 `MOVA_AGENT_MODEL`·`MOVA_AGENT_TIMEOUT_S`.
+- 측정: 평가셋 66(멀티턴 17·단일 28·실사용 17·섀도 4) GGUF **v9 62 · 7.8B 59 · 학습 전 2.4B 55**
+  (`scripts/eval_agent_actions.py`). 서빙 통합 후 하네스·실대화 재생 결과는 WORK_LOG_MOVA 09-29 (10).
+- 알려진 약점: 맥락 없이 시리즈 이름만 오면 전체 제목을 완성해 부르다 가드에 막힘("타짜 요즘 개봉한거" 단독) → FINAL →
+  잡담 트랙이 답. 날짜 후속에서 date 누락. 다음 회차(v10) 데이터 항목.

@@ -27,6 +27,7 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from mova.app.use_cases.chat_agent import MovaChatAgent, compose_facts, wants_review_summary
 from mova.app.use_cases.chat_orchestrator import ChatOrchestrator
 from mova.app.use_cases.market_chat_booking_interactor import (
     BookingAssistService,
@@ -36,12 +37,14 @@ from mova.app.use_cases.market_chat_booking_interactor import (
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
 from mova.app.use_cases.market_chat_ordinal import resolve_ordinal_reference
-from mova.domain.value_objects.movie_title import series_key
+from mova.domain.value_objects.movie_title import MovieTitle, series_key
+from ontology.app.agent.agent_loop import AgentDecision
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
 from ontology.app.ports.input.hub_rag_use_case import HubRagUseCase
 from ontology.app.ports.input.mycroft_use_case import MycroftUseCase
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.app.ports.output.intent_classifier_port import IntentClassifierPort
+from ontology.app.ports.output.judge_port import JudgeError
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +287,7 @@ class ChatInteractor(ChatUseCase):
         evaluation: MovieEvaluationService | None = None,
         booking: BookingAssistService | None = None,
         orchestrator: ChatOrchestrator | None = None,
+        agent: MovaChatAgent | None = None,
     ) -> None:
         self._repo = repository
         self._llm = recommender
@@ -306,6 +310,9 @@ class ChatInteractor(ChatUseCase):
         # 오케스트레이터(2026-09-27): 발화를 EXAONE으로 한 번 이해하고 카탈로그로 검증한 뒤
         # 트랙을 고른다. 미주입·이해 실패면 아래 결정론 선분기 + 분류기 경로가 그대로 돈다.
         self._orchestrator = orchestrator
+        # 에이전트(2026-09-29, v9): 판단 모델이 도구 호출로 다음 행동을 고른다. 주입되면 6칸 오케스트레이터보다
+        # 먼저 시도하고, 판단 모델 장애(JudgeError)면 아래 경로로 폴백한다. 플래그 MOVA_CHAT_AGENT.
+        self._agent = agent
 
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
@@ -323,6 +330,21 @@ class ChatInteractor(ChatUseCase):
         # -1. 대화 스레드 소유권 사전 검증(LLM 쿼터 소모 전에). 로그인 + 기존 id
         #     지정 시에만 조회. 없거나 남의 것이면 여기서 즉시 raise.
         await self._verify_conversation_ownership(request)
+
+        # -0.7. 에이전트(v9) — 판단 모델이 도구를 골라 돌리고, 사실은 템플릿·트랙이 답한다.
+        if self._agent is not None:
+            try:
+                decision = await self._agent.decide(
+                    request.message, request.history_dicts(), trace_id=trace_id
+                )
+            except JudgeError as e:
+                logger.warning(
+                    "[ChatInteractor] trace=%s 에이전트 판단 실패 → 이해 단계 폴백 | %s",
+                    trace_id,
+                    e.detail,
+                )
+            else:
+                return await self._act_on_agent(request, trace_id, decision)
 
         # -0.6. 오케스트레이터 — 이해(LLM) → 검증(카탈로그) → 디스패치. 성공하면 아래
         #       결정론 선분기·분류기를 타지 않는다(같은 발화를 두 번 읽지 않는다).
@@ -788,6 +810,100 @@ class ChatInteractor(ChatUseCase):
             len(embeddings_by_id),
         )
         return reranked
+
+    async def _act_on_agent(
+        self, request: MovaChatRequest, trace_id: str, decision: AgentDecision
+    ) -> ChatResponseDto:
+        """에이전트 결과 실행. 터미널 행동(추천·시간표·OTT)은 기존 트랙에 슬롯으로 넘기고, 데이터 도구로
+        끝났으면 사실 템플릿(출연진·상영작·검색)이나 평가 트랙(리뷰 요약)이 답한다. 도구가 없으면 잡담."""
+        if decision.terminal is not None:
+            name, args = decision.terminal["name"], decision.terminal["arguments"]
+            title = args.get("title")
+            movie = await self._verify_agent_title(title)
+            slots = VerifiedSlots(
+                intent="recommend" if name == "recommend_movies" else "booking",
+                title_text=title,
+                movie=movie,
+                region=args.get("region"),
+                time=args.get("date"),
+                chain=None,
+                followup=False,
+            )
+            logger.info(
+                "[ChatInteractor] trace=%s 에이전트 터미널 %s → %s", trace_id, name, slots.intent
+            )
+            return await self._dispatch_slots(request, trace_id, slots)
+        review_title = wants_review_summary(request.message, decision.results)
+        if review_title and self._evaluation is not None:
+            return await self._reply_evaluation(request, trace_id, [review_title])
+        facts = compose_facts(request.message, decision.results)
+        if facts is None:
+            return await self._reply_general(request, trace_id)
+        # 현재 상영작 질문("최신 개봉영화 뭐 있어", "다 영화관에서 볼 수 있어?")은 문장만이 아니라
+        # 박스오피스 상영작을 카탈로그 카드로 붙인다 — 예매 트랙 성격이라 intent는 booking.
+        cards: list[ChatRecommendationDto] = []
+        intent_type = "info"
+        if any(
+            r["name"] == "now_showing" and "error" not in (r.get("result") or {})
+            for r in decision.results
+        ):
+            intent_type = "booking"
+            for d in await self._agent.showing_cards():
+                cards.append(
+                    ChatRecommendationDto(
+                        id=d.slug,
+                        movie_id=int(d.id),
+                        title=d.title,
+                        year=str(d.release_year or ""),
+                        poster=d.poster_url or "",
+                        synopsis=d.synopsis or "",
+                        platform=d.platforms[0].provider if d.platforms else None,
+                        hook="지금 상영 중(주간 박스오피스)",
+                    )
+                )
+        chat_id = await self._repo.save_chat(
+            user_id=request.user_id,
+            assistant_id=None,
+            raw_message=request.message,
+            refined_query=request.message,
+            keywords=[],
+            intent_type=intent_type,
+            search_filters={},
+            reply=facts,
+        )
+        conversation_id = await self._persist_conversation_turn(
+            request=request,
+            user_content=request.message,
+            user_meta={
+                "intent_type": intent_type,
+                "refined_query": request.message,
+                "keywords": [],
+            },
+            assistant_content=facts,
+            assistant_meta={
+                "recommendations": self._cards_meta(cards),
+                "agent_trace": decision.trace,
+            },
+        )
+        return ChatResponseDto(
+            chat_id=chat_id,
+            reply=facts,
+            refined_query=request.message,
+            keywords=[],
+            intent_type=intent_type,
+            search_filters={},
+            recommendations=cards,
+            conversation_id=conversation_id,
+        )
+
+    async def _verify_agent_title(self, title: str | None) -> MovaSearchItemSchema | None:
+        """카탈로그 정확 일치만 확정(오케스트레이터 `_verify_title`과 같은 기준)."""
+        if not title:
+            return None
+        items = await self._repo.search_movies_by_title([title], 5)
+        wanted = MovieTitle(title)
+        exact = [i for i in items if wanted.equals(i.title)]
+        return exact[0] if exact else None
 
     async def _dispatch_slots(
         self, request: MovaChatRequest, trace_id: str, slots: VerifiedSlots

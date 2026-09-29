@@ -30,6 +30,7 @@ from mova.adapter.outbound.llm.gemini_recommendation_adapter import (
 from mova.adapter.outbound.llm.lora_recommendation_adapter import (
     LoraRecommendationAdapter,
 )
+from mova.adapter.outbound.llm.ollama_judge_adapter import OllamaJudgeAdapter
 from mova.adapter.outbound.pg.market_chat_pg_repository import ChatPgRepository
 from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
 from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
@@ -50,6 +51,7 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
+from mova.app.use_cases.chat_agent import MovaChatAgent
 from mova.app.use_cases.chat_orchestrator import ChatOrchestrator
 from mova.app.use_cases.market_chat_booking_interactor import BookingAssistService
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
@@ -195,6 +197,28 @@ def _append_shadow_record(record: dict[str, Any]) -> None:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def get_chat_agent(
+    repository: ChatRepositoryPort = Depends(get_chat_repository),
+    db: AsyncSession = Depends(get_mova_db),
+) -> MovaChatAgent | None:
+    """MOVA_CHAT_AGENT=1이면 v9 판단 에이전트 주입(2026-09-29). 기본 꺼짐 — 하네스·블라인드 비교 뒤 켠다."""
+    if os.getenv("MOVA_CHAT_AGENT", "0") not in ("1", "true", "yes"):
+        return None
+    keymaker = get_keymaker()
+    return MovaChatAgent(
+        judge=_shared_judge_adapter(),
+        repository=repository,
+        movies=MoviesPgRepository(session=db),
+        reviews=ReviewAggregationPgRepository(session=db),
+        box_office=KoficBoxOfficeAdapter(keymaker.kofic_api_key),
+    )
+
+
+@lru_cache(maxsize=1)
+def _shared_judge_adapter() -> OllamaJudgeAdapter:
+    return OllamaJudgeAdapter()
+
+
 def get_chat_use_case(
     repository: ChatRepositoryPort = Depends(get_chat_repository),
     recommender: RecommendationPort = Depends(get_recommendation_port),
@@ -208,6 +232,7 @@ def get_chat_use_case(
     evaluation: MovieEvaluationService = Depends(get_evaluation_service),
     booking: BookingAssistService = Depends(get_booking_service),
     orchestrator: ChatOrchestrator | None = Depends(get_chat_orchestrator),
+    agent: MovaChatAgent | None = Depends(get_chat_agent),
 ) -> ChatUseCase:
     return ChatInteractor(
         repository=repository,
@@ -222,6 +247,7 @@ def get_chat_use_case(
         evaluation=evaluation,
         booking=booking,
         orchestrator=orchestrator,
+        agent=agent,
     )
 
 

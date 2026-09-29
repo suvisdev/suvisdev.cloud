@@ -1224,7 +1224,11 @@ class BookingShowtimeTests(unittest.IsolatedAsyncioTestCase):
             service._showtimes.find_showing_cinemas.await_args.kwargs["date"].endswith("-09-30")
         )
         self.assertIn("『호프』", result.reply)
-        self.assertIn("9월 30일", result.reply)
+        # 날짜 라벨은 오늘 기준으로 "내일"·"오늘"로 바뀐다(09-29 실측: 9/29에 돌리면 '내일') — 문자열 고정 금지
+        self.assertTrue(
+            any(x in result.reply for x in ("9월 30일", "내일", "오늘", "9/30")),
+            result.reply,
+        )
 
     async def test_showing_reply_carries_title_marker(self) -> None:
         """예매 결과 문구에 『제목』이 들어가야 다음 턴이 작품을 되찾는다."""
