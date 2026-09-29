@@ -178,3 +178,20 @@ async def test_judge_failure_raises_for_fallback():
 
 def test_compose_facts_returns_none_without_results():
     assert compose_facts("안녕", []) is None
+
+
+@pytest.mark.asyncio
+async def test_year_suffix_is_stripped_before_title_resolution():
+    agent = _agent(
+        [
+            format_action(
+                {"name": "search_movie", "arguments": {"title": "타짜: 벨제붑의 노래 (2026)"}}
+            ),
+            FINAL,
+        ]
+    )
+    d = await agent.decide("타짜 요즘 개봉한거 있지 않나", [], trace_id="t")
+    r = d.results[0]["result"]
+    assert r.get("found", "").startswith("타짜: 벨제붑의 노래") or "타짜: 벨제붑의 노래 (2026)" in (
+        r.get("candidates") or []
+    )

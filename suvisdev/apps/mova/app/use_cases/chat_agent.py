@@ -77,6 +77,8 @@ class MovaChatAgent:
     async def _exact(self, title: str):
         """트랙과 같은 제목 해석기 — 조사·어절 후보·퍼지까지("데자뷰는 누가 나오지" → 데자뷰, 09-29 운영 실측:
         맥락 없이 오면 v9가 발화 전체를 title에 넣는다). 정확 일치면 item, 모호하면 후보 목록."""
+        # 모델이 "타짜: 벨제붑의 노래 (2026)"처럼 연도 꼬리를 붙이면 정확 일치가 깨져 후보 되묻기로 빠진다(09-29 운영)
+        title = re.sub(r"\s*\(\d{4}\)\s*$", "", title).strip() or title
         res = await resolve_movie_title(self._repo, message=title, entities=[title])
         items = await self._repo.search_movies_by_title([title], 8)
         if res.status == "ok" and res.item is not None:
