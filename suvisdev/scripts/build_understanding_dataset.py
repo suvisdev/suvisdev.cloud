@@ -128,6 +128,13 @@ REGIONS = [
     "을지로",
     "천호",
     "목동",
+    # v8: 역 이름은 "역"까지 region(v7이 "군자역"→"군자"로 잘랐다 — "군자"만 있고 역 이름이 적었다)
+    "군자역",
+    "잠실역",
+    "신촌역",
+    "왕십리역",
+    "합정역",
+    "사당역",
 ]
 TIMES = [
     "오늘",
@@ -221,6 +228,20 @@ GENERAL = [
     "도와줘서 고마워",
     "아 피곤하다",
 ]
+# v8: "영화·추천" 없이 소재+장르만 말하는 발화(섀도: "밀실 탈출 스릴러"에 v7이 evaluate+title)
+THEMES = [
+    "타임루프",
+    "탈옥",
+    "하이재킹",
+    "잠입 수사",
+    "외계인 침공",
+    "무인도 생존",
+    "사기꾼",
+    "연쇄살인마 추적",
+    "복수극",
+    "우주 정거장",
+]
+
 # v7: 시리즈 이름 — titles.txt에서 이 이름으로 시작하는 작품이 2편 이상이면 "시리즈"로 쓴다
 FRANCHISES = [
     "스파이더맨",
@@ -529,6 +550,11 @@ def p_recommend(rng: random.Random, _t: str) -> tuple:
         # v7: 시리즈 추천은 작품 하나가 아니다 — title은 null로 통일
         f"{rng.choice(FRANCHISES)} 시리즈 추천해줘",
         f"{rng.choice(FRANCHISES)} 시리즈 뭐 있어?",
+        # v8: 소재+장르 명사구만 — 작품명이 아니다
+        f"{rng.choice(THEMES)} {rng.choice(GENRES)}",
+        f"{rng.choice(THEMES)} 영화",
+        f"{rng.choice(THEMES)} 나오는 {rng.choice(GENRES)} 없어?",
+        f"{rng.choice(MOODS)} {rng.choice(GENRES)}",
     ]
     return [], rng.choice(forms), gold("recommend"), "recommend"
 
@@ -648,24 +674,69 @@ def p_generic_negative(rng: random.Random, _t: str) -> tuple:
     return [], msg, g, "generic_negative"
 
 
+# --- v8 패턴: v7 섀도 재생(09-29)에서 틀린 모양 -----------------------------------------------
+def p_topic_switch(rng: random.Random, t: str) -> tuple:
+    """직전 대화가 있어도 발화에 작품명을 직접 말한 새 요청이면 followup=false, title은 말한 그대로
+    (v7: 예매 되묻기 뒤 "옵세션 줄거리"에 followup=true, title '옵세션: 새로운 시작')."""
+    if rng.random() < 0.6:
+        hist = [
+            {"role": "user", "content": f"{t} 예매하고 싶어"},
+            {"role": "assistant", "content": region_ask(t)},
+        ]
+    else:
+        hist = [
+            {"role": "user", "content": f"{t} 어때"},
+            {"role": "assistant", "content": eval_reply(t)},
+        ]
+    msg = rng.choice(
+        [
+            f"{t} 무슨 내용이야?",
+            f"{josa(t, '은는')} 어떤 영화야?",
+            f"{t} 평점 먼저 알려줘",
+            f"아 그 전에 {t} 리뷰 좀",
+            f"{t} 재밌어?",
+        ]
+    )
+    return hist, msg, gold("evaluate", t), "topic_switch"
+
+
+def p_compound(rng: random.Random, t: str) -> tuple:
+    """질문 두 개가 섞이면 예매 요청(시간·지역·예매)이 있을 때 booking."""
+    r = rng.choice(REGIONS)
+    d = rng.choice(TIMES)
+    msg, g = rng.choice(
+        [
+            (f"{josa(t, '은는')} 몇 분짜리야? 몇 시에 해?", gold("booking", t)),
+            (f"{t} 러닝타임 얼마나 돼? {r}에서 볼 수 있어?", gold("booking", t, r)),
+            (f"{t} 평점 괜찮아? 괜찮으면 예매할래", gold("booking", t)),
+            (f"{t} 무슨 내용이야? 그리고 {d} 상영해?", gold("booking", t, None, d)),
+            (f"{josa(t, '이가')} 볼만하면 {r}에서 예매해줘", gold("booking", t, r)),
+        ]
+    )
+    return [], msg, g, "compound"
+
+
 PATTERNS: list[tuple[str, float]] = [
-    ("booking_single", 0.16),
+    ("booking_single", 0.12),
     ("booking_region_followup", 0.08),
     ("booking_date_followup", 0.06),
     ("booking_region_change", 0.04),
     ("booking_discovery", 0.03),
-    ("evaluate", 0.10),
+    ("evaluate", 0.08),
     ("evaluate_after_rec", 0.05),
     ("evaluate_bare_followup", 0.04),
     ("eval_to_booking", 0.05),
     ("choice", 0.02),
     ("recommend", 0.11),
-    ("general", 0.06),
+    ("general", 0.04),
     # v7
     ("latest_in_family", 0.06),
     ("context_that", 0.06),
     ("choice_distinct", 0.04),
     ("generic_negative", 0.04),
+    # v8
+    ("topic_switch", 0.05),
+    ("compound", 0.03),
 ]
 
 
@@ -743,6 +814,20 @@ _SHADOW_EVAL: list[tuple[str, list[dict[str, str]], str, dict[str, Any]]] = [
         gold("booking", "스파이더맨: 브랜드 뉴 데이", "강남", followup=True),
     ),
     ("35e255b7", [], "스파이더맨 시리즈 추천해줘", gold("recommend")),
+    # v8: 09-29 v7 섀도 재생에서 v7이 틀린 실사례("밀실 탈출 스릴러"는 이미 단일 질의에 있다)
+    (
+        "9cd61f49",
+        [
+            {"role": "user", "content": "옵세션 예매하고싶어"},
+            {
+                "role": "assistant",
+                "content": "[추천 카드] 1.『옵세션』(2026)\n『옵세션』 상영관을 찾아드릴게요. "
+                "어느 지역에서 보실 계획인가요?",
+            },
+        ],
+        "옵세션 줄거리 알려줘",
+        gold("evaluate", "옵세션"),
+    ),
 ]
 
 
@@ -859,6 +944,8 @@ def main() -> None:
         "general": p_general,
         "context_that": p_context_that,
         "generic_negative": p_generic_negative,
+        "topic_switch": p_topic_switch,
+        "compound": p_compound,
     }
     names = [p for p, _ in PATTERNS]
     weights = [w for _, w in PATTERNS]

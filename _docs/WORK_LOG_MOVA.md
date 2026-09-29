@@ -28,6 +28,48 @@
 
 ---
 
+## 2026-09-29
+
+### 작업 내용
+- 코랩 이해 v7 결과 확인. 처음 받은 `understanding-v7-…` 폴더는 **입력 jsonl 그대로**(저장소와 바이트 동일)였고,
+  산출물은 드라이브 출력 폴더 `understand-v7`에 있었다(v6와 같은 구조) → 다시 받음.
+- 코랩 리포트: 학생 ep3 **44/48(합격선 46 미달)**, title 48/48로 v6 약점('영화'·'바로'·"26년꺼")은 해소. 오답 4 =
+  "군자역"→"군자" 2 · 주제 전환 followup 1(v6도 틀림) · 질문 두 개 섞인 발화 intent 1.
+- "군자" vs "군자역" 실해 확인: 카카오 로컬 API로 "군자"=군자동 중심, "군자역"=역(약 400m) — 극장 검색 반경이 km
+  단위라 결과 동일.
+- 사용자 결정 A: v7을 CPU 섀도로 올려 실발화로 비교 → 교체.
+
+### 수정/구현
+- 노트북 `~/models/mova-understand-v7/`(GGUF Q5_K_M + Modelfile에 `num_gpu 0`) → `ollama create mova-understand-v7`.
+- **섀도 재생**: `shadow_log.jsonl` 316줄 → 고유 (발화, 대화) 54개를 운영 어댑터(`ExaoneChatUnderstandingAdapter`)로
+  v7에 다시 읽힘(패키지 `__init__`이 DB 의존이라 모듈 파일을 직접 로드). v6==7.8B 37 · v7==7.8B 35 · v7==v6 44.
+  갈린 10건: v7 정답 6 · 오답 3 · 애매 1(상세 `MOVA_CHAT_ORCHESTRATOR.md` §7). 7.8B와의 일치율이 낮은 건 7.8B가
+  자기 프롬프트의 followup 예시와 어긋나서.
+- **섀도 교체 배포**: `.env` `MOVA_ORCHESTRATOR_SHADOW_MODEL=mova-understand-v7` → `deploy.sh --external-db` +
+  rollout restart(사용자가 직접 실행 — 하네스 자동 모드가 운영 배포를 막음). 파드 printenv로 확인, API 루트 200.
+- **v8 데이터**(`scripts/build_understanding_dataset.py`): `topic_switch`(작품명을 직접 말한 새 요청은 직전 대화가
+  있어도 followup=false, title은 말한 그대로) · `compound`(예매 요청이 섞인 질문 두 개 → booking) · `THEMES` 소재+장르
+  명사구 recommend · REGIONS에 역 이름 6개. 가중치 booking_single·evaluate·general에서 덜어 합 1.0 유지.
+  평가셋에 섀도 실사례 9cd61f49(추천 카드 뒤 "옵세션 줄거리 알려줘") 추가 → 49개.
+- 노트북 `mova_understanding_colab.ipynb` v8로: 버전 태그·폴더명, 기준선 표(GGUF 실측), 합격선 47/48/47, 내보내기
+  모델명 `mova-understand-v8`.
+
+### 오류·막힌 점
+- 첫 재생 스크립트가 `mova.adapter.outbound.llm` 패키지 import에서 sqlalchemy 없음으로 실패 → 어댑터 파일만 로드.
+- 사용자 `!` 명령이 `suvisdev/.env` 상대경로 실패 — 세션 셸 cwd가 `suvisdev/suvisdev`였음. 절대 경로 `cd`로 재실행.
+- **코랩 채점과 GGUF 채점이 갈림**: v7 코랩 44/48 vs GGUF 46/48(같은 48개). "밀실 탈출 스릴러"는 이미 평가셋 단일 질의에
+  있었는데 코랩에선 맞고 GGUF에선 틀림. 내보내기 판단은 GGUF 재채점으로(노트북에 경고 문구).
+- 섀도 실사례로 "밀실 탈출 스릴러"를 평가셋에 넣었다가 단일 질의와 중복임을 발견해 제거(중복은 이중 계산).
+
+### 데이터
+- v8: train 1440 · val 160 · eval 49. 패턴 topic_switch 80 · compound 48 추가. 평가셋 누수 0, 학습 데이터에 "밀실" 0.
+- 49개 평가셋 GGUF 실측(운영 호출과 동일): v7 46(intent 48·title 47·followup 47) · v6 46 · 7.8B 38.
+- 업로드 폴더: 바탕화면 `mova/FT/understanding-v8/`(jsonl 3 + 노트북).
+
+### 산출물
+- `suvisdev/scripts/build_understanding_dataset.py`, `suvisdev/scripts/mova_understanding_colab.ipynb`,
+  `suvisdev/apps/mova/_docs/MOVA_CHAT_ORCHESTRATOR.md` §7, PROGRESS 09-29. 커밋 `feat(mova): 이해 v8 학습 데이터·코랩 노트북`.
+
 ## 2026-09-28
 
 ### 작업 내용
