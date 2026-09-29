@@ -62,8 +62,18 @@
 - k3s의 `service/nginx`는 nginx가 아니라 Traefik을 가리키는 ExternalName 별칭(`nginx-alias.yaml`) — Cloudflare
   대시보드 라우트 `http://nginx:80`을 안 바꾸려고 둔 것. 실제 nginx 프로세스는 어디에도 없다.
 
+- **[오후] 방문자 통계 봇 구분**(사용자 질문 "09-28 방문자가 왜 22명?"): 22명 중 19명이 새 쿠키·0초 체류(핑 1회)·
+  11:54~11:59에 8명(12~92초 간격)·14:41~14:44에 5명, 재방문은 본인 1명뿐 → 실사용이 아니라 JS 실행 크롤러·링크
+  미리보기(Play Console URL 검증 15:51 커밋 직후 15:56~16:22)·여러 브라우저 테스트(14:35 배포 직후)로 판정. 확정 로그
+  (UA)가 없어 구분 기능 추가: 핑 라우터가 `User-Agent`를 받아 `is_bot_user_agent`(bot·crawl·spider·headless·preview·
+  facebookexternalhit·kakaotalk·curl…, UA 없음도 봇)로 판정, `visitor_activity.is_bot`·`user_agent`(256자) 컬럼
+  (`20260929_0001`). 통계는 사람 기준(지금 접속·오늘·7일·누적), `today_bots`·`today_one_shot`(첫 핑=마지막 핑)·
+  일별 `bots`/`one_shot`. 어드민 타일 "오늘 실방문 / 오늘 봇·1회성" + 추이에 봇 점선. 기존 행은 사람으로 간주,
+  09-28의 19명은 1회성으로 표시된다. 테스트 +2(UA 규칙·사람/봇/1회성 분리), UA 없는 핑을 사람으로 세던 기존
+  테스트 2건은 브라우저 UA를 넘기게 수정(계약 변경). analytics 9 passed.
+
 ### 산출물
-- 커밋 `chore: Neo4j 매니페스트·백로그 정리`.
+- 커밋 `chore: Neo4j 매니페스트·백로그 정리`, `feat(analytics): 방문자 통계 봇 구분`.
 
 ## 2026-09-28
 

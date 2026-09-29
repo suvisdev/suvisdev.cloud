@@ -38,6 +38,7 @@ _STOP_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 _KOREAN_NUM = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6}
 # "동물병원으로 가는 최단 경로", "병원까지" — 조사 뒤에 이동·경로 단서가 붙으면 그 앞이 목적지(2026-09-29).
+_VIA_WORDS = re.compile(r"들르|들렀|들려|거쳐|찍고|경유")
 _DESTINATION = re.compile(
     r"([가-힣A-Za-z0-9 ]{1,24}?)\s*(?:으로|로|까지|에)\s*"
     r"(?:가는|가고|가자|갈래|갈까|가 ?줘|가야|걸어|향해|도착|최단|빠른|짧은|경로|길 ?좀|길 ?알려)"
@@ -119,7 +120,8 @@ def _destination(text: str) -> str | None:
     """목적지 종류. "집으로 돌아오는" 건 목적지가 아니고, 종류를 모르는 장소명은 아직 다루지 않는다."""
     for m in _DESTINATION.finditer(text or ""):
         phrase = m.group(1).strip()
-        if "집" in phrase:
+        # "동물병원 들렀다가 그늘로 갈래" — 들르는 곳은 경유지(stops)지 목적지가 아니다(09-29 운영 실측)
+        if "집" in phrase or _VIA_WORDS.search(phrase):
             continue
         cat = _category_of(phrase)
         if cat:
@@ -234,13 +236,16 @@ def apply_form(
     has_text: bool,
 ) -> WalkRequest:
     """화면에서 직접 고른 값은 이해 결과보다 우선한다(사용자가 명시한 것).
-    지도에서 도착지를 찍었으면(has_end) 그 좌표가 목적지라 문장의 목적지 종류는 쓰지 않는다."""
+    지도에서 도착지를 찍었으면(has_end) 그 좌표가 목적지라 문장의 목적지 종류는 들를 곳으로 내린다."""
+    base_stops = base.stops
+    if has_end and base.destination and base.destination not in base_stops:
+        base_stops = (*base_stops, base.destination)
     return WalkRequest(
         kind="route" if has_end or base.destination else "loop",
         minutes=_clamp_minutes(minutes) if minutes else base.minutes,
         distance_km=_clamp_km(distance_km) if distance_km else base.distance_km,
         preference=preference if preference in PREFERENCES else base.preference,
-        stops=tuple(s for s in STOP_CATEGORIES if s in (stops or [])) or base.stops,
+        stops=tuple(s for s in STOP_CATEGORIES if s in (stops or [])) or base_stops,
         destination=None if has_end else base.destination,
         source=base.source if has_text else "form",
         notes=base.notes,

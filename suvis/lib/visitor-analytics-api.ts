@@ -4,11 +4,14 @@ import { safeApiErrorMessage } from "@/lib/user-facing-error"
 const API_BASE =
   (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
-type DailyVisitorCount = { date: string; count: number }
+/** count = 사람, bots = 봇(User-Agent 판정), one_shot = 사람 중 60초 안에 떠난 접속(2026-09-29). */
+type DailyVisitorCount = { date: string; count: number; bots: number; one_shot: number }
 
 export type VisitorSummary = {
   now_active: number
   today: number
+  today_bots: number
+  today_one_shot: number
   last_7_days_total: number
   cumulative_total: number
   last_7_days_series: DailyVisitorCount[]

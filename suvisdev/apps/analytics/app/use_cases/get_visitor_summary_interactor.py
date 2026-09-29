@@ -23,12 +23,16 @@ class GetVisitorSummaryInteractor(GetVisitorSummaryUseCase):
 
         now_active = await self._repository.count_active_since(now - _ACTIVE_WINDOW)
         today_count = await self._repository.count_unique_on(today_kst)
+        today_bots = await self._repository.count_bots_on(today_kst)
+        today_one_shot = await self._repository.count_one_shot_on(today_kst)
         series = await self._repository.daily_counts_since(start_date)
         cumulative_total = await self._repository.count_unique_total()
 
         return VisitorSummaryDto(
             now_active=now_active,
             today=today_count,
+            today_bots=today_bots,
+            today_one_shot=today_one_shot,
             last_7_days_total=sum(d.count for d in series),
             cumulative_total=cumulative_total,
             last_7_days_series=tuple(series),

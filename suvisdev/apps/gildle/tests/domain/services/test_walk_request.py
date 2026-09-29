@@ -90,3 +90,21 @@ def test_form_end_coordinates_override_destination():
     assert (picked.kind, picked.destination) == ("route", None)
     spoken = apply_form(base, has_end=False, **kw)
     assert (spoken.kind, spoken.destination) == ("route", "동물병원")
+
+
+def test_via_phrase_is_a_stop_not_a_destination():
+    r = parse_rules("동물병원 들렀다가 그늘로 갈래")  # 09-29 운영 실측: stops가 비었다
+    assert (r.kind, r.destination, r.stops, r.preference) == ("loop", None, ("동물병원",), "shade")
+    with_end = apply_form(
+        parse_rules("동물병원으로 가는 길"),
+        minutes=None,
+        distance_km=None,
+        preference=None,
+        stops=None,
+        has_end=True,
+        has_text=True,
+    )
+    assert (with_end.destination, with_end.stops) == (
+        None,
+        ("동물병원",),
+    )  # 지도 도착지가 있으면 들를 곳으로

@@ -5,6 +5,8 @@ import pytest
 from analytics.app.use_cases.record_visit_interactor import RecordVisitInteractor
 from analytics.tests.app.fakes import _FakeVisitorActivityRepository
 
+_BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36"  # UA 없으면 봇으로 집계(09-29)
+
 
 class TestRecordVisit:
     @pytest.mark.asyncio
@@ -13,7 +15,7 @@ class TestRecordVisit:
         interactor = RecordVisitInteractor(repository=repository)
         visitor_id = str(uuid.uuid4())
 
-        await interactor.record(visitor_id)
+        await interactor.record(visitor_id, _BROWSER_UA)
 
         assert await repository.count_unique_total() == 1
 
@@ -32,7 +34,7 @@ class TestRecordVisit:
         interactor = RecordVisitInteractor(repository=repository)
         visitor_id = str(uuid.uuid4())
 
-        await interactor.record(visitor_id)
-        await interactor.record(visitor_id)
+        await interactor.record(visitor_id, _BROWSER_UA)
+        await interactor.record(visitor_id, _BROWSER_UA)
 
         assert await repository.count_unique_total() == 1
