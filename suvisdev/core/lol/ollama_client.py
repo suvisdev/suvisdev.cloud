@@ -1,10 +1,11 @@
-"""공용 오케스트레이터 — Ollama 로컬 LLM(기본 exaone3.5:7.8b) 호출 + 구조화 이해.
+"""Ollama 로컬 LLM 클라이언트(기본 exaone3.5:7.8b) — HTTP 호출 + JSON 모드. 판단·조율은 하지 않는다.
 
-2026-09-27 개명(구 t1_mid_faker_orchestrator / T1MidFakerOrchestrator → suvisdev_orchestrator / SuvisdevOrchestrator). 두 단계를 제공한다:
-- generate(): 프롬프트 → 텍스트 (RAG 답변·요약·분류 등, 기존 그대로)
+이름 내력: t1_mid_faker_orchestrator → (09-27) suvisdev_orchestrator → (09-29) ollama_client. "오케스트레이터"는
+전화기가 아니라 두뇌에 붙일 이름이라 비워 두었다 — 앱 두뇌는 에이전트(예: mova `MovaChatAgent`), 전체 두뇌는
+허브(ontology)에 생길 오케스트레이터가 쓴다. 두 단계를 제공한다:
+- generate(): 프롬프트 → 텍스트 (RAG 답변·요약·분류 등)
 - understand_json(): 프롬프트 → JSON 모드 호출 → dict. 형식이 깨지면 한 번 더 "JSON만"으로
-  재시도한다. 앱 오케스트레이터(mova ChatOrchestrator 등)의 "이해" 단계가 이걸 쓴다 —
-  값의 검증(카탈로그·지도 대조)은 앱 몫이고 여기서는 형식만 보장한다.
+  재시도한다. 앱의 "이해" 단계가 이걸 쓴다 — 값의 검증(카탈로그·지도 대조)은 앱 몫이고 여기서는 형식만 보장한다.
 """
 
 import json
@@ -19,14 +20,14 @@ _DEFAULT_MODEL = "exaone3.5:7.8b"
 _KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
 
 
-class SuvisdevOrchestratorError(Exception):
+class OllamaClientError(Exception):
     def __init__(self, detail: str, *, status_code: int = 503) -> None:
         super().__init__(detail)
         self.detail = detail
         self.status_code = status_code
 
 
-class SuvisdevOrchestrator:
+class OllamaClient:
     """Ollama 로컬 LLM 오케스트레이터. model 인자로 다른 모델(qwen3:4b 등)도 띄울 수 있다."""
 
     def __init__(
@@ -107,14 +108,14 @@ class SuvisdevOrchestrator:
             with httpx.Client(timeout=self._timeout) as client:
                 r = client.post(f"{self._base_url}/api/chat", json=body)
         except httpx.TimeoutException as e:
-            raise SuvisdevOrchestratorError("Ollama 응답 타임아웃", status_code=504) from e
+            raise OllamaClientError("Ollama 응답 타임아웃", status_code=504) from e
         except httpx.TransportError as e:
-            raise SuvisdevOrchestratorError(
+            raise OllamaClientError(
                 f"Ollama 서버에 연결할 수 없습니다: {e!s}", status_code=503
             ) from e
 
         if r.status_code != 200:
-            raise SuvisdevOrchestratorError(
+            raise OllamaClientError(
                 f"Ollama 호출 실패 (HTTP {r.status_code}): {r.text[:200]}",
                 status_code=502,
             )
@@ -122,7 +123,7 @@ class SuvisdevOrchestrator:
         data = r.json()
         text = (data.get("message", {}).get("content") or "").strip()
         if not text:
-            raise SuvisdevOrchestratorError("모델이 빈 응답을 반환했습니다.", status_code=502)
+            raise OllamaClientError("모델이 빈 응답을 반환했습니다.", status_code=502)
         return text
 
     def understand_json(
@@ -137,7 +138,7 @@ class SuvisdevOrchestrator:
 
         모델이 산문을 섞거나 깨진 JSON을 내면(JSON 모드에서도 드물게 발생) 본문에서 첫
         객체를 잘라 파싱하고, 그래도 안 되면 "JSON 객체 하나만 출력"을 덧붙여 1회 재시도.
-        끝내 실패하면 SuvisdevOrchestratorError(502).
+        끝내 실패하면 OllamaClientError(502).
         """
         raw = self.generate(
             prompt, system=system, temperature=temperature, num_ctx=num_ctx, json_format=True
@@ -154,7 +155,7 @@ class SuvisdevOrchestrator:
         )
         parsed = _parse_json_object(retry)
         if parsed is None:
-            raise SuvisdevOrchestratorError(f"JSON 이해 실패: {retry[:120]}", status_code=502)
+            raise OllamaClientError(f"JSON 이해 실패: {retry[:120]}", status_code=502)
         return parsed
 
 

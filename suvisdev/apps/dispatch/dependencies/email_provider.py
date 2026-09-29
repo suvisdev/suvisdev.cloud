@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator
+from core.lol.ollama_client import OllamaClient
 from dispatch.adapter.outbound.http.n8n_gmail_outbound import N8nGmailOutbound
 from dispatch.app.ports.input.email_use_case import EmailUseCase
 from dispatch.app.use_cases.send_email_interactor import SendEmailInteractor
@@ -22,5 +22,5 @@ def get_email_use_case() -> EmailUseCase:
     return SendEmailInteractor(
         gmail=N8nGmailOutbound(webhook_url=webhook_url),
         hub=HubEmailOrchestrator(),
-        orchestrator=SuvisdevOrchestrator(model=_EMAIL_MODEL),
+        orchestrator=OllamaClient(model=_EMAIL_MODEL),
     )

@@ -75,6 +75,17 @@
     (7.8B 초과). 최종 판단은 노트북 GGUF 재채점(`eval_agent_actions.py mova-agent-v9 --cpu`).
   - 바탕화면 `mova/FT/agent-v9/`(jsonl 3 + 노트북). **코랩 실행은 사용자.** 합격 후: 서빙 어댑터(판단 단계 교체 + 가드 + 사실
     템플릿) → 섀도 → 전환. Gemini는 평가 요약·잡담 문장과 폴백에만 남음(다음 단계에서 7.8B/증류로 대체 후보).
+- (8) **[15시] v9 수령·GGUF 재채점 62/66 — 합격**(코랩 ep2 57/66은 미달이었음 — v7 때와 같이 코랩 fp16 < GGUF).
+  `~/models/mova-agent-v9/`(`agent_20260929_042513-Q5_K_M.gguf`, CPU `mova-agent-v9`). harness 44/45 · **live 14/17** ·
+  shadow 4/4 · 형식 실패 0 · 3.1s(CPU). 기준선 7.8B 59(live 13)·학습 전 2.4B 55 대비 전진. 오답 4: 날짜 후속에서 date
+  누락+region '서울 전체'를 이어받음, "왕과→왕와" 오타 생성, "몇일 전에 개봉한거"·"그걸 찾아보라고"를 직전 카드 작품으로
+  검색/시간표(now_showing 정답). 코랩 실패는 분위기 추천 8건을 now_showing으로 — GGUF에선 전부 맞음 → 이 경계가
+  양자화·런타임에 민감. 검증 80 표본 79/80.
+- (9) **이름 정리(사용자 결정 — "오케스트레이터는 두뇌여야")**: `core/lol/suvisdev_orchestrator.py`·`SuvisdevOrchestrator(Error)`
+  → `core/lol/ollama_client.py`·`OllamaClient(Error)`. 실체가 Ollama HTTP 클라이언트(generate·understand_json)라 두뇌 이름을
+  비웠다. 층 이름: **오케스트레이터(허브 전체 두뇌, 미구현) → 에이전트(앱 두뇌, mova는 v9) → 도구 → 클라이언트/어댑터**.
+  사용처 10곳 + 테스트 + 문서 sed, `import main`·핵심 테스트 81 passed. uvx ruff(0.16.9)가 무관 파일 17개를 재포맷해
+  전부 원복(프로젝트에 ruff 버전 고정이 없음 — 후속: pyproject `required-version` 또는 pre-commit 복구).
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini

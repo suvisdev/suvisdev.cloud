@@ -282,7 +282,7 @@ python scripts/verify_db_tables.py
 |------|------|------|
 | **앱 모듈** | `apps/`를 import root로 취급 — `suvisdev.apps.` 생략 | `from mova.app.ports.input.movies_use_case import MoviesUseCase` |
 | **Core 모듈** | `core.*` | `from core.matrix.grid_oracle_database_manager import get_db` |
-| **로컬 LLM** | `core.lol.suvisdev_orchestrator.SuvisdevOrchestrator` (Ollama; `generate`·`understand_json`) · `core.lol.lora_server_client.LoraServerClient` (lora_server :8200) — 2026-09-27 개명(구 T1MidFakerOrchestrator·LoraRecommendationOrchestrator) | `from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator` |
+| **로컬 LLM** | `core.lol.ollama_client.OllamaClient` (Ollama; `generate`·`understand_json`) · `core.lol.lora_server_client.LoraServerClient` (lora_server :8200) — 2026-09-29 `OllamaClient`로 개명(구 SuvisdevOrchestrator·T1MidFakerOrchestrator; "오케스트레이터"는 허브 두뇌용으로 예약, 앱 두뇌는 에이전트) | `from core.lol.ollama_client import OllamaClient` |
 
 ---
 

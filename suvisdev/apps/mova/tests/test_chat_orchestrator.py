@@ -94,10 +94,10 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("도우미: 『인턴』", client.understand_json.call_args.args[0])
 
     async def test_client_error_becomes_understanding_error(self) -> None:
-        from core.lol.suvisdev_orchestrator import SuvisdevOrchestratorError
+        from core.lol.ollama_client import OllamaClientError
 
         client = MagicMock()
-        client.understand_json.side_effect = SuvisdevOrchestratorError("down", status_code=503)
+        client.understand_json.side_effect = OllamaClientError("down", status_code=503)
         with self.assertRaises(ChatUnderstandingError):
             await ExaoneChatUnderstandingAdapter(client=client).understand("안녕", [])
 

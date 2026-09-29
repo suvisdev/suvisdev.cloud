@@ -1,10 +1,10 @@
-"""EXAONE(Ollama, SuvisdevOrchestrator) 기반 PdfSummarizerPort 구현체."""
+"""EXAONE(Ollama, OllamaClient) 기반 PdfSummarizerPort 구현체."""
 
 from __future__ import annotations
 
 import asyncio
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
+from core.lol.ollama_client import OllamaClient, OllamaClientError
 from execsuite.app.ports.output.pdf_loader_summarizer_port import PdfSummarizerPort
 
 _SYSTEM_PROMPT = (
@@ -22,7 +22,7 @@ class OllamaExaonePdfSummarizer(PdfSummarizerPort):
     def __init__(self) -> None:
         # keep_alive "0": 요약 직후 7.8B를 VRAM에서 내린다 — 상주하면 노트북 8GB에서
         # 채팅용 bge-m3·라우터 2.4B가 밀려난다(2026-09-17 실측). 대가는 요청마다 로드 수 초.
-        self._orchestrator = SuvisdevOrchestrator(keep_alive="0")
+        self._orchestrator = OllamaClient(keep_alive="0")
 
     async def summarize(self, text: str) -> str:
         truncated = text[:_MAX_INPUT_CHARS]
@@ -32,5 +32,5 @@ class OllamaExaonePdfSummarizer(PdfSummarizerPort):
                 truncated,
                 system=_SYSTEM_PROMPT,
             )
-        except SuvisdevOrchestratorError as e:
+        except OllamaClientError as e:
             raise ValueError(f"요약 생성 실패: {e.detail}") from e

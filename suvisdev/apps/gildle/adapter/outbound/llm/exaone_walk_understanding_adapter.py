@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
+from core.lol.ollama_client import OllamaClient, OllamaClientError
 from gildle.app.ports.output.walk_understanding_port import (
     WalkUnderstandingError,
     WalkUnderstandingPort,
@@ -32,8 +32,8 @@ SYSTEM_PROMPT = """너는 반려견 산책 앱 '길들'의 이해 담당이다. 
 
 
 class ExaoneWalkUnderstandingAdapter(WalkUnderstandingPort):
-    def __init__(self, client: SuvisdevOrchestrator | None = None) -> None:
-        self._client = client or SuvisdevOrchestrator(
+    def __init__(self, client: OllamaClient | None = None) -> None:
+        self._client = client or OllamaClient(
             model=os.getenv("GILDLE_ORCHESTRATOR_MODEL", _DEFAULT_MODEL),
             timeout=float(os.getenv("GILDLE_ORCHESTRATOR_TIMEOUT_S", "15")),
         )
@@ -43,5 +43,5 @@ class ExaoneWalkUnderstandingAdapter(WalkUnderstandingPort):
             return self._client.understand_json(
                 f"[보호자의 말]\n{text[:300]}", system=SYSTEM_PROMPT, num_ctx=2048
             )
-        except SuvisdevOrchestratorError as e:
+        except OllamaClientError as e:
             raise WalkUnderstandingError(e.detail) from e

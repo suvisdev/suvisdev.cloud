@@ -95,7 +95,7 @@ LangChain은 강력하고 유연한 도구로, 다양한 언어 모델과의 통
 이 저장소는 `requirements.txt`에 `langchain`, `langchain-core`,
 `langchain-community`, `langchain-ollama`, `langchain-text-splitters`,
 `langsmith`, `langgraph`(+ `-checkpoint`, `-prebuilt`)가 이미 포함돼 있다.
-현재 LLM 어댑터(`core/lol/suvisdev_orchestrator.py`, mova의
+현재 LLM 어댑터(`core/lol/ollama_client.py`, mova의
 `gemini_client.py`)는 LangChain을 거치지 않고 Ollama HTTP API·
 `google-generativeai`를 직접 호출하는 구조 — LangChain 레이어를 실제로
 붙일지는 아직 결정된 바 없다.

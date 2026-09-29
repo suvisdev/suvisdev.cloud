@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
+from core.lol.ollama_client import OllamaClient, OllamaClientError
 from ontology.app.ports.output.hub_llm_port import HubLlmPort
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 
@@ -29,7 +29,7 @@ class ExaoneLlmAdapter(HubLlmPort):
         keep_alive: str = _DEFAULT_KEEP_ALIVE,
         num_ctx: int = _NUM_CTX,
     ) -> None:
-        self._orchestrator = SuvisdevOrchestrator(model=model, keep_alive=keep_alive)
+        self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive)
         self._num_ctx = num_ctx
 
     async def generate(self, prompt: str, *, system: str | None = None) -> str:
@@ -41,5 +41,5 @@ class ExaoneLlmAdapter(HubLlmPort):
                 temperature=0,
                 num_ctx=self._num_ctx,
             )
-        except SuvisdevOrchestratorError as e:
+        except OllamaClientError as e:
             raise HubRagError(e.detail, status_code=e.status_code) from e

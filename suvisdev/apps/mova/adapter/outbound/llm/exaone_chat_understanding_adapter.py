@@ -1,4 +1,4 @@
-"""ChatUnderstandingPort 구현 — EXAONE(Ollama, core.lol SuvisdevOrchestrator)로 슬롯 추출.
+"""ChatUnderstandingPort 구현 — EXAONE(Ollama, core.lol OllamaClient)로 슬롯 추출.
 
 2026-09-27 실측(노트북 RTX 4060, 발화 6건):
   exaone3.5:2.4b  평균 0.87s — 제목을 못 뽑고 스키마 문자열("시각/날짜 표현")을 그대로 뱉음 → 불가
@@ -15,9 +15,9 @@ import os
 import re
 from typing import Any
 
-from core.lol.suvisdev_orchestrator import (
-    SuvisdevOrchestrator,
-    SuvisdevOrchestratorError,
+from core.lol.ollama_client import (
+    OllamaClient,
+    OllamaClientError,
     _parse_json_object,
 )
 from mova.app.dtos.chat_understanding_dto import INTENTS, ChatUnderstanding
@@ -109,8 +109,8 @@ def _render_history(history: list[dict[str, str]]) -> str:
 
 
 class ExaoneChatUnderstandingAdapter(ChatUnderstandingPort):
-    def __init__(self, client: SuvisdevOrchestrator | None = None) -> None:
-        self._client = client or SuvisdevOrchestrator(
+    def __init__(self, client: OllamaClient | None = None) -> None:
+        self._client = client or OllamaClient(
             model=os.getenv("MOVA_ORCHESTRATOR_MODEL", _DEFAULT_MODEL),
             timeout=float(os.getenv("MOVA_ORCHESTRATOR_TIMEOUT_S", "20")),
         )
@@ -123,6 +123,6 @@ class ExaoneChatUnderstandingAdapter(ChatUnderstandingPort):
             data = await asyncio.to_thread(
                 self._client.understand_json, prompt, system=SYSTEM_PROMPT, num_ctx=2048
             )
-        except SuvisdevOrchestratorError as e:
+        except OllamaClientError as e:
             raise ChatUnderstandingError(e.detail) from e
         return parse_understanding(data, message)

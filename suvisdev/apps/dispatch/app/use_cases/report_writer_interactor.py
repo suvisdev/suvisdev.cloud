@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator, SuvisdevOrchestratorError
+from core.lol.ollama_client import OllamaClient, OllamaClientError
 from dispatch.app.use_cases.exaone_text_sanitize import sanitize_body
 from ontology.domain.events.spoke_events import InboundMessageEvent
 
@@ -26,7 +26,7 @@ _REPORT_SYSTEM = (
 class ReportWriterInteractor:
     """dispatch 내부에서 EXAONE 전용 인스턴스를 호출해 보고서 초안을 작성한다."""
 
-    def __init__(self, *, orchestrator: SuvisdevOrchestrator) -> None:
+    def __init__(self, *, orchestrator: OllamaClient) -> None:
         self._orchestrator = orchestrator
 
     def write(self, event: InboundMessageEvent) -> str:
@@ -37,7 +37,7 @@ class ReportWriterInteractor:
         )
         try:
             report = sanitize_body(self._orchestrator.generate(event.body, system=_REPORT_SYSTEM))
-        except SuvisdevOrchestratorError as e:
+        except OllamaClientError as e:
             logger.warning(
                 "[dispatch Reporter] ⚠️ EXAONE 호출 실패(%s) — 하네스 폴백 보고서로 대체",
                 e.detail,

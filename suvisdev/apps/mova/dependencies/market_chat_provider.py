@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator
+from core.lol.ollama_client import OllamaClient
 from core.matrix.grid_oracle_database_manager import get_mova_db
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
 from mova.adapter.outbound.http.kakao_local_adapter import KakaoLocalTheaterAdapter
@@ -178,7 +178,7 @@ def _shared_shadow_understanding_adapter() -> ExaoneChatUnderstandingAdapter | N
     if not model:
         return None
     return ExaoneChatUnderstandingAdapter(
-        client=SuvisdevOrchestrator(
+        client=OllamaClient(
             model=model, timeout=float(os.getenv("MOVA_ORCHESTRATOR_TIMEOUT_S", "20"))
         )
     )

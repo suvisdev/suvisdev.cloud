@@ -49,7 +49,7 @@
 - Test: `core/lol/tests/test_orchestrator_body.py`
 
 **Interfaces:**
-- Produces: `SuvisdevOrchestrator._build_body(prompt, *, system, temperature, num_ctx) -> dict[str, object]`, `generate(prompt, *, system=None, temperature=None, num_ctx=None) -> str`
+- Produces: `OllamaClient._build_body(prompt, *, system, temperature, num_ctx) -> dict[str, object]`, `generate(prompt, *, system=None, temperature=None, num_ctx=None) -> str`
 
 - [ ] **Step 1: 실패 테스트**
 
@@ -65,17 +65,17 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.lol.suvisdev_orchestrator import SuvisdevOrchestrator  # noqa: E402
+from core.lol.ollama_client import OllamaClient  # noqa: E402
 
 
 class BuildBodyTests(unittest.TestCase):
     def test_options_omitted_when_nothing_set(self) -> None:
-        body = SuvisdevOrchestrator(model="m")._build_body("q", system=None, temperature=None, num_ctx=None)
+        body = OllamaClient(model="m")._build_body("q", system=None, temperature=None, num_ctx=None)
         self.assertNotIn("options", body)
         self.assertEqual(body["messages"], [{"role": "user", "content": "q"}])
 
     def test_temperature_and_num_ctx_go_to_options(self) -> None:
-        body = SuvisdevOrchestrator(model="m")._build_body("q", system="s", temperature=0, num_ctx=8192)
+        body = OllamaClient(model="m")._build_body("q", system="s", temperature=0, num_ctx=8192)
         self.assertEqual(body["options"], {"temperature": 0, "num_ctx": 8192})
         self.assertEqual(body["messages"][0], {"role": "system", "content": "s"})
 ```
@@ -169,7 +169,7 @@ async def chat(self, command):
     reply = await self._llm.generate(prompt, system=SYSTEM_PROMPT)
     return PortfolioChatAnswerDto(reply=reply.strip(), sources=tuple(dict.fromkeys(h.title for h in hits)))
 ```
-  어댑터: `ExaoneLlmAdapter(model=os.getenv("PORTFOLIO_LLM_MODEL","exaone3.5:7.8b"), keep_alive=os.getenv("PORTFOLIO_LLM_KEEP_ALIVE","5m"))`, `generate` → `asyncio.to_thread(orch.generate, prompt, system=system, temperature=0, num_ctx=8192)`, `SuvisdevOrchestratorError`→`HubRagError`(폴백이 걸리려면 필수).
+  어댑터: `ExaoneLlmAdapter(model=os.getenv("PORTFOLIO_LLM_MODEL","exaone3.5:7.8b"), keep_alive=os.getenv("PORTFOLIO_LLM_KEEP_ALIVE","5m"))`, `generate` → `asyncio.to_thread(orch.generate, prompt, system=system, temperature=0, num_ctx=8192)`, `OllamaClientError`→`HubRagError`(폴백이 걸리려면 필수).
   프로바이더: `PORTFOLIO_LLM_BACKEND`가 `gemini`면 `GeminiLlmAdapter()`, 아니면 `FallbackHubLlmAdapter(primary=ExaoneLlmAdapter(), fallback=GeminiLlmAdapter())`. 매 호출 `os.getenv`(테스트 `patch.dict`).
 - [ ] **Step 4: 스위치 테스트** (`test_portfolio_llm_backend_switch.py`) — unset→`FallbackHubLlmAdapter`, `gemini`→`GeminiLlmAdapter`, ` GEMINI `→Gemini, `unknown`→Fallback.
 - [ ] **Step 5: 통과 확인** — `python -m pytest apps/ontology/test/test_portfolio_chat_interactor.py apps/ontology/test/test_portfolio_llm_backend_switch.py -q`

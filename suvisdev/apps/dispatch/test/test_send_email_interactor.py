@@ -10,9 +10,9 @@ APPS = ROOT / "apps"
 if str(APPS) not in sys.path:
     sys.path.insert(0, str(APPS))
 
-from core.lol.suvisdev_orchestrator import (  # noqa: E402
-    SuvisdevOrchestrator,
-    SuvisdevOrchestratorError,
+from core.lol.ollama_client import (  # noqa: E402
+    OllamaClient,
+    OllamaClientError,
 )
 from dispatch.app.dtos.email_dto import EmailDto  # noqa: E402
 from dispatch.app.ports.output.dispatch_errors import DispatchError  # noqa: E402
@@ -29,7 +29,7 @@ class SendEmailInteractorTest(unittest.TestCase):
         orc_body: str = "생성된 본문",
     ) -> tuple[SendEmailInteractor, MagicMock, MagicMock, MagicMock]:
         mock_hub: MagicMock = MagicMock(spec=HubEmailOrchestrator)
-        mock_orc: MagicMock = MagicMock(spec=SuvisdevOrchestrator)
+        mock_orc: MagicMock = MagicMock(spec=OllamaClient)
         mock_orc.generate.return_value = orc_body
         mock_gmail: MagicMock = MagicMock(spec=GmailPort)
         interactor = SendEmailInteractor(gmail=mock_gmail, hub=mock_hub, orchestrator=mock_orc)
@@ -89,7 +89,7 @@ class SendEmailInteractorTest(unittest.TestCase):
         interactor, _, mock_orc, mock_gmail = self._make_interactor()
         mock_orc.generate.side_effect = [
             "생성된 본문",
-            SuvisdevOrchestratorError("타임아웃", status_code=504),
+            OllamaClientError("타임아웃", status_code=504),
         ]
 
         interactor.send(to="a@b.com", prompt="p", subject=None)
@@ -122,10 +122,10 @@ class SendEmailInteractorTest(unittest.TestCase):
         _, mock_hub, mock_orc, _ = (
             MagicMock(spec=HubEmailOrchestrator),
             MagicMock(spec=HubEmailOrchestrator),
-            MagicMock(spec=SuvisdevOrchestrator),
+            MagicMock(spec=OllamaClient),
             MagicMock(spec=GmailPort),
         )
-        mock_orc.generate.side_effect = SuvisdevOrchestratorError("타임아웃", status_code=504)
+        mock_orc.generate.side_effect = OllamaClientError("타임아웃", status_code=504)
         interactor = SendEmailInteractor(
             gmail=MagicMock(spec=GmailPort), hub=mock_hub, orchestrator=mock_orc
         )
@@ -138,8 +138,8 @@ class SendEmailInteractorTest(unittest.TestCase):
 
     def test_gmail_not_called_when_orchestrator_fails(self) -> None:
         mock_hub: MagicMock = MagicMock(spec=HubEmailOrchestrator)
-        mock_orc: MagicMock = MagicMock(spec=SuvisdevOrchestrator)
-        mock_orc.generate.side_effect = SuvisdevOrchestratorError("err", status_code=503)
+        mock_orc: MagicMock = MagicMock(spec=OllamaClient)
+        mock_orc.generate.side_effect = OllamaClientError("err", status_code=503)
         mock_gmail: MagicMock = MagicMock(spec=GmailPort)
         interactor = SendEmailInteractor(gmail=mock_gmail, hub=mock_hub, orchestrator=mock_orc)
 
