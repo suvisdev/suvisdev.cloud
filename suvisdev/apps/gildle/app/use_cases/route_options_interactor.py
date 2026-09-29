@@ -83,9 +83,19 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         recommended_kind: str,
         elevation: Elevation | None = None,
         extra_kinds: tuple[str, ...] = (),
+        via_node: str | None = None,
+        via_name: str | None = None,
     ) -> list[RouteOptionDto]:
         lookup = _lookup(edges)
-        fast = self._path_for("fast", edges, start, end, None)
+
+        def kind_path(kind: str) -> list[str]:
+            if via_node is None:
+                return self._path_for(kind, edges, start, end, shade_lookup, elevation)
+            first = self._path_for(kind, edges, start, via_node, shade_lookup, elevation)
+            second = self._path_for(kind, edges, via_node, end, shade_lookup, elevation)
+            return first + second[1:] if first and second else []
+
+        fast = kind_path("fast")
         if not fast:
             return []
         prefs = (["shade"] if shade_lookup is not None else []) + ["green"]
@@ -98,11 +108,7 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         kinds = ["fast", *prefs]
         kept: list[tuple[str, list[str], set[tuple[str, str]]]] = []
         for kind in kinds:
-            path = (
-                fast
-                if kind == "fast"
-                else self._path_for(kind, edges, start, end, shade_lookup, elevation)
-            )
+            path = fast if kind == "fast" else kind_path(kind)
             if not path:
                 continue
             keys = {_edge_key(e) for e in path_edges(lookup, path)}
@@ -112,7 +118,9 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
 
         coords = {kind: path_coordinates(lookup, path) for kind, path, _ in kept}
         places = self._search_places(coords)
-        shortest_m = _length(lookup, fast)
+        # "바로 가는 길보다 N m 더"의 기준은 들르지 않는 최단 경로
+        direct = self._path_for("fast", edges, start, end, None) if via_node else fast
+        shortest_m = _length(lookup, direct or fast)
         kinds_kept = [k for k, _, _ in kept]
         rec = recommended_kind if recommended_kind in kinds_kept else kinds_kept[0]
         out = [
@@ -125,6 +133,7 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
                 shortest_m,
                 places,
                 rec == kind,
+                via_name=via_name,
                 elevation=elevation,
             )
             for kind, path, _ in kept
@@ -315,7 +324,11 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         text = describe(kind, metrics, shortest_m)
         return RouteOptionDto(
             kind=kind,
-            label=text.label if kind != "via" else f"{via_name} 들렀다 가기",
+            label=(
+                f"{via_name} 들렀다 가기"
+                if kind == "via"
+                else (f"{text.label} · {via_name} 들러서" if via_name else text.label)
+            ),
             reason=text.reason,
             highlights=text.highlights,
             recommended=recommended,

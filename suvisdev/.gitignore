@@ -135,3 +135,6 @@ datasets/editor_reviews_state.json
 
 # SRTM 고도(09-28) — compute_node_elevation.py 산출물
 apps/gildle/data/node_elevation.json
+
+# 월별 건물 그늘 표(2026-09-29, 배치 산출물 ~20MB×12) — 노트북 로컬·hostPath 전용
+apps/gildle/data/shade_scores_[0-1][0-9].json

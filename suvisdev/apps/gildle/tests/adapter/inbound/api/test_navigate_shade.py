@@ -17,7 +17,7 @@ from gildle.adapter.inbound.api.v1 import route_router as rr
 def _reset_router_caches():
     # 모듈 전역 mtime 캐시가 테스트 간 오염되지 않게 리셋(8/26 서킷 리셋과 동일 패턴).
     rr._route_edges_cache = None
-    rr._shade_cache = None
+    rr._shade_cache.clear()
     yield
 
 

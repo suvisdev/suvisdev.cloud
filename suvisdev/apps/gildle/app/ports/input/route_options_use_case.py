@@ -22,7 +22,12 @@ class RouteOptionsUseCase(ABC):
         recommended_kind: str,
         elevation: Mapping[str, float] | None = None,
         extra_kinds: tuple[str, ...] = (),
-    ) -> list[RouteOptionDto]: ...
+        via_node: str | None = None,
+        via_name: str | None = None,
+    ) -> list[RouteOptionDto]:
+        """via_node를 주면 모든 후보(빠른·그늘·푸른…)가 그 장소를 거친다(2026-09-29 — 들를 곳을
+        고르면 성격은 따로 고를 수 있어야 한다는 사용자 지적)."""
+        ...
 
     @abstractmethod
     def via(

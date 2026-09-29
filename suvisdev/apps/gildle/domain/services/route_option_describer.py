@@ -95,6 +95,9 @@ def describe(kind: str, m: RouteOptionMetrics, shortest_m: float) -> RouteOption
             + (f"(바로 가는 길보다 {round(extra)}m 더)." if extra >= 40 else ".")
         )
 
+    if m.via_name and kind != "via":
+        parts.insert(0, f"『{m.via_name}』에 들렀다 가요.")
+
     if m.shade_ratio is not None:
         highlights.append(f"그늘 {_pct(m.shade_ratio)}%")
     highlights.append(f"나무 {_pct(m.green_ratio)}%")

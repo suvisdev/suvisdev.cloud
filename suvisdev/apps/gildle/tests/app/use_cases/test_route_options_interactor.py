@@ -248,3 +248,47 @@ def test_walk_plan_resolves_destination_category_to_nearest_place():
         **kw,
     )
     assert missing.options == [] and missing.destination_place is None
+
+
+def test_plan_via_node_makes_every_option_pass_the_place():
+    it = _interactor()
+    opts = it.plan(
+        EDGES,
+        "A",
+        "D",
+        shade_lookup=None,
+        recommended_kind="green",
+        via_node="C",
+        via_name="숲길동물병원",
+    )
+    assert opts and all("C" in o.path for o in opts)
+    assert all("숲길동물병원 들러서" in o.label for o in opts)
+    assert all("『숲길동물병원』에 들렀다 가요." in o.reason for o in opts)
+    # A-C-D뿐이라 빠른·푸른 길이 같은 경로로 합쳐진다(중복 제거) — 추천 배지는 하나
+    assert sum(o.recommended for o in opts) == 1
+
+
+def test_walk_plan_route_with_stops_routes_all_options_via_nearest_place():
+    it, _ = _with_loops()
+    plan = WalkPlanInteractor(options=it, understanding=None, places=_Places())
+    req = plan.understand(
+        "동물병원 들렀다가 갈래",
+        minutes=None,
+        distance_km=None,
+        preference=None,
+        stops=None,
+        has_end=True,
+    )
+    assert req.kind == "route" and req.stops == ("동물병원",)
+    result = plan.plan(
+        req,
+        EDGES,
+        "A",
+        "D",
+        shade_lookup=None,
+        elevation=None,
+        nearest_node=lambda c: "C",
+        start_point=Coordinate(37.5, 127.0),
+    )
+    assert result.via_place is not None and result.via_place.name == "숲길동물병원"
+    assert result.options and all("C" in o.path for o in result.options)

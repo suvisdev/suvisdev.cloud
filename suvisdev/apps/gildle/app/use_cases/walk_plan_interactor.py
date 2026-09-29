@@ -100,7 +100,15 @@ class WalkPlanInteractor(WalkPlanUseCase):
             pref = "green"  # 밤·그늘 데이터 없음 — 나무 그늘로 대신
         if pref in ("flat", "hilly") and not elevation:
             pref = "fast"
+        via: PetPlace | None = None
         if end is not None and request.kind == "route":
+            via_node = None
+            if request.stops:
+                # 들를 곳은 조건, 성격(빠른·그늘…)은 따로 고른다 — 후보 전부가 같은 장소를 거친다
+                via = self._nearest_place(start_point, request.stops[0])
+                via_node = nearest_node(via.coordinate) if via is not None else None
+                if via_node is None:
+                    via = None
             options = self._options.plan(
                 edges,
                 start,
@@ -109,6 +117,8 @@ class WalkPlanInteractor(WalkPlanUseCase):
                 recommended_kind=pref,
                 elevation=elevation,
                 extra_kinds=(pref,),
+                via_node=via_node,
+                via_name=via.name if via is not None else None,
             )
         else:
             options = self._options.loops(
@@ -128,6 +138,7 @@ class WalkPlanInteractor(WalkPlanUseCase):
             max_m=max_m,
             options=options,
             destination_place=place,
+            via_place=via,
         )
 
     def _nearest_place(self, start: Coordinate | None, category: str) -> PetPlace | None:

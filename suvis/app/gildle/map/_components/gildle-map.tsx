@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import Script from "next/script"
-import { Eraser, Loader2, LocateFixed, Repeat, Search } from "lucide-react"
+import { Eraser, Loader2, LocateFixed, Navigation, Repeat, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getSuvisSession } from "@/lib/suvis-session"
 import {
@@ -521,7 +521,11 @@ export default function GildleMap() {
     }
     walkOverlaysRef.current = overlays
     const last = walk.points[walk.points.length - 1]
-    if (last) map.setCenter(new nv.maps.LatLng(last.lat, last.lng))
+    if (last) {
+      const ll = new nv.maps.LatLng(last.lat, last.lng)
+      const bounds = map.getBounds() as naver.maps.LatLngBounds
+      if (!bounds.hasLatLng(ll)) map.panTo(ll) // 화면 밖으로 나갔을 때만 따라간다
+    }
   }, [walk.status, walk.points, routeCoords, sdkReady])
 
   // 추적 중엔 경로 오버레이를 숨긴다(점선 계획 경로가 대신 보인다).
@@ -569,6 +573,26 @@ export default function GildleMap() {
         if (end) void computeRoute(p, end, mode)
         else setOptions([])
       },
+      () => setError("현재 위치를 가져오지 못했어요. 브라우저 위치 권한을 확인해 주세요.")
+    )
+  }
+
+  // 내 위치로 화면만 옮긴다(출발지·경로는 그대로) — 산책 추적 중엔 마지막 GPS 점으로.
+  const goToMe = () => {
+    const nv = getNaver()
+    const map = mapRef.current
+    if (!nv || !map) return
+    const last = walk.points[walk.points.length - 1]
+    if (last) {
+      map.panTo(new nv.maps.LatLng(last.lat, last.lng))
+      return
+    }
+    if (!navigator.geolocation) {
+      setError("이 브라우저는 위치 정보를 지원하지 않아요.")
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => map.morph(new nv.maps.LatLng(pos.coords.latitude, pos.coords.longitude), 16),
       () => setError("현재 위치를 가져오지 못했어요. 브라우저 위치 권한을 확인해 주세요.")
     )
   }
@@ -642,6 +666,18 @@ export default function GildleMap() {
     }
     setError(null)
     setWalk({ ...WALK_IDLE, status: "tracking", startedAt: Date.now() })
+    // 시작하자마자 경로와 내 위치를 한 화면에 — 내 위치로만 옮기면 경로가 화면 밖으로 나간다(09-29 실사용)
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const nv = getNaver()
+      const map = mapRef.current
+      if (!nv || !map) return
+      const bounds = new nv.maps.LatLngBounds(
+        new nv.maps.LatLng(pos.coords.latitude, pos.coords.longitude),
+        new nv.maps.LatLng(pos.coords.latitude, pos.coords.longitude)
+      )
+      routeCoords.forEach((p) => bounds.extend(new nv.maps.LatLng(p.lat, p.lng)))
+      map.fitBounds(bounds, { top: 60, right: 60, bottom: 200, left: 60 })
+    })
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
@@ -767,6 +803,9 @@ export default function GildleMap() {
         </div>
 
         <div className="absolute top-3 right-3 z-10 flex flex-col gap-2">
+          <Fab label="내 위치로" onClick={goToMe}>
+            <Navigation className="h-4 w-4" />
+          </Fab>
           <Fab label="현재 위치를 출발지로" onClick={locateMe} disabled={tracking}>
             <LocateFixed className="h-4 w-4" />
           </Fab>
@@ -1052,6 +1091,7 @@ function PlanSummary({ plan }: { plan: WalkPlanResult }) {
   const u = plan.understood
   const parts = [
     plan.destination_place ? `가장 가까운 ${plan.destination_place.name}까지` : null,
+    plan.via_place ? `${plan.via_place.name} 들러서` : null,
     u.minutes ? `${u.minutes}분 안에` : null,
     u.distance_km ? `${u.distance_km}km` : null,
     `목표 ${km(plan.target_m)}`,

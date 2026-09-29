@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -225,22 +225,41 @@ def _load_scored_edges() -> list[RouteEdge]:
     return edges
 
 
-_shade_cache: dict[str, Any] | None = None
-_shade_mtime: float = 0.0
+_shade_cache: dict[Path, tuple[float, dict[str, Any]]] = {}
 
 
-def _load_shade_scores() -> dict[str, Any] | None:
-    """shade_scores.json 로더 — scored_edges와 동일한 mtime 캐시 패턴."""
-    global _shade_cache, _shade_mtime  # noqa: PLW0603
-    path = Path(os.getenv("GILDLE_SHADE_SCORES", str(_DATA_DIR / "shade_scores.json")))
-    if not path.exists():
+def _month_distance(a: int, b: int) -> int:
+    d = abs(a - b)
+    return min(d, 12 - d)
+
+
+def _shade_path(today: date) -> Path | None:
+    """오늘 날짜에 가장 가까운 달의 표(shade_scores_MM.json, 2026-09-29 월별화).
+    환경변수 GILDLE_SHADE_SCORES가 최우선, 월별 표가 하나도 없으면 구 shade_scores.json(8월 1일)."""
+    env = os.getenv("GILDLE_SHADE_SCORES")
+    if env:
+        return Path(env) if Path(env).exists() else None
+    monthly = {int(p.stem[-2:]): p for p in _DATA_DIR.glob("shade_scores_[0-1][0-9].json")}
+    if monthly:
+        return monthly[min(monthly, key=lambda m: (_month_distance(m, today.month), m))]
+    legacy = _DATA_DIR / "shade_scores.json"
+    return legacy if legacy.exists() else None
+
+
+def _load_shade_scores(today: date | None = None) -> dict[str, Any] | None:
+    """그늘 표 로더 — 경로별 mtime 캐시(scored_edges와 같은 패턴). 반환 dict에 `_key`(경로·mtime)를
+    붙여 슬롯 lookup 캐시가 어느 표에서 나왔는지 구분한다."""
+    path = _shade_path(today or datetime.now(_KST).date())
+    if path is None:
         return None
     mtime = path.stat().st_mtime
-    if _shade_cache is not None and mtime == _shade_mtime:
-        return _shade_cache
-    _shade_cache = json.loads(path.read_text(encoding="utf-8"))
-    _shade_mtime = mtime
-    return _shade_cache
+    hit = _shade_cache.get(path)
+    if hit is not None and hit[0] == mtime:
+        return hit[1]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["_key"] = (str(path), mtime)
+    _shade_cache[path] = (mtime, data)
+    return data
 
 
 _KST = timezone(timedelta(hours=9))
@@ -306,29 +325,30 @@ class _FullShadeLookup(dict[str, Any]):
         return 1.0
 
 
-_shade_lookup_by_slot: dict[int, dict[tuple[str, str], float]] = {}
-_shade_lookup_src_mtime: float = 0.0
+_shade_lookup_by_slot: dict[tuple[str, float, int], dict[tuple[str, str], float]] = {}
 
 
-def _build_shade_lookup(slot: int) -> dict[tuple[str, str], float] | None:
-    """슬롯별 lookup을 캐시한다 — 233k 엔트리 dict를 요청마다 재구축하지 않게
-    (2026-09-11 리뷰). 원본 shade_scores.json이 바뀌면(mtime) 전체 무효화."""
-    global _shade_lookup_src_mtime  # noqa: PLW0603
-    data = _load_shade_scores()
+def _build_shade_lookup(
+    slot: int, data: dict[str, Any] | None = None
+) -> dict[tuple[str, str], float] | None:
+    """(표, 슬롯)별 lookup을 캐시한다 — 233k 엔트리 dict를 요청마다 재구축하지 않게
+    (2026-09-11 리뷰). 같은 표가 갱신되면(mtime) 그 표의 항목만 버린다."""
+    data = data if data is not None else _load_shade_scores()
     if data is None:
         return None
-    if _shade_mtime != _shade_lookup_src_mtime:
-        _shade_lookup_by_slot.clear()
-        _shade_lookup_src_mtime = _shade_mtime
-    cached = _shade_lookup_by_slot.get(slot)
+    path, mtime = data["_key"]
+    key = (path, mtime, slot)
+    cached = _shade_lookup_by_slot.get(key)
     if cached is not None:
         return cached
+    for old in [k for k in _shade_lookup_by_slot if k[0] == path and k[1] != mtime]:
+        del _shade_lookup_by_slot[old]
     idx = data["slots"].index(slot)
     lookup: dict[tuple[str, str], float] = {}
-    for key, pcts in data["edges"].items():
-        from_node, _, to_node = key.partition("-")
+    for edge_key, pcts in data["edges"].items():
+        from_node, _, to_node = edge_key.partition("-")
         lookup[(from_node, to_node)] = pcts[idx] / 100.0
-    _shade_lookup_by_slot[slot] = lookup
+    _shade_lookup_by_slot[key] = lookup
     return lookup
 
 
@@ -383,7 +403,7 @@ def _plan_route(
             night = True
             shade_lookup = _FullShadeLookup()  # type: ignore[assignment]
         elif shade_data is not None:
-            shade_lookup = _build_shade_lookup(slot)
+            shade_lookup = _build_shade_lookup(slot, shade_data)
 
     if max_detour_ratio is None and season is SeasonMode.SPRING_AUTUMN:
         # 봄가을 수관 감면(최대 60%, 09-28)은 상한이 없으면 2.5배까지 돌 수 있다 — 최단 × 1.5로 묶는다.
@@ -479,7 +499,7 @@ def plan_loops(
             night = True
             shade_lookup = _FullShadeLookup()  # type: ignore[assignment]
         elif shade_data is not None:
-            shade_lookup = _build_shade_lookup(slot)
+            shade_lookup = _build_shade_lookup(slot, shade_data)
 
     candidates = use_case.execute(
         edges,
@@ -600,7 +620,7 @@ def _day_shade_lookup(departure_time: str | None) -> tuple[Any, bool]:
     slot = _resolve_slot(departure_time, slots)
     if slot is None:
         return None, True
-    return (_build_shade_lookup(slot) if shade_data is not None else None), False
+    return (_build_shade_lookup(slot, shade_data) if shade_data is not None else None), False
 
 
 def _option_json(o: RouteOptionDto) -> dict[str, Any]:
@@ -759,6 +779,7 @@ def walk_plan(
     )
     u = result.understood
     p = result.destination_place
+    v = result.via_place
     return {
         "understood": {
             "kind": u.kind,
@@ -777,6 +798,15 @@ def walk_plan(
             "address": p.address,
         }
         if p is not None
+        else None,
+        "via_place": {
+            "name": v.name,
+            "category": v.category,
+            "lat": v.coordinate.latitude,
+            "lng": v.coordinate.longitude,
+            "address": v.address,
+        }
+        if v is not None
         else None,
         "target_m": round(result.target_m),
         "max_m": round(result.max_m) if result.max_m else None,

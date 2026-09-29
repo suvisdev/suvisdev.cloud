@@ -1,10 +1,14 @@
 """엣지별×시간대별 그늘 비율 사전 계산 배치.
 
 사용법(노트북 — 서울 전역 233k 엣지 × 13슬롯, 수십 분~수 시간, suvisdev/에서):
-    PYTHONPATH=apps python -m gildle.scripts.compute_shade_scores
-    PYTHONPATH=apps python -m gildle.scripts.compute_shade_scores --slots 8 12 16
+    PYTHONPATH=apps python -m gildle.scripts.compute_shade_scores                 # 2026-08-01 → shade_scores.json
+    PYTHONPATH=apps python -m gildle.scripts.compute_shade_scores --date 2026-12-15  # → shade_scores_12.json
+    for m in 01 02 03 04 05 06 07 08 09 10 11 12; do PYTHONPATH=apps python -m gildle.scripts.compute_shade_scores --date 2026-$m-15; done
 
-원리: 대표일(2026-08-01) 각 정시 슬롯의 태양 고도·방위각으로 건물마다
+월별 표(2026-09-29): 태양 고도가 여름 74°·겨울 29°라 그림자 길이가 6배 넘게 달라진다. 매달 15일 대표일로
+12벌을 만들어 두면 라우터가 오늘 날짜에 가장 가까운 달의 표를 고른다(밤 판정은 그날 실제 태양 고도).
+
+원리: 대표일 각 정시 슬롯의 태양 고도·방위각으로 건물마다
 그림자 폴리곤(풋프린트 ∪ 그림자 방향 평행이동본의 convex hull)을 만들고,
 STRtree로 엣지 선분과 교차 길이 비율을 구한다. 나무 그늘은
 min(1, 건물비율 + 0.6×tree_score)로 결합. 산출은 0~100 정수 퍼센트.
@@ -31,7 +35,7 @@ from gildle.domain.services.sun_position import sun_altitude_azimuth
 logger = logging.getLogger(__name__)
 
 _DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-_DATE = (2026, 8, 1)
+_DATE = (2026, 8, 1)  # --date 미지정 시(구 단일 표 호환)
 _SLOTS = list(range(7, 20))  # 07..19 KST
 _SEOUL_CENTER = (37.5665, 126.9780)
 _TREE_SHADE_WEIGHT = 0.6
@@ -175,7 +179,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--edges", default=str(_DATA_DIR / "scored_edges.json"))
     parser.add_argument("--buildings", default=str(_DATA_DIR / "seoul_buildings_osm.json"))
-    parser.add_argument("--out", default=str(_DATA_DIR / "shade_scores.json"))
+    parser.add_argument(
+        "--date", default=None, help="대표일 YYYY-MM-DD. 주면 기본 산출물이 shade_scores_MM.json"
+    )
+    parser.add_argument("--out", default=None, help="산출 경로(기본: --date 유무에 따라 결정)")
     parser.add_argument("--slots", nargs="*", type=int, default=_SLOTS)
     parser.add_argument(
         "--height-model-pred",
@@ -183,6 +190,14 @@ def main() -> None:
         help="train_height_model.py --apply 산출물(결측 건물 index→높이). 없으면 격자 중앙값만 쓴다",
     )
     args = parser.parse_args()
+    date = tuple(int(x) for x in args.date.split("-")) if args.date else _DATE
+    out_path = (
+        Path(args.out)
+        if args.out
+        else (
+            _DATA_DIR / (f"shade_scores_{date[1]:02d}.json" if args.date else "shade_scores.json")
+        )
+    )
 
     edges = json.loads(Path(args.edges).read_text(encoding="utf-8"))
     buildings = json.loads(Path(args.buildings).read_text(encoding="utf-8"))
@@ -203,16 +218,20 @@ def main() -> None:
     per_edge: dict[str, list[int]] = {}
     for slot in args.slots:
         kst = timezone(timedelta(hours=9))
-        dt_utc = datetime(*_DATE, slot, 0, tzinfo=kst)  # KST — 함수가 UTC로 변환
+        dt_utc = datetime(*date, slot, 0, tzinfo=kst)  # KST — 함수가 UTC로 변환
         alt, az = sun_altitude_azimuth(*_SEOUL_CENTER, dt_utc)
         logger.info("슬롯 %02d시 — 고도 %.1f° 방위 %.1f°", slot, alt, az)
         fractions = compute_slot_fractions(edges, buildings, alt, az)
         for key, pct in fractions.items():
             per_edge.setdefault(key, []).append(pct)
 
-    out = {"date": "2026-08-01", "slots": args.slots, "edges": per_edge}
-    Path(args.out).write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
-    logger.info("저장 완료: %s (엣지 %d)", args.out, len(per_edge))
+    out = {
+        "date": f"{date[0]:04d}-{date[1]:02d}-{date[2]:02d}",
+        "slots": args.slots,
+        "edges": per_edge,
+    }
+    out_path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    logger.info("저장 완료: %s (엣지 %d)", out_path, len(per_edge))
 
 
 if __name__ == "__main__":

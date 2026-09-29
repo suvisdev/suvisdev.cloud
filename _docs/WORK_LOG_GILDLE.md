@@ -60,6 +60,28 @@
   "용품점으로 가는 길 그늘 많은 쪽으로"→route/용품점/shade, "펫샵 들렀다가 한 시간 돌고 올게"→loop/stops=펫샵.
   군자역 기준 가장 가까운 동물병원 = 나래동물병원 246m. 애견카페는 3km 안에 카카오 결과 없음(정직하게 빈 결과).
 
+- **[오후] 건물 그늘 표 월별화**(사용자 질문 "일출·일몰 그때그때 다른데 고려했나?" → 밤 판정은 그날 실제 태양 고도로
+  이미 실시간, **그림자 모양은 2026-08-01 하나로 고정**이었음 — 정오 고도 여름 74°·겨울 29°라 그림자 길이 6배 차이).
+  요청마다 재계산은 건물 데이터 356MB(파드 메모리)·수 초 지연이라 배제, **매달 15일 대표일 12벌 사전 계산**으로:
+  - `compute_shade_scores.py --date YYYY-MM-DD` → `shade_scores_MM.json`(미지정 시 구 `shade_scores.json` 그대로).
+  - 라우터 `_shade_path(today)`: `GILDLE_SHADE_SCORES` 환경변수 > 오늘 달과 원형 거리가 가장 가까운 월별 표 > 구 표.
+    로더는 경로별 mtime 캐시, 슬롯 lookup 캐시는 (경로·mtime·슬롯) 키 — 12월 표의 80%가 8월 값과 섞이지 않게(테스트).
+  - 테스트 `tests/adapter/test_shade_month_select.py` 2건(최근접 달·원형 거리·구 표 폴백·env 우선·표별 캐시 분리).
+  - 배치 실행: `.venv`에만 shapely(2.1.2)가 있음. 12월부터 `nice -n 19`로 백그라운드 시작(12:38) — 한 달 소요를 재서
+    나머지 11개월 야간 실행 계획. 표가 생기면 코드 변경 없이 즉시 반영(파일 glob).
+
+- **[오후 2] 실사용 지적 3건 수정**(사용자 스크린샷: 산책 시작 후 자양역 기본 지도만 보임 — 출구 번호 ①②③④⑦과
+  7호선 선을 우리 안내로 오인할 만했음): ① 산책 시작 시 지도가 GPS 위치로 **강제 재중심**돼 계획 경로가 화면 밖으로
+  → 시작 때 경로+내 위치를 `fitBounds`, 이후엔 내 위치가 화면 밖일 때만 `panTo`. ② "내 위치로" FAB 신설(추적 중에도 동작,
+  출발지는 안 바꿈 — 기존 FAB는 "현재 위치를 출발지로"). ③ **들를 곳과 경로 성격을 따로 고르기**: 지금까지 A→B 후보
+  (빠른·그늘·푸른)는 stops를 무시했고 `/routes/via`는 후보 1개였음. `RouteOptionsUseCase.plan(via_node, via_name)` —
+  via를 주면 **모든 후보가 그 장소를 거치고** 성격별로 계산(출발→장소, 장소→도착을 같은 가중치로 이어 붙임, 중복
+  제거, "바로 가는 길보다 N m 더"는 들르지 않는 최단 기준). 라벨 "그늘 많은 길 · ○○ 들러서", 이유 첫 문장
+  "『○○』에 들렀다 가요." `WalkPlanInteractor`: route + stops면 첫 종류의 가장 가까운 장소를 via로(`via_place` 응답).
+  루프는 종전대로 들를 곳 지나는 루프 우선. 웹 요약에 "○○ 들러서".
+  테스트 +2(모든 후보가 via 통과·라벨·추천 1개 / 산책 계획 stops→가장 가까운 병원 via). gildle 전체 **246 passed**.
+- 옛 전역(`rr._shade_cache = None`)을 직접 초기화하던 `test_navigate_shade.py` 픽스처를 월별 로더(dict)에 맞게 `.clear()`로.
+
 ### 오류·막힌 점
 - 로컬 셸에 pytest·ruff·pnpm이 없음 — pytest는 `suvisdev-app:latest` 이미지 안(`docker run … python -m pytest`),
   ruff는 `~/.local/bin/uvx ruff`, 웹은 corepack이 node 22.22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`이라

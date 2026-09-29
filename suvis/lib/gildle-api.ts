@@ -149,6 +149,14 @@ export type WalkPlanResult = {
     lng: number
     address: string
   } | null
+  /** route에서 들를 곳(stops)이 있으면 모든 후보가 거치는 장소(2026-09-29). */
+  via_place: {
+    name: string
+    category: WalkStopCategory
+    lat: number
+    lng: number
+    address: string
+  } | null
   target_m: number
   max_m: number | null
   options: RouteOption[]
