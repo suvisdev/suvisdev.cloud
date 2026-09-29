@@ -55,6 +55,10 @@
   cloudflared·neo4j 정의가 남아 있어 `docker compose up -d` 한 번이면 k3s와 백엔드·터널이 이중 기동될 수 있었다.
   원본 `~/docker-compose.yaml.bak-20260929`. `compose config --services`=db·redis, `compose ps`가 기존 컨테이너를
   그대로 인식(볼륨 `suvisdev_db_data` 동일) 확인.
+- **배포마다 터널 ~10초 530 수정**(`k8s/deploy.sh`): 오늘 배포 직후 api가 530을 냈다. 원인은 cloudflared.yaml
+  (데스크톱 보호용 replicas 0)을 그대로 apply → 파드 종료 → `scale --replicas=1`로 재생성하는 순서. `--external-db`
+  일 때는 `replicas: 0`을 1로 sed 치환해 apply하도록 변경(치환 대상 줄이 없으면 즉시 실패), scale 줄 삭제. 데스크톱은
+  종전대로 0. 검증: `kubectl diff` 무변경 → 배포 중 1초 간격 프로브 **40/40 200**, 터널 파드 이름 동일(재시작 없음).
 - k3s의 `service/nginx`는 nginx가 아니라 Traefik을 가리키는 ExternalName 별칭(`nginx-alias.yaml`) — Cloudflare
   대시보드 라우트 `http://nginx:80`을 안 바꾸려고 둔 것. 실제 nginx 프로세스는 어디에도 없다.
 

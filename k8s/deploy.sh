@@ -84,17 +84,23 @@ sed "s#__REPO_ROOT__#${REPO_ROOT}#g; s#__HF_CACHE__#${HF_CACHE}#g" backend.yaml 
 
 kubectl apply \
   -f auth.yaml \
-  -f pgadmin.yaml \
-  -f cloudflared.yaml
+  -f pgadmin.yaml
+
+# cloudflared.yaml은 데스크톱 보호용 replicas:0이다. 프로덕션(--external-db)은 처음부터 1로
+# 치환해 apply한다 — 0으로 apply한 뒤 scale 1로 되살리던 방식은 배포마다 터널 파드가 죽었다
+# 새로 떠 api./auth.suvisdev.cloud가 ~10초 530이었다(2026-09-29 실측). 그 전엔 scale을 잊으면
+# 530이 계속됐다(2026-09-09 사고).
+if [ "$EXTERNAL_DB" = 1 ]; then
+  grep -q '^  replicas: 0$' cloudflared.yaml || { echo "cloudflared.yaml replicas 줄을 못 찾음" >&2; exit 1; }
+  sed 's/^  replicas: 0$/  replicas: 1/' cloudflared.yaml | kubectl apply -f -
+else
+  kubectl apply -f cloudflared.yaml
+fi
 
 # ingress.yaml(Traefik, k3s 내장)은 프로덕션 라우팅용 — 로컬 개발은 ServiceLB 포트로
 # 충분해 --external-db(노트북)일 때만 apply한다.
 if [ "$EXTERNAL_DB" = 1 ]; then
   kubectl apply -f ingress.yaml
-  # cloudflared.yaml은 데스크톱 보호용 replicas:0이라, 위 apply가 노트북 터널
-  # 커넥터를 0으로 덮어 api./auth.suvisdev.cloud가 530이 된다(2026-09-09 사고).
-  # 프로덕션(--external-db)에서만 1로 복원한다(README 수동 scale 단계 자동화).
-  kubectl -n "$NS" scale deploy/cloudflared --replicas=1
 fi
 
 if [ "$BUILD" = 1 ]; then

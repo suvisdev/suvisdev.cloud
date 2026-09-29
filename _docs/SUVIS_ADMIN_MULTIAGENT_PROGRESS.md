@@ -447,7 +447,8 @@ http://127.0.0.1:31386`.
   2단계 redis 이관, 3단계 db(pgvector)는 밖에 둬도 무방(`k8s/README.md`).
   ~~도커 backend·auth·nginx 롤백용 보존~~ **09-29 정리 완료** — backend·auth 컨테이너는 이미 없었고 nginx 컨테이너·
   이미지 삭제, 노트북 `docker-compose.yaml`(untracked)을 db·redis만 남기게 축소(원본 `~/docker-compose.yaml.bak-20260929`).
-  롤백은 이제 `kubectl rollout undo`. 배포는
+  롤백은 이제 `kubectl rollout undo`. **09-29 배포 중 터널 530(~10초) 제거** — `--external-db`는 cloudflared를
+  replicas 1로 치환 apply(프로브 40/40 200). 배포는
   `./k8s/deploy.sh --external-db [--build]`.
 - **mova만 백엔드 `/api` prefix 없이 마운트됨(08-04)**: 다른 앱은 전부
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
