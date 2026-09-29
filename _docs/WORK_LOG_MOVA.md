@@ -135,6 +135,15 @@
     끝나도 단서가 있으면 이 경로. v10 데이터 항목: 도구 `recommend_for_me`·`similar_to`.
   - 검증: 인증 의존성 오버라이드 TestClient로 본인 계정(id 1) 3문장 실측 후 생성 행 삭제. 테스트 439 passed. 프로브 컨테이너에선
     `host.docker.internal`이 안 풀려 LoRA 대신 Gemini 폴백(503) — 프로브는 `LORA_SERVER_URL=http://127.0.0.1:8200`으로.
+  - 배포(`c8afb76`, 16:18) 후 운영 확인: "기생충 같은 영화" → similar(하녀·길복순·택시운전사), "타짜 요즘 개봉한거" → 벨제붑의 노래 찾음.
+- (13) **[저녁] v10 판단 데이터·노트북 준비**(사용자 결정: 기능 순서 1 채팅 봤어요·별점 → 2 취향 프로필·근거 → 5 프랜차이즈
+  최신작 → 3 기록 되짚기 → 4 동행 조건, **v10 학습 먼저**). 도구 4개 추가: `recommend_for_me`·`similar_to`·`mark_watched
+  (title, rating)`·`taste_profile`. 패턴 6개(rec_for_me·similar_to·mark_watched·taste_profile·**referent_recent**(두 작품 뒤
+  지시어는 최근 것)·**cast_particle**("데자뷰는 누가 나오지")) + 규칙 3줄(조건 있으면 recommend_movies, 날짜 후속 date,
+  시리즈명 부제 완성 금지). train 1,448·val 160·eval **75**(v10 신규 9). **프롬프트는 `agent_prompt_v10.py`로 분리** —
+  서빙 `agent_prompt.py`(v9)를 먼저 바꾸면 v9 모델과 분포가 어긋나므로 v10 합격 배포 때 옮긴다(생성기 `AGENT_PROMPT_FILE`).
+  기준선(GGUF, 75): **v9 71**(harness 45/45·live 14·v10 8/9 — v10 프롬프트의 예시만으로 새 도구를 8/9 고름) · 7.8B 69 · 2.4B 59.
+  합격선 72 + live 14 + v10 9/9 + 형식 0. 바탕화면 `mova/FT/agent-v10/`. 코랩 실행은 사용자.
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini

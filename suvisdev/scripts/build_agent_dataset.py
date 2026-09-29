@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import random
 import re
 import sys
@@ -33,9 +34,11 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 sys.path.insert(0, str(_ROOT / "apps"))  # agent_prompt.py가 허브 action_protocol을 import한다
 import build_understanding_dataset as U  # noqa: E402, N812 — 어휘·조사·대화 템플릿 재사용
 
-_spec = importlib.util.spec_from_file_location(
-    "agent_prompt", _ROOT / "apps/mova/adapter/outbound/llm/agent_prompt.py"
+# v10(2026-09-29 저녁): 학습용 프롬프트는 agent_prompt_v10.py — 서빙(agent_prompt.py, v9)과 분리. 합격 시 파일을 옮긴다.
+_PROMPT_FILE = (
+    _ROOT / "apps/mova/adapter/outbound/llm" / os.getenv("AGENT_PROMPT_FILE", "agent_prompt_v10.py")
 )
+_spec = importlib.util.spec_from_file_location("agent_prompt", _PROMPT_FILE)
 AP = importlib.util.module_from_spec(_spec)
 assert _spec.loader is not None
 _spec.loader.exec_module(AP)
@@ -392,6 +395,153 @@ def p_compound(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
     return [], msg, call("showtimes", title=t)
 
 
+# --- v10 패턴(2026-09-29 저녁): 취향·유사·봤어요·취향 요약 + 09-29 운영 약점 ---------------------------
+_RATINGS = ["3", "3.5", "4", "4.5", "5"]
+
+
+def p_rec_for_me(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    g = rng.choice(U.GENRES)
+    forms = [
+        ("내 취향에 맞는 영화 추천해줘", "내 취향"),
+        ("나한테 맞는 거 골라줘", "내 취향"),
+        ("내가 본 영화 기준으로 추천해줘", "내 취향"),
+        ("내 별점 취향대로 추천", "내 취향"),
+        ("추천해줘", "내 취향"),
+        ("영화 추천해줘", "내 취향"),
+        ("뭐 볼까?", "내 취향"),
+        ("오늘 뭐 보지", "내 취향"),
+        ("볼 거 추천 좀", "내 취향"),
+        (f"내 취향으로 {g} 영화 골라줘", g),
+        (f"나한테 맞는 {g} 영화", g),
+    ]
+    msg, q = rng.choice(forms)
+    hist = []
+    if rng.random() < 0.3:
+        hist = [
+            {"role": "user", "content": f"{t} 어때"},
+            {"role": "assistant", "content": U.eval_reply(t)},
+        ]
+    return hist, msg + U.ending(rng, ("", "", "?", "!")), call("recommend_for_me", query=q)
+
+
+def p_similar_to(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    if rng.random() < 0.3:
+        hist = [
+            {"role": "user", "content": f"{rng.choice(U.GENRES)} 영화 하나만 추천해줘"},
+            {"role": "assistant", "content": U.rec_reply([t], U._years(rng, 1))},
+        ]
+        msg = rng.choice(
+            ["그거 같은 영화 더 없어?", "그 영화랑 비슷한 거 추천해줘", "이거 느낌의 작품 더"]
+        )
+    else:
+        hist = []
+        msg = rng.choice(
+            [
+                f"{t} 같은 영화 추천해줘",
+                f"{t}{'이랑' if U._has_batchim(t) else '랑'} 비슷한 거 있어?",
+                f"{t} 느낌의 작품 없을까",
+                f"{t}처럼 재밌는 영화",
+                f"{t}{'이랑' if U._has_batchim(t) else '랑'} 비슷한 영화 추천",
+            ]
+        )
+    return hist, msg, call("similar_to", title=t)
+
+
+def p_mark_watched(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    r = rng.choice(_RATINGS)
+    if rng.random() < 0.5:
+        hist = [
+            {
+                "role": "user",
+                "content": rng.choice(
+                    [f"{t} 어때", f"{rng.choice(U.GENRES)} 영화 하나만 추천해줘"]
+                ),
+            },
+            {
+                "role": "assistant",
+                "content": rng.choice([U.eval_reply(t), U.rec_reply([t], U._years(rng, 1))]),
+            },
+        ]
+        forms = [
+            ("그거 봤어", None),
+            (f"그거 봤어, {r}점", r),
+            (f"봤어 {r}점", r),
+            ("그 영화 봤어요 표시해줘", None),
+            (f"이미 봤는데 {r}점 줄래", r),
+        ]
+    else:
+        hist = []
+        forms = [
+            (f"{t} 봤어", None),
+            (f"{t} 봤어요 표시해줘", None),
+            (f"{t} 봤는데 {r}점", r),
+            (f"{t} 별점 {r}", r),
+            (f"{josa(t, '은는')} 봤어. {r}점 정도", r),
+        ]
+    msg, rating = rng.choice(forms)
+    return hist, msg, call("mark_watched", title=t, rating=rating)
+
+
+def p_taste_profile(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    head = rng.choice(["", "", "음 ", "근데 ", "그럼 ", "혹시 "])
+    body = rng.choice(
+        [
+            "내 취향이 뭐야",
+            "나 어떤 영화 좋아해",
+            "내가 높게 준 영화 뭐야",
+            "내 별점 기준으로 취향 알려줘",
+            "나 취향 분석해줘",
+            "내가 본 영화들 보면 무슨 장르 좋아하는 것 같아",
+            "내 리뷰 보고 취향 정리해줘",
+            "내가 좋아하는 장르가 뭐지",
+            "나는 어떤 영화 취향이야",
+            "내 취향 요약해줘",
+            "내가 별점 제일 높게 준 게 뭐야",
+        ]
+    )
+    return (
+        [],
+        (head + body + U.ending(rng, ("", "?", "??", "요", "!"))).strip(),
+        call("taste_profile"),
+    )
+
+
+def p_referent_recent(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    """두 작품이 나왔으면 지시어는 뒤의 것(09-29 운영: 2턴 전 데자뷰를 이음)."""
+    a, b = rng.sample(ctx["titles"], 2)
+    r = rng.choice(U.REGIONS)
+    hist = [
+        {"role": "user", "content": f"{a} 어때"},
+        {"role": "assistant", "content": U.eval_reply(a)},
+        {"role": "user", "content": f"{b} 어때"},
+        {"role": "assistant", "content": U.eval_reply(b)},
+    ]
+    msg, g = rng.choice(
+        [
+            ("예매 할 수 있는 곳 있나", call("showtimes", title=b)),
+            (f"그거 {r}에서 볼 수 있어?", call("showtimes", title=b, region=r)),
+            ("그거 어디서 봐?", call("where_to_watch", title=b)),
+            ("누가 나와?", call("get_movie_details", title=b)),
+            ("그거 봤어", call("mark_watched", title=b)),
+        ]
+    )
+    return hist, msg, g
+
+
+def p_cast_particle(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    """조사가 붙은 제목("데자뷰는 누가 나오지") — 발화 전체를 title에 넣지 않게."""
+    msg = rng.choice(
+        [
+            f"{josa(t, '은는')} 누가 나오지",
+            f"{josa(t, '은는')} 누가 나와?",
+            f"{josa(t, '은는')} 어디서 볼 수 있지",
+            f"{josa(t, '은는')} 어떤 영화야",
+        ]
+    )
+    name = "where_to_watch" if "어디서" in msg else "get_movie_details"
+    return [], msg, call(name, title=t)
+
+
 # --- 2단계 패턴: 도구 결과가 있을 때 -----------------------------------------------------------
 
 
@@ -474,6 +624,13 @@ PATTERNS: list[tuple[str, float]] = [
     ("final_after", 0.08),
     ("franchise_two_step", 0.03),
     ("need_region_then_final", 0.02),
+    # v10
+    ("rec_for_me", 0.05),
+    ("similar_to", 0.05),
+    ("mark_watched", 0.05),
+    ("taste_profile", 0.02),
+    ("referent_recent", 0.04),
+    ("cast_particle", 0.03),
 ]
 GENS = {name: globals()["p_" + name] for name, _ in PATTERNS}
 josa = U.josa
@@ -617,6 +774,31 @@ _CONV41: list[tuple[str, str, Any]] = [
 ]
 
 
+_INCEPTION_CARD = "[추천 카드] 1.『인셉션』(2010)\n꿈속의 꿈을 파고드는 SF 스릴러예요."
+_V10_EVAL: list[tuple[list[dict[str, str]], str, Any]] = [
+    ([], "내 취향에 맞는 영화 추천해줘", call("recommend_for_me", query="내 취향")),
+    ([], "추천해줘", call("recommend_for_me", query="내 취향")),
+    ([], "기생충 같은 영화 추천해줘", call("similar_to", title="기생충")),
+    ([], "인셉션이랑 비슷한 거 있어?", call("similar_to", title="인셉션")),
+    (
+        [
+            {"role": "user", "content": "SF 영화 하나만 추천해줘"},
+            {"role": "assistant", "content": _INCEPTION_CARD},
+        ],
+        "그거 봤어, 4점",
+        call("mark_watched", title="인셉션", rating="4"),
+    ),
+    ([], "인터스텔라 봤어", call("mark_watched", title="인터스텔라")),
+    ([], "내 취향이 뭐야", call("taste_profile")),
+    ([], "데자뷰는 누가 나오지", call("get_movie_details", title="데자뷰")),
+    (
+        [],
+        "비 오는 날 어울리는 영화",
+        call("recommend_movies", query="비 오는 날 어울리는"),
+    ),  # 조건 있으면 여전히 recommend_movies
+]
+
+
 def _eval_rows() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     multi = U._ast_eval_module_lists("eval_chat_multiturn", "SCENES")
@@ -638,6 +820,8 @@ def _eval_rows() -> list[dict[str, Any]]:
         rows.append(_row(list(hist), msg, g, [], f"live:conv41:{i + 1}:{msg[:12]}"))
         hist += [{"role": "user", "content": msg}, {"role": "assistant", "content": reply}]
         hist = hist[-8:]
+    for i, (h, msg, g) in enumerate(_V10_EVAL):
+        rows.append(_row(h, msg, g, [], f"v10:{i + 1}:{msg[:12]}"))
     for trace, h, msg, g in U._SHADOW_EVAL:
         name = (
             "recommend_movies"
