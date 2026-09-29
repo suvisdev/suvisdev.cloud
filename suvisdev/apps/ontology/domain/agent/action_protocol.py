@@ -102,6 +102,14 @@ def normalize(text: str | None) -> str:
 
 
 def is_grounded(value: str, context: str) -> bool:
-    """인자 값이 발화·대화·도구 결과 어딘가에 실제로 나오는가(제목·지역 창작 방지)."""
+    """인자 값이 발화·대화·도구 결과 어딘가에 실제로 나오는가(제목·지역 창작 방지).
+
+    "타짜: 벨제붑의 노래 (2026)"처럼 대화엔 "타짜"만 있는데 모델이 부제를 완성한 경우(09-29 운영 실측)는
+    앞부분(':'·'-' 앞, 2자 이상)이 대화에 있으면 통과시킨다 — 완성이 틀렸는지는 카탈로그 검증(도구)이 가린다.
+    "탑건: 매버릭"처럼 앞부분조차 대화에 없으면 여전히 막힌다."""
     v = normalize(value)
-    return not v or v in context
+    if not v or v in context:
+        return True
+    head = re.split(r"[:\-]", value, maxsplit=1)[0]
+    h = normalize(head)
+    return len(h) >= 2 and h != v and h in context

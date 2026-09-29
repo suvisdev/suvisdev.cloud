@@ -104,6 +104,16 @@
   - 스모크에서 발견: 맥락 없이 "타짜 요즘 개봉한거"만 오면 v9가 전체 제목을 완성해 불러 가드에 막힘 → FINAL → 잡담 트랙이
     상영작 근거로 맞게 답함(경로는 의도와 다름, 결과는 OK).
   - 지킬(jk.suvisdev.cloud) 구조 페이지 4개 + 09-29 데블로그 갱신·푸시(`b74e987`), 색인 사본 동기화 후 파드에서 재색인.
+- (11) **[16시 반] 운영 전환 + v9 GPU**(사용자 결정 "배포해줘", "2.4B에 맞춰서 올려줘"): `.env` `MOVA_CHAT_AGENT=1` 재빌드 배포
+  → 운영 "누가나와"(맥락) 출연진 정답. 7.8B 사용처 정리: 길들 산책 이해 `GILDLE_ORCHESTRATOR_MODEL=exaone3.5:2.4b`(6문장
+  실측 전부 정상), mova 폴백 이해 `MOVA_ORCHESTRATOR_MODEL=exaone3.5:2.4b`, 홈 채팅은 **7.8B 유지**(사용자: "지금 이야기
+  잘하는데" — keep_alive 5m이라 필요할 때만 올라옴, 직후 mova 첫 턴 재로드 2~5s 감수). v9 Modelfile에서 `num_gpu 0` 제거
+  후 `ollama stop`으로 CPU 인스턴스 내리고 재로드 → **GPU, 맥락 턴 2.6s**(CPU 9s). VRAM 7.0/8.2GB(lora 2.5·v9 2.1·2.4B
+  1.7·bge-m3 0.7).
+  - 운영 로그에서 잡은 약점 2건 → 코드 가드: ① 맥락 없이 "데자뷰는 누가 나오지"면 v9가 발화 전체를 title에 넣음 →
+    도구가 트랙과 같은 `resolve_movie_title`(조사·어절·퍼지)로 해석 ② "타짜 요즘 개봉한거"에 "타짜: 벨제붑의 노래 (2026)"로
+    완성해 근거 가드에 막힘 → `is_grounded`가 앞부분(':' 앞, 2자 이상)이 대화에 있으면 통과, 진위는 카탈로그 검증(도구)에
+    위임("탑건: 매버릭"은 여전히 차단). 테스트 13 passed. 둘 다 v10 데이터 항목이기도 함.
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini

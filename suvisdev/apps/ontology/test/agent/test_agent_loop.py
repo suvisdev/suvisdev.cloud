@@ -117,3 +117,14 @@ def test_parse_action_filters_unknown_tools_and_args():
     }
     assert parse_action('<tool_call>{"name":"nope","arguments":{}}</tool_call>', spec) is None
     assert parse_action("FINAL", spec) == FINAL and parse_action("그냥 문장", spec) is None
+
+
+def test_grounding_accepts_series_head_but_not_invented_title():
+    from ontology.domain.agent.action_protocol import is_grounded, normalize
+
+    ctx = normalize("타짜 요즘 개봉한거 있지 않나")
+    assert is_grounded(
+        "타짜: 벨제붑의 노래 (2026)", ctx
+    )  # 앞부분이 대화에 있음 → 카탈로그가 가린다
+    assert not is_grounded("탑건: 매버릭", ctx)  # 앞부분조차 없음 → 창작
+    assert not is_grounded("deerwood", normalize("데자뷰는 누가 나오지"))

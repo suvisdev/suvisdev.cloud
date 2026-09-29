@@ -23,6 +23,7 @@ from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 from mova.app.ports.output.review_aggregation_port import ReviewAggregationPort
 from mova.app.use_cases.market_chat_booking_interactor import BookingAssistService
+from mova.app.use_cases.market_chat_title_resolver import resolve_movie_title
 from mova.domain.value_objects.movie_title import MovieTitle
 from ontology.app.agent.agent_loop import AgentDecision, AgentLoop, Tool
 from ontology.app.ports.output.judge_port import JudgePort
@@ -74,10 +75,15 @@ class MovaChatAgent:
     # --- 데이터 도구 ------------------------------------------------------------------------
 
     async def _exact(self, title: str):
+        """트랙과 같은 제목 해석기 — 조사·어절 후보·퍼지까지("데자뷰는 누가 나오지" → 데자뷰, 09-29 운영 실측:
+        맥락 없이 오면 v9가 발화 전체를 title에 넣는다). 정확 일치면 item, 모호하면 후보 목록."""
+        res = await resolve_movie_title(self._repo, message=title, entities=[title])
         items = await self._repo.search_movies_by_title([title], 8)
-        wanted = MovieTitle(title)
-        exact = [i for i in items if wanted.equals(i.title)]
-        return exact[0] if exact else None, items
+        if res.status == "ok" and res.item is not None:
+            return res.item, items or [res.item]
+        if res.status == "ambiguous" and res.candidates:
+            return None, list(res.candidates)
+        return None, items
 
     async def search_movie(self, title: str = "") -> dict[str, Any]:
         found, items = await self._exact(title)
