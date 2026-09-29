@@ -28,6 +28,46 @@
 
 ---
 
+## 2026-09-29
+
+### 작업 내용
+- PROGRESS의 "Vercel에 `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` 등록" 사용자 몫 항목 점검 → **등록 불필요**로 판정.
+  키는 09-28 커밋 `2fbb10a`로 `suvis/.env.production`(추적 파일)에 들어가 Vercel 프로덕션 빌드가 자동으로 읽는다.
+  운영 `/gildle/map`이 불러오는 JS 청크에서 키 문자열 확인, 사용자가 실화면 지도 정상 표시 확인.
+- `NEXT_PUBLIC_` 값은 브라우저에 노출되는 공개 식별자라 커밋해도 된다 — 보호는 NCP Application의 Web 서비스 URL
+  허용 목록이 한다. curl로는 인증 여부를 알 수 없음(maps.js는 Referer와 무관하게 내려오고 인증은 브라우저에서).
+
+- **산책 추천에 목적지 슬롯 추가**(사용자: "강아지 병원으로 가는 최단 경로 알려줘", "오늘은 그늘로만"이 되게).
+  후자는 이미 됐고(그늘→shade 가중치, '만'은 하드 필터가 아님), 전자는 이해 단계에 목적지 칸이 없어
+  "동물병원을 지나는 루프"가 나오던 것. mova와 같은 원칙으로 **모델은 종류만 읽고 장소는 코드가 고른다.**
+
+### 수정/구현
+- `domain/services/walk_request.py`: `WalkRequest.destination`(STOP_CATEGORIES 중 하나) — 규칙 파서가
+  "○○으로 가는/까지 + 이동·경로 단서"에서 종류를 뽑고(집으로→제외), 목적지는 stops에서 뺀다. `verify`는 규칙
+  목적지 우선, 모델 목적지는 문장에 그 종류 단어가 있을 때만(근거 없는 목적지 폐기 — mova title 규칙과 동일).
+  `apply_form`은 지도에서 도착지를 찍었으면(has_end) 문장 목적지를 버린다. 장소 이름("여의도공원까지")은 아직 미지원.
+- 프롬프트(`exaone_walk_understanding_adapter.py`): `destination` 칸·예시 2개("병원으로 가는 최단 경로", "그늘로만"),
+  "최단·짧게 → fast".
+- `walk_plan_interactor.py`: `places: PetPlacePort` 주입, `plan(start_point=)` — 도착 좌표 없이 kind=route+목적지면
+  출발지 3km 안 `search_around` 중 같은 종류에서 **가장 가까운 장소**를 도착 노드로. 못 찾으면 options=[]로 정직하게.
+  `WalkPlanDto.destination_place`. 라우터 응답 `understood.destination`·`destination_place{name,category,lat,lng,address}`.
+- 웹(`gildle-map.tsx`·`gildle-api.ts`): 목적지 장소가 오면 도착 마커를 그 좌표로, 요약에 "가장 가까운 ○○까지",
+  못 찾으면 "근처 3km 안에서 동물병원을 찾지 못했어요", placeholder에 예문 추가. 앱(Flutter)은 산책 추천 자체가
+  아직 없어 후속(같은 API라 화면만 붙이면 됨).
+- 테스트: `test_walk_request.py` +3(규칙 목적지·근거 검증·폼 우선), `test_route_options_interactor.py` +1(가짜 장소
+  포트로 가장 가까운 병원 선택·없으면 빈 결과). gildle 19 passed(이미지 안 pytest), ruff·tsc·eslint·prettier 통과.
+- **실측(이미지 안, 실제 7.8B + 카카오)**: 6문장 모두 기대대로(1~1.6s) — "강아지 병원으로 가는 최단 경로"→route/동물병원/fast,
+  "용품점으로 가는 길 그늘 많은 쪽으로"→route/용품점/shade, "펫샵 들렀다가 한 시간 돌고 올게"→loop/stops=펫샵.
+  군자역 기준 가장 가까운 동물병원 = 나래동물병원 246m. 애견카페는 3km 안에 카카오 결과 없음(정직하게 빈 결과).
+
+### 오류·막힌 점
+- 로컬 셸에 pytest·ruff·pnpm이 없음 — pytest는 `suvisdev-app:latest` 이미지 안(`docker run … python -m pytest`),
+  ruff는 `~/.local/bin/uvx ruff`, 웹은 corepack이 node 22.22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`이라
+  `node_modules/.bin/{tsc,eslint,prettier}` 직접 실행.
+
+### 산출물
+- PROGRESS gildle 절의 사용자 몫 항목 완료 처리. 목적지 슬롯은 커밋·배포 대기(백엔드 이미지 재빌드 필요).
+
 ## 2026-09-28
 
 ### 작업 내용

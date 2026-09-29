@@ -594,7 +594,8 @@ export default function GildleMap() {
         ...(planPref ? { preference: planPref } : {}),
         ...(planStops.length > 0 ? { stops: planStops } : {}),
       })
-      setEnd(null)
+      const dest = result.destination_place
+      setEnd(dest ? { lat: dest.lat, lng: dest.lng } : null)
       setPlan(result)
       setOptions(result.options)
       setNight(result.night)
@@ -605,7 +606,13 @@ export default function GildleMap() {
         )
       )
       if (result.options.length === 0)
-        setError("돌아오는 코스를 찾지 못했어요. 시간이나 거리를 바꿔 보세요.")
+        setError(
+          result.understood.destination
+            ? dest
+              ? `${dest.name}까지 가는 길을 찾지 못했어요.`
+              : `근처 3km 안에서 ${result.understood.destination}을(를) 찾지 못했어요.`
+            : "돌아오는 코스를 찾지 못했어요. 시간이나 거리를 바꿔 보세요."
+        )
     } catch (err) {
       setError(err instanceof Error ? err.message : "코스를 만들지 못했어요.")
     }
@@ -794,7 +801,7 @@ export default function GildleMap() {
                 onChange={(e) => setPlanText(e.target.value)}
                 maxLength={300}
                 rows={2}
-                placeholder="예: 오늘은 40분 동안 3키로 정도 편하게 걷고, 가는 길에 사료 사고 싶어"
+                placeholder="예: 오늘은 40분 동안 3키로 정도 편하게 걷고, 가는 길에 사료 사고 싶어 · 동물병원으로 가는 최단 경로"
                 className="border-gildle-border bg-gildle-bg text-gildle-text placeholder:text-gildle-muted focus:border-gildle-accent mt-3 w-full resize-none rounded-lg border px-3 py-2 text-xs outline-none"
               />
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1044,6 +1051,7 @@ function AuthFailureListener({ onFail }: { onFail: () => void }) {
 function PlanSummary({ plan }: { plan: WalkPlanResult }) {
   const u = plan.understood
   const parts = [
+    plan.destination_place ? `가장 가까운 ${plan.destination_place.name}까지` : null,
     u.minutes ? `${u.minutes}분 안에` : null,
     u.distance_km ? `${u.distance_km}km` : null,
     `목표 ${km(plan.target_m)}`,

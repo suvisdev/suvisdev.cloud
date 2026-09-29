@@ -755,8 +755,10 @@ def walk_plan(
         shade_lookup=shade_lookup,
         elevation=_load_elevation(),
         nearest_node=lambda c: _find_nearest_node_id(edges, c),
+        start_point=start,
     )
     u = result.understood
+    p = result.destination_place
     return {
         "understood": {
             "kind": u.kind,
@@ -764,8 +766,18 @@ def walk_plan(
             "distance_km": u.distance_km,
             "preference": u.preference,
             "stops": list(u.stops),
+            "destination": u.destination,
             "source": u.source,
         },
+        "destination_place": {
+            "name": p.name,
+            "category": p.category,
+            "lat": p.coordinate.latitude,
+            "lng": p.coordinate.longitude,
+            "address": p.address,
+        }
+        if p is not None
+        else None,
         "target_m": round(result.target_m),
         "max_m": round(result.max_m) if result.max_m else None,
         "options": [_option_json(o) for o in result.options],

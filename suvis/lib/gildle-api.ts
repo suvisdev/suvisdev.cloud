@@ -138,8 +138,17 @@ export type WalkPlanResult = {
     distance_km: number | null
     preference: WalkPreference
     stops: WalkStopCategory[]
+    destination: WalkStopCategory | null
     source: "llm" | "rules" | "form"
   }
+  /** 문장의 목적지 종류를 서버가 가장 가까운 실제 장소로 고른 결과(2026-09-29). */
+  destination_place: {
+    name: string
+    category: WalkStopCategory
+    lat: number
+    lng: number
+    address: string
+  } | null
   target_m: number
   max_m: number | null
   options: RouteOption[]

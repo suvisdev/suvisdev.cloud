@@ -168,4 +168,5 @@ def get_walk_plan_use_case() -> WalkPlanUseCase:
     return WalkPlanInteractor(
         options=get_route_options_use_case(),
         understanding=_shared_walk_understanding() if enabled else None,
+        places=_shared_pet_place_adapter(),
     )

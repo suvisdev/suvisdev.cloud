@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from tests.app.fakes import FakeHazardZoneRepository, FakeTreeSegmentRepository
 
 from gildle.adapter.outbound.graph.dijkstra_route_graph_adapter import AStarRouteGraphAdapter
@@ -217,3 +219,32 @@ def test_walk_plan_route_mode_uses_options_and_downgrades_without_elevation():
         req, EDGES, "A", "D", shade_lookup=None, elevation=None, nearest_node=lambda c: None
     )
     assert result.options[0].kind == "fast" and result.options[0].recommended  # 고도 없으면 빠른 길
+
+
+def test_walk_plan_resolves_destination_category_to_nearest_place():
+    it, _ = _with_loops()
+    plan = WalkPlanInteractor(options=it, understanding=None, places=_Places())
+    req = plan.understand(
+        "강아지 병원으로 가는 최단 경로 알려줘",
+        minutes=None,
+        distance_km=None,
+        preference=None,
+        stops=None,
+        has_end=False,
+    )
+    assert (req.kind, req.destination, req.preference) == ("route", "동물병원", "fast")
+    kw = dict(shade_lookup=None, elevation=None, nearest_node=lambda c: "D")
+    result = plan.plan(req, EDGES, "A", None, start_point=Coordinate(37.5, 127.0), **kw)
+    assert result.destination_place is not None
+    assert result.destination_place.name == "숲길동물병원"  # 코드가 가장 가까운 장소를 고른다
+    assert result.options and result.options[0].kind == "fast"
+
+    missing = plan.plan(
+        replace(req, destination="애견카페"),
+        EDGES,
+        "A",
+        None,
+        start_point=Coordinate(37.5, 127.0),
+        **kw,
+    )
+    assert missing.options == [] and missing.destination_place is None

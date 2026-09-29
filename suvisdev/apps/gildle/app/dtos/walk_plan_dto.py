@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from gildle.app.dtos.route_option_dto import RouteOptionDto
 from gildle.domain.services.walk_request import WalkRequest
+from gildle.domain.value_objects.pet_place import PetPlace
 
 
 @dataclass(frozen=True)
@@ -14,3 +15,5 @@ class WalkPlanDto:
     target_m: float
     max_m: float | None
     options: list[RouteOptionDto]
+    # 문장의 목적지 종류("동물병원")를 코드가 고른 실제 장소. 못 찾으면 None(options도 빈다).
+    destination_place: PetPlace | None = None

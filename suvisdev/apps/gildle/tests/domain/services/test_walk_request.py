@@ -63,3 +63,30 @@ def test_targets_time_caps_distance():
     target, cap = WalkRequest(minutes=20, distance_km=3).targets()
     assert target == cap == 20 * 60 * 1.2  # 3km는 20분에 못 걸으니 시간에 맞춘다
     assert WalkRequest(distance_km=2).targets() == (2000, None)
+
+
+def test_rules_destination_makes_route_and_is_not_a_stop():
+    r = parse_rules("강아지 병원으로 가는 최단 경로 알려줘")
+    assert (r.kind, r.destination, r.preference, r.stops) == ("route", "동물병원", "fast", ())
+    assert parse_rules("가장 가까운 애견카페로 가자").destination == "애견카페"
+    home = parse_rules("병원 들렀다가 집으로 올래")  # 집으로 → 루프, 병원은 들를 곳
+    assert (home.kind, home.destination, home.stops) == ("loop", None, ("동물병원",))
+    assert parse_rules("오늘은 그늘로만 산책하고 싶어").kind == "loop"
+
+
+def test_verify_destination_needs_sentence_evidence():
+    ok = verify({"kind": "route", "destination": "동물병원"}, "병원 가는 길 알려줘")
+    assert (ok.kind, ok.destination) == ("route", "동물병원")
+    r = verify({"kind": "route", "destination": "동물병원"}, "빨리 가는 길")
+    assert r.destination is None  # 문장에 근거 없는 목적지는 버린다
+    r = verify({"kind": "loop", "destination": None}, "동물병원까지 빠른 길")
+    assert (r.kind, r.destination) == ("route", "동물병원")  # 규칙 목적지가 우선
+
+
+def test_form_end_coordinates_override_destination():
+    base = parse_rules("동물병원으로 가는 길")
+    kw = dict(minutes=None, distance_km=None, preference=None, stops=None, has_text=True)
+    picked = apply_form(base, has_end=True, **kw)
+    assert (picked.kind, picked.destination) == ("route", None)
+    spoken = apply_form(base, has_end=False, **kw)
+    assert (spoken.kind, spoken.destination) == ("route", "동물병원")
