@@ -59,6 +59,22 @@
 - (6) **이해 v8 수령**(코랩 ep1 46/49 미달): 노트북 GGUF 재채점 **45/49**(v7 46) — 고치려던 2개는 맞고 v7이 맞던
   3개("26년꺼", "최신영화", "비 오는 날")가 새로 틀림. **교체 안 함, 섀도 v7 유지.** 2.4B 6칸 이해는 v7이 천장 근처.
 - 두 가드는 에이전트와 무관하게 지금 운영에도 싸게 넣을 수 있음(①제목이 발화·대화에 없으면 폐기 ②지시어 불용어) — 미착수.
+- (7) **[저녁] v9 판단 모델 데이터·노트북 준비 완료**(사용자 결정: 2.4B 3.5로, "맥락을 잇는 판단을 학습"):
+  - `apps/mova/adapter/outbound/llm/agent_prompt.py` 신설 — 도구 6개 정의·시스템 프롬프트·`render_prompt`(최근 대화 4턴
+    +발화+`[도구 결과]`)·`format_action`/`parse_action`(`<tool_call>{…}</tool_call>` 또는 `FINAL`). 의존성 0 — 생성기와
+    서빙이 같은 문자열을 쓴다(학습 분포=서빙 분포).
+  - `scripts/build_agent_dataset.py` — v7 생성기의 어휘·조사·대화 템플릿을 import해 재사용, 24패턴(출연진·현재 상영작·
+    시리즈 신작·카드 전체 후속·주제 전환·지시어·2단계 FINAL/두 단계 호출) → train 1,440·val 160(2단계 208행). 평가셋 66 =
+    멀티턴 17 + 단일 28 + **09-29 실사용 대화 17** + 섀도 4, 사람이 단 정답. 근거 규칙(인자는 발화·대화·결과에 있어야) +
+    누수 0. 채점 `match`: 도구 이름 + title/region/date 정규화 일치, query는 비어 있지 않으면, 없는 title/region 창작은 실패.
+  - `scripts/eval_agent_actions.py` — Ollama로 기준선·GGUF 채점. **기준선(프롬프트만)**: 운영 7.8B **59/66**(live 13/17,
+    0.9s) · 학습 전 2.4B **55/66**(few-shot만으로도 높음) · EXAONE 4.0 1.2B 0/66(텍스트 프로토콜 무시하고 산문으로 답함,
+    네이티브 tools 전용 — 참고용). 7.8B 오답: 체인 지점→where_to_watch, "제일 최신 스파이더맨"→search(카드 연도 무시),
+    "송강호 나오는 영화"→details, "누가나와"→where_to_watch, "그거 재밌나"→recommend.
+  - `scripts/mova_agent_colab.ipynb` — v8 노트북 복제, 채점 셀을 행동 기준으로 교체, **합격선 60/66 + live 14/17 + 형식 실패 0**
+    (7.8B 초과). 최종 판단은 노트북 GGUF 재채점(`eval_agent_actions.py mova-agent-v9 --cpu`).
+  - 바탕화면 `mova/FT/agent-v9/`(jsonl 3 + 노트북). **코랩 실행은 사용자.** 합격 후: 서빙 어댑터(판단 단계 교체 + 가드 + 사실
+    템플릿) → 섀도 → 전환. Gemini는 평가 요약·잡담 문장과 폴백에만 남음(다음 단계에서 7.8B/증류로 대체 후보).
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini
