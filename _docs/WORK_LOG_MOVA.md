@@ -118,6 +118,23 @@
     붙인 "(2026)" 꼬리로 정확 일치 실패) → `_exact`에서 연도 꼬리 제거(테스트 +1, 다음 배포에 포함).
   - 7.8B 사용처 전수 확인: 홈 채팅(`PORTFOLIO_LLM_MODEL`)·PDF 요약(execsuite, keep_alive 0)뿐. 스팸·이메일 리포트·축구
     채팅·하베스터 파서·시맨틱 라우터는 원래 2.4B.
+- (12) **[17시] 취향·유사 추천 — 원래 목적("본 영화·리뷰·평점을 종합해 비슷한 영화")**(사용자 질문 "그건 되는 건가" → 반만).
+  진단: 취향 벡터는 LLM이 고른 3편의 **순서만** 바꾸고 후보 생성엔 안 쓰였고, 영화 기준 유사(`find_similar_movies`)는
+  상세 페이지에만 있었다. 데이터: 취향 벡터 3, 리뷰 444(사용자 2), 봤어요 14. 임베딩 차원 movies·reviews·taste 768(Gemini),
+  hub 1024(bge-m3).
+  - `MoviesRepositoryPort.find_nearest_by_vector(vector, limit, exclude_ids)`(pgvector 코사인, HNSW), `UserTasteVector…Port.
+    list_user_ratings(user_id)`. `_reply_recommend` 꼬리(LLM 픽→재정렬→저장→응답)를 `_finish_recommend`로 분리해 공유.
+  - `_reply_personal_recommend(seed_title)`: 시드가 있으면 그 작품 임베딩 최근접 24편(similar), 없으면 로그인 유저의
+    **높게 평가한 영화들의 임베딩 별점 가중 평균**(`taste_query_vector`, 가중 rating-2.5, 최소 0.25)으로 40편 → 본 영화·
+    리뷰한 영화·기추천 제외 → 품질 하한·시리즈당 1편 → 16편을 LoRA에. 후보 없으면 조건 추천 폴백. 1차 실측에서 저장된
+    취향 벡터(리뷰 **문장** 임베딩 평균)로 찾자 "지구를 지켜라·내안의 그놈"처럼 흐릿 → 영화 임베딩 가중 평균으로 바꾸니
+    SF 취향(헤일메리·오디세이·엔드게임 5점)에 **정이·그래비티/캡틴 마블·더 문**. 유사 "기생충" → 보통의 가족·하녀·아가씨
+    (Gemini) / 택시운전사·하녀·길복순(LoRA).
+  - 에이전트 분기 단서(`personal_recommend_cue`): "○○ 같은/비슷한/느낌의 영화" → similar(시드), "내 취향·나한테 맞·내가 본·
+    맨 '추천해줘'·'뭐 볼까'" → taste. v9 프롬프트는 안 건드림(학습 분포 유지) — 판단이 recommend 터미널이거나 잡담으로
+    끝나도 단서가 있으면 이 경로. v10 데이터 항목: 도구 `recommend_for_me`·`similar_to`.
+  - 검증: 인증 의존성 오버라이드 TestClient로 본인 계정(id 1) 3문장 실측 후 생성 행 삭제. 테스트 439 passed. 프로브 컨테이너에선
+    `host.docker.internal`이 안 풀려 LoRA 대신 Gemini 폴백(503) — 프로브는 `LORA_SERVER_URL=http://127.0.0.1:8200`으로.
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini

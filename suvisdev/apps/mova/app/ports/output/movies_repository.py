@@ -102,6 +102,14 @@ class MoviesRepositoryPort(ABC):
         """
 
     @abstractmethod
+    async def find_nearest_by_vector(
+        self, vector: list[float], limit: int, exclude_ids: set[int] | None = None
+    ) -> list[int]:
+        """임베딩 벡터(예: 유저 취향 벡터, movies.embedding과 같은 768차원)에 코사인으로 가까운 영화 id —
+        가까운 순. 취향 기반 추천의 후보 생성(2026-09-29)."""
+        ...
+
+    @abstractmethod
     async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
         """slug 영화의 embedding과 코사인 거리가 가까운 순 — 자기 자신은 제외.
 

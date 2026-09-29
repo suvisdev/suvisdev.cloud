@@ -21,6 +21,11 @@ class UserTasteVectorRepositoryPort(ABC):
         """추천 재정렬 경로 전용 — 벡터만 반환. 리뷰 없거나 rating 합계 0이면 None."""
 
     @abstractmethod
+    async def list_user_ratings(self, user_id: int) -> list[tuple[int, float]]:
+        """유저가 별점을 남긴 (movie_id, rating) — 취향 추천의 질의 벡터(영화 임베딩 가중 평균)용(2026-09-29)."""
+        ...
+
+    @abstractmethod
     async def list_user_ids_with_rated_reviews(self, limit: int | None) -> list[int]:
         """embedding·rating이 모두 있는 리뷰를 가진 유저 id 목록 — CLI 백필용.
 

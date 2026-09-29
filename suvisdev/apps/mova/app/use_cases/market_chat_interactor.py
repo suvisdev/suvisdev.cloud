@@ -162,6 +162,49 @@ def _one_per_series(catalog: list[MovaSearchItemSchema]) -> list[MovaSearchItemS
     return out
 
 
+_PERSONAL_CUE = re.compile(
+    r"내\s?취향|나한테\s?맞|나에게\s?맞|내가\s?본|내\s?리뷰|내\s?별점|취향(에|대로|껏)|맞춤"
+)
+_BARE_RECOMMEND = re.compile(
+    r"^(영화\s*)?(추천(\s*해\s*줘|해\s*주세요|\s*좀)?|뭐\s*볼까\??|볼\s*거\s*(추천\s*)?(좀|줘)?|오늘\s*뭐\s*보지\??)\s*[!?~.]*$"
+)
+_SIMILAR_TO = re.compile(
+    r"^(.+?)\s*(?:와|과|랑|이랑|하고)?\s*(같은|비슷한|비슷하게|느낌의?|류의?)\s*(영화|작품|거)"
+)
+
+
+def taste_query_vector(
+    ratings: list[tuple[int, float]], embeddings: dict[int, list[float]]
+) -> list[float] | None:
+    """높게 평가한 영화일수록 크게(별점-2.5, 최소 0.25) 가중한 영화 임베딩 평균. 임베딩 없으면 None."""
+    acc: list[float] | None = None
+    total = 0.0
+    for movie_id, rating in ratings:
+        vec = embeddings.get(movie_id)
+        if not vec:
+            continue
+        w = max(rating - 2.5, 0.25)
+        acc = (
+            [w * x for x in vec]
+            if acc is None
+            else [a + w * x for a, x in zip(acc, vec, strict=True)]
+        )
+        total += w
+    return [x / total for x in acc] if acc and total > 0 else None
+
+
+def personal_recommend_cue(message: str) -> tuple[str | None, str | None]:
+    """("similar", 시드 제목) | ("taste", None) | (None, None). 조건 추천과 구분되는 두 신호(2026-09-29):
+    "기생충 같은 영화" → 시드 작품 유사, "내 취향에 맞는 거"·맨 "추천해줘" → 취향 벡터."""
+    m = (message or "").strip()
+    sim = _SIMILAR_TO.match(m)
+    if sim and len(sim.group(1).strip()) >= 2:
+        return "similar", sim.group(1).strip()
+    if _PERSONAL_CUE.search(m) or _BARE_RECOMMEND.match(m):
+        return "taste", None
+    return None, None
+
+
 def _is_bare_eval_followup(message: str) -> bool:
     m = message.strip()
     if not _EVAL_TRIGGER_WORDS.search(m):
@@ -648,6 +691,31 @@ class ChatInteractor(ChatUseCase):
         if not wants_series:
             catalog = _one_per_series(catalog)
 
+        return await self._finish_recommend(
+            request,
+            trace_id,
+            intent=intent,
+            catalog=catalog,
+            past_intents=past_intents,
+            nickname=nickname,
+            preferred_genres=preferred_genres,
+            already_shown_slugs=already_shown_slugs,
+        )
+
+    async def _finish_recommend(
+        self,
+        request: MovaChatRequest,
+        trace_id: str,
+        *,
+        intent: dict[str, Any],
+        catalog: list[MovaSearchItemSchema],
+        past_intents: list[Any],
+        nickname: str | None,
+        preferred_genres: list[str],
+        already_shown_slugs: set[str],
+    ) -> ChatResponseDto:
+        """후보 목록 → LLM 픽 → 취향 재정렬 → 저장 → 응답. 조건 추천(`_reply_recommend`)과
+        취향·유사 추천(`_reply_personal_recommend`)이 공유한다(2026-09-29 분리)."""
         # 3. 추천 생성 (프롬프트·Gemini·파싱·DB 보강은 포트 구현체 내부)
         reply, recs = await self._llm.generate_recommendation(
             history=request.history_dicts(),
@@ -764,6 +832,74 @@ class ChatInteractor(ChatUseCase):
             conversation_id=conversation_id,
         )
 
+    async def _reply_personal_recommend(
+        self, request: MovaChatRequest, trace_id: str, *, seed_title: str | None
+    ) -> ChatResponseDto:
+        """취향·유사 추천(2026-09-29, 원래 목적 "본 영화·리뷰·평점을 종합해 비슷한 영화"):
+        - seed_title이 있으면 그 작품과 임베딩이 가까운 영화(`find_similar_movies`)를 후보로.
+        - 없으면 로그인 유저의 취향 벡터(리뷰 임베딩의 별점 가중 평균)로 movies.embedding 최근접 후보.
+        후보가 안 나오면(비로그인·리뷰 없음·미주입) 조건 추천으로 폴백. 본 영화·기추천은 제외."""
+        already = await self._recently_recommended_slugs(request)
+        already = already | await self._watched_slugs(request)
+        ids: list[int] = []
+        label, intent_type = "", "recommend"
+        if seed_title and self._movies is not None:
+            seed = await self._verify_agent_title(seed_title)
+            detail = await self._movies.find_by_id(int(seed.id)) if seed is not None else None
+            if detail is not None:
+                similar = await self._movies.find_similar_movies(detail.slug, 24) or []
+                ids = [int(m.id) for m in similar]
+                label, intent_type = f"{detail.title}와 비슷한 영화", "similar"
+        elif request.user_id and self._taste_vectors is not None and self._movies is not None:
+            ratings = await self._taste_vectors.list_user_ratings(request.user_id)
+            reviewed = {mid for mid, _ in ratings}
+            emb = await self._movies.list_embeddings_by_ids(list(reviewed)) if reviewed else {}
+            # 리뷰 문장 임베딩 평균(저장된 취향 벡터)은 줄거리 공간과 어긋나 후보가 흐릿했다(09-29 실측:
+            # 주토피아·헤일메리 취향에 "지구를 지켜라") → 높게 평가한 영화들의 임베딩을 별점 가중 평균한다.
+            query_vec = taste_query_vector(
+                ratings, emb
+            ) or await self._taste_vectors.get_taste_vector(request.user_id)
+            if query_vec:
+                skip = {
+                    int(x) for x in already if str(x).isdigit()
+                } | reviewed  # 리뷰한 영화 = 본 영화
+                ids = await self._movies.find_nearest_by_vector(query_vec, 40, skip)
+                label, intent_type = "내 리뷰·별점 취향 기반", "taste"
+        if not ids:
+            logger.info("[ChatInteractor] trace=%s 취향/유사 후보 없음 → 조건 추천", trace_id)
+            return await self._reply_recommend(request, trace_id)
+        catalog = [c for c in await self._repo.get_catalog_items(ids) if c.id not in already][:16]
+        catalog = _one_per_series(_quality_floor(catalog))
+        past_intents: list[Any] = []
+        nickname, preferred_genres = None, []
+        if request.user_id:
+            past_intents = await self._repo.get_recent_intents_by_user(request.user_id, limit=3)
+            prefs = await self._preferences.get_preferences(request.user_id)
+            nickname, preferred_genres = prefs.nickname, prefs.preferred_genres
+        logger.info(
+            "[ChatInteractor] trace=%s %s 후보 %d편(제외 %d)",
+            trace_id,
+            intent_type,
+            len(catalog),
+            len(already),
+        )
+        intent = {
+            "refined_query": label,
+            "keywords": [],
+            "intent_type": intent_type,
+            "search_filters": {},
+        }
+        return await self._finish_recommend(
+            request,
+            trace_id,
+            intent=intent,
+            catalog=catalog,
+            past_intents=past_intents,
+            nickname=nickname,
+            preferred_genres=preferred_genres,
+            already_shown_slugs=already,
+        )
+
     async def _rerank_recommendations(
         self, user_id: int | None, recs: list[ChatRecommendationDto], trace_id: str
     ) -> list[ChatRecommendationDto]:
@@ -818,6 +954,16 @@ class ChatInteractor(ChatUseCase):
         끝났으면 사실 템플릿(출연진·상영작·검색)이나 평가 트랙(리뷰 요약)이 답한다. 도구가 없으면 잡담."""
         if decision.terminal is not None:
             name, args = decision.terminal["name"], decision.terminal["arguments"]
+            if name == "recommend_movies":
+                mode, seed = personal_recommend_cue(request.message)
+                if mode is not None:
+                    logger.info(
+                        "[ChatInteractor] trace=%s 취향/유사 추천 mode=%s seed=%r",
+                        trace_id,
+                        mode,
+                        seed,
+                    )
+                    return await self._reply_personal_recommend(request, trace_id, seed_title=seed)
             title = args.get("title")
             movie = await self._verify_agent_title(title)
             slots = VerifiedSlots(
@@ -838,6 +984,11 @@ class ChatInteractor(ChatUseCase):
             return await self._reply_evaluation(request, trace_id, [review_title])
         facts = compose_facts(request.message, decision.results)
         if facts is None:
+            mode, seed = personal_recommend_cue(request.message)
+            if (
+                mode is not None
+            ):  # v9가 맨 "추천해줘"를 잡담으로 볼 때가 있다 — 단서가 있으면 취향 추천
+                return await self._reply_personal_recommend(request, trace_id, seed_title=seed)
             return await self._reply_general(request, trace_id)
         # 현재 상영작 질문("최신 개봉영화 뭐 있어", "다 영화관에서 볼 수 있어?")은 문장만이 아니라
         # 박스오피스 상영작을 카탈로그 카드로 붙인다 — 예매 트랙 성격이라 intent는 booking.

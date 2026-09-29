@@ -356,6 +356,24 @@ class MoviesPgRepository(MoviesRepositoryPort):
         ).all()
         return {int(mid): list(vec) for mid, vec in rows}
 
+    async def find_nearest_by_vector(
+        self, vector: list[float], limit: int, exclude_ids: set[int] | None = None
+    ) -> list[int]:
+        if not vector:
+            return []
+        await self._session.execute(
+            text("SET LOCAL enable_seqscan = off")
+        )  # find_similar_movies와 같은 이유
+        stmt = (
+            select(MovaMovie.id)
+            .where(MovaMovie.embedding.is_not(None))
+            .order_by(MovaMovie.embedding.cosine_distance(vector))
+            .limit(limit + len(exclude_ids or ()))
+        )
+        ids = [int(i) for i in (await self._session.execute(stmt)).scalars().all()]
+        skip = exclude_ids or set()
+        return [i for i in ids if i not in skip][:limit]
+
     async def find_similar_movies(self, slug: str, limit: int) -> list[MovieListItemDto] | None:
         movie_q = await self._session.execute(select(MovaMovie).where(MovaMovie.slug == slug))
         movie = movie_q.scalar_one_or_none()

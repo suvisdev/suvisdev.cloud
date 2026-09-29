@@ -62,6 +62,16 @@ class UserTasteVectorsPgRepository(UserTasteVectorRepositoryPort):
         ).scalar_one_or_none()
         return list(row) if row is not None else None
 
+    async def list_user_ratings(self, user_id: int) -> list[tuple[int, float]]:
+        rows = (
+            await self._session.execute(
+                select(MovaReview.movie_id, MovaReview.rating).where(
+                    MovaReview.user_id == user_id, MovaReview.rating.is_not(None)
+                )
+            )
+        ).all()
+        return [(int(m), float(r)) for m, r in rows]
+
     async def list_user_ids_with_rated_reviews(self, limit: int | None) -> list[int]:
         stmt = (
             select(MovaReview.user_id)
