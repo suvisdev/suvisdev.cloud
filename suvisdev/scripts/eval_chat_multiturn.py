@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -261,11 +262,13 @@ def main() -> None:
     parser.add_argument("--base-url", default=_DEFAULT_BASE_URL)
     parser.add_argument("--only", default=None, help="장면 이름/질의 부분 문자열 필터")
     parser.add_argument("--sleep", type=float, default=2.0)
+    parser.add_argument("--save", type=Path, default=None, help="장면별 답변·카드 JSON 저장(모델 비교용)")
     args = parser.parse_args()
 
     scenes = [s for s in SCENES if not args.only or args.only in s["name"] or args.only in s["q"]]
     passed = 0
     failures: list[tuple[str, list[str], str]] = []
+    rows: list[dict[str, Any]] = []
     for i, scene in enumerate(scenes):
         try:
             r = httpx.post(
@@ -281,6 +284,16 @@ def main() -> None:
             time.sleep(args.sleep)
             continue
         problems = _evaluate(scene, data)
+        rows.append(
+            {
+                "name": scene["name"],
+                "q": scene["q"],
+                "history": scene["history"],
+                "reply": data.get("reply") or "",
+                "titles": [f"{x.get('title')}({x.get('year')})" for x in data.get("recommendations") or []],
+                "pass": not problems,
+            }
+        )
         reply = (data.get("reply") or "").replace("\n", " ")[:80]
         status = "PASS" if not problems else "FAIL"
         if problems:
@@ -297,6 +310,8 @@ def main() -> None:
     print(f"\n결과: {passed}/{len(scenes)} PASS")
     for name, problems, reply in failures:
         print(f"  FAIL {name}: {'; '.join(problems)} | reply={reply}")
+    if args.save:
+        args.save.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(json.dumps({"passed": passed, "total": len(scenes)}, ensure_ascii=False))
 
 

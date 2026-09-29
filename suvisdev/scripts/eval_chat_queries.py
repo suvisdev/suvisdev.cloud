@@ -247,7 +247,7 @@ def main() -> None:
 
         titles = [f"{x.get('title')}({x.get('year')})" for x in recs]
         metrics = _quality_metrics(spec["q"], recs, votes)
-        rows.append({"q": spec["q"], "titles": titles, "metrics": metrics})
+        rows.append({"q": spec["q"], "titles": titles, "reply": data.get("reply") or "", "metrics": metrics})
         problems = _evaluate(spec, recs)
         status = "PASS" if not problems else "FAIL"
         if problems:
