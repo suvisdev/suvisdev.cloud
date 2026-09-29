@@ -13,7 +13,6 @@ MOVA는 AI 기반 영화 추천 채팅 + 리뷰·랭킹·미니게임을 제공�
 | 백엔드 | FastAPI, SQLAlchemy 2.0 (async), PostgreSQL + pgvector, Alembic |
 | AI/ML | Gemini API (추천·임베딩·OCR), EXAONE LoRA (로컬 GPU 추론), Ollama |
 | 검색 | pgvector HNSW 인덱스, 코사인 유사도 기반 시맨틱 검색 |
-| 그래프 DB | Neo4j (GraphRAG 스키마 + 768d 벡터 인덱스) |
 | 프론트엔드 | Next.js 15 (App Router, Server Components), Tailwind CSS v4 |
 | 모바일 | Flutter (Dio + Riverpod + go_router) |
 | 인프라 | AWS EC2 (m7i-flex.large), Docker Compose, Cloudflare Tunnel, S3 |

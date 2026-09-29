@@ -58,7 +58,7 @@ sudo visudo -c          # 문법 검증(반드시 OK 확인)
 | `backend` | Deployment (initContainer로 db/redis 대기) | `localhost:8000` |
 | `auth` | Deployment (같은 이미지, command만 교체) | `localhost:9000` |
 | `pgadmin` | Deployment, **기본 꺼짐**(replicas 0) | 켜면 `localhost:5050` |
-| `neo4j` | Deployment, **기본 꺼짐** | port-forward 7474/7687 |
+| `neo4j` | **삭제(2026-09-29)** — 읽는 코드·데이터 없음, 쓰지 않기로 결정 | — |
 | `cloudflared` | Deployment, **기본 꺼짐 — 노트북 전용, 데스크톱에서 켜지 말 것** | — |
 | `nginx` + `certbot` | `ingress.yaml` (k3s 내장 Traefik; TLS는 Cloudflare가 종단) | — |
 | `env_file: suvisdev/.env` | Secret `suvisdev-env` (deploy.sh가 매번 갱신) | — |

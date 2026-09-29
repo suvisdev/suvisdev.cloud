@@ -63,7 +63,7 @@ Section B·C·D의 축을 새 스코프로 진행한다.
 
 | 항목 | 상태 | 근거 |
 |------|------|------|
-| Neo4j GraphRAG 활용 코드 부재 | ⏳ | PROGRESS "Neo4j GraphRAG 활용 코드 부재(2026-08-04 재정의)" — Movie 40/Person 427 등 노드 데이터는 있으나 `apps/mova`·`apps/ontology` 어디에도 이걸 읽는 코드가 없음. 어느 앱이 언제 쓸지 설계 미착수 |
+| Neo4j GraphRAG 활용 코드 부재 | ❌ 폐기(09-29) — 운영 Neo4j엔 데이터가 없고 쓰지 않기로 결정. | PROGRESS "Neo4j GraphRAG 활용 코드 부재(2026-08-04 재정의)" — Movie 40/Person 427 등 노드 데이터는 있으나 `apps/mova`·`apps/ontology` 어디에도 이걸 읽는 코드가 없음. 어느 앱이 언제 쓸지 설계 미착수 |
 | `movies.embedding` 백필 자동화 유지 관측 | ✅(자동화) | 크론 등록 완료, 잔여 0 확인. 사용자 개입 불필요, 주기적 로그 확인만 |
 | Gemini 무료 티어 쿼터 완화 | ⚠️ | PROGRESS 9순위 (b) 완료 — Gemini 2회→1회, 429 재시도 1회. 유료 티어 전환은 제품·비용 결정으로 사용자 판단 대기 |
 | 노트북 LoRA 복구 + `RECOMMENDATION_BACKEND` 원복 | ⚠️ | PROGRESS 5순위 — 노트북 GPU/터널 직접 접근 필요, 원격 조치 불가 |

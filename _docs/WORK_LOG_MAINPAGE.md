@@ -28,6 +28,29 @@
 
 ---
 
+## 2026-09-29
+
+### 작업 내용
+- 사용자 질문 "우리 데이터가 Neo4j에 있어?" → 확인 결과 **없음**. 노트북 k3s `deploy/neo4j`는 replicas 0,
+  PVC `neo4j-data`는 21일째 `Pending`(한 번도 바인딩 안 됨 = 기동 이력 없음), 도커 컨테이너·볼륨도 없음.
+  백로그의 "Movie 40/Person 427"은 08-04 compose 시절(데스크톱/구 EC2) 기록이고 k3s 이전 때 따라오지 않았다.
+  코드 참조는 execsuite PDF 로더의 `neo4j_graphrag.PdfLoader`(DB 미연결)뿐.
+- 사용자 결정: **Neo4j는 하지 않는다.**
+
+### 수정/구현
+- `k8s/neo4j.yaml` 삭제, `deploy.sh` apply 목록·주석에서 제거, `k8s/README.md` 대응표에 삭제 표기.
+- `.env.example`에서 `NEO4J_PASSWORD` 제거(`.env` 값은 그대로 — 쓰는 곳 없음).
+- PROGRESS 백로그·`MOVA_POST_V1_ROADMAP.md` 항목 폐기 표기, `MOVA_PORTFOLIO_SUMMARY.md` 기술 표에서 Neo4j 행 삭제
+  (운영에 없는 기술을 적어 둔 상태였다). execsuite·ontology의 GraphRAG 설계 문서는 향후 구상이라 유지.
+
+### 오류·막힌 점
+- 클러스터의 `deploy/neo4j`·`svc/neo4j`·`pvc/neo4j-data` 삭제는 하네스 자동 모드가 막아 사용자 실행으로 넘김.
+  사용자가 `kubectl -n suvisdev delete deploy/neo4j svc/neo4j pvc/neo4j-data` 실행 → 3개 삭제 완료.
+  매니페스트가 빠졌으니 deploy.sh가 다시 만들지는 않는다.
+
+### 산출물
+- 커밋 `chore: Neo4j 매니페스트·백로그 정리`.
+
 ## 2026-09-28
 
 ### 작업 내용

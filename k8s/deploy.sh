@@ -85,7 +85,6 @@ sed "s#__REPO_ROOT__#${REPO_ROOT}#g; s#__HF_CACHE__#${HF_CACHE}#g" backend.yaml 
 kubectl apply \
   -f auth.yaml \
   -f pgadmin.yaml \
-  -f neo4j.yaml \
   -f cloudflared.yaml
 
 # ingress.yaml(Traefik, k3s 내장)은 프로덕션 라우팅용 — 로컬 개발은 ServiceLB 포트로
@@ -104,7 +103,7 @@ if [ "$BUILD" = 1 ]; then
   # containerd 구 이미지 정리(2026-09-22 사용자 요청: 배포마다 4.8GB씩 쌓이지 않게).
   # 같은 태그로 import하면 이전 이미지는 태그를 잃고 <none>으로 남는다. 새 파드가
   # 다 뜬 뒤에만 지운다 — 그 전에 지우면 롤백 대상이 사라지고, --prune은 파드가
-  # 0인 다른 이미지(pgadmin·neo4j·cloudflared)까지 지워 재풀을 유발하므로 안 쓴다.
+  # 0인 다른 이미지(pgadmin·cloudflared)까지 지워 재풀을 유발하므로 안 쓴다.
   # 실행 중 컨테이너가 참조하는 이미지는 crictl이 거부하므로 롤아웃 실패 시에도 안전.
   kubectl -n "$NS" rollout status deploy/backend --timeout=600s
   kubectl -n "$NS" rollout status deploy/auth --timeout=600s

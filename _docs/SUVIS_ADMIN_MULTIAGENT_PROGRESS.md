@@ -452,8 +452,8 @@ http://127.0.0.1:31386`.
   `/api`·`/api/v1`인데 `mova_router`만 `/mova/...`. 통일하려면 susu가
   `/mova/...`를 직접 호출하는 곳까지 같이 바뀌어 블라스트 레이디어스가 큼 —
   별도 계획 필요.
-- **Neo4j GraphRAG 활용 코드 부재(08-04)**: 노드 데이터(Movie 40 등)는
-  있지만 읽는 코드가 없음. 어느 앱이 어떻게 쓸지 설계부터.
+- ~~Neo4j GraphRAG 활용 코드 부재(08-04)~~ **09-29 폐기 결정** — 노트북 k3s에선 한 번도 기동 안 됨(PVC Pending,
+  데이터 없음), 사용자 "할 필요 없다". `k8s/neo4j.yaml`·deploy.sh 항목 삭제.
 - **susu 실기기 검증 미완(08-03)**: ① 폰 카메라→S3 업로드 실촬영 검증
   + access token 10분 만료 시 refresh 미구현 ② 카카오 로그인 iOS 실빌드
   검증(Android만 E2E 완료) ③ 추천 챗 화면 `flutter run` 검증(adb 끊김,
