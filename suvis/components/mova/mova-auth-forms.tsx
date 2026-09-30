@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Eye, EyeOff } from "lucide-react"
@@ -8,7 +8,7 @@ import { MovaLogo } from "@/components/mova/mova-logo"
 import { OAuthButtons } from "@/components/auth/oauth-buttons"
 import type { FormStatus} from "@/lib/form-status";
 import { initialFormStatus, isSuccessMessage } from "@/lib/form-status"
-import { saveSuvisSession } from "@/lib/suvis-session"
+import { rememberPostLoginPath, saveSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
@@ -28,6 +28,11 @@ export function MovaAuthForms() {
   const [showPassword, setShowPassword] = useState(false)
   const [login, setLogin] = useState<FormStatus>(initialFormStatus)
   const [signup, setSignup] = useState<FormStatus>(initialFormStatus)
+
+  // 소셜 로그인도 끝나면 mova의 원래 가려던 곳으로 돌아오게 한다(기본은 사이트 홈이라 mova를 벗어났다).
+  useEffect(() => {
+    rememberPostLoginPath(redirect.startsWith("/mova") ? redirect : "/mova/main")
+  }, [redirect])
 
   const patchLogin = (patch: Partial<FormStatus>) => setLogin((prev) => ({ ...prev, ...patch }))
   const patchSignup = (patch: Partial<FormStatus>) => setSignup((prev) => ({ ...prev, ...patch }))

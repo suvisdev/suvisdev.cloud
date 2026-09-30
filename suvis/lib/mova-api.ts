@@ -619,6 +619,14 @@ export async function toggleReviewVote(reviewId: number): Promise<MovaVoteResult
   return (await res.json()) as MovaVoteResult
 }
 
+/** 내가 이 작품을 '봤어요'로 표시했는지 — 채팅으로 기록한 것도 상세 화면에 보이게 한다. */
+export async function fetchWatched(movieId: number): Promise<boolean> {
+  const res = await fetch(`/api/backend/mova/reviews/activity/watched/${movieId}`)
+  if (!res.ok) return false
+  const data = (await res.json()) as { watched?: boolean }
+  return data.watched === true
+}
+
 export async function addReviewActivity(input: {
   movie_id: number
   action_type: "favorite" | "watched" | "click" | "not_interested"

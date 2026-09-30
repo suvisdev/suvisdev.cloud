@@ -82,6 +82,20 @@ async def add_activity(
     return dto.to_schema()
 
 
+class _WatchedResponse(BaseModel):
+    watched: bool
+
+
+@market_reviews_router.get("/activity/watched/{movie_id}", response_model=_WatchedResponse)
+async def get_watched(
+    movie_id: int,
+    principal: UserPrincipal = Depends(require_user),
+    use_case: ReviewsUseCase = Depends(get_reviews_use_case),
+) -> _WatchedResponse:
+    """내가 이 작품을 '봤어요'로 표시했는지 — 상세 화면 버튼 상태용(채팅으로 기록한 것도 보이게, 2026-09-30)."""
+    return _WatchedResponse(watched=await use_case.has_watched(principal.user_id, movie_id))
+
+
 @market_reviews_router.post("", response_model=ReviewSchema, status_code=201)
 async def add_review(
     body: ReviewCreateSchema,

@@ -1,13 +1,14 @@
 import type { NextRequest} from "next/server";
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ user_id: string }> },
 ): Promise<NextResponse> {
   const { user_id } = await params
-  const auth = req.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(`/mova/watchlist/${encodeURIComponent(user_id)}`, {
       cache: "no-store",

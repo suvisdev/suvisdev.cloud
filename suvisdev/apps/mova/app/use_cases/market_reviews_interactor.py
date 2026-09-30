@@ -25,6 +25,9 @@ class ReviewsInteractor(ReviewsUseCase):
     ) -> ReviewActivityDto:
         return await self._repository.add_activity(user_id, movie_id, action_type)
 
+    async def has_watched(self, user_id: int, movie_id: int) -> bool:
+        return await self._repository.has_watched(user_id, movie_id)
+
     async def add_review(
         self, user_id: int, movie_id: int, rating: float | None, body: str | None
     ) -> ReviewDto:

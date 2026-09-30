@@ -1046,6 +1046,79 @@ class ChatInteractorMarkWatchedTests(unittest.IsolatedAsyncioTestCase):
         repo.record_rating.assert_not_awaited()
         self.assertIn("못 찾았", resp.reply)
 
+    # --- 2026-09-30 실사용 회귀: 풀네임·연도 꼬리·후보 선택 이어받기 ---
+
+    _SPIDEY = (
+        (1, "스파이더맨: 노 웨이 홈", "2021"),
+        (2, "스파이더맨: 어크로스 더 유니버스", "2023"),
+        (3, "스파이더맨: 브랜드 뉴 데이", "2026"),
+    )
+
+    async def test_year_suffixed_title_is_resolved(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(3, "스파이더맨: 브랜드 뉴 데이", "2026")]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="그거 봤다고", history=[], user_id=3),
+            "t",
+            self._decision({"title": "스파이더맨: 브랜드 뉴 데이(2026)"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 3, "watched")
+
+    async def test_partial_title_with_single_match_is_resolved(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(3, "스파이더맨: 브랜드 뉴 데이", "2026")]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="브랜드 뉴 데이 봤어", history=[], user_id=3),
+            "t",
+            self._decision({"title": "브랜드 뉴 데이"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 3, "watched")
+
+    async def test_ambiguous_title_asks_with_choice_list(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(*m) for m in self._SPIDEY]
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="스파이더맨 봤어", history=[], user_id=3),
+            "t",
+            self._decision({"title": "스파이더맨"}),
+        )
+        repo.record_user_action.assert_not_awaited()
+        self.assertIn("어떤 작품을 보셨나요?", resp.reply)
+        # 되묻기 문구는 다음 턴에 그대로 되읽힌다
+        self.assertEqual(
+            pick_from_choice_list(resp.reply, "2026작품이겠지? 최신이면"),
+            ("스파이더맨: 브랜드 뉴 데이", "watched"),
+        )
+
+    async def test_rating_glued_to_title_is_split(self) -> None:
+        interactor, repo = self._interactor()
+        hit = [_item(2, "스파이더맨: 어크로스 더 유니버스", "2023")]
+        repo.search_movies_by_title.side_effect = lambda terms, _n: (
+            hit if terms == ["어크로스 더 유니버스"] else []
+        )
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="어크로스 더 유니버스 봤어 4점", history=[], user_id=3),
+            "t",
+            self._decision({"title": "어크로스 더 유니버스 4"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 2, "watched")
+        repo.record_rating.assert_awaited_once_with(3, 2, 4.0)
+        self.assertIn("4점", resp.reply)
+
+    async def test_ambiguous_title_narrowed_by_previous_reply(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(*m) for m in self._SPIDEY]
+        history = [
+            {"role": "user", "content": "요즘 뭐해"},
+            {"role": "assistant", "content": "『스파이더맨: 브랜드 뉴 데이』가 상영 중이에요."},
+        ]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="스파이더맨 봤어", history=history, user_id=3),
+            "t",
+            self._decision({"title": "스파이더맨"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 3, "watched")
+
 
 class ChatInteractorAgentTasteTests(unittest.IsolatedAsyncioTestCase):
     """에이전트 recommend_for_me·similar_to·taste_profile 터미널 분기(2026-09-29 v10 선구현)."""
@@ -1215,6 +1288,43 @@ class ChoiceListPickerTests(unittest.TestCase):
     def test_ordinal(self) -> None:
         self.assertEqual(
             pick_from_choice_list(self._EVAL, "두번째"),
+            ("스파이더맨: 어크로스 더 유니버스", "evaluate"),
+        )
+
+    # 에이전트 search_movie가 만드는 되묻기(꼬리 "어떤 작품인가요?")
+    _AGENT = (
+        "비슷한 제목이 여러 편이에요: 스파이더맨: 노 웨이 홈(2021) / "
+        "스파이더맨: 어크로스 더 유니버스(2023) / 스파이더맨: 브랜드 뉴 데이(2026). 어떤 작품인가요?"
+    )
+
+    def test_watched_track_from_previous_user_message(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(
+                self._AGENT, "2026작품이겠지? 최신이면", "스파이더맨 최신꺼 봤어"
+            ),
+            ("스파이더맨: 브랜드 뉴 데이", "watched"),
+        )
+
+    def test_watched_track_from_current_message_with_typo(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._AGENT, "브랜드ㅡ 뉴 데이 봤어;;;;;;;;"),
+            ("스파이더맨: 브랜드 뉴 데이", "watched"),
+        )
+
+    def test_agent_list_without_watched_cue_goes_back_to_agent(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._AGENT, "2026년꺼", "스파이더맨 누가 나와"),
+            ("스파이더맨: 브랜드 뉴 데이", "agent"),
+        )
+
+    def test_newest_picks_latest_year(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._EVAL, "최신꺼"), ("스파이더맨: 브랜드 뉴 데이", "evaluate")
+        )
+
+    def test_question_about_watching_is_not_watched_track(self) -> None:
+        self.assertEqual(
+            pick_from_choice_list(self._EVAL, "두번째", "예고편 봤는데 어때?"),
             ("스파이더맨: 어크로스 더 유니버스", "evaluate"),
         )
 

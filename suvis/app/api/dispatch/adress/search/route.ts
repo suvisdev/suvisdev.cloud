@@ -1,12 +1,13 @@
 import type { NextRequest} from "next/server";
 import { NextResponse } from "next/server"
 import { backendFetch } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q") ?? ""
   if (!q) return NextResponse.json([])
 
-  const auth = req.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(
       `/api/v1/dispatch/adress/search?q=${encodeURIComponent(q)}`,

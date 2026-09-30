@@ -23,6 +23,10 @@ class ReviewsUseCase(ABC):
         pass
 
     @abstractmethod
+    async def has_watched(self, user_id: int, movie_id: int) -> bool:
+        pass
+
+    @abstractmethod
     async def add_review(
         self, user_id: int, movie_id: int, rating: float | None, body: str | None
     ) -> ReviewDto:

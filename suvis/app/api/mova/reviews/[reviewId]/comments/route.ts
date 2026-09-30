@@ -1,6 +1,7 @@
 import type { NextRequest} from "next/server";
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 type RouteContext = { params: Promise<{ reviewId: string }> }
 
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext): Promise<
 
 export async function POST(req: NextRequest, { params }: RouteContext): Promise<NextResponse> {
   const { reviewId } = await params
-  const auth = req.headers.get("authorization")
+  const auth = await cookieBearer()
   let body: unknown
   try {
     body = await req.json()
