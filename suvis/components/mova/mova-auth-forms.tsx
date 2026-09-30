@@ -15,26 +15,7 @@ import { safeApiErrorMessage } from "@/lib/user-facing-error"
 type LoginFormProps = { username: string; password: string }
 type SignupFormProps = { username: string; password: string; nickname: string; email: string }
 
-type AuthApiBody = {
-  access_token?: string
-  detail?: unknown
-}
-
-// 실동작하는 auth 경로(MovaLoginButton 헤더 드롭다운과 동일)로 통일.
-// /api/auth/login 프록시는 aud 없이 호출되던 잘못된 경로였음.
-const AUTH_BASE = "https://auth.suvisdev.cloud"
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
-  "https://api.suvisdev.cloud"
-const MOVA_AUD = "suvis-mova"
-
-async function fetchWhoami(accessToken: string): Promise<{ sub: string; username: string }> {
-  const res = await fetch(`${API_BASE}/mova/whoami`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new Error("사용자 정보를 불러오지 못했습니다.")
-  return (await res.json()) as { sub: string; username: string }
-}
+// 로그인·회원가입은 `/api/auth/login`·`/api/auth/signup` BFF 프록시로 나간다 — 토큰은 서버가 쿠키로 심는다.
 
 const inputClass =
   "h-11 w-full rounded-lg border border-mova-border bg-mova-surface-2 px-4 text-sm text-mova-text placeholder:text-neutral-500 outline-none transition focus:border-mova-accent/50 focus:ring-1 focus:ring-mova-accent-soft"
@@ -67,23 +48,22 @@ export function MovaAuthForms() {
 
     patchLogin({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${AUTH_BASE}/auth/login`, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: formProps.username.trim(),
           password: formProps.password,
-          aud: MOVA_AUD,
         }),
       })
-      let body: AuthApiBody
+      let body: { id?: number; username?: string; detail?: unknown }
       try {
-        body = (await res.json()) as AuthApiBody
+        body = (await res.json()) as { id?: number; username?: string; detail?: unknown }
       } catch {
         patchLogin({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok || !body.access_token) {
+      if (!res.ok || typeof body.id !== "number") {
         patchLogin({
           message: safeApiErrorMessage(
             body.detail,
@@ -95,12 +75,7 @@ export function MovaAuthForms() {
         })
         return
       }
-      const whoami = await fetchWhoami(body.access_token)
-      saveSuvisSession({
-        id: Number(whoami.sub),
-        username: whoami.username || `user-${whoami.sub}`,
-        token: body.access_token,
-      })
+      saveSuvisSession({ id: body.id, username: body.username || `user-${body.id}` })
       router.replace(redirect.startsWith("/mova") ? redirect : "/mova/main")
     } catch {
       patchLogin({ message: "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요." })
@@ -127,24 +102,23 @@ export function MovaAuthForms() {
 
     patchSignup({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${AUTH_BASE}/auth/signup`, {
+      const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formProps.email.trim(),
           password: formProps.password,
           username: formProps.username.trim() || undefined,
-          aud: MOVA_AUD,
         }),
       })
-      let body: AuthApiBody
+      let body: { id?: number; username?: string; detail?: unknown }
       try {
-        body = (await res.json()) as AuthApiBody
+        body = (await res.json()) as { id?: number; username?: string; detail?: unknown }
       } catch {
         patchSignup({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok || !body.access_token) {
+      if (!res.ok || typeof body.id !== "number") {
         patchSignup({
           message: safeApiErrorMessage(
             body.detail,
@@ -154,12 +128,10 @@ export function MovaAuthForms() {
         })
         return
       }
-      // 회원가입 = 세션 발급 완료. 별도 로그인 불필요, 바로 진입.
-      const whoami = await fetchWhoami(body.access_token)
+      // 회원가입 = 세션 발급 완료(BFF가 쿠키 세팅). 바로 진입.
       saveSuvisSession({
-        id: Number(whoami.sub),
-        username: whoami.username || formProps.nickname.trim() || `user-${whoami.sub}`,
-        token: body.access_token,
+        id: body.id,
+        username: body.username || formProps.nickname.trim() || `user-${body.id}`,
       })
       router.replace(redirect.startsWith("/mova") ? redirect : "/mova/main")
     } catch {

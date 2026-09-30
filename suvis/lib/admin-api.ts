@@ -1,8 +1,4 @@
-import { getSuvisSession } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
-
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 export type AgentSummary = {
   id: string
@@ -23,11 +19,9 @@ export type AgentLogEntry = {
 type ApiErrorBody = { detail?: string | unknown }
 
 async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getSuvisSession()?.token
-  const res = await fetch(`${API_BASE}/viewer/admin/agents${path}`, {
+  const res = await fetch(`/api/backend/viewer/admin/agents${path}`, {
     ...init,
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   })

@@ -150,7 +150,7 @@ export default function MemoryGamePage() {
     if (phase !== "done") return
     const session = getSuvisSession()
     const finalize = async () => {
-      if (session?.token) {
+      if (session) {
         setSavingScore(true)
         try {
           await saveGameScore({ game_type: "memory", stage, score: elapsed, hints_used: 0 })

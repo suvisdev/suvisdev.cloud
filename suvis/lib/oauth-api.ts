@@ -1,10 +1,10 @@
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
+// 토큰은 응답 본문에 없다 — BFF 프록시가 httpOnly 쿠키로 심는다(2026-09-30).
 export type OAuthSessionResult = {
   id: number
   username: string
   nickname: string
-  token: string
   role: "admin" | "user"
 }
 

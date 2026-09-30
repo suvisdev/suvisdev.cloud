@@ -5,7 +5,6 @@ import { useCallback, useRef, useState } from "react"
 import { Database, FileSpreadsheet, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 const ACCEPT = ".csv,text/csv"
@@ -79,12 +78,10 @@ export default function TitanicDataCollectionPage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      // 백엔드가 require_admin으로 잠김(2026-09-11) — 토큰 없으면 헤더 생략(401 안내)
-      const token = getSuvisSession()?.token
-      const res = await fetch(`${API_BASE}/api/titanic/james/upload`, {
+      // 백엔드가 require_admin으로 잠김(2026-09-11) — 인증은 쿠키(/api/backend 프록시)가 붙인다
+      const res = await fetch(`/api/backend/api/titanic/james/upload`, {
         method: "POST",
         body: formData,
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       })
       let data: { row_count?: number; detail?: string | { msg?: string }[] } = {}
       try {

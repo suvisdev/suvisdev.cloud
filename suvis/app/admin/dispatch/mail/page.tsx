@@ -4,7 +4,6 @@ import { useRef, useState } from "react"
 import { Bot, CheckCircle2, CornerDownLeft, Loader2, Send } from "lucide-react"
 import { EmailAutocomplete } from "@/components/mail/email-autocomplete"
 import { patchState } from "@/lib/form-status"
-import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type SendState = { loading: boolean; error: string | null; result: { to: string; subject: string } | null }
@@ -38,7 +37,7 @@ export default function AdminMailPage() {
     try {
       const res = await fetch("/api/dispatch/email", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, prompt }),
       })
       const data = await res.json() as DispatchEmailResponse

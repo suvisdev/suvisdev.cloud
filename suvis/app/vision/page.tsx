@@ -55,8 +55,7 @@ export default function VisionUploadPage() {
 
   const uploadImage = useCallback(async () => {
     if (!file) return
-    const token = getSuvisSession()?.token
-    if (!token) {
+    if (!getSuvisSession()) {
       setUploadError("업로드하려면 로그인이 필요해요.")
       return
     }
@@ -66,10 +65,9 @@ export default function VisionUploadPage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      const res = await fetch(`${API_BASE}/api/vision/upload`, {
+      const res = await fetch(`/api/backend/api/vision/upload`, {
         method: "POST",
         body: formData,
-        headers: { Authorization: `Bearer ${token}` },
       })
       let data: { filename?: string; size_bytes?: number; detail?: string | { msg?: string }[] } =
         {}

@@ -6,7 +6,7 @@ import { LogOut, User } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 import type { AuthFormsMode } from "@/app/login/auth-forms"
 import {
-  clearSuvisSession,
+  logoutSession,
   getSuvisSession,
   type SuvisSession,
 } from "@/lib/suvis-session"
@@ -55,7 +55,7 @@ export function AuthLoginButton({ className }: AuthLoginButtonProps) {
         <button
           type="button"
           onClick={() => {
-            clearSuvisSession()
+            void logoutSession()
             setSession(null)
           }}
           className={cn(

@@ -1,4 +1,3 @@
-import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 export type ProfileResult = {
@@ -17,7 +16,6 @@ type ProfileErrorBody = { detail?: string | unknown }
 export async function fetchProfile(userId: number): Promise<ProfileResult> {
   const res = await fetch(`/api/viewer/profile?id=${userId}`, {
     cache: "no-store",
-    headers: { ...authHeader() },
   })
   const data = (await res.json()) as ProfileResult & ProfileErrorBody
   if (!res.ok) {
@@ -35,7 +33,7 @@ async function patchProfile(
 ): Promise<ProfileResult> {
   const res = await fetch(`/api/viewer/profile?id=${userId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
   const data = (await res.json()) as ProfileResult & ProfileErrorBody
@@ -55,7 +53,6 @@ export async function uploadAvatar(file: File): Promise<{ avatar_url: string | n
   // Content-Type은 브라우저가 boundary와 함께 붙인다 — 직접 넣으면 안 된다.
   const res = await fetch("/api/viewer/avatar", {
     method: "POST",
-    headers: { ...authHeader() },
     body: form,
   })
   const data = (await res.json()) as { avatar_url: string | null } & ProfileErrorBody

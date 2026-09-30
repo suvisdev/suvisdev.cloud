@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function POST(request: Request) {
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const body = await request.json()
     const res = await backendFetch("/mova/chat", {

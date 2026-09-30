@@ -10,7 +10,7 @@ import {
 } from "@/components/mova/mova-recommendation-cards"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
-import { authHeader, clearSuvisSession, getSuvisSession } from "@/lib/suvis-session"
+import { clearSuvisSession, getSuvisSession } from "@/lib/suvis-session"
 import { getConversation, type ConversationMessage } from "@/lib/mova-conversations-api"
 import { getRotatingMovaChatSuggestions } from "@/lib/mova-chat-suggestions"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
@@ -524,24 +524,20 @@ export function MovaAiChatBar({
       model: "flash15",
       conversation_id: conversationIdRef.current,
     })
-    const doFetch = (withAuth: boolean) =>
+    const doFetch = () =>
       fetch("/api/mova/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(withAuth ? authHeader() : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body,
       })
 
     try {
-      let res = await doFetch(true)
-      // 만료·손상된 JWT면 백엔드가 익명 강등 대신 401을 낸다(설계 의도).
-      // 프론트에선 세션을 조용히 정리하고 익명으로 1회 재시도해 채팅 자체는
-      // 끊기지 않게 한다.
+      let res = await doFetch()
+      // 인증은 쿠키가 진다(프록시가 만료 시 리프레시). 401이면 리프레시도 실패한 것 —
+      // 프록시가 쿠키를 지웠으니 UI 세션도 정리하고 익명으로 1회 재시도해 채팅은 안 끊기게 한다.
       if (res.status === 401 && getSuvisSession()) {
         clearSuvisSession()
-        res = await doFetch(false)
+        res = await doFetch()
       }
       const data = (await res.json()) as {
         reply?: string

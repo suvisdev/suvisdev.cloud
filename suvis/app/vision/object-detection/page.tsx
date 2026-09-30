@@ -5,7 +5,6 @@ import { useCallback, useRef, useState } from "react"
 import { ScanFace, Upload, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSuvisSession } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 const ACCEPT = ".jpg,.jpeg,.png,image/jpeg,image/png"
@@ -74,12 +73,10 @@ export default function VisionObjectDetectionPage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      // 백엔드가 require_user로 잠김(2026-09-11) — 토큰 없으면 헤더 생략(401 안내)
-      const token = getSuvisSession()?.token
-      const res = await fetch(`${API_BASE}/api/vision/face/predict`, {
+      // 백엔드가 require_user로 잠김(2026-09-11) — 인증은 쿠키(/api/backend 프록시)가 붙인다
+      const res = await fetch(`/api/backend/api/vision/face/predict`, {
         method: "POST",
         body: formData,
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       })
       let data: PredictResponse = {}
       try {
