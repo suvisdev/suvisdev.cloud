@@ -19,7 +19,7 @@ const TECH_STACK = [
   },
   {
     category: "AI · ML",
-    items: ["EXAONE (LoRA/QLoRA)", "Gemini API", "LangChain", "Hugging Face Transformers", "PEFT · AWQ", "pgvector"],
+    items: ["EXAONE (LoRA/QLoRA)", "Gemini API", "LangChain", "Hugging Face Transformers", "PEFT · GGUF", "llama.cpp · Ollama", "bge-m3", "pgvector"],
   },
   {
     category: "BACKEND",
@@ -27,15 +27,15 @@ const TECH_STACK = [
   },
   {
     category: "FRONTEND",
-    items: ["Next.js (App Router)", "React 19", "Tailwind CSS", "shadcn/ui", "Leaflet"],
+    items: ["Next.js (App Router)", "React 19", "Tailwind CSS", "shadcn/ui", "네이버 지도 JS"],
   },
   {
     category: "MOBILE",
-    items: ["Flutter", "Kakao SDK", "Dio"],
+    items: ["Flutter", "Kakao SDK", "네이버 지도 SDK", "Dio"],
   },
   {
     category: "INFRA · DEVOPS",
-    items: ["Docker", "AWS EC2 · S3", "Cloudflare Tunnel", "nginx", "GitHub Actions", "Vercel"],
+    items: ["Docker", "k3s", "AWS S3", "Cloudflare Tunnel", "GitHub Actions", "Vercel"],
   },
   {
     category: "DATA",
@@ -47,22 +47,22 @@ const PROJECTS = [
   {
     name: "Mova",
     desc: "AI 영화 추천 플랫폼",
-    detail: "LoRA(EXAONE-2.4B AWQ) + Gemini 듀얼 백엔드 개인화 추천, AI 리뷰 자동 생성, 박스오피스 랭킹, 영화 AI 챗봇",
-    tech: ["FastAPI", "Next.js", "EXAONE LoRA", "Gemini", "PostgreSQL", "pgvector"],
+    detail: "파인튜닝한 EXAONE 2.4B가 도구를 골라 답하는 영화 채팅 에이전트(사실은 코드 템플릿이 답함). GGUF 자체 서빙 + Gemini 자동 폴백, 에디터 리뷰 자동 생성, 박스오피스 랭킹",
+    tech: ["FastAPI", "Next.js", "EXAONE LoRA", "llama.cpp", "Gemini", "PostgreSQL", "pgvector"],
     link: "https://suvisdev.cloud/mova",
   },
   {
     name: "Gildle",
     desc: "반려견 산책 경로 추천",
-    detail: "OSM 233,964 edges 보행 그래프 + 3축 환경 점수(나무 그늘·결빙 위험·반려견 친화) 기반 최적 경로",
-    tech: ["FastAPI", "OSM/osmnx", "Leaflet", "Next.js", "Overpass API"],
+    detail: "서울 전역 보행 그래프(간선 약 23만)에 건물 약 80만 동의 그림자를 입혀 시간대별 그늘 경로를 계산. 빠른·그늘·푸른·편한 길 후보와 문장 추천, 웹·안드로이드 앱",
+    tech: ["FastAPI", "OSM/osmnx", "A*", "네이버 지도", "Next.js", "Flutter"],
     link: "https://suvisdev.cloud/gildle",
   },
   {
     name: "suvisdev.cloud",
     desc: "모듈러 모놀리식 풀스택 플랫폼",
-    detail: "Clean Architecture + Star Topology 기반 통합 플랫폼. 소셜 로그인(Google·Kakao·Naver), RBAC 어드민, 방문자 통계",
-    tech: ["FastAPI", "Next.js", "Flutter", "Docker", "AWS", "Cloudflare"],
+    detail: "Clean Architecture + Star Topology 기반 통합 플랫폼. 소셜 로그인(Google·Kakao·Naver), httpOnly 쿠키 세션, RBAC 어드민, 방문자 통계. GPU 노트북 한 대의 k3s로 직접 운영",
+    tech: ["FastAPI", "Next.js", "Flutter", "Docker", "k3s", "Cloudflare"],
     link: "https://suvisdev.cloud",
   },
 ]
@@ -167,14 +167,14 @@ export function ResumeContent() {
               아키텍처 위에서 기획부터 배포까지 전 과정을 개인 프로젝트로 수행했습니다.
             </p>
             <p>
-              LoRA 파인튜닝과 Gemini API를 활용한 AI 파이프라인 구축, Clean Architecture
-              기반의 FastAPI 백엔드, Next.js + Flutter 멀티플랫폼 프론트엔드를 설계·구현하고
-              AWS EC2 + Docker로 운영 중입니다.
+              LoRA 파인튜닝한 소형 모델이 도구를 고르는 채팅 에이전트와 Gemini API를 함께 쓰는
+              AI 파이프라인, Clean Architecture 기반의 FastAPI 백엔드, Next.js + Flutter
+              멀티플랫폼 프론트엔드를 설계·구현하고 GPU 노트북 한 대의 k3s로 직접 운영 중입니다.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <StatCard label="개발 기간" value="10주" />
-              <StatCard label="백엔드 테스트" value="550+" />
-              <StatCard label="보행 그래프" value="233K edges" />
+              <StatCard label="개발 기간" value="12주" />
+              <StatCard label="백엔드 테스트" value="1,000+" />
+              <StatCard label="보행 그래프" value="230K edges" />
             </div>
           </div>
         </section>

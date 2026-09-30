@@ -67,6 +67,15 @@
   로그인 → 다시 401 반복. 전부 `cookieBearer()`로 교체, 전수 grep으로 잔여 0 확인. 소셜 로그인 뒤 사이트 홈으로 가던 것도
   로그인 전 경로를 sessionStorage에 적어 두었다가 돌아가게 수정(`rememberPostLoginPath`/`takePostLoginPath`, 사이트 안 경로만 허용).
 
+- **v1 마감 문서 정리**(사용자 지시 "전부 읽고 바꿔야 할 것 전부"): ① 지킬 블로그 `suvisjk`(jk.suvisdev.cloud) 전 페이지·포스트 31편을
+  전부 읽고 현행화 — index·toc·about·overview·mova·gildle·guidelines·schedule·issues·appendix·`_data/project.yml`·CLAUDE.md(초기 스캐폴드
+  잔재 제거)·푸터, 09-30 데블로그 추가, 없던 스크린샷 4장을 운영 화면 캡처로 추가. 포스트(그날의 기록)는 고치지 않음. Pages 빌드 성공·실페이지 확인.
+  ② 사이트 `/resume` 페이지가 옛 수치(10주·550+·EC2·AWQ·Leaflet)였던 것을 v1 사실로 갱신(캡처 확인).
+  ③ 바탕화면 `진수택_이력서_자소서` 전 파일(루트 00~05 md/html/pdf, 09-29_수정본 11개, 면접대비 5개)을 읽고 갱신 — 이전본은
+  `_이전본_09-30이전/`에 보관, html 재생성·pdf 재출력, 면접대비는 Arda를 빼고 09-30 사실로(에이전트 운영·도구 10개·쿠키 인증·웹/앱 통일).
+  **미확인으로 남긴 것**: 블로그 `_posts/2026-08-28-agent-progress`는 팀 프로젝트(Arda) 글이라 suvisjk 방침("팀 콘텐츠 금지")과 어긋나지만
+  사용자 글이라 삭제하지 않고 보고만 함. 이력서의 "(연도 확인)"·Arda 수치는 확인 불가로 그대로.
+
 ### 데이터
 - 전체 점검 결과(09-30 14시): pytest **1030 passed**·2 skipped·7 deselected / import-linter **6 kept** / tsc·eslint 0 /
   mova 운영 하네스 단일턴 **28/28**·멀티턴 **16/17**(1건은 "9월 30일자로" 날짜 의존 검사 — 오늘이 09-30이라 "오늘"로 답함) /
