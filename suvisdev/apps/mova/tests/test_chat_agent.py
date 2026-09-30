@@ -6,7 +6,12 @@ from dataclasses import dataclass
 
 import pytest
 
-from mova.app.use_cases.chat_agent import MovaChatAgent, compose_facts, wants_review_summary
+from mova.app.use_cases.chat_agent import (
+    MovaChatAgent,
+    compose_facts,
+    parse_rating,
+    wants_review_summary,
+)
 from ontology.app.ports.output.judge_port import JudgeError, JudgePort
 from ontology.domain.agent.action_protocol import FINAL, format_action
 
@@ -178,6 +183,64 @@ async def test_judge_failure_raises_for_fallback():
 
 def test_compose_facts_returns_none_without_results():
     assert compose_facts("안녕", []) is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("4", 4.0),
+        ("3.5", 3.5),
+        ("4점", 4.0),
+        ("3.7", 3.5),  # 0.5 단위 반올림(3.7→3.5)
+        ("3.8", 4.0),  # 3.8→4.0
+        ("6", 5.0),  # 상한 클램프
+        ("0", 0.5),  # 하한 클램프
+        (None, None),
+        ("", None),
+        ("좋았어", None),  # 숫자 없음 → 별점 없이 봤어요만
+    ],
+)
+def test_parse_rating(raw, expected):
+    assert parse_rating(raw) == expected
+
+
+@pytest.mark.asyncio
+async def test_mark_watched_returns_terminal_action():
+    # 직전 카드에 나온 작품을 지시어로 가리키고 별점을 말함 — title 근거 가드 통과, 터미널로 반환
+    hist = [{"role": "assistant", "content": "[추천 카드] 1.『밤의 해변에서 혼자』(2017)"}]
+    agent = _agent(
+        [
+            format_action(
+                {
+                    "name": "mark_watched",
+                    "arguments": {"title": "밤의 해변에서 혼자", "rating": "4"},
+                }
+            )
+        ]
+    )
+    d = await agent.decide("그거 봤어, 4점", hist, trace_id="t")
+    assert d.terminal == {
+        "name": "mark_watched",
+        "arguments": {"title": "밤의 해변에서 혼자", "rating": "4"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_v10_taste_tools_return_terminal():
+    # recommend_for_me: query는 자유 문장이라 근거 가드 없음
+    agent = _agent([format_action({"name": "recommend_for_me", "arguments": {"query": "내 취향"}})])
+    d = await agent.decide("내 취향에 맞는 거 추천해줘", [], trace_id="t")
+    assert d.terminal == {"name": "recommend_for_me", "arguments": {"query": "내 취향"}}
+
+    # similar_to: title은 발화에 있어야 근거 가드 통과
+    agent = _agent([format_action({"name": "similar_to", "arguments": {"title": "기생충"}})])
+    d = await agent.decide("기생충 같은 영화 추천해줘", [], trace_id="t")
+    assert d.terminal == {"name": "similar_to", "arguments": {"title": "기생충"}}
+
+    # taste_profile: 인자 없음
+    agent = _agent([format_action({"name": "taste_profile", "arguments": {}})])
+    d = await agent.decide("내 취향이 뭐야", [], trace_id="t")
+    assert d.terminal == {"name": "taste_profile", "arguments": {}}
 
 
 @pytest.mark.asyncio

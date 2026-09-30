@@ -88,6 +88,14 @@ class ChatRepositoryPort(ABC):
         """user_actions 이벤트 기록 — chat_trend 조건부 신호(booking_intent·eval_positive)."""
 
     @abstractmethod
+    async def record_rating(self, user_id: int, movie_id: int, rating: float) -> None:
+        """채팅에서 말한 별점을 reviews에 upsert(별점만, 기존 감상평은 보존).
+
+        UNIQUE(user_id, movie_id) — 기존 행이 있으면 rating만 갱신, 없으면 신규.
+        '봤어요' 게이트(watched 선행)는 호출부가 mark_watched로 함께 기록하므로 여기선 검사하지 않는다.
+        """
+
+    @abstractmethod
     async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list[Any]:
         """사용자 최근 검색 의도 (MovaChat rows)."""
 

@@ -14,6 +14,7 @@ from mova.adapter.inbound.api.schemas.market_chat_schema import MovaChatRecommen
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
 from mova.adapter.outbound.orm.market_picks_orm import MovaPick
+from mova.adapter.outbound.orm.market_reviews_orm import MovaReview
 from mova.adapter.outbound.orm.market_user_actions_orm import (
     ACTION_WATCHED,
     EVENT_ACTION_TYPES,
@@ -426,6 +427,20 @@ class ChatPgRepository(ChatRepositoryPort):
         self._session.add(
             MovaUserAction(user_id=user_id, movie_id=movie_id, action_type=action_type)
         )
+        await self._session.commit()
+
+    async def record_rating(self, user_id: int, movie_id: int, rating: float) -> None:
+        existing = (
+            await self._session.execute(
+                select(MovaReview).where(
+                    MovaReview.user_id == user_id, MovaReview.movie_id == movie_id
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            self._session.add(MovaReview(user_id=user_id, movie_id=movie_id, rating=rating))
+        else:
+            existing.rating = rating  # body·embedding 등 감상평 관련 컬럼은 건드리지 않는다
         await self._session.commit()
 
     async def get_recent_intents_by_user(self, user_id: int, limit: int) -> list[MovaChat]:

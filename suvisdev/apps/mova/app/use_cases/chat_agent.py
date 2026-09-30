@@ -8,6 +8,9 @@
   FINAL이면 `compose_facts`가 코드 템플릿으로 답을 쓴다(사실을 지어낼 여지 0 — 09-29 7.8B 실측).
 - 터미널 도구(트랙이 실행): recommend_movies · showtimes · where_to_watch — `ChatInteractor`가 기존
   추천·예매 트랙으로 넘긴다(저장·응답을 트랙이 한 번에).
+  **v10 선구현(2026-09-29)**: mark_watched(봤어요·별점) · recommend_for_me(취향 추천) · similar_to(유사 추천) ·
+  taste_profile(취향 요약)도 터미널로 인터랙터가 처리한다. 서빙 v9 프롬프트는 이 도구들을 노출하지 않아
+  부르지 않으므로 무해하고, v10 프롬프트를 `agent_prompt.py`로 교체하면 바로 작동한다(등록은 여기서 이미 끝냄).
 
 6칸 이해 단계(`ChatOrchestrator`)와의 차이·측정은 `apps/mova/_docs/MOVA_CHAT_ORCHESTRATOR.md` §8.
 """
@@ -32,9 +35,29 @@ _TERMINAL = {
     "recommend_movies": ("query",),
     "showtimes": ("title", "region", "date"),
     "where_to_watch": ("title",),
+    # v10 선구현(2026-09-29): 취향·유사 추천·취향 요약. query는 자유 문장이라 근거 가드 제외,
+    # similar_to.title은 대화에 나온 작품이어야 하므로 가드 대상(아래 컴프리헨션이 자동 처리).
+    "recommend_for_me": ("query",),
+    "similar_to": ("title",),
+    "taste_profile": (),
 }
 ASK_CAST = re.compile(r"누가|출연|배우|주연|감독|캐스팅|만들었")
 ASK_PLOT = re.compile(r"줄거리|내용|무슨 ?영화|어떤 ?영화|스토리")
+
+
+def parse_rating(raw: str | None) -> float | None:
+    """모델이 넘긴 별점 문자열("4", "3.5", "4점")을 mova 척도(0.5~5.0, 0.5 단위)로 정규화.
+
+    별점을 말하지 않았으면(None·빈 값·숫자 없음) None — 봤어요만 기록한다.
+    반올림·클램프한 값은 확인 문구에 그대로 노출하므로 사용자가 틀리면 정정할 수 있다.
+    """
+    if not raw:
+        return None
+    m = re.search(r"\d+(?:\.\d+)?", raw)
+    if m is None:
+        return None
+    value = round(float(m.group()) * 2) / 2  # 0.5 단위로 반올림
+    return min(5.0, max(0.5, value))
 
 
 class MovaChatAgent:
@@ -62,6 +85,9 @@ class MovaChatAgent:
                 Tool(name, params, None, grounded=tuple(p for p in params if p != "query"))
                 for name, params in _TERMINAL.items()
             ],
+            # v10 선구현(2026-09-29): 판단 모델이 mark_watched를 부르면 인터랙터가 봤어요·별점을 기록한다.
+            # 별점(rating)은 사용자가 말한 숫자라 근거 가드 대상이 아니다(title만 검증).
+            Tool("mark_watched", ("title", "rating"), None, grounded=("title",)),
         ]
         self._loop = AgentLoop(
             judge=judge, system_prompt=SYSTEM_PROMPT, tools=tools, max_steps=MAX_STEPS

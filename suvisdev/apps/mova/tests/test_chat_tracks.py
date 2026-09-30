@@ -21,6 +21,7 @@ from mova.adapter.inbound.api.schemas.studio_search_schema import (  # noqa: E40
 from mova.adapter.outbound.http.kofic_adapter import KoficAdapterError  # noqa: E402
 from mova.app.dtos.market_chat_dto import ReviewAggregateDto  # noqa: E402
 from mova.app.dtos.studio_movies_dto import MovieDetailDto, PlatformDto  # noqa: E402
+from mova.app.dtos.user_preference_dto import UserPreferenceDto  # noqa: E402
 from mova.app.use_cases.market_chat_booking_interactor import (  # noqa: E402
     _DISCOVERY_PATTERN,
     REGION_ASK_MARKER,
@@ -42,6 +43,7 @@ from mova.app.use_cases.market_chat_interactor import (  # noqa: E402
 from mova.app.use_cases.market_chat_title_resolver import (  # noqa: E402
     resolve_movie_title,
 )
+from ontology.app.agent.agent_loop import AgentDecision  # noqa: E402
 from ontology.app.dtos.mycroft_dto import MycroftAnswerDto  # noqa: E402
 
 
@@ -973,6 +975,188 @@ class ChatInteractorTrackDelegationTests(unittest.IsolatedAsyncioTestCase):
         )
 
         repo.record_user_action.assert_awaited_once_with(3, 7, "eval_positive")
+
+
+class ChatInteractorMarkWatchedTests(unittest.IsolatedAsyncioTestCase):
+    """에이전트 mark_watched 터미널 → 봤어요·별점 기록(2026-09-29 v10 선구현)."""
+
+    def _interactor(self) -> tuple[ChatInteractor, AsyncMock]:
+        repo = AsyncMock()
+        repo.save_chat.return_value = 11
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=AsyncMock(),
+            preferences=AsyncMock(),
+            hub_rag=AsyncMock(),
+            classifier=AsyncMock(),
+            general=AsyncMock(),
+            evaluation=AsyncMock(),
+            booking=AsyncMock(),
+        )
+        return interactor, repo
+
+    @staticmethod
+    def _decision(arguments: dict[str, str]) -> AgentDecision:
+        return AgentDecision(terminal={"name": "mark_watched", "arguments": arguments})
+
+    async def test_records_watched_and_rating(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(7, "인셉션", "2010")]
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="인셉션 봤어 4점", history=[], user_id=3),
+            "t",
+            self._decision({"title": "인셉션", "rating": "4"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 7, "watched")
+        repo.record_rating.assert_awaited_once_with(3, 7, 4.0)
+        self.assertIn("봤어요로 표시", resp.reply)
+        self.assertIn("4점", resp.reply)
+
+    async def test_records_watched_only_without_rating(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(7, "인셉션", "2010")]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="인셉션 봤어", history=[], user_id=3),
+            "t",
+            self._decision({"title": "인셉션"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 7, "watched")
+        repo.record_rating.assert_not_awaited()
+
+    async def test_anonymous_user_is_not_recorded(self) -> None:
+        interactor, repo = self._interactor()
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="인셉션 봤어 4점", history=[], user_id=None),
+            "t",
+            self._decision({"title": "인셉션", "rating": "4"}),
+        )
+        repo.record_user_action.assert_not_awaited()
+        repo.record_rating.assert_not_awaited()
+        self.assertIn("로그인", resp.reply)
+
+    async def test_unresolved_title_asks_again_and_does_not_record(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = []  # 카탈로그 미일치
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="없는영화 봤어 4점", history=[], user_id=3),
+            "t",
+            self._decision({"title": "없는영화", "rating": "4"}),
+        )
+        repo.record_user_action.assert_not_awaited()
+        repo.record_rating.assert_not_awaited()
+        self.assertIn("못 찾았", resp.reply)
+
+
+class ChatInteractorAgentTasteTests(unittest.IsolatedAsyncioTestCase):
+    """에이전트 recommend_for_me·similar_to·taste_profile 터미널 분기(2026-09-29 v10 선구현)."""
+
+    def _interactor(self) -> tuple[ChatInteractor, AsyncMock]:
+        repo = AsyncMock()
+        repo.save_chat.return_value = 11
+        interactor = ChatInteractor(
+            repository=repo,
+            recommender=AsyncMock(),
+            preferences=AsyncMock(),
+            hub_rag=AsyncMock(),
+            classifier=AsyncMock(),
+            general=AsyncMock(),
+            evaluation=AsyncMock(),
+            booking=AsyncMock(),
+            movies=AsyncMock(),
+            taste_vectors=AsyncMock(),
+        )
+        return interactor, repo
+
+    async def test_recommend_for_me_dispatches_taste_mode(self) -> None:
+        interactor, _ = self._interactor()
+        interactor._reply_personal_recommend = AsyncMock(return_value="R")  # type: ignore[method-assign]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="내 취향 추천", history=[], user_id=3),
+            "t",
+            AgentDecision(terminal={"name": "recommend_for_me", "arguments": {"query": "내 취향"}}),
+        )
+        interactor._reply_personal_recommend.assert_awaited_once()
+        self.assertIsNone(interactor._reply_personal_recommend.await_args.kwargs["seed_title"])
+
+    async def test_similar_to_dispatches_with_seed_title(self) -> None:
+        interactor, _ = self._interactor()
+        interactor._reply_personal_recommend = AsyncMock(return_value="R")  # type: ignore[method-assign]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="기생충 같은 영화", history=[], user_id=3),
+            "t",
+            AgentDecision(terminal={"name": "similar_to", "arguments": {"title": "기생충"}}),
+        )
+        self.assertEqual(
+            interactor._reply_personal_recommend.await_args.kwargs["seed_title"], "기생충"
+        )
+
+    async def test_taste_profile_summarizes_genres_and_top_titles(self) -> None:
+        interactor, repo = self._interactor()
+        interactor._taste_vectors.list_user_ratings.return_value = [(7, 4.5), (8, 3.0)]
+        repo.get_watched_movie_ids.return_value = {"7", "9"}
+        interactor._preferences.get_preferences.return_value = UserPreferenceDto(
+            nickname="냥", preferred_genres=["SF"]
+        )
+        repo.get_catalog_items.return_value = [
+            MovaSearchItemSchema(
+                id="7",
+                title="인셉션",
+                year="2010",
+                rating=4.0,
+                poster="",
+                match_type="s",
+                genres="SF, 스릴러",
+            ),
+            MovaSearchItemSchema(
+                id="8",
+                title="컨택트",
+                year="2016",
+                rating=4.0,
+                poster="",
+                match_type="s",
+                genres="SF, 드라마",
+            ),
+            MovaSearchItemSchema(
+                id="9",
+                title="인터스텔라",
+                year="2014",
+                rating=4.0,
+                poster="",
+                match_type="s",
+                genres="SF",
+            ),
+        ]
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="내 취향이 뭐야", history=[], user_id=3),
+            "t",
+            AgentDecision(terminal={"name": "taste_profile", "arguments": {}}),
+        )
+        self.assertIn("SF", resp.reply)  # 최다 장르
+        self.assertIn("인셉션", resp.reply)  # 최고 별점 작품
+        self.assertIn("별점 2편", resp.reply)
+
+    async def test_taste_profile_without_history_guides_user(self) -> None:
+        interactor, repo = self._interactor()
+        interactor._taste_vectors.list_user_ratings.return_value = []
+        repo.get_watched_movie_ids.return_value = set()
+        interactor._preferences.get_preferences.return_value = UserPreferenceDto.empty()
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="내 취향이 뭐야", history=[], user_id=3),
+            "t",
+            AgentDecision(terminal={"name": "taste_profile", "arguments": {}}),
+        )
+        self.assertIn("아직 취향을 파악할 기록이 없어요", resp.reply)
+        repo.get_catalog_items.assert_not_awaited()
+
+    async def test_taste_profile_anonymous_asks_login(self) -> None:
+        interactor, _ = self._interactor()
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="내 취향이 뭐야", history=[], user_id=None),
+            "t",
+            AgentDecision(terminal={"name": "taste_profile", "arguments": {}}),
+        )
+        self.assertIn("로그인", resp.reply)
+        interactor._taste_vectors.list_user_ratings.assert_not_awaited()
 
 
 if __name__ == "__main__":
