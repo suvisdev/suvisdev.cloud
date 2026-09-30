@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gildle/features/gildle/data/models/route_result.dart';
+import 'package:gildle/features/gildle/data/models/route_option.dart';
 import 'package:gildle/features/gildle/domain/geo_point.dart';
 
 void main() {
@@ -19,17 +19,41 @@ void main() {
     expect(polylineLengthM([a]), 0);
   });
 
-  test('RouteResult는 여름 필드가 없어도 파싱된다', () {
-    final r = RouteResult.fromJson({
-      'path': ['N1', 'N2'],
+  test('RouteOption은 선택 필드가 없어도 파싱된다', () {
+    final o = RouteOption.fromJson({
+      'kind': 'fast',
+      'label': '빠른 길',
+      'length_m': 659.8,
       'coordinates': [
         [37.5, 127.0],
         [37.501, 127.0]
       ],
     });
-    expect(r.path.length, 2);
-    expect(r.shadeRatio, isNull);
-    expect(r.night, isFalse);
-    expect(r.isEmpty, isFalse);
+    expect(o.coordinates.length, 2);
+    expect(o.shadeRatio, isNull);
+    expect(o.recommended, isFalse);
+    expect(o.places, isEmpty);
+  });
+
+  test('WalkPlan — 목적지가 있는 추천은 출발지로 돌아오지 않는다', () {
+    final plan = WalkPlan.fromJson({
+      'understood': {
+        'kind': 'route',
+        'minutes': null,
+        'distance_km': null,
+        'preference': 'fast',
+        'stops': <String>[],
+        'destination': '동물병원',
+        'source': 'llm',
+      },
+      'destination_place': {'name': '서울동물병원', 'category': '동물병원', 'lat': 37.526, 'lng': 126.918, 'address': ''},
+      'via_place': null,
+      'target_m': 2052,
+      'options': <Map<String, dynamic>>[],
+      'night': false,
+    });
+    expect(plan.returnsToStart, isFalse);
+    expect(plan.destination?.lat, 37.526);
+    expect(plan.destinationName, '서울동물병원');
   });
 }
