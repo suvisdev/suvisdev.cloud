@@ -16,6 +16,7 @@ import {
   addReviewActivity,
   addToWatchlist,
   checkWatchlist,
+  fetchWatched,
   createMovaReview,
   fetchMovaRating,
   fetchMovaReviewsByMovie,
@@ -83,8 +84,7 @@ export function MovaTitleView({
   const [myReview, setMyReview] = useState<MovaReviewRow | null>(null)
   const [inWatchlist, setInWatchlist] = useState(false)
   const [watchlistLoading, setWatchlistLoading] = useState(false)
-  // watched는 조회 API가 없어(백엔드는 기록만 함) 이 세션에서 누른 적 있는지만 표시한다.
-  // 새로고침하면 다시 안 눌린 상태로 보이지만, 백엔드 기록 자체는 남아 있어 리뷰 게이트는 그대로 통과한다.
+  // 저장된 봤어요 기록을 읽어 온다 — 새로고침하거나 채팅으로 기록한 뒤에도 표시가 남는다.
   const [watchedMarking, setWatchedMarking] = useState(false)
   const [watchedMarked, setWatchedMarked] = useState(false)
   const [selectedActorId, setSelectedActorId] = useState<number | null>(null)
@@ -118,6 +118,7 @@ export function MovaTitleView({
     setSession(s)
     if (s && movie.movieDbId) {
       checkWatchlist(s.id, movie.movieDbId).then(setInWatchlist).catch(() => null)
+      fetchWatched(movie.movieDbId).then(setWatchedMarked).catch(() => null)
     }
     void refreshReviews(s)
     // eslint-disable-next-line react-hooks/exhaustive-deps

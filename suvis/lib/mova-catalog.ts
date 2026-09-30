@@ -1,4 +1,4 @@
-/** 정적 카탈로그(`mova-movies`)와 DB slug 불일치 시 URL용 canonical id */
+/** 정적 카탈로그(`mova-movies`)의 한글 제목 → 목업 slug. DB 작품에는 쓰지 않는다. */
 
 const MOVA_TITLE_TO_SLUG: Record<string, string> = {
   원더풀스: "wonderfuls",
@@ -14,12 +14,10 @@ const MOVA_TITLE_TO_SLUG: Record<string, string> = {
   "오징어 게임": "squid-game",
 }
 
-export function resolveMovaCatalogSlug(idOrTitle: string, title?: string): string {
+/** URL에 쓸 작품 id. DB slug가 오면 그대로 쓴다 — 제목으로 목업 slug("parasite")에 덮어쓰면
+ *  실제 DB slug(`tmdb-496243`)를 잃어 상세 조회가 404가 되고 목업 데이터가 보인다(2026-09-30 실사용:
+ *  기생충·인셉션 등 8편). 첫 인자가 한글 제목 자체일 때만 정적 카탈로그 slug로 바꾼다. */
+export function resolveMovaCatalogSlug(idOrTitle: string, _title?: string): string {
   const key = idOrTitle.trim()
-  if (MOVA_TITLE_TO_SLUG[key]) return MOVA_TITLE_TO_SLUG[key]
-  if (title) {
-    const fromTitle = MOVA_TITLE_TO_SLUG[title.trim()]
-    if (fromTitle) return fromTitle
-  }
-  return key
+  return MOVA_TITLE_TO_SLUG[key] ?? key
 }
