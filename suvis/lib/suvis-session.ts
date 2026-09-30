@@ -51,3 +51,17 @@ export async function logoutSession(): Promise<void> {
   }
   clearSuvisSession()
 }
+
+/** 로그인 표시와 실제 인증을 맞춘다. 표시는 localStorage에 기한 없이 남지만 인증 쿠키는 만료되므로
+ * (또는 쿠키 전환 전에 로그인해 쿠키가 아예 없을 수 있으므로) 둘이 어긋날 수 있다. whoami는 catch-all을
+ * 거쳐 access가 만료됐으면 refresh로 갱신까지 하고, 그래도 401이면 표시를 지워 로그아웃 상태로 보여 준다.
+ * 네트워크 오류·서버 장애(5xx)에서는 지우지 않는다 — 인증이 무효라고 확인된 경우만. */
+export async function syncSessionWithCookie(): Promise<void> {
+  if (!getSuvisSession()) return
+  try {
+    const res = await fetch("/api/backend/mova/whoami")
+    if (res.status === 401) clearSuvisSession()
+  } catch {
+    // 확인하지 못했으면 표시를 그대로 둔다.
+  }
+}

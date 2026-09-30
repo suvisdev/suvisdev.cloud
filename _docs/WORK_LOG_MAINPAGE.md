@@ -57,6 +57,11 @@
   `windows/flutter/ephemeral/.plugin_symlinks` 삭제 실패(errno 145)로 종료 + `analysis_options.yaml`을 멋대로 수정.
   → 수정분 되돌리고 저장소를 `C:\tmp`로 복사해 실행(analyze 0건·test 3/3), 복사본은 키 파일이 있어 즉시 삭제.
 
+- **쿠키 전환 뒤 "로그인돼 보이는데 인증이 필요합니다"**(사용자 제보, mova 채팅 대화 목록): 전환 전에 로그인해 둔 브라우저는
+  localStorage 표시만 있고 쿠키가 없다. auth 로그에 배포 후 성공 로그인 0건, 운영 임시 계정으로 쿠키 유 200·무 401 재현.
+  쿠키 7일 만료 뒤에도 같은 어긋남이 반복될 구조였다. → `SessionSync`(루트 레이아웃)가 페이지 열 때 `/api/backend/mova/whoami`로
+  확인해 401이면 표시를 지운다(만료 access는 catch-all이 refresh). mova 헤더·로그인 버튼이 세션 변경 이벤트를 듣게 함.
+
 ### 데이터
 - 전체 점검 결과(09-30 14시): pytest **1030 passed**·2 skipped·7 deselected / import-linter **6 kept** / tsc·eslint 0 /
   mova 운영 하네스 단일턴 **28/28**·멀티턴 **16/17**(1건은 "9월 30일자로" 날짜 의존 검사 — 오늘이 09-30이라 "오늘"로 답함) /
