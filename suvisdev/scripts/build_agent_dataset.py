@@ -34,9 +34,9 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 sys.path.insert(0, str(_ROOT / "apps"))  # agent_prompt.py가 허브 action_protocol을 import한다
 import build_understanding_dataset as U  # noqa: E402, N812 — 어휘·조사·대화 템플릿 재사용
 
-# v10(2026-09-29 저녁): 학습용 프롬프트는 agent_prompt_v10.py — 서빙(agent_prompt.py, v9)과 분리. 합격 시 파일을 옮긴다.
+# 학습 분포 = 서빙 분포: 생성기와 서빙이 같은 agent_prompt.py를 읽는다(2026-09-30 v10 프롬프트 서빙 반영).
 _PROMPT_FILE = (
-    _ROOT / "apps/mova/adapter/outbound/llm" / os.getenv("AGENT_PROMPT_FILE", "agent_prompt_v10.py")
+    _ROOT / "apps/mova/adapter/outbound/llm" / os.getenv("AGENT_PROMPT_FILE", "agent_prompt.py")
 )
 _spec = importlib.util.spec_from_file_location("agent_prompt", _PROMPT_FILE)
 AP = importlib.util.module_from_spec(_spec)
