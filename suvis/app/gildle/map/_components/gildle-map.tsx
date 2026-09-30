@@ -545,18 +545,24 @@ export default function GildleMap() {
     )
     routeOverlaysRef.current = overlays
     if (option) {
-      placeMarkersRef.current = option.places.map(
-        (pl) =>
-          new nv.maps.Marker({
-            map,
-            position: new nv.maps.LatLng(pl.lat, pl.lng),
-            title: `${pl.category} · ${pl.name}`,
-            icon: {
-              content: `<div style="font-size:18px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))">🐾</div>`,
-              anchor: new nv.maps.Point(9, 9),
-            },
-          })
-      )
+      // 장소는 이름표 + 핀으로. 들렀다 가기로 고른 곳은 더 크게, 경로 색으로 "들를 곳"이라 적는다.
+      placeMarkersRef.current = option.places.map((pl) => {
+        const isVia = option.kind === "via" && option.label.startsWith(pl.name)
+        const bg = isVia ? KIND_COLOR.via : "rgba(10,13,10,.85)"
+        const fg = isVia ? "#0a0d0a" : "#f0fdf4"
+        const text = isVia ? `들를 곳 · ${pl.name}` : `🐾 ${pl.category}`
+        const dot = isVia ? 22 : 16
+        return new nv.maps.Marker({
+          map,
+          position: new nv.maps.LatLng(pl.lat, pl.lng),
+          title: `${pl.category} · ${pl.name}`,
+          zIndex: isVia ? 200 : 100,
+          icon: {
+            content: `<div style="display:flex;flex-direction:column;align-items:center;width:0;overflow:visible"><span style="white-space:nowrap;font-size:${isVia ? 13 : 11}px;font-weight:700;color:${fg};background:${bg};padding:${isVia ? "3px 9px" : "1px 6px"};border-radius:8px;margin-bottom:3px;border:${isVia ? "2px solid #0a0d0a" : "0"};box-shadow:0 1px 4px rgba(0,0,0,.45)">${text}</span><span style="flex:none;display:flex;align-items:center;justify-content:center;width:${dot}px;height:${dot}px;border-radius:50%;background:${isVia ? KIND_COLOR.via : "#fff"};border:2px solid ${isVia ? "#fff" : "#0a0d0a"};box-shadow:0 0 0 2px rgba(0,0,0,.35);font-size:${isVia ? 12 : 9}px;line-height:1">🐾</span></div>`,
+            anchor: new nv.maps.Point(0, (isVia ? 25 : 20) + dot / 2),
+          },
+        })
+      })
     }
     const lats = allPts.map((p) => p.lat)
     const lngs = allPts.map((p) => p.lng)

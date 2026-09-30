@@ -309,14 +309,20 @@ class _GildleMapScreenState extends ConsumerState<GildleMapScreen> {
       overlays.add(other);
     }
     if (selected != null) {
+      // 들렀다 가기로 고른 곳은 더 크게, 경로 색으로 "들를 곳"이라 적는다.
       for (final place in selected.places) {
+        final isVia = selected.kind == 'via' && selected.label.startsWith(place.name);
         overlays.add(NMarker(
           id: 'place-${place.id}',
           position: NLatLng(place.point.lat, place.point.lng),
-          size: const Size(20, 26),
-          iconTintColor: extras.warm,
-          caption: NOverlayCaption(text: place.name, textSize: 11),
-        ));
+          size: isVia ? const Size(36, 47) : const Size(26, 34),
+          iconTintColor: isVia ? _kindColor('via') : const Color(0xFF7C3AED),
+          caption: NOverlayCaption(
+            text: isVia ? '들를 곳 · ${place.name}' : place.name,
+            textSize: isVia ? 14 : 12,
+          ),
+          subCaption: NOverlayCaption(text: '🐾 ${place.category}', textSize: 10),
+        )..setGlobalZIndex(isVia ? 300000 : 250000));
       }
     }
     await map.addOverlayAll(overlays);
