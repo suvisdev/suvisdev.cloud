@@ -205,9 +205,9 @@ def _fact(message: str, name: str, args: dict[str, Any], r: dict[str, Any]) -> s
                 f" 같은 이름의 다른 작품(최신순): {', '.join(newer[:4])}" if newer else ""
             )
         if r.get("candidates"):
-            return (
-                "비슷한 제목이 여러 편이에요: " + ", ".join(r["candidates"]) + ". 어떤 작품인가요?"
-            )
+            # 다음 턴의 선택 이어받기(`pick_from_choice_list`)가 읽는 형식: "제목(연도) / 제목(연도)"
+            names = " / ".join(re.sub(r"\s+\((\d{4})\)$", r"(\1)", c) for c in r["candidates"])
+            return f"비슷한 제목이 여러 편이에요: {names}. 어떤 작품인가요?"
         return f"카탈로그에서 '{args.get('title', '')}'을(를) 찾지 못했어요. 제목을 다시 알려주시겠어요?"
     return None
 

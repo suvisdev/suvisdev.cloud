@@ -228,7 +228,9 @@ def _last_assistant_content(history: list[dict[str, str]]) -> str:
 # 후보 제시 문구는 evaluate/booking 트랙이 결정론으로 만든다(ambiguous 분기) —
 # 그 형식("제목(연도) / …")을 그대로 되읽어 다음 턴의 선택을 잇는다.
 _CHOICE_PREFIX = "비슷한 제목이 여러 편이에요: "
-_CHOICE_ENTRY = re.compile(r"^(.*?)(?:\((\d{4})\))?$")
+_TITLE_YEAR_TAIL = re.compile(r"\s*\((\d{4})\)\s*$")
+_TITLE_RATING_TAIL = re.compile(r"\s+(\d(?:\.\d)?)\s*점?$")
+_CHOICE_ENTRY = re.compile(r"^(.*?)\s*(?:\((\d{4})\))?$")
 _CHOICE_YEAR4 = re.compile(r"(?<!\d)(\d{4})(?!\d)")
 _CHOICE_YEAR2 = re.compile(r"(?<!\d)(\d{2})\s*년")
 _CHOICE_ORDINALS = (
@@ -237,13 +239,37 @@ _CHOICE_ORDINALS = (
     ("세번째", "셋째", "세 번째", "3번"),
 )
 _CHOICE_TAIL = re.compile(r"(말하는거잖아|말하는거|꺼|거|것|영화|작품|으로|로|이요|요)+[\s?!.~]*$")
+_CHOICE_NEWEST = re.compile(r"최신|최근|요즘|새로\s*나온|제일\s*나중")
+# "봤어"로 끝나는 진술 — 후보를 고르면 평가가 아니라 봤어요 기록으로 잇는다. 문장 끝만 본다
+# ("예고편 봤는데 어때?"는 본 게 아니라 평가를 묻는 말).
+_WATCHED_STATEMENT = re.compile(
+    r"(?:을|를)?\s*(?:봤어요?|봤다고?|봤음|봤습니다|봣어요?|보고\s*왔어요?|관람했어요?)[\s.!~;ㅋㅎ]*$"
+)
+_NON_WORD = re.compile(r"[^0-9a-z가-힣]")
 
 
-def pick_from_choice_list(last_assistant: str, message: str) -> tuple[str, str] | None:
+def _last_user_content(history: list[dict[str, str]]) -> str:
+    for msg in reversed(history):
+        if msg.get("role") == "user":
+            return msg.get("content") or ""
+    return ""
+
+
+def format_choice_list(items: list[MovaSearchItemSchema], question: str) -> str:
+    """후보 되묻기 문구 — `pick_from_choice_list`가 다음 턴에 되읽는 단일 형식."""
+    names = " / ".join(f"{i.title}({i.year})" for i in items)
+    return f"{_CHOICE_PREFIX}{names}. {question}"
+
+
+def pick_from_choice_list(
+    last_assistant: str, message: str, prev_user: str = ""
+) -> tuple[str, str] | None:
     """직전 응답이 후보 제시였고 이번 발화가 그중 하나를 고르면 (제목, 트랙)을 돌려준다.
 
-    트랙은 되묻기 꼬리로 구분한다("예매하시려나요" → booking, 그 외 → evaluate).
-    연도(2026·"26년")·순서("두번째")·제목 부분일치 중 정확히 하나만 잡힐 때 확정한다 —
+    트랙은 하려던 일을 잇는다: 되묻기 꼬리가 "예매하시려나요"면 booking, "보셨나요"이거나 이번·직전
+    사용자 발화가 "봤어"류면 watched(2026-09-30 실사용: "스파이더맨 최신꺼 봤어" → 후보 → "2026작품"이
+    평가로 흘러 기록이 안 됐다), 그 외 evaluate.
+    연도(2026·"26년")·"최신"·순서("두번째")·제목 부분일치 중 정확히 하나만 잡힐 때 확정한다 —
     둘 이상이면 None(되묻기 유지)이 잘못 짚는 것보다 낫다.
     """
     if not last_assistant.startswith(_CHOICE_PREFIX):
@@ -257,9 +283,21 @@ def pick_from_choice_list(last_assistant: str, message: str) -> tuple[str, str] 
             entries.append((m.group(1).strip(), m.group(2)))
     if not entries:
         return None
-    track = "booking" if "예매하시려나요" in last_assistant else "evaluate"
+    if "예매하시려나요" in last_assistant:
+        track = "booking"
+    elif (
+        "보셨나요" in last_assistant
+        or _WATCHED_STATEMENT.search(message)
+        or _WATCHED_STATEMENT.search(prev_user)
+    ):
+        track = "watched"
+    elif last_assistant.rstrip().endswith("어떤 작품인가요?"):
+        # 에이전트 검색 도구의 되묻기 — 하려던 일(출연진·시간표·평가…)은 에이전트가 대화에서 읽는다.
+        track = "agent"
+    else:
+        track = "evaluate"
 
-    text = message.strip()
+    text = _WATCHED_STATEMENT.sub("", message.strip()).strip() or message.strip()
     matched: list[str] = []
     year: str | None = None
     if m4 := _CHOICE_YEAR4.search(text):
@@ -269,15 +307,19 @@ def pick_from_choice_list(last_assistant: str, message: str) -> tuple[str, str] 
         year = str(2000 + yy if yy <= 30 else 1900 + yy)
     if year:
         matched = [t for t, y in entries if y == year]
+    if not matched and _CHOICE_NEWEST.search(text):
+        newest = max((y for _, y in entries if y), default=None)
+        matched = [t for t, y in entries if y == newest] if newest else []
     if not matched:
         for idx, words in enumerate(_CHOICE_ORDINALS):
             if any(w in text for w in words) and idx < len(entries):
                 matched = [entries[idx][0]]
                 break
     if not matched:
-        needle = re.sub(r"\s+", "", _CHOICE_TAIL.sub("", text)).lower()
+        # 오타 자모·문장부호("브랜드ㅡ 뉴 데이;;;")를 버리고 글자만 비교한다.
+        needle = _NON_WORD.sub("", _CHOICE_TAIL.sub("", text).lower())
         if len(needle) >= 2:
-            matched = [t for t, _ in entries if needle in re.sub(r"\s+", "", t).lower()]
+            matched = [t for t, _ in entries if needle in _NON_WORD.sub("", t.lower())]
     return (matched[0], track) if len(matched) == 1 else None
 
 
@@ -379,6 +421,36 @@ class ChatInteractor(ChatUseCase):
         #     지정 시에만 조회. 없거나 남의 것이면 여기서 즉시 raise.
         await self._verify_conversation_ownership(request)
 
+        # -0.75. 후보 제시("비슷한 제목이 여러 편이에요: A(2021) / B(2026)…") 뒤의 선택
+        #        발화("26년꺼"·"두번째"·"브랜뉴데이")를 결정론으로 잇는다. 분류기로 가면
+        #        "26년꺼"가 recommend로 흘러 "26년차 작품"으로 오해했다(2026-09-22 실사용).
+        #        에이전트보다 먼저 본다 — 되묻기에 대한 답은 새 판단이 아니라 하던 일의 계속이다
+        #        (2026-09-30 실사용: 에이전트가 "2026작품이겠지"를 새 질문으로 읽어 기록이 끊겼다).
+        choice = pick_from_choice_list(
+            _last_assistant_content(request.history_dicts()),
+            request.message,
+            _last_user_content(request.history_dicts()),
+        )
+        if choice is not None:
+            title, track = choice
+            logger.info(
+                "[ChatInteractor] trace=%s 후보 선택 이어받기 title=%s track=%s",
+                trace_id,
+                title,
+                track,
+            )
+            if track == "booking" and self._booking is not None:
+                return await self._reply_booking(
+                    request, trace_id, entities=[title], pending_title=None
+                )
+            if track == "watched":
+                return await self._reply_mark_watched(request, trace_id, title, None)
+            if track == "evaluate" and self._evaluation is not None:
+                return await self._reply_evaluation(request, trace_id, entities=[title])
+            if track == "agent":
+                # 고른 제목으로 발화를 바꿔 에이전트에 넘긴다(서수 치환과 같은 방식).
+                request = request.model_copy(update={"message": title})
+
         # -0.7. 에이전트(v9) — 판단 모델이 도구를 골라 돌리고, 사실은 템플릿·트랙이 답한다.
         if self._agent is not None:
             try:
@@ -429,27 +501,6 @@ class ChatInteractor(ChatUseCase):
                 return await self._reply_booking(
                     request, trace_id, entities=[], pending_title=pending_title
                 )
-
-        # -0.45. 후보 제시("비슷한 제목이 여러 편이에요: A(2021) / B(2026)…") 뒤의 선택
-        #        발화("26년꺼"·"두번째"·"브랜뉴데이")를 결정론으로 잇는다. 분류기로 가면
-        #        "26년꺼"가 recommend로 흘러 "26년차 작품"으로 오해했다(2026-09-22 실사용).
-        choice = pick_from_choice_list(
-            _last_assistant_content(request.history_dicts()), request.message
-        )
-        if choice is not None:
-            title, track = choice
-            logger.info(
-                "[ChatInteractor] trace=%s 후보 선택 이어받기 title=%s track=%s",
-                trace_id,
-                title,
-                track,
-            )
-            if track == "booking" and self._booking is not None:
-                return await self._reply_booking(
-                    request, trace_id, entities=[title], pending_title=None
-                )
-            if track == "evaluate" and self._evaluation is not None:
-                return await self._reply_evaluation(request, trace_id, entities=[title])
 
         # -0.4. evaluate 후속 이어받기 — 제목 없는 "어때?"류는 직전 assistant가 소개한
         #       영화를 평가한다. 분류기가 이런 발화를 recommend로 오분류해 근거 없는
@@ -1080,7 +1131,23 @@ class ChatInteractor(ChatUseCase):
                 "'봤어요'와 별점은 로그인하시면 기록해 드릴 수 있어요. 로그인 후 다시 말씀해 주세요.",
                 intent_type="info",
             )
-        movie = await self._verify_agent_title(title)
+        context = _last_assistant_content(request.history_dicts())
+        movie, candidates = await self._resolve_watched_title(title, context=context)
+        tail = _TITLE_RATING_TAIL.search(title or "")
+        if movie is None and not candidates and rating is None and title and tail:
+            # 모델이 별점을 제목에 붙여 넘긴 경우("어크로스 더 유니버스 4") — 떼어서 다시 찾는다.
+            # 제목 그대로를 먼저 봤으므로 "범죄도시 4" 같은 속편 번호는 여기까지 오지 않는다.
+            rating = parse_rating(tail.group(1))
+            movie, candidates = await self._resolve_watched_title(
+                title[: tail.start()], context=context
+            )
+        if movie is None and candidates:
+            return await self._reply_plain(
+                request,
+                trace_id,
+                format_choice_list(candidates, "어떤 작품을 보셨나요?"),
+                intent_type="info",
+            )
         if movie is None:
             return await self._reply_plain(
                 request,
@@ -1216,10 +1283,38 @@ class ChatInteractor(ChatUseCase):
             conversation_id=conversation_id,
         )
 
+    async def _resolve_watched_title(
+        self, title: str | None, *, context: str
+    ) -> tuple[MovaSearchItemSchema | None, list[MovaSearchItemSchema]]:
+        """봤어요 기록용 제목 해석 — 풀네임이 아니어도 한 편으로 좁혀지면 확정한다(2026-09-30 실사용:
+        "브랜드 뉴 데이 봤어"·"…브랜드 뉴 데이(2026)"가 정확 일치만 보던 검증에 전부 막혔다).
+
+        순서: 연도 꼬리 제거 → 정확 일치 → 부분 일치가 한 편 → 연도로 좁힘 → 직전 응답에 나온 작품으로 좁힘.
+        그래도 여러 편이면 (None, 후보)를 돌려 되묻게 한다. 3글자 미만 조각은 부분 일치로 확정하지 않는다.
+        """
+        if not title:
+            return None, []
+        year_m = _TITLE_YEAR_TAIL.search(title)
+        bare = _TITLE_YEAR_TAIL.sub("", title).strip() or title
+        items = await self._repo.search_movies_by_title([bare], 8)
+        wanted = MovieTitle(bare)
+        pool = [i for i in items if wanted.equals(i.title)]
+        if not pool and len(wanted.key) >= 3:
+            pool = list(items)
+        if year_m and len(pool) > 1:
+            pool = [i for i in pool if str(i.year) == year_m.group(1)] or pool
+        if len(pool) > 1 and context:
+            pool = [i for i in pool if MovieTitle(i.title).appears_in(context)] or pool
+        if len(pool) == 1:
+            return pool[0], []
+        return None, pool[:5]
+
     async def _verify_agent_title(self, title: str | None) -> MovaSearchItemSchema | None:
         """카탈로그 정확 일치만 확정(오케스트레이터 `_verify_title`과 같은 기준)."""
         if not title:
             return None
+        # 모델이 후보 문구를 따라 "제목(2026)"처럼 연도 꼬리를 붙이면 정확 일치가 깨진다.
+        title = _TITLE_YEAR_TAIL.sub("", title).strip() or title
         items = await self._repo.search_movies_by_title([title], 5)
         wanted = MovieTitle(title)
         exact = [i for i in items if wanted.equals(i.title)]

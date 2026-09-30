@@ -106,10 +106,15 @@ def is_grounded(value: str, context: str) -> bool:
 
     "타짜: 벨제붑의 노래 (2026)"처럼 대화엔 "타짜"만 있는데 모델이 부제를 완성한 경우(09-29 운영 실측)는
     앞부분(':'·'-' 앞, 2자 이상)이 대화에 있으면 통과시킨다 — 완성이 틀렸는지는 카탈로그 검증(도구)이 가린다.
-    "탑건: 매버릭"처럼 앞부분조차 대화에 없으면 여전히 막힌다."""
+    "탑건: 매버릭"처럼 앞부분조차 대화에 없으면 여전히 막힌다. 어절이 전부 대화에 있는 값도 통과시킨다."""
     v = normalize(value)
     if not v or v in context:
         return True
     head = re.split(r"[:\-]", value, maxsplit=1)[0]
     h = normalize(head)
-    return len(h) >= 2 and h != v and h in context
+    if len(h) >= 2 and h != v and h in context:
+        return True
+    # 값의 어절이 전부 대화에 있으면 근거로 본다 — "어크로스 더 유니버스 봤어 4점"에서 모델이
+    # title="어크로스 더 유니버스 4"처럼 떨어진 어절을 이어 붙인 경우(2026-09-30 운영 실측). 없는 말을 지어낸 건 아니다.
+    words = [normalize(w) for w in value.split()]
+    return len(words) > 1 and all(w and w in context for w in words)
