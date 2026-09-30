@@ -50,6 +50,41 @@ def _interactor(
     return PortfolioChatInteractor(repository=repo, embedding=embedding, llm=llm), repo
 
 
+class RetrievalQueryTests(unittest.IsolatedAsyncioTestCase):
+    """후속 질문 검색어 보강 — 지시어 있으면 직전 사용자 발화를 붙이고, 자기완결 질문은 그대로."""
+
+    async def _embedded_query(self, message: str, history: tuple[PortfolioChatTurn, ...]) -> str:
+        repo = AsyncMock()
+        repo.search.return_value = []  # 히트 0 → LLM 미호출, embed 호출 인자만 검증
+        embedding = AsyncMock()
+        embedding.embed.return_value = [0.1] * 1024
+        interactor = PortfolioChatInteractor(repository=repo, embedding=embedding, llm=_FakeLlm())
+        await interactor.chat(PortfolioChatCommand(message=message, history=history))
+        return embedding.embed.await_args.args[0]
+
+    async def test_followup_with_pronoun_prepends_last_user_turn(self) -> None:
+        q = await self._embedded_query(
+            "그거 누가 만들었어?",
+            (
+                PortfolioChatTurn(role="user", content="gildle이 뭐야?"),
+                PortfolioChatTurn(role="assistant", content="산책 경로 앱이에요."),
+            ),
+        )
+        self.assertIn("gildle", q)
+        self.assertIn("그거 누가 만들었어?", q)
+
+    async def test_self_contained_question_is_not_augmented(self) -> None:
+        q = await self._embedded_query(
+            "mova는 뭐야?",
+            (PortfolioChatTurn(role="user", content="gildle이 뭐야?"),),
+        )
+        self.assertEqual(q, "mova는 뭐야?")
+
+    async def test_followup_without_history_uses_message_only(self) -> None:
+        q = await self._embedded_query("그거 누가 만들었어?", ())
+        self.assertEqual(q, "그거 누가 만들었어?")
+
+
 class PortfolioChatInteractorTests(unittest.IsolatedAsyncioTestCase):
     async def test_no_hits_returns_fixed_reply_without_llm(self) -> None:
         llm = _FakeLlm()
