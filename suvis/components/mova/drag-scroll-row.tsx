@@ -7,11 +7,17 @@ import { useEffect, useRef, type ReactNode } from "react"
 export function DragScrollRow({
   className,
   children,
+  as = "div",
 }: {
   className?: string
   children: ReactNode
+  /** 목록(`li` 자식)이면 "ul" */
+  as?: "div" | "ul"
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLElement | null>(null)
+  const setRef = (el: HTMLElement | null) => {
+    ref.current = el
+  }
 
   useEffect(() => {
     const el = ref.current
@@ -65,8 +71,15 @@ export function DragScrollRow({
     }
   }, [])
 
+  if (as === "ul") {
+    return (
+      <ul ref={setRef} className={className}>
+        {children}
+      </ul>
+    )
+  }
   return (
-    <div ref={ref} className={className}>
+    <div ref={setRef} className={className}>
       {children}
     </div>
   )
