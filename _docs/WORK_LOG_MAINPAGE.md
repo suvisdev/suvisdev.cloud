@@ -62,6 +62,11 @@
   쿠키 7일 만료 뒤에도 같은 어긋남이 반복될 구조였다. → `SessionSync`(루트 레이아웃)가 페이지 열 때 `/api/backend/mova/whoami`로
   확인해 401이면 표시를 지운다(만료 access는 catch-all이 refresh). mova 헤더·로그인 버튼이 세션 변경 이벤트를 듣게 함.
 
+- **쿠키 전환 누락 프록시 9개**(사용자 제보: 마이페이지 진입 불가·찜 확인 401): 오전 일괄 치환이 `request.headers.get`만 잡고
+  `req.headers.get`을 쓰는 9개(mypage·watchlist 4·reviews 3·dispatch adress search)를 놓쳤다 → 마이페이지가 401 → 세션 정리 →
+  로그인 → 다시 401 반복. 전부 `cookieBearer()`로 교체, 전수 grep으로 잔여 0 확인. 소셜 로그인 뒤 사이트 홈으로 가던 것도
+  로그인 전 경로를 sessionStorage에 적어 두었다가 돌아가게 수정(`rememberPostLoginPath`/`takePostLoginPath`, 사이트 안 경로만 허용).
+
 ### 데이터
 - 전체 점검 결과(09-30 14시): pytest **1030 passed**·2 skipped·7 deselected / import-linter **6 kept** / tsc·eslint 0 /
   mova 운영 하네스 단일턴 **28/28**·멀티턴 **16/17**(1건은 "9월 30일자로" 날짜 의존 검사 — 오늘이 09-30이라 "오늘"로 답함) /
