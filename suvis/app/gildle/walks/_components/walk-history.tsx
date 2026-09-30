@@ -6,7 +6,9 @@ import Script from "next/script"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getSuvisSession } from "@/lib/suvis-session"
+import { formatDate, formatDuration, formatKm, SEASON_LABEL } from "@/lib/gildle-format"
 import {
+  deleteWalk,
   getWalk,
   listWalks,
   walkStats,
@@ -21,14 +23,8 @@ import {
  */
 
 const NAVER_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? ""
-const PAGE = 20
+const PAGE = 50 // 앱 기록 목록과 같은 크기
 const COLOR_ACCENT = "#34d399"
-const SEASON_LABEL: Record<string, string> = {
-  spring_autumn: "봄·가을",
-  summer_shade: "그늘 모드",
-  winter_safety: "겨울 안전",
-  summer: "여름",
-}
 
 type NaverGlobal = typeof naver
 function getNaver(): NaverGlobal | null {
@@ -36,25 +32,8 @@ function getNaver(): NaverGlobal | null {
   return (window as unknown as { naver?: NaverGlobal }).naver ?? null
 }
 
-function km(m: number): string {
-  return `${(m / 1000).toFixed(2)} km`
-}
-
-function duration(s: number): string {
-  const h = Math.floor(s / 3600)
-  const m = Math.round((s % 3600) / 60)
-  return h ? `${h}시간 ${m}분` : `${m}분`
-}
-
-function when(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString("ko-KR", {
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+function seasonLabel(mode: string): string {
+  return SEASON_LABEL[mode] ?? mode
 }
 
 function WalkMap({ walk, sdkReady }: { walk: WalkDetail | null; sdkReady: boolean }) {
@@ -145,6 +124,8 @@ export default function WalkHistory() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const loadPage = useCallback(async (offset: number) => {
     setLoading(true)
@@ -171,11 +152,31 @@ export default function WalkHistory() {
 
   const select = async (id: number) => {
     setError(null)
+    setConfirmDelete(false)
     try {
       setSelected(await getWalk(id))
     } catch (e) {
       setError(e instanceof Error ? e.message : "산책 상세를 불러오지 못했어요.")
     }
+  }
+
+  // 기록 삭제 — 앱 상세 화면의 삭제와 같다. 지운 뒤 목록·통계를 다시 맞춘다.
+  const removeSelected = async () => {
+    if (!selected) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteWalk(selected.id)
+      setWalks((prev) => prev.filter((w) => w.id !== selected.id))
+      setSelected(null)
+      walkStats()
+        .then(setStats)
+        .catch(() => setStats(null))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "기록을 삭제하지 못했어요.")
+    }
+    setDeleting(false)
+    setConfirmDelete(false)
   }
 
   return (
@@ -197,7 +198,7 @@ export default function WalkHistory() {
 
         {loggedIn === false && (
           <div className="border-gildle-border bg-gildle-surface rounded-2xl border p-6 text-sm">
-            산책 기록은 로그인한 사용자만 볼 수 있어요.{" "}
+            로그인하면 산책 기록을 저장하고 다시 볼 수 있어요.{" "}
             <Link href="/login" className="text-gildle-accent underline">
               로그인하기
             </Link>
@@ -210,8 +211,8 @@ export default function WalkHistory() {
               <div className="mb-5 grid grid-cols-3 gap-3">
                 {[
                   ["산책", `${stats.total_count}회`],
-                  ["총 거리", km(stats.total_distance_m)],
-                  ["총 시간", duration(stats.total_duration_s)],
+                  ["누적 거리", formatKm(stats.total_distance_m)],
+                  ["누적 시간", formatDuration(stats.total_duration_s)],
                 ].map(([label, value]) => (
                   <div
                     key={label}
@@ -229,8 +230,7 @@ export default function WalkHistory() {
               <div className="flex flex-col gap-2">
                 {walks.length === 0 && !loading && (
                   <p className="text-gildle-muted border-gildle-border rounded-xl border p-4 text-sm">
-                    아직 저장된 산책이 없어요. 지도에서 경로를 만들고 &quot;이 길로 산책
-                    시작&quot;을 눌러 보세요.
+                    아직 산책 기록이 없습니다. 지도에서 산책을 시작해 보세요.
                   </p>
                 )}
                 {walks.map((w) => (
@@ -243,10 +243,11 @@ export default function WalkHistory() {
                       selected?.id === w.id && "border-gildle-accent"
                     )}
                   >
-                    <p className="text-sm font-medium">{when(w.started_at)}</p>
+                    <p className="text-sm font-medium">
+                      {formatKm(w.distance_m)} · {formatDuration(w.duration_s)}
+                    </p>
                     <p className="text-gildle-muted mt-0.5 text-xs">
-                      {km(w.distance_m)} · {duration(w.duration_s)} ·{" "}
-                      {SEASON_LABEL[w.season_mode] ?? w.season_mode}
+                      {formatDate(w.started_at)} · {seasonLabel(w.season_mode)}
                       {w.avg_shade_score !== null &&
                         ` · 그늘 ${Math.round(w.avg_shade_score * 100)}%`}
                     </p>
@@ -265,12 +266,74 @@ export default function WalkHistory() {
                   </button>
                 )}
               </div>
-              <div className="h-[60vh] md:h-auto md:min-h-[480px]">
-                <WalkMap walk={selected} sdkReady={sdkReady} />
+              <div className="flex flex-col gap-3">
+                {selected && (
+                  <div className="border-gildle-border bg-gildle-surface flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border px-4 py-3">
+                    <p className="text-gildle-muted w-full text-xs">
+                      {formatDate(selected.started_at)}
+                    </p>
+                    {[
+                      ["거리", formatKm(selected.distance_m)],
+                      ["시간", formatDuration(selected.duration_s)],
+                      ["모드", seasonLabel(selected.season_mode)],
+                      ...(selected.avg_shade_score !== null
+                        ? [["그늘", `${Math.round(selected.avg_shade_score * 100)}%`]]
+                        : []),
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-gildle-muted text-[10px]">{label}</p>
+                        <p className="text-sm font-semibold">{value}</p>
+                      </div>
+                    ))}
+                    <div className="ml-auto flex items-center gap-2 text-xs">
+                      {confirmDelete ? (
+                        <>
+                          <span>이 기록을 삭제할까요?</span>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDelete(false)}
+                            className="text-gildle-muted hover:text-gildle-text rounded-lg px-2 py-1.5"
+                          >
+                            취소
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deleting}
+                            onClick={() => void removeSelected()}
+                            className="rounded-lg bg-red-500/90 px-3 py-1.5 font-semibold text-white disabled:opacity-60"
+                          >
+                            {deleting ? "삭제 중…" : "삭제"}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(true)}
+                          className="text-gildle-muted rounded-lg px-2 py-1.5 hover:text-red-300"
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className="h-[60vh] md:h-auto md:min-h-[480px] md:flex-1">
+                  <WalkMap walk={selected} sdkReady={sdkReady} />
+                </div>
               </div>
             </div>
           </>
         )}
+
+        {/* 앱 '내 정보' 탭 아래와 같은 안내 링크 */}
+        <nav className="text-gildle-muted mt-8 flex justify-center gap-4 text-xs">
+          <Link href="/gildle/privacy" className="hover:text-gildle-text">
+            개인정보처리방침
+          </Link>
+          <Link href="/gildle/account-deletion" className="hover:text-gildle-text">
+            계정 삭제 안내
+          </Link>
+        </nav>
       </div>
     </div>
   )

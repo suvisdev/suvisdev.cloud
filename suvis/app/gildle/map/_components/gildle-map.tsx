@@ -7,6 +7,13 @@ import { Eraser, Loader2, LocateFixed, Navigation, Repeat, Search } from "lucide
 import { cn } from "@/lib/utils"
 import { getSuvisSession } from "@/lib/suvis-session"
 import {
+  formatDuration,
+  formatKm,
+  formatKmShort,
+  formatPace,
+  SEASON_LABEL,
+} from "@/lib/gildle-format"
+import {
   createWalk,
   getRouteOptions,
   getRouteVia,
@@ -35,6 +42,7 @@ const NAVER_CLIENT_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID ?? ""
 const SEOUL_CITY_HALL = { lat: 37.5665, lng: 126.978 }
 const WALK_SPEED_MPS = 1.2 // 앱과 동일
 const TRACK_MIN_STEP_M = 5 // 앱 distanceFilter와 동일
+const TRACK_MAX_ACCURACY_M = 30 // 앱 _maxAccuracyM과 동일 — 이보다 부정확한 점은 버린다
 const MAX_WALK_POINTS = 5000 // WalkCreateSchema path 상한
 const COLOR_ACCENT = "#34d399" // --gildle-accent (그늘)
 const COLOR_WARM = "#d4a574" // --gildle-warm (햇빛)
@@ -64,15 +72,13 @@ const SOURCE_LABEL: Record<WalkPlanResult["understood"]["source"], string> = {
 }
 const ROUTE_NOTICE = "업데이트가 안된 경우에는 길이 조금 다를 수 있는 점 양해 부탁드리겠습니다."
 
-const SEASON_LABEL: Record<SeasonMode, string> = {
-  spring_autumn: "봄·가을",
-  summer_shade: "그늘 모드",
-  winter_safety: "겨울 안전",
-}
+const LOGIN_NEEDED = "산책 기록은 로그인 후 저장할 수 있어요."
+
 const SEASON_ORDER: SeasonMode[] = ["spring_autumn", "summer_shade", "winter_safety"]
 
 type Point = { lat: number; lng: number }
-type WalkStatus = "idle" | "tracking" | "saving" | "saved"
+// 앱 WalkStatus와 같은 단계 — stopped는 추적을 멈추고 저장 전(위치가 안 잡혔거나 저장 실패)
+type WalkStatus = "idle" | "tracking" | "stopped" | "saving" | "saved"
 type WalkState = {
   status: WalkStatus
   startedAt: number | null
@@ -107,8 +113,15 @@ function haversineM(a: Point, b: Point): number {
   return 2 * r * Math.asin(Math.sqrt(s))
 }
 
-function km(m: number): string {
-  return `${(m / 1000).toFixed(1)} km`
+/** 경로 없이도 산책은 시작할 수 있다(앱과 동일). */
+function walkStartLabel(option: RouteOption | null, isLoop: boolean): string {
+  if (!option) return "산책 시작"
+  if (!isLoop && option.kind !== "via") return `${option.label}로 산책 시작`
+  return "이 길로 산책 시작"
+}
+
+function isWalking(status: WalkStatus): boolean {
+  return status === "tracking" || status === "stopped" || status === "saving"
 }
 
 function minutes(m: number): number {
@@ -266,17 +279,20 @@ export default function GildleMap() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [walk, setWalk] = useState<WalkState>(WALK_IDLE)
+  const [confirmStop, setConfirmStop] = useState(false)
 
   const option: RouteOption | null = options[selectedOpt] ?? null
   const isLoop = plan !== null
+  // 추천 중에도 목적지가 있는 길(kind=route)은 출발지로 돌아오지 않는다.
+  const returnsToStart = plan?.understood.kind === "loop"
   // 후보 좌표 앞뒤에 탭한 지점을 붙인다(루프는 출발지로 돌아온다).
   const withEnds = useCallback(
     (o: RouteOption): Point[] => {
-      const tail = isLoop ? start : end
+      const tail = returnsToStart ? start : end
       if (!start || !tail) return []
       return [start, ...o.coordinates.map(([lat, lng]) => ({ lat, lng })), tail]
     },
-    [isLoop, start, end]
+    [returnsToStart, start, end]
   )
   const routeCoords = useMemo<Point[]>(() => (option ? withEnds(option) : []), [option, withEnds])
   const lengthM = option?.length_m ?? null
@@ -364,7 +380,7 @@ export default function GildleMap() {
   const placePoint = useCallback(
     (p: Point) => {
       const { start: s, end: e, mode: m, walkStatus } = stateRef.current
-      if (walkStatus === "tracking" || walkStatus === "saving") return
+      if (isWalking(walkStatus)) return
       if (!s || (s && e)) {
         setStart(p)
         setEnd(null)
@@ -494,7 +510,7 @@ export default function GildleMap() {
     if (!nv || !map) return
     walkOverlaysRef.current.forEach((o) => o.setMap(null))
     walkOverlaysRef.current = []
-    if (walk.status !== "tracking" && walk.status !== "saving") return
+    if (!isWalking(walk.status)) return
     const overlays: naver.maps.Polyline[] = []
     if (routeCoords.length >= 2) {
       overlays.push(
@@ -530,7 +546,7 @@ export default function GildleMap() {
 
   // 추적 중엔 경로 오버레이를 숨긴다(점선 계획 경로가 대신 보인다).
   useEffect(() => {
-    const hide = walk.status === "tracking" || walk.status === "saving"
+    const hide = isWalking(walk.status)
     routeOverlaysRef.current.forEach((o) => o.setVisible(!hide))
   }, [walk.status, routeCoords])
 
@@ -646,6 +662,12 @@ export default function GildleMap() {
   const toggleStop = (c: WalkStopCategory) =>
     setPlanStops((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]))
 
+  // 저장하지 않고 산책만 버린다 — 경로는 그대로 둔다.
+  const clearWalk = () => {
+    setWalk(WALK_IDLE)
+    setError(null)
+  }
+
   const clearAll = () => {
     setStart(null)
     setEnd(null)
@@ -653,11 +675,12 @@ export default function GildleMap() {
     setPlan(null)
     setError(null)
     setWalk(WALK_IDLE)
+    setConfirmStop(false)
   }
 
   const startWalk = () => {
     if (!getSuvisSession()) {
-      setError("산책 기록은 로그인 후 저장할 수 있어요.")
+      setError(LOGIN_NEEDED)
       return
     }
     if (!navigator.geolocation) {
@@ -680,6 +703,7 @@ export default function GildleMap() {
     })
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
+        if (pos.coords.accuracy > TRACK_MAX_ACCURACY_M) return
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setWalk((w) => {
           const last = w.points[w.points.length - 1]
@@ -696,27 +720,39 @@ export default function GildleMap() {
     )
   }
 
-  const finishWalk = async () => {
+  // 추적을 멈춘다. 걸은 길이 있으면 바로 저장하고, 없으면 저장할지 버릴지 묻는다(앱과 동일).
+  const stopWalk = () => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current)
       watchIdRef.current = null
     }
-    const startedAt = walk.startedAt ?? Date.now()
-    setWalk((w) => ({ ...w, status: "saving" }))
+    const elapsedS = walk.startedAt
+      ? Math.round((Date.now() - walk.startedAt) / 1000)
+      : walk.elapsedS
+    const stopped: WalkState = { ...walk, status: "stopped", elapsedS }
+    setConfirmStop(false)
+    setWalk(stopped)
+    if (stopped.points.length >= 2) void saveWalk(stopped)
+  }
+
+  const saveWalk = async (w: WalkState) => {
+    const startedAt = w.startedAt ?? Date.now()
+    setError(null)
+    setWalk({ ...w, status: "saving" })
     try {
       const saved = await createWalk({
         started_at: new Date(startedAt).toISOString(),
-        ended_at: new Date().toISOString(),
-        distance_m: Math.round(walk.distanceM),
-        duration_s: Math.round((Date.now() - startedAt) / 1000),
-        path: downsample(walk.points),
+        ended_at: new Date(startedAt + w.elapsedS * 1000).toISOString(),
+        distance_m: Math.round(w.distanceM),
+        duration_s: w.elapsedS,
+        path: downsample(w.points),
         season_mode: mode,
-        ...(mode === "summer_shade" && shadeRatio !== null ? { avg_shade_score: shadeRatio } : {}),
+        ...(shadeRatio !== null ? { avg_shade_score: shadeRatio } : {}),
       })
-      setWalk((w) => ({ ...w, status: "saved", savedId: saved.id }))
+      setWalk({ ...w, status: "saved", savedId: saved.id })
     } catch (err) {
       setError(err instanceof Error ? err.message : "산책을 저장하지 못했어요.")
-      setWalk((w) => ({ ...w, status: "idle" }))
+      setWalk({ ...w, status: "stopped" })
     }
   }
 
@@ -726,7 +762,8 @@ export default function GildleMap() {
     : !end && !isLoop
       ? "도착지를 누르거나 루프 버튼으로 시간·거리에 맞춰 돌아오는 길을 추천받으세요"
       : null
-  const tracking = walk.status === "tracking" || walk.status === "saving"
+  const tracking = isWalking(walk.status)
+  const startLabel = walkStartLabel(option, isLoop)
   const scriptSrc = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${NAVER_CLIENT_ID}`
 
   return (
@@ -932,7 +969,16 @@ export default function GildleMap() {
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-3 pb-3">
           <div className="border-gildle-border bg-gildle-surface/95 pointer-events-auto w-full max-w-2xl rounded-2xl border p-3 shadow-xl backdrop-blur">
-            {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
+            {error && (
+              <p className="mb-2 text-xs text-red-300">
+                {error}
+                {error === LOGIN_NEEDED && (
+                  <Link href="/login" className="text-gildle-accent ml-2 underline">
+                    로그인하기
+                  </Link>
+                )}
+              </p>
+            )}
             {walk.status === "idle" && hint && <p className="text-gildle-muted text-xs">{hint}</p>}
 
             {walk.status === "idle" && options.length > 0 && (
@@ -1009,37 +1055,61 @@ export default function GildleMap() {
               </div>
             )}
 
-            {walk.status === "idle" && lengthM !== null && (
+            {walk.status === "idle" && (
               <div className="flex flex-wrap items-center gap-2">
-                <StatTile label="거리" value={km(lengthM)} />
-                <StatTile label="예상" value={`약 ${minutes(lengthM)}분`} />
-                {shadeRatio !== null && (
-                  <StatTile label="그늘" value={`${Math.round(shadeRatio * 100)}%`} />
+                {lengthM !== null && (
+                  <>
+                    <StatTile label="거리" value={formatKmShort(lengthM)} />
+                    <StatTile label="예상" value={`약 ${minutes(lengthM)}분`} />
+                    {shadeRatio !== null && (
+                      <StatTile label="그늘" value={`${Math.round(shadeRatio * 100)}%`} />
+                    )}
+                  </>
                 )}
                 <button
                   type="button"
                   onClick={startWalk}
                   className="bg-gildle-accent ml-auto rounded-lg px-3 py-2 text-xs font-semibold text-[#0a0d0a]"
                 >
-                  {option && !isLoop && option.kind !== "via"
-                    ? `${option.label}로 산책 시작`
-                    : "이 길로 산책 시작"}
+                  {startLabel}
                 </button>
               </div>
             )}
 
-            {tracking && (
+            {walk.status === "tracking" && confirmStop && (
               <div className="flex flex-wrap items-center gap-2">
-                <StatTile label="걸은 거리" value={km(walk.distanceM)} />
-                <StatTile
-                  label="시간"
-                  value={`${Math.floor(walk.elapsedS / 60)}:${String(walk.elapsedS % 60).padStart(2, "0")}`}
-                />
-                <p className="text-gildle-muted text-[11px]">위치를 5m마다 기록 중</p>
+                <p className="text-xs">
+                  <span className="font-semibold">산책을 끝낼까요?</span>{" "}
+                  <span className="text-gildle-muted">
+                    끝내면 지금까지 걸은 길이 기록에 저장됩니다.
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setConfirmStop(false)}
+                  className="text-gildle-muted hover:text-gildle-text ml-auto rounded-lg px-3 py-2 text-xs"
+                >
+                  계속 걷기
+                </button>
+                <button
+                  type="button"
+                  onClick={stopWalk}
+                  className="bg-gildle-warm rounded-lg px-3 py-2 text-xs font-semibold text-[#0a0d0a]"
+                >
+                  끝내기
+                </button>
+              </div>
+            )}
+
+            {(walk.status === "saving" || (walk.status === "tracking" && !confirmStop)) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <StatTile label="거리" value={formatKm(walk.distanceM)} />
+                <StatTile label="시간" value={formatDuration(walk.elapsedS)} />
+                <StatTile label="페이스" value={formatPace(walk.distanceM, walk.elapsedS)} />
                 <button
                   type="button"
                   disabled={walk.status === "saving"}
-                  onClick={() => void finishWalk()}
+                  onClick={() => setConfirmStop(true)}
                   className="bg-gildle-warm ml-auto rounded-lg px-3 py-2 text-xs font-semibold text-[#0a0d0a] disabled:opacity-60"
                 >
                   {walk.status === "saving" ? "저장 중…" : "산책 끝내기"}
@@ -1047,11 +1117,42 @@ export default function GildleMap() {
               </div>
             )}
 
+            {walk.status === "stopped" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs">
+                  {walk.points.length < 2 ? (
+                    <>
+                      <span className="font-semibold">위치가 잡히지 않았습니다.</span>{" "}
+                      <span className="text-gildle-muted">
+                        걸은 길이 없어 저장할 내용이 없습니다. 기록을 버릴까요?
+                      </span>
+                    </>
+                  ) : (
+                    "저장하지 못한 산책이 있어요. 다시 저장할까요?"
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void saveWalk(walk)}
+                  className="text-gildle-muted hover:text-gildle-text ml-auto rounded-lg px-3 py-2 text-xs"
+                >
+                  {walk.points.length < 2 ? "그래도 저장" : "다시 저장"}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearWalk}
+                  className="bg-gildle-warm rounded-lg px-3 py-2 text-xs font-semibold text-[#0a0d0a]"
+                >
+                  버리기
+                </button>
+              </div>
+            )}
+
             {walk.status === "saved" && (
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-xs">
-                  산책 기록 #{walk.savedId} 저장됨 · {km(walk.distanceM)} ·{" "}
-                  {Math.round(walk.elapsedS / 60)}분
+                  산책 기록 #{walk.savedId} 저장됨 · {formatKm(walk.distanceM)} ·{" "}
+                  {formatDuration(walk.elapsedS)}
                 </p>
                 <Link
                   href="/gildle/walks"
@@ -1094,7 +1195,7 @@ function PlanSummary({ plan }: { plan: WalkPlanResult }) {
     plan.via_place ? `${plan.via_place.name} 들러서` : null,
     u.minutes ? `${u.minutes}분 안에` : null,
     u.distance_km ? `${u.distance_km}km` : null,
-    `목표 ${km(plan.target_m)}`,
+    `목표 ${formatKmShort(plan.target_m)}`,
     PREF_LABEL[u.preference],
     u.stops.length > 0 ? `${u.stops.join("·")} 들르기` : null,
   ].filter((x): x is string => x !== null)
