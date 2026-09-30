@@ -56,12 +56,27 @@ paths:
 - 에러 본문 타입은 `type ApiErrorBody = { detail?: string | unknown }`으로 두고
   응답 타입과 교차시킨다.
 
-### 3. 인증 — 세션 Bearer 전달
+### 3. 인증 — httpOnly 쿠키 BFF (2026-09-30 전환)
 
-- 인증이 필요한 엔드포인트는 `getSuvisSession()?.token`을 `Authorization: Bearer`로
-  실어 보낸다. 토큰이 없으면 헤더를 **아예 넣지 않는다**(빈 문자열 금지).
-- 프록시 라우트를 거치는 경우 **클라이언트 → `route.ts` → 백엔드** 3계층 모두
-  토큰을 전달해야 한다. 한 곳이라도 빠지면 백엔드 `require_admin`에서 401이 난다.
+**토큰은 localStorage에 없다.** 로그인 시 `/api/auth/login`·`/api/auth/signup` BFF가
+access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클라이언트엔
+사용자 정보(id·username)만 준다. 구 `getSuvisSession()?.token` + `authHeader()`는
+제거됐다(XSS 탈취 방지).
+
+- **클라이언트는 Authorization 헤더를 직접 붙이지 않는다.** 인증 호출은 same-origin
+  프록시로 나가고(쿠키가 자동 전송된다), 프록시가 쿠키를 읽어 Bearer로 바꿔 백엔드에 전달한다.
+- **직결이던 호출**(admin·mova-api·games·gildle·vision·titanic 등)은 catch-all
+  **`/api/backend/[...path]`**를 쓴다 — 클라가 `/api/backend/mova/...`를 부르면
+  `lib/auth-bff.ts`의 `forwardToBackend`가 쿠키→Bearer + 401 시 리프레시까지 한다.
+- **경로 변형·로직이 있는 개별 프록시**(`/api/mova/*`·`/api/viewer/*`·`/api/dispatch/*` 등)는
+  `cookieBearer()`로 쿠키의 access를 Bearer로 읽는다(구 `request.headers.get("authorization")`
+  pass-through 자리). 서버 헬퍼는 전부 `lib/auth-bff.ts`에 있다.
+- **로그아웃**은 `logoutSession()`(→ `/api/auth/logout`)이 refresh를 revoke하고 쿠키를 지운다 —
+  `clearSuvisSession()`(localStorage만)으로 끝내지 않는다.
+- 백엔드 게이트웨이는 그대로다(access+refresh 발급·`/auth/refresh`·`/auth/logout` 재사용). 쿠키
+  세팅은 백엔드가 아니라 **same-origin Next 프록시**가 한다(게이트웨이는 다른 도메인이라 쿠키를 못 심는다).
+- access TTL은 현재 7일 유지 — 쿠키도 7일이라 리프레시 없이 UX 동일. 짧은 TTL+리프레시 상시화는
+  후속(리프레시 인프라·catch-all 자동회전은 준비돼 있음).
 
 ### 4. 에러 처리
 

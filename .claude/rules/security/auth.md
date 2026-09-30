@@ -40,20 +40,26 @@ paths:
   삼지 않는다. 실제 차단은 항상 백엔드 `require_admin`이 한다.
 - `JWT_SECRET`은 `suvisdev/.env`에서 읽는다. 하드코딩·기본값 금지.
 
-### 3. 토큰은 3계층 전부 전달해야 한다
+### 3. 토큰은 httpOnly 쿠키에 있다 — 프록시가 쿠키를 읽어 Bearer로 (2026-09-30 전환)
 
-프론트에 프록시 라우트가 있으면 **클라이언트 → `route.ts` → 백엔드** 세 곳 모두
-토큰을 넘겨야 한다. 한 곳만 빠져도 백엔드에서 401이 나고, 원인 찾기가 오래 걸린다.
+구 localStorage 토큰(클라가 Bearer로 실어 보내던 3계층 전달)은 **XSS로 탈취 가능**해
+폐기했다. 이제 로그인은 `/api/auth/login` BFF가 access·refresh를 **httpOnly 쿠키**로 심고,
+클라이언트는 토큰을 만지지 않는다.
 
 ```ts
-// 1) 클라이언트: lib/*-api.ts — 토큰 없으면 헤더를 아예 넣지 않는다(빈 문자열 금지)
-const token = getSuvisSession()?.token
-headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+// 1) 클라이언트: Authorization을 직접 붙이지 않는다. same-origin 프록시로 나가면 쿠키가 자동 전송된다.
+await fetch("/api/backend/mova/reviews", { method: "POST", body })      // catch-all 경유
+await fetch("/api/mova/chat", { method: "POST", body })                 // 개별 프록시 경유
 
-// 2) 프록시: app/api/**/route.ts — 받은 헤더를 그대로 백엔드로 넘긴다
-const auth = req.headers.get("authorization")
+// 2) 프록시: 쿠키의 access를 Bearer로 읽어 백엔드에 전달한다(구 pass-through 자리).
+import { cookieBearer } from "@/lib/auth-bff"
+const auth = await cookieBearer()   // "Bearer <access>" or undefined
 await backendFetch(path, { headers: auth ? { Authorization: auth } : {} })
 ```
+
+서버 헬퍼(`setAuthCookies`·`cookieBearer`·`forwardToBackend` 등)는 전부 `suvis/lib/auth-bff.ts`에
+있다. 쿠키는 same-origin Next 프록시가 심는다(auth 게이트웨이는 다른 도메인이라 못 심는다).
+role은 여전히 표시용(§2) — 접근 통제는 백엔드 `require_admin`이 JWT로 한다.
 
 ### 4. 무인증으로 두는 경우는 근거를 주석에 남긴다
 

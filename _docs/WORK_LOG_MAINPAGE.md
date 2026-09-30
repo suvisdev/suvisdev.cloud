@@ -28,6 +28,35 @@
 
 ---
 
+## 2026-09-30
+
+### 작업 내용
+- **웹 인증을 localStorage JWT → httpOnly 쿠키(BFF)로 전환** (보안 백로그: 토큰 localStorage = XSS 탈취 가능).
+  코드 완성 + 로컬 런타임 검증까지. **배포는 다음 세션(브라우저 실테스트)** — 사용자 결정.
+
+### 수정/구현
+- **조사(서브에이전트 매핑)**: 토큰 저장소는 `localStorage["suvis_session"].token` 하나. 백엔드는 이미 access+refresh
+  발급·`/auth/refresh`·`/auth/logout` 보유(웹은 refresh를 버리고 있었음). 쿠키 세팅은 백엔드가 아니라 same-origin
+  Next 프록시가 해야 함(게이트웨이는 다른 도메인). 직결 인증 호출 다수 + 경로 변형 프록시 15개가 범위.
+- **서버 BFF**(`08e8c6d`·`39a876c`): `lib/auth-bff.ts`(쿠키 세팅·게이트웨이 대행·`forwardToBackend`·`cookieBearer`),
+  `/api/auth/{login,signup,refresh,logout}`, catch-all `/api/backend/[...path]`(쿠키→Bearer + 401 자동 리프레시).
+- **클라이언트 배선**(`9a319bb`, 61파일): 세션에서 `token` 제거·`authHeader` 폐기, 직결 호출은 `/api/backend`로,
+  개별 프록시 22개는 `cookieBearer`로, 로그인폼 2개는 `/api/auth/login`로, OAuth 프록시는 쿠키 세팅, 로그아웃은
+  `logoutSession`(→`/api/auth/logout`). access TTL 7일 유지(쿠키도 7일 → 리프레시 없이 UX 동일, 짧은 TTL은 후속).
+- 규칙 문서 갱신: `.claude/rules/api-standards.md` §3·`security/auth.md` §3(3계층 Bearer → 쿠키 BFF).
+
+### 오류·막힌 점
+- 로컬 검증 시 dev 서버가 `api.suvisdev.cloud`(클라우드플레어 터널로 노트북에 되돌아옴)를 부르면 **hairpin ETIMEDOUT**.
+  → backend(8000)·auth(9000)를 `kubectl port-forward`로 로컬(18000·18009)에 붙이고 dev를 그쪽으로 향하게 해 해결.
+- **런타임 검증 성공**(임시 계정 signup→whoami→logout, 검증 후 계정 삭제): 회원가입 201·`{id,username}`만(토큰 없음)·
+  sv_access/refresh 쿠키 세팅 → `/api/backend/mova/whoami` 200(쿠키→Bearer 전달·aud=suvis-mova) → 로그아웃 쿠키 삭제.
+- tsc·eslint 0. 남은 것: **브라우저 실 UX 테스트 후 배포**(로그인 폼·OAuth 리다이렉트·SPA 흐름).
+
+### 산출물
+- 커밋 `08e8c6d`·`39a876c`·`9a319bb`(+규칙·일지). 서버 BFF·클라이언트 배선 완료, 배포 대기.
+
+---
+
 ## 2026-09-29
 
 ### 작업 내용
