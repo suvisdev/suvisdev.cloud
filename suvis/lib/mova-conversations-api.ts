@@ -1,4 +1,3 @@
-import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 export type ConversationSummary = {
@@ -31,7 +30,7 @@ async function conversationsFetch<T>(path: string, init?: RequestInit): Promise<
     ...init,
     headers: {
       ...(init?.headers ?? {}),
-      ...authHeader(),
+
     },
   })
   let data: (T & ApiErrorBody) | ApiErrorBody

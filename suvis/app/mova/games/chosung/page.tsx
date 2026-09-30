@@ -91,7 +91,7 @@ export default function ChosungGamePage() {
     const session = getSuvisSession()
     const finalize = async () => {
       // 무제한 모드는 랭킹에 들어가지 않는다 — 기록 저장을 건너뛴다.
-      if (session?.token && mode === "timed") {
+      if (session && mode === "timed") {
         setSavingScore(true)
         try {
           await saveGameScore({

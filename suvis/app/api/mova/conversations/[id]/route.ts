@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function GET(request: Request, { params }: Params) {
   const { id } = await params
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(`/mova/conversations/${id}`, {
       method: "GET",
@@ -27,7 +28,7 @@ export async function GET(request: Request, { params }: Params) {
 
 export async function DELETE(request: Request, { params }: Params) {
   const { id } = await params
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(`/mova/conversations/${id}`, {
       method: "DELETE",

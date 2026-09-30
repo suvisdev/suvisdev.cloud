@@ -3,7 +3,6 @@
 import { useRef, useState } from "react"
 import { Bot, CheckCircle2, CornerDownLeft, Loader2, Send, Smartphone } from "lucide-react"
 import { patchState } from "@/lib/form-status"
-import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type SendState = { loading: boolean; error: string | null; sent: boolean }
@@ -27,7 +26,7 @@ export default function AdminTelegramPage() {
     try {
       const res = await fetch("/api/dispatch/telegram", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, chat_id: chatId }),
       })
       const data = await res.json() as DispatchTelegramResponse

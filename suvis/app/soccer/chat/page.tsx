@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Bot, CornerDownLeft, Loader2, MessageCircle, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { patchState } from "@/lib/form-status"
-import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type ChatMessage = {
@@ -68,7 +67,7 @@ export default function SoccerChatPage() {
     try {
       const res = await fetch(`/api/v1/contents/soccer/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: nextMessages,
           model: "flash",

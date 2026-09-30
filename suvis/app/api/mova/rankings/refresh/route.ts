@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function POST(request: NextRequest) {
   const source = request.nextUrl.searchParams.get("source") ?? "chat_trend"
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(
       `/mova/rankings/refresh?source=${encodeURIComponent(source)}`,

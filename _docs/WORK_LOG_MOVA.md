@@ -28,6 +28,77 @@
 
 ---
 
+## 2026-09-30
+
+### 작업 내용
+- **어제(09-29) 저녁 미커밋 작업을 논리 단위로 커밋 정리 + v10 판단 모델 수령 결과 반영(v11 코랩 패키지 준비).**
+
+### 수정/구현
+- **미커밋 6건 커밋**(aeb812f~9d1edd7): ① v10 판단 도구 4종 서빙 선구현(`mark_watched`·`recommend_for_me`·
+  `similar_to`·`taste_profile`) ② v11 판단 데이터(`build_agent_dataset` `p_rec_conditional`)·코랩 노트북
+  ③ 추천 카드 마우스 드래그 가로 스크롤 ④ ontology 라우터 lazy화 ⑤ 홈 채팅 후속 질문 검색어 결합
+  ⑥ ruff 0.16.9 고정. `docker-compose.yaml`은 노트북 롤백용 untracked 유지(커밋 제외).
+- **코랩 채점 셀 버그 수정**(`scripts/mova_agent_colab.ipynb`): cell 5 `TOOLS`가 v9 6도구뿐이라 v10 신규 도구
+  예측이 `parse_action`에서 `None`→형식실패로 깎이던 것(v10 `passed:false`·"mark_watched 0/6"의 원인)을
+  10도구로 교정. `agent_prompt_v10.TOOL_SPEC`와 일치 실행 검증. VERSION_TAG·DATA_SUBDIR·업로드 안내 agent-v11로.
+- **eval 86행 반영**(어제 실사용 대화 09-29B 11턴 추가로 75→86, live 17→28): 노트북 표시 `/75` 하드코딩→동적,
+  판정을 `base 2.4B(노트북 실측) 초과 + 신규 9/9 + 형식 0`으로 변경(75행 시절 임계값·기준선은 직접 비교 불가).
+  v9 대비 최종 판정은 로컬 `eval_agent_actions.py`.
+- **바탕화면 `mova/FT/agent-v11/` 생성**: `agent_train.jsonl` 1443 · `agent_val.jsonl` 160 · `agent_eval.jsonl` 86
+  + 수정 노트북. **코랩 실행은 사용자**, 결과는 노트북 로컬 GGUF 재채점.
+
+### 오류·막힌 점
+- 로컬에 백엔드 pytest 환경 없음(`suvisdev/.venv`는 gildle/geo 전용 — geopandas·osmnx만) → 커밋 전 검증은
+  ruff(0.16.9) 전체 통과로 대신. 백엔드 테스트는 어제 docker 이미지에서 실행(460 passed, `[M]` 09-29 (15)).
+
+### 산출물
+- 커밋 aeb812f·76835c0·d9eaf57·0f8ef70·9709b4d·9d1edd7. 바탕화면 `mova/FT/agent-v11/`.
+
+### [오후] v11 수령·재채점 → 미채택, v9+v10프롬프트 배포(17f1764)
+- **v11 zip 수령**(Downloads, GGUF+어댑터 88MB+리포트) → `~/models/mova-agent-v11/` 풀고 `ollama create mova-agent-v11`.
+  어댑터는 유효(base EXAONE-3.5-2.4B·r16·420텐서) — **이어학습 재료 확보**(v9 어댑터는 로컬에 없고 Drive `out/agent-v9/`).
+- **로컬 GGUF 재채점(86행, `eval_agent_actions` requests판, CPU)**: **v9 77/86**(harness 45/45·live 20/28) > **v11 72/86**
+  (harness 41/45·live 19/28). v11 코랩 fp16은 81이었으나 **Q5_K_M 양자화에서 9점 증발**(v9는 양자화에 강함). v11은
+  `recommend_movies` 과소트리거("기분 좋아지는 영화"→FINAL 등)로 하네스 퇴행 → **v11 배포 안 함.**
+- **핵심 발견(사용자 질문발)**: eval의 system 프롬프트가 v10(10도구)이라, **v9 모델도 v10 프롬프트를 주면 신규 도구를
+  few-shot으로 처리**(v10 8/9). 즉 재학습 없이 **v9 모델 + v10 프롬프트 = 77**로 신규 기능을 켤 수 있다(v11보다 나음).
+- **배포(사용자 지시)**: `agent_prompt_v10.py`→`agent_prompt.py`로 교체(도구 10개), v10 파일 제거, 생성기 기본 프롬프트도
+  `agent_prompt.py`로 통일. **모델은 v9 유지**(`.env`에 `MOVA_AGENT_MODEL` 없음=기본 v9). 커밋 `17f1764`.
+- **검증**: 이미지 재빌드 후 이미지 안 `pytest apps/mova/tests` **460 passed** → 판단 스모크(봤어요·별점·취향 정확) →
+  `./k8s/deploy.sh --external-db --build`(rollout 성공) → 운영 파드 확인(프롬프트 10도구·모델 v9·`MOVA_CHAT_AGENT=1`).
+- **운영 end-to-end 봤어요·별점 실측**: 파드에서 TestClient(uid=1 오버라이드)로 "인셉션 봤어 4점" → `mark_watched` →
+  `reviews`(rating 4.0)·`user_actions`(watched) 신규 기록, 확인 문구 반환. **스냅샷→diff→정확 원복**으로 계정 데이터
+  무손상(reviews·actions 원복 True 확인). 09-29 하드 대화(제목 과다부착·도구 경계)는 v9·v11 공통 미해결 — 별개 트랙.
+
+### [오후·저녁] 동행 조건 배포 · v11-Q8 · v12 준비 · 2.4B 천장 확정
+- **동행 조건 추천 배포**(`41fea6e` 아님 — 커밋 별도): "여자친구랑/아이랑 볼 영화"의 동행 맥락을 장르 선호로 확장
+  (`companion_expansion` value object → `build_search_filters`의 `must.genres`). 동반 조사(랑·와·하고) 게이트로 "아이언맨"·
+  "아이유" 오탐 방지. 테스트 7건, 이미지 mova **467 passed**, 배포·운영 확인(여자친구랑→로맨스·코미디, 아이언맨→[]).
+- **v11 상위 양자화 실험(#2)**: CPU 병합(운영 GPU 미사용)으로 v11 Q8_0 생성·재채점 → **70/86**(Q5 72보다도 낮음).
+  즉 v11 fp16(81)→GGUF 격차는 **양자화 정밀도가 아니라 추론 엔진(llama.cpp) 문제** — 상위 quant로 못 메움. **v9 77 유지.**
+- **v12 표적 데이터 + 이어학습 노트북 준비**: 하드 케이스 3패턴(`region_only_showtimes`·`meta_set_final`·`theater_vs_ott`)을
+  생성기에 추가(train 1440·eval 86 불변), 노트북에 `CONTINUE_FROM_ADAPTER`(이어학습) 옵션. 바탕화면 `mova/FT/agent-v12/`.
+- **이어학습 막힘 → 2.4B 천장 확정**: 원래 계획은 v9(제일 좋은 77)에서 이어학습해 fresh 진동을 피하는 것이었으나,
+  **v9 어댑터를 안 남기고 GGUF만 보관**해 불가(GGUF는 병합·양자화라 되돌릴 수 없음). Drive `out/`엔 agent-v11만 있음.
+  fresh 재학습은 매번 v9 밑(v10 68·v11 72). **사용자 결정: v9+v10프롬프트(77) 그대로 유지, 7.8B는 서빙 VRAM 벽으로 보류.**
+- **7.8B 검토**: 학습은 가능(MODEL_ID 교체+QLoRA)하나 **서빙 VRAM이 벽**(4060 8GB, 현재 7.0GB 사용). 안 학습한 7.8B는
+  하네스 69<v9 71이라 그냥 스왑은 손해. "학습한 7.8B + VRAM 재설계"는 별도 트랙으로 보류.
+
+### [밤] 에디터 리뷰 출처(뉴스) 링크 표시 배포(`9411d3c`)
+- **문제**: 에디터 리뷰가 구글 뉴스 RSS의 기사 URL을 `_fetch_news`에서 버려, 신뢰도 배지(개수)만 있고 출처 링크는 없었음.
+- **구현(풀스택 한 커밋)**: `reviews.news_sources` JSONB 컬럼(`20260930_0001`) + `_fetch_news`가 `{title,url,source,summary}`
+  반환·저장 + DTO·스키마·리포지토리 노출 + 프론트 리뷰 배지 옆 출처 링크 칩(발행처, 새 탭). 기사 원문 미수집(제목·요약만, 저작권).
+- **검증·배포**: 이미지 mova 467 passed·프론트 tsc 통과 → **마이그레이션 먼저**(docker run --network host alembic upgrade,
+  news_sources JSONB 생성 확인) → rollout. 운영 실측: `_fetch_news('기생충')` 8건 URL·출처(JTBC) 캡처, `GET /mova/reviews/
+  by-movie` 200·직렬화 정상(기존 리뷰 news_sources=null). **링크는 새 에디터 리뷰부터**(기존은 개수 배지 유지).
+- 속도(#1 리뷰 배치)는 Gemini 무료 티어 쿼터에 묶여 `EDITOR_REVIEWS_DAILY_LIMIT` env 조정이 전부라 구현 대상 아님.
+
+### 산출물(추가)
+- 커밋: 동행 조건(feat), v12 데이터·이어학습 노트북(`41fea6e`), 에디터 리뷰 출처 링크(`9411d3c`). 바탕화면 `mova/FT/agent-v12/`.
+  v11-Q8은 `~/models/mova-agent-v11-q8/`(미채택). **교훈: 좋은 모델의 어댑터를 GGUF와 함께 보관할 것**(v9 못 이은 원인).
+
+---
+
 ## 2026-09-29
 
 ### 작업 내용
@@ -144,6 +215,62 @@
   서빙 `agent_prompt.py`(v9)를 먼저 바꾸면 v9 모델과 분포가 어긋나므로 v10 합격 배포 때 옮긴다(생성기 `AGENT_PROMPT_FILE`).
   기준선(GGUF, 75): **v9 71**(harness 45/45·live 14·v10 8/9 — v10 프롬프트의 예시만으로 새 도구를 8/9 고름) · 7.8B 69 · 2.4B 59.
   합격선 72 + live 14 + v10 9/9 + 형식 0. 바탕화면 `mova/FT/agent-v10/`. 코랩 실행은 사용자.
+- (14) **[v10 학습 대기 중 병행] `mark_watched` 서빙 핸들러 선구현**(기능 순서 1, 사용자 지시 "다른거 먼저 할 수 있는거"):
+  v10 판단 모델이 `mark_watched(title, rating)`을 부르면 채팅에서 '봤어요'+별점을 기록하는 경로를 미리 배선했다. 서빙
+  v9는 이 도구를 부르지 않으므로 무해하고, v10 프롬프트 교체 때 바로 작동한다. 변경: ① 포트 `ChatRepositoryPort.
+  record_rating` 추가 + `ChatPgRepository`에서 `reviews` upsert(별점만, 기존 body·embedding 보존; watched 게이트는
+  호출부가 함께 기록해 자연 충족) ② `chat_agent.py`에 `mark_watched` 터미널 도구 등록(grounded는 title만 — rating은
+  사용자가 말한 숫자) + `parse_rating`(0.5 단위 반올림·[0.5,5.0] 클램프) ③ `market_chat_interactor._act_on_agent`에
+  `mark_watched` 분기 + `_reply_mark_watched`(비로그인 안내·제목 미해석 되묻기·watched 기록·별점 upsert·확인 문구) +
+  카드 없는 응답 헬퍼 `_reply_plain`.
+- (15) **[이어서] 나머지 v10 도구 3개 서빙까지 선구현 완료**(사용자 지시 "기능 2부터 그냥 다 구현, 적용만 하면 바로", v10은
+  진행 중): `recommend_for_me`·`similar_to`·`taste_profile`을 `_TERMINAL`에 추가(grounded 컴프리헨션이 query→()·title→(title,)·
+  ()→()를 자동 처리)하고 `_act_on_agent`에 분기 배선. `recommend_for_me`→`_reply_personal_recommend(seed_title=None)`(취향
+  벡터 최근접), `similar_to`→`_reply_personal_recommend(seed_title=title)`(시드 작품 유사) — 09-29 (12)에서 만든 함수 재사용,
+  판단 단계가 명시적으로 도구를 부르니 잡담·cue 우회 없이 직결. `taste_profile`은 신규 `_reply_taste_profile`: 별점(`reviews`)·
+  봤어요(`user_actions`)·온보딩 취향(`preferred_genres`)을 종합해 자주 본 장르 top3(카탈로그 genres 집계)·최고 별점 작품 3편·
+  기록 건수를 문장으로 요약, 기록 0이면 봤어요·별점 유도, 비로그인은 로그인 안내(taste_vectors·movies는 optional이라 None
+  가드). 검증: 신규 테스트(agent 터미널 3도구·인터랙터 recommend_for_me/similar_to 디스패치·taste_profile 3케이스[데이터/무데이터/
+  비로그인]) 포함 **mova 460 passed**, ruff·py_compile 통과.
+  - **이제 MovaChatAgent 등록 도구 10개 = v10 프롬프트 10개와 일치**(search_movie·get_movie_details·now_showing·recommend_movies·
+    showtimes·where_to_watch·recommend_for_me·similar_to·taste_profile·mark_watched). v9 프롬프트는 6개만 노출해 나머지를
+    안 부르므로 현행 운영 무해.
+  - **v10 적용(=배포) 절차**(코랩 합격·노트북 GGUF 재채점 통과 후): ① `ollama create mova-agent-v10`(GGUF) ② `agent_prompt_v10.py`
+    내용을 `agent_prompt.py`로 교체(SYSTEM_PROMPT·TOOLS가 10개로) ③ `.env` `MOVA_AGENT_MODEL=mova-agent-v10`
+    ④ `./k8s/deploy.sh --external-db --build` + `rollout restart deploy/backend` ⑤ 확인: `printenv | grep MOVA_AGENT_MODEL`,
+    운영 스모크(봤어요·별점·취향 요약·유사). 서빙 코드 추가 변경 없음 — 프롬프트·모델·env만.
+- (16) **[조사] 추천 "3편 억지 채움" — 결정론 가드로 안전하게 못 고침, 별도 세션으로 이월.** Gemini 블라인드 비교
+  열세(12:3)의 주원인. 근본 원인을 코드로 확인: LoRA가 16편 후보 풀(태그 실매칭 + 시맨틱 꼬리)에서 3편을 고르는데,
+  강한 매칭이 적어도 시맨틱 꼬리 후보로 3편을 채운다. 프롬프트엔 이미 "억지로 3편을 채우지 마세요"가 있는데 2.4B가
+  무시. **장르 가드가 대표 사례를 못 잡는다**: `_GENRE_PHRASES`에 "법정"이 없어 "법정 드라마"→`드라마`로만 잡히고
+  굿 윌 헌팅도 드라마라 통과. 밀실·잔잔한도 주제·분위기라 태그로 안 잡힘 = 이건 **의미/주제 적합성** 문제. 어떤
+  휴리스틱도 효과는 `eval_chat_queries.py --catalog`(운영 카탈로그 + `repeated_titles` 지표)로만 검증되는데 이 환경엔
+  없음 → 근거 없는 휴리스틱은 가짜 수정이라 넣지 않음(CLAUDE.md). **제대로 된 방향**: CRITERIA 문서의 "코드가 순위,
+  LLM은 hook만" 아키텍처(임베딩 유사도로 픽 재정렬·컷) 또는 재학습 트랙. 하네스 측정 가능한 별도 세션에서.
+- (17) **[밤] v10 판단 모델 수령·리뷰 → 배포 보류, v11 데이터 수정.** Downloads `agent-v10-…zip`(GGUF+어댑터+report).
+  - **코랩 `passed:false`는 채점기 버그였다**: report의 `student_fails`가 대부분 `gold==pred`(예: mark_watched{인셉션,4}가
+    양쪽 동일한데 오답), 카테고리 `mark_watched 0/6·rec_for_me 0/3·similar_to 0/2·taste_profile 0/1`. 코랩 노트북 채점 셀이
+    v9 6개 도구만 아는 낡은 복사본이라 신규 도구를 맞아도 오답·형식실패로 깎았다. 저장소 `build_agent_dataset.match`는
+    도구 이름을 일반 비교해 신규 4종을 정상 크레딧함을 확인.
+  - **노트북 GGUF 재채점**(`ollama create mova-agent-v10` + `eval_agent_actions.py --cpu`): **v10 68/75**(harness 43/45·live
+    13·shadow 3/4·**v10 9/9**·형식 0) vs 현재 **v9 71/75**(harness 45/45·live 14·v10 8/9). 즉 신규 도구는 9/9로 잘 배웠지만
+    **`recommend_for_me` 과트리거**로 조건부 추천("클래식 명작 처음 보는 사람용"·"다른영화 추천해줘"·"스파이더맨 시리즈
+    추천해줘")까지 취향으로 빨아들여 harness·live가 v9보다 퇴행. **v10 배포 안 함**(합격선 72·live 14 미달, v9보다 낮음).
+  - **사용자 결정: B(v11 재학습).** 도구는 프롬프트(v10, 10개)+서빙 핸들러(완료)에 이미 붙어 있고 재학습은 데이터만 고침.
+  - **v11 데이터 수정 완료**: `scripts/build_agent_dataset.py`에 `p_rec_conditional`(가중 0.06) 추가 — 조건이 붙은 추천은
+    '추천해줘'로 끝나도 recommend_movies라는 반례(장르·분위기·시리즈·상황·입문용·'다른 영화' 후속)를 rec_for_me의 '맨
+    추천해줘'와 대비되게 늘렸다. 재생성: train 1443·val 160·**eval 75 불변(누수 0, git diff 없음)**, rec_conditional 74행,
+    recommend_movies 209 vs recommend_for_me 62(~3:1). ruff 통과. **코랩 학습·재채점은 내일**(사용자: "데이터 수정까지만").
+  - **오늘 밤 실사용 대화(uid=1) eval 추가**(사용자 "지금 한 대화도 껴줘"): DB `chat` 1734~1744에서 11턴을 뽑아 `_CONV_0929B`로
+    추가(eval 75→86). 예매를 원하는데 OTT(where_to_watch)로 답하고, "서울에서 제일 빠른걸로"를 작품 임의 지정+지역 되물음으로
+    처리해 "아직도 말을 잘 못알아 듣는구나"라 한 대화. 정답은 사용자 확인('제일 빠른걸로'=작품 무지정 showtimes region=서울,
+    '예매라고'=showtimes title=목요일 살인 클럽). 근거 경고 0. **발견한 서빙 갭**: where_to_watch↔showtimes 경계(예매 의도인데
+    OTT로 답함)·지시어 후속의 예매 이어받기 — 재학습보다 서빙 결정론 가드가 나을 후보(내일).
+  - jsonl은 gitignore 생성물이라 tracked 변경은 생성기 하나. mova-agent-v10(Ollama)·Downloads zip·바탕화면 FT는 내일 정리.
+- (18) **[밤] mova 채팅 추천 카드 가로 스크롤**(사용자: "옆으로 안 넘어가"): `MovaRecommendationCards`(suvis)의 카드 행이
+  `overflow-x-auto`인데 `mova-row-scroll`이 스크롤바를 숨기고 마우스 휠(세로)로는 가로 이동이 안 돼 마우스 사용자가 막힘.
+  컨테이너를 기존 `DragScrollRow`(마우스 드래그 가로 스크롤 + 드래그 후 클릭 억제로 카드 Link 오작동 방지, movies 페이지와
+  동일 패턴)로 교체 + `cursor-grab`. 상영작·추천·유사 등 이 컴포넌트를 쓰는 모든 카드 행에 적용. tsc·eslint 통과.
 
 ### 오류·막힌 점 (추가)
 - 비교용 Gemini 컨테이너는 `docker run --network host --env-file .env -e RECOMMENDATION_BACKEND=gemini

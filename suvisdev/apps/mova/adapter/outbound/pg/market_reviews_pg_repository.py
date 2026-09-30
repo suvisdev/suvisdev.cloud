@@ -160,6 +160,7 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
                 sentiment_label=r.sentiment_label,
                 sentiment_score=float(r.sentiment_score) if r.sentiment_score is not None else None,
                 news_source_count=r.news_source_count,
+                news_sources=list(r.news_sources) if r.news_sources else None,
                 vote_count=int(vc or 0),
             )
             for r, nickname, vc in rows

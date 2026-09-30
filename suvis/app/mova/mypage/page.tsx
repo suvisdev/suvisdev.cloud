@@ -32,7 +32,7 @@ import {
 import { updateNickname, updatePreferredGenres } from "@/lib/profile-api"
 import { MovaGenrePicker } from "@/components/mova/mova-genre-picker"
 import { MovaAvatarUploader } from "@/components/mova/mova-avatar-uploader"
-import { getSuvisSession, clearSuvisSession } from "@/lib/suvis-session"
+import { getSuvisSession, clearSuvisSession, logoutSession } from "@/lib/suvis-session"
 import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { cn } from "@/lib/utils"
@@ -89,13 +89,6 @@ export default function MypagePage() {
       router.replace("/mova/login?redirect=/mova/mypage")
       return
     }
-    // 토큰 없는 오래된 세션(2026-08-12 auth fix 이전에 저장된 것)은 인증 API에서
-    // 401을 받아 "인증이 필요합니다" 오류가 나므로, 여기서 감지해서 정리 + 재로그인 안내.
-    if (!s.token) {
-      clearSuvisSession()
-      router.replace("/mova/login?redirect=/mova/mypage")
-      return
-    }
     Promise.all([
       fetchMovaMypage(s.id),
       fetchWatchlist(s.id).catch(() => ({ items: [], total: 0 })),
@@ -120,7 +113,7 @@ export default function MypagePage() {
   }, [router])
 
   const handleLogout = () => {
-    clearSuvisSession()
+    void logoutSession()
     router.replace("/mova")
   }
 
@@ -149,7 +142,7 @@ export default function MypagePage() {
     setDeleting(true)
     try {
       await deleteMovaAccount(s.id)
-      clearSuvisSession()
+      void logoutSession()
       setAccountStep("done")
     } catch (e) {
       setAccountStep("idle")

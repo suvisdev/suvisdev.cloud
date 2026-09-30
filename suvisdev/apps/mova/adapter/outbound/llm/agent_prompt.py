@@ -1,4 +1,9 @@
-"""mova 채팅 '판단 단계' 도구 정의·시스템 프롬프트 (2026-09-29, v9).
+"""mova 채팅 '판단 단계' 도구 정의·시스템 프롬프트 — 도구 10개(2026-09-30 서빙 반영).
+
+서빙 모델은 `mova-agent-v9`를 유지하되 이 10도구 프롬프트를 준다: v9는 신규 4도구
+(recommend_for_me·similar_to·mark_watched·taste_profile)를 학습하지 않았지만 프롬프트 예시만으로
+few-shot 처리한다(하네스 v10 8/9). v11(fresh 재학습)은 GGUF 양자화에서 퇴행(v9 77 > v11 72/86)해
+채택하지 않았다 — 상세 `_docs/WORK_LOG_MOVA.md` 09-30. 구 6도구 프롬프트(v9 학습 분포)는 git 이력에 있다.
 
 형식(렌더·파싱·행동 문자열)은 허브 `ontology.domain.agent.action_protocol`에 있고 여기서 재수출한다 —
 학습 데이터 생성기(`scripts/build_agent_dataset.py`)와 서빙(`MovaChatAgent`)이 같은 문자열을 쓴다.
@@ -34,6 +39,14 @@ TOOLS: dict[str, tuple[str, tuple[str, ...]]] = {
         ("title", "region", "date"),
     ),
     "where_to_watch": ("작품을 볼 수 있는 OTT", ("title",)),
+    # v10(2026-09-29 저녁): 취향·유사 추천, 채팅에서 봤어요·별점, 취향 요약
+    "recommend_for_me": (
+        "로그인 사용자의 본 영화·리뷰·별점 취향으로 영화 여러 편을 고른다",
+        ("query",),
+    ),
+    "similar_to": ("특정 작품과 비슷한 영화 여러 편", ("title",)),
+    "mark_watched": ("작품을 봤다고 기록하고, 별점을 말했으면 함께 남긴다", ("title", "rating")),
+    "taste_profile": ("사용자의 취향 요약(자주 본 장르·높게 평가한 작품)", ()),
 }
 TOOL_SPEC = {name: params for name, (_, params) in TOOLS.items()}
 
@@ -68,6 +81,10 @@ FINAL
 - now_showing(): 지금 극장 상영작 — "요즘 개봉한", "최신 영화 뭐 있어", "바로 예매할 수 있는", 직전 카드 전체가 상영 중인지
 - showtimes(title, region, date): 상영 시간표·근처 영화관. title 없이 region만 주면 근처 영화관
 - where_to_watch(title): 볼 수 있는 OTT — "어디서 볼 수 있어"
+- recommend_for_me(query): 조건 없이 "내 취향", "나한테 맞는", "내가 본 걸로", 맨 "추천해줘"·"뭐 볼까" — 사용자의 본 영화·별점 취향으로 고른다. query엔 덧붙인 조건이 있으면 그대로("주말에 볼"), 없으면 "내 취향"
+- similar_to(title): "○○ 같은/비슷한/느낌의 영화" — 그 작품과 비슷한 여러 편
+- mark_watched(title, rating): "○○ 봤어", "그거 봤어 4점", "봤어요 표시해줘" — 작품을 본 것으로 기록. 별점을 말했으면 rating에 숫자만("4", "3.5"), 없으면 생략
+- taste_profile(): "내 취향이 뭐야", "나 어떤 영화 좋아해", "내가 높게 준 영화" — 취향 요약
 
 규칙:
 - 도구는 한 번에 하나. 인자의 제목·지역·날짜는 발화·최근 대화·[도구 결과]에 실제로 나온 표기만 쓴다. 지어내지 않는다.
@@ -75,6 +92,10 @@ FINAL
 - "그거"·"다"·"누가 나와"처럼 작품을 말하지 않으면 최근 대화에서 가리키는 작품을 찾아 인자로 넣는다.
 - 시리즈 이름만 있고("타짜 요즘 개봉한 거") 카드에 목록이 없으면 search_movie로 최신작을 확인한다. 카드에 연도가 있으면 바로 그 작품으로 get_movie_details.
 - query는 발화의 조건을 그대로 옮긴다("유해진 나오는 영화 다른 거" → "유해진 나오는 영화").
+- 장르·배우·분위기 같은 조건이 있으면 recommend_movies, 조건 없이 취향에 기대면 recommend_for_me.
+- 지시어가 가리키는 작품은 가장 최근에 다룬 작품이다(두 작품이 나왔으면 뒤의 것).
+- 날짜 후속("9월 30일자로")은 직전 시간표의 작품·지역을 그대로 잇고 date에 그 날짜를 넣는다.
+- 시리즈 이름만 왔으면 부제를 완성하지 말고 그 이름 그대로 search_movie한다.
 - 영화와 무관한 인사·잡담은 FINAL.
 
 예시:
@@ -84,4 +105,7 @@ FINAL
 발화 "요즘 볼만한 코미디 추천해줘" → <tool_call>{"name":"recommend_movies","arguments":{"query":"요즘 볼만한 코미디"}}</tool_call>
 발화 "타짜 요즘 개봉한 거 있지 않나" → <tool_call>{"name":"search_movie","arguments":{"title":"타짜"}}</tool_call>
 발화 "타짜 요즘 개봉한 거 있지 않나" · [도구 결과] search_movie → {"found":"타짜 (2006)","same_name_titles_newest_first":["타짜: 벨제붑의 노래 (2026)",…]} → FINAL
+발화 "내 취향에 맞는 영화 추천해줘" → <tool_call>{"name":"recommend_for_me","arguments":{"query":"내 취향"}}</tool_call>
+발화 "기생충 같은 영화 추천해줘" → <tool_call>{"name":"similar_to","arguments":{"title":"기생충"}}</tool_call>
+직전 도우미 "[추천 카드] 1.『인셉션』(2010)" · 발화 "그거 봤어, 4점" → <tool_call>{"name":"mark_watched","arguments":{"title":"인셉션","rating":"4"}}</tool_call>
 발화 "안녕" → FINAL"""

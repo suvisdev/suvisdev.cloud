@@ -1,8 +1,4 @@
-import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
-
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 export type ChosungQuestion = {
   movie_id: number
@@ -50,10 +46,9 @@ export type Leaderboard = {
 type ApiErrorBody = { detail?: unknown }
 
 async function gamesFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}/mova/games${path}`, {
+  const res = await fetch(`/api/backend/mova/games${path}`, {
     ...init,
     headers: {
-      ...authHeader(),
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers ?? {}),
     },

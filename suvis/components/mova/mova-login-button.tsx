@@ -6,7 +6,7 @@ import { LogIn, LogOut } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 import { fetchProfile } from "@/lib/profile-api"
 import {
-  clearSuvisSession,
+  logoutSession,
   getSuvisSession,
   type SuvisSession,
 } from "@/lib/suvis-session"
@@ -110,7 +110,7 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
         <button
           type="button"
           onClick={() => {
-            clearSuvisSession()
+            void logoutSession()
             setSession(null)
             setNickname(null)
           }}

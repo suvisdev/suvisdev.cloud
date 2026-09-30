@@ -75,6 +75,7 @@ class ReviewWithUserDto:
     sentiment_label: str | None = None
     sentiment_score: float | None = None
     news_source_count: int | None = None
+    news_sources: list[dict[str, str]] | None = None
     vote_count: int = 0
 
     def to_schema(self) -> ReviewWithUserSchema:
@@ -92,6 +93,7 @@ class ReviewWithUserDto:
             sentiment_label=self.sentiment_label,
             sentiment_score=self.sentiment_score,
             news_source_count=self.news_source_count,
+            news_sources=self.news_sources,
             vote_count=self.vote_count,
         )
 

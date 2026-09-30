@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 
 from ontology.app.dtos.hub_knowledge_dto import HubKnowledgeHitDto
@@ -58,6 +59,25 @@ AI 비서로, 이름은 진수택의 '수'와 아이언맨의 AI 비서 자비�
 5. 서식은 **굵게**, 글머리 목록(- ), 번호 목록(1. ), 링크([이름](URL))만 씁니다. 표·제목(#)·코드 블록·이미지는 쓰지 않습니다."""
 
 
+# 후속 질문 표식 — 이게 있으면 검색어에 직전 사용자 발화를 붙인다. 지시어·역참조·주어 없는 서술어.
+_FOLLOWUP_MARK = re.compile(
+    r"그거|그건|그게|그걸|그것|이거|이건|이걸|저거|거기|그곳|그 (프로젝트|사이트|앱|서비스|거)|"
+    r"아까|방금|위에서|앞에서|누가 (만들|개발|했|짰)|만든 사람"
+)
+
+
+def _retrieval_query(message: str, history: Sequence[PortfolioChatTurn]) -> str:
+    """검색용 질의. 후속 질문은 직전 사용자 발화를 붙여 임베딩한다 — "gildle이 뭐야?" 다음
+    "그거 누가 만들었어?"가 맥락을 잃고 엉뚱한 문서를 부르는 것 방지(검색은 현재 발화만 임베딩했다).
+    지시어·역참조 표현이 있을 때만 보강하고, 자기완결 질문은 그대로 둔다 — 주제 전환 질의("mova는?")가
+    이전 주제로 희석되지 않게. LLM 프롬프트의 [대화] 히스토리는 그대로 두고 검색 질의만 바꾼다.
+    """
+    if not _FOLLOWUP_MARK.search(message):
+        return message
+    last_user = next((t.content for t in reversed(history) if t.role == "user"), None)
+    return f"{last_user} {message}" if last_user else message
+
+
 def build_prompt(
     hits: Sequence[HubKnowledgeHitDto], history: Sequence[PortfolioChatTurn], message: str
 ) -> str:
@@ -75,7 +95,7 @@ class PortfolioChatInteractor(PortfolioChatUseCase):
         self._llm = llm
 
     async def chat(self, command: PortfolioChatCommand) -> PortfolioChatAnswerDto:
-        vector = await self._embedding.embed(command.message)
+        vector = await self._embedding.embed(_retrieval_query(command.message, command.history))
         pool = await self._repository.search(vector, k=_SEARCH_POOL, source=SOURCE)
         raw_hits = pool[:TOP_K]
         hits = [h for h in raw_hits if h.score >= MIN_HIT_SCORE]

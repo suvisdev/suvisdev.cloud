@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
-    const auth = request.headers.get("authorization")
+    const auth = await cookieBearer()
     const res = await backendFetch("/api/ontology/harvester/policies", {
       headers: auth ? { Authorization: auth } : {},
     })

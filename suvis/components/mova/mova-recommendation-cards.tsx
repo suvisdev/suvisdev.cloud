@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Bookmark, BookmarkCheck, Clapperboard } from "lucide-react"
+import { DragScrollRow } from "@/components/mova/drag-scroll-row"
 import { MovaPlatformBadge } from "@/components/mova/mova-platform-badge"
 import {
   addReviewActivity,
@@ -86,7 +87,7 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
   if (!items.length) return null
 
   return (
-    <div className="mova-row-scroll flex w-full max-w-full gap-2 overflow-x-auto pb-1">
+    <DragScrollRow className="mova-row-scroll flex w-full max-w-full cursor-grab gap-2 overflow-x-auto pb-1">
       {items.map((item) => {
         const posterSrc = coercePosterUrl(item.poster)
         const platformKey = item.platform?.toLowerCase().includes("netflix")
@@ -164,6 +165,6 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
           </div>
         )
       })}
-    </div>
+    </DragScrollRow>
   )
 }

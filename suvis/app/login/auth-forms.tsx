@@ -59,24 +59,7 @@ type SignupFormProps = {
 }
 
 
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) ||
-  "http://127.0.0.1:8000"
-
-// auth 게이트웨이 — RS256 access_token을 발급. require_user·require_admin이
-// 이 토큰만 검증하므로 로그인/회원가입은 반드시 여기로 나가야 한다.
-const AUTH_BASE = "https://auth.suvisdev.cloud"
-const AUTH_AUD = "suvis-mova"
-
-async function fetchWhoamiUsername(
-  accessToken: string,
-): Promise<{ sub: string; username: string }> {
-  const res = await fetch(`${API_BASE}/mova/whoami`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new Error("사용자 정보를 불러오지 못했습니다.")
-  return (await res.json()) as { sub: string; username: string }
-}
+// 로그인·회원가입은 `/api/auth/login`·`/api/auth/signup` BFF 프록시로 나간다 — 게이트웨이 직결·토큰 취급은 서버가 한다.
 
 const tabListClass =
   "grid h-10 w-full grid-cols-2 rounded-xl border border-neutral-300 bg-neutral-100/80 p-1"
@@ -144,23 +127,23 @@ export function AuthForms({
 
     patchLogin({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${AUTH_BASE}/auth/login`, {
+      // BFF /api/auth/login — 게이트웨이 호출·쿠키 세팅은 서버가 하고, 여기엔 사용자 정보만 온다(토큰 비노출).
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: formProps.username.trim(),
           password: formProps.password,
-          aud: AUTH_AUD,
         }),
       })
-      let body: { access_token?: string; detail?: unknown }
+      let body: { id?: number; username?: string; detail?: unknown }
       try {
-        body = (await res.json()) as { access_token?: string; detail?: unknown }
+        body = (await res.json()) as { id?: number; username?: string; detail?: unknown }
       } catch {
         patchLogin({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok || !body.access_token) {
+      if (!res.ok || typeof body.id !== "number") {
         patchLogin({
           message: safeApiErrorMessage(
             body.detail,
@@ -172,12 +155,7 @@ export function AuthForms({
         })
         return
       }
-      const whoami = await fetchWhoamiUsername(body.access_token)
-      saveSuvisSession({
-        id: Number(whoami.sub),
-        username: whoami.username || `user-${whoami.sub}`,
-        token: body.access_token,
-      })
+      saveSuvisSession({ id: body.id, username: body.username || `user-${body.id}` })
       patchLogin({ message: "로그인에 성공했습니다." })
       onAuthSuccess?.()
       if (variant === "page") {
@@ -206,24 +184,23 @@ export function AuthForms({
 
     patchSignup({ errors: {}, submitting: true })
     try {
-      const res = await fetch(`${AUTH_BASE}/auth/signup`, {
+      const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: formProps.email.trim(),
           password: formProps.password,
           username: formProps.username.trim() || undefined,
-          aud: AUTH_AUD,
         }),
       })
-      let body: { access_token?: string; detail?: unknown }
+      let body: { id?: number; username?: string; detail?: unknown }
       try {
-        body = (await res.json()) as { access_token?: string; detail?: unknown }
+        body = (await res.json()) as { id?: number; username?: string; detail?: unknown }
       } catch {
         patchSignup({ message: "서버 응답을 읽을 수 없습니다." })
         return
       }
-      if (!res.ok || !body.access_token) {
+      if (!res.ok || typeof body.id !== "number") {
         patchSignup({
           message: safeApiErrorMessage(
             body.detail,
@@ -233,12 +210,10 @@ export function AuthForms({
         })
         return
       }
-      // 회원가입 즉시 auto-login — access_token으로 whoami → 세션 저장.
-      const whoami = await fetchWhoamiUsername(body.access_token)
+      // 회원가입 즉시 auto-login — BFF가 쿠키를 심었고 사용자 정보만 온다.
       saveSuvisSession({
-        id: Number(whoami.sub),
-        username: whoami.username || formProps.nickname.trim() || `user-${whoami.sub}`,
-        token: body.access_token,
+        id: body.id,
+        username: body.username || formProps.nickname.trim() || `user-${body.id}`,
       })
       patchSignup({ message: "회원가입이 완료되었습니다." })
       onAuthSuccess?.()

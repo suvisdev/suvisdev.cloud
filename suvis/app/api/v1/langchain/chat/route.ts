@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const auth = request.headers.get("authorization")
+    const auth = await cookieBearer()
     const res = await backendFetch("/api/v1/langchain/chat", {
       method: "POST",
       headers: {

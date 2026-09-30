@@ -1,11 +1,7 @@
-import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 /** gildle 백엔드 클라이언트 — 앱(Flutter)과 같은 엔드포인트만 쓴다(2026-09-28 웹·앱 동일화).
  *  경로·루프는 비로그인 허용, 산책 기록은 세션 Bearer 필요. */
-
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 type ApiErrorBody = { detail?: unknown }
 
@@ -39,11 +35,10 @@ export type WalkDetail = WalkSummary & {
 export type WalkStats = { total_count: number; total_distance_m: number; total_duration_s: number }
 
 async function gildleFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}/api/gildle${path}`, {
+  const res = await fetch(`/api/backend/api/gildle${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...authHeader(),
       ...(init?.headers ?? {}),
     },
   })

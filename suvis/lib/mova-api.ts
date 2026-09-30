@@ -2,7 +2,6 @@ import { resolveMovaCatalogSlug } from "@/lib/mova-catalog"
 import type { MovaComment, MovaMovie } from "@/lib/mova-movies"
 import { MOVA_RANKING } from "@/lib/mova-movies"
 import { coercePosterUrl } from "@/lib/mova-poster"
-import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
 
 const API_BASE =
@@ -98,6 +97,7 @@ export type MovaReviewRow = {
   sentiment_label?: string | null
   sentiment_score?: number | null
   news_source_count?: number | null
+  news_sources?: { title: string; url: string; source: string }[] | null
   vote_count?: number
 }
 
@@ -411,7 +411,7 @@ export async function refreshMovaRankings(source = "chat_trend"): Promise<void> 
   // 백엔드 재집계는 admin 전용(2026-09-11) — 토큰이 있으면 3계층 전달한다.
   const res = await fetch(`/api/mova/rankings/refresh?source=${encodeURIComponent(source)}`, {
     method: "POST",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -554,6 +554,7 @@ export function movaReviewToComment(row: MovaReviewRow): MovaComment {
     sentimentLabel: row.sentiment_label,
     sentimentScore: row.sentiment_score,
     newsSourceCount: row.news_source_count,
+    newsSources: row.news_sources,
   }
 }
 
@@ -605,7 +606,7 @@ export type MovaVoteResult = {
 export async function toggleReviewVote(reviewId: number): Promise<MovaVoteResult> {
   const res = await fetch(reviewsFetchUrl(`/${reviewId}/vote`), {
     method: "POST",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -624,7 +625,7 @@ export async function addReviewActivity(input: {
 }): Promise<void> {
   const res = await fetch(reviewsFetchUrl("/activity"), {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   })
   if (!res.ok) {
@@ -644,7 +645,7 @@ export async function createMovaReview(input: {
 }): Promise<void> {
   const res = await fetch(reviewsFetchUrl(""), {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   })
   if (!res.ok) {
@@ -660,7 +661,7 @@ export async function createMovaReview(input: {
 export async function deleteMovaReview(reviewId: number): Promise<void> {
   const res = await fetch(reviewsFetchUrl(`/${reviewId}`), {
     method: "DELETE",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -690,7 +691,7 @@ export type WatchlistData = {
 export async function fetchWatchlist(userId: number): Promise<WatchlistData> {
   const res = await fetch(`/api/mova/watchlist/${userId}`, {
     cache: "no-store",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) throw new Error(`찜 목록 조회 실패 (${res.status})`)
   return (await res.json()) as WatchlistData
@@ -699,7 +700,7 @@ export async function fetchWatchlist(userId: number): Promise<WatchlistData> {
 export async function checkWatchlist(userId: number, movieId: number): Promise<boolean> {
   const res = await fetch(`/api/mova/watchlist/${userId}/check/${movieId}`, {
     cache: "no-store",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) return false
   const data = (await res.json()) as { in_watchlist: boolean }
@@ -709,7 +710,7 @@ export async function checkWatchlist(userId: number, movieId: number): Promise<b
 export async function addToWatchlist(userId: number, movieId: number): Promise<void> {
   const res = await fetch("/api/mova/watchlist", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_id: userId, movie_id: movieId }),
   })
   if (!res.ok) throw new Error(`찜 추가 실패 (${res.status})`)
@@ -718,7 +719,7 @@ export async function addToWatchlist(userId: number, movieId: number): Promise<v
 export async function removeFromWatchlist(userId: number, movieId: number): Promise<void> {
   const res = await fetch(`/api/mova/watchlist/${userId}/${movieId}`, {
     method: "DELETE",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) throw new Error(`찜 삭제 실패 (${res.status})`)
 }
@@ -768,7 +769,7 @@ export type MypageData = {
 export async function deleteMovaAccount(userId: number): Promise<void> {
   const res = await fetch(`/api/viewer/profile?id=${userId}`, {
     method: "DELETE",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -785,7 +786,7 @@ export async function deleteMovaAccount(userId: number): Promise<void> {
 export async function fetchMovaMypage(userId: number): Promise<MypageData> {
   const res = await fetch(`/api/mova/mypage/${userId}`, {
     cache: "no-store",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
@@ -876,7 +877,7 @@ export async function fetchReviewComments(reviewId: number): Promise<MovaReviewC
 export async function addReviewComment(reviewId: number, body: string): Promise<MovaReviewComment> {
   const res = await fetch(reviewsFetchUrl(`/${reviewId}/comments`), {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ body }),
   })
   const data = (await res.json()) as MovaReviewComment & { detail?: unknown }
@@ -889,7 +890,7 @@ export async function addReviewComment(reviewId: number, body: string): Promise<
 export async function deleteReviewComment(commentId: number): Promise<void> {
   const res = await fetch(reviewsFetchUrl(`/comments/${commentId}`), {
     method: "DELETE",
-    headers: { ...authHeader() },
+    headers: {},
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))

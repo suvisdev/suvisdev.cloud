@@ -27,7 +27,12 @@ from mova.app.ports.output.platform_user_taste_vector_repository import (
     UserTasteVectorRepositoryPort,
 )
 from mova.app.ports.output.user_preference_query_port import UserPreferenceQueryPort
-from mova.app.use_cases.chat_agent import MovaChatAgent, compose_facts, wants_review_summary
+from mova.app.use_cases.chat_agent import (
+    MovaChatAgent,
+    compose_facts,
+    parse_rating,
+    wants_review_summary,
+)
 from mova.app.use_cases.chat_orchestrator import ChatOrchestrator
 from mova.app.use_cases.market_chat_booking_interactor import (
     BookingAssistService,
@@ -954,6 +959,18 @@ class ChatInteractor(ChatUseCase):
         끝났으면 사실 템플릿(출연진·상영작·검색)이나 평가 트랙(리뷰 요약)이 답한다. 도구가 없으면 잡담."""
         if decision.terminal is not None:
             name, args = decision.terminal["name"], decision.terminal["arguments"]
+            if name == "mark_watched":
+                return await self._reply_mark_watched(
+                    request, trace_id, args.get("title"), args.get("rating")
+                )
+            if name == "recommend_for_me":
+                return await self._reply_personal_recommend(request, trace_id, seed_title=None)
+            if name == "similar_to":
+                return await self._reply_personal_recommend(
+                    request, trace_id, seed_title=args.get("title")
+                )
+            if name == "taste_profile":
+                return await self._reply_taste_profile(request, trace_id)
             if name == "recommend_movies":
                 mode, seed = personal_recommend_cue(request.message)
                 if mode is not None:
@@ -1044,6 +1061,158 @@ class ChatInteractor(ChatUseCase):
             intent_type=intent_type,
             search_filters={},
             recommendations=cards,
+            conversation_id=conversation_id,
+        )
+
+    async def _reply_mark_watched(
+        self, request: MovaChatRequest, trace_id: str, title: str | None, rating_raw: str | None
+    ) -> ChatResponseDto:
+        """에이전트 mark_watched — '봤어요'(+말했으면 별점)를 기록하고 확인 문구로 답한다.
+
+        비로그인이면 기록 없이 로그인 안내(user_actions.user_id NOT NULL). 별점은 watched 기록 뒤에
+        reviews로 upsert하므로 '봤어요 게이트'를 자연히 만족한다.
+        """
+        rating = parse_rating(rating_raw)
+        if not request.user_id:
+            return await self._reply_plain(
+                request,
+                trace_id,
+                "'봤어요'와 별점은 로그인하시면 기록해 드릴 수 있어요. 로그인 후 다시 말씀해 주세요.",
+                intent_type="info",
+            )
+        movie = await self._verify_agent_title(title)
+        if movie is None:
+            return await self._reply_plain(
+                request,
+                trace_id,
+                f"'{title or ''}'을(를) 카탈로그에서 못 찾았어요. 제목을 다시 알려주시면 봤어요로 표시해 드릴게요.",
+                intent_type="info",
+            )
+        movie_id = int(movie.id)
+        await self._repo.record_user_action(request.user_id, movie_id, "watched")
+        if rating is not None:
+            await self._repo.record_rating(request.user_id, movie_id, rating)
+        logger.info(
+            "[ChatInteractor] trace=%s mark_watched movie_id=%d rating=%s",
+            trace_id,
+            movie_id,
+            rating,
+        )
+        if rating is not None:
+            reply = f"『{movie.title}』을(를) 봤어요로 표시했고 별점 {rating:g}점도 남겼어요."
+        else:
+            reply = (
+                f"『{movie.title}』을(를) 봤어요로 표시했어요. "
+                f"별점도 남기시려면 '{movie.title} 4점'처럼 말씀해 주세요."
+            )
+        return await self._reply_plain(request, trace_id, reply, intent_type="info")
+
+    async def _reply_taste_profile(
+        self, request: MovaChatRequest, trace_id: str
+    ) -> ChatResponseDto:
+        """에이전트 taste_profile — 취향 요약(자주 본 장르·높게 평가한 작품).
+
+        별점(reviews)·봤어요(user_actions)·온보딩 선언 취향(preferred_genres)을 종합한다. 기록이 전혀 없으면
+        봤어요·별점을 남기라고 안내, 비로그인은 로그인 안내. 카드 없는 텍스트 응답이다.
+        """
+        from collections import Counter
+
+        if not request.user_id:
+            return await self._reply_plain(
+                request,
+                trace_id,
+                "취향 요약은 로그인하시면 정리해 드릴 수 있어요. 로그인 후 다시 말씀해 주세요.",
+                intent_type="info",
+            )
+        ratings = (
+            await self._taste_vectors.list_user_ratings(request.user_id)
+            if self._taste_vectors is not None
+            else []
+        )
+        watched_ids = await self._repo.get_watched_movie_ids(request.user_id)
+        prefs = await self._preferences.get_preferences(request.user_id)
+        if not ratings and not watched_ids and not prefs.preferred_genres:
+            return await self._reply_plain(
+                request,
+                trace_id,
+                "아직 취향을 파악할 기록이 없어요. 영화를 '봤어요'로 표시하거나 별점을 남기면 취향을 정리해 드릴게요.",
+                intent_type="info",
+            )
+        # 장르·제목 집계용 카탈로그 — 별점 남긴 영화 + 봤어요 영화(최대 50편)
+        rated_ids = [mid for mid, _ in ratings]
+        inspect_ids = list(
+            dict.fromkeys(rated_ids + [int(x) for x in watched_ids if str(x).isdigit()])
+        )[:50]
+        catalog = await self._repo.get_catalog_items(inspect_ids) if inspect_ids else []
+        title_by_id = {int(c.id): c.title for c in catalog}
+        genre_counter: Counter[str] = Counter()
+        for c in catalog:
+            for g in (c.genres or "").split(", "):
+                if g.strip():
+                    genre_counter[g.strip()] += 1
+        top_genres = [g for g, _ in genre_counter.most_common(3)]
+        top_titles = [
+            title_by_id[mid]
+            for mid, _ in sorted(ratings, key=lambda r: r[1], reverse=True)
+            if mid in title_by_id
+        ][:3]
+
+        parts: list[str] = []
+        if top_genres:
+            parts.append(f"자주 보신 장르는 {'·'.join(top_genres)}예요.")
+        elif prefs.preferred_genres:
+            parts.append(f"온보딩에서 고르신 취향은 {'·'.join(prefs.preferred_genres[:3])}예요.")
+        if top_titles:
+            parts.append(
+                "특히 높게 평가하신 작품은 " + "·".join(f"『{t}』" for t in top_titles) + "이에요."
+            )
+        parts.append(
+            f"지금까지 별점 {len(ratings)}편·'봤어요' {len(watched_ids)}편이 기록돼 있어요."
+        )
+        if not top_genres and not top_titles:
+            parts.append("영화를 보고 별점을 남기면 취향이 더 또렷해져요.")
+        logger.info(
+            "[ChatInteractor] trace=%s taste_profile genres=%s rated=%d watched=%d",
+            trace_id,
+            top_genres,
+            len(ratings),
+            len(watched_ids),
+        )
+        return await self._reply_plain(request, trace_id, " ".join(parts), intent_type="info")
+
+    async def _reply_plain(
+        self, request: MovaChatRequest, trace_id: str, reply: str, *, intent_type: str
+    ) -> ChatResponseDto:
+        """카드 없는 단순 텍스트 응답 저장·반환(봤어요 확인 등). save_chat + 대화 턴 영속 + DTO."""
+        chat_id = await self._repo.save_chat(
+            user_id=request.user_id,
+            assistant_id=None,
+            raw_message=request.message,
+            refined_query=request.message,
+            keywords=[],
+            intent_type=intent_type,
+            search_filters={},
+            reply=reply,
+        )
+        conversation_id = await self._persist_conversation_turn(
+            request=request,
+            user_content=request.message,
+            user_meta={
+                "intent_type": intent_type,
+                "refined_query": request.message,
+                "keywords": [],
+            },
+            assistant_content=reply,
+            assistant_meta={"recommendations": []},
+        )
+        return ChatResponseDto(
+            chat_id=chat_id,
+            reply=reply,
+            refined_query=request.message,
+            keywords=[],
+            intent_type=intent_type,
+            search_filters={},
+            recommendations=[],
             conversation_id=conversation_id,
         )
 

@@ -485,6 +485,20 @@ export function MovaTitleView({
                                   : "·낮음"}
                             </span>
                           ) : null}
+                          {comment.newsSources
+                            ?.filter((s) => s.url)
+                            .slice(0, 3)
+                            .map((s) => (
+                              <a
+                                key={s.url}
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-full bg-neutral-800/40 px-2 py-0.5 text-[10px] font-medium text-neutral-400 hover:text-neutral-200"
+                              >
+                                {s.source || "기사"} ↗
+                              </a>
+                            ))}
                           {comment.sentimentLabel ? (
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${

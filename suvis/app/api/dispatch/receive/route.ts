@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = searchParams.get("limit") ?? "50"
-    const auth = request.headers.get("authorization")
+    const auth = await cookieBearer()
     const res = await backendFetch(`/api/v1/dispatch/receive?limit=${limit}`, {
       headers: auth ? { Authorization: auth } : {},
     })
@@ -35,7 +36,7 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")
-    const auth = request.headers.get("authorization")
+    const auth = await cookieBearer()
     const res = await backendFetch(`/api/v1/dispatch/receive/${id}`, {
       method: "DELETE",
       headers: auth ? { Authorization: auth } : {},

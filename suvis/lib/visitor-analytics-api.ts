@@ -1,8 +1,4 @@
-import { authHeader } from "@/lib/suvis-session"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
-
-const API_BASE =
-  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_URL) || "http://127.0.0.1:8000"
 
 /** count = 사람, bots = 봇(User-Agent 판정), one_shot = 사람 중 60초 안에 떠난 접속(2026-09-29). */
 type DailyVisitorCount = { date: string; count: number; bots: number; one_shot: number }
@@ -22,7 +18,7 @@ type ApiErrorBody = { detail?: string | unknown }
 /** 익명 방문자 heartbeat — 무인증 공개 엔드포인트, 실패해도 사용자에게 노출하지 않는다. */
 export async function pingVisitor(visitorId: string): Promise<void> {
   try {
-    await fetch(`${API_BASE}/api/v1/analytics/visitors/ping`, {
+    await fetch(`/api/backend/api/v1/analytics/visitors/ping`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visitor_id: visitorId }),
@@ -33,9 +29,7 @@ export async function pingVisitor(visitorId: string): Promise<void> {
 }
 
 export async function getVisitorSummary(): Promise<VisitorSummary> {
-  const res = await fetch("/api/analytics/visitors/summary", {
-    headers: authHeader(),
-  })
+  const res = await fetch("/api/backend/api/v1/analytics/visitors/summary")
   const data = (await res.json()) as VisitorSummary & ApiErrorBody
   if (!res.ok) {
     throw new Error(

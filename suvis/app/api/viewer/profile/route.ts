@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id")
   if (!id) {
     return NextResponse.json({ detail: "id가 필요합니다." }, { status: 400 })
   }
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(`/viewer/profile/${id}`, {
       cache: "no-store",
@@ -29,7 +30,7 @@ export async function DELETE(request: Request) {
   if (!id) {
     return NextResponse.json({ detail: "id가 필요합니다." }, { status: 400 })
   }
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(`/viewer/profile/${id}`, {
       method: "DELETE",
@@ -52,7 +53,7 @@ export async function PATCH(request: Request) {
   if (!id) {
     return NextResponse.json({ detail: "id가 필요합니다." }, { status: 400 })
   }
-  const auth = request.headers.get("authorization")
+  const auth = await cookieBearer()
   let body: unknown
   try {
     body = await request.json()

@@ -74,17 +74,31 @@ REVIEW_PROMPT = """아래는 영화 "{title}"({year})에 대한 최근 뉴스 �
 """
 
 
-def _fetch_news(title: str) -> list[str]:
+def _fetch_news(title: str) -> list[dict[str, str]]:
+    """구글 뉴스 RSS에서 영화별 기사 [{title, url, source, summary}]를 모은다.
+
+    url(e.link)·source(발행처)까지 잡아 리뷰 출처 링크로 저장한다 — 예전엔 title·summary만 쓰고 링크를
+    버렸다(2026-09-30). 기사 원문은 여전히 수집하지 않는다(제목·요약만, GoogleNewsScraper와 같은 저작권 원칙).
+    """
     import feedparser
     from bs4 import BeautifulSoup
 
     feed = feedparser.parse(_FEED_URL.format(query=quote(f'"{title}" 영화')))
-    rows: list[str] = []
+    rows: list[dict[str, str]] = []
     for e in feed.entries[:8]:
         summary = BeautifulSoup(getattr(e, "summary", ""), "html.parser").get_text(
             separator=" ", strip=True
         )
-        rows.append(f"- {e.title}: {summary[:200]}")
+        src = getattr(e, "source", None)
+        source = (src.get("title") if hasattr(src, "get") else "") or ""
+        rows.append(
+            {
+                "title": str(getattr(e, "title", "")),
+                "url": str(getattr(e, "link", "")),
+                "source": str(source),
+                "summary": summary[:200],
+            }
+        )
     return rows
 
 
@@ -160,7 +174,11 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
             body = (
                 await asyncio.to_thread(
                     gemini_reply,
-                    REVIEW_PROMPT.format(title=title, year=year, articles="\n".join(articles)),
+                    REVIEW_PROMPT.format(
+                        title=title,
+                        year=year,
+                        articles="\n".join(f"- {a['title']}: {a['summary']}" for a in articles),
+                    ),
                     None,
                 )
             ).strip()
@@ -181,6 +199,11 @@ async def generate_editor_reviews_once(limit: int = _DAILY_LIMIT) -> tuple[int, 
                     rating=None,
                     body=body[:1000],
                     news_source_count=len(articles),
+                    news_sources=[
+                        {"title": a["title"], "url": a["url"], "source": a["source"]}
+                        for a in articles
+                        if a["url"]
+                    ],
                 )
             )
             await session.commit()

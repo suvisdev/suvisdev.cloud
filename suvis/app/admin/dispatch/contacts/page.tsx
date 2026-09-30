@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState } from "react"
 import { BookUser, FileSpreadsheet, Upload, UserPlus, X } from "lucide-react"
-import { authHeader } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 const ACCEPT = ".csv,text/csv"
@@ -56,7 +55,6 @@ export default function AdminContactsPage() {
       formData.append("file", file)
       const res = await fetch("/api/dispatch/adress/upload", {
         method: "POST",
-        headers: authHeader(),
         body: formData,
       })
       const data = await res.json() as { row_count?: number; detail?: string }
