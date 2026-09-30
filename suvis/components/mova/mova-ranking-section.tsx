@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Info } from "lucide-react"
+import { DragScrollRow } from "@/components/mova/drag-scroll-row"
 import { MovaPlatformBadge } from "@/components/mova/mova-platform-badge"
 import { MovaRankingPoster } from "@/components/mova/mova-ranking-poster"
 import type { MovaHotRankingItem } from "@/lib/mova-api"
@@ -108,7 +109,7 @@ export function MovaRankingSection({
       </div>
 
       <div className="mova-row-fade mova-row-scroll -mx-4 px-4 md:-mx-6 md:px-6">
-        <div className="flex gap-2 overflow-x-auto pb-3 md:gap-3">
+        <DragScrollRow className="flex cursor-grab gap-2 overflow-x-auto pb-3 md:gap-3">
           {items.map((item) => (
             <Link
               key={item.id}
@@ -155,7 +156,7 @@ export function MovaRankingSection({
               </div>
             </Link>
           ))}
-        </div>
+        </DragScrollRow>
       </div>
     </section>
   )

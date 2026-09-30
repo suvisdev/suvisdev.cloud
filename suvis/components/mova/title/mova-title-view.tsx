@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useState } from "react"
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Eye, Loader2, Star, ThumbsUp } from "lucide-react"
+import { DragScrollRow } from "@/components/mova/drag-scroll-row"
 import { MovaActorDialog } from "@/components/mova/title/mova-actor-dialog"
 import { MovaReviewComments } from "@/components/mova/title/mova-review-comments"
 import { MovaOttBadge } from "@/components/mova/mova-ott-badge"
@@ -350,7 +351,7 @@ export function MovaTitleView({
           {movie.cast.length > 0 ? (
             <section>
               <h2 className="mb-3 text-base font-semibold text-mova-text">출연 · 제작</h2>
-              <ul className="mova-row-scroll flex gap-4 overflow-x-auto pb-2">
+              <DragScrollRow as="ul" className="mova-row-scroll flex cursor-grab gap-4 overflow-x-auto pb-2">
                 {movie.cast.map((member) => (
                   <li key={`${member.name}-${member.role}`} className="w-24 shrink-0 text-center md:w-28">
                     {member.actorId ? (
@@ -375,14 +376,14 @@ export function MovaTitleView({
                     )}
                   </li>
                 ))}
-              </ul>
+              </DragScrollRow>
             </section>
           ) : null}
 
           {movie.gallery.length > 0 ? (
             <section>
               <h2 className="mb-3 text-base font-semibold text-mova-text">스틸컷</h2>
-              <ul className="mova-row-scroll flex gap-3 overflow-x-auto pb-2">
+              <DragScrollRow as="ul" className="mova-row-scroll flex cursor-grab gap-3 overflow-x-auto pb-2">
                 {movie.gallery.map((src) => (
                   <li
                     key={src}
@@ -391,14 +392,14 @@ export function MovaTitleView({
                     <MovaRankingPoster src={src} alt="" sizes="224px" className="object-cover" />
                   </li>
                 ))}
-              </ul>
+              </DragScrollRow>
             </section>
           ) : null}
 
           {similarMovies.length > 0 ? (
             <section>
               <h2 className="mb-3 text-base font-semibold text-mova-text">비슷한 영화</h2>
-              <ul className="mova-row-scroll flex gap-3 overflow-x-auto pb-2">
+              <DragScrollRow as="ul" className="mova-row-scroll flex cursor-grab gap-3 overflow-x-auto pb-2">
                 {similarMovies.map((m) => (
                   <li key={m.id} className="w-28 shrink-0 md:w-32">
                     <Link href={`/mova/title/${resolveMovaCatalogSlug(m.slug, m.title)}`} className="group block">
@@ -416,7 +417,7 @@ export function MovaTitleView({
                     </Link>
                   </li>
                 ))}
-              </ul>
+              </DragScrollRow>
             </section>
           ) : null}
 
