@@ -303,7 +303,7 @@ class _GildleMapScreenState extends ConsumerState<GildleMapScreen> {
       final other = NPolylineOverlay(
         id: 'option-$i',
         coords: line,
-        color: _optionColor(state, i).withValues(alpha: 0.45),
+        color: _optionColor(state, i).withValues(alpha: 0.35),
         width: 6,
       )..setOnTapListener((_) => notifier.selectOption(i));
       overlays.add(other);

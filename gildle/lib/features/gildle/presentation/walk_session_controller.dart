@@ -7,6 +7,7 @@ import '../../../core/network/dio_client.dart';
 import '../data/models/walk.dart';
 import '../data/walks_api.dart';
 import '../domain/geo_point.dart';
+import '../domain/route_guidance.dart';
 import '../domain/season_mode.dart';
 import 'map_controller.dart';
 
@@ -31,6 +32,8 @@ class WalkSessionState {
     this.distanceM = 0,
     this.elapsed = Duration.zero,
     this.planned,
+    this.guidance,
+    this.offRoute = false,
     this.error,
     this.saved,
   });
@@ -41,6 +44,10 @@ class WalkSessionState {
   final double distanceM;
   final Duration elapsed;
   final PlannedRoute? planned;
+
+  /// 계획 경로 기준 길 안내(경로 없이 걷거나 위치가 아직 없으면 null).
+  final Guidance? guidance;
+  final bool offRoute;
   final String? error;
   final WalkDetail? saved;
 
@@ -57,6 +64,8 @@ class WalkSessionState {
     double? distanceM,
     Duration? elapsed,
     PlannedRoute? planned,
+    Guidance? guidance,
+    bool? offRoute,
     String? error,
     WalkDetail? saved,
     bool clearError = true,
@@ -68,6 +77,8 @@ class WalkSessionState {
         distanceM: distanceM ?? this.distanceM,
         elapsed: elapsed ?? this.elapsed,
         planned: planned ?? this.planned,
+        guidance: guidance ?? this.guidance,
+        offRoute: offRoute ?? this.offRoute,
         error: clearError ? error : (error ?? this.error),
         saved: saved ?? this.saved,
       );
@@ -84,6 +95,7 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
   final WalksApi _api;
   StreamSubscription<Position>? _positions;
   Timer? _ticker;
+  RouteGuide? _guide;
 
   Future<void> start({PlannedRoute? planned}) async {
     if (state.status == WalkStatus.tracking) return;
@@ -97,6 +109,7 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
       return;
     }
     final startedAt = DateTime.now();
+    _guide = planned == null ? null : RouteGuide.build(planned.coordinates);
     state = WalkSessionState(status: WalkStatus.tracking, startedAt: startedAt, planned: planned);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.status == WalkStatus.tracking) {
@@ -125,13 +138,15 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
     if (pos.accuracy > _maxAccuracyM) return;
     final p = GeoPoint(pos.latitude, pos.longitude);
     final last = state.current;
-    if (last == null) {
-      state = state.copyWith(points: [p]);
-      return;
-    }
-    final step = last.distanceTo(p);
-    if (step < _minStepM) return;
-    state = state.copyWith(points: [...state.points, p], distanceM: state.distanceM + step);
+    final step = last?.distanceTo(p) ?? 0;
+    if (last != null && step < _minStepM) return;
+    final guidance = _guide?.locate(p, state.guidance?.progressM ?? 0);
+    state = state.copyWith(
+      points: [...state.points, p],
+      distanceM: state.distanceM + step,
+      guidance: guidance,
+      offRoute: guidance == null ? false : isOffRoute(guidance.offM, wasOff: state.offRoute),
+    );
   }
 
   Future<void> stop() async {

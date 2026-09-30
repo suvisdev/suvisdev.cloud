@@ -14,6 +14,14 @@ import {
   SEASON_LABEL,
 } from "@/lib/gildle-format"
 import {
+  buildGuide,
+  guidanceText,
+  isOffRoute,
+  locate,
+  type Guidance,
+  type RouteGuide,
+} from "@/lib/gildle-guidance"
+import {
   createWalk,
   getRouteOptions,
   getRouteVia,
@@ -90,6 +98,9 @@ type WalkState = {
   distanceM: number
   elapsedS: number
   savedId: number | null
+  /** 계획 경로 기준 길 안내(경로 없이 걷거나 위치가 아직 없으면 null) */
+  guidance: Guidance | null
+  offRoute: boolean
 }
 
 const WALK_IDLE: WalkState = {
@@ -99,6 +110,8 @@ const WALK_IDLE: WalkState = {
   distanceM: 0,
   elapsedS: 0,
   savedId: null,
+  guidance: null,
+  offRoute: false,
 }
 
 type NaverGlobal = typeof naver
@@ -297,6 +310,7 @@ export default function GildleMap() {
   const endMarkerRef = useRef<naver.maps.Marker | null>(null)
   const routeOverlaysRef = useRef<naver.maps.Polyline[]>([])
   const walkOverlaysRef = useRef<naver.maps.Polyline[]>([])
+  const guideRef = useRef<RouteGuide | null>(null)
   const watchIdRef = useRef<number | null>(null)
 
   const [sdkReady, setSdkReady] = useState(false)
@@ -504,7 +518,7 @@ export default function GildleMap() {
         map,
         path: toPath(pts),
         strokeColor: optionColors[i],
-        strokeOpacity: 0.45,
+        strokeOpacity: 0.35,
         strokeWeight: 6,
         clickable: true,
       })
@@ -617,6 +631,11 @@ export default function GildleMap() {
     const hide = isWalking(walk.status)
     routeOverlaysRef.current.forEach((o) => o.setVisible(!hide))
   }, [walk.status, routeCoords])
+
+  // 경로를 벗어나는 순간 한 번 진동(지원하는 기기만)
+  useEffect(() => {
+    if (walk.offRoute) navigator.vibrate?.(200)
+  }, [walk.offRoute])
 
   // --- 산책 타이머 ---
   useEffect(() => {
@@ -757,6 +776,7 @@ export default function GildleMap() {
     }
     setError(null)
     setWalk({ ...WALK_IDLE, status: "tracking", startedAt: Date.now() })
+    guideRef.current = buildGuide(routeCoords)
     // 시작하자마자 경로와 내 위치를 한 화면에 — 내 위치로만 옮기면 경로가 화면 밖으로 나간다(09-29 실사용)
     navigator.geolocation.getCurrentPosition((pos) => {
       const nv = getNaver()
@@ -776,10 +796,14 @@ export default function GildleMap() {
         setWalk((w) => {
           const last = w.points[w.points.length - 1]
           if (last && haversineM(last, p) < TRACK_MIN_STEP_M) return w
+          const guide = guideRef.current
+          const guidance = guide ? locate(guide, p, w.guidance?.progressM ?? 0) : null
           return {
             ...w,
             points: [...w.points, p],
             distanceM: w.distanceM + (last ? haversineM(last, p) : 0),
+            guidance,
+            offRoute: guidance ? isOffRoute(guidance.offM, w.offRoute) : false,
           }
         })
       },
@@ -1173,6 +1197,25 @@ export default function GildleMap() {
                   끝내기
                 </button>
               </div>
+            )}
+
+            {walk.status === "tracking" && walk.guidance && (
+              <p
+                role="status"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold",
+                  walk.offRoute
+                    ? "bg-gildle-warm text-[#0a0d0a]"
+                    : "bg-gildle-surface-2 text-gildle-text"
+                )}
+              >
+                <span>{guidanceText(walk.guidance, walk.offRoute)}</span>
+                {!walk.offRoute && (
+                  <span className="text-gildle-muted ml-auto text-xs font-normal">
+                    남은 {formatKmShort(walk.guidance.remainingM)}
+                  </span>
+                )}
+              </p>
             )}
 
             {(walk.status === "saving" || (walk.status === "tracking" && !confirmStop)) && (
