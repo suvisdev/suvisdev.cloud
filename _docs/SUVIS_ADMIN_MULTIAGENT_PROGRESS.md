@@ -424,8 +424,11 @@ http://127.0.0.1:31386`.
   토큰 전달 배선 불요. ~~🟡 media 오류 원문 노출·크기검사 전 전체 적재~~
   **완료(09-11 수정, 09-17 f745447 빌드에 포함)**: 502 detail 일반 문구화(원문은 로그),
   업로드는 상한+1바이트까지만 read.
-- **🟡(잔여)**: access TTL 7일+웹 리프레시 미사용 · 토큰 localStorage(httpOnly
-  쿠키 부재) — 인증 구조 변경이라 별도 설계 필요 · pgadmin admin/admin(replicas:0).
+- ~~🟡 토큰 localStorage(httpOnly 쿠키 부재)~~ **완료(09-30, PR #134 `607d28e` 배포)** — 쿠키 BFF 전환,
+  `[MAINPAGE]` 09-30. **🟡(잔여)**: access TTL 7일(짧은 TTL+상시 리프레시는 후속, 인프라는 준비됨) ·
+  pgadmin admin/admin(replicas:0).
+- **v1 전체 점검 통과(09-30)**: pytest 1030·import-linter 6 kept·tsc/eslint 0·mova 하네스 28/28·16/17(날짜 의존 1건)·
+  gildle API·Flutter analyze 0/test 3. 잔여: 기존 ruff 린트 11건·포맷 드리프트 28파일.
 - **09-11 전체 코드 리뷰 + 후속 수정 ①~⑤ 완료(09-17 이후 빌드로 배포됨, 09-28 확인)** — 리뷰 결과·처리
   현황·잔여 목록의 SSOT는 `suvisdev/_docs/CODE_REVIEW_2026-09-11.md`. 요지:
   인증 3건(평문/pass-the-hash·미검증 이메일 admin·admin1234 시드) + 무인증

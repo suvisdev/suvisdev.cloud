@@ -12,6 +12,7 @@
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ✅ | gildle | 09-30 | 윈도우 flutter를 WSL 경로(`\\wsl.localhost`)에서 돌리자 크래시 + `analysis_options.yaml` 자동 수정 | `windows/flutter/ephemeral/.plugin_symlinks` 삭제가 WSL 파일시스템에서 실패(errno 145) | 자동 수정 되돌리고 저장소를 `C:\tmp`로 복사해 실행(analyze 0·test 3/3), 키 파일 든 복사본은 즉시 삭제 |
 | 📌 | mova | 09-30 | 2.4B 판단 모델이 v9(77) 천장 — fresh 재학습이 매번 밑으로(v10 68·v11 72), 탈출구(v9에서 이어학습)도 막힘 | v9 어댑터를 안 남기고 **GGUF만 보관** → 병합·양자화라 되돌려 이어학습 불가. 상위 양자화(Q8 70)도 엔진 격차라 못 메움 | v9+v10프롬프트(77) 유지 확정, 7.8B는 서빙 VRAM 벽으로 보류. **교훈: 좋은 모델은 어댑터도 보관**(`[M]` 09-30) |
 | 📌 | mova | 09-30 | 재학습할수록(v9→v10→v11) 점수가 안 오르거나 떨어져 보임 | ① fresh 재학습이 Q5_K_M 양자화에서 크게 깎임(v11 fp16 81→GGUF 72, v9는 77 유지) ② eval이 v10 프롬프트라 v9도 신규 도구를 few-shot(8/9) | v11 미채택, **v9 모델 + v10 프롬프트(=77)로 재학습 없이 신규 기능 배포**(`17f1764`). 이어학습·상위 양자화는 후속(`[M]` 09-30) |
 | ✅ | mova | 09-30 | v10 판단 코랩 결과 `passed:false`·신규 도구 전부 0/N(mark_watched 0/6 등) | 코랩 채점 셀 `TOOLS`가 v9 6개뿐(저장소 `match`와 갈라진 낡은 사본) — 신규 도구 예측을 형식실패로 깎음 | 노트북 `TOOLS` 10개로 수정·`agent_prompt_v10.TOOL_SPEC` 일치 검증, 최종 판정은 로컬 GGUF 재채점(`[M]` 09-30) |
@@ -68,7 +69,7 @@
 | ⏳ | mova | 08-11 | 리뷰 삭제 후 user_taste_vectors가 삭제 전 값으로 남음(검증 뒷정리 시 DB 직접 DELETE 필요했음) | delete_review 경로에 취향 벡터 재계산 BG task가 연결돼 있지 않음(설계상 미연결) | 미수정 — 크론 안전망(backfill_taste_vectors_cli)이 recompute_missing만 하므로 삭제 반영은 별도 배선 필요 |
 | ⏳ | mova | 08-13 | pytest 사전 실패 2건이 여러 세션에 걸쳐 그대로 방치됨 | bulk_import에서 --source kofic 제거를 테스트에 미반영, _compose_empty_reply 랜덤 문구를 하드코딩 기대 | 매 세션 '스코프 밖'으로 deselect만 하고 미수정 |
 | ⏳ | infra | 08-13 | api.suvisdev.cloud 502가 집에서만 나고 학원에선 안 남 | 홈 KT 회선이 Cloudflare 국내(ICN) 피어링 없이 LAX PoP로 우회(cf-ray로 확인), 로라 서버와 무관 | 앱 코드 범위 밖으로 판정, WARP·ISP 문의만 완화책으로 PROGRESS에 참고 기록 |
-| ⏳ | auth | 08-13 | access 토큰 10분 만료로 마이페이지 재로그인·랭킹 저장 실패, 7일 연장 후에도 보안 🟡로 잔존 | 프론트가 refresh_token을 저장·사용하지 않고 토큰을 localStorage에 둠 | _ACCESS_TTL 7일로 임시 확장(08-13); httpOnly 쿠키·refresh 도입은 구조 변경이라 백로그(09-11) |
+| ✅ | auth | 08-13 | access 토큰 10분 만료로 마이페이지 재로그인·랭킹 저장 실패, 7일 연장 후에도 보안 🟡로 잔존 | 프론트가 refresh_token을 저장·사용하지 않고 토큰을 localStorage에 둠 | _ACCESS_TTL 7일로 임시 확장(08-13) → **httpOnly 쿠키 BFF로 전환·배포(09-30, PR #134)**; 짧은 TTL+상시 리프레시만 후속 |
 | ⏳ | infra | 09-03 | 새 Vercel 주소(seuk.suvisdev.cloud)에서 Arda 화면은 뜨나 API 호출이 차단됨. | 기존 Arda 백엔드 CORS_ORIGINS에 새 origin이 없어 preflight 400. | A(woojeongalex가 CORS_ORIGINS+S3 CORS 추가) / B(Vercel rewrite PR) 중 팀 결정 대기. |
 | ⏳ | infra | 09-09 | api.·auth.·lora-nb. 전부 530 — 파드 장애처럼 보임. | 노트북 WSL2 VM이 미부팅(세션이 열려야 기동), 독립 터널 2개가 동시에 죽어 있었음. | 사용자에게 WSL 터미널 개방 요청해 복구; 상시 프로덕션인데 WSL 자동 기동 장치가 없는 운영 갭은 미해결. |
 | ⏳ | auth | 09-09 | auth 게이트웨이 /auth/login/kakao 503 "KAKAO_CLIENT_ID/AUTH_KAKAO_REDIRECT_URI 미설정". | AUTH_{GOOGLE,KAKAO,NAVER}_REDIRECT_URI가 .env.example엔 있고 실제 .env엔 없음(env drift, 원래 미설정). | 프론트는 backend viewer 경로를 써 무영향이라 백로그 등재, 웹 플로우 도입 시 보충. |
@@ -380,7 +381,7 @@
 | ✅ | 09-09 | vision /upload 무인증·무제한(GPU DoS), CORS ["*"]+credentials. | 인터넷 노출면 기준 보안 전수 조사에서 발견된 🔴①③. | vision_router.py require_user+10MB+MIME 게이트, main.py CORS 화이트리스트(커밋 f7703bc). | MAINPAGE 2026-09-09 |
 | 📌 | 09-03 | mova·gildle 서브도메인 서빙 계획이 소셜 로그인 세션 분리 문제로 무산. | 백엔드 OAuth 복귀가 FRONTEND_URL 단일값이라 서브도메인 로그인이 apex로 돌아가 세션이 엉뚱한 origin에 저장됨. | 개인 앱은 서브도메인 이사를 취소(next.config.mjs 리라이트 revert), seuk 팀만 진행. 짧은 주소는 Cloudflare 301로 대체. | MAINPAGE 2026-09-03 |
 | 🔁 | 08-13→08-20 | OAuth 사용자가 mova API 전부 401(08-12·08-13), 08-20엔 어드민 대시보드 '유효하지 않은 세션' | RS256 통일 후 viewer OAuth 세션(HS256)이 배제됐고, require_user에만 HS256 폴백을 넣어 require_admin은 누락 | token_verifier.verify_viewer_session_token 신설, require_user·require_auth·require_admin 전부 동일 폴백 패턴 | MOVA 2026-08-12 · 2026-08-13 · GILDLE 2026-08-20 |
-| ⏳ | 08-13 | access 토큰 10분 만료로 마이페이지 재로그인·랭킹 저장 실패, 7일 연장 후에도 보안 🟡로 잔존 | 프론트가 refresh_token을 저장·사용하지 않고 토큰을 localStorage에 둠 | _ACCESS_TTL 7일로 임시 확장(08-13); httpOnly 쿠키·refresh 도입은 구조 변경이라 백로그(09-11) | MOVA 2026-08-13 · MAINPAGE 2026-09-11 |
+| ✅ | 08-13 | access 토큰 10분 만료로 마이페이지 재로그인·랭킹 저장 실패, 7일 연장 후에도 보안 🟡로 잔존 | 프론트가 refresh_token을 저장·사용하지 않고 토큰을 localStorage에 둠 | _ACCESS_TTL 7일로 임시 확장(08-13) → **httpOnly 쿠키 BFF로 전환·배포(09-30, PR #134)**; 짧은 TTL+상시 리프레시만 후속 | MOVA 2026-08-13 · MAINPAGE 2026-09-11·09-30 |
 | ✅ | 08-13 | 회원가입 폼이 통과시킨 비밀번호를 백엔드가 거부 | 백엔드 min_length=8 vs 프론트 검증 6/4자로 불일치 | 프론트 검증·placeholder를 8자로 통일 | MOVA 2026-08-13 |
 | 🔁 | 08-12 | 회원가입·로그인 후에도 사이드바에 '인증이 필요합니다'가 계속 뜸 | 로그인이 /api/auth/login·/viewer/login 프록시로 id/username만 파싱하고 access_token을 세션에 저장 안 함 | mova-auth-forms만 고쳤다가(PR #88) 공용 auth-forms.tsx도 누락 발견, AUTH_BASE 직접 호출+whoami+token 저장으로 통일(PR #92) | MOVA 2026-08-12 |
 | ✅ | 08-11 | mova Google/Kakao/Naver 로그인이 503(AUTH_*_REDIRECT_URI 미설정)으로 완전 불통 | 커밋 beec23e(07-22)가 로그인 버튼을 미완성 apps/auth 게이트웨이로 연결, EC2 .env에 해당 키가 없어 배포 후 한 번도 동작한 적 없음 | mova-login-button.tsx를 공용 AuthDialog(viewer/oauth 경유)로 정식 revert(65be261), 백엔드 로그로 OAuth 왕복 성공 확인 | MOVA 2026-08-11 |
