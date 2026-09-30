@@ -93,7 +93,8 @@ export async function cookieBearer(): Promise<string | undefined> {
 }
 
 const BODYLESS = new Set(["GET", "HEAD"])
-const FORWARD_HEADERS = ["content-type", "accept"]
+// user-agent는 방문자 집계의 봇 판정(analytics ping)이 본다 — 빼면 백엔드엔 Node의 UA만 보인다.
+const FORWARD_HEADERS = ["content-type", "accept", "user-agent"]
 
 // 백엔드로 요청을 대행하는 공용 프록시 — catch-all과 개별 프록시 라우트가 모두 이걸 쓴다.
 // httpOnly access 쿠키를 Bearer로 붙이고, 401이면 refresh 쿠키로 한 번 회전 후 재시도한다(리프레시를 한 곳에).
@@ -130,7 +131,9 @@ export async function forwardToBackend(
     if (rotated) backendRes = await call(rotated.access_token)
   }
 
-  const buf = await backendRes.arrayBuffer()
+  // 본문이 없어야 하는 상태(삭제 성공 204 등)에 빈 버퍼라도 실으면 Response 생성이 던진다.
+  const bodyless = [204, 205, 304].includes(backendRes.status)
+  const buf = bodyless ? null : await backendRes.arrayBuffer()
   const response = new NextResponse(buf, {
     status: backendRes.status,
     headers: { "content-type": backendRes.headers.get("content-type") ?? "application/json" },

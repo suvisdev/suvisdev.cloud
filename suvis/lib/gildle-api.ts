@@ -42,6 +42,7 @@ async function gildleFetch<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   })
+  if (res.status === 204) return undefined as T
   const data = (await res.json()) as T & ApiErrorBody
   if (!res.ok) {
     throw new Error(safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status))
@@ -53,12 +54,16 @@ export function createWalk(body: WalkCreateBody): Promise<WalkDetail> {
   return gildleFetch<WalkDetail>("/walks", { method: "POST", body: JSON.stringify(body) })
 }
 
-export function listWalks(limit = 20, offset = 0): Promise<WalkSummary[]> {
+export function listWalks(limit = 50, offset = 0): Promise<WalkSummary[]> {
   return gildleFetch<WalkSummary[]>(`/walks?limit=${limit}&offset=${offset}`)
 }
 
 export function getWalk(id: number): Promise<WalkDetail> {
   return gildleFetch<WalkDetail>(`/walks/${id}`)
+}
+
+export function deleteWalk(id: number): Promise<void> {
+  return gildleFetch<void>(`/walks/${id}`, { method: "DELETE" })
 }
 
 export function walkStats(): Promise<WalkStats> {

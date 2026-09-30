@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/gildle_theme.dart';
 
+/// 기록·산책 중 거리(소수 둘째 자리). 웹 `suvis/lib/gildle-format.ts`와 같은 규칙.
 String formatKm(double m) => m >= 1000 ? '${(m / 1000).toStringAsFixed(2)} km' : '${m.round()} m';
+
+/// 지도 경로 요약용 거리(소수 첫째 자리).
+String formatKmShort(double m) => m >= 1000 ? '${(m / 1000).toStringAsFixed(1)} km' : '${m.round()} m';
 
 String formatDuration(Duration d) {
   final h = d.inHours;
@@ -21,6 +25,7 @@ const seasonLabels = {
   'spring_autumn': '봄·가을',
   'summer_shade': '그늘 모드',
   'winter_safety': '겨울 안전',
+  'summer': '여름', // 구 기록
 };
 
 /// 라벨 위·값 아래 — 지도 카드·산책 중·기록 상세가 같이 쓴다.
