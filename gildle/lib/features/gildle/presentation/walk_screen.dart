@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/gildle_theme.dart';
+import '../domain/geo_point.dart';
+import '../domain/route_guidance.dart';
 import 'format.dart';
 import 'walk_detail_screen.dart';
 import 'walk_session_controller.dart';
@@ -31,6 +34,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final state = ref.watch(walkSessionProvider);
     ref.listen<WalkSessionState>(walkSessionProvider, (prev, next) {
       if (prev?.points.length != next.points.length) _drawWalked(next);
+      if (next.offRoute && prev?.offRoute != true) HapticFeedback.vibrate(); // 이탈하는 순간 한 번
       if (next.error != null && prev?.error != next.error) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -59,6 +63,13 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 await _drawWalked(ref.read(walkSessionProvider));
               },
             ),
+            if (state.status == WalkStatus.tracking && state.guidance != null)
+              Positioned(
+                left: 12,
+                right: 12,
+                top: 12,
+                child: _GuidanceCard(guidance: state.guidance!, offRoute: state.offRoute),
+              ),
             Positioned(left: 12, right: 12, bottom: 12, child: _StatsCard(state: state, onStop: _confirmStop)),
           ],
         ),
@@ -78,6 +89,23 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       width: 5,
       pattern: const [12, 8],
     ));
+    // 진행 방향 화살표 — 지도 화면과 같은 규칙
+    final arrows = directionArrows(planned.coordinates);
+    await map.addOverlayAll({
+      for (var k = 0; k < arrows.length; k++)
+        NArrowheadPathOverlay(
+          id: 'arrow-$k',
+          coords: [
+            NLatLng(arrows[k].from.lat, arrows[k].from.lng),
+            NLatLng(arrows[k].to.lat, arrows[k].to.lng),
+          ],
+          width: 3,
+          color: Colors.white,
+          outlineWidth: 1,
+          outlineColor: const Color(0xFF0A0D0A),
+          headSizeRatio: 3.2,
+        ),
+    });
   }
 
   Future<void> _drawWalked(WalkSessionState state) async {
@@ -136,6 +164,51 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
         MaterialPageRoute(builder: (_) => WalkDetailScreen(id: detail.id, initial: detail)),
       );
     }
+  }
+}
+
+/// 다음 방향 한 줄 + 남은 거리. 경로를 벗어나면 경고색으로 바뀐다.
+class _GuidanceCard extends StatelessWidget {
+  const _GuidanceCard({required this.guidance, required this.offRoute});
+
+  final Guidance guidance;
+  final bool offRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.extension<GildleExtras>()!.muted;
+    final icon = offRoute
+        ? Icons.warning_amber_rounded
+        : switch (guidance.next?.side) {
+            TurnSide.left => Icons.turn_left,
+            TurnSide.right => Icons.turn_right,
+            TurnSide.back => Icons.u_turn_left,
+            null => Icons.straight,
+          };
+    return Card(
+      color: offRoute ? theme.colorScheme.errorContainer : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 28, color: offRoute ? theme.colorScheme.onErrorContainer : theme.colorScheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                guidanceText(guidance, offRoute: offRoute),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: offRoute ? theme.colorScheme.onErrorContainer : null,
+                ),
+              ),
+            ),
+            if (!offRoute)
+              Text('남은 ${formatKmShort(guidance.remainingM)}', style: theme.textTheme.labelSmall?.copyWith(color: muted)),
+          ],
+        ),
+      ),
+    );
   }
 }
 
