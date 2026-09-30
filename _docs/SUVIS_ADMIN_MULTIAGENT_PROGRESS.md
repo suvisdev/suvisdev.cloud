@@ -107,6 +107,9 @@ http://127.0.0.1:31386`.
 - Qwen 명칭 제거(실체 EXAONE), 데드 코드 백엔드 94파일·프론트 64파일·의존성 35 삭제, `route_requests/
   route_results` 드롭(`20260927_0002`). 남은 후보: 프론트 shadcn `button/card/dialog` 하위 export(라이브러리
   성격이라 보류), `eslint-config-next`(knip 오탐 — flat config compat이 씀).
+- **09-29 저녁(`[P]` 09-29)**: ruff 버전 고정(`pyproject [tool.ruff] required-version = "==0.16.9"`) — uvx가 최신 ruff로
+  무관 파일을 재포맷하던 드리프트 방지. ontology `api/__init__.py` 라우터 조립 lazy(PEP 562 `__getattr__`) — import만으로
+  torch 로드되던 것 제거(홈 채팅 잔여 ⑤ 완료).
 
 ### 메인페이지 (2026-09-29 갱신)
 - **09-29 방문자 통계 봇 구분**(`[P]` 09-29): 09-28 22명 급증은 크롤러·미리보기·다중 브라우저 테스트로 판정(재방문 1명).
@@ -129,8 +132,9 @@ http://127.0.0.1:31386`.
   `MOVA_ORCHESTRATOR_MODEL` 전환. 09-28 저녁: 서수 지시어 치환, 에디터 리뷰 쿨다운, 게임 §P 정리, TMDB 최신작 500편.
 - 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동; 파일 하나만 바뀌면 파드에서
   리셋 없이 그 디렉터리만 넘겨도 됨 — `datasets/`는 hostPath) ② 7.8B 상주로 VRAM 7.8/8.2GB —
-  mova 지연 실측되면 `PORTFOLIO_LLM_MODEL=exaone3.5:2.4b` 또는 `PORTFOLIO_LLM_BACKEND=gemini` ③ 후속 질문의
-  검색어에 이전 턴 결합 ④ 스트리밍 ⑤ ontology `api/__init__.py` lazy import(테스트가 torch를 끌어옴).
+  mova 지연 실측되면 `PORTFOLIO_LLM_MODEL=exaone3.5:2.4b` 또는 `PORTFOLIO_LLM_BACKEND=gemini` ③ ~~후속 질문의
+  검색어에 이전 턴 결합~~ **완료(09-29, `_retrieval_query`)** ④ 스트리밍 ⑤ ~~ontology `api/__init__.py` lazy import~~
+  **완료(09-29)**.
 
 ### mova 리뷰 배치 (2026-09-27 조사)
 - 에디터 리뷰 생성 스케줄러 정상(일 1~20건, 주기당 대상 15편 — 미생성 3,209편 남음, 속도 상향 여부 결정 필요).
@@ -150,9 +154,23 @@ http://127.0.0.1:31386`.
   유사(similar), 단서 규칙으로 분기. **v10 데이터 준비 완료(저녁)** — 도구 4개(취향·유사·봤어요·취향 요약)+약점 3개, 평가 75,
   기준선 v9 71·7.8B 69, 합격 72. 바탕화면 `mova/FT/agent-v10/`, 코랩은 사용자. **기능 순서(사용자 결정)**: 1 채팅 봤어요·별점
   (`mark_watched` 도구 서빙) → 2 취향 프로필 카드·추천 근거(`taste_profile`) → 5 프랜차이즈 최신작 → 3 기록 되짚기 → 4 동행 조건.
+  **v10 도구 서빙 전체 선구현 완료(09-29, v10 학습 진행 중 병행, `[M]` 09-29 (14)(15))**: 신규 4개 도구
+  (`mark_watched`·`recommend_for_me`·`similar_to`·`taste_profile`) 서빙 배선 끝 — `record_rating` 포트·`_reply_mark_watched`·
+  `_reply_taste_profile`·`_reply_plain` 추가, recommend_for_me/similar_to는 09-29 (12) `_reply_personal_recommend` 재사용.
+  **MovaChatAgent 등록 도구 10개 = v10 프롬프트와 일치**, v9는 6개만 노출해 무해. mova 460 passed. 서빙 코드는 완비 —
+  적용은 프롬프트·모델·env 교체뿐(`agent_prompt_v10.py`→`agent_prompt.py` + `MOVA_AGENT_MODEL=mova-agent-v10` + 재빌드,
+  절차 `[M]` 09-29 (15)).
+- **v10 수령·배포 안 함(`[M]` 09-29 (17)·09-30)**: 코랩 `passed:false`는 채점기 버그(코랩 채점 셀이 v9 6도구만 알아 신규
+  도구를 오채점)였고, 노트북 GGUF 재채점 **68/75**(신규 도구 9/9 학습됨) — `recommend_for_me` 과트리거로 조건부 추천까지
+  빨아들여 harness·live가 **v9(71)보다 퇴행**. **v11 재학습 대기(09-30 준비 완료)**: 데이터에 조건부 추천 반례
+  (`p_rec_conditional`), 코랩 노트북 채점 셀 10도구 수정, 바탕화면 `mova/FT/agent-v11/`(train 1443·val 160·eval 86).
+  **코랩 실행은 사용자** → 로컬 `eval_agent_actions.py` GGUF 재채점이 최종 판정(v9 71 초과 + live + 형식 0).
+- 어제(09-29) 저녁 미커밋(도구 서빙·v11 데이터·가로 스크롤·ontology lazy·후속 검색어·ruff 고정) **6건 논리 커밋 정리 완료(09-30)**.
   **다음**: ② 서빙
   어댑터(판단 교체·제목/지역 근거 가드·호출 예산·사실 템플릿·출연진 답) ③ 섀도 비교 → 7.8B 대체 ④ 평가 요약·잡담 문장을
-  Gemini→EXAONE(증류) ⑤ 추천 "3편 억지 채움" 대응(Gemini 열세 주원인).
+  Gemini→EXAONE(증류) ⑤ 추천 "3편 억지 채움" 대응(Gemini 열세 주원인) — **09-29 조사·이월(`[M]` (16))**: 근본 원인은
+  의미/주제 적합성이라 결정론 장르 가드로 못 잡고("법정 드라마"→`드라마`=굿 윌 헌팅도 통과), 효과 검증은 eval 하네스+운영
+  카탈로그 필요. CRITERIA "코드가 순위·LLM은 hook" 임베딩 재정렬 또는 재학습 트랙으로, 하네스 측정 가능한 별도 세션에서.
 - **09-29(`[M]` 09-29)**: 이해 v7 코랩 결과 수령(코랩 44/48 미달, **GGUF 46/48**) → 섀도 로그 실발화 54 재생에서
   v6 대비 6승 3패 → **섀도를 `mova-understand-v7`로 교체·배포**(응답 영향 없음). **v8 데이터 준비 완료**(바탕화면
   `mova/FT/understanding-v8/`, 노트북 동봉) — 주제 전환 followup=false·소재+장르 명사구 recommend·질문 두 개 booking·

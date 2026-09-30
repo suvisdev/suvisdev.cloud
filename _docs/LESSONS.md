@@ -12,6 +12,7 @@
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ✅ | mova | 09-30 | v10 판단 코랩 결과 `passed:false`·신규 도구 전부 0/N(mark_watched 0/6 등) | 코랩 채점 셀 `TOOLS`가 v9 6개뿐(저장소 `match`와 갈라진 낡은 사본) — 신규 도구 예측을 형식실패로 깎음 | 노트북 `TOOLS` 10개로 수정·`agent_prompt_v10.TOOL_SPEC` 일치 검증, 최종 판정은 로컬 GGUF 재채점(`[M]` 09-30) |
 | ⏳ | mova | 09-29 | 실사용 "니 멋대로 대답" — 제목 창작(타짜→타겟)·지시어 검색(그걸→그것)·출연진에 줄거리 답 | 이해 단계 6칸 양식에 자리 없는 질문은 정보가 사라짐, 제목이 발화에 있는지 검증 없음 | 도구 호출 판단 모델 v9 준비(코랩 대기). 가드(제목·지역 근거)는 서빙 코드로 |
 | ✅ | mainpage | 09-29 | 09-28 방문자 22명 급증 — 실사용으로 오인 | 방문 핑에 UA가 없어 사람·봇 구분 불가, 새 쿠키·0초 체류 19명이 그대로 집계 | UA 봇 판정·`is_bot` 저장, 어드민 실방문/봇/1회성 분리(`20260929_0001`) |
 | 📌 | infra | 09-29 | "오케스트레이터"가 둘(전화기·mova 판단)이라 "전체를 담당하나?" 혼란 | 이름이 역할을 말하지 않음 — `SuvisdevOrchestrator`는 Ollama HTTP 클라이언트 | 층 이름 고정: 오케스트레이터(허브 두뇌)→에이전트(앱)→도구→클라이언트, 전화기는 `OllamaClient` |
@@ -80,6 +81,7 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| 📌 | 09-29 | 추천이 조건 밖 작품으로 3편을 억지로 채워 Gemini에 12:3 열세 | LoRA가 시맨틱 꼬리 후보로 3편을 채움. 장르 가드는 "법정 드라마"→`드라마`(굿 윌 헌팅도 드라마)라 못 잡음 = 의미/주제 적합성 문제 | 결정론 가드로는 가짜 수정이라 보류, 효과 검증은 eval 하네스+운영 카탈로그 필요. 임베딩 재정렬·재학습 트랙으로 이월(미결) | MOVA 2026-09-29 (16) |
 | 📌 | 09-29 | 같은 48개 평가셋인데 v7 코랩 44/48, 노트북 GGUF 46/48로 채점이 갈렸다 | 코랩(HF fp16)과 운영 GGUF Q5_K_M·Ollama 호출 환경이 달라 결과가 다름 | 내보내기 판단은 GGUF 재채점 기준으로 통일, 노트북에 경고 문구 추가 | MOVA 2026-09-29 |
 | ✅ | 09-28 | 전체 pytest에서 test_market_reviews 3건이 DB 연결로 실패. | 08-31 추가된 감성 분석 BG 의존(get_review_sentiment_backfill_use_case)만 오버라이드하지 않아 실제 provider가 DB 세션을 만듦. | _FakeSentimentBackfill 오버라이드 추가, 895 passed / 0 failed. | MAINPAGE 2026-09-28 |
 | 📌 | 09-28 | '한 주 프로덕션 로그 관찰' 계획에 쓸 실사용 데이터가 사실상 없었다 | chat 테이블은 같은 발화를 hit_count로 합치고, 최근 545건이 전부 하네스 발화(user_id NULL) | created_at 대신 last_used_at으로 보고, 관찰은 하네스 재실행+장면 추가로 대체 | MOVA 2026-09-28 |
@@ -237,6 +239,8 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 09-29 | uvx ruff가 최신 버전을 끌어와 무관 파일 17개를 통째로 재포맷 | pyproject에 ruff 버전 핀이 없어 버전마다 포맷 규칙이 달라짐 | `[tool.ruff] required-version = "==0.16.9"` — 다른 버전이면 ruff가 즉시 거부 | MAINPAGE 2026-09-29 |
+| ✅ | 09-29 | ontology api 패키지를 import만 해도 torch/opencv가 통째로 로드돼 가벼운 테스트까지 느려지고 HF 오프라인 hang | `__init__`이 vision·sentiment 라우터를 top-level에서 eager import | PEP 562 `__getattr__`으로 라우터 조립 지연 — import는 무거운 모듈 0개, 꺼낼 때만 로드 | MAINPAGE 2026-09-29 |
 | ✅ | 09-29 | 노트북 docker-compose.yaml에 nginx·backend·auth·cloudflared 정의가 남아 up 한 번이면 k3s와 이중 기동 위험. | k3s 컷오버 후 롤백용으로 복구한 compose 파일을 축소하지 않은 채 3주 방치. | compose 파일을 db·redis만 남기게 축소(원본 ~/docker-compose.yaml.bak-20260929), Exited nginx 컨테이너·이미지 삭제. | MAINPAGE 2026-09-29 |
 | 📌 | 09-29 | "Neo4j에 데이터 있어?" 확인 결과 없음 — PVC 21일째 Pending, 백로그·포트폴리오 문서엔 운영 중인 것처럼 기재. | 08-04 compose 시절 기록이 k3s 이전 때 따라오지 않았고, 문서가 운영에 없는 기술을 계속 적어 둠. | Neo4j 안 하기로 결정: k8s/neo4j.yaml·deploy.sh 항목·NEO4J_PASSWORD 예시 삭제, 클러스터 리소스는 사용자가 kubectl delete. | MAINPAGE 2026-09-29 |
 | ✅ | 09-28→09-29 | 재부팅 뒤 구 도커 nginx 컨테이너가 되살아나 host not found in upstream backend로 크래시루프. | compose 시절 restart=always가 남아 있어 stop 상태가 재부팅을 못 넘김. | 하네스가 차단해 사용자가 docker update --restart=no + stop, 다음 날 컨테이너·nginx:alpine 이미지 삭제. | MAINPAGE 2026-09-28 |
@@ -328,6 +332,7 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 09-29 | 홈 채팅에서 "gildle이 뭐야?" 다음 "그거 누가 만들었어?"가 맥락을 잃고 엉뚱한 문서를 검색 | 검색 임베딩이 현재 발화만 써서 후속 질문에 이전 주제가 빠짐 | `_retrieval_query`: 지시어·역참조 표식이 있을 때만 직전 사용자 발화를 붙여 임베딩(자기완결 질문은 그대로) | MAINPAGE 2026-09-29 |
 | ✅ | 09-28 | 홈 AI 채팅이 "길들은 뭐야"에 답을 못 함. | 색인 126청크 중 한국어 이름 "길들" 포함 0건 — 프로필·지킬 어디에도 한국어 이름이 없었음. | datasets/portfolio_corpus/profile.md Gildle 항목 보강 후 파드에서 리셋 없이 프로필만 재색인(hostPath라 즉시 반영). | MAINPAGE 2026-09-28 |
 | ✅ | 09-28 | 홈 AI 채팅이 날씨·레시피 등 주제 밖 질문에도 답함. | 검색 top1 점수가 주제 안(0.41~0.64)·밖(0.31~0.51)이 겹쳐 임계값으로 못 가름. | 시스템 프롬프트 규칙 0(범위 판정)+범위 밖이면 [범위밖] 출력→인터랙터가 고정 거절 문구로 치환, 10문항 실측. | MAINPAGE 2026-09-28 |
 | ✅ | 09-28 | ARDA 지킬을 색인하자 기존 suvisjk 청크가 사라짐(126+115→224). | 청크 ID가 portfolio:<파일명>#n이라 index·overview 등 같은 파일명이 덮어씀. | ingest_portfolio_docs.py에 --ref-prefix 추가, 두 지킬 사본을 datasets/에 두고 --reset 전체 재색인(277청크). | MAINPAGE 2026-09-28 |

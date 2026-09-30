@@ -72,8 +72,24 @@
   09-28의 19명은 1회성으로 표시된다. 테스트 +2(UA 규칙·사람/봇/1회성 분리), UA 없는 핑을 사람으로 세던 기존
   테스트 2건은 브라우저 UA를 넘기게 수정(계약 변경). analytics 9 passed.
 
+- **[저녁] 저장소 위생 2건**(코랩 v10 대기 중 병행, 사용자 지시):
+  - **ruff 버전 고정**: `pyproject.toml [tool.ruff]`에 `required-version = "==0.16.9"` 추가. uvx가 최신 ruff를 끌어와
+    무관 파일 17개를 재포맷한 사고(WORK_LOG_MOVA 09-29 (9)) 방지 — 저장소는 0.16.9 포맷과 일치. 검증: `uvx ruff@0.16.9`
+    통과, `uvx ruff@0.16.7`은 "Required version `==0.16.9` does not match" 거부.
+  - **ontology api 라우터 lazy import**(`apps/ontology/adapter/inbound/api/__init__.py`): 예전엔 이 패키지 import만으로
+    vision·sentiment 라우터가 torch/opencv를 통째로 끌어와 무거운 것과 무관한 테스트까지 느려지고 HF 오프라인에서
+    hang했다. PEP 562 `__getattr__`으로 조립을 지연 — `import ...api`는 무거운 모듈 0개 로드, main.py가 각 라우터를
+    꺼낼 때만 하위 모듈 import(한 번 만든 라우터는 전역 캐시). 검증: 경량 venv에서 패키지 import 시 `torch not loaded`,
+    portfolio 라우터 조립·AttributeError 경로 확인, 포트폴리오 테스트 20 passed.
+- **[저녁] 홈 포트폴리오 채팅 후속 질문 검색 보강**(`portfolio_chat_interactor.py`): 검색 임베딩이 현재 발화만 써서
+  "gildle이 뭐야?" 다음 "그거 누가 만들었어?"가 맥락을 잃고 엉뚱한 문서를 부르던 문제. `_retrieval_query`가 지시어·
+  역참조 표식(`그거`·`아까`·`누가 만들`…)이 있을 때만 직전 사용자 발화를 붙여 임베딩하고, 자기완결 질문("mova는?")은
+  그대로 둬 주제 전환 희석을 막는다. LLM 프롬프트의 [대화] 히스토리는 무변경. 테스트 +3(후속 보강·자기완결 미보강·
+  히스토리 없음), portfolio interactor 11 passed.
+
 ### 산출물
 - 커밋 `chore: Neo4j 매니페스트·백로그 정리`, `feat(analytics): 방문자 통계 봇 구분`.
+- (미커밋) ruff 버전 고정·ontology lazy import·홈 채팅 후속 검색 보강.
 
 ## 2026-09-28
 
