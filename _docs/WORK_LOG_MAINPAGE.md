@@ -32,7 +32,8 @@
 
 ### 작업 내용
 - **웹 인증을 localStorage JWT → httpOnly 쿠키(BFF)로 전환** (보안 백로그: 토큰 localStorage = XSS 탈취 가능).
-  코드 완성 + 로컬 런타임 검증까지. **배포는 다음 세션(브라우저 실테스트)** — 사용자 결정.
+  코드 완성 + 로컬 런타임 검증 → 프리뷰 사용자 실테스트 → **PR #134 머지(`607d28e`)·Vercel 프로덕션 배포 완료**.
+- **v1 마무리 전체 점검**: 백엔드·프론트·아키텍처·mova 운영 하네스·gildle 운영 API·Flutter 앱까지 한 번씩 실행.
 
 ### 수정/구현
 - **조사(서브에이전트 매핑)**: 토큰 저장소는 `localStorage["suvis_session"].token` 하나. 백엔드는 이미 access+refresh
@@ -50,10 +51,22 @@
   → backend(8000)·auth(9000)를 `kubectl port-forward`로 로컬(18000·18009)에 붙이고 dev를 그쪽으로 향하게 해 해결.
 - **런타임 검증 성공**(임시 계정 signup→whoami→logout, 검증 후 계정 삭제): 회원가입 201·`{id,username}`만(토큰 없음)·
   sv_access/refresh 쿠키 세팅 → `/api/backend/mova/whoami` 200(쿠키→Bearer 전달·aud=suvis-mova) → 로그아웃 쿠키 삭제.
-- tsc·eslint 0. 남은 것: **브라우저 실 UX 테스트 후 배포**(로그인 폼·OAuth 리다이렉트·SPA 흐름).
+- tsc·eslint 0. 프리뷰에서 사용자가 로그인·OAuth·SPA 흐름 실테스트 후 머지.
+- PR 머지는 하네스 분류기("Merge Without Review")가 막아 사용자가 직접 `gh pr merge 134 --merge` 실행.
+- **Flutter 점검이 WSL 경로에서 크래시**: 윈도우 flutter(`C:\src\flutter`)를 `\\wsl.localhost` 경로로 돌리니
+  `windows/flutter/ephemeral/.plugin_symlinks` 삭제 실패(errno 145)로 종료 + `analysis_options.yaml`을 멋대로 수정.
+  → 수정분 되돌리고 저장소를 `C:\tmp`로 복사해 실행(analyze 0건·test 3/3), 복사본은 키 파일이 있어 즉시 삭제.
+
+### 데이터
+- 전체 점검 결과(09-30 14시): pytest **1030 passed**·2 skipped·7 deselected / import-linter **6 kept** / tsc·eslint 0 /
+  mova 운영 하네스 단일턴 **28/28**·멀티턴 **16/17**(1건은 "9월 30일자로" 날짜 의존 검사 — 오늘이 09-30이라 "오늘"로 답함) /
+  gildle 운영 API(routes 3모드·options 4·loops 3·walk/plan·app/version) 200, 보호 엔드포인트 무토큰 401 /
+  Flutter `analyze` 0건·`test` 3/3 / 파드 에러 로그 0 / 운영 파드 소스 1280파일이 저장소와 sha1 일치(재배포 불요).
+- 운영 라이브 확인: `suvisdev.cloud` `/api/auth/login` 오답 401·`/api/backend/mova/whoami` 무쿠키 401·`/api/auth/logout` 200.
+- 미처리(이번 세션 이전부터): ruff 린트 11건(UP042×7·B905×2·I001·UP017)·포맷 드리프트 28파일.
 
 ### 산출물
-- 커밋 `08e8c6d`·`39a876c`·`9a319bb`(+규칙·일지). 서버 BFF·클라이언트 배선 완료, 배포 대기.
+- 커밋 `08e8c6d`·`39a876c`·`9a319bb`(+규칙·일지) → PR #134 머지 `607d28e`, Vercel 프로덕션 배포 성공.
 
 ---
 
