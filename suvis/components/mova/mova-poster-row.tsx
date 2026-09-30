@@ -35,6 +35,23 @@ export function MovaPosterRow({ icon, title, countLabel, empty, children }: Mova
     return () => window.removeEventListener("resize", measure)
   }, [measure, children, expanded])
 
+  // 마우스 휠(세로)을 가로 넘김으로 바꾼다. 끝에 닿으면 가로채지 않아 페이지가 평소처럼 세로로 내려간다.
+  // preventDefault가 필요해 React onWheel(passive) 대신 직접 등록한다.
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+      const atStart = el.scrollLeft <= 0
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1
+      if ((e.deltaY < 0 && atStart) || (e.deltaY > 0 && atEnd)) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [expanded, empty])
+
   const page = (direction: 1 | -1) => {
     const el = scroller.current
     if (!el) return

@@ -395,38 +395,38 @@ export default function MypagePage() {
                 )
               }
             >
-@@DEDENT@@                    {data.recent_picks.map((pick) => {
-                      const slug = resolveMovaCatalogSlug(pick.slug, pick.title)
-                      const poster = coercePosterUrl(pick.poster_url) ?? POSTER_PLACEHOLDER
-                      return (
-                        <Link
-                          key={pick.pick_id}
-                          href={`/mova/title/${slug}`}
-                          className="group w-[100px] shrink-0 md:w-[112px]"
-                        >
-                          <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
-                            <Image
-                              src={poster}
-                              alt={pick.title}
-                              fill
-                              className="object-cover transition duration-300 group-hover:scale-105"
-                              sizes="112px"
-                            />
-                          </div>
-                          <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
-                            {pick.title}
-                          </p>
-                          {pick.hook && (
-                            <p className="mt-0.5 line-clamp-2 text-[10px] text-neutral-500">
-                              {pick.hook}
-                            </p>
-                          )}
-                          <div className="mt-1">
-                            <FeedbackBadge feedback={pick.feedback} />
-                          </div>
-                        </Link>
-                      )
-                    })}
+              {data.recent_picks.map((pick) => {
+                const slug = resolveMovaCatalogSlug(pick.slug, pick.title)
+                const poster = coercePosterUrl(pick.poster_url) ?? POSTER_PLACEHOLDER
+                return (
+                  <Link
+                    key={pick.pick_id}
+                    href={`/mova/title/${slug}`}
+                    className="group w-[100px] shrink-0 md:w-[112px]"
+                  >
+                    <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
+                      <Image
+                        src={poster}
+                        alt={pick.title}
+                        fill
+                        className="object-cover transition duration-300 group-hover:scale-105"
+                        sizes="112px"
+                      />
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
+                      {pick.title}
+                    </p>
+                    {pick.hook && (
+                      <p className="mt-0.5 line-clamp-2 text-[10px] text-neutral-500">
+                        {pick.hook}
+                      </p>
+                    )}
+                    <div className="mt-1">
+                      <FeedbackBadge feedback={pick.feedback} />
+                    </div>
+                  </Link>
+                )
+              })}
             </MovaPosterRow>
 
             {/* 찜 목록 */}
@@ -442,45 +442,45 @@ export default function MypagePage() {
                 )
               }
             >
-@@DEDENT@@                    {watchlist.map((item) => {
-                      const slug = resolveMovaCatalogSlug(item.slug, item.title)
-                      const poster = coercePosterUrl(item.poster_url) ?? POSTER_PLACEHOLDER
-                      return (
-                        <div key={item.movie_id} className="group w-[100px] shrink-0 md:w-[112px]">
-                          <Link href={`/mova/title/${slug}`}>
-                            <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
-                              <Image
-                                src={poster}
-                                alt={item.title}
-                                fill
-                                className="object-cover transition duration-300 group-hover:scale-105"
-                                sizes="112px"
-                              />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  handleRemoveFromWatchlist(item.movie_id)
-                                }}
-                                disabled={removingMovieId === item.movie_id}
-                                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition hover:bg-black/80 group-hover:opacity-100 disabled:opacity-50"
-                                aria-label={`${item.title} 찜 삭제`}
-                              >
-                                {removingMovieId === item.movie_id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <X className="h-3 w-3" />
-                                )}
-                              </button>
-                            </div>
-                            <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
-                              {item.title}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-neutral-500">{item.release_year}</p>
-                          </Link>
-                        </div>
-                      )
-                    })}
+              {watchlist.map((item) => {
+                const slug = resolveMovaCatalogSlug(item.slug, item.title)
+                const poster = coercePosterUrl(item.poster_url) ?? POSTER_PLACEHOLDER
+                return (
+                  <div key={item.movie_id} className="group w-[100px] shrink-0 md:w-[112px]">
+                    <Link href={`/mova/title/${slug}`}>
+                      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-neutral-900 ring-1 ring-mova-border transition group-hover:ring-mova-accent/50">
+                        <Image
+                          src={poster}
+                          alt={item.title}
+                          fill
+                          className="object-cover transition duration-300 group-hover:scale-105"
+                          sizes="112px"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleRemoveFromWatchlist(item.movie_id)
+                          }}
+                          disabled={removingMovieId === item.movie_id}
+                          className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition hover:bg-black/80 group-hover:opacity-100 disabled:opacity-50"
+                          aria-label={`${item.title} 찜 삭제`}
+                        >
+                          {removingMovieId === item.movie_id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
+                      <p className="mt-1.5 line-clamp-2 text-xs font-medium text-mova-text group-hover:text-mova-accent">
+                        {item.title}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-neutral-500">{item.release_year}</p>
+                    </Link>
+                  </div>
+                )
+              })}
             </MovaPosterRow>
 
             {/* 내 리뷰 */}
