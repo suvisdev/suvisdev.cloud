@@ -84,8 +84,17 @@
 - **7.8B 검토**: 학습은 가능(MODEL_ID 교체+QLoRA)하나 **서빙 VRAM이 벽**(4060 8GB, 현재 7.0GB 사용). 안 학습한 7.8B는
   하네스 69<v9 71이라 그냥 스왑은 손해. "학습한 7.8B + VRAM 재설계"는 별도 트랙으로 보류.
 
+### [밤] 에디터 리뷰 출처(뉴스) 링크 표시 배포(`9411d3c`)
+- **문제**: 에디터 리뷰가 구글 뉴스 RSS의 기사 URL을 `_fetch_news`에서 버려, 신뢰도 배지(개수)만 있고 출처 링크는 없었음.
+- **구현(풀스택 한 커밋)**: `reviews.news_sources` JSONB 컬럼(`20260930_0001`) + `_fetch_news`가 `{title,url,source,summary}`
+  반환·저장 + DTO·스키마·리포지토리 노출 + 프론트 리뷰 배지 옆 출처 링크 칩(발행처, 새 탭). 기사 원문 미수집(제목·요약만, 저작권).
+- **검증·배포**: 이미지 mova 467 passed·프론트 tsc 통과 → **마이그레이션 먼저**(docker run --network host alembic upgrade,
+  news_sources JSONB 생성 확인) → rollout. 운영 실측: `_fetch_news('기생충')` 8건 URL·출처(JTBC) 캡처, `GET /mova/reviews/
+  by-movie` 200·직렬화 정상(기존 리뷰 news_sources=null). **링크는 새 에디터 리뷰부터**(기존은 개수 배지 유지).
+- 속도(#1 리뷰 배치)는 Gemini 무료 티어 쿼터에 묶여 `EDITOR_REVIEWS_DAILY_LIMIT` env 조정이 전부라 구현 대상 아님.
+
 ### 산출물(추가)
-- 커밋: 동행 조건(feat), v12 데이터·이어학습 노트북(`41fea6e`). 바탕화면 `mova/FT/agent-v12/`.
+- 커밋: 동행 조건(feat), v12 데이터·이어학습 노트북(`41fea6e`), 에디터 리뷰 출처 링크(`9411d3c`). 바탕화면 `mova/FT/agent-v12/`.
   v11-Q8은 `~/models/mova-agent-v11-q8/`(미채택). **교훈: 좋은 모델의 어댑터를 GGUF와 함께 보관할 것**(v9 못 이은 원인).
 
 ---
