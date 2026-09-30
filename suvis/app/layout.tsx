@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Barlow_Condensed, Geist } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SessionSync } from '@/components/auth/session-sync'
 import { ContentGuard } from '@/components/content-guard'
 import { ScrollbarAutohide } from '@/components/scrollbar-autohide'
 import { SiteChrome } from '@/components/site-chrome'
@@ -50,6 +51,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <ScrollbarAutohide />
           <ContentGuard />
+          <SessionSync />
           <SiteChrome>{children}</SiteChrome>
           {process.env.NODE_ENV === 'production' && <Analytics />}
         </ThemeProvider>

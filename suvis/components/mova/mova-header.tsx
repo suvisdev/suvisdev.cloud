@@ -8,7 +8,7 @@ import { MovaLoginButton } from "@/components/mova/mova-login-button"
 import { MovaSuvisHomeLink } from "@/components/mova/mova-suvis-home-link"
 import { MovaLogo } from "@/components/mova/mova-logo"
 import { MovaSearchBar } from "@/components/mova/mova-search-bar"
-import { getSuvisSession } from "@/lib/suvis-session"
+import { getSuvisSession, SUVIS_SESSION_CHANGED_EVENT } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -26,7 +26,11 @@ export function MovaHeader() {
   const hideHeader = pathname === "/mova/login"
 
   useEffect(() => {
-    setLoggedIn(getSuvisSession() !== null)
+    const check = () => setLoggedIn(getSuvisSession() !== null)
+    check()
+    // 세션이 무효로 확인돼 지워지면(SessionSync) 헤더도 바로 따라간다.
+    window.addEventListener(SUVIS_SESSION_CHANGED_EVENT, check)
+    return () => window.removeEventListener(SUVIS_SESSION_CHANGED_EVENT, check)
   }, [pathname])
 
   if (hideHeader) return null

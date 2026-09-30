@@ -8,6 +8,7 @@ import { fetchProfile } from "@/lib/profile-api"
 import {
   logoutSession,
   getSuvisSession,
+  SUVIS_SESSION_CHANGED_EVENT,
   type SuvisSession,
 } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
@@ -67,6 +68,12 @@ export function MovaLoginButton({ className, size = "sm" }: MovaLoginButtonProps
     refreshSession()
     setHydrated(true)
   }, [pathname, refreshSession, open])
+
+  // 세션이 무효로 확인돼 지워지면(SessionSync) 버튼도 바로 따라간다.
+  useEffect(() => {
+    window.addEventListener(SUVIS_SESSION_CHANGED_EVENT, refreshSession)
+    return () => window.removeEventListener(SUVIS_SESSION_CHANGED_EVENT, refreshSession)
+  }, [refreshSession])
 
   useEffect(() => {
     if (!session) return
