@@ -2,6 +2,8 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
+from mova.domain.value_objects.companion_expansion import expand_companion_genres
+
 MAX_CHAT_KEYWORDS = 24
 
 INTENT_FILTER_AND = "filter_and"
@@ -231,6 +233,7 @@ def build_search_filters(
     must_genres = merge_keyword_lists(
         _coerce_str_list(must_raw.get("genres")),
         _guess_genres(cleaned, keywords),
+        expand_companion_genres(cleaned),  # 동행 맥락("여자친구랑 볼 영화") → 장르 선호
         limit=8,
     )
     must_keywords = merge_keyword_lists(
