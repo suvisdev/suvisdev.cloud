@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react"
 import { MovaConfirmDialog } from "@/components/mova/mova-confirm-dialog"
+import { MovaPosterRow } from "@/components/mova/mova-poster-row"
 import { MovaSpoilerBody } from "@/components/mova/mova-spoiler-body"
 import {
   deleteMovaAccount,
@@ -379,24 +380,22 @@ export default function MypagePage() {
             </section>
 
             {/* AI 픽 기록 */}
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <Film className="h-4 w-4 text-mova-accent" />
-                <h2 className="text-sm font-semibold text-mova-text">AI 추천 기록</h2>
-                <span className="text-xs text-neutral-500">{data.recent_picks.length}편</span>
-              </div>
-
-              {data.recent_picks.length === 0 ? (
-                <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
-                  아직 AI 추천을 받은 적이 없어요.{" "}
-                  <Link href="/mova/main" className="text-mova-accent underline-offset-2 hover:underline">
-                    채팅하러 가기 →
-                  </Link>
-                </p>
-              ) : (
-                <div className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
-                  <div className="flex gap-3 overflow-x-auto pb-2 md:gap-4">
-                    {data.recent_picks.map((pick) => {
+            <MovaPosterRow
+              icon={<Film className="h-4 w-4 text-mova-accent" />}
+              title="AI 추천 기록"
+              countLabel={`${data.recent_picks.length}편`}
+              empty={
+                data.recent_picks.length === 0 && (
+                  <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
+                    아직 AI 추천을 받은 적이 없어요.{" "}
+                    <Link href="/mova/main" className="text-mova-accent underline-offset-2 hover:underline">
+                      채팅하러 가기 →
+                    </Link>
+                  </p>
+                )
+              }
+            >
+@@DEDENT@@                    {data.recent_picks.map((pick) => {
                       const slug = resolveMovaCatalogSlug(pick.slug, pick.title)
                       const poster = coercePosterUrl(pick.poster_url) ?? POSTER_PLACEHOLDER
                       return (
@@ -428,27 +427,22 @@ export default function MypagePage() {
                         </Link>
                       )
                     })}
-                  </div>
-                </div>
-              )}
-            </section>
+            </MovaPosterRow>
 
             {/* 찜 목록 */}
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <Bookmark className="h-4 w-4 text-mova-accent" />
-                <h2 className="text-sm font-semibold text-mova-text">찜한 영화</h2>
-                <span className="text-xs text-neutral-500">{watchlist.length}편</span>
-              </div>
-
-              {watchlist.length === 0 ? (
-                <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
-                  찜한 영화가 없어요. 영화 상세 페이지에서 찜하기를 눌러보세요.
-                </p>
-              ) : (
-                <div className="mova-row-fade -mx-4 px-4 md:-mx-0 md:px-0">
-                  <div className="flex gap-3 overflow-x-auto pb-2 md:gap-4">
-                    {watchlist.map((item) => {
+            <MovaPosterRow
+              icon={<Bookmark className="h-4 w-4 text-mova-accent" />}
+              title="찜한 영화"
+              countLabel={`${watchlist.length}편`}
+              empty={
+                watchlist.length === 0 && (
+                  <p className="rounded-xl border border-mova-border bg-mova-surface px-5 py-8 text-center text-sm text-neutral-500">
+                    찜한 영화가 없어요. 영화 상세 페이지에서 찜하기를 눌러보세요.
+                  </p>
+                )
+              }
+            >
+@@DEDENT@@                    {watchlist.map((item) => {
                       const slug = resolveMovaCatalogSlug(item.slug, item.title)
                       const poster = coercePosterUrl(item.poster_url) ?? POSTER_PLACEHOLDER
                       return (
@@ -487,10 +481,7 @@ export default function MypagePage() {
                         </div>
                       )
                     })}
-                  </div>
-                </div>
-              )}
-            </section>
+            </MovaPosterRow>
 
             {/* 내 리뷰 */}
             <section>

@@ -248,6 +248,40 @@ _WATCHED_STATEMENT = re.compile(
 _NON_WORD = re.compile(r"[^0-9a-z가-힣]")
 
 
+_WATCHED_SUBJECT_NOISE = re.compile(r"^(?:나는|저는|내가|제가|나|난|저|전)\s+")
+_TRAILING_PARTICLE = re.compile(r"(?:은|는|도|을|를|이|가)$")
+_RATING_WORDS = {
+    1: ("하나", "한 "),
+    2: ("둘", "두 "),
+    3: ("셋", "세 "),
+    4: ("넷", "네 "),
+    5: ("다섯", "만점"),
+}
+
+
+def _watched_subject(message: str) -> str:
+    """ "나 최신 스파이더맨 봤어" → "스파이더맨" — 모델이 제목을 못 집었을 때 발화에서 직접 읽는다."""
+    text = _WATCHED_STATEMENT.sub("", message.strip())
+    text = _CHOICE_NEWEST.sub(" ", text)
+    text = _WATCHED_SUBJECT_NOISE.sub("", text.strip())
+    return re.sub(r"(?:꺼|거|것)$", "", re.sub(r"\s+", " ", text).strip()).strip()
+
+
+def _rating_was_said(message: str, rating: float) -> bool:
+    """별점이 사용자의 이번 발화에 실제로 있는가. 모델이 직전 안내 문구의 예시 숫자를 베껴
+    말하지 않은 별점을 남긴 적이 있다(2026-09-30 실사용: "고지전 봤어" → 4점 기록)."""
+    if any(float(n) == rating for n in re.findall(r"\d+(?:\.\d+)?", message)):
+        return True
+    return any(w in message for w in _RATING_WORDS.get(int(rating), ()))
+
+
+def _rejected_watched(results: list[dict[str, Any]]) -> bool:
+    """판단 모델이 mark_watched를 골랐지만 제목이 근거 가드에 걸려 버려졌는가."""
+    return any(
+        r.get("name") == "mark_watched" and "error" in (r.get("result") or {}) for r in results
+    )
+
+
 def _last_user_content(history: list[dict[str, str]]) -> str:
     for msg in reversed(history):
         if msg.get("role") == "user":
@@ -1008,6 +1042,10 @@ class ChatInteractor(ChatUseCase):
     ) -> ChatResponseDto:
         """에이전트 결과 실행. 터미널 행동(추천·시간표·OTT)은 기존 트랙에 슬롯으로 넘기고, 데이터 도구로
         끝났으면 사실 템플릿(출연진·상영작·검색)이나 평가 트랙(리뷰 요약)이 답한다. 도구가 없으면 잡담."""
+        if decision.terminal is None and _rejected_watched(decision.results):
+            # 모델은 '봤어요'로 판단했지만 제목을 지어내 가드에 걸린 경우("나 최신 스파이더맨 봤어" →
+            # '스파이더맨 3 (2018)') — 잡담 LLM이 "기록했어요"인 척 답하던 것을 막고 발화에서 제목을 읽는다.
+            return await self._reply_mark_watched(request, trace_id, None, None)
         if decision.terminal is not None:
             name, args = decision.terminal["name"], decision.terminal["arguments"]
             if name == "mark_watched":
@@ -1124,6 +1162,8 @@ class ChatInteractor(ChatUseCase):
         reviews로 upsert하므로 '봤어요 게이트'를 자연히 만족한다.
         """
         rating = parse_rating(rating_raw)
+        if rating is not None and not _rating_was_said(request.message, rating):
+            rating = None
         if not request.user_id:
             return await self._reply_plain(
                 request,
@@ -1132,14 +1172,25 @@ class ChatInteractor(ChatUseCase):
                 intent_type="info",
             )
         context = _last_assistant_content(request.history_dicts())
-        movie, candidates = await self._resolve_watched_title(title, context=context)
+        newest = bool(_CHOICE_NEWEST.search(request.message))
+        title = title or _watched_subject(request.message)
+        movie, candidates = await self._resolve_watched_title(
+            title, context=context, prefer_newest=newest
+        )
         tail = _TITLE_RATING_TAIL.search(title or "")
-        if movie is None and not candidates and rating is None and title and tail:
+        if movie is None and not candidates and title and tail:
             # 모델이 별점을 제목에 붙여 넘긴 경우("어크로스 더 유니버스 4") — 떼어서 다시 찾는다.
             # 제목 그대로를 먼저 봤으므로 "범죄도시 4" 같은 속편 번호는 여기까지 오지 않는다.
-            rating = parse_rating(tail.group(1))
+            # 붙어 온 숫자는 사용자가 이번에 말했을 때만 별점으로 친다.
+            said = parse_rating(tail.group(1))
+            if rating is None and said is not None and _rating_was_said(request.message, said):
+                rating = said
             movie, candidates = await self._resolve_watched_title(
-                title[: tail.start()], context=context
+                title[: tail.start()], context=context, prefer_newest=newest
+            )
+        if movie is None and not candidates and title and _TRAILING_PARTICLE.search(title):
+            movie, candidates = await self._resolve_watched_title(
+                _TRAILING_PARTICLE.sub("", title), context=context, prefer_newest=newest
             )
         if movie is None and candidates:
             return await self._reply_plain(
@@ -1170,7 +1221,7 @@ class ChatInteractor(ChatUseCase):
         else:
             reply = (
                 f"『{movie.title}』을(를) 봤어요로 표시했어요. "
-                f"별점도 남기시려면 '{movie.title} 4점'처럼 말씀해 주세요."
+                "별점도 남기고 싶으시면 몇 점인지 말씀해 주세요."
             )
         return await self._reply_plain(request, trace_id, reply, intent_type="info")
 
@@ -1284,7 +1335,7 @@ class ChatInteractor(ChatUseCase):
         )
 
     async def _resolve_watched_title(
-        self, title: str | None, *, context: str
+        self, title: str | None, *, context: str, prefer_newest: bool = False
     ) -> tuple[MovaSearchItemSchema | None, list[MovaSearchItemSchema]]:
         """봤어요 기록용 제목 해석 — 풀네임이 아니어도 한 편으로 좁혀지면 확정한다(2026-09-30 실사용:
         "브랜드 뉴 데이 봤어"·"…브랜드 뉴 데이(2026)"가 정확 일치만 보던 검증에 전부 막혔다).
@@ -1305,6 +1356,10 @@ class ChatInteractor(ChatUseCase):
             pool = [i for i in pool if str(i.year) == year_m.group(1)] or pool
         if len(pool) > 1 and context:
             pool = [i for i in pool if MovieTitle(i.title).appears_in(context)] or pool
+        if len(pool) > 1 and prefer_newest:
+            # "최신 스파이더맨" — 가장 늦게 나온 한 편으로(같은 해가 둘이면 되묻는다).
+            latest = max(str(i.year) for i in pool)
+            pool = [i for i in pool if str(i.year) == latest]
         if len(pool) == 1:
             return pool[0], []
         return None, pool[:5]

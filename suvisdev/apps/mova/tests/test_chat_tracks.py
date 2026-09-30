@@ -1105,6 +1105,52 @@ class ChatInteractorMarkWatchedTests(unittest.IsolatedAsyncioTestCase):
         repo.record_rating.assert_awaited_once_with(3, 2, 4.0)
         self.assertIn("4점", resp.reply)
 
+    async def test_rating_not_said_by_user_is_dropped(self) -> None:
+        # 모델이 직전 안내 문구의 예시 숫자를 베껴 "고지전 4점"을 넘긴 실사용 사례
+        interactor, repo = self._interactor()
+        hit = [_item(9, "고지전", "2011")]
+        repo.search_movies_by_title.side_effect = lambda terms, _n: (
+            hit if terms == ["고지전"] else []
+        )
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="고지전 봤어", history=[], user_id=3),
+            "t",
+            self._decision({"title": "고지전 4점"}),
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 9, "watched")
+        repo.record_rating.assert_not_awaited()
+        self.assertNotIn("4점", resp.reply)
+
+    async def test_model_rating_not_in_message_is_dropped(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.return_value = [_item(9, "고지전", "2011")]
+        await interactor._act_on_agent(
+            MovaChatRequest(message="고지전 봤어", history=[], user_id=3),
+            "t",
+            self._decision({"title": "고지전", "rating": "4"}),
+        )
+        repo.record_rating.assert_not_awaited()
+
+    async def test_rejected_watched_falls_back_to_message_and_newest(self) -> None:
+        interactor, repo = self._interactor()
+        repo.search_movies_by_title.side_effect = lambda terms, _n: (
+            [_item(*m) for m in self._SPIDEY] if terms == ["스파이더맨"] else []
+        )
+        decision = AgentDecision(
+            results=[
+                {
+                    "name": "mark_watched",
+                    "arguments": {"title": "스파이더맨 3 (2018)"},
+                    "result": {"error": "대화에 나온 표기가 아니다"},
+                }
+            ]
+        )
+        resp = await interactor._act_on_agent(
+            MovaChatRequest(message="나 최신 스파이더맨 봤어", history=[], user_id=3), "t", decision
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 3, "watched")
+        self.assertIn("브랜드 뉴 데이", resp.reply)
+
     async def test_ambiguous_title_narrowed_by_previous_reply(self) -> None:
         interactor, repo = self._interactor()
         repo.search_movies_by_title.return_value = [_item(*m) for m in self._SPIDEY]
