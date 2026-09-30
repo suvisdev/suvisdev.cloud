@@ -648,7 +648,12 @@ def p_region_only_showtimes(rng: random.Random, t: str, ctx: dict[str, Any]) -> 
         {"role": "assistant", "content": U.rec_reply(shown, U._years(rng, 3))},
     ]
     msg = rng.choice(
-        [f"{r}에서 제일 빠른걸로", f"{r}에서 볼거야", f"그냥 {r}에서 아무거나", f"{r}에서 가까운 극장으로"]
+        [
+            f"{r}에서 제일 빠른걸로",
+            f"{r}에서 볼거야",
+            f"그냥 {r}에서 아무거나",
+            f"{r}에서 가까운 극장으로",
+        ]
     )
     return hist, msg, call("showtimes", region=r)
 
@@ -664,7 +669,13 @@ def p_meta_set_final(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
         {"role": "assistant", "content": U.rec_reply(shown, U._years(rng, 3))},
     ]
     msg = rng.choice(
-        ["다 2시간짜리야?", "전부 최근 영화야?", "다 한국 영화야?", "이거 다 평점 높은 편이야?", "다 시리즈물이야?"]
+        [
+            "다 2시간짜리야?",
+            "전부 최근 영화야?",
+            "다 한국 영화야?",
+            "이거 다 평점 높은 편이야?",
+            "다 시리즈물이야?",
+        ]
     )
     return hist, msg, FINAL
 
