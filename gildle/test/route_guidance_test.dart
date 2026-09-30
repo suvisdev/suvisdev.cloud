@@ -59,7 +59,7 @@ void main() {
     final far = guide.locate(const GeoPoint(37.501, 127.0006), 100); // 서→동 53m
     expect(far.offM, closeTo(53, 2));
     expect(isOffRoute(far.offM, wasOff: false), isTrue);
-    expect(guidanceText(far, offRoute: true), startsWith('경로에서 53m 벗어났어요'));
+    expect(guidanceText(far, offRoute: true), '경로에서 53m 벗어났어요');
     expect(isOffRoute(30, wasOff: false), isFalse);
     expect(isOffRoute(30, wasOff: true), isTrue);
     expect(isOffRoute(20, wasOff: true), isFalse);
@@ -70,5 +70,36 @@ void main() {
     final g = guide.locate(const GeoPoint(37.501, 127.002), 20); // 세 번째 변 위
     expect(g.offM, lessThan(5));
     expect(g.progressM, closeTo(221 + 177 + 110, 5));
+  });
+
+  test('다시 찾기 — 목적지가 있는 길은 끝점으로', () {
+    final guide = RouteGuide.build([_a, _b, _c])!;
+    expect(guide.isLoop, isFalse);
+    final t = guide.rejoinTarget(const GeoPoint(37.501, 127.0006), 100);
+    expect(t.point.lat, _c.lat);
+    expect(t.alongM, closeTo(guide.totalM, 0.01));
+    expect(guide.remainderFrom(t.alongM).length, 1);
+  });
+
+  test('다시 찾기 — 돌아오는 코스는 아직 안 걸은 구간의 가까운 지점으로 합류', () {
+    final guide = RouteGuide.build(_loop)!;
+    expect(guide.isLoop, isTrue);
+    // 첫 변을 150m쯤 걷다 동쪽으로 60m 벗어남 → 첫 변의 같은 높이로 합류
+    final t = guide.rejoinTarget(const GeoPoint(37.5014, 127.0007), 150);
+    expect(t.alongM, closeTo(155, 3));
+    final rest = guide.remainderFrom(t.alongM);
+    expect(rest.first.lat, closeTo(37.5014, 0.0001));
+    expect(rest.last.lat, _a.lat); // 끝은 출발지
+    expect(rest.length, 5); // 합류점 + b·c·d·a
+    // 이미 지나온 구간으로는 되돌리지 않는다
+    final ahead = guide.rejoinTarget(const GeoPoint(37.5005, 127.0007), 150);
+    expect(ahead.alongM, greaterThanOrEqualTo(150));
+  });
+
+  test('다시 찾기 — 출발 직후엔 코스를 건너뛰어 끝점으로 합류하지 않는다', () {
+    final guide = RouteGuide.build(_loop)!;
+    // 출발점에서 동쪽 60m: 마지막 변(서쪽으로 돌아오는 길) 바로 위지만 400m 앞까지만 본다
+    final t = guide.rejoinTarget(const GeoPoint(37.5, 127.0007), 10);
+    expect(t.alongM, lessThan(420));
   });
 }

@@ -30,6 +30,8 @@ const _windowAheadM = 250.0;
 const _offEnterM = 40.0; // 이만큼 벗어나면 이탈
 const _offExitM = 25.0; // 이 안으로 돌아오면 복귀(경계에서 깜빡이지 않게 차이를 둔다)
 const _soonM = 25.0;
+const _loopGapM = 50.0; // 시작·끝이 이 안이면 돌아오는 코스
+const _rejoinAheadM = 400.0; // 합류 지점은 이 앞까지만 찾는다(출발점 근처에서 끝점으로 건너뛰지 않게)
 
 const _mPerDegLat = 110540.0;
 const _mPerDegLng = 111320.0;
@@ -58,6 +60,46 @@ class RouteGuide {
   final List<Turn> turns;
 
   double get totalM => cum.last;
+
+  /// 시작과 끝이 같은 자리면 돌아오는 코스.
+  bool get isLoop => _distM(coords.first, coords.last) < _loopGapM;
+
+  /// 이탈했을 때 새 길이 향할 곳. 목적지가 있는 길은 끝점, 돌아오는 코스는 아직 안 걸은 구간에서
+  /// 가장 가까운 지점 — 거기로 합류해 나머지는 원래 코스를 그대로 걷는다.
+  ({GeoPoint point, double alongM}) rejoinTarget(GeoPoint p, double progressM) {
+    if (!isLoop) return (point: coords.last, alongM: totalM);
+    final from = math.min(progressM, totalM);
+    final to = math.min(totalM, from + _rejoinAheadM);
+    var bestOff = double.infinity;
+    var bestAlong = from;
+    for (var i = 1; i < coords.length; i++) {
+      final len = cum[i] - cum[i - 1];
+      if (cum[i] < from || cum[i - 1] > to || len <= 0) continue;
+      final (ax, ay) = _toXY(coords[i - 1], p);
+      final (bx, by) = _toXY(coords[i], p);
+      final dx = bx - ax;
+      final dy = by - ay;
+      // 구간 중 [from, to]에 드는 부분으로만 투영한다
+      final tMin = math.max(0.0, (from - cum[i - 1]) / len);
+      final tMax = math.min(1.0, (to - cum[i - 1]) / len);
+      final t = (-(ax * dx + ay * dy) / (dx * dx + dy * dy)).clamp(tMin, tMax);
+      final ox = ax + dx * t;
+      final oy = ay + dy * t;
+      final off = math.sqrt(ox * ox + oy * oy);
+      if (off < bestOff) {
+        bestOff = off;
+        bestAlong = cum[i - 1] + len * t;
+      }
+    }
+    return (point: _pointAt(coords, cum, bestAlong), alongM: bestAlong);
+  }
+
+  /// [alongM] 지점부터 끝까지의 원래 경로.
+  List<GeoPoint> remainderFrom(double alongM) => [
+        _pointAt(coords, cum, alongM),
+        for (var i = 0; i < coords.length; i++)
+          if (cum[i] > alongM) coords[i],
+      ];
 
   static RouteGuide? build(List<GeoPoint> coords) {
     if (coords.length < 2) return null;
@@ -155,7 +197,7 @@ const _sideLabels = {
 
 /// 안내 한 줄 — "120m 앞에서 왼쪽으로".
 String guidanceText(Guidance g, {required bool offRoute}) {
-  if (offRoute) return '경로에서 ${g.offM.round()}m 벗어났어요 — 점선 쪽으로 돌아가 주세요';
+  if (offRoute) return '경로에서 ${g.offM.round()}m 벗어났어요';
   if (g.remainingM < _soonM) return '거의 다 왔어요';
   final next = g.next;
   if (next == null) return '도착까지 ${(g.remainingM / 10).round() * 10}m 직진';

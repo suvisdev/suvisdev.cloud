@@ -18,6 +18,8 @@ import {
   guidanceText,
   isOffRoute,
   locate,
+  rejoinTarget,
+  remainderFrom,
   type Guidance,
   type RouteGuide,
 } from "@/lib/gildle-guidance"
@@ -101,6 +103,8 @@ type WalkState = {
   /** 계획 경로 기준 길 안내(경로 없이 걷거나 위치가 아직 없으면 null) */
   guidance: Guidance | null
   offRoute: boolean
+  /** 이탈 후 새로 받은 길 — 있으면 계획 경로 대신 이 길을 그리고 안내한다 */
+  rerouted: Point[] | null
 }
 
 const WALK_IDLE: WalkState = {
@@ -112,6 +116,7 @@ const WALK_IDLE: WalkState = {
   savedId: null,
   guidance: null,
   offRoute: false,
+  rerouted: null,
 }
 
 type NaverGlobal = typeof naver
@@ -311,6 +316,7 @@ export default function GildleMap() {
   const routeOverlaysRef = useRef<naver.maps.Polyline[]>([])
   const walkOverlaysRef = useRef<naver.maps.Polyline[]>([])
   const guideRef = useRef<RouteGuide | null>(null)
+  const [rerouting, setRerouting] = useState(false)
   const watchIdRef = useRef<number | null>(null)
 
   const [sdkReady, setSdkReady] = useState(false)
@@ -571,7 +577,7 @@ export default function GildleMap() {
     const map = mapRef.current
     if (!nv || !map) return
     arrowMarkersRef.current.forEach((m) => m.setMap(null))
-    arrowMarkersRef.current = directionArrows(routeCoords).map(
+    arrowMarkersRef.current = directionArrows(walk.rerouted ?? routeCoords).map(
       ({ at, deg }) =>
         new nv.maps.Marker({
           map,
@@ -583,7 +589,7 @@ export default function GildleMap() {
           },
         })
     )
-  }, [routeCoords, sdkReady])
+  }, [routeCoords, walk.rerouted, sdkReady])
 
   // --- 산책 추적 오버레이: 계획 경로는 회색 점선, 걸은 길은 accent 실선(앱 WalkScreen과 동일) ---
   useEffect(() => {
@@ -594,11 +600,12 @@ export default function GildleMap() {
     walkOverlaysRef.current = []
     if (!isWalking(walk.status)) return
     const overlays: naver.maps.Polyline[] = []
-    if (routeCoords.length >= 2) {
+    const plannedCoords = walk.rerouted ?? routeCoords
+    if (plannedCoords.length >= 2) {
       overlays.push(
         new nv.maps.Polyline({
           map,
-          path: routeCoords.map((p) => new nv.maps.LatLng(p.lat, p.lng)),
+          path: plannedCoords.map((p) => new nv.maps.LatLng(p.lat, p.lng)),
           strokeColor: COLOR_MUTED,
           strokeOpacity: 0.7,
           strokeWeight: 5,
@@ -624,7 +631,7 @@ export default function GildleMap() {
       const bounds = map.getBounds() as naver.maps.LatLngBounds
       if (!bounds.hasLatLng(ll)) map.panTo(ll) // 화면 밖으로 나갔을 때만 따라간다
     }
-  }, [walk.status, walk.points, routeCoords, sdkReady])
+  }, [walk.status, walk.points, walk.rerouted, routeCoords, sdkReady])
 
   // 추적 중엔 경로 오버레이를 숨긴다(점선 계획 경로가 대신 보인다).
   useEffect(() => {
@@ -632,9 +639,19 @@ export default function GildleMap() {
     routeOverlaysRef.current.forEach((o) => o.setVisible(!hide))
   }, [walk.status, routeCoords])
 
-  // 경로를 벗어나는 순간 한 번 진동(지원하는 기기만)
+  // 경로를 벗어나는 순간 한 번 진동 + 기기 알림(지원·허용한 브라우저만 — 안 되면 화면 안내만 남는다)
   useEffect(() => {
-    if (walk.offRoute) navigator.vibrate?.(200)
+    if (!walk.offRoute) return
+    navigator.vibrate?.(200)
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return
+    try {
+      new Notification("경로를 벗어났어요", {
+        body: "길들 화면에서 '새 길 찾기'를 누르면 여기서부터 다시 추천해요.",
+        tag: "gildle-off-route",
+      })
+    } catch {
+      // 모바일 크롬은 페이지에서 직접 알림을 만들 수 없다 — 진동과 화면 안내로 대신한다
+    }
   }, [walk.offRoute])
 
   // --- 산책 타이머 ---
@@ -777,6 +794,9 @@ export default function GildleMap() {
     setError(null)
     setWalk({ ...WALK_IDLE, status: "tracking", startedAt: Date.now() })
     guideRef.current = buildGuide(routeCoords)
+    if (routeCoords.length >= 2 && typeof Notification !== "undefined") {
+      if (Notification.permission === "default") void Notification.requestPermission()
+    }
     // 시작하자마자 경로와 내 위치를 한 화면에 — 내 위치로만 옮기면 경로가 화면 밖으로 나간다(09-29 실사용)
     navigator.geolocation.getCurrentPosition((pos) => {
       const nv = getNaver()
@@ -810,6 +830,45 @@ export default function GildleMap() {
       () => setError("위치를 받지 못하고 있어요. 위치 권한을 확인해 주세요."),
       { enableHighAccuracy: true, maximumAge: 2000 }
     )
+  }
+
+  // 이탈한 자리에서 새 길을 받는다. 목적지가 있는 길은 목적지까지, 돌아오는 코스는 원래 코스의
+  // 앞쪽 지점으로 합류하는 길을 받아 나머지 코스를 이어 붙인다(앱 reroute와 동일).
+  const rerouteWalk = async () => {
+    const guide = guideRef.current
+    const here = walk.points[walk.points.length - 1]
+    if (!guide || !here || rerouting) return
+    setRerouting(true)
+    setError(null)
+    try {
+      const target = rejoinTarget(guide, here, walk.guidance?.progressM ?? 0)
+      const { options: found } = await getRouteOptions({
+        start_lat: here.lat,
+        start_lng: here.lng,
+        end_lat: target.point.lat,
+        end_lng: target.point.lng,
+        mode,
+      })
+      const picked =
+        found.find((o) => o.kind === option?.kind) ?? found.find((o) => o.recommended) ?? found[0]
+      if (!picked) throw new Error("새 길을 찾지 못했어요. 점선 쪽으로 돌아가 주세요.")
+      const coords = [
+        here,
+        ...picked.coordinates.map(([lat, lng]) => ({ lat, lng })),
+        ...remainderFrom(guide, target.alongM),
+      ]
+      const next = buildGuide(coords)
+      guideRef.current = next
+      setWalk((w) => ({
+        ...w,
+        rerouted: coords,
+        guidance: next ? locate(next, here, 0) : null,
+        offRoute: false,
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "새 길을 찾지 못했어요.")
+    }
+    setRerouting(false)
   }
 
   // 추적을 멈춘다. 걸은 길이 있으면 바로 저장하고, 없으면 저장할지 버릴지 묻는다(앱과 동일).
@@ -1210,6 +1269,16 @@ export default function GildleMap() {
                 )}
               >
                 <span>{guidanceText(walk.guidance, walk.offRoute)}</span>
+                {walk.offRoute && (
+                  <button
+                    type="button"
+                    disabled={rerouting}
+                    onClick={() => void rerouteWalk()}
+                    className="ml-auto rounded-md bg-[#0a0d0a] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                  >
+                    {rerouting ? "찾는 중…" : "새 길 찾기"}
+                  </button>
+                )}
                 {!walk.offRoute && (
                   <span className="text-gildle-muted ml-auto text-xs font-normal">
                     남은 {formatKmShort(walk.guidance.remainingM)}

@@ -23,6 +23,8 @@ const WINDOW_AHEAD_M = 250
 const OFF_ENTER_M = 40 // 이만큼 벗어나면 이탈
 const OFF_EXIT_M = 25 // 이 안으로 돌아오면 복귀(경계에서 깜빡이지 않게 차이를 둔다)
 const SOON_M = 25
+const LOOP_GAP_M = 50 // 시작·끝이 이 안이면 돌아오는 코스
+const REJOIN_AHEAD_M = 400 // 합류 지점은 이 앞까지만 찾는다(출발점 근처에서 끝점으로 건너뛰지 않게)
 
 const M_PER_DEG_LAT = 110540
 const M_PER_DEG_LNG = 111320
@@ -120,6 +122,46 @@ export function locate(guide: RouteGuide, p: GuidePoint, prevProgressM: number):
   }
 }
 
+/** 시작과 끝이 같은 자리면 돌아오는 코스. */
+export function isLoopRoute(coords: GuidePoint[]): boolean {
+  return coords.length >= 2 && distM(coords[0], coords[coords.length - 1]) < LOOP_GAP_M
+}
+
+/** 이탈했을 때 새 길이 향할 곳. 목적지가 있는 길은 끝점, 돌아오는 코스는 아직 안 걸은 구간에서
+ *  가장 가까운 지점 — 거기로 합류해 나머지는 원래 코스를 그대로 걷는다. */
+export function rejoinTarget(
+  guide: RouteGuide,
+  p: GuidePoint,
+  progressM: number
+): { point: GuidePoint; alongM: number } {
+  const { coords, cum, totalM } = guide
+  if (!isLoopRoute(coords)) return { point: coords[coords.length - 1], alongM: totalM }
+  const from = Math.min(progressM, totalM)
+  const to = Math.min(totalM, from + REJOIN_AHEAD_M)
+  let best = { off: Infinity, along: from }
+  for (let i = 1; i < coords.length; i++) {
+    const len = cum[i] - cum[i - 1]
+    if (cum[i] < from || cum[i - 1] > to || len <= 0) continue
+    const [ax, ay] = toXY(coords[i - 1], p)
+    const [bx, by] = toXY(coords[i], p)
+    const dx = bx - ax
+    const dy = by - ay
+    // 구간 중 [from, to]에 드는 부분으로만 투영한다
+    const tMin = Math.max(0, (from - cum[i - 1]) / len)
+    const tMax = Math.min(1, (to - cum[i - 1]) / len)
+    const t = Math.max(tMin, Math.min(tMax, -(ax * dx + ay * dy) / (dx * dx + dy * dy)))
+    const off = Math.hypot(ax + dx * t, ay + dy * t)
+    if (off < best.off) best = { off, along: cum[i - 1] + len * t }
+  }
+  return { point: pointAt(coords, cum, best.along), alongM: best.along }
+}
+
+/** `alongM` 지점부터 끝까지의 원래 경로. */
+export function remainderFrom(guide: RouteGuide, alongM: number): GuidePoint[] {
+  const { coords, cum } = guide
+  return [pointAt(coords, cum, alongM), ...coords.filter((_, i) => cum[i] > alongM)]
+}
+
 export function isOffRoute(offM: number, wasOff: boolean): boolean {
   return offM > (wasOff ? OFF_EXIT_M : OFF_ENTER_M)
 }
@@ -132,7 +174,7 @@ const SIDE_LABEL: Record<TurnSide, string> = {
 
 /** 안내 한 줄 — "120m 앞에서 왼쪽으로". */
 export function guidanceText(g: Guidance, offRoute: boolean): string {
-  if (offRoute) return `경로에서 ${Math.round(g.offM)}m 벗어났어요 — 점선 쪽으로 돌아가 주세요`
+  if (offRoute) return `경로에서 ${Math.round(g.offM)}m 벗어났어요`
   if (g.remainingM < SOON_M) return "거의 다 왔어요"
   if (!g.next) return `도착까지 ${Math.round(g.remainingM / 10) * 10}m 직진`
   const side = SIDE_LABEL[g.next.side]
