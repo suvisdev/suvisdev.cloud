@@ -66,6 +66,14 @@ class MovaReview(MovaModel):
         nullable=True,
         comment="에디터 리뷰 생성 시 참고한 뉴스 기사 수. 일반 유저 리뷰는 NULL.",
     )
+    news_sources: Mapped[list[Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment=(
+            "에디터 리뷰가 참고한 뉴스 출처 [{title, url, source}]. 유저 리뷰는 NULL. "
+            "기존 에디터 리뷰(백필 전)도 NULL — 개수 배지(news_source_count)만 있고 링크는 새 리뷰부터."
+        ),
+    )
     spoiler_spans: Mapped[list[Any]] = mapped_column(
         JSONB,
         nullable=False,

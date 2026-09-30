@@ -67,6 +67,7 @@ class ReviewWithUserSchema(BaseModel):
     sentiment_label: str | None = None
     sentiment_score: float | None = None
     news_source_count: int | None = None
+    news_sources: list[dict[str, str]] | None = None
     vote_count: int = 0
 
 

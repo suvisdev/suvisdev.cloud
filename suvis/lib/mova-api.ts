@@ -98,6 +98,7 @@ export type MovaReviewRow = {
   sentiment_label?: string | null
   sentiment_score?: number | null
   news_source_count?: number | null
+  news_sources?: { title: string; url: string; source: string }[] | null
   vote_count?: number
 }
 
@@ -554,6 +555,7 @@ export function movaReviewToComment(row: MovaReviewRow): MovaComment {
     sentimentLabel: row.sentiment_label,
     sentimentScore: row.sentiment_score,
     newsSourceCount: row.news_source_count,
+    newsSources: row.news_sources,
   }
 }
 

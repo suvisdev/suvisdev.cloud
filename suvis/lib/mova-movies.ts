@@ -19,6 +19,7 @@ export type MovaComment = {
   sentimentLabel?: string | null
   sentimentScore?: number | null
   newsSourceCount?: number | null
+  newsSources?: { title: string; url: string; source: string }[] | null
 }
 
 export type MovaMovie = {
