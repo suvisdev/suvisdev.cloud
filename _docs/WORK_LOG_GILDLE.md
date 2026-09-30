@@ -54,7 +54,11 @@
 - 앱은 `flutter analyze` 0건·`flutter test` 4/4까지만 확인. **실기기 화면은 미확인** — 새 빌드로 직접 확인 필요.
 
 ### 산출물
-- 브랜치 `feat/gildle-web-app-parity`. 앱 반영은 새 AAB 빌드·Play 테스트 업로드가 필요하다.
+- PR #136 머지(`0485fea`)·Vercel 배포 — 운영에서 ping 204·길들 페이지 200·경로 후보 3종·무쿠키 삭제 401 확인.
+- **AAB 빌드**: `바탕화면/길들/gildle-release-20260930.aab`(76.9MB, versionName 1.0.1·versionCode 2, PR #137). 업로드 키
+  지문이 09-28 번들과 일치. 이번엔 윈도우 Flutter(`C:\src\flutter` 3.47.2)로 빌드 — WSL 경로에서 직접 돌리면 크래시하므로
+  저장소를 `C:\tmp`에 복사해 빌드하고, 키 파일이 든 복사본은 지웠다(`key.properties`의 storeFile은 윈도우 경로 그대로 사용).
+- **남은 것**: 실기기 화면 확인 → Play 내부 테스트 업로드.
 
 ---
 

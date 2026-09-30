@@ -68,6 +68,7 @@
   gildle 운영 API(routes 3모드·options 4·loops 3·walk/plan·app/version) 200, 보호 엔드포인트 무토큰 401 /
   Flutter `analyze` 0건·`test` 3/3 / 파드 에러 로그 0 / 운영 파드 소스 1280파일이 저장소와 sha1 일치(재배포 불요).
 - 운영 라이브 확인: `suvisdev.cloud` `/api/auth/login` 오답 401·`/api/backend/mova/whoami` 무쿠키 401·`/api/auth/logout` 200.
+- 세션 마감 시점 운영: main `260758d`(PR #134~#138 머지), Vercel 배포 성공, 백엔드는 재배포 없음(서빙 코드 변경 없음).
 - 미처리(이번 세션 이전부터): ruff 린트 11건(UP042×7·B905×2·I001·UP017)·포맷 드리프트 28파일.
 
 ### 산출물

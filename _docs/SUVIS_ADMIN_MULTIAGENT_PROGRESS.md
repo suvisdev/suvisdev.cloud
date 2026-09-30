@@ -428,7 +428,8 @@ http://127.0.0.1:31386`.
   `[MAINPAGE]` 09-30. **🟡(잔여)**: access TTL 7일(짧은 TTL+상시 리프레시는 후속, 인프라는 준비됨) ·
   pgadmin admin/admin(replicas:0).
 - **gildle 웹·앱 통일(09-30, `[GILDLE]` 09-30)**: 앱이 웹과 같은 API(후보·들렀다 가기·문장 추천)·장소 검색, 웹이 앱의 삭제·끝내기 확인·
-  페이스. BFF 204·user-agent 회귀 수정 포함. **남은 것: 앱 실기기 확인 + 새 AAB 빌드·Play 업로드.**
+  페이스. BFF 204·user-agent 회귀 수정 포함. AAB `gildle-release-20260930.aab`(1.0.1+2) 빌드 완료. **남은 것: 앱 실기기 확인 → Play 업로드.**
+- **로그인 표시·쿠키 어긋남 수정(09-30, PR #138 배포)**: `SessionSync`가 페이지 열 때 whoami로 확인. 남은 것: 브라우저 실확인.
 - **v1 전체 점검 통과(09-30)**: pytest 1030·import-linter 6 kept·tsc/eslint 0·mova 하네스 28/28·16/17(날짜 의존 1건)·
   gildle API·Flutter analyze 0/test 3. 잔여: 기존 ruff 린트 11건·포맷 드리프트 28파일.
 - **09-11 전체 코드 리뷰 + 후속 수정 ①~⑤ 완료(09-17 이후 빌드로 배포됨, 09-28 확인)** — 리뷰 결과·처리
