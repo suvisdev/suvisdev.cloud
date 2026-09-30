@@ -137,6 +137,8 @@ export type WalkPlanResult = {
     minutes: number | null
     distance_km: number | null
     preference: WalkPreference
+    /** 함께 적용한 선호 전부(복수 선택, 2026-09-30). 첫 값이 대표(preference). */
+    preferences?: WalkPreference[]
     stops: WalkStopCategory[]
     destination: WalkStopCategory | null
     source: "llm" | "rules" | "form"
@@ -170,6 +172,7 @@ export function planWalk(body: {
   minutes?: number
   distance_km?: number
   preference?: WalkPreference
+  preferences?: WalkPreference[]
   stops?: WalkStopCategory[]
   departure_time?: string
 }): Promise<WalkPlanResult> {

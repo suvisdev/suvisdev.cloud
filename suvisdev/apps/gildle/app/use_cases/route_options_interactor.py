@@ -25,7 +25,13 @@ from gildle.domain.services.route_geometry import (
     path_edges,
 )
 from gildle.domain.services.route_option_describer import RouteOptionMetrics, describe
-from gildle.domain.services.walk_preference import Elevation, climb_m, make_weight
+from gildle.domain.services.walk_preference import (
+    Elevation,
+    climb_m,
+    combined_label,
+    make_combined_weight,
+    make_weight,
+)
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.pet_place import PetPlace
 from gildle.domain.value_objects.route_edge import RouteEdge
@@ -197,11 +203,17 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         stop_categories: tuple[str, ...],
         nearest_node: Callable[[Coordinate], str | None],
         limit: int = 3,
+        preferences: tuple[str, ...] = (),
     ) -> list[RouteOptionDto]:
-        """출발지로 돌아오는 목표 거리 루프 — 선호 가중치로 찾고, 들를 곳 종류를 지나는 루프를 앞에."""
+        """출발지로 돌아오는 목표 거리 루프 — 선호 가중치로 찾고, 들를 곳 종류를 지나는 루프를 앞에.
+
+        `preferences`에 여러 선호가 오면 함께 적용한다(편한 길 + 그늘 많은 길). 후보의 종류(kind)는
+        대표 선호(`preference`)로 두고 이름만 조합으로 바꾼다.
+        """
         if self._loops is None:
             return []
-        weight, floor = make_weight(preference, shade_lookup=shade_lookup, elevation=elevation)
+        prefs = preferences or (preference,)
+        weight, floor = make_combined_weight(prefs, shade_lookup=shade_lookup, elevation=elevation)
         found = self._loops.execute(
             edges,
             start,
@@ -236,18 +248,30 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
             )
             for i, c in enumerate(found)
         ]
+        if len(prefs) > 1:
+            # 이름과 이유 문장의 성격 이름을 조합으로 바꾼다("편한 길 코스" → "편한 길 + 그늘 많은 길 코스")
+            name = combined_label(prefs)
+            built = [
+                replace(o, label=name, reason=o.reason.replace(o.label, name, 1)) for o in built
+            ]
         wanted = set(stop_categories)
-        # 들를 곳을 지나는 루프 먼저, 그다음 고른 성격이 가장 뚜렷한 루프(모두 제한 시간 안)
-        built.sort(
-            key=lambda o: (-len(wanted & {p.category for p in o.places}), _pref_rank(preference, o))
-        )
+        # 들를 곳을 지나는 루프 먼저, 그다음 고른 성격이 가장 뚜렷한 루프(모두 제한 시간 안).
+        # 선호가 여럿이면 선호별 순위를 더해 고르게 맞는 루프를 앞에 둔다.
+        order = _combined_order(prefs, built)
+        built = [
+            o
+            for _, o in sorted(
+                enumerate(built),
+                key=lambda io: (-len(wanted & {p.category for p in io[1].places}), order[io[0]]),
+            )
+        ]
         out = built[:limit]
         out[0] = replace(out[0], recommended=True)
         logger.info(
             "[RouteOptions] 루프 %s 목표 %dm 선호 %s 들를곳 %s → %s",
             start,
             round(target_m),
-            preference,
+            "+".join(prefs),
             ",".join(stop_categories) or "-",
             ",".join(f"{round(o.length_m)}m" for o in out),
         )
@@ -362,6 +386,16 @@ def _lookup(edges: list[RouteEdge]) -> EdgeLookup:
 
 def _length(lookup: EdgeLookup, path: list[str]) -> float:
     return sum(e.base_distance_m for e in path_edges(lookup, path))
+
+
+def _combined_order(prefs: tuple[str, ...], options: list[RouteOptionDto]) -> list[float]:
+    """후보별 정렬 값 — 선호마다 매긴 순위(0이 가장 잘 맞음)의 합. 선호가 하나면 그 순위 그대로."""
+    total = [0.0] * len(options)
+    for p in prefs:
+        ranked = sorted(range(len(options)), key=lambda i: _pref_rank(p, options[i]))
+        for position, i in enumerate(ranked):
+            total[i] += position
+    return total
 
 
 def _pref_rank(preference: str, o: RouteOptionDto) -> float:

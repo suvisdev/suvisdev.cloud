@@ -12,7 +12,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from gildle.domain.services.walk_preference import PREFERENCES
+from gildle.domain.services.walk_preference import PREFERENCES, normalize_preferences
 
 STOP_CATEGORIES = ("동물병원", "펫샵", "용품점", "애견카페")
 MIN_MINUTES, MAX_MINUTES = 5, 180
@@ -24,7 +24,7 @@ _PREF_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("hilly", ("언덕", "오르막", "경사", "등산", "운동되", "운동 되", "운동이 되", "땀")),
     (
         "flat",
-        ("편한", "편하게", "편히", "평지", "완만", "평평", "무릎", "노견", "힘들지 않", "쉬운"),
+        ("편한", "편하", "편히", "평지", "완만", "평평", "무릎", "노견", "힘들지 않", "쉬운"),
     ),
     ("shade", ("그늘", "햇빛", "햇볕", "덥", "시원")),
     ("green", ("나무", "숲", "공원", "푸른", "초록", "자연")),
@@ -52,11 +52,17 @@ class WalkRequest:
     kind: str = "loop"
     minutes: int | None = None
     distance_km: float | None = None
-    preference: str = "flat"
+    preference: str = "flat"  # 대표 선호(후보의 종류·색·정렬 기준) — preferences의 첫 값
+    # 함께 고른 선호 전부(2026-09-30 복수 선택). 비어 있으면 preference 하나로 본다.
+    preferences: tuple[str, ...] = ()
     stops: tuple[str, ...] = ()
     destination: str | None = None  # route일 때 목적지 종류(STOP_CATEGORIES) — 좌표는 코드가 고른다
     source: str = "rules"  # llm | rules | form
     notes: tuple[str, ...] = field(default_factory=tuple)
+
+    @property
+    def all_preferences(self) -> tuple[str, ...]:
+        return self.preferences or (self.preference,)
 
     def targets(self) -> tuple[float, float | None]:
         """(목표 길이 m, 상한 m). 시간만 주면 그 시간에 걸을 거리의 95%를 목표로, 상한은 그 거리.
@@ -98,11 +104,19 @@ def _km(text: str) -> float | None:
     return None
 
 
-def _preference(text: str) -> str | None:
+def _preferences(text: str) -> tuple[str, ...]:
+    """문장에 단서가 있는 선호 전부 — "편하고 그늘 많은 길"이면 (flat, shade). 문장에 먼저 나온 순서."""
+    found: list[tuple[int, str]] = []
     for pref, words in _PREF_WORDS:
-        if any(w in text for w in words):
-            return pref
-    return None
+        positions = [text.find(w) for w in words if w in text]
+        if positions:
+            found.append((min(positions), pref))
+    return normalize_preferences(p for _, p in sorted(found))
+
+
+def _preference(text: str) -> str | None:
+    prefs = _preferences(text)
+    return prefs[0] if prefs else None
 
 
 def _stops(text: str) -> tuple[str, ...]:
@@ -133,13 +147,15 @@ def parse_rules(text: str) -> WalkRequest:
     """모델 없이 문장에서 바로 뽑는 규칙 이해 — 폴백이자 검증 근거."""
     t = text or ""
     destination = _destination(t)
+    prefs = _preferences(t) or ("flat",)
     return WalkRequest(
         kind="route"
         if destination or (re.search(r"까지\s*(가|걸)", t) and "집" not in t)
         else "loop",
         minutes=_clamp_minutes(_minutes(t)),
         distance_km=_clamp_km(_km(t)),
-        preference=_preference(t) or "flat",
+        preference=prefs[0],
+        preferences=prefs,
         stops=tuple(s for s in _stops(t) if s != destination),
         destination=destination,
         source="rules",
@@ -162,7 +178,7 @@ def verify(llm: Mapping[str, object] | None, text: str) -> WalkRequest:
     """모델 슬롯을 검증해 규칙 결과와 합친다.
 
     - 숫자: 문장에서 규칙이 잡은 값이 있으면 그 값(문장이 근거). 없을 때만 모델 값을 범위 안으로.
-    - 선호: 문장에 키워드 근거가 있으면 규칙, 없으면 모델 값이 목록 안일 때만.
+    - 선호: 문장에 키워드 근거가 있으면 규칙(여러 개면 전부), 없으면 모델 값이 목록 안일 때만.
     - 들를 곳: 규칙 ∪ 목록 안의 모델 값.
     - 목적지: 규칙이 잡았으면 규칙. 아니면 모델 값이 종류 목록 안이고 문장에 그 종류의 단어가 있을 때만
       (근거 없는 목적지는 버린다 — mova title 규칙과 같다). 목적지는 들를 곳에서 뺀다.
@@ -182,15 +198,15 @@ def verify(llm: Mapping[str, object] | None, text: str) -> WalkRequest:
     elif _clamp_km(llm.get("distance_km")) not in (None, km):
         notes.append("distance:rules")
     llm_pref = llm.get("preference")
-    keyword_pref = _preference(text)
-    if keyword_pref:
-        pref = keyword_pref
-        if llm_pref in PREFERENCES and llm_pref != keyword_pref:
+    keyword_prefs = _preferences(text)
+    if keyword_prefs:
+        prefs = keyword_prefs
+        if llm_pref in PREFERENCES and llm_pref not in keyword_prefs:
             notes.append("preference:rules")
     elif isinstance(llm_pref, str) and llm_pref in PREFERENCES:
-        pref = llm_pref
+        prefs = (llm_pref,)
     else:
-        pref = rules.preference
+        prefs = rules.all_preferences
     raw_stops = llm.get("stops")
     llm_stops = (
         [s for s in raw_stops if isinstance(s, str) and s in STOP_CATEGORIES]
@@ -217,7 +233,8 @@ def verify(llm: Mapping[str, object] | None, text: str) -> WalkRequest:
         kind=str(kind),
         minutes=minutes,
         distance_km=km,
-        preference=pref,
+        preference=prefs[0],
+        preferences=prefs,
         stops=stops,
         destination=destination,
         source="llm",
@@ -234,17 +251,23 @@ def apply_form(
     stops: list[str] | None,
     has_end: bool,
     has_text: bool,
+    preferences: list[str] | None = None,
 ) -> WalkRequest:
     """화면에서 직접 고른 값은 이해 결과보다 우선한다(사용자가 명시한 것).
     지도에서 도착지를 찍었으면(has_end) 그 좌표가 목적지라 문장의 목적지 종류는 들를 곳으로 내린다."""
     base_stops = base.stops
     if has_end and base.destination and base.destination not in base_stops:
         base_stops = (*base_stops, base.destination)
+    form_prefs = normalize_preferences(
+        [*(preferences or []), *([preference] if preference else [])]
+    )
+    prefs = form_prefs or base.all_preferences
     return WalkRequest(
         kind="route" if has_end or base.destination else "loop",
         minutes=_clamp_minutes(minutes) if minutes else base.minutes,
         distance_km=_clamp_km(distance_km) if distance_km else base.distance_km,
-        preference=preference if preference in PREFERENCES else base.preference,
+        preference=prefs[0],
+        preferences=prefs,
         stops=tuple(s for s in STOP_CATEGORIES if s in (stops or [])) or base_stops,
         destination=None if has_end else base.destination,
         source=base.source if has_text else "form",

@@ -7,7 +7,7 @@ A* 휴리스틱(직선거리 × 배율)이 안전하도록 가중치/거리의 �
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from gildle.domain.value_objects.route_edge import RouteEdge
 
@@ -74,6 +74,60 @@ def make_weight(
             )
         ), 1 - _HILL_DISCOUNT
     return (lambda e: e.base_distance_m), 1.0
+
+
+def normalize_preferences(preferences: Iterable[str]) -> tuple[str, ...]:
+    """함께 고른 선호를 정리한다 — 목록 밖 값·중복은 버리고, 서로 모순이거나 의미 없는 조합을 뺀다.
+
+    - "빠른 길"은 가중치가 거리 그대로라 다른 성격과 같이 고르면 의미가 없다 → 다른 것이 있으면 뺀다.
+    - "편한 길"과 "언덕길"은 반대다 → 먼저 고른 쪽만 남긴다.
+    """
+    out: list[str] = []
+    for p in preferences:
+        if p in PREFERENCES and p not in out:
+            out.append(p)
+    if len(out) > 1:
+        out = [p for p in out if p != "fast"]
+    if "flat" in out and "hilly" in out:
+        out.remove(out[max(out.index("flat"), out.index("hilly"))])
+    return tuple(out)
+
+
+def combined_label(preferences: Iterable[str]) -> str:
+    return " + ".join(PREFERENCE_LABEL.get(p, p) for p in preferences)
+
+
+def make_combined_weight(
+    preferences: Iterable[str], *, shade_lookup: ShadeLookup | None, elevation: Elevation | None
+) -> tuple[WeightFn, float]:
+    """여러 선호를 함께 적용한 가중치 — 각 선호의 (가중치/거리) 배율을 곱한다(2026-09-30).
+
+    "편한 길 + 그늘 많은 길"이면 경사 페널티와 햇빛 페널티가 둘 다 걸린다. 하한도 각 하한의 곱이라
+    A* 휴리스틱이 그대로 안전하다(각 배율 ≥ 자기 하한 → 곱 ≥ 하한의 곱).
+    """
+    parts = [
+        make_weight(p, shade_lookup=shade_lookup, elevation=elevation)
+        for p in normalize_preferences(preferences)
+    ]
+    if not parts:
+        return make_weight("fast", shade_lookup=shade_lookup, elevation=elevation)
+    if len(parts) == 1:
+        return parts[0]
+    fns = [fn for fn, _ in parts]
+    floor = 1.0
+    for _, f in parts:
+        floor *= f
+
+    def weight(e: RouteEdge) -> float:
+        d = e.base_distance_m
+        if d <= 0:
+            return 0.0
+        m = 1.0
+        for fn in fns:
+            m *= fn(e) / d
+        return d * m
+
+    return weight, floor
 
 
 def climb_m(path: list[str], elevation: Elevation | None) -> float | None:

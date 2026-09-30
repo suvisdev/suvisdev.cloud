@@ -759,6 +759,7 @@ def walk_plan(
         minutes=request.minutes,
         distance_km=request.distance_km,
         preference=request.preference,
+        preferences=request.preferences,
         stops=request.stops,
         has_end=end is not None,
     )
@@ -786,6 +787,7 @@ def walk_plan(
             "minutes": u.minutes,
             "distance_km": u.distance_km,
             "preference": u.preference,
+            "preferences": list(u.all_preferences),
             "stops": list(u.stops),
             "destination": u.destination,
             "source": u.source,

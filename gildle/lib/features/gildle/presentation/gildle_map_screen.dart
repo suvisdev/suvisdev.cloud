@@ -38,7 +38,24 @@ const _sourceLabels = {'llm': 'AI가 이해', 'rules': '문장에서 읽음', 'f
 const _routeNotice = '업데이트가 안된 경우에는 길이 조금 다를 수 있는 점 양해 부탁드리겠습니다.';
 const _locationError = '현재 위치를 가져오지 못했어요. 위치 권한을 확인해 주세요.';
 
+// 같은 성격의 후보가 여러 개일 때 서로 구분하는 색 — 웹 `INDEX_COLOR`와 같은 값.
+const _indexColors = [
+  Color(0xFF34D399),
+  Color(0xFF60A5FA),
+  Color(0xFFF472B6),
+  Color(0xFFFB923C),
+  Color(0xFFA3E635),
+];
+
 Color _kindColor(String kind) => _kindColors[kind] ?? _kindColors['shade']!;
+
+/// 후보 i의 색 — 성격이 겹치면 순서별, 아니면 성격별.
+Color _optionColor(MapState state, int i) =>
+    state.sameKind ? _indexColors[i % _indexColors.length] : _kindColor(state.options[i].kind);
+
+/// 후보 i의 이름 — 성격이 겹치면 "코스 N · 이름".
+String _optionTitle(MapState state, int i) =>
+    state.sameKind ? '코스 ${i + 1} · ${state.options[i].label}' : state.options[i].label;
 
 /// 지도 — 출발·도착을 찍으면 경로 후보들을, 추천 버튼은 시간·거리에 맞춘 산책 코스를 그린다.
 /// 웹 지도(`suvis/app/gildle/map`)와 같은 구성이다(2026-09-30 웹·앱 통일).
@@ -209,7 +226,7 @@ class _GildleMapScreenState extends ConsumerState<GildleMapScreen> {
           text: request.text,
           minutes: request.minutes,
           distanceKm: request.distanceKm,
-          preference: request.preference,
+          preferences: request.preferences,
           stops: request.stops,
         );
   }
@@ -260,17 +277,33 @@ class _GildleMapScreenState extends ConsumerState<GildleMapScreen> {
           paths: [
             NMultipartPath(
               coords: line,
-              color: _kindColor(o.kind),
+              color: _optionColor(state, i),
               outlineColor: Colors.white.withValues(alpha: 0.85),
             ),
           ],
         ));
+        // 진행 방향 화살표 — 고른 경로 위에 일정 간격으로
+        final arrows = directionArrows(coords);
+        for (var k = 0; k < arrows.length; k++) {
+          overlays.add(NArrowheadPathOverlay(
+            id: 'arrow-$k',
+            coords: [
+              NLatLng(arrows[k].from.lat, arrows[k].from.lng),
+              NLatLng(arrows[k].to.lat, arrows[k].to.lng),
+            ],
+            width: 3,
+            color: Colors.white,
+            outlineWidth: 1,
+            outlineColor: const Color(0xFF0A0D0A),
+            headSizeRatio: 3.2,
+          ));
+        }
         continue;
       }
       final other = NPolylineOverlay(
         id: 'option-$i',
         coords: line,
-        color: _kindColor(o.kind).withValues(alpha: 0.45),
+        color: _optionColor(state, i).withValues(alpha: 0.45),
         width: 6,
       )..setOnTapListener((_) => notifier.selectOption(i));
       overlays.add(other);
@@ -531,6 +564,8 @@ class _OptionList extends ConsumerWidget {
         for (var i = 0; i < state.options.length; i++)
           _OptionTile(
             option: state.options[i],
+            title: _optionTitle(state, i),
+            color: _optionColor(state, i),
             selected: i == state.selected,
             onTap: () => notifier.selectOption(i),
           ),
@@ -569,9 +604,17 @@ class _OptionList extends ConsumerWidget {
 }
 
 class _OptionTile extends StatelessWidget {
-  const _OptionTile({required this.option, required this.selected, required this.onTap});
+  const _OptionTile({
+    required this.option,
+    required this.title,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
 
   final RouteOption option;
+  final String title;
+  final Color color;
   final bool selected;
   final VoidCallback onTap;
 
@@ -602,10 +645,10 @@ class _OptionTile extends StatelessWidget {
                     Container(
                       width: 10,
                       height: 10,
-                      decoration: BoxDecoration(color: _kindColor(option.kind), shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                     ),
                     const SizedBox(width: 8),
-                    Text(option.label, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
                     if (option.recommended) ...[
                       const SizedBox(width: 6),
                       Container(
@@ -673,7 +716,7 @@ String _planSummary(WalkPlan plan) {
     if (plan.minutes != null) '${plan.minutes}분 안에',
     if (distanceKm != null) '${_trimNumber(distanceKm)}km',
     '목표 ${formatKmShort(plan.targetM)}',
-    _prefLabels[plan.preference] ?? plan.preference,
+    plan.preferences.map((k) => _prefLabels[k] ?? k).join(' + '),
     if (plan.stops.isNotEmpty) '${plan.stops.join('·')} 들르기',
   ];
   return '${parts.join(' · ')} (${_sourceLabels[plan.source] ?? plan.source})';
@@ -682,12 +725,18 @@ String _planSummary(WalkPlan plan) {
 String _trimNumber(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
 class _PlanRequest {
-  const _PlanRequest({this.text, this.minutes, this.distanceKm, this.preference, required this.stops});
+  const _PlanRequest({
+    this.text,
+    this.minutes,
+    this.distanceKm,
+    required this.preferences,
+    required this.stops,
+  });
 
   final String? text;
   final int? minutes;
   final double? distanceKm;
-  final String? preference;
+  final List<String> preferences;
   final List<String> stops;
 }
 
@@ -703,7 +752,7 @@ class _PlanSheetState extends State<_PlanSheet> {
   final _text = TextEditingController();
   final _minutes = TextEditingController();
   final _km = TextEditingController();
-  String? _preference;
+  final _preferences = <String>[]; // 고른 순서 유지 — 첫 값이 대표 선호
   final _stops = <String>{};
 
   @override
@@ -722,7 +771,7 @@ class _PlanSheetState extends State<_PlanSheet> {
       text: text.isEmpty ? null : text,
       minutes: minutes != null && minutes > 0 ? minutes.round() : null,
       distanceKm: km != null && km > 0 ? km : null,
-      preference: _preference,
+      preferences: List.of(_preferences),
       stops: _stopCategories.where(_stops.contains).toList(),
     ));
   }
@@ -775,15 +824,17 @@ class _PlanSheetState extends State<_PlanSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            Text('어떤 길로? (안 고르면 말한 대로, 없으면 편한 길)', style: caption),
+            Text('어떤 길로? 여러 개 고를 수 있어요 (안 고르면 말한 대로, 없으면 편한 길)', style: caption),
             Wrap(
               spacing: 6,
               children: [
                 for (final entry in _prefLabels.entries)
-                  ChoiceChip(
+                  FilterChip(
                     label: Text(entry.value),
-                    selected: _preference == entry.key,
-                    onSelected: (on) => setState(() => _preference = on ? entry.key : null),
+                    selected: _preferences.contains(entry.key),
+                    onSelected: (on) => setState(
+                      () => on ? _preferences.add(entry.key) : _preferences.remove(entry.key),
+                    ),
                   ),
               ],
             ),

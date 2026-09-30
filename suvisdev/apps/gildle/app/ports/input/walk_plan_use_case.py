@@ -22,6 +22,7 @@ class WalkPlanUseCase(ABC):
         preference: str | None,
         stops: list[str] | None,
         has_end: bool,
+        preferences: list[str] | None = None,
     ) -> WalkRequest: ...
 
     @abstractmethod

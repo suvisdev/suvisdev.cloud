@@ -17,6 +17,7 @@ from gildle.app.ports.input.route_options_use_case import RouteOptionsUseCase
 from gildle.app.ports.input.walk_plan_use_case import WalkPlanUseCase
 from gildle.app.ports.output.pet_place_port import PetPlacePort
 from gildle.app.ports.output.walk_understanding_port import WalkUnderstandingPort
+from gildle.domain.services.walk_preference import normalize_preferences
 from gildle.domain.services.walk_request import WalkRequest, apply_form, parse_rules, verify
 from gildle.domain.value_objects.coordinate import Coordinate
 from gildle.domain.value_objects.pet_place import PetPlace
@@ -47,6 +48,7 @@ class WalkPlanInteractor(WalkPlanUseCase):
         preference: str | None,
         stops: list[str] | None,
         has_end: bool,
+        preferences: list[str] | None = None,
     ) -> WalkRequest:
         text = (text or "").strip()
         base = parse_rules(text)
@@ -60,6 +62,7 @@ class WalkPlanInteractor(WalkPlanUseCase):
             minutes=minutes,
             distance_km=distance_km,
             preference=preference,
+            preferences=preferences,
             stops=stops,
             has_end=has_end,
             has_text=bool(text),
@@ -80,7 +83,6 @@ class WalkPlanInteractor(WalkPlanUseCase):
         start_point: Coordinate | None = None,
     ) -> WalkPlanDto:
         target_m, max_m = request.targets()
-        pref = request.preference
         place: PetPlace | None = None
         if end is None and request.kind == "route" and request.destination:
             place = self._nearest_place(start_point, request.destination)
@@ -96,10 +98,14 @@ class WalkPlanInteractor(WalkPlanUseCase):
                     options=[],
                     destination_place=place,
                 )
-        if pref == "shade" and shade_lookup is None:
-            pref = "green"  # 밤·그늘 데이터 없음 — 나무 그늘로 대신
-        if pref in ("flat", "hilly") and not elevation:
-            pref = "fast"
+        # 데이터가 없는 선호는 대신할 것으로 바꾼다 — 밤·그늘 데이터 없음 → 나무 그늘, 고도 없음 → 빠른 길
+        prefs = normalize_preferences(
+            "green"
+            if p == "shade" and shade_lookup is None
+            else ("fast" if p in ("flat", "hilly") and not elevation else p)
+            for p in request.all_preferences
+        ) or ("fast",)
+        pref = prefs[0]
         via: PetPlace | None = None
         if end is not None and request.kind == "route":
             via_node = None
@@ -116,7 +122,7 @@ class WalkPlanInteractor(WalkPlanUseCase):
                 shade_lookup=shade_lookup,
                 recommended_kind=pref,
                 elevation=elevation,
-                extra_kinds=(pref,),
+                extra_kinds=prefs,
                 via_node=via_node,
                 via_name=via.name if via is not None else None,
             )
@@ -127,6 +133,7 @@ class WalkPlanInteractor(WalkPlanUseCase):
                 target_m=target_m,
                 max_m=max_m,
                 preference=pref,
+                preferences=prefs,
                 shade_lookup=shade_lookup,
                 elevation=elevation,
                 stop_categories=request.stops,

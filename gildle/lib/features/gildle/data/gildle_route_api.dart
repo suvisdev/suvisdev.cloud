@@ -45,13 +45,13 @@ class GildleRouteApi {
     );
   }
 
-  /// 문장·시간·거리·선호·들를 곳으로 산책 추천. 문장은 서버(7.8B + 규칙)가 이해한다.
+  /// 문장·시간·거리·선호(여러 개 가능)·들를 곳으로 산책 추천. 문장은 서버(7.8B + 규칙)가 이해한다.
   Future<WalkPlan> plan({
     required GeoPoint start,
     String? text,
     int? minutes,
     double? distanceKm,
-    String? preference,
+    List<String> preferences = const [],
     List<String> stops = const [],
   }) async {
     final resp = await _dio.post(
@@ -62,7 +62,7 @@ class GildleRouteApi {
         'text': ?text,
         'minutes': ?minutes,
         'distance_km': ?distanceKm,
-        'preference': ?preference,
+        if (preferences.isNotEmpty) 'preferences': preferences,
         if (stops.isNotEmpty) 'stops': stops,
       },
       // 문장 이해(7.8B)가 첫 호출엔 모델을 올리느라 오래 걸린다.

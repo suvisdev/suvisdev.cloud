@@ -58,4 +58,5 @@ class RouteOptionsUseCase(ABC):
         stop_categories: tuple[str, ...],
         nearest_node: Callable[[Coordinate], str | None],
         limit: int = 3,
+        preferences: tuple[str, ...] = (),
     ) -> list[RouteOptionDto]: ...

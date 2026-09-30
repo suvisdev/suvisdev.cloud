@@ -108,6 +108,9 @@ class WalkPlanRequestSchema(BaseModel):
     minutes: int | None = Field(None, ge=1, le=600)
     distance_km: float | None = Field(None, gt=0, le=50)
     preference: str | None = Field(None, pattern="^(fast|shade|green|flat|hilly)$")
+    preferences: list[str] | None = Field(
+        None, max_length=5, description="함께 적용할 선호(복수 선택). 목록 밖 값은 무시한다"
+    )
     stops: list[str] | None = Field(None, max_length=4)
     end_lat: float | None = None
     end_lng: float | None = None
