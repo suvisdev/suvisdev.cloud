@@ -35,6 +35,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     ref.listen<WalkSessionState>(walkSessionProvider, (prev, next) {
       if (prev?.points.length != next.points.length) _drawWalked(next);
       if (next.offRoute && prev?.offRoute != true) HapticFeedback.vibrate(); // 이탈하는 순간 한 번
+      if (!identical(prev?.planned, next.planned)) _drawPlanned(next.planned); // 새 길을 받았을 때
       if (next.error != null && prev?.error != next.error) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -59,7 +60,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
               onMapReady: (c) async {
                 _map = c;
                 c.setLocationTrackingMode(NLocationTrackingMode.follow);
-                await _drawPlanned();
+                await _drawPlanned(ref.read(walkSessionProvider).planned ?? widget.planned);
                 await _drawWalked(ref.read(walkSessionProvider));
               },
             ),
@@ -68,7 +69,12 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 left: 12,
                 right: 12,
                 top: 12,
-                child: _GuidanceCard(guidance: state.guidance!, offRoute: state.offRoute),
+                child: _GuidanceCard(
+                  guidance: state.guidance!,
+                  offRoute: state.offRoute,
+                  rerouting: state.rerouting,
+                  onReroute: ref.read(walkSessionProvider.notifier).reroute,
+                ),
               ),
             Positioned(left: 12, right: 12, bottom: 12, child: _StatsCard(state: state, onStop: _confirmStop)),
           ],
@@ -77,11 +83,11 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     );
   }
 
-  Future<void> _drawPlanned() async {
-    final planned = widget.planned;
+  Future<void> _drawPlanned(PlannedRoute? planned) async {
     final map = _map;
     if (planned == null || map == null || planned.coordinates.length < 2) return;
     final muted = Theme.of(context).extension<GildleExtras>()!.muted;
+    await map.clearOverlays(type: NOverlayType.arrowheadPathOverlay); // 새 길이면 옛 화살표를 지운다
     await map.addOverlay(NPolylineOverlay(
       id: 'planned',
       coords: planned.coordinates.map((c) => NLatLng(c.lat, c.lng)).toList(),
@@ -169,10 +175,17 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
 /// 다음 방향 한 줄 + 남은 거리. 경로를 벗어나면 경고색으로 바뀐다.
 class _GuidanceCard extends StatelessWidget {
-  const _GuidanceCard({required this.guidance, required this.offRoute});
+  const _GuidanceCard({
+    required this.guidance,
+    required this.offRoute,
+    required this.rerouting,
+    required this.onReroute,
+  });
 
   final Guidance guidance;
   final bool offRoute;
+  final bool rerouting;
+  final VoidCallback onReroute;
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +216,11 @@ class _GuidanceCard extends StatelessWidget {
                 ),
               ),
             ),
+            if (offRoute)
+              FilledButton.tonal(
+                onPressed: rerouting ? null : onReroute,
+                child: Text(rerouting ? '찾는 중…' : '새 길 찾기'),
+              ),
             if (!offRoute)
               Text('남은 ${formatKmShort(guidance.remainingM)}', style: theme.textTheme.labelSmall?.copyWith(color: muted)),
           ],

@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/network/dio_client.dart';
+import '../data/gildle_route_api.dart';
 import '../data/models/walk.dart';
 import '../data/walks_api.dart';
 import '../domain/geo_point.dart';
 import '../domain/route_guidance.dart';
 import '../domain/season_mode.dart';
 import 'map_controller.dart';
+import 'walk_alerts.dart';
 
 final walksApiProvider = Provider<WalksApi>((ref) => WalksApi(ref.watch(dioProvider)));
 
@@ -17,9 +19,12 @@ enum WalkStatus { idle, tracking, stopped, saving, saved }
 
 /// 지도 화면에서 넘겨받는 계획 경로(없어도 산책은 된다).
 class PlannedRoute {
-  const PlannedRoute({required this.coordinates, required this.mode, this.shadeRatio});
+  const PlannedRoute({required this.coordinates, required this.mode, this.shadeRatio, this.kind});
 
   final List<GeoPoint> coordinates;
+
+  /// 고른 후보의 성격(fast·shade…) — 이탈 후 새 길도 같은 성격으로 고른다.
+  final String? kind;
   final SeasonMode mode;
   final double? shadeRatio;
 }
@@ -34,6 +39,7 @@ class WalkSessionState {
     this.planned,
     this.guidance,
     this.offRoute = false,
+    this.rerouting = false,
     this.error,
     this.saved,
   });
@@ -48,6 +54,9 @@ class WalkSessionState {
   /// 계획 경로 기준 길 안내(경로 없이 걷거나 위치가 아직 없으면 null).
   final Guidance? guidance;
   final bool offRoute;
+
+  /// 이탈 후 새 길을 받아 오는 중
+  final bool rerouting;
   final String? error;
   final WalkDetail? saved;
 
@@ -66,6 +75,7 @@ class WalkSessionState {
     PlannedRoute? planned,
     Guidance? guidance,
     bool? offRoute,
+    bool? rerouting,
     String? error,
     WalkDetail? saved,
     bool clearError = true,
@@ -79,6 +89,7 @@ class WalkSessionState {
         planned: planned ?? this.planned,
         guidance: guidance ?? this.guidance,
         offRoute: offRoute ?? this.offRoute,
+        rerouting: rerouting ?? this.rerouting,
         error: clearError ? error : (error ?? this.error),
         saved: saved ?? this.saved,
       );
@@ -90,9 +101,11 @@ const _minStepM = 2.0;
 const _distanceFilterM = 5;
 
 class WalkSessionController extends StateNotifier<WalkSessionState> {
-  WalkSessionController(this._api) : super(const WalkSessionState());
+  WalkSessionController(this._api, this._routes, this._alerts) : super(const WalkSessionState());
 
   final WalksApi _api;
+  final GildleRouteApi _routes;
+  final WalkAlerts _alerts;
   StreamSubscription<Position>? _positions;
   Timer? _ticker;
   RouteGuide? _guide;
@@ -110,6 +123,7 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
     }
     final startedAt = DateTime.now();
     _guide = planned == null ? null : RouteGuide.build(planned.coordinates);
+    if (_guide != null) unawaited(_alerts.init());
     state = WalkSessionState(status: WalkStatus.tracking, startedAt: startedAt, planned: planned);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.status == WalkStatus.tracking) {
@@ -141,15 +155,58 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
     final step = last?.distanceTo(p) ?? 0;
     if (last != null && step < _minStepM) return;
     final guidance = _guide?.locate(p, state.guidance?.progressM ?? 0);
+    final wasOff = state.offRoute;
+    final off = guidance == null ? false : isOffRoute(guidance.offM, wasOff: wasOff);
     state = state.copyWith(
       points: [...state.points, p],
       distanceM: state.distanceM + step,
       guidance: guidance,
-      offRoute: guidance == null ? false : isOffRoute(guidance.offM, wasOff: state.offRoute),
+      offRoute: off,
     );
+    if (off && !wasOff) unawaited(_alerts.offRoute(guidance.offM));
+    if (!off && wasOff) unawaited(_alerts.clear());
+  }
+
+  /// 이탈한 자리에서 새 길을 받는다. 목적지가 있는 길은 목적지까지, 돌아오는 코스는 원래 코스의
+  /// 앞쪽 지점으로 합류하는 길을 받아 나머지 코스를 이어 붙인다.
+  Future<void> reroute() async {
+    final guide = _guide;
+    final planned = state.planned;
+    final here = state.current;
+    if (guide == null || planned == null || here == null || state.rerouting) return;
+    state = state.copyWith(rerouting: true);
+    try {
+      final target = guide.rejoinTarget(here, state.guidance?.progressM ?? 0);
+      final found = (await _routes.options(start: here, end: target.point, mode: planned.mode)).options;
+      if (found.isEmpty) throw StateError('no route');
+      final picked = found.firstWhere(
+        (o) => o.kind == planned.kind,
+        orElse: () => found.firstWhere((o) => o.recommended, orElse: () => found.first),
+      );
+      final coords = [here, ...picked.coordinates, ...guide.remainderFrom(target.alongM)];
+      _guide = RouteGuide.build(coords);
+      state = WalkSessionState(
+        status: state.status,
+        startedAt: state.startedAt,
+        points: state.points,
+        distanceM: state.distanceM,
+        elapsed: state.elapsed,
+        planned: PlannedRoute(
+          coordinates: coords,
+          mode: planned.mode,
+          shadeRatio: planned.shadeRatio,
+          kind: planned.kind,
+        ),
+        guidance: _guide?.locate(here, 0),
+      );
+      unawaited(_alerts.clear());
+    } catch (e) {
+      state = state.copyWith(rerouting: false, error: '새 길을 찾지 못했어요. 점선 쪽으로 돌아가 주세요.');
+    }
   }
 
   Future<void> stop() async {
+    unawaited(_alerts.clear());
     await _positions?.cancel();
     _positions = null;
     _ticker?.cancel();
@@ -183,6 +240,7 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
   }
 
   void discard() {
+    unawaited(_alerts.clear());
     _positions?.cancel();
     _ticker?.cancel();
     state = const WalkSessionState();
@@ -197,5 +255,9 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
 }
 
 final walkSessionProvider = StateNotifierProvider<WalkSessionController, WalkSessionState>(
-  (ref) => WalkSessionController(ref.watch(walksApiProvider)),
+  (ref) => WalkSessionController(
+    ref.watch(walksApiProvider),
+    ref.watch(gildleRouteApiProvider),
+    ref.watch(walkAlertsProvider),
+  ),
 );

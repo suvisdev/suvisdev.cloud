@@ -535,6 +535,7 @@ class _BottomPanel extends ConsumerWidget {
       coordinates: state.displayedCoordinates,
       mode: state.mode,
       shadeRatio: state.option?.shadeRatio,
+      kind: state.option?.kind,
     );
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => WalkScreen(planned: planned)));
   }
