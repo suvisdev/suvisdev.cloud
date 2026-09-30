@@ -1,13 +1,14 @@
 import type { NextRequest} from "next/server";
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
+import { cookieBearer } from "@/lib/auth-bff"
 
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ reviewId: string }> },
 ): Promise<NextResponse> {
   const { reviewId } = await params
-  const auth = req.headers.get("authorization")
+  const auth = await cookieBearer()
   try {
     const res = await backendFetch(`/mova/reviews/${encodeURIComponent(reviewId)}`, {
       method: "DELETE",

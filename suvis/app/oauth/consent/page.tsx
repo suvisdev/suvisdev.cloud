@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Check } from "lucide-react"
 import { submitOAuthConsent } from "@/lib/oauth-api"
-import { saveSuvisSession } from "@/lib/suvis-session"
+import { saveSuvisSession, takePostLoginPath } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
 
 type ConsentItem = {
@@ -101,7 +101,7 @@ function OAuthConsentInner() {
     try {
       const session = await submitOAuthConsent(code, true)
       saveSuvisSession(session)
-      router.replace("/")
+      router.replace(takePostLoginPath())
     } catch (e) {
       setError(e instanceof Error ? e.message : "동의 처리에 실패했습니다.")
       setSubmitting(false)

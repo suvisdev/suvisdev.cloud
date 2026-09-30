@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { exchangeOAuthCode } from "@/lib/oauth-api"
-import { saveSuvisSession } from "@/lib/suvis-session"
+import { saveSuvisSession, takePostLoginPath } from "@/lib/suvis-session"
 
 /** 백엔드 /viewer/oauth/{provider}/callback이 이리로 돌려보낸다.
  * type=session: 기존 연결 계정 — 바로 세션 교환 후 홈으로.
@@ -35,7 +35,7 @@ function OAuthCallbackInner() {
     exchangeOAuthCode(code)
       .then((session) => {
         saveSuvisSession(session)
-        router.replace("/")
+        router.replace(takePostLoginPath())
       })
       .catch((e: Error) => setError(e.message))
   }, [params, router])

@@ -65,3 +65,28 @@ export async function syncSessionWithCookie(): Promise<void> {
     // 확인하지 못했으면 표시를 그대로 둔다.
   }
 }
+
+const POST_LOGIN_KEY = "suvis_post_login_path"
+
+/** 소셜 로그인은 외부로 나갔다 돌아오므로, 로그인 뒤 돌아갈 경로를 탭에 적어 둔다. */
+export function rememberPostLoginPath(path: string): void {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.setItem(POST_LOGIN_KEY, path)
+  } catch {
+    // 저장 못 하면 기본 경로("/")로 돌아갈 뿐이다.
+  }
+}
+
+/** 적어 둔 경로를 꺼내고 지운다. 사이트 안 경로("/…")만 받는다 — 외부 주소로 보내지 않는다. */
+export function takePostLoginPath(): string {
+  if (typeof window === "undefined") return "/"
+  try {
+    const path = window.sessionStorage.getItem(POST_LOGIN_KEY)
+    window.sessionStorage.removeItem(POST_LOGIN_KEY)
+    if (path && /^\/(?!\/)/.test(path)) return path
+  } catch {
+    // 아래 기본값으로
+  }
+  return "/"
+}
