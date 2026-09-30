@@ -628,6 +628,70 @@ def p_need_region_then_final(rng: random.Random, t: str, ctx: dict[str, Any]) ->
     )
 
 
+# --- v12 표적(2026-09-30): v9·v11 공통으로 틀린 하드 케이스 3종을 직격한다.
+#     실패는 문장이 아니라 "구분"이므로, 히스토리·동사로 갈리는 반례를 학습에 넣는다.
+def p_region_only_showtimes(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    """제목이 확정되지 않은 상태(상영작 나열)에서 지역만 주면 showtimes(region)만 — 제목을 붙이지 않는다.
+
+    booking_region_followup(특정 제목 '예매하고 싶어' 뒤 지역 → 그 제목 유지)과 대비된다: 히스토리에
+    단일 제목이 없으면(여러 편 나열/무슨 영화 있어) 박스오피스 상위작을 임의로 붙이지 말고 지역만 넘긴다
+    (09-30 하드: '서울에서 볼거야'·'제일 빠른걸로'에 v9·v11이 '암살자(들)'를 붙였다)."""
+    r = rng.choice(U.REGIONS)
+    shown = rng.sample(ctx["titles"], 3)
+    hist = [
+        {
+            "role": "user",
+            "content": rng.choice(
+                ["지금 볼만한 영화 뭐 있어", "예매할건데 무슨 영화 있어", "오늘 극장에 뭐 해"]
+            ),
+        },
+        {"role": "assistant", "content": U.rec_reply(shown, U._years(rng, 3))},
+    ]
+    msg = rng.choice(
+        [f"{r}에서 제일 빠른걸로", f"{r}에서 볼거야", f"그냥 {r}에서 아무거나", f"{r}에서 가까운 극장으로"]
+    )
+    return hist, msg, call("showtimes", region=r)
+
+
+def p_meta_set_final(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    """추천으로 여러 편 보여준 뒤 그 집합의 속성을 묻는 예/아니오 질문은 FINAL(맥락에서 답, 도구 아님).
+
+    '다 영화관에서 볼 수 있어?'(→now_showing, card_all_followup: 새 데이터 필요)와 달리 이미 보여준
+    작품들에 대한 메타 질문이다(09-30 하드: '다 2시간짜리 영화야?'를 v9·v11이 get_movie_details로 뺐다)."""
+    shown = rng.sample(ctx["titles"], 3)
+    hist = [
+        {"role": "user", "content": f"{rng.choice(U.GENRES)} 영화 추천해줘"},
+        {"role": "assistant", "content": U.rec_reply(shown, U._years(rng, 3))},
+    ]
+    msg = rng.choice(
+        ["다 2시간짜리야?", "전부 최근 영화야?", "다 한국 영화야?", "이거 다 평점 높은 편이야?", "다 시리즈물이야?"]
+    )
+    return hist, msg, FINAL
+
+
+def p_theater_vs_ott(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    """동사로 극장/OTT를 가른다: '어디서 하는데/상영/틀어'(극장)→showtimes, '어디서 볼 수 있어/스트리밍'(집)→where_to_watch.
+
+    referent_recent가 '어디서 봐?'→where_to_watch만 가르쳐 '저건 어디서 하는데'까지 OTT로 샜다(09-30 하드)."""
+    hist = [
+        {"role": "user", "content": f"{t} 어때"},
+        {"role": "assistant", "content": U.eval_reply(t)},
+    ]
+    theater = [
+        ("저건 어디서 하는데", call("showtimes", title=t)),
+        (f"{josa(t, '은는')} 어디서 상영해", call("showtimes", title=t)),
+        ("그거 극장에서 하나", call("showtimes", title=t)),
+        ("저거 지금 상영하는 데 있어?", call("showtimes", title=t)),
+    ]
+    ott = [
+        ("그거 어디서 볼 수 있어", call("where_to_watch", title=t)),
+        ("넷플릭스에 있어?", call("where_to_watch", title=t)),
+        ("집에서 스트리밍으로 볼 수 있나", call("where_to_watch", title=t)),
+    ]
+    msg, g = rng.choice(theater + ott)
+    return hist, msg, g
+
+
 PATTERNS: list[tuple[str, float]] = [
     ("rec_plain", 0.08),
     ("rec_actor", 0.03),
@@ -661,6 +725,10 @@ PATTERNS: list[tuple[str, float]] = [
     ("taste_profile", 0.02),
     ("referent_recent", 0.04),
     ("cast_particle", 0.03),
+    # v12 표적(2026-09-30): v9·v11 공통 하드 케이스 3종
+    ("region_only_showtimes", 0.04),
+    ("meta_set_final", 0.03),
+    ("theater_vs_ott", 0.04),
 ]
 GENS = {name: globals()["p_" + name] for name, _ in PATTERNS}
 josa = U.josa
