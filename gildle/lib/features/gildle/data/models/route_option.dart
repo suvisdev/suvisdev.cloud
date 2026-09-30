@@ -85,7 +85,7 @@ class RouteOptionsResult {
 class WalkPlan {
   const WalkPlan({
     required this.kind,
-    required this.preference,
+    required this.preferences,
     required this.stops,
     required this.source,
     required this.targetM,
@@ -102,7 +102,8 @@ class WalkPlan {
   final String kind;
   final int? minutes;
   final double? distanceKm;
-  final String preference;
+  /// 함께 적용된 선호 전부(첫 값이 대표).
+  final List<String> preferences;
   final List<String> stops;
   final String? destinationCategory;
 
@@ -125,7 +126,7 @@ class WalkPlan {
       kind: u['kind'] as String,
       minutes: (u['minutes'] as num?)?.toInt(),
       distanceKm: (u['distance_km'] as num?)?.toDouble(),
-      preference: u['preference'] as String,
+      preferences: (u['preferences'] as List<dynamic>?)?.cast<String>() ?? [u['preference'] as String],
       stops: (u['stops'] as List<dynamic>? ?? const []).cast<String>(),
       destinationCategory: u['destination'] as String?,
       source: u['source'] as String,

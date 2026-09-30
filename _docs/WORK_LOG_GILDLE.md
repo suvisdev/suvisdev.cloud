@@ -62,6 +62,22 @@
 
 ---
 
+### (저녁 추가) 방향 화살표 · 후보별 색 · 복수 선호
+- **계기(사용자 실사용)**: ① 돌아오는 코스는 선만 보고 어느 쪽으로 도는지 알 수 없다 ② "추천 1·2·3"이 전부 같은 색이라
+  구분이 안 된다 ③ "편한 길 + 그늘 많은 길"을 같이 고르고 싶은데 하나만 선택되고, 문장으로 말해도 하나만 읽힌다.
+- **백엔드**: `walk_preference.py`에 `normalize_preferences`(목록 밖·중복 제거, 다른 선호가 있으면 fast 제거, flat/hilly는
+  먼저 고른 쪽만)·`combined_label`·`make_combined_weight`(선호별 배율의 곱) 추가. `walk_request.py`가 문장 속 선호를
+  등장 순으로 모두 읽고(`preferences`), "편하고"도 flat으로 인식(키워드 "편하게"→"편하"). `/walk/plan` 요청·응답에
+  `preferences` 추가(단일 `preference`는 그대로 남겨 옛 앱 호환). 루프 후보는 선호별 순위 합으로 정렬, 이름·이유는 조합 표기.
+- **웹**(`gildle-map.tsx`): 고른 경로 위에 120m 이상 간격(최대 14개) 방향 화살표 마커, 후보 성격이 겹치면 순서별 색
+  (`INDEX_COLOR`)과 "코스 N · 이름", 선호 다중 토글.
+- **앱**: 같은 규칙 — `directionArrows`(geo_point.dart) + `NArrowheadPathOverlay`, `_optionColor`/`_optionTitle`,
+  선호 `FilterChip` 다중 선택, `WalkPlan.preferences`(옛 응답은 단일 값으로 채움).
+- **검증**: gildle pytest 252, ruff·import-linter, 웹 tsc·eslint, 앱 analyze 0·test 6/6. 운영에서 "편하고 그늘 많은 길로 2키로"
+  → `['flat','shade']`, 코스 그늘 98%·오르막 38m.
+- **막힌 점**: 네이버 지도가 localhost에서 인증 실패라 지도 위 화살표·선 색은 로컬 캡처로 못 봤다(카드 색·라벨만 확인).
+  배포 후 실화면 확인은 사용자 몫. 앱 반영은 새 AAB가 필요하다.
+
 ## 2026-09-29
 
 ### 작업 내용

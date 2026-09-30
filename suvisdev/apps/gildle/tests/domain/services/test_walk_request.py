@@ -108,3 +108,46 @@ def test_via_phrase_is_a_stop_not_a_destination():
         None,
         ("동물병원",),
     )  # 지도 도착지가 있으면 들를 곳으로
+
+
+def test_rules_read_every_preference_in_the_sentence():
+    # 2026-09-30 실사용: "편하고 그늘 많은 길"이 그늘 하나로만 읽혔다
+    r = parse_rules("편하고 그늘 많은 길로 2키로")
+    assert r.all_preferences == ("flat", "shade") and r.preference == "flat"
+    # 단서가 없으면 기본은 편한 길 하나
+    assert parse_rules("한 바퀴").all_preferences == ("flat",)
+
+
+def test_verify_keeps_all_sentence_preferences_over_single_model_value():
+    r = verify({"kind": "loop", "preference": "shade"}, "편하고 그늘 많은 길로 2키로")
+    assert r.all_preferences == ("flat", "shade")
+    # 문장에 단서가 없으면 모델 값 하나
+    r = verify({"kind": "loop", "preference": "green"}, "산책 가자")
+    assert r.all_preferences == ("green",)
+
+
+def test_form_multi_preferences_override_sentence():
+    base = parse_rules("그늘로 30분")
+    r = apply_form(
+        base,
+        minutes=None,
+        distance_km=None,
+        preference=None,
+        preferences=["flat", "green"],
+        stops=None,
+        has_end=False,
+        has_text=True,
+    )
+    assert r.all_preferences == ("flat", "green") and r.preference == "flat"
+    # 폼에서 아무것도 안 고르면 문장대로
+    r = apply_form(
+        base,
+        minutes=None,
+        distance_km=None,
+        preference=None,
+        preferences=[],
+        stops=None,
+        has_end=False,
+        has_text=True,
+    )
+    assert r.all_preferences == ("shade",)

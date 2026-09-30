@@ -44,6 +44,9 @@ class MapState {
 
   RouteOption? get option => selected < options.length ? options[selected] : null;
 
+  /// 후보들의 성격이 겹치는가(같은 선호로 찾은 코스 1·2·3) — 그러면 순서별 색과 "코스 N"으로 구분한다.
+  bool get sameKind => options.map((o) => o.kind).toSet().length < options.length;
+
   /// 출발지로 돌아오는 코스인가(추천 중 loop).
   bool get returnsToStart => plan?.returnsToStart ?? false;
 
@@ -152,7 +155,7 @@ class MapController extends StateNotifier<MapState> {
     String? text,
     int? minutes,
     double? distanceKm,
-    String? preference,
+    List<String> preferences = const [],
     List<String> stops = const [],
   }) async {
     final s = state.start;
@@ -167,7 +170,7 @@ class MapController extends StateNotifier<MapState> {
         text: text,
         minutes: minutes,
         distanceKm: distanceKm,
-        preference: preference,
+        preferences: preferences,
         stops: stops,
       );
       state = MapState(

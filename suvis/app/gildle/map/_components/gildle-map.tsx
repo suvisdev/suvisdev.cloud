@@ -56,6 +56,10 @@ const KIND_COLOR: Record<RouteOptionKind, string> = {
   hilly: "#fb923c",
   via: "#f472b6",
 }
+// 같은 성격의 후보가 여러 개일 때(돌아오는 코스 1·2·3) 서로 구분하는 색 — 성격별 색 대신 순서별로 칠한다.
+const INDEX_COLOR = ["#34d399", "#60a5fa", "#f472b6", "#fb923c", "#a3e635"]
+const ARROW_MIN_GAP_M = 120 // 방향 화살표 최소 간격
+const ARROW_MAX_COUNT = 14
 const PREF_LABEL: Record<WalkPreference, string> = {
   flat: "편한 길",
   hilly: "언덕길",
@@ -118,6 +122,42 @@ function walkStartLabel(option: RouteOption | null, isLoop: boolean): string {
   if (!option) return "산책 시작"
   if (!isLoop && option.kind !== "via") return `${option.label}로 산책 시작`
   return "이 길로 산책 시작"
+}
+
+/** 진행 방향(북 0°, 시계 방향) — 화살표 회전에 쓴다. */
+function bearingDeg(a: Point, b: Point): number {
+  const toRad = Math.PI / 180
+  const dLng = (b.lng - a.lng) * toRad
+  const y = Math.sin(dLng) * Math.cos(b.lat * toRad)
+  const x =
+    Math.cos(a.lat * toRad) * Math.sin(b.lat * toRad) -
+    Math.sin(a.lat * toRad) * Math.cos(b.lat * toRad) * Math.cos(dLng)
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+}
+
+/** 경로를 따라 일정 간격으로 (위치, 방향)을 뽑는다 — 어느 쪽으로 도는지 선만으로는 알 수 없어서. */
+function directionArrows(coords: Point[]): { at: Point; deg: number }[] {
+  const total = coords.reduce((sum, p, i) => (i ? sum + haversineM(coords[i - 1], p) : 0), 0)
+  if (total < ARROW_MIN_GAP_M) return []
+  const gap = Math.max(ARROW_MIN_GAP_M, total / ARROW_MAX_COUNT)
+  const arrows: { at: Point; deg: number }[] = []
+  let walked = 0
+  let next = gap / 2
+  for (let i = 1; i < coords.length; i++) {
+    const a = coords[i - 1]
+    const b = coords[i]
+    const len = haversineM(a, b)
+    while (len > 0 && walked + len >= next) {
+      const t = (next - walked) / len
+      arrows.push({
+        at: { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t },
+        deg: bearingDeg(a, b),
+      })
+      next += gap
+    }
+    walked += len
+  }
+  return arrows
 }
 
 function isWalking(status: WalkStatus): boolean {
@@ -274,7 +314,7 @@ export default function GildleMap() {
   const [planText, setPlanText] = useState("")
   const [planMinutes, setPlanMinutes] = useState("")
   const [planKm, setPlanKm] = useState("")
-  const [planPref, setPlanPref] = useState<WalkPreference | null>(null)
+  const [planPrefs, setPlanPrefs] = useState<WalkPreference[]>([])
   const [planStops, setPlanStops] = useState<WalkStopCategory[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -295,6 +335,13 @@ export default function GildleMap() {
     [returnsToStart, start, end]
   )
   const routeCoords = useMemo<Point[]>(() => (option ? withEnds(option) : []), [option, withEnds])
+  // 후보들의 성격이 겹치면(같은 선호로 찾은 코스들) 순서별 색으로, 아니면 성격별 색으로 칠한다.
+  const sameKind = new Set(options.map((o) => o.kind)).size < options.length
+  const optionColors = useMemo(
+    () =>
+      options.map((o, i) => (sameKind ? INDEX_COLOR[i % INDEX_COLOR.length] : KIND_COLOR[o.kind])),
+    [options, sameKind]
+  )
   const lengthM = option?.length_m ?? null
   const shadeRatio = option?.shade_ratio ?? null
 
@@ -456,7 +503,7 @@ export default function GildleMap() {
       const line = new nv.maps.Polyline({
         map,
         path: toPath(pts),
-        strokeColor: KIND_COLOR[o.kind],
+        strokeColor: optionColors[i],
         strokeOpacity: 0.45,
         strokeWeight: 6,
         clickable: true,
@@ -464,7 +511,7 @@ export default function GildleMap() {
       listeners.push(nv.maps.Event.addListener(line, "click", () => setSelectedOpt(i)))
       overlays.push(line)
     })
-    const color = option ? KIND_COLOR[option.kind] : COLOR_ACCENT
+    const color = optionColors[selectedOpt] ?? COLOR_ACCENT
     const path = toPath(routeCoords)
     overlays.push(
       new nv.maps.Polyline({
@@ -501,7 +548,28 @@ export default function GildleMap() {
       { top: 60, right: 60, bottom: 260, left: 60 }
     )
     return () => nv.maps.Event.removeListener(listeners)
-  }, [routeCoords, options, selectedOpt, option, withEnds, sdkReady])
+  }, [routeCoords, options, selectedOpt, option, optionColors, withEnds, sdkReady])
+
+  // --- 진행 방향 화살표: 고른 경로 위에 일정 간격으로. 산책 중에도 남겨 어느 쪽으로 갈지 보이게 한다. ---
+  const arrowMarkersRef = useRef<naver.maps.Marker[]>([])
+  useEffect(() => {
+    const nv = getNaver()
+    const map = mapRef.current
+    if (!nv || !map) return
+    arrowMarkersRef.current.forEach((m) => m.setMap(null))
+    arrowMarkersRef.current = directionArrows(routeCoords).map(
+      ({ at, deg }) =>
+        new nv.maps.Marker({
+          map,
+          position: new nv.maps.LatLng(at.lat, at.lng),
+          clickable: false,
+          icon: {
+            content: `<svg width="18" height="18" viewBox="0 0 18 18" style="display:block;transform:rotate(${Math.round(deg)}deg)"><path d="M9 2 L15 14 L9 11 L3 14 Z" fill="#ffffff" stroke="#0a0d0a" stroke-width="1.4" stroke-linejoin="round"/></svg>`,
+            anchor: new nv.maps.Point(9, 9),
+          },
+        })
+    )
+  }, [routeCoords, sdkReady])
 
   // --- 산책 추적 오버레이: 계획 경로는 회색 점선, 걸은 길은 accent 실선(앱 WalkScreen과 동일) ---
   useEffect(() => {
@@ -631,7 +699,7 @@ export default function GildleMap() {
         ...(planText.trim() ? { text: planText.trim() } : {}),
         ...(minutesNum > 0 ? { minutes: Math.round(minutesNum) } : {}),
         ...(kmNum > 0 ? { distance_km: kmNum } : {}),
-        ...(planPref ? { preference: planPref } : {}),
+        ...(planPrefs.length > 0 ? { preferences: planPrefs } : {}),
         ...(planStops.length > 0 ? { stops: planStops } : {}),
       })
       const dest = result.destination_place
@@ -910,17 +978,21 @@ export default function GildleMap() {
                 </label>
               </div>
               <p className="text-gildle-muted mt-3 text-[11px]">
-                어떤 길로? (안 고르면 말한 대로, 없으면 편한 길)
+                어떤 길로? 여러 개 고를 수 있어요 (안 고르면 말한 대로, 없으면 편한 길)
               </p>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {PREF_ORDER.map((k) => (
                   <button
                     key={k}
                     type="button"
-                    onClick={() => setPlanPref((prev) => (prev === k ? null : k))}
+                    onClick={() =>
+                      setPlanPrefs((prev) =>
+                        prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]
+                      )
+                    }
                     className={cn(
                       "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-                      planPref === k
+                      planPrefs.includes(k)
                         ? "border-gildle-accent bg-gildle-accent-soft text-gildle-text"
                         : "border-gildle-border text-gildle-muted hover:text-gildle-text"
                     )}
@@ -1002,9 +1074,11 @@ export default function GildleMap() {
                     <div className="flex items-center gap-2">
                       <span
                         className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ background: KIND_COLOR[o.kind] }}
+                        style={{ background: optionColors[i] }}
                       />
-                      <span className="text-sm font-semibold">{o.label}</span>
+                      <span className="text-sm font-semibold">
+                        {sameKind ? `코스 ${i + 1} · ${o.label}` : o.label}
+                      </span>
                       {o.recommended && (
                         <span className="bg-gildle-accent-soft text-gildle-accent rounded-full px-1.5 py-0.5 text-[10px]">
                           추천
@@ -1196,7 +1270,7 @@ function PlanSummary({ plan }: { plan: WalkPlanResult }) {
     u.minutes ? `${u.minutes}분 안에` : null,
     u.distance_km ? `${u.distance_km}km` : null,
     `목표 ${formatKmShort(plan.target_m)}`,
-    PREF_LABEL[u.preference],
+    (u.preferences ?? [u.preference]).map((k) => PREF_LABEL[k]).join(" + "),
     u.stops.length > 0 ? `${u.stops.join("·")} 들르기` : null,
   ].filter((x): x is string => x !== null)
   return (

@@ -56,4 +56,31 @@ void main() {
     expect(plan.destination?.lat, 37.526);
     expect(plan.destinationName, '서울동물병원');
   });
+
+  test('WalkPlan — 선호 목록이 없는 옛 응답은 단일 선호로 채운다', () {
+    Map<String, dynamic> body(Map<String, dynamic> extra) => {
+          'understood': {'kind': 'loop', 'preference': 'flat', 'stops': <String>[], 'source': 'rules', ...extra},
+          'target_m': 2000,
+          'options': <Map<String, dynamic>>[],
+          'night': false,
+        };
+    expect(WalkPlan.fromJson(body({})).preferences, ['flat']);
+    expect(
+      WalkPlan.fromJson(body({
+        'preferences': ['flat', 'shade']
+      })).preferences,
+      ['flat', 'shade'],
+    );
+  });
+
+  test('방향 화살표 — 진행 방향을 따라 일정 간격으로 놓인다', () {
+    const a = GeoPoint(37.5, 127.0);
+    const b = GeoPoint(37.51, 127.0); // 북쪽으로 약 1.1km
+    final arrows = directionArrows([a, b]);
+    expect(arrows.length, inInclusiveRange(5, 14));
+    for (final arrow in arrows) {
+      expect(arrow.to.lat, greaterThan(arrow.from.lat)); // 모두 북쪽을 향한다
+    }
+    expect(directionArrows([a, const GeoPoint(37.5005, 127.0)]), isEmpty); // 너무 짧으면 없음
+  });
 }
