@@ -54,6 +54,22 @@
 ### 산출물
 - 커밋 aeb812f·76835c0·d9eaf57·0f8ef70·9709b4d·9d1edd7. 바탕화면 `mova/FT/agent-v11/`.
 
+### [오후] v11 수령·재채점 → 미채택, v9+v10프롬프트 배포(17f1764)
+- **v11 zip 수령**(Downloads, GGUF+어댑터 88MB+리포트) → `~/models/mova-agent-v11/` 풀고 `ollama create mova-agent-v11`.
+  어댑터는 유효(base EXAONE-3.5-2.4B·r16·420텐서) — **이어학습 재료 확보**(v9 어댑터는 로컬에 없고 Drive `out/agent-v9/`).
+- **로컬 GGUF 재채점(86행, `eval_agent_actions` requests판, CPU)**: **v9 77/86**(harness 45/45·live 20/28) > **v11 72/86**
+  (harness 41/45·live 19/28). v11 코랩 fp16은 81이었으나 **Q5_K_M 양자화에서 9점 증발**(v9는 양자화에 강함). v11은
+  `recommend_movies` 과소트리거("기분 좋아지는 영화"→FINAL 등)로 하네스 퇴행 → **v11 배포 안 함.**
+- **핵심 발견(사용자 질문발)**: eval의 system 프롬프트가 v10(10도구)이라, **v9 모델도 v10 프롬프트를 주면 신규 도구를
+  few-shot으로 처리**(v10 8/9). 즉 재학습 없이 **v9 모델 + v10 프롬프트 = 77**로 신규 기능을 켤 수 있다(v11보다 나음).
+- **배포(사용자 지시)**: `agent_prompt_v10.py`→`agent_prompt.py`로 교체(도구 10개), v10 파일 제거, 생성기 기본 프롬프트도
+  `agent_prompt.py`로 통일. **모델은 v9 유지**(`.env`에 `MOVA_AGENT_MODEL` 없음=기본 v9). 커밋 `17f1764`.
+- **검증**: 이미지 재빌드 후 이미지 안 `pytest apps/mova/tests` **460 passed** → 판단 스모크(봤어요·별점·취향 정확) →
+  `./k8s/deploy.sh --external-db --build`(rollout 성공) → 운영 파드 확인(프롬프트 10도구·모델 v9·`MOVA_CHAT_AGENT=1`).
+- **운영 end-to-end 봤어요·별점 실측**: 파드에서 TestClient(uid=1 오버라이드)로 "인셉션 봤어 4점" → `mark_watched` →
+  `reviews`(rating 4.0)·`user_actions`(watched) 신규 기록, 확인 문구 반환. **스냅샷→diff→정확 원복**으로 계정 데이터
+  무손상(reviews·actions 원복 True 확인). 09-29 하드 대화(제목 과다부착·도구 경계)는 v9·v11 공통 미해결 — 별개 트랙.
+
 ---
 
 ## 2026-09-29
