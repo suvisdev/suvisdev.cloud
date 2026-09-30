@@ -164,6 +164,35 @@ def p_rec_actor(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
     return hist, msg, call("recommend_movies", query=f"{a} 나오는 영화")
 
 
+def p_rec_conditional(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
+    """조건이 붙은 추천은 '추천해줘'로 끝나도 recommend_movies다.
+
+    v10이 '다른 영화'·'○○ 시리즈'·'입문용' 같은 조건부 추천을 recommend_for_me로 뺏겨(과트리거,
+    09-29 재채점 실패 3건) v11에서 경계를 강화한다 — rec_for_me의 '맨 추천해줘'(조건 없음)와
+    같은 '추천해줘' 표면인데 조건 유무로 갈리는 반례를 늘린다."""
+    g, m = rng.choice(U.GENRES), rng.choice(U.MOODS)
+    fr, th = rng.choice(U.FRANCHISES), rng.choice(U.THEMES)
+    situ = rng.choice(["주말에", "퇴근하고", "비 오는 날", "혼자", "가족이랑", "밤에", "친구랑"])
+    forms = [
+        (f"{g} 영화 추천해줘", f"{g} 영화"),
+        (f"{m} {g} 영화 추천해줘", f"{m} {g} 영화"),
+        (f"{fr} 시리즈 추천해줘", f"{fr} 시리즈"),
+        (f"{situ} 볼 영화 추천해줘", f"{situ} 볼 영화"),
+        (f"{th} 영화 추천해줘", f"{th} 영화"),
+        (f"{g} 입문용으로 추천해줘", f"{g} 입문용"),
+        (f"{g} 처음 보는 사람용으로 추천해줘", f"{g} 처음 보는 사람"),
+    ]
+    hist: list[dict[str, str]] = []
+    if rng.random() < 0.35:  # 한 편을 다룬 뒤 '다른 영화 추천해줘'도 조건부(recommend_movies)
+        hist = [
+            {"role": "user", "content": f"{t} 어때"},
+            {"role": "assistant", "content": U.eval_reply(t)},
+        ]
+        forms += [("다른 영화 추천해줘", "다른 영화"), ("다른 거 추천해줘", "다른 영화")]
+    msg, q = rng.choice(forms)
+    return hist, msg + U.ending(rng, ("", "", "?", "!")), call("recommend_movies", query=q)
+
+
 def p_eval_ask(rng: random.Random, t: str, ctx: dict[str, Any]) -> tuple:
     _, msg, _, _ = U.p_evaluate(rng, t)
     return [], msg, call("get_movie_details", title=t)
@@ -602,6 +631,7 @@ def p_need_region_then_final(rng: random.Random, t: str, ctx: dict[str, Any]) ->
 PATTERNS: list[tuple[str, float]] = [
     ("rec_plain", 0.08),
     ("rec_actor", 0.03),
+    ("rec_conditional", 0.06),  # v11: 조건부 추천이 recommend_for_me로 새는 것 방지
     ("eval_ask", 0.07),
     ("cast_ask", 0.05),
     ("cast_context", 0.04),
@@ -774,6 +804,68 @@ _CONV41: list[tuple[str, str, Any]] = [
 ]
 
 
+# 09-29 밤 실사용 대화(uid=1) — 예매를 원하는데 OTT(where_to_watch)로 답하고, '서울에서 제일 빠른걸로'를
+# 작품 임의 지정+지역 되물음으로 처리해 사용자가 "아직도 말을 잘 못알아 듣는구나"라 한 대화. 응답은 실제(오답 포함),
+# 정답 도구는 사용자 확인(2026-09-29): '제일 빠른걸로'=작품 무지정·서울 최속 회차, '예매라고'=시간표(OTT 아님).
+_CONV_0929B: list[tuple[str, str, Any]] = [
+    (
+        "지금 당장 볼만한 영화가 뭐가 있을까",
+        "지난주 박스오피스 기준 극장 상영작이에요: 1. 암살자(들) / 2. 타짜: 벨제붑의 노래 / 3. 오디세이 / 4. 인턴 …",
+        call("now_showing"),
+    ),
+    (
+        "2시간짜리 영화 추천해줘",
+        "[추천 카드] 1.『13시간』 2.『다 큰 녀석들 2』 3.『127시간』\n러닝타임 조건에 맞춰 골라봤어요.",
+        call("recommend_movies", query="2시간짜리 영화"),
+    ),
+    (
+        "다 2시간짜리 영화야?",
+        "세 작품 모두 2시간 내외예요 — 『13시간』 약 144분, 『다 큰 녀석들 2』 약 101분, 『127시간』 약 94분.",
+        FINAL,
+    ),
+    (
+        "9월 30일날 영화 예매할건데 무슨 영화가 있어",
+        "현재 극장 상영작이에요: 『암살자(들)』 『타짜: 벨제붑의 노래』 『오디세이』 『인턴』 『옵세션』 …",
+        call("now_showing"),
+    ),
+    (
+        "서울에서 제일 빠른걸로 추천해줘",
+        "『암살자(들)』 상영관을 찾아드릴게요. 어느 지역에서 보실 계획인가요?",  # 실제(오답): 작품 임의 지정+지역 되물음
+        call("showtimes", region="서울"),  # 정답: 작품 무지정, 서울에서 제일 빠른 회차 탐색
+    ),
+    (
+        "아직도 말을 잘 못알아 듣는구나",
+        "죄송합니다. 지역과 이동 수단을 알려주시면 상영 시간표를 확인해 드릴게요.",
+        FINAL,
+    ),
+    (
+        "서울에서 볼거야",
+        "'서울' 전역 롯데시네마에서 오늘 상영관을 찾아볼게요.",
+        call("showtimes", region="서울"),
+    ),
+    (
+        "암살자 말고 다른영화로 추천해줘",
+        "[추천 카드] 1.『목요일 살인 클럽』\n암살자 말고 다른 작품을 골라봤어요.",
+        call("recommend_movies", query="다른 영화"),
+    ),
+    (
+        "아니 예매할거라고",
+        "『목요일 살인 클럽』은 현재 상영작에서 확인되지 않아요. 대신 넷플릭스에서 볼 수 있어요.",  # 실제(오답): OTT
+        call("showtimes", title="목요일 살인 클럽"),  # 정답: 예매(시간표) 의도
+    ),
+    (
+        "저건 어디서 하는데",
+        "『목요일 살인 클럽』은 현재 상영작에서 확인되지 않아요. 대신 넷플릭스에서 볼 수 있어요.",
+        call("showtimes", title="목요일 살인 클럽"),
+    ),
+    (
+        "예매라고................",
+        "『목요일 살인 클럽』은 현재 상영작에서 확인되지 않아요. 대신 넷플릭스에서 볼 수 있어요.",
+        call("showtimes", title="목요일 살인 클럽"),
+    ),
+]
+
+
 _INCEPTION_CARD = "[추천 카드] 1.『인셉션』(2010)\n꿈속의 꿈을 파고드는 SF 스릴러예요."
 _V10_EVAL: list[tuple[list[dict[str, str]], str, Any]] = [
     ([], "내 취향에 맞는 영화 추천해줘", call("recommend_for_me", query="내 취향")),
@@ -818,6 +910,11 @@ def _eval_rows() -> list[dict[str, Any]]:
     hist: list[dict[str, str]] = []
     for i, (msg, reply, g) in enumerate(_CONV41):
         rows.append(_row(list(hist), msg, g, [], f"live:conv41:{i + 1}:{msg[:12]}"))
+        hist += [{"role": "user", "content": msg}, {"role": "assistant", "content": reply}]
+        hist = hist[-8:]
+    hist = []
+    for i, (msg, reply, g) in enumerate(_CONV_0929B):
+        rows.append(_row(list(hist), msg, g, [], f"live:conv0929b:{i + 1}:{msg[:12]}"))
         hist += [{"role": "user", "content": msg}, {"role": "assistant", "content": reply}]
         hist = hist[-8:]
     for i, (h, msg, g) in enumerate(_V10_EVAL):
