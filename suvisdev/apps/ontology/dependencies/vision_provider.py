@@ -8,8 +8,7 @@ from ontology.dependencies.anomaly_detection_provider import get_anomaly_detecti
 
 
 def get_vision_repository() -> VisionPort:
-    # S3(VisionS3Repository)는 AWS 자격증명 미연결로 보류 — 소프트 플래그
-    # 지속화까지 필요해져 DB 폴백(VisionRepository)을 기본 배선으로 전환.
+    # 비전 결과는 DB(VisionRepository)에만 둔다 — S3 저장 어댑터는 쓰지 않기로 해 삭제(2026-10-01).
     return VisionRepository()
 
 
