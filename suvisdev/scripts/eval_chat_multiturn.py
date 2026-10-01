@@ -262,7 +262,9 @@ def main() -> None:
     parser.add_argument("--base-url", default=_DEFAULT_BASE_URL)
     parser.add_argument("--only", default=None, help="장면 이름/질의 부분 문자열 필터")
     parser.add_argument("--sleep", type=float, default=2.0)
-    parser.add_argument("--save", type=Path, default=None, help="장면별 답변·카드 JSON 저장(모델 비교용)")
+    parser.add_argument(
+        "--save", type=Path, default=None, help="장면별 답변·카드 JSON 저장(모델 비교용)"
+    )
     args = parser.parse_args()
 
     scenes = [s for s in SCENES if not args.only or args.only in s["name"] or args.only in s["q"]]
@@ -290,7 +292,9 @@ def main() -> None:
                 "q": scene["q"],
                 "history": scene["history"],
                 "reply": data.get("reply") or "",
-                "titles": [f"{x.get('title')}({x.get('year')})" for x in data.get("recommendations") or []],
+                "titles": [
+                    f"{x.get('title')}({x.get('year')})" for x in data.get("recommendations") or []
+                ],
                 "pass": not problems,
             }
         )

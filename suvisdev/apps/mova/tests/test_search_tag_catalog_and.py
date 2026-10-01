@@ -41,7 +41,7 @@ class MovieIdsByTagsGroupingTests(IsolatedAsyncioTestCase):
         self.assertEqual(inter, {2})
 
     async def test_zero_match_keyword_excluded_from_intersection(self) -> None:
-        """"영화" 같은 비태그 어휘는 교집합 판정에서 빠진다 — 매칭된 키워드가
+        """ "영화" 같은 비태그 어휘는 교집합 판정에서 빠진다 — 매칭된 키워드가
         1개뿐이면 교집합은 빈 set(우선순위 신호 없음)."""
         repo = _repo()
         repo._session.execute = AsyncMock(return_value=[(1, "SF"), (2, "SF")])

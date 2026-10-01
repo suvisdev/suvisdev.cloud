@@ -41,7 +41,9 @@ class DetectTurnTests(unittest.TestCase):
         self.assertEqual(rules, ["zero_with_context"])
 
     def test_zero_without_context(self) -> None:
-        rules = detect_turn([], "외계 좀비 뮤지컬", "이 조건에는 매칭되는 작품이 안 잡히네요.", None)
+        rules = detect_turn(
+            [], "외계 좀비 뮤지컬", "이 조건에는 매칭되는 작품이 안 잡히네요.", None
+        )
         self.assertEqual(rules, ["zero_result"])
 
     def test_reask_on_deictic_with_context(self) -> None:
@@ -78,10 +80,20 @@ class MineConversationTests(unittest.TestCase):
             {
                 "role": "assistant",
                 "content": "추천해 드립니다.",
-                "meta": {"recommendations": [{"title": "스파이더맨: 브랜드 뉴 데이", "year": 2026}]},
+                "meta": {
+                    "recommendations": [{"title": "스파이더맨: 브랜드 뉴 데이", "year": 2026}]
+                },
             },
-            {"role": "user", "content": "제일 최신 스파이더맨이 뭐야", "meta": {"intent_type": "mood"}},
-            {"role": "assistant", "content": "요청하신 조건과 겹치는 작품이 카탈로그에 없어요.", "meta": {}},
+            {
+                "role": "user",
+                "content": "제일 최신 스파이더맨이 뭐야",
+                "meta": {"intent_type": "mood"},
+            },
+            {
+                "role": "assistant",
+                "content": "요청하신 조건과 겹치는 작품이 카탈로그에 없어요.",
+                "meta": {},
+            },
         ]
         out = mine_conversation(7, rows)
         self.assertEqual(len(out), 1)

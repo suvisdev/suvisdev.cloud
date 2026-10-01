@@ -71,7 +71,10 @@ SPECS: list[dict[str, Any]] = [
         "banned": ["정글 크루즈", "크루즈 패밀리"],
         "note": "스킵: 배우 그라운딩 + 09-22 무관 픽 재발 방지",
     },
-    {"q": "법정 드라마 영화", "note": "카탈로그 갭(09-27: LoRA·Gemini 모두 0편, 후보 16편에 법정물 없음) — 실패는 데이터 문제"},
+    {
+        "q": "법정 드라마 영화",
+        "note": "카탈로그 갭(09-27: LoRA·Gemini 모두 0편, 후보 16편에 법정물 없음) — 실패는 데이터 문제",
+    },
     {"q": "조선시대 사극 영화", "note": "스킵: no grounded picks"},
     {"q": "정치 스릴러 영화", "note": "스킵: no grounded picks"},
     {"q": "형사물 추천해줘", "note": "스킵: no grounded picks — 9/3 라이브 정상 확인"},
@@ -83,7 +86,10 @@ SPECS: list[dict[str, Any]] = [
     {"q": "춤 나오는 영화", "note": "스킵: no grounded picks"},
     {"q": "직장인 공감 영화", "note": "스킵: no grounded picks"},
     # --- 분위기 질의 (09-28 추천 기준 작업 — 실사용 대화 38·40에서 품질이 약했던 유형) ---
-    {"q": "비 오는 날 어울리는 영화", "note": "09-28 대화 38 — 제목 '날' 표면 매칭 의심(바람피기 좋은 날)"},
+    {
+        "q": "비 오는 날 어울리는 영화",
+        "note": "09-28 대화 38 — 제목 '날' 표면 매칭 의심(바람피기 좋은 날)",
+    },
     {"q": "여행 가기 전에 보기 좋은 영화", "note": "09-28 대화 40"},
     {"q": "기분 좋아지는 영화", "note": "09-28 추천 기준 — 분위기"},
     {"q": "잔잔한 영화 추천해줘", "note": "09-28 추천 기준 — 분위기"},
@@ -160,7 +166,9 @@ def _quality_metrics(
     }
     if votes is not None:
         m["low_votes"] = [
-            t for r, t in zip(recs, titles) if votes.get(str(r.get("id")), 0) < _LOW_VOTES
+            t
+            for r, t in zip(recs, titles, strict=True)
+            if votes.get(str(r.get("id")), 0) < _LOW_VOTES
         ]
     return m
 
@@ -247,7 +255,9 @@ def main() -> None:
 
         titles = [f"{x.get('title')}({x.get('year')})" for x in recs]
         metrics = _quality_metrics(spec["q"], recs, votes)
-        rows.append({"q": spec["q"], "titles": titles, "reply": data.get("reply") or "", "metrics": metrics})
+        rows.append(
+            {"q": spec["q"], "titles": titles, "reply": data.get("reply") or "", "metrics": metrics}
+        )
         problems = _evaluate(spec, recs)
         status = "PASS" if not problems else "FAIL"
         if problems:

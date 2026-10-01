@@ -45,7 +45,7 @@ _masking_utils.create_causal_mask = _compat_create_causal_mask
 
 print("=== free VRAM before load ===")
 free, total = torch.cuda.mem_get_info()
-print(f"free={free/1e9:.2f}GB / total={total/1e9:.2f}GB")
+print(f"free={free / 1e9:.2f}GB / total={total / 1e9:.2f}GB")
 
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
@@ -66,7 +66,7 @@ model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=True,
 )
 after_load = torch.cuda.memory_allocated()
-print(f"4bit model load delta: {(after_load - before)/1e6:.1f} MB")
+print(f"4bit model load delta: {(after_load - before) / 1e6:.1f} MB")
 
 print("=== patching missing get/set_input_embeddings (LGAI custom code gap) ===")
 
@@ -98,7 +98,7 @@ lora_config = LoraConfig(
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 after_lora = torch.cuda.memory_allocated()
-print(f"LoRA attach delta: {(after_lora - after_load)/1e6:.1f} MB")
+print(f"LoRA attach delta: {(after_lora - after_load) / 1e6:.1f} MB")
 
 print("=== forward pass smoke test ===")
 inputs = tokenizer("감정 분석 태스크 QLoRA 테스트입니다.", return_tensors="pt").to("cuda")
@@ -107,9 +107,9 @@ with torch.no_grad():
 print("logits shape:", out.logits.shape)
 
 after_forward = torch.cuda.memory_allocated()
-print(f"total allocated after forward: {after_forward/1e6:.1f} MB")
+print(f"total allocated after forward: {after_forward / 1e6:.1f} MB")
 
 free_after, _ = torch.cuda.mem_get_info()
-print(f"free VRAM after all: {free_after/1e9:.2f}GB")
+print(f"free VRAM after all: {free_after / 1e9:.2f}GB")
 
 print("=== DONE ===")

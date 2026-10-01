@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class TagKind(str, Enum):
+class TagKind(StrEnum):
     """태그 분류 — 감성/장르/등장인물."""
 
     MOOD = "mood"

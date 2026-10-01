@@ -29,7 +29,7 @@ import json
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
@@ -93,9 +93,7 @@ def render_assistant(content: str, meta: dict[str, Any]) -> str:
     return f"[추천 카드] {cards}\n{content}"
 
 
-def mine_conversation(
-    conversation_id: int, rows: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
+def mine_conversation(conversation_id: int, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """한 대화의 메시지(시간순) → 실패 후보들. user 다음 assistant가 한 턴이다."""
     out: list[dict[str, Any]] = []
     history: list[dict[str, str]] = []
@@ -163,7 +161,7 @@ async def _load_conversations(days: int) -> dict[int, list[dict[str, Any]]]:
     from core.matrix.grid_oracle_database_manager import get_mova_session_factory, reload_env
 
     reload_env()
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
     sql = text(
         "SELECT conversation_id, role, content, meta, created_at FROM chat_messages "
         "WHERE conversation_id IN (SELECT DISTINCT conversation_id FROM chat_messages "

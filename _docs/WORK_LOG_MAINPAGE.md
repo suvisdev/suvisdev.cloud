@@ -28,6 +28,31 @@
 
 ---
 
+## 2026-10-01
+
+### 작업 내용
+- v1 백로그 **"ruff 린트 11건·포맷 드리프트" 정리**(사용자 지시 3번). 길들 큰길 중앙선 수정은 `[GILDLE]` 10-01.
+
+### 수정/구현
+- `uvx ruff@0.16.9 format .` → **.py 37파일** 재포맷(스크립트·datasets·mova/titanic 일부·alembic 1). 같이 바뀐 **.md 9·.ipynb 3은
+  되돌림**(`git checkout`) — ruff 0.16이 마크다운 코드블록과 노트북 셀까지 포맷하는데, 문서 코드블록은 손으로 쓴 것이고 코랩 노트북은
+  사용자가 업로드해 쓰는 산출물이라 포맷 diff(770줄)를 섞지 않기로 함. **포맷 드리프트(.py) 0.**
+- 린트 11건: UP042 ×7 — `(str, Enum)` → `StrEnum`(mova Feedback·RoleType·AgeRating·TagKind, ontology SpamCategory, titanic Embarked·Gender).
+  f-string·`str()`로 멤버를 찍는 곳은 grep상 없음(전부 `.value`·비교) → `str(member)`가 "Class.NAME"→값으로 바뀌는 영향 없음.
+  B905 ×2 — `zip(..., strict=True)`(taste vector: `eff_ratings`가 reviews 컴프리헨션이라 길이 동일 / eval_chat_queries: `titles`가 recs
+  컴프리헨션). I001 alembic/env.py(gildle push_token_orm 줄 정렬), UP017 `datetime.UTC` + 미사용 `timezone` 제거.
+- **검증**: ruff check(.py) 0건 / 포맷 .py 0 / import-linter 6 kept / 이미지 안 pytest **1052 passed·3 skipped**(gildle 제외) + gildle 256.
+
+### 오류·막힌 점
+- `ruff check .`는 **54건이 남는데 전부 `.ipynb`**(`mova_*_colab.ipynb` 3개 — 세미콜론 E702·import 정렬·`l` 변수명 등). 노트북은
+  코랩 실행용이라 건드리지 않았다. 계속 셀 거면 `pyproject`의 ruff `extend-exclude = ["*.ipynb"]`로 빼는 것이 맞다(사용자 결정).
+- 하네스 분류기가 읽기 전용 `ruff check .`를 한 번 "프로덕션 배포"로 오판해 막음(재시도는 통과).
+
+### 산출물
+- 미커밋 변경 44파일(gildle 포함). 커밋 분리 권장: ① gildle 차도 페널티 ② ruff 포맷·린트 정리.
+
+---
+
 ## 2026-09-30
 
 ### 작업 내용

@@ -248,8 +248,7 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
                 return f"'{desc}' 조건에 맞는 탑승객 데이터가 없습니다."
             verdict = "생존 가능성이 높습니다" if rate >= 0.5 else "생존 가능성이 낮습니다"
             return (
-                f"실제 데이터 기준 {desc} 탑승객 {n}명 중 {n_sur}명({rate:.1%}) 생존.\n"
-                f"→ {verdict}."
+                f"실제 데이터 기준 {desc} 탑승객 {n}명 중 {n_sur}명({rate:.1%}) 생존.\n→ {verdict}."
             )
 
         if is_class_stat and train_df is not None:
@@ -385,7 +384,7 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
         verdict = (
             "생존했을 가능성이 높습니다" if proba >= 0.5 else "생존하지 못했을 가능성이 높습니다"
         )
-        return f"{desc} 승객의 ML 예측 생존 확률: {proba:.1%}\n" f"→ {verdict}. ({best_model} 기준)"
+        return f"{desc} 승객의 ML 예측 생존 확률: {proba:.1%}\n→ {verdict}. ({best_model} 기준)"
 
     def _feature_importance_reply(self, ml_context: dict[str, Any], best_model: str) -> str:
         trained_strategies = ml_context.get("trained_strategies", {})
@@ -398,7 +397,7 @@ class AndrewsArchitectInteractor(AndrewsArchitectUseCase):
                 ranked = sorted(
                     zip(_FEATURE_NAMES, importances, strict=False), key=lambda x: x[1], reverse=True
                 )
-                lines = [f"{i+1}. {n}({v:.3f})" for i, (n, v) in enumerate(ranked[:5])]
+                lines = [f"{i + 1}. {n}({v:.3f})" for i, (n, v) in enumerate(ranked[:5])]
                 return f"[{best_model} 모델 기준 실제 피처 중요도]\n" + "\n".join(lines)
 
         return (

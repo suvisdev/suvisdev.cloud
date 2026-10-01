@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class SpamCategory(str, Enum):
+class SpamCategory(StrEnum):
     ADVERTISING = "광고"
     PHISHING = "피싱"
     MALWARE = "악성코드"

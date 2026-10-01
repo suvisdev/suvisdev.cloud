@@ -22,7 +22,9 @@ _V2 = [_D / "chat_teacher_dataset_aug.jsonl", _D / "chat_teacher_dataset_multitu
 _V3_ADD = _D / "chat_teacher_dataset_v3_add.jsonl"
 
 SRCS = _V2 + ([_V3_ADD] if _V3_ADD.exists() else [])
-OUT = _D / ("chat_teacher_dataset_v3.jsonl" if _V3_ADD.exists() else "chat_teacher_dataset_20260922.jsonl")
+OUT = _D / (
+    "chat_teacher_dataset_v3.jsonl" if _V3_ADD.exists() else "chat_teacher_dataset_20260922.jsonl"
+)
 
 _CAT_RE = re.compile(r"^- movie_id=(\d+) (.+?) \[.+?\]$", re.M)
 _YEAR_TAIL_RE = re.compile(r"\s*\(\d{4}\)\s*$")

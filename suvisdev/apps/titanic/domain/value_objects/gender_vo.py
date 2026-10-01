@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class GenderType(str, Enum):
+class GenderType(StrEnum):
     MALE = "male"
     FEMALE = "female"
 

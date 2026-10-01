@@ -256,8 +256,7 @@ async def _run(args: argparse.Namespace) -> None:
     for model_id, metric in sorted(results.items(), key=lambda kv: -kv[1]["recall@8"]):
         note = MODEL_SPECS.get(model_id, {}).get("note", "")
         print(
-            f"recall@8={metric['recall@8']:.3f}  mrr@8={metric['mrr@8']:.3f}  "
-            f"{model_id}  ({note})"
+            f"recall@8={metric['recall@8']:.3f}  mrr@8={metric['mrr@8']:.3f}  {model_id}  ({note})"
         )
 
 

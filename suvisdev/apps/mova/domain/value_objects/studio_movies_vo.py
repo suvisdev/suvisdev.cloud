@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 # ── canonical slug 매핑 (기존 유지) ─────────────────────────────────────────
@@ -72,7 +72,7 @@ class PlatformEntry:
         return {"provider": self.provider, "url": self.url, "type": self.type}
 
 
-class AgeRating(str, Enum):
+class AgeRating(StrEnum):
     """영화 관람 등급."""
 
     ALL = "전체"

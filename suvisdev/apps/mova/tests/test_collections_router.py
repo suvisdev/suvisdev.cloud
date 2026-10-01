@@ -144,8 +144,8 @@ class CollectionsRouterTests(unittest.TestCase):
         app.dependency_overrides[get_create_collection_use_case] = lambda: _FakeCollectionsUseCase()
         app.dependency_overrides[get_list_collections_use_case] = lambda: _FakeCollectionsUseCase()
         app.dependency_overrides[get_get_collection_use_case] = lambda: _FakeCollectionsUseCase()
-        app.dependency_overrides[get_list_collection_movies_use_case] = (
-            lambda: _FakeCollectionsUseCase()
+        app.dependency_overrides[get_list_collection_movies_use_case] = lambda: (
+            _FakeCollectionsUseCase()
         )
         app.dependency_overrides[get_assign_movies_use_case] = lambda: _FakeCollectionsUseCase()
         app.dependency_overrides[get_unassign_movies_use_case] = lambda: _FakeCollectionsUseCase()

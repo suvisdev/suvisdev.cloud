@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class RoleType(str, Enum):
+class RoleType(StrEnum):
     """인물 역할 — 배우(출연) 또는 감독."""
 
     DIRECTOR = "director"

@@ -57,7 +57,7 @@ async def main() -> None:
                 text("ALTER TABLE tags ADD COLUMN character_id INTEGER NULL"),
             )
             await conn.execute(
-                text("CREATE INDEX IF NOT EXISTS ix_tags_character_id " "ON tags (character_id)"),
+                text("CREATE INDEX IF NOT EXISTS ix_tags_character_id ON tags (character_id)"),
             )
         else:
             print("tags.character_id already exists")
@@ -91,9 +91,7 @@ async def main() -> None:
         if not await constraint_exists(conn, "uq_tags_character_id"):
             print("ADD uq_tags_character_id")
             await conn.execute(
-                text(
-                    "ALTER TABLE tags ADD CONSTRAINT uq_tags_character_id " "UNIQUE (character_id)"
-                ),
+                text("ALTER TABLE tags ADD CONSTRAINT uq_tags_character_id UNIQUE (character_id)"),
             )
 
         for cname in (

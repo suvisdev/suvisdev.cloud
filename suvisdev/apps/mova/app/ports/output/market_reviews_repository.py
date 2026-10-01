@@ -101,9 +101,7 @@ class ReviewsRepositoryPort(ABC):
         """sentiment_label IS NULL AND body IS NOT NULL인 (id, body) — 감정분석 배치용."""
 
     @abstractmethod
-    async def update_sentiment(
-        self, review_id: int, label: str, score: float
-    ) -> None:
+    async def update_sentiment(self, review_id: int, label: str, score: float) -> None:
         """Echo 감정분석 결과 저장. 존재하지 않으면 조용히 스킵."""
 
     @abstractmethod
@@ -111,9 +109,7 @@ class ReviewsRepositoryPort(ABC):
         """rating이 NULL인 리뷰에만 별점 설정. 반환: 실제 갱신 여부."""
 
     @abstractmethod
-    async def get_sentiment_summary(
-        self, movie_id: int
-    ) -> tuple[int, int, int]:
+    async def get_sentiment_summary(self, movie_id: int) -> tuple[int, int, int]:
         """영화별 감정 집계 (긍정 수, 부정 수, 전체 수)."""
 
     @abstractmethod
