@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Sparkles } from "lucide-react"
+import { BookOpen, Sparkles, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { AppCatalogItem } from "@/lib/apps-catalog"
 import { sendPortfolioChat, type PortfolioChatTurn } from "@/lib/portfolio-api"
@@ -14,6 +14,12 @@ type AppLauncherProps = {
 }
 
 type ChatState = { messages: PortfolioChatTurn[]; loading: boolean; error: string | null }
+
+// 상단 메뉴의 Blog 대신 채팅창 바로 아래에 둔다(2026-10-01 사용자). 주소는 /blog 페이지와 같다.
+const JEKYLL_LINKS = [
+  { label: "팀 프로젝트 지킬", href: "https://ats.suvisdev.cloud", icon: Users },
+  { label: "개인 프로젝트 지킬", href: "https://jk.suvisdev.cloud", icon: BookOpen },
+]
 
 export function AppLauncher({ apps }: AppLauncherProps) {
   const [input, setInput] = useState("")
@@ -50,28 +56,45 @@ export function AppLauncher({ apps }: AppLauncherProps) {
         <PortfolioChatPanel messages={chat.messages} loading={chat.loading} error={chat.error} />
       )}
 
-      <form
-        className="flex w-full max-w-2xl items-center gap-3 rounded-full border border-neutral-300 bg-white px-5 py-3.5 shadow-sm transition-shadow focus-within:border-[#f0dc3a] focus-within:shadow-md dark:border-neutral-700 dark:bg-[#161a24]"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void submit()
-        }}
-      >
-        <Sparkles className="h-5 w-5 shrink-0 text-neutral-500" aria-hidden />
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.nativeEvent.isComposing) e.preventDefault()
+      <div className="flex w-full flex-col items-center gap-4">
+        <form
+          className="flex w-full max-w-2xl items-center gap-3 rounded-full border border-neutral-300 bg-white px-5 py-3.5 shadow-sm transition-shadow focus-within:border-[#f0dc3a] focus-within:shadow-md dark:border-neutral-700 dark:bg-[#161a24]"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void submit()
           }}
-          placeholder="Suvisdev에게 물어보세요 — 진수택과 그의 앱에 대해"
-          aria-label="Suvisdev에게 질문"
-          autoComplete="off"
-          disabled={chat.loading}
-          className="w-full bg-transparent text-base text-neutral-900 outline-none placeholder:text-neutral-500 disabled:opacity-60 dark:text-neutral-100"
-        />
-      </form>
+        >
+          <Sparkles className="h-5 w-5 shrink-0 text-neutral-500" aria-hidden />
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.nativeEvent.isComposing) e.preventDefault()
+            }}
+            placeholder="Suvisdev에게 물어보세요 — 진수택과 그의 앱에 대해"
+            aria-label="Suvisdev에게 질문"
+            autoComplete="off"
+            disabled={chat.loading}
+            className="w-full bg-transparent text-base text-neutral-900 outline-none placeholder:text-neutral-500 disabled:opacity-60 dark:text-neutral-100"
+          />
+        </form>
+
+        <nav aria-label="블로그" className="flex flex-wrap justify-center gap-3">
+          {JEKYLL_LINKS.map(({ label, href, icon: Icon }) => (
+            <a
+              key={href}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:border-[#f0dc3a] hover:text-neutral-900 dark:border-neutral-700 dark:bg-[#161a24] dark:text-neutral-300 dark:hover:text-neutral-100"
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+              {label}
+            </a>
+          ))}
+        </nav>
+      </div>
 
       <ul className="flex flex-wrap justify-center gap-6 sm:gap-8">
         {apps.map((app) => (
