@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { BookOpen, Sparkles, Users } from "lucide-react"
+import { BookOpen, FileText, Sparkles, UserRound, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { AppCatalogItem } from "@/lib/apps-catalog"
 import { sendPortfolioChat, type PortfolioChatTurn } from "@/lib/portfolio-api"
@@ -15,11 +15,17 @@ type AppLauncherProps = {
 
 type ChatState = { messages: PortfolioChatTurn[]; loading: boolean; error: string | null }
 
-// 상단 메뉴의 Blog 대신 채팅창 바로 아래에 둔다(2026-10-01 사용자). 주소는 /blog 페이지와 같다.
-const JEKYLL_LINKS = [
-  { label: "팀 프로젝트 지킬", href: "https://ats.suvisdev.cloud", icon: Users },
+// 상단 메뉴 대신 채팅창 바로 아래에 둔다(2026-10-01 사용자) — 지킬 주소는 /blog 페이지와 같다.
+// About은 #contact 없이 — 앵커가 있으면 소개를 건너뛰고 연락처로 내려간다.
+const HOME_LINKS = [
   { label: "개인 프로젝트 지킬", href: "https://jk.suvisdev.cloud", icon: BookOpen },
+  { label: "팀 프로젝트 지킬", href: "https://ats.suvisdev.cloud", icon: Users },
+  { label: "Resume", href: "/resume", icon: FileText },
+  { label: "About", href: "/contact", icon: UserRound },
 ]
+
+const homeLinkClass =
+  "inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:border-[#f0dc3a] hover:text-neutral-900 dark:border-neutral-700 dark:bg-[#161a24] dark:text-neutral-300 dark:hover:text-neutral-100"
 
 export function AppLauncher({ apps }: AppLauncherProps) {
   const [input, setInput] = useState("")
@@ -80,19 +86,26 @@ export function AppLauncher({ apps }: AppLauncherProps) {
           />
         </form>
 
-        <nav aria-label="블로그" className="flex flex-wrap justify-center gap-3">
-          {JEKYLL_LINKS.map(({ label, href, icon: Icon }) => (
-            <a
-              key={href}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition-colors hover:border-[#f0dc3a] hover:text-neutral-900 dark:border-neutral-700 dark:bg-[#161a24] dark:text-neutral-300 dark:hover:text-neutral-100"
-            >
-              <Icon className="h-4 w-4" aria-hidden />
-              {label}
-            </a>
-          ))}
+        <nav aria-label="바로가기" className="flex flex-wrap justify-center gap-3">
+          {HOME_LINKS.map(({ label, href, icon: Icon }) =>
+            href.startsWith("http") ? (
+              <a
+                key={href}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={homeLinkClass}
+              >
+                <Icon className="h-4 w-4" aria-hidden />
+                {label}
+              </a>
+            ) : (
+              <Link key={href} href={href} className={homeLinkClass}>
+                <Icon className="h-4 w-4" aria-hidden />
+                {label}
+              </Link>
+            )
+          )}
         </nav>
       </div>
 

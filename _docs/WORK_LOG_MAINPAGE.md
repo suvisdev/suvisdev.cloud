@@ -138,6 +138,15 @@
 - prettier가 안 건드린 header 줄들의 Tailwind 클래스 순서까지 바꿔서 되돌리고 삭제만 재적용(무관 diff 제거).
 - 검증: tsc·eslint 0, 로컬 캡처 1280px·500px 확인. 390px 캡처가 잘린 건 윈도우 헤드리스 크롬 최소 폭(~500px) 탓 — 변경 전(stash)도
   똑같이 잘리는 것으로 확인. 실기기 폰 화면은 미확인.
+- PR #153·#154 머지 → Vercel Production 배포, 운영 `suvisdev.cloud`·`www` HTML·캡처로 반영 확인.
+
+### 작업 내용 (7) — 홈 바로가기 순서·Resume/About 이동 (브랜치 `feat/home-links-order`)
+- 사용자 지시: 지킬 순서를 **개인 → 팀**으로, 헤더의 Resume·About도 지킬 옆(채팅창 아래)으로 내리고, About은 상단부터 보이게.
+- 원인 확인: About 링크가 `/contact#contact`라 소개(요약·주요 영역·프로젝트)를 건너뛰고 아래 연락처 섹션(`id="contact"`)으로 스크롤됐다
+  → `/contact`. 헤더 nav가 비어 `nav` 요소째 제거(로고·로그인·관리자 메뉴 유지, `navLinkClass`는 LESSON이 계속 사용).
+- Resume·About은 헤더에서 `hidden md:flex`라 **모바일에선 원래 안 보였는데**, 본문으로 옮겨 모바일에서도 보인다.
+  내부 페이지는 `Link`(같은 탭), 지킬은 `<a target=_blank>`.
+- 검증: tsc·eslint 0, 캡처 — 홈 1280px(한 줄 4개)·500px(두 줄 줄바꿈), `/contact` 맨 위 ABOUT부터 표시.
 
 ---
 
