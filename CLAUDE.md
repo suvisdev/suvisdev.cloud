@@ -162,6 +162,9 @@ flutter run
 ./k8s/deploy.sh            # Secret(.env→suvisdev-env) 갱신 + 전체 apply
 ./k8s/deploy.sh --build    # 이미지 재빌드 + rollout restart 포함
 kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
+# CI/CD(2026-10-01): PR·main push마다 GitHub Actions가 3스택 검사. main에 백엔드가 머지되고
+# backend-ci가 통과하면 운영 서버의 셀프호스티드 러너가 deploy.sh --external-db --build를
+# 자동 실행한다 — 수동 배포는 Secret(.env)만 바꿀 때. 상세: k8s/README.md "CI/CD"
 ```
 
 **구 `docker-compose.yaml`은 삭제됐다(2026-09-07)** — 데스크톱은 k8s가 대체.

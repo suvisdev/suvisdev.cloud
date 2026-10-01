@@ -12,7 +12,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 NS=suvisdev
-REPO_ROOT="$(cd .. && pwd)"   # backend.yaml hostPath의 __REPO_ROOT__ 치환용
+# backend.yaml hostPath(__REPO_ROOT__)와 .env의 출처. 기본은 이 체크아웃.
+# CD 러너는 코드만 main 체크아웃을 쓰고 데이터·.env는 운영 저장소를 가리켜야 해서
+# SUVISDEV_DATA_ROOT로 덮어쓴다(.github/workflows/backend-deploy.yml).
+REPO_ROOT="${SUVISDEV_DATA_ROOT:-$(cd .. && pwd)}"
+ENV_DIR="$REPO_ROOT/suvisdev"
+# hostPath는 DirectoryOrCreate라 경로가 틀려도 실패 없이 빈 폴더를 만들어 운영에 붙인다
+# — 덮어쓸 때는 실데이터 폴더가 있는지 먼저 확인한다.
+if [ -n "${SUVISDEV_DATA_ROOT:-}" ] && [ ! -d "$ENV_DIR/datasets" ]; then
+  echo "SUVISDEV_DATA_ROOT=$SUVISDEV_DATA_ROOT 에 suvisdev/datasets가 없음 — 빈 마운트 방지로 중단" >&2
+  exit 1
+fi
 HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}"   # __HF_CACHE__ — 감성 배치 가중치 캐시(09-27)
 
 BUILD=0
@@ -36,13 +46,13 @@ kubectl apply -f namespace.yaml
 # (구 사고 재발 방지: compose는 --env-file을 빠뜨리면 빈 자격증명으로 조용히
 #  떴지만, 이 스크립트는 .env가 없으면 여기서 바로 실패한다.)
 kubectl -n "$NS" create secret generic suvisdev-env \
-  --from-env-file=../suvisdev/.env \
+  --from-env-file="$ENV_DIR/.env" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # .env.auth는 있을 때만(auth 매니페스트에서 optional 참조)
-if [ -f ../suvisdev/.env.auth ]; then
+if [ -f "$ENV_DIR/.env.auth" ]; then
   kubectl -n "$NS" create secret generic suvisdev-env-auth \
-    --from-env-file=../suvisdev/.env.auth \
+    --from-env-file="$ENV_DIR/.env.auth" \
     --dry-run=client -o yaml | kubectl apply -f -
 fi
 

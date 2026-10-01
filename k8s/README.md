@@ -49,6 +49,55 @@ sudo visudo -c          # 문법 검증(반드시 OK 확인)
 범위는 `k3s ctr images import`(로컬 이미지 import) 한 서브커맨드뿐 — 전체
 `k3s`/`sudo`가 아니다. 이후 `deploy.sh --build`가 비번 프롬프트 없이 완주한다.
 
+## CI/CD (2026-10-01)
+
+| 워크플로 | 러너 | 언제 | 하는 일 |
+|---|---|---|---|
+| `backend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvisdev/`·`k8s/`) | ruff·mypy·import-linter·pytest |
+| `frontend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvis/`) | pnpm 10 install·type-check·lint (배포는 Vercel 연동) |
+| `gildle-ci.yml` | GitHub(ubuntu) | PR·main push(`gildle/`) | flutter 3.47.2 analyze·test (스토어 배포는 로컬) |
+| `backend-deploy.yml` | **운영 서버 셀프호스티드**(라벨 `prod`) | main의 backend-ci 성공 / 수동 | `deploy.sh --external-db --build` + 외부 200 확인 |
+
+**main에 백엔드가 머지되면 자동 배포된다.** 손으로 `deploy.sh`를 돌릴 일은 Secret만 바꿀 때
+(`.env` 수정 후 `./k8s/deploy.sh --external-db`)나 러너가 죽었을 때뿐이다. 수동 재배포는
+GitHub Actions → backend-deploy → Run workflow.
+
+- 운영 서버는 NAT 뒤라 GitHub이 접속 못 한다 → 서버의 러너가 GitHub에 붙어 잡을 받는다. 저장소가
+  비공개라 외부 PR은 러너에서 돌 수 없고, PR 검사는 전부 GitHub 러너에서 돈다.
+- 코드는 잡의 체크아웃(CI 통과 커밋), 데이터·`.env`는 `SUVISDEV_DATA_ROOT`(러너 `~/actions-runner/.env`)가
+  가리키는 운영 저장소. hostPath가 `DirectoryOrCreate`라 경로가 틀리면 빈 폴더가 조용히 붙는다 —
+  deploy.sh가 `datasets`가 없으면 중단한다. 개발 중인 그 저장소의 브랜치는 건드리지 않는다.
+
+러너 설치(서버마다 1회, 집 데스크톱으로 옮길 때도 동일):
+
+```bash
+V=$(gh api repos/actions/runner/releases/latest --jq .tag_name | sed 's/^v//')
+mkdir -p ~/actions-runner && cd ~/actions-runner
+curl -fsSL -o r.tgz "https://github.com/actions/runner/releases/download/v$V/actions-runner-linux-x64-$V.tar.gz" && tar xzf r.tgz && rm r.tgz
+T=$(gh api -X POST repos/suvisdev/suvisdev.cloud/actions/runners/registration-token --jq .token)
+./config.sh --url https://github.com/suvisdev/suvisdev.cloud --token "$T" --name "$(hostname)" --labels prod --work _work --unattended --replace
+echo "SUVISDEV_DATA_ROOT=$HOME/projects/suvisdev" >> .env
+# 상시 실행: systemd 유저 서비스(lora-server와 같은 방식, linger 필요)
+mkdir -p ~/.config/systemd/user && cat > ~/.config/systemd/user/actions-runner.service <<'UNIT'
+[Unit]
+Description=GitHub Actions runner (label prod)
+After=network-online.target
+[Service]
+WorkingDirectory=%h/actions-runner
+ExecStart=%h/actions-runner/run.sh
+Restart=always
+RestartSec=10
+KillMode=process
+[Install]
+WantedBy=default.target
+UNIT
+systemctl --user daemon-reload && systemctl --user enable --now actions-runner
+loginctl show-user "$USER" -p Linger   # Linger=yes 여야 로그아웃·재부팅 후에도 돈다
+```
+
+전제: 사용자가 `docker` 그룹, `sudo k3s ...`가 NOPASSWD(비대화식 서비스라 비번을 못 친다).
+서버를 옮기면 옛 러너는 `./config.sh remove --token <제거 토큰>`으로 빼야 두 서버가 같은 잡을 다투지 않는다.
+
 ## compose → k8s 대응표
 
 | 구 compose | k8s | 접근 |

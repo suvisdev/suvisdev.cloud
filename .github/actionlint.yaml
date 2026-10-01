@@ -1,0 +1,4 @@
+# actionlint 설정 — 셀프호스티드 러너 라벨(backend-deploy.yml)
+self-hosted-runner:
+  labels:
+    - prod
