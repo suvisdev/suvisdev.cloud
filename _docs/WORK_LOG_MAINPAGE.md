@@ -180,6 +180,50 @@
   파라미터화, 하네스 2종 엔진별 비교.
 - 곁가지 수정: backend-ci 경로에 `!**/*.md` — 앱 `_docs/` 문서만 바꿔도 backend-ci → 운영 재배포가 돌던 것.
 
+### 작업 내용 (11) — 집 데스크톱(DESKTOP-T89E5ID) 프로덕션 이관 실행 · 컷오버
+- (2) 런북대로 실행. 노트북은 개발 전용, 집컴은 **서버 전용**(사용자 결정). 22:58~23:01 약 3분 530 후 집컴 서빙.
+- 집컴 WSL(Ubuntu 26.04, 사용자 `suvisdev`): docker·k3s(`--disable servicelb`)·Ollama 0.35·CUDA 13.3(WSL 저장소) 설치,
+  llama.cpp `llama-server` **sm_75** 빌드, `suvisdev-app` 이미지 빌드·k3s import, `~/.venv-exaone` 재생성(fastapi·uvicorn·httpx·pydantic).
+- 데이터: 노트북에서 USB(외장 2TB, NTFS)로 tar 10종(약 90GB) — lora_adapters·Ollama 모델 13종·HF 캐시·datasets·gildle/data·비밀값·유닛.
+  `04_models_gguf`(20GB, Ollama 재생성용 원본)는 운영에 불필요해 WSL에 안 풀고 `D:\suvisdev_backup`에 보관.
+  `LATEST`·`LATEST_GGUF`의 `/home/suteagy` → `/home/suvisdev`(원본 `.bak-suteagy`).
+- lora-server: 노트북 유닛+drop-in 그대로, `/health` model_loaded·gguf, **73 tok/s**(GPU, VRAM 2.5GB/4GB).
+- 결정(사용자): `PORTFOLIO_LLM_BACKEND=gemini`(7.8B는 4GB에 안 들어감) · **Ollama는 CPU 고정**(GPU 4GB는 lora 전용,
+  override `CUDA_VISIBLE_DEVICES=-1`·`OLLAMA_LLM_LIBRARY=cpu`) — bge-m3 임베딩 60~140ms, exaone 2.4b 16 tok/s · `EMBEDDING_BACKEND` 유지.
+- DB: 21:56 덤프(`pg_restore` 방법 2)로 사전 복원·검증 → 컷오버 때 **노트북 터널을 먼저 내리고**(530 확인) LAN 직결로
+  `pg_dump -Fc | pg_restore --clean` 재복원. 노트북 윈도우 portproxy 15432→WSL 5432 + 방화벽 원격 IP를 집컴 하나로 제한(끝나고 닫음).
+  public 42 + trash 21 = 63테이블, **public 42개 count(*) 전부 일치**, alembic `20260930_0001`. Arda 덤프는 제외.
+- 배포는 `deploy.sh --external-db`를 그대로 쓰지 않고 **cloudflared만 뺀 같은 단계**를 수동 실행 → 내부 검증(Traefik ClusterIP+Host:
+  movies·jwks, 파드→lora·Ollama 도달) → 컷오버 때 backend·auth 재시작 후 cloudflared replicas 1. 커넥터 4개(icn01·05·06), 외부 api·auth 200.
+- 상시 가동: `.wslconfig` `instanceIdleTimeout=-1`·`vmIdleTimeout=-1`·`memory=9GB`·`swap=4GB`·`autoMemoryReclaim=gradual`,
+  작업 스케줄러 `suvisdev-wsl-autostart`(로그온 시 `conhost --headless wsl -e sleep infinity`). docker·k3s·ollama enable, lora linger.
+  WSL 종료 → 작업만으로 재기동 시 손대지 않고 외부 200 복구 확인.
+- CD 러너 이전: 노트북 `teagy` 중지·등록 해제 → 집컴 `DESKTOP-T89E5ID`(v2.337.0, prod) 등록, 수동 Run workflow
+  (run 36874220807) **성공**, api·auth 200.
+- 거상 3클라 동시 가동: VRAM 3.9GB/4GB에서도 lora 정상(첫 요청 10s, 이후 2s·67 tok/s), 외부 200.
+
+### 오류·막힌 점 (11)
+- 드라이버 572.42(CUDA 12.8까지)인데 WSL CUDA 저장소가 13.3을 깖 → 빌드는 되지만 실행 불가 위험. 윈도우 드라이버 616.92로 올려 해결.
+- `.wslconfig` 적용 직후 `ERROR_NO_SYSTEM_RESOURCES`로 WSL 미기동 — 설정을 기본값으로 돌려도 동일, **윈도우 재부팅으로 해결**
+  (거상 3클라 가동 중). memory는 11GB→9GB로 낮춤.
+- 열린 WSL 창이 없으면 수 분 만에 WSL이 통째로 꺼짐(db 재시작 중 복원 실패로 발견) → idle 타임아웃 2종 -1 + 로그온 작업.
+- Ollama가 부팅 직후 GPU 탐색 watchdog 타임아웃(30s×2)으로 CPU 시작 — 사용자 결정으로 CPU 고정해 우연을 설정으로 바꿈.
+- `deploy.sh --external-db`는 cloudflared를 replicas 1로 즉시 apply → 컷오버 전 실행하면 노트북과 같은 토큰으로 두 커넥터.
+  런북의 "돌린 뒤 scale 0"도 그 사이 창이 생겨 단계 수동 실행으로 회피. (deploy.sh에 터널 제외 옵션 검토 여지)
+- 비교 스크립트가 `pg_stat_user_tables.n_live_tup`(통계 추정치)을 써 복원 직후 0·불일치로 보임 → `count(*)`로 교체 후 전부 일치.
+- Ollama 설치 스크립트가 `zstd` 없어 실패, 러너가 `libicu` 없어 `config.sh` 즉시 종료(Ubuntu 26.04: `libicu78`·`liblttng-ust1t64`).
+- 작업 스케줄러 `-Hidden`은 작업 목록 숨김일 뿐 창은 뜸 → `conhost.exe --headless`로 교체.
+- 거상 3클라 + WSL 9GB에서 윈도우 여유 RAM 0.5GB(WSL 페이지 캐시 3.2GB 미반환) → `autoMemoryReclaim=gradual`.
+- 하네스 분류기가 sudoers 작성·러너 설치를 막음 → 사용자가 스크립트로 직접 실행.
+- 집컴 첫 CD 배포가 **15분**(노트북 2~6분). 원인 미확인 — 러너 체크아웃 첫 빌드 캐시·빌드 중 RAM 7.1/8.7GB·CPU 차 추정. 다음 머지에서 재측정.
+
+### 데이터 (11)
+- 운영 DB 노트북 → 집컴(pgvector 0.8.6, 노트북 0.8.5). Redis는 캐시라 미이전.
+
+### 산출물 (11)
+- 집컴 이관 스크립트: 윈도우 `OneDrive/Documents/st/집컴이관/`(step1·1b·2·4·4b·10, laptop_open/close_db, pull_db_from_laptop — USB 묶음은 노트북에서 별도).
+- 노트북 구성(k3s·db·lora·`~/actions-runner`)은 1~2주 롤백용 보존, cloudflared 0 유지.
+
 ---
 
 ## 2026-09-30

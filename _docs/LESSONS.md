@@ -8,10 +8,11 @@
 
 최초 추출: 2026-09-29, 워크로그 3개(11,257행)에서 328건. 영역별 최신 날짜가 위.
 
-## 먼저 볼 것 — 재발·미결 (57건)
+## 먼저 볼 것 — 재발·미결 (58건)
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ⏳ | infra | 10-01 | 집컴 첫 CD 배포 15분(노트북 2~6분) | 미확인 — 첫 빌드 캐시·RAM·CPU 추정 | 다음 머지에서 단계별 시간 재측정(`[MAINPAGE]` 10-01 (11)) |
 | 🔁 | infra | 08-26 | 커밋 게이트가 조용히 꺼져 mypy가 0(08-31)→17건으로 불어남(08-26에 이어 두 번째) | 훅의 ruff rev(v0.4.9)가 pyproject `required-version ==0.16.9`와 어긋나 항상 실패 + 노트북에 훅 미설치 + mypy·lint-imports가 `language: system`인데 노트북엔 없음 | rev 맞춤, mypy·import-linter를 운영 이미지 안에서 실행, 노트북 설치, 17→0. 버전 핀을 올릴 땐 `.pre-commit-config.yaml` rev도 같이(`[MAINPAGE]` 10-01 (3)) |
 | ✅ | gildle | 09-30 | 강남대로에서 경로가 차도 한가운데를 지나고 횡단보도 아닌 곳을 건넘 | osmnx walk 그래프가 차도 중심선을 보도와 같은 비용으로 담고, scored_edges에 도로 종류가 없어 구분 불가 | 간선에 `highway`·`sidewalk`(15m 버퍼 기하 판정) 싣고 모든 가중치에 차도 배율(보도 있음 ×2~4, 없음 ×1.3) 한 번 곱함. 강남대로 차도 비율 100%→8~23%(길이 +12~20%). 10-01 CD 첫 자동 배포(PR #152)로 운영 반영·`/api/gildle/navigate` 실호출 확인(`[G]` 10-01) |
 | 📌 | infra | 10-01 | `ruff format .`이 .md 코드블록·.ipynb 셀까지 재포맷(770줄) | ruff 0.16은 마크다운·노트북도 포맷 대상 | .py만 남기고 되돌림. 노트북 린트 54건은 커밋 훅에서 제외(`types_or: [python, pyi]`, 10-01 (3)) — 수동 `ruff check .`엔 계속 보임(`[MAINPAGE]` 10-01) |
@@ -252,10 +253,16 @@
 | ✅ | 07-28 | 매 부팅마다 seed_assistants_if_empty ModuleNotFoundError가 try/except에 조용히 삼켜지고 있었다. | main.py가 존재하지 않는 모듈(assistants_pg_repository)을 import — 리네임이 아니라 애초에 구현된 적 없는 죽은 코드. | AssistantsPgRepository에 count/insert도 시드 데이터도 없음을 확인 후 해당 try/except 블록 통째로 제거. | MAINPAGE 2026-07-28 |
 | 🔁 | 07-28→09-17 | EXAONE 로드가 transformers 버전에 따라 TypeError·NotImplementedError·import 실패(07-28·09-01·09-17) | EXAONE 체크포인트 remote code가 transformers 5.x·gptqmodel·peft 조합과 비호환 | 로컬 체크포인트 최소 패치(07-28), AWQ 포기·hf fp16(09-01), 코랩은 transformers 5.5.0 고정+wte 보충(09-17) | MAINPAGE 2026-07-28 · MOVA 2026-09-01 · 2026-09-17 |
 
-## 인프라·배포 (91건)
+## 인프라·배포 (97건)
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 10-01 | 집컴 WSL이 열린 창이 없으면 몇 분 만에 통째로 꺼짐(복원 중 db 재시작으로 발견) | WSL 기본 idle 타임아웃(인스턴스·VM) — systemd `enable`은 WSL이 켜져 있을 때만 의미 | `.wslconfig` `instanceIdleTimeout=-1`·`vmIdleTimeout=-1` + 로그온 작업(`conhost --headless`)으로 기동, 종료→작업만으로 외부 200 복구 확인. 무인 복구엔 윈도우 자동 로그인까지 필요 | MAINPAGE 2026-10-01 (11) |
+| 📌 | 10-01 | `deploy.sh --external-db`가 cloudflared를 즉시 replicas 1로 올려, 컷오버 전 실행 시 노트북과 같은 터널 토큰으로 커넥터 둘 | 09-29에 배포마다 530을 없애려 0→1 치환 apply로 바꾼 것 | 이관 땐 cloudflared만 뺀 단계를 수동 실행. 노트북 터널을 먼저 내리고(530 확인) DB 재복원 뒤 집컴 터널 기동 | MAINPAGE 2026-10-01 (11) |
+| ✅ | 10-01 | WSL에 CUDA 13.3이 깔렸는데 윈도우 드라이버 572.42는 12.8까지 | WSL 전용 CUDA 저장소는 최신 툴킷을 깖, 런타임은 윈도우 드라이버가 결정 | 윈도우 드라이버 616.92로 업데이트, sm_75 llama-server 73 tok/s | MAINPAGE 2026-10-01 (11) |
+| 📌 | 10-01 | 집컴 Ollama가 부팅 때 GPU 탐색 타임아웃(30s×2)으로 CPU 시작 — 재부팅마다 달라질 수 있음 | WSL 부팅 직후 GPU 스택 초기화 지연 | 사용자 결정: GPU 4GB는 lora 전용, Ollama는 override(`CUDA_VISIBLE_DEVICES=-1`·`OLLAMA_LLM_LIBRARY=cpu`)로 CPU 고정 | MAINPAGE 2026-10-01 (11) |
+| ✅ | 10-01 | 이관 검증에서 노트북·집컴 테이블 건수가 0·엇갈려 보임 | `pg_stat_user_tables.n_live_tup`은 통계 추정치(복원 직후 미갱신) | `count(*)`로 비교 → public 42개 전부 일치 | MAINPAGE 2026-10-01 (11) |
+| ⏳ | 10-01 | 집컴 첫 CD 배포 15분(노트북 2~6분) | 미확인 — 첫 빌드 캐시·빌드 중 RAM 7.1/8.7GB·CPU 차 추정 | 다음 머지에서 단계별 시간 재측정 | MAINPAGE 2026-10-01 (11) |
 | ✅ | 10-01 | CD 설계 중 발견: 러너 체크아웃에서 deploy.sh를 돌리면 운영 파드에 빈 데이터 폴더가 조용히 붙을 뻔함 | `__REPO_ROOT__`가 실행 위치 기준인데 hostPath가 `DirectoryOrCreate`라 틀린 경로도 에러 없이 생성 | 코드는 체크아웃, 데이터·.env는 `SUVISDEV_DATA_ROOT`로 분리 + `datasets` 없으면 중단하는 가드. "조용히 성공하는" 설정은 앞에서 막는다 | MAINPAGE 2026-10-01 |
 | ✅ | 10-01 | 프론트 CI가 깨끗한 체크아웃에서 pnpm 9로 실패("packages field missing") | `pnpm-workspace.yaml`의 `allowBuilds`는 pnpm 10 설정인데 lockfileVersion 9.0만 보고 9로 짐작 | git worktree(추적 파일만)로 CI를 로컬 재현해 푸시 전에 발견, pnpm 10으로. 개발 폴더 통과는 CI 통과가 아니다 | MAINPAGE 2026-10-01 |
 | ✅ | 10-01 | "노트북에 Flutter 없음"이라 보고했는데 사용자가 있다고 지적 | WSL 안만 찾고 단정 — SDK는 윈도우 `C:\src\flutter` | 윈도우 경로까지 탐색, `flutter test`는 윈도우 임시 폴더로 rsync 후 실행(UNC 잠금 대기). "없다"는 결론 전에 두 OS 다 본다 | MAINPAGE 2026-10-01 |

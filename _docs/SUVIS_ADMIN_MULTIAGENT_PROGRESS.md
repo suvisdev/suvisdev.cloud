@@ -15,6 +15,10 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-01 (11) **프로덕션 노트북→집컴(DESKTOP-T89E5ID) 이관·컷오버 완료**: 터널·CD 러너(prod) 집컴으로, DB LAN 직결 재복원(count 일치) ·
+  lora sm_75 GPU / Ollama CPU 고정 / 포트폴리오 챗봇 gemini · WSL 상시 가동(idle -1·로그온 작업) · 수동 배포 run 36874220807 성공.
+  노트북=개발 전용, 운영 `.env`는 집컴 `~/projects/suvisdev/suvisdev/.env`. 노트북 운영 구성은 ~10-15까지 롤백용 보존.
+
 - `[P]` 10-01 전체 코드 점검·정리(브랜치 `chore/code-cleanup`, 미푸시): pre-commit 게이트 복구(ruff rev·도커 실행·노트북 설치) ·
   mypy 17→0(gildle 포트 `start_point` 계약 포함) · 고아 파일 8+연쇄 1 삭제 · 잔재 파일 5 · 집컴(DESKTOP-T89E5ID) 이관 런북 2종(바탕화면) ·
   Flutter analyze 0/test 15 · 비전 S3 어댑터 삭제 · **CI/CD 신설**(3스택 CI + 백엔드 자동 배포, `k8s/README.md` "CI/CD").
@@ -107,6 +111,12 @@
 `scripts/eval_chat_queries.py`(23질의, 단일턴)·`scripts/eval_chat_multiturn.py`(6장면,
 history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `--base-url
 http://127.0.0.1:31386`.
+
+### 집컴 운영 후속 (2026-10-01, `[P]` 10-01 (11))
+- 집컴 상시 가동 마무리(사용자): 윈도우 자동 로그인 · 절전 끄기 · BIOS AC 복구 → 실제 재부팅 테스트(손대지 않고 외부 200)
+- 집컴 CD 배포 15분 원인 확인(다음 머지 때 단계별 시간)
+- lora 재학습 산출 GGUF의 집컴 반영 절차 정리(노트북 학습 → 집컴 `~/lora_adapters/gguf` + `LATEST_GGUF` + `/reload`)
+- ~10-15 노트북 운영 구성 정리(k3s·db·lora·`~/actions-runner`), `laptop_close_db.ps1` 실행 확인
 
 ### 저장소 정리 (2026-09-27 저녁, `[P]` 09-27)
 - Qwen 명칭 제거(실체 EXAONE), 데드 코드 백엔드 94파일·프론트 64파일·의존성 35 삭제, `route_requests/
