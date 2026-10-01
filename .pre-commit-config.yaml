@@ -1,12 +1,18 @@
 # suvisdev(백엔드) 커밋 게이트. 원래 suvisdev/.pre-commit-config.yaml에
 # 있었으나 git 루트가 모노레포 루트라 그 위치에서는 훅이 아예 동작하지
 # 않았다(2026-08-26 확인) — 루트로 이동하고 경로를 suvisdev/로 스코프.
+#
+# 설치(머신마다 1회, 클론에 안 딸려 온다): uv tool install pre-commit && pre-commit install
+# 전제: docker + suvisdev-app:latest 이미지(mypy·import-linter가 그 안에서 돈다).
+# 전체 수동 실행: pre-commit run --all-files
 repos:
   # 1. ruff — lint + format (설정은 suvisdev/pyproject.toml을 파일 위치 기준 자동 탐색)
+  #    rev는 pyproject.toml의 required-version(==0.16.9)과 같아야 한다 — 어긋나면 ruff가
+  #    실행을 거부해 훅이 항상 실패한다(v0.4.9로 남아 있던 것, 2026-10-01 발견·수정).
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.9
+    rev: v0.16.9
     hooks:
-      - id: ruff
+      - id: ruff-check  # v0.16에서 `ruff`는 legacy alias
         args: [--fix]
         files: ^suvisdev/
       - id: ruff-format
@@ -15,11 +21,14 @@ repos:
   # 2. mypy — 정적 타입 검사 (2026-08-31 재활성화: 415→0건 해소)
   #    mirrors-mypy는 변경 파일만 개별 전달해 base class를 Any로 해석하는
   #    false positive가 대량 발생 — import-linter와 동일하게 로컬 훅으로 전체 실행.
+  #    운영 이미지(suvisdev-app:latest) 안에서 돈다: strict mypy는 서드파티 타입이 있어야
+  #    정확한데(의존성 없이 돌리면 오탐 457건, 2026-10-01 실측), 노트북 .venv엔 의존성이
+  #    없다. 이미지는 k3s 배포용으로 두 머신 모두 있다. .mypy_cache가 저장소에 남아 4~7초.
   - repo: local
     hooks:
       - id: mypy
         name: "mypy — strict type check"
-        entry: bash -c 'cd suvisdev && python -m mypy --config-file pyproject.toml --explicit-package-bases apps/'
+        entry: bash -c 'cd suvisdev && docker run --rm -v "$PWD":/suvisdev -w /suvisdev suvisdev-app:latest sh -c "pip install -q --root-user-action=ignore mypy==2.3.1 >/dev/null && python -m mypy --config-file pyproject.toml --explicit-package-bases apps/"'
         language: system
         pass_filenames: false
         files: ^suvisdev/
@@ -29,7 +38,7 @@ repos:
     hooks:
       - id: import-linter
         name: "Architecture: Star-topology dependency check"
-        entry: bash -c 'cd suvisdev && PYTHONPATH="$PWD:$PWD/apps" lint-imports'
+        entry: bash -c 'cd suvisdev && docker run --rm -v "$PWD":/suvisdev -w /suvisdev suvisdev-app:latest sh -c "pip install -q --root-user-action=ignore import-linter==2.15 >/dev/null && PYTHONPATH=/suvisdev:/suvisdev/apps lint-imports"'
         language: system
         pass_filenames: false
         always_run: true
