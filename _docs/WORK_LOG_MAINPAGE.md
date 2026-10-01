@@ -168,6 +168,17 @@
 ### 작업 내용 (9) — 약속 타일 맨 뒤로 (브랜치 `feat/yaksok-last`)
 - 사용자 지시. `TEAM_PROJECTS` 배열에서 약속을 ARDA 뒤로(내용 변경 없이 순서만). 홈과 `/apps`가 같은 배열이라 둘 다 반영.
   홈 순서 Mova · Gildle · ARDA · 약속(캡처 확인). tsc·eslint·prettier 0.
+- PR #157 머지 → Vercel 운영 반영(타일 순서 HTML 확인).
+
+### 작업 내용 (10) — LangChain·LangGraph 현황 조사 + LangGraph 계획 문서
+- 사용자 질문 "랭체인·랭그래프 들어갔나": LangChain은 `execsuite` LangChain 채팅 엔진 1파일(관리자 전용 `/langchain`)만,
+  LangGraph는 의존성·import 0 — 07-30 "LangChain+pgVector → LangGraph+Neo4j" 계획 문서만 있고 `langgraph_interactor.py`는
+  빈 파일이었다가 09-11 삭제. 실제 에이전트는 직접 짠 `ontology/app/agent/agent_loop.py`.
+- 면접용으로 "직접 짠 루프를 LangGraph로 옮기고 하네스로 동등성 증명" 계획 작성(구현은 사용자가 집에서):
+  `suvisdev/apps/ontology/_docs/LANGGRAPH_AGENT_LOOP_PLAN.md` — drop-in(같은 생성자·run·AgentDecision), `AGENT_LOOP_ENGINE`
+  스위치(기본 native라 CD 배포돼도 운영 불변), JudgePort·`<tool_call>` 프로토콜 유지(bind_tools 금지), 테스트 7개 두 엔진
+  파라미터화, 하네스 2종 엔진별 비교.
+- 곁가지 수정: backend-ci 경로에 `!**/*.md` — 앱 `_docs/` 문서만 바꿔도 backend-ci → 운영 재배포가 돌던 것.
 
 ---
 

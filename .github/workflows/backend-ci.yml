@@ -1,6 +1,7 @@
 # 백엔드 CI — pre-commit 게이트(.pre-commit-config.yaml)와 같은 검사를 GitHub에서 한 번 더 돈다.
 # 게이트는 머신마다 설치해야 돌아서 빠질 수 있다(2026-10-01, 꺼진 사이 mypy 0→17건). CI는 빠질 수 없다.
 # main push 성공 시 backend-deploy.yml이 이어 받아 노트북에 배포한다.
+# .md만 바뀐 커밋은 제외 — 문서 변경으로 운영 재배포(이미지 빌드 ~6분)가 돌지 않게(2026-10-01).
 name: backend-ci
 
 on:
@@ -10,11 +11,13 @@ on:
       - "suvisdev/**"
       - "k8s/**"
       - ".github/workflows/backend-*.yml"
+      - "!**/*.md"
   pull_request:
     paths:
       - "suvisdev/**"
       - "k8s/**"
       - ".github/workflows/backend-*.yml"
+      - "!**/*.md"
   workflow_dispatch:
 
 concurrency:
