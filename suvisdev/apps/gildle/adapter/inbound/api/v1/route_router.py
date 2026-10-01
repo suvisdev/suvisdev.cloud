@@ -258,7 +258,7 @@ def _load_shade_scores(today: date | None = None) -> dict[str, Any] | None:
     hit = _shade_cache.get(path)
     if hit is not None and hit[0] == mtime:
         return hit[1]
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     data["_key"] = (str(path), mtime)
     _shade_cache[path] = (mtime, data)
     return data

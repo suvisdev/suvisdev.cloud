@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
 from mova.adapter.outbound.llm.agent_prompt import MAX_STEPS, SYSTEM_PROMPT
 from mova.app.ports.output.box_office_port import BoxOfficePort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
@@ -100,7 +101,9 @@ class MovaChatAgent:
 
     # --- 데이터 도구 ------------------------------------------------------------------------
 
-    async def _exact(self, title: str):
+    async def _exact(
+        self, title: str
+    ) -> tuple[MovaSearchItemSchema | None, list[MovaSearchItemSchema]]:
         """트랙과 같은 제목 해석기 — 조사·어절 후보·퍼지까지("데자뷰는 누가 나오지" → 데자뷰, 09-29 운영 실측:
         맥락 없이 오면 v9가 발화 전체를 title에 넣는다). 정확 일치면 item, 모호하면 후보 목록."""
         # 모델이 "타짜: 벨제붑의 노래 (2026)"처럼 연도 꼬리를 붙이면 정확 일치가 깨져 후보 되묻기로 빠진다(09-29 운영)

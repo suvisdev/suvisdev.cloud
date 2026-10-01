@@ -1105,6 +1105,7 @@ class ChatInteractor(ChatUseCase):
             for r in decision.results
         ):
             intent_type = "booking"
+            assert self._agent is not None  # _act_on_agent는 에이전트가 있을 때만 호출된다
             for d in await self._agent.showing_cards():
                 cards.append(
                     ChatRecommendationDto(

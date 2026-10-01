@@ -16,7 +16,9 @@ import json
 import logging
 import os
 import time
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
@@ -38,24 +40,25 @@ _MIN_CYCLE_GAP_S = 20 * 3_600
 _POOL_FACTOR = 5  # 쉬는 영화를 빼고도 limit편을 채우도록 후보를 넉넉히
 
 
-def _load_state() -> dict:
+def _load_state() -> dict[str, Any]:
     try:
-        return json.loads(_STATE_PATH.read_text(encoding="utf-8"))
+        state: dict[str, Any] = json.loads(_STATE_PATH.read_text(encoding="utf-8"))
+        return state
     except (FileNotFoundError, ValueError):
         return {"last_cycle": 0, "skips": {}}
 
 
-def active_skips(state: dict, now: float) -> dict[str, float]:
+def active_skips(state: dict[str, Any], now: float) -> dict[str, float]:
     """쿨다운(30일)이 안 지난 실패 기록만."""
     return {k: v for k, v in state.get("skips", {}).items() if now - v < _SKIP_COOLDOWN_S}
 
 
-def pick_candidates(pool: list, skips: dict[str, float], limit: int) -> list:
+def pick_candidates(pool: Sequence[Any], skips: dict[str, float], limit: int) -> list[Any]:
     """(movie_id, title, year) 후보 중 쉬는 영화를 빼고 앞에서 limit편."""
     return [m for m in pool if str(m[0]) not in skips][:limit]
 
 
-def _save_state(state: dict) -> None:
+def _save_state(state: dict[str, Any]) -> None:
     _STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     _STATE_PATH.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
 
@@ -89,7 +92,7 @@ def _fetch_news(title: str) -> list[dict[str, str]]:
         summary = BeautifulSoup(getattr(e, "summary", ""), "html.parser").get_text(
             separator=" ", strip=True
         )
-        src = getattr(e, "source", None)
+        src: Any = getattr(e, "source", None)
         source = (src.get("title") if hasattr(src, "get") else "") or ""
         rows.append(
             {

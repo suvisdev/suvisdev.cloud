@@ -228,7 +228,10 @@ def verify(llm: Mapping[str, object] | None, text: str) -> WalkRequest:
     if destination:
         kind = "route"
     else:
-        kind = llm.get("kind") if llm.get("kind") in ("loop", "route") else rules.kind
+        llm_kind = llm.get("kind")
+        kind = (
+            llm_kind if isinstance(llm_kind, str) and llm_kind in ("loop", "route") else rules.kind
+        )
     return WalkRequest(
         kind=str(kind),
         minutes=minutes,

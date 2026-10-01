@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 
@@ -324,11 +323,11 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
                     s = shade_lookup.get((e.to_node, e.from_node))
                 shaded += e.base_distance_m * max(s or 0.0, e.tree_score)
             shade = shaded / length
-        road_len: Counter[str] = Counter()
+        road_len: dict[str, float] = {}
         for e in es:
             if e.road_name:
-                road_len[e.road_name] += e.base_distance_m
-        roads = tuple(name for name, _ in road_len.most_common(2))
+                road_len[e.road_name] = road_len.get(e.road_name, 0.0) + e.base_distance_m
+        roads = tuple(sorted(road_len, key=road_len.__getitem__, reverse=True)[:2])
 
         near: list[tuple[int, PetPlace]] = []
         for p in all_places:
