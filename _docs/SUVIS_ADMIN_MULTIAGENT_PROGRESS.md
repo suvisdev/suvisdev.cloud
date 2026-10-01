@@ -15,6 +15,9 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-01 전체 코드 점검·정리(브랜치 `chore/code-cleanup`, 미푸시): pre-commit 게이트 복구(ruff rev·도커 실행·노트북 설치) ·
+  mypy 17→0(gildle 포트 `start_point` 계약 포함) · 고아 파일 8+연쇄 1 삭제 · 잔재 파일 5 · 집컴(DESKTOP-T89E5ID) 이관 런북 2종(바탕화면)
+
 - `[M]` 09-22 멀티턴 학습 데이터셋 구축(교사 470행이 전부 단일턴인데 서빙은 6턴 히스토리 주입 — 학습·서빙 불일치 규명 · `build_multiturn_dataset.py` 4패턴 231행 · 최종 607행 하드 체크 전 행 통과 · 코랩 노트북 평가셋에 멀티턴 포함 + `nopick_ok` 체크 추가 · 09-17 어댑터 폐기 결정 · 바탕화면 `colab/mova-colab-20260922/` 배치, **코랩 실행은 사용자 대기**)
 - `[M]`·`[P]` 09-17 f745447 노트북 프로덕션 배포(빌드 6m10s) + RAG 임베딩 bge-m3 컷오버 완주(`EMBEDDING_BACKEND` gemini→ollama 정정 · alembic `20260911_0001` · 파드 안 재색인 2,965건 실패 0 · 회귀 23/23 PASS · vector_search 1024 히트 실측)
 - `[P]` 09-09 노트북 프로덕션 컷오버 후 실사용 검증(API 전수 — backend·gildle 경로계산·auth·웹 카카오 OAuth 302 · 터널 530=WSL 미부팅 진단 · auth 게이트웨이 `AUTH_*_REDIRECT_URI` env drift 발견)
@@ -442,11 +445,11 @@ http://127.0.0.1:31386`.
   09-30 하루 PR #134~#144. 상세는 `[MOVA]`·`[MAINPAGE]`·`[GILDLE]` 09-30.
   - **문서**: 블로그(suvisjk) 전 페이지 현행화 + 09-30 데블로그, 사이트 `/resume` 갱신, 바탕화면 이력서·자소서·면접대비 갱신(이전본 보관).
   - **사용자 확인 대기**: 길들 앱 실기기 확인·Play 업로드(최신 `gildle-release-20260930d.aab` 1.0.4+5; 10-01 폰 미연결로 미확인), 길들 웹 끝내기 확인창·기록 삭제, 가로 목록 끌기 동작.
-  - **v1 이후 백로그**: 짧은 access TTL+상시 리프레시 · 채팅 SSE 스트리밍 · 7.8B 전환 검토(VRAM) · ~~기존 ruff 린트 11건·포맷 28파일~~(10-01 완료, `.ipynb` 54건만 남음 — 설정에서 뺄지 결정) ·
+  - **v1 이후 백로그**: 짧은 access TTL+상시 리프레시 · 채팅 SSE 스트리밍 · 7.8B 전환 검토(VRAM) · ~~기존 ruff 린트 11건·포맷 28파일~~(10-01 완료. `.ipynb` 54건은 커밋 훅에서 제외(`types_or`)로 정리 — 수동 `ruff check .`엔 계속 보임, pyproject에서도 뺄지는 선택) ·
     길들 웹 장소 검색의 입력 중 호출(Nominatim 정책) · `/mova/title/parasite` 등 옛 목업 주소 정리 · ~~회귀 하네스에 '기록(봤어요·별점) 후속' 장면 추가~~ **완료(10-01, `[M]` 10-01)** — 기록 자체는 pytest 127건이 지키고,
     실서버 하네스엔 비로그인 봤어요 3장면(도구 라우팅+정직한 로그인 안내, DB 미기록) 추가 · 하네스 날짜 의존 검사 1건.
 - **v1 전체 점검 통과(09-30)**: pytest 1030·import-linter 6 kept·tsc/eslint 0·mova 하네스 28/28·16/17(날짜 의존 1건)·
-  gildle API·Flutter analyze 0/test 3. 잔여: 기존 ruff 린트 11건·포맷 드리프트 28파일.
+  gildle API·Flutter analyze 0/test 3. ~~잔여: 기존 ruff 린트 11건·포맷 드리프트 28파일~~(10-01 완료).
 - **09-11 전체 코드 리뷰 + 후속 수정 ①~⑤ 완료(09-17 이후 빌드로 배포됨, 09-28 확인)** — 리뷰 결과·처리
   현황·잔여 목록의 SSOT는 `suvisdev/_docs/CODE_REVIEW_2026-09-11.md`. 요지:
   인증 3건(평문/pass-the-hash·미검증 이메일 admin·admin1234 시드) + 무인증

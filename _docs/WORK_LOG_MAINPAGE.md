@@ -51,6 +51,47 @@
 ### 산출물
 - 미커밋 변경 44파일(gildle 포함). 커밋 분리 권장: ① gildle 차도 페널티 ② ruff 포맷·린트 정리.
 
+### 작업 내용 (2) — 집 데스크톱 온프레미스 이관 런북
+- 면접 다닐 때 노트북을 들고 나가도 사이트가 살아 있게, 프로덕션을 노트북(teagy)→집 상시 데스크톱
+  **DESKTOP-T89E5ID**(Ryzen 5 3600·16GB·GTX 1650 SUPER 4GB = sm_75)로 내리는 계획. 실행은 사용자가 집에서(대부분 클로드 위임).
+- 노트북 실구성을 읽어 작성: k3s 파드 3·도커 db/redis·lora-server(serve_gguf가 `~/llama.cpp/build/bin/llama-server`를
+  자식으로 띄움 → 집컴은 **sm_75 재빌드** 필수)·Ollama 모델 13·`.env` 키 57·backend hostPath 4.
+- 결론: mova 2.4B GGUF(~1.7GB)는 4GB에 들어감, 홈 챗봇 `exaone3.5:7.8b`(4.8GB)는 안 들어가 `PORTFOLIO_LLM_BACKEND=gemini`
+  권장(코드 확인: `FallbackHubLlmAdapter`가 요청마다 7.8B 실패 시 Gemini). 터널 토큰이 하나라 노트북↔집컴 동시 기동 금지.
+  거상(2D)은 VRAM 수백 MB라 lora와 공존 OK. 클라우드 이관 시 비용은 GPU 상시가 7~8할(T4 기준 월 $500~650).
+
+### 작업 내용 (3) — 전체 코드 점검·정리 (브랜치 `chore/code-cleanup`)
+- 사용자 지시 "코드 점검·파이프라인·테스트·낡은 코드·오류 정리". 1차는 읽기 전용 점검 → 목록 승인 후 4묶음 정리.
+- 점검 결과: pytest 1052 통과(shapely 3파일은 .venv에서 12 통과) · import-linter 6/6 · ruff(.py) 0 · tsc·eslint 0 ·
+  **mypy 17건**(08-31 0건) · **pre-commit 게이트 꺼짐** · CI 없음 · Flutter는 노트북에 SDK 없어 미점검.
+
+### 수정/구현 (3)
+- **게이트 복구**(cc2eb28 + 후속): ruff-pre-commit rev `v0.4.9`→`v0.16.9`(pyproject `required-version ==0.16.9`와 어긋나
+  ruff가 실행 거부 → 훅 항상 실패였음, 실측) · mypy·import-linter를 `suvisdev-app:latest` 이미지 안에서 실행(노트북 .venv엔
+  둘 다 없음, 의존성 없는 mypy는 오탐 457건) · ruff 훅 `types_or: [python, pyi]`(노트북 E702 등 자동수정 불가 → 노트북 커밋이
+  전부 막히는 것 방지) · 훅 id `ruff`→`ruff-check` · 노트북에 `uv tool install pre-commit && pre-commit install`.
+- **mypy 17→0**(017805d): gildle `WalkPlanUseCase.plan` 포트에 `start_point` 추가(라우터가 넘기는데 포트에 없던 계약 위반).
+  나머지는 동작 불변 — `bool(date) and date >`→`date is not None and`(빈 문자열 결과 동일), `_act_on_agent`에 에이전트 assert
+  (호출부 1곳이 에이전트 있을 때만), float 거리 집계 `Counter`→dict+sorted(`most_common`과 동률 포함 무작위 2만 회 대조 일치).
+- **죽은 코드**(33575eb): grimp import 그래프 + 심볼 참조로 고아 파일 8개 삭제(dispatch Holmes·ReportWriter interactor —
+  호출하던 왓처는 09-27에 이미 삭제됐는데 소비자만 남음, gildle ImportTreeSegmentUseCase, mova VO 5개). 연쇄 고아
+  `InboundMessageEvent`(Hub) 삭제. 미사용 파라미터 `via_point`·`active_url`, 프론트 `cookieAuthHeader` 제거.
+- **잔재**(1c01142): `chat_teacher_dataset.jsonl.bak-20260909` 추적 해제(gitignore `*.jsonl`이 `.bak-` 접미사를 못 잡아
+  커밋돼 있었음, 로컬 보존 + 패턴 추가), 0바이트 문서 4개 삭제.
+
+### 오류·막힌 점 (3)
+- 고아 모듈 1차 탐지가 174개로 부풀었다 — 앱 5개 누락 + `main.py`(패키지 밖) import 미집계 + 패키지(폴더) 자체를 고아로 셈.
+  잎 모듈만 남기고 심볼 참조를 다시 세서 실제 8개로 확정(viewer 9개는 provider에서 쓰는 오탐).
+- 처음 mypy 결과의 `google.genai` 1건은 09-27의 오래된 `.mypy_cache` 탓 — `--cache-dir=/tmp/mc`로 캐시 없이 재확인해 17건 확정.
+- `uv run --with grimp`를 `--no-project` 없이 돌려 `suvisdev/uv.lock`(52B)이 생김 — pyproject에 `[project]`가 없어 .venv는
+  무변경(오늘 바뀐 dist-info 0) 확인 후 삭제.
+- 미해결 관찰: `ensure_*_database`가 URL이 바뀌면 옛 엔진을 dispose하지 않는다(누수 가능성, 범위 밖이라 그대로).
+  `vision_s3_repository.py`는 참조 0건인데 막은 근거가 "S3 미연결"(08-10에 틀렸다고 정정된 전제) — 삭제/연결은 기능 판단.
+
+### 산출물 (3)
+- 커밋 cc2eb28·017805d·33575eb·1c01142 + 문서 커밋(게이트가 실제로 도는 첫 커밋). 브랜치 `chore/code-cleanup`(미푸시).
+- 바탕화면 `집컴_서버_이관/01_이관_가이드.html`(사용자용)·`02_클로드_전달용_지시서.md`(클로드 전달용).
+
 ---
 
 ## 2026-09-30

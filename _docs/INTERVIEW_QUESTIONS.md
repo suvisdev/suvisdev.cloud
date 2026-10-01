@@ -7,6 +7,66 @@
 
 ---
 
+## 2026-10-01 (2) (전체 코드 점검 — 게이트 복구 · mypy · 죽은 코드 · 집컴 이관 설계)
+
+### Q1. 테스트도 다 통과하는데 mypy가 0건에서 17건으로 늘어난 걸 왜 아무도 몰랐나?
+
+<details><summary>답 확인</summary>
+
+mypy를 강제하는 장치가 커밋 게이트(pre-commit) 하나뿐인데 그게 꺼져 있었다. 훅이 ruff를 v0.4.9로 고정했는데 pyproject는 `required-version ==0.16.9`라 ruff가 실행 자체를 거부했고, 노트북엔 훅이 설치돼 있지도 않았다. CI도 없어서 "검사가 안 돌았다"는 신호가 어디에도 안 남는다. 교훈: 검사 도구는 "돌았는데 통과"와 "아예 안 돌았음"을 구분할 수 있어야 한다. 버전을 한 곳(pyproject)에 고정하면 그걸 참조하는 다른 곳(훅 rev)도 같이 올려야 한다.
+</details>
+
+### Q2. mypy 훅을 왜 굳이 도커(운영 이미지) 안에서 돌리나? uvx로 돌리면 간단하지 않나?
+
+<details><summary>답 확인</summary>
+
+strict mypy는 FastAPI·SQLAlchemy·Pydantic 같은 서드파티 타입 정보가 있어야 정확하다. 의존성 없이 uvx로 돌리면 `ignore_missing_imports` 때문에 그 타입이 전부 Any가 돼서 "Any를 상속", "타입 없는 데코레이터" 같은 오탐이 457건 나온다(실측). 노트북 `.venv`는 gildle 지리 전용이라 의존성이 없다. 운영 이미지는 실제 의존성이 깔려 있고, k3s 배포 때문에 두 머신 모두 이미 있다. `.mypy_cache`가 마운트된 저장소에 남아서 4~7초면 끝난다.
+</details>
+
+### Q3. 죽은 코드를 찾을 때 vulture만으로 끝내지 않고 import 그래프를 따로 만든 이유는?
+
+<details><summary>답 확인</summary>
+
+vulture는 "함수 안에서 안 쓰는 변수·파라미터" 같은 지역적인 것은 잘 잡지만, "이 파일 전체를 아무도 import하지 않는다"는 판단은 약하다. 반대로 추상 메서드 파라미터처럼 원래 안 쓰이는 것은 오탐한다(포트 시그니처 2건). 그래서 grimp로 모듈 간 import 그래프를 만들고 "들어오는 간선이 0인 모듈"을 뽑았다. 다만 그래프만으론 `main.py`(패키지 밖)나 문자열 경로로 참조하는 것을 놓쳐 처음엔 174개로 부풀었고, 잎 모듈만 남긴 뒤 클래스·함수 이름 참조를 다시 세서 8개로 확정했다. 도구 하나의 결과를 그대로 믿지 않고 다른 방법으로 교차 확인한 것이다.
+</details>
+
+### Q4. 09-27에 이미 데드코드 정리를 했는데 왜 고아가 또 나왔나?
+
+<details><summary>답 확인</summary>
+
+그때 왓처(`DetectiveWatsonWatcherHub`)를 "안 쓰여서" 지웠는데, 그 왓처가 호출하던 Holmes·ReportWriter interactor는 남겨뒀다. 왓처가 사라지는 순간 그 둘도 고아가 되는데, 정리를 파일 단위로 한 번만 판단해서 연쇄를 못 봤다. 이번에도 그 둘을 지우자 그것들만 쓰던 Hub 이벤트 `InboundMessageEvent`가 또 고아가 됐다. 지운 뒤에 "그것만 쓰던 것"을 한 번 더 세야 한다. 그래프로 보면 잎을 떼면 새 잎이 생기는 구조다.
+</details>
+
+### Q5. gildle `start_point`는 런타임에 잘 돌아가는데 왜 "결함"으로 분류했나?
+
+<details><summary>답 확인</summary>
+
+라우터는 포트(`WalkPlanUseCase`)에 의존하는데, 포트의 `plan()`에는 `start_point`가 없고 구현체에만 있었다. 지금은 실제 객체가 구현체라 돌아가지만, 헥사고날에서 포트는 "어댑터가 기대해도 되는 계약"이다. 구현체를 갈아 끼우거나 테스트 더블을 포트 기준으로 만들면 그 인자를 몰라서 깨진다. 계약 밖의 것에 기대는 코드는 우연히 동작하는 것이다. 그래서 포트에 `start_point: Coordinate | None = None`을 추가해 계약을 실제 사용과 맞췄다.
+</details>
+
+### Q6. `Counter`를 dict로 바꾸면서 결과가 같다는 걸 어떻게 보장했나?
+
+<details><summary>답 확인</summary>
+
+typeshed가 `Counter`의 값을 int로 정의하는데 우리는 거리(float)를 더하고 있어 mypy가 걸렸다. dict + `sorted(key, reverse=True)[:2]`로 바꿨는데, 걱정은 동률일 때 순서였다. `most_common(n)`은 문서상 `sorted(..., reverse=True)[:n]`과 동치이고, 파이썬 정렬은 `reverse=True`여도 안정 정렬이라 동률은 삽입 순서를 유지한다. 이론에 더해 동률이 섞인 무작위 데이터 2만 회로 두 방식을 대조해 불일치 0을 확인했다. 그 집계를 직접 검증하는 테스트가 없었기 때문이다.
+</details>
+
+### Q7. 게이트를 켜면서 왜 ruff 훅에서 코랩 노트북(.ipynb)은 뺐나?
+
+<details><summary>답 확인</summary>
+
+노트북 3개에 한 줄 세미콜론(E702) 같은 자동 수정이 안 되는 오류가 54건 있다. 훅 기본값은 jupyter도 검사해서, 게이트를 켜는 순간 노트북을 고치는 커밋이 전부 막힌다. 그런데 노트북은 코랩에서 실행해 결과를 내는 산출물이고, 이전에 ruff가 노트북을 재포맷한 것도 되돌리기로 결정했었다. 그래서 `types_or: [python, pyi]`로 `.py`만 보게 했다. 검사를 켜는 일은 "기존 작업 흐름을 막지 않는가"까지 확인해야 끝난다.
+</details>
+
+### Q8. 집 데스크톱(GTX 1650 SUPER 4GB)으로 옮길 때 lora-server를 "그대로 복사"하면 안 되는 이유는?
+
+<details><summary>답 확인</summary>
+
+`serve_gguf.py`는 `~/llama.cpp/build/bin/llama-server` 바이너리를 자식 프로세스로 띄우는데, 노트북 바이너리는 RTX 4060(Ada, sm_89)용으로 CUDA 빌드돼 있다. 1650 SUPER는 Turing(sm_75)이라 그 바이너리의 GPU 커널이 안 맞는다. 그래서 `-DCMAKE_CUDA_ARCHITECTURES=75`로 다시 빌드해야 한다. 모델 파일(GGUF)은 아키텍처와 무관해 그대로 쓴다. 같은 이유로 홈 챗봇의 7.8B(4.8GB)는 4GB VRAM에 못 올라가서 `PORTFOLIO_LLM_BACKEND=gemini`로 두는 게 낫다.
+</details>
+
+---
+
 ## 2026-10-01 (gildle — 차도 중심선 페널티 · ruff 정리)
 
 ### Q1. 보행 그래프인데 경로가 왜 차도 한가운데를 지났나?

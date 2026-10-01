@@ -411,9 +411,11 @@ python scripts/verify_db_tables.py
 | `import-linter` | `suvisdev/.importlinter` | Spoke 간 직접 import / Hub→Spoke import 차단 |
 | `ruff` | `suvisdev/pyproject.toml` | 코드 스타일·포맷·lint |
 | `mypy` | `suvisdev/pyproject.toml` | 정적 타입 검사 (strict) |
-| `pre-commit` | `suvisdev/.pre-commit-config.yaml` | 커밋 시점 자동 검사 |
+| `pre-commit` | `.pre-commit-config.yaml` (**저장소 루트** — 08-26 이동) | 커밋 시점 자동 검사 |
 
-위반 시 커밋이 차단된다.
+위반 시 커밋이 차단된다. 단 **훅은 머신마다 설치해야 돈다**(`uv tool install pre-commit && pre-commit install`,
+클론에 안 딸려 온다). mypy·import-linter는 `suvisdev-app:latest` 이미지 안에서 돈다. 설치가 빠지고 ruff 버전이
+어긋나 게이트가 꺼진 사이 mypy가 0→17건으로 늘었던 것이 2026-10-01 발견·복구됐다.
 
 ---
 
