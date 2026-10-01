@@ -119,6 +119,19 @@
 - 사용자 질문(같은 세션): 네이버 로그인인데 이메일이 `@nate.com` — 네이버 프로필 API `email`은 네이버 계정의 **연락처 이메일**이라
   외부 주소일 수 있다(정상). 아이디 `jst0432_naver`는 `{로컬}_{provider}` 규칙.
 
+### 작업 내용 (5) — PR #152 머지 · 첫 자동 배포 · 네이버 이메일 조사
+- 러너 상시 서비스는 사용자가 `!`로 직접 등록 → GitHub에 `teagy` online(prod).
+- PR #152(브랜치 chore/code-cleanup, gildle 차도 페널티 포함) GitHub CI 3종 통과(frontend 43s·gildle 1m43s·backend 3m41s)
+  → 머지 `b63c4d9` → main backend-ci 성공 → **backend-deploy가 노트북 러너에서 자동 실행·성공**(run 36815126361, 04:26→04:32 UTC):
+  backend·auth 롤아웃, api·auth 외부 200. "성공"만으론 빈 마운트를 못 거르니 직접 확인: 파드 hostPath 3개가 러너 `_work`가
+  아니라 `/home/suteagy/projects/suvisdev/...`, 파드 안 `scored_edges.json` 89MB(10-01 갱신본)·datasets 31개,
+  운영 `/api/gildle/navigate` 실노드 호출 183.2m 경로 반환. → 하네스가 막던 gildle 차도 페널티 배포가 이걸로 해소.
+- 네이버 이메일(`@nate.com`) 조사: 네이버 개발자 문서(회원 프로필 조회 API) 원문 — email은 "기본적으로 네이버ID@naver.com이나
+  사용자가 외부메일로 변경했으면 변경된 주소". 운영 DB(읽기 전용) id 21 `jst0432_naver`, 10-01 naver 가입, email·identity_email 모두
+  nate.com. **기존 연결 로그인은 `_find_linked_user`가 사용자를 찾아 반환만 해 이메일을 갱신하지 않는다** → 네이버에서 기본 이메일을
+  바꿔도 반영 안 됨(처음에 "바꾸면 된다"고 안내한 것을 정정). 네이버는 `email_verified=False`라 기존 계정 자동 병합도 안 한다(보안 설계).
+  개선안(로그인 시 이메일 동기화 / 마이페이지 이메일 수정)은 사용자 결정 대기.
+
 ---
 
 ## 2026-09-30
