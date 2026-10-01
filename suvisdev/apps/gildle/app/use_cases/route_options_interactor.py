@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 
@@ -71,9 +70,12 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         elevation: Elevation | None = None,
     ) -> list[str]:
-        """선호(walk_preference)별 가중치로 최단거리 × 1.5 안에서 A*."""
-        if kind in ("fast", "via"):
-            return self._route.execute_shortest(edges, start, end)
+        """선호(walk_preference)별 가중치로 최단거리 × 1.5 안에서 A*.
+
+        빠른 길도 순수 거리가 아니라 차도 중심선 페널티(road_penalty)를 곱한 가중치로 찾는다
+        (2026-10-01) — 강남대로 차도 한가운데를 "최단"이라고 그리던 것을 보도로 보낸다."""
+        if kind == "via":
+            kind = "fast"
         weight, floor = make_weight(kind, shade_lookup=shade_lookup, elevation=elevation)
         return self._route.execute_weighted(
             edges, start, end, weight, floor, max_detour_ratio=MAX_DETOUR_RATIO
@@ -164,7 +166,6 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         base_kind: str,
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
-        via_point: Coordinate,
         elevation: Elevation | None = None,
     ) -> RouteOptionDto | None:
         lookup = _lookup(edges)
@@ -321,11 +322,11 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
                     s = shade_lookup.get((e.to_node, e.from_node))
                 shaded += e.base_distance_m * max(s or 0.0, e.tree_score)
             shade = shaded / length
-        road_len: Counter[str] = Counter()
+        road_len: dict[str, float] = {}
         for e in es:
             if e.road_name:
-                road_len[e.road_name] += e.base_distance_m
-        roads = tuple(name for name, _ in road_len.most_common(2))
+                road_len[e.road_name] = road_len.get(e.road_name, 0.0) + e.base_distance_m
+        roads = tuple(sorted(road_len, key=road_len.__getitem__, reverse=True)[:2])
 
         near: list[tuple[int, PetPlace]] = []
         for p in all_places:

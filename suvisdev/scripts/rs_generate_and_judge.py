@@ -297,8 +297,7 @@ async def _run(args: argparse.Namespace) -> None:
         print(f"[{i + 1}/{len(queries)}] teacher 폴백 | {query}", flush=True)
 
     print(
-        f"[rs] 완료 student={accepted} teacher={teacher_fallbacks} skip={skipped} "
-        f"→ {_OUT_DATASET}"
+        f"[rs] 완료 student={accepted} teacher={teacher_fallbacks} skip={skipped} → {_OUT_DATASET}"
     )
 
 

@@ -35,10 +35,10 @@ import execsuite.adapter.outbound.orm.pdf_loader_orm  # noqa: F401,E402
 
 # gildle ORM 등록 — 모듈 import 시 테이블이 GildleBase.metadata에 붙는다.
 import gildle.adapter.outbound.orm.hazard_zone_orm  # noqa: F401,E402
+import gildle.adapter.outbound.orm.push_token_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_edge_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.route_node_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.tree_segment_orm  # noqa: F401,E402
-import gildle.adapter.outbound.orm.push_token_orm  # noqa: F401,E402
 import gildle.adapter.outbound.orm.walk_orm  # noqa: F401,E402
 
 # mova ORM 등록 — 패키지 __init__이 전체 서브모듈을 import해 MovaBase.metadata에 붙인다.

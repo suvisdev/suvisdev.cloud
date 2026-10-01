@@ -13,9 +13,7 @@ class MovaReviewVote(MovaModel):
     """리뷰 1건에 대한 유용성 투표. 사용자당 리뷰당 1표(토글)."""
 
     __tablename__ = "review_votes"
-    __table_args__ = (
-        UniqueConstraint("user_id", "review_id", name="uq_review_votes_user_review"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "review_id", name="uq_review_votes_user_review"),)
 
     review_id: Mapped[int] = mapped_column(
         Integer,

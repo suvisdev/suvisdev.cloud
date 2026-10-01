@@ -73,6 +73,7 @@ runs/
 # scrape(온디맨드)는 datasets/*.jsonl에, crawl-batch/어드민 크롤러 탭(날짜별 append)은
 # apps/ontology/resources/crawled/*.jsonl에 쓴다.
 datasets/**/*.jsonl
+datasets/**/*.jsonl.bak*
 apps/ontology/resources/crawled/*.jsonl
 
 # --- Node / Next.js ---

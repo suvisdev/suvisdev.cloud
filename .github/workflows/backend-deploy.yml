@@ -1,0 +1,49 @@
+# 백엔드 CD — main에서 backend-ci가 통과하면 운영 서버(노트북 teagy)에 배포한다.
+#
+# 운영 서버는 공유기 NAT 뒤라 GitHub이 접속할 수 없다 → 운영 서버에 설치한 셀프호스티드 러너
+# (라벨 `prod`)가 GitHub에 붙어 이 잡을 받는다. 저장소가 비공개라 외부 PR이 러너에서 돌 수 없고,
+# PR·브랜치 검사는 전부 GitHub 러너(ubuntu-latest)에서 돈다 — 이 파일만 셀프호스티드를 쓴다.
+#
+# 코드는 이 잡의 체크아웃(CI가 통과한 커밋)을 쓰고, 데이터(hostPath)와 .env는 운영 저장소를
+# 가리킨다: 러너의 .env에 SUVISDEV_DATA_ROOT(예: /home/suteagy/projects/suvisdev)를 둔다.
+# 개발 중인 그 저장소의 브랜치는 건드리지 않는다.
+name: backend-deploy
+
+on:
+  workflow_run:
+    workflows: [backend-ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: [self-hosted, prod]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: 러너 설정 확인
+        run: |
+          : "${SUVISDEV_DATA_ROOT:?러너 .env에 SUVISDEV_DATA_ROOT가 없음}"
+          test -f "$SUVISDEV_DATA_ROOT/suvisdev/.env"
+
+      # 이미지 빌드 → k3s import → apply → rollout 대기 → 구 이미지 정리(deploy.sh가 전부 한다)
+      - name: 배포
+        run: ./k8s/deploy.sh --external-db --build
+
+      - name: 외부 응답 확인
+        run: |
+          curl -fsS -o /dev/null -w 'api %{http_code}\n' --retry 10 --retry-delay 6 --retry-all-errors \
+            'https://api.suvisdev.cloud/mova/movies?limit=1'
+          curl -fsS -o /dev/null -w 'auth %{http_code}\n' --retry 10 --retry-delay 6 --retry-all-errors \
+            'https://auth.suvisdev.cloud/.well-known/jwks.json'

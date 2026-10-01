@@ -271,9 +271,7 @@ def main() -> None:
             continue
         lines = [f"- movie_id={m[0]} {m[1]} ({m[2] or '연도 미상'}) [배우]" for m in movies]
         q = rng.choice(_ACTOR_UTTER).format(a=name)
-        prompt = _set_turn(
-            _set_intent(_replace_catalog(base, lines), q, [name, "영화", q]), [], q
-        )
+        prompt = _set_turn(_set_intent(_replace_catalog(base, lines), q, [name, "영화", q]), [], q)
         teacher(prompt, f"actor:{idx}", "v3_actor", 900 + idx)
 
     # ④ seen — 이미 본 작품을 빼고 나머지에서 고르기

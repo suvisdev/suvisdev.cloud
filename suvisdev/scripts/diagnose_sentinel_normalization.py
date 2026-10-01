@@ -75,7 +75,7 @@ def main() -> None:
     )
     auroc_norm = roc_auc_score(labels_norm, scores_norm)
     print(
-        f"샘플 수: {len(scores_norm)} (normal={sum(labels_norm==0)}, abnormal={sum(labels_norm==1)})"
+        f"샘플 수: {len(scores_norm)} (normal={sum(labels_norm == 0)}, abnormal={sum(labels_norm == 1)})"
     )
 
     print("\n=== [2] 정규화 OFF (raw score, val_split_mode=NONE으로 test 117개 전부) ===")
@@ -84,7 +84,7 @@ def main() -> None:
     )
     auroc_raw = roc_auc_score(labels_raw, scores_raw)
     print(
-        f"샘플 수: {len(scores_raw)} (normal={sum(labels_raw==0)}, abnormal={sum(labels_raw==1)})"
+        f"샘플 수: {len(scores_raw)} (normal={sum(labels_raw == 0)}, abnormal={sum(labels_raw == 1)})"
     )
 
     print("\n=== 정규화 전/후 AUROC 비교 ===")
@@ -101,9 +101,11 @@ def main() -> None:
     n_raw, a_raw = _tie_counts(scores_raw, labels_raw)
     print("\n=== score == 1.000 동점 개수 ===")
     print(
-        f"정규화 ON : normal={n_norm}/{sum(labels_norm==0)}, abnormal={a_norm}/{sum(labels_norm==1)}"
+        f"정규화 ON : normal={n_norm}/{sum(labels_norm == 0)}, abnormal={a_norm}/{sum(labels_norm == 1)}"
     )
-    print(f"정규화 OFF: normal={n_raw}/{sum(labels_raw==0)}, abnormal={a_raw}/{sum(labels_raw==1)}")
+    print(
+        f"정규화 OFF: normal={n_raw}/{sum(labels_raw == 0)}, abnormal={a_raw}/{sum(labels_raw == 1)}"
+    )
 
     print("\n=== raw(비정규화) score 기준 정상 이미지 상위 10장 ===")
     normal_mask = labels_raw == 0

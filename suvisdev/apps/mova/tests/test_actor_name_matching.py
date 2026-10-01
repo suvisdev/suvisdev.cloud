@@ -26,6 +26,7 @@ def _movie(mid: int) -> SimpleNamespace:
         vote_count=100,
     )
 
+
 def _repo() -> ChatPgRepository:
     return ChatPgRepository(session=MagicMock())
 
@@ -65,9 +66,7 @@ class SearchTagCatalogActorPriorityTests(IsolatedAsyncioTestCase):
         repo._movies_by_ids = AsyncMock(return_value=[_movie(7)])
         repo._genres_for = AsyncMock(return_value={})
 
-        await repo.search_tag_catalog(
-            ["크루즈", "톰 크루즈 영화 추천"], 16, actor_names=["크루즈"]
-        )
+        await repo.search_tag_catalog(["크루즈", "톰 크루즈 영화 추천"], 16, actor_names=["크루즈"])
         repo._movie_ids_by_actors.assert_awaited_once_with(["톰 크루즈"])
 
     async def test_falls_back_to_given_actor_names(self) -> None:

@@ -82,7 +82,7 @@ class UserTasteVectorRecomputeInteractor:
 
             dim = len(reviews[0][2])
             weighted = [0.0] * dim
-            for (_, _rating, embedding, _sl, _ss), eff_r in zip(reviews, eff_ratings):
+            for (_, _rating, embedding, _sl, _ss), eff_r in zip(reviews, eff_ratings, strict=True):
                 for i, x in enumerate(embedding):
                     weighted[i] += eff_r * x
             avg = [x / weights_sum for x in weighted]

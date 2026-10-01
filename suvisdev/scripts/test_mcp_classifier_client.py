@@ -40,9 +40,9 @@ async def main() -> None:
             tool_names = [t.name for t in tools.tools]
             print("tools:", tool_names)
             assert "classify_image" in tool_names, "classify_image tool이 목록에 없음"
-            assert (
-                "list_supported_classes" in tool_names
-            ), "list_supported_classes tool이 목록에 없음"
+            assert "list_supported_classes" in tool_names, (
+                "list_supported_classes tool이 목록에 없음"
+            )
 
             classes_result = await session.call_tool("list_supported_classes", {})
             print("list_supported_classes ->", classes_result.content[0].text)

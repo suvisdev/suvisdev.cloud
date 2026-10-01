@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from gildle.domain.entities.hazard_zone import HazardZone
 from gildle.domain.entities.tree_segment import TreeSegment
+from gildle.domain.services.road_penalty import road_penalty
 from gildle.domain.value_objects.route_edge import RouteEdge
 from gildle.domain.value_objects.route_weight import RouteWeight
 from gildle.domain.value_objects.season_mode import SeasonMode
@@ -39,7 +40,8 @@ class RouteWeightCalculator:
         - SUMMER_SHADE: 그늘 비율(0~1)에 반비례해 최대 400% 증가.
           shade_fraction이 None(사전 계산 데이터 없음)이면 tree_score로 폴백.
         """
-        base = RouteWeight(edge.base_distance_m)
+        # 차도 중심선은 모드와 무관하게 비싸다(road_penalty ≥ 1, 2026-10-01).
+        base = RouteWeight(edge.base_distance_m * road_penalty(edge))
 
         if mode is SeasonMode.SPRING_AUTUMN:
             green = max(0.0, min(1.0, edge.tree_score))
@@ -68,7 +70,7 @@ class RouteWeightCalculator:
     def min_multiplier(mode: SeasonMode) -> float:
         """모드별 `가중치 / 거리`의 하한 — A* 휴리스틱(직선거리 × 배율)이 이 값 이하여야
         admissible하다. 봄가을만 감면(수관 최대 60% × 보너스 수종 30% → 0.28)이 있고
-        겨울·여름은 페널티뿐이라 1.0."""
+        겨울·여름은 페널티뿐이라 1.0. 차도 페널티는 ≥1이라 하한을 바꾸지 않는다."""
         if mode is SeasonMode.SPRING_AUTUMN:
             return (1.0 - _GREEN_DISCOUNT_RATE) * (1.0 - _SPRING_DISCOUNT_RATE)
         return 1.0

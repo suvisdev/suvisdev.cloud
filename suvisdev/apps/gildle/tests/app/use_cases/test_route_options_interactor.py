@@ -90,7 +90,6 @@ def test_via_goes_through_place():
         base_kind="fast",
         shade_lookup=None,
         via_name="숲길동물병원",
-        via_point=_C["C"],
     )
     assert opt is not None and opt.path == ["A", "C", "D"]
     assert opt.label == "숲길동물병원 들렀다 가기" and "『숲길동물병원』에 들렀다" in opt.reason

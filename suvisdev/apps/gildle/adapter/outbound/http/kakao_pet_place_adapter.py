@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from typing import Any
 
 import httpx
 
@@ -30,7 +31,7 @@ _KEYWORDS = (
 )
 
 
-def _category(doc: dict, fallback: str) -> str:
+def _category(doc: dict[str, Any], fallback: str) -> str:
     """카카오 category_name("가정,생활 > 반려동물 > 동물병원")에서 우리 분류로."""
     name = f"{doc.get('category_name', '')} {doc.get('place_name', '')}"
     if "동물병원" in name or "동물의료" in name:

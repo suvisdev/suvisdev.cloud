@@ -36,4 +36,5 @@ class WalkPlanUseCase(ABC):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         elevation: Mapping[str, float] | None,
         nearest_node: Callable[[Coordinate], str | None],
+        start_point: Coordinate | None = None,
     ) -> WalkPlanDto: ...

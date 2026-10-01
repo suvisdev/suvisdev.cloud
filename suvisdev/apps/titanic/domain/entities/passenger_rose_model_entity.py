@@ -40,7 +40,7 @@ class Booking:
         return self.embarked.port_name
 
     def summary(self) -> str:
-        return f"[person:{self.passenger_id}] {self.berth} " f"/ 승선:{self.embarked.port_name}"
+        return f"[person:{self.passenger_id}] {self.berth} / 승선:{self.embarked.port_name}"
 
     @classmethod
     def create(

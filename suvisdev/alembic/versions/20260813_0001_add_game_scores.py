@@ -41,11 +41,10 @@ def upgrade() -> None:
         """
     )
     op.execute(
-        "CREATE INDEX ix_game_scores_type_stage_score "
-        "ON game_scores (game_type, stage, score DESC)"
+        "CREATE INDEX ix_game_scores_type_stage_score ON game_scores (game_type, stage, score DESC)"
     )
     op.execute(
-        "CREATE INDEX ix_game_scores_user_type_stage " "ON game_scores (user_id, game_type, stage)"
+        "CREATE INDEX ix_game_scores_user_type_stage ON game_scores (user_id, game_type, stage)"
     )
 
 

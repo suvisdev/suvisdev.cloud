@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 # 배치(한 번의 AI 응답) 안 추천 순위 범위
 PICK_RANK_MIN = 1
@@ -32,7 +32,7 @@ class PickRank:
         return self.value == PICK_RANK_MIN
 
 
-class Feedback(str, Enum):
+class Feedback(StrEnum):
     """추천 자체에 대한 사용자 반응. 미반응(null)은 None으로 표현한다."""
 
     LIKE = "like"

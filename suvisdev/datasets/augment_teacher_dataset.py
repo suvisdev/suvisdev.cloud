@@ -65,7 +65,9 @@ def _replace_user(prompt: str, new_query: str) -> str:
 
 
 def _paraphrase(query: str, client) -> list[str]:
-    raw = client.models.generate_content(model=MODEL, contents=_PARA_PROMPT.format(query=query)).text
+    raw = client.models.generate_content(
+        model=MODEL, contents=_PARA_PROMPT.format(query=query)
+    ).text
     start, end = raw.find("["), raw.rfind("]")
     items = json.loads(raw[start : end + 1])
     out = [s.strip() for s in items if isinstance(s, str)]

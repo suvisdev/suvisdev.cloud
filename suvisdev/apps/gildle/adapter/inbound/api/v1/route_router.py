@@ -217,6 +217,8 @@ def _load_scored_edges() -> list[RouteEdge]:
             tree_score=float(r.get("tree_score", 0)),
             hazard_score=float(r.get("hazard_score", 0)),
             dog_friendly_score=float(r.get("dog_friendly_score", 0)),
+            highway=r.get("highway"),
+            sidewalk=bool(r.get("sidewalk", False)),
         )
         for r in rows
     ]
@@ -256,7 +258,7 @@ def _load_shade_scores(today: date | None = None) -> dict[str, Any] | None:
     hit = _shade_cache.get(path)
     if hit is not None and hit[0] == mtime:
         return hit[1]
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     data["_key"] = (str(path), mtime)
     _shade_cache[path] = (mtime, data)
     return data
@@ -711,7 +713,6 @@ def route_via(
         base_kind=request.base_kind if request.base_kind != "shade" or shade_lookup else "fast",
         shade_lookup=shade_lookup,
         via_name=request.via_name,
-        via_point=via,
         elevation=_load_elevation(),
     )
     if option is None:

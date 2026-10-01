@@ -501,10 +501,10 @@ class BookingAssistService:
 
         if not await self._is_showing(detail.title):
             watch = _watch_links(detail)
-            names = [link.chain for link in watch if link.chain != "전체 시청처(TMDB)"]
+            chains = [link.chain for link in watch if link.chain != "전체 시청처(TMDB)"]
             ott_line = (
-                f" 대신 {', '.join(names)}에서 감상하실 수 있어요. 아래 링크로 바로 찾아보세요."
-                if names
+                f" 대신 {', '.join(chains)}에서 감상하실 수 있어요. 아래 링크로 바로 찾아보세요."
+                if chains
                 else (
                     " 아래 링크에서 시청처를 확인해 보세요."
                     if watch
@@ -692,7 +692,9 @@ class BookingAssistService:
             else:
                 # 롯데는 보통 이틀치 정도만 회차를 연다 — 먼 날짜는 "없다"가 아니라 "아직 안 열렸다"일
                 # 수 있다(2026-09-28 실측: 9/30 조회가 전 작품 0건).
-                far = bool(date) and date > (_kst_today() + timedelta(days=1)).strftime("%Y-%m-%d")
+                far = date is not None and date > (_kst_today() + timedelta(days=1)).strftime(
+                    "%Y-%m-%d"
+                )
                 reply += (
                     f" 롯데시네마 {_date_label(date)} 시간표엔 이 작품이 없었어요"
                     + ("(그날 예매 일정이 아직 안 열렸을 수 있어요). " if far else ". ")
@@ -763,7 +765,9 @@ class BookingAssistService:
                 + " CGV·메가박스는 아래 예매 링크에서 확인해 주세요."
             )
         else:
-            far = bool(date) and date > (_kst_today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            far = date is not None and date > (_kst_today() + timedelta(days=1)).strftime(
+                "%Y-%m-%d"
+            )
             reply = (
                 f"『{detail.title}』 — {scope} 롯데시네마 {label} 시간표엔 이 작품이 없었어요"
                 + ("(그날 예매 일정이 아직 안 열렸을 수 있어요)." if far else ".")

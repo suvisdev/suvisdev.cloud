@@ -227,6 +227,38 @@ SCENES: list[dict[str, Any]] = [
         "must_not": ["카탈로그에 없어요"],
         "note": "2026-09-28 실사용 — recommend로 분류돼 기추천 dedup으로 0건 '카탈로그에 없어요'",
     },
+    # 2026-10-01 — 봤어요·별점 기록 '후속'(09-30 실사용 버그가 전부 하네스 밖이었다). 하네스는
+    # 비로그인이라 실제 기록은 pytest(test_chat_tracks·test_chat_agent 127건)가 지키고,
+    # 여기서는 "실서버 판단 모델이 '봤어' 발화를 봤어요 도구로 보내고 정직하게 로그인 안내를
+    # 하는가"(기록한 척·별점 창작 금지)만 응답 수준에서 본다. 비로그인이라 DB에 쓰지 않는다.
+    {
+        "name": "비로그인 '봤어 N점' → 로그인 안내(기록한 척 금지)",
+        "history": [],
+        "q": "인셉션 봤어 4점",
+        "intent": "info",
+        "must": ["로그인"],
+        "must_not": ["표시했어요", "남겼어요", "표시했고"],
+        "note": "봤어 발화가 봤어요 도구로 가야 info 로그인 안내가 나온다(general이면 안 나옴)",
+    },
+    {
+        "name": "비로그인 '봤어'(별점 없음)도 봤어요 트랙 → 로그인 안내",
+        "history": [],
+        "q": "고지전 봤어",
+        "intent": "info",
+        "must": ["로그인"],
+        "must_not": ["표시했어요", "남겼어요"],
+        "note": "점수 없는 '봤어'도 봤어요 도구로 가야 한다. 말 안 한 별점을 안 남기는지는 비로그인으로는 "
+        "볼 수 없고(응답이 고정 로그인 문구) pytest(test_rating_not_said_by_user_is_dropped)가 지킨다",
+    },
+    {
+        "name": "비로그인 '최신 ○○ 봤어'도 봤어요 트랙 → 로그인 안내",
+        "history": [],
+        "q": "나 최신 스파이더맨 봤어",
+        "intent": "info",
+        "must": ["로그인"],
+        "must_not": ["표시했어요", "남겼어요"],
+        "note": "09-30 실사용: '최신 스파이더맨 봤어'가 평가/잡담으로 새 기록이 안 됐다",
+    },
 ]
 
 
@@ -262,7 +294,9 @@ def main() -> None:
     parser.add_argument("--base-url", default=_DEFAULT_BASE_URL)
     parser.add_argument("--only", default=None, help="장면 이름/질의 부분 문자열 필터")
     parser.add_argument("--sleep", type=float, default=2.0)
-    parser.add_argument("--save", type=Path, default=None, help="장면별 답변·카드 JSON 저장(모델 비교용)")
+    parser.add_argument(
+        "--save", type=Path, default=None, help="장면별 답변·카드 JSON 저장(모델 비교용)"
+    )
     args = parser.parse_args()
 
     scenes = [s for s in SCENES if not args.only or args.only in s["name"] or args.only in s["q"]]
@@ -290,7 +324,9 @@ def main() -> None:
                 "q": scene["q"],
                 "history": scene["history"],
                 "reply": data.get("reply") or "",
-                "titles": [f"{x.get('title')}({x.get('year')})" for x in data.get("recommendations") or []],
+                "titles": [
+                    f"{x.get('title')}({x.get('year')})" for x in data.get("recommendations") or []
+                ],
                 "pass": not problems,
             }
         )

@@ -28,6 +28,53 @@
 
 ---
 
+## 2026-10-01
+
+### 작업 내용
+- 어제 미결 ① **실기기 확인**: USB 연결 기기·에뮬레이터 모두 없음(`flutter devices`는 Windows·Chrome·Edge만) — 사용자 폰 연결 대기.
+  **앱이 쓰는 DB 확인(사용자 질문)**: 앱 호출은 `/auth/mobile/{login,signup}`·`/api/gildle/{walks,walks/stats,push-tokens,
+  routes/options,routes/via,walk/plan,app/version,me/data}` + Nominatim 장소 검색. 이 중 DB를 쓰는 건 **walks·push_tokens
+  (운영 postgres `suvisdev`, 도커 `suvisdev-db-1`, alembic `20260930_0001`=최신)**와 auth의 users(같은 DB, `k8s/auth.yaml`이
+  `db:5432/$POSTGRES_DB`)뿐. 경로 계산은 DB가 아니라 **hostPath로 마운트된 `apps/gildle/data/scored_edges.json`**을 읽는다
+  (`GILDLE_DB_MODE` 기본 csv). `route_nodes/route_edges/tree_segments/hazard_zones`는 전부 **0행**이고 서빙에 쓰이지 않는다 —
+  어제 일지의 "운영 DB 재적재"는 틀린 표현이었다(파일 교체면 끝). 실측: walks 4행·push_tokens 1행.
+- 어제 미결 ③ **큰길 중앙선 경로 수정 구현**(사용자 결정으로 진행).
+
+### 수정/구현
+- **원인 실측**: `seoul.graphml`에서 간선별 `highway` 태그를 뽑아 보니 23만 간선 중 차도(primary·secondary·tertiary·trunk·busway·
+  *_link) **34,160(15%, 거리 20%)**이 보도와 같은 비용. osmnx 기본 `useful_tags_way`에 `sidewalk`·`footway`가 없어 보도 여부 태그는
+  전부 비어 있음 → 보도 유무는 **기하로 판정**(차도 간선 15m 버퍼 안에 보도형 간선(footway·path·pedestrian·steps·corridor)이
+  차도 길이의 절반 이상 들어 있으면 `sidewalk=True`; 가로지르는 횡단보도만 있으면 거짓). 강남대로 차도 194간선 중 113이 True.
+- **도메인** `domain/services/road_penalty.py`(신설): `road_penalty(edge)` 배율 — 보도 있는 차도 trunk/primary/busway ×4 ·
+  secondary ×3 · tertiary ×2, 보도 없는 차도 ×1.3(그 선이 길의 유일한 표현이라 끊지 않고 이면도로만 살짝 선호), 그 외 ×1.
+  `RouteEdge`에 `highway`·`sidewalk` 필드(기본 None/False — 옛 데이터·PG·샘플 소스 호환).
+- **적용 지점 3곳**: `walk_preference.make_weight`/`make_combined_weight`(선호별 함수는 `_preference_weight`로 분리해 조합에서도
+  **한 번만** 곱함), `RouteWeightCalculator.calculate_edge_weight`(계절 모드·루프), `route_options_interactor._path_for`
+  (빠른 길·via가 순수 거리 `execute_shortest`를 타던 것을 `make_weight("fast")` 가중 탐색으로 — 제보된 "최단 경로"가 바로 이 경로).
+  배율 ≥1이라 A* 휴리스틱 하한(min_multiplier)은 그대로.
+- **데이터 파이프라인**: `scripts/enrich_road_kind.py`(신설, graphml→highway + STRtree 보도 판정, 백업·원자 교체·멱등),
+  `osm_walk_graph_adapter`가 highway를 싣고 `compute_edge_scores.save/load_scored_edges`가 두 키를 쓰도록 — 다음 전체 재빌드에도 유지.
+  라우터 `_load_scored_edges`가 두 키를 읽음.
+- **테스트** `test_road_penalty.py` 4건(등급·보도별 배율, fast에 적용, 조합에서 한 번만, 계절 가중치), `test_enrich_road_kind.py` 2건
+  (나란한 보도 참·횡단보도만은 거짓, 태그 채움·통계). 운영 이미지엔 shapely가 없어 후자는 skip — `.venv`에서 직접 실행해 통과.
+
+### 오류·막힌 점
+- **실데이터 A/B(강남대로 노드쌍 4개, fast)**: 차도 비율 **99~100% → 8~23%**, 길이는 **+12~20%**(2399→2884m 등). 보도가 그려진
+  구간은 보도로, 안 그려진 구간(강남대로 194 중 81)은 ×1.3 때문에 이면도로로 빠져 길이가 늘었다 — "차도 한가운데"는 사라지지만
+  최단보다 돈다. 더 줄이려면 보도 없는 차도 배율을 1.3→1.1로(허용 우회 30%→10%). 사용자 판단 사항.
+- **배포 미완**: `./k8s/deploy.sh --external-db --build`를 하네스 분류기가 "프로덕션 배포"로 막음 → **사용자가 직접 실행해야 함.**
+  데이터 파일은 이미 갱신(`scored_edges.json` 80→90MB, 백업 `graph_cache/scored_edges.before-road-kind-20261001.json`). 옛 코드는
+  새 키를 무시하므로 현재 파드는 영향 없음, 새 이미지가 뜨면 즉시 적용(mtime 캐시).
+- 로컬 `.venv`엔 pytest·ruff·import-linter가 없음 → ruff는 `uvx ruff@0.16.9`, import-linter는 `uvx --from import-linter lint-imports`,
+  pytest는 `docker run -v $PWD:/suvisdev suvisdev-app:latest`로 저장소를 덮어 실행(gildle 256 passed·3 skipped).
+
+### 산출물
+- 변경: `road_penalty.py`·`enrich_road_kind.py`·테스트 2개(신규), `route_edge.py`·`walk_preference.py`·`route_weight_calculator.py`·
+  `route_options_interactor.py`·`route_router.py`·`osm_walk_graph_adapter.py`·`compute_edge_scores.py`. 미커밋.
+- **다음**: 사용자 배포 → 운영 `/api/gildle/routes/options`로 강남대로 확인 → 실기기 확인(폰 연결) → Play 업로드.
+
+---
+
 ## 2026-09-30
 
 ### 작업 내용

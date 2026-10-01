@@ -1,0 +1,45 @@
+# 프론트 CI — 테스트 코드가 없어 검증은 타입체크·린트(루트 CLAUDE.md "테스트").
+# 배포(CD)는 Vercel GitHub 연동이 이미 한다(main → Production, 브랜치 → Preview).
+name: frontend-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "suvis/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "suvis/**"
+      - ".github/workflows/frontend-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: suvis
+    steps:
+      - uses: actions/checkout@v4
+
+      # 10이어야 한다 — pnpm-workspace.yaml의 allowBuilds는 pnpm 10 설정이라 9는 "packages field
+      # missing"으로 거부한다(lockfileVersion 9.0은 9·10 공용이라 그것만 보고 고르면 틀린다).
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: suvis/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm lint

@@ -97,9 +97,9 @@ def main() -> None:
 
     train_ds = ImageFolder(str(_DATA_ROOT / "train"), transform=train_tf)
     val_ds = ImageFolder(str(_DATA_ROOT / "val"), transform=val_tf)
-    assert (
-        train_ds.classes == classes and val_ds.classes == classes
-    ), "train/val 클래스 목록이 다릅니다 — ImageFolder 폴더 구성을 확인하세요."
+    assert train_ds.classes == classes and val_ds.classes == classes, (
+        "train/val 클래스 목록이 다릅니다 — ImageFolder 폴더 구성을 확인하세요."
+    )
 
     train_loader = DataLoader(train_ds, batch_size=_BATCH_SIZE, shuffle=True, num_workers=2)
     val_loader = DataLoader(val_ds, batch_size=_BATCH_SIZE, shuffle=False, num_workers=2)

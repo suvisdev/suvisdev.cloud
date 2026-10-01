@@ -55,14 +55,10 @@ async def main() -> None:
 
         if await table_exists(conn, "tags"):
             await conn.execute(
-                text("ALTER TABLE tags " "DROP CONSTRAINT IF EXISTS uq_movie_tags_movie_slug"),
+                text("ALTER TABLE tags DROP CONSTRAINT IF EXISTS uq_movie_tags_movie_slug"),
             )
             await conn.execute(
-                text(
-                    "ALTER TABLE tags "
-                    "ADD CONSTRAINT uq_tags_movie_slug "
-                    "UNIQUE (movie_id, slug)"
-                ),
+                text("ALTER TABLE tags ADD CONSTRAINT uq_tags_movie_slug UNIQUE (movie_id, slug)"),
             )
 
         if await table_exists(conn, "characters"):

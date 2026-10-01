@@ -124,7 +124,8 @@ def _drop_from_catalog(prompt: str, movie_ids: set[int]) -> str:
         line
         for line in prompt.split("\n")
         if not (
-            line.startswith("- movie_id=") and int(line.split("=", 1)[1].split(" ", 1)[0]) in movie_ids
+            line.startswith("- movie_id=")
+            and int(line.split("=", 1)[1].split(" ", 1)[0]) in movie_ids
         )
     ]
     return "\n".join(keep)
@@ -164,6 +165,7 @@ def _validate(
             return None, f"카탈로그 밖 movie_id={mid}"
         if mid in forbid_ids:
             return None, f"이미 추천한 movie_id={mid} 재등장"
+
         # 카탈로그 원문에 공백이 겹쳐 들어간 제목이 있다 — 앱은 제목을 DB 값으로
         # 덮어쓰므로 공백 차이는 무해하다. 연도 꼬리와 같이 무시한다.
         def norm(t: str) -> str:
@@ -206,7 +208,13 @@ def main() -> None:
     calls = skipped = 0
 
     def teacher_row(
-        prompt: str, *, src: int, aug: str, forbid: set[int], hint: str = "", need_pick: bool = False
+        prompt: str,
+        *,
+        src: int,
+        aug: str,
+        forbid: set[int],
+        hint: str = "",
+        need_pick: bool = False,
     ) -> None:
         nonlocal calls, skipped
         if args.limit and calls >= args.limit:
@@ -253,7 +261,10 @@ def main() -> None:
             {
                 "prompt": _set_turn(
                     prompt,
-                    [("user", _user_query(prev["prompt"])), ("assistant", prev_completion["intro"])],
+                    [
+                        ("user", _user_query(prev["prompt"])),
+                        ("assistant", prev_completion["intro"]),
+                    ],
                     query,
                 ),
                 "completion": row["completion"],
@@ -289,7 +300,9 @@ def main() -> None:
     with OUT.open("w", encoding="utf-8") as f:
         for r in out:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    print(f"\n[multiturn] 씨앗 {len(seeds)}건 → {len(out)}건 (교사 호출 {calls} · 버림 {skipped}): {OUT}")
+    print(
+        f"\n[multiturn] 씨앗 {len(seeds)}건 → {len(out)}건 (교사 호출 {calls} · 버림 {skipped}): {OUT}"
+    )
 
 
 if __name__ == "__main__":

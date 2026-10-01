@@ -14,16 +14,6 @@ class DispatchEmailEvent:
 
 
 @dataclass(frozen=True)
-class InboundMessageEvent:
-    """외부 채널(telegram·discord·email)로 인입된 메시지 이벤트."""
-
-    channel: str
-    sender: str
-    body: str
-    important_client: bool = False
-
-
-@dataclass(frozen=True)
 class CrawlCompletedEvent:
     """harvester crawl-batch 1개 정책 처리 완료 — star_craft 연동 대비(아직 미구현, 지금은
     LogCrawlEventPublisherAdapter가 로그만 남긴다. apps/ontology/_docs/star-craft-pipeline.md

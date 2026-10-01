@@ -172,8 +172,7 @@ class ChatReplyService:
                 movie = await repo.find_by_id(rec.movie_id) if rec.movie_id is not None else None
                 if movie is None:
                     logger.warning(
-                        "[ChatReplyService] DB에 없는 movie_id 응답 — 드롭 | "
-                        "movie_id=%s title=%r",
+                        "[ChatReplyService] DB에 없는 movie_id 응답 — 드롭 | movie_id=%s title=%r",
                         rec.movie_id,
                         rec.title,
                     )

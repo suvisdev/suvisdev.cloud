@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class EmbarkedType(str, Enum):
+class EmbarkedType(StrEnum):
     CHERBOURG = "C"
     QUEENSTOWN = "Q"
     SOUTHAMPTON = "S"

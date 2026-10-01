@@ -259,7 +259,7 @@ class {m["interactor"]}({m["use_case"]}):
         self._repository = repository
 
     async def {m["method"]}(self, request: dict[str, Any]){ret_ann}:
-        logger.info("[%s] %s", "{m['interactor']}", "{m['method']}")
+        logger.info("[%s] %s", "{m["interactor"]}", "{m["method"]}")
         return await self._repository.{m["method"]}(request)
 """,
         )
@@ -283,7 +283,7 @@ class {m["pg"]}({m["repository"]}):
         self._session = session
 
     async def {m["method"]}(self, request: dict[str, Any]){ret_ann}:
-        logger.info("[%s] %s request=%s", "{m['pg']}", "{m['method']}", request)
+        logger.info("[%s] %s request=%s", "{m["pg"]}", "{m["method"]}", request)
         {pg_ret_stmt}
 """,
         )

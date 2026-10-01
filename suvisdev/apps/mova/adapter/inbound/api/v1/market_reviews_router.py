@@ -164,9 +164,7 @@ async def get_rating_summary(
     return dto.to_schema()
 
 
-@market_reviews_router.get(
-    "/sentiment/{movie_id}", response_model=MovieSentimentSummarySchema
-)
+@market_reviews_router.get("/sentiment/{movie_id}", response_model=MovieSentimentSummarySchema)
 async def get_sentiment_summary(
     movie_id: int,
     use_case: ReviewsUseCase = Depends(get_reviews_use_case),
@@ -241,9 +239,7 @@ async def delete_review(
     return {"status": "deleted"}
 
 
-@market_reviews_router.post(
-    "/{review_id}/vote", response_model=ReviewVoteResultSchema
-)
+@market_reviews_router.post("/{review_id}/vote", response_model=ReviewVoteResultSchema)
 async def toggle_review_vote(
     review_id: int,
     principal: UserPrincipal = Depends(require_user),

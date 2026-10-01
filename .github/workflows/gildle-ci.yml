@@ -1,0 +1,40 @@
+# 길들 앱(Flutter) CI — analyze·test만. 스토어 배포는 서명키(key.properties)·Play 업로드가
+# 로컬 전용이라 CD에 넣지 않는다.
+name: gildle-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "gildle/**"
+      - ".github/workflows/gildle-ci.yml"
+  pull_request:
+    paths:
+      - "gildle/**"
+      - ".github/workflows/gildle-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: gildle-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: gildle
+    steps:
+      - uses: actions/checkout@v4
+
+      # 로컬(C:\src\flutter)과 같은 버전
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

@@ -28,6 +28,99 @@
 
 ---
 
+## 2026-10-01
+
+### 작업 내용
+- v1 백로그 **"ruff 린트 11건·포맷 드리프트" 정리**(사용자 지시 3번). 길들 큰길 중앙선 수정은 `[GILDLE]` 10-01.
+
+### 수정/구현
+- `uvx ruff@0.16.9 format .` → **.py 37파일** 재포맷(스크립트·datasets·mova/titanic 일부·alembic 1). 같이 바뀐 **.md 9·.ipynb 3은
+  되돌림**(`git checkout`) — ruff 0.16이 마크다운 코드블록과 노트북 셀까지 포맷하는데, 문서 코드블록은 손으로 쓴 것이고 코랩 노트북은
+  사용자가 업로드해 쓰는 산출물이라 포맷 diff(770줄)를 섞지 않기로 함. **포맷 드리프트(.py) 0.**
+- 린트 11건: UP042 ×7 — `(str, Enum)` → `StrEnum`(mova Feedback·RoleType·AgeRating·TagKind, ontology SpamCategory, titanic Embarked·Gender).
+  f-string·`str()`로 멤버를 찍는 곳은 grep상 없음(전부 `.value`·비교) → `str(member)`가 "Class.NAME"→값으로 바뀌는 영향 없음.
+  B905 ×2 — `zip(..., strict=True)`(taste vector: `eff_ratings`가 reviews 컴프리헨션이라 길이 동일 / eval_chat_queries: `titles`가 recs
+  컴프리헨션). I001 alembic/env.py(gildle push_token_orm 줄 정렬), UP017 `datetime.UTC` + 미사용 `timezone` 제거.
+- **검증**: ruff check(.py) 0건 / 포맷 .py 0 / import-linter 6 kept / 이미지 안 pytest **1052 passed·3 skipped**(gildle 제외) + gildle 256.
+
+### 오류·막힌 점
+- `ruff check .`는 **54건이 남는데 전부 `.ipynb`**(`mova_*_colab.ipynb` 3개 — 세미콜론 E702·import 정렬·`l` 변수명 등). 노트북은
+  코랩 실행용이라 건드리지 않았다. 계속 셀 거면 `pyproject`의 ruff `extend-exclude = ["*.ipynb"]`로 빼는 것이 맞다(사용자 결정).
+- 하네스 분류기가 읽기 전용 `ruff check .`를 한 번 "프로덕션 배포"로 오판해 막음(재시도는 통과).
+
+### 산출물
+- 미커밋 변경 44파일(gildle 포함). 커밋 분리 권장: ① gildle 차도 페널티 ② ruff 포맷·린트 정리.
+
+### 작업 내용 (2) — 집 데스크톱 온프레미스 이관 런북
+- 면접 다닐 때 노트북을 들고 나가도 사이트가 살아 있게, 프로덕션을 노트북(teagy)→집 상시 데스크톱
+  **DESKTOP-T89E5ID**(Ryzen 5 3600·16GB·GTX 1650 SUPER 4GB = sm_75)로 내리는 계획. 실행은 사용자가 집에서(대부분 클로드 위임).
+- 노트북 실구성을 읽어 작성: k3s 파드 3·도커 db/redis·lora-server(serve_gguf가 `~/llama.cpp/build/bin/llama-server`를
+  자식으로 띄움 → 집컴은 **sm_75 재빌드** 필수)·Ollama 모델 13·`.env` 키 57·backend hostPath 4.
+- 결론: mova 2.4B GGUF(~1.7GB)는 4GB에 들어감, 홈 챗봇 `exaone3.5:7.8b`(4.8GB)는 안 들어가 `PORTFOLIO_LLM_BACKEND=gemini`
+  권장(코드 확인: `FallbackHubLlmAdapter`가 요청마다 7.8B 실패 시 Gemini). 터널 토큰이 하나라 노트북↔집컴 동시 기동 금지.
+  거상(2D)은 VRAM 수백 MB라 lora와 공존 OK. 클라우드 이관 시 비용은 GPU 상시가 7~8할(T4 기준 월 $500~650).
+
+### 작업 내용 (3) — 전체 코드 점검·정리 (브랜치 `chore/code-cleanup`)
+- 사용자 지시 "코드 점검·파이프라인·테스트·낡은 코드·오류 정리". 1차는 읽기 전용 점검 → 목록 승인 후 4묶음 정리.
+- 점검 결과: pytest 1052 통과(shapely 3파일은 .venv에서 12 통과) · import-linter 6/6 · ruff(.py) 0 · tsc·eslint 0 ·
+  **mypy 17건**(08-31 0건) · **pre-commit 게이트 꺼짐** · CI 없음 · Flutter는 노트북에 SDK 없어 미점검.
+
+### 수정/구현 (3)
+- **게이트 복구**(cc2eb28 + 후속): ruff-pre-commit rev `v0.4.9`→`v0.16.9`(pyproject `required-version ==0.16.9`와 어긋나
+  ruff가 실행 거부 → 훅 항상 실패였음, 실측) · mypy·import-linter를 `suvisdev-app:latest` 이미지 안에서 실행(노트북 .venv엔
+  둘 다 없음, 의존성 없는 mypy는 오탐 457건) · ruff 훅 `types_or: [python, pyi]`(노트북 E702 등 자동수정 불가 → 노트북 커밋이
+  전부 막히는 것 방지) · 훅 id `ruff`→`ruff-check` · 노트북에 `uv tool install pre-commit && pre-commit install`.
+- **mypy 17→0**(017805d): gildle `WalkPlanUseCase.plan` 포트에 `start_point` 추가(라우터가 넘기는데 포트에 없던 계약 위반).
+  나머지는 동작 불변 — `bool(date) and date >`→`date is not None and`(빈 문자열 결과 동일), `_act_on_agent`에 에이전트 assert
+  (호출부 1곳이 에이전트 있을 때만), float 거리 집계 `Counter`→dict+sorted(`most_common`과 동률 포함 무작위 2만 회 대조 일치).
+- **죽은 코드**(33575eb): grimp import 그래프 + 심볼 참조로 고아 파일 8개 삭제(dispatch Holmes·ReportWriter interactor —
+  호출하던 왓처는 09-27에 이미 삭제됐는데 소비자만 남음, gildle ImportTreeSegmentUseCase, mova VO 5개). 연쇄 고아
+  `InboundMessageEvent`(Hub) 삭제. 미사용 파라미터 `via_point`·`active_url`, 프론트 `cookieAuthHeader` 제거.
+- **잔재**(1c01142): `chat_teacher_dataset.jsonl.bak-20260909` 추적 해제(gitignore `*.jsonl`이 `.bak-` 접미사를 못 잡아
+  커밋돼 있었음, 로컬 보존 + 패턴 추가), 0바이트 문서 4개 삭제.
+
+### 오류·막힌 점 (3)
+- 고아 모듈 1차 탐지가 174개로 부풀었다 — 앱 5개 누락 + `main.py`(패키지 밖) import 미집계 + 패키지(폴더) 자체를 고아로 셈.
+  잎 모듈만 남기고 심볼 참조를 다시 세서 실제 8개로 확정(viewer 9개는 provider에서 쓰는 오탐).
+- 처음 mypy 결과의 `google.genai` 1건은 09-27의 오래된 `.mypy_cache` 탓 — `--cache-dir=/tmp/mc`로 캐시 없이 재확인해 17건 확정.
+- `uv run --with grimp`를 `--no-project` 없이 돌려 `suvisdev/uv.lock`(52B)이 생김 — pyproject에 `[project]`가 없어 .venv는
+  무변경(오늘 바뀐 dist-info 0) 확인 후 삭제.
+- 미해결 관찰: `ensure_*_database`가 URL이 바뀌면 옛 엔진을 dispose하지 않는다(누수 가능성, 범위 밖이라 그대로).
+  `vision_s3_repository.py`는 참조 0건인데 막은 근거가 "S3 미연결"(08-10에 틀렸다고 정정된 전제) — 삭제/연결은 기능 판단.
+
+### 산출물 (3)
+- 커밋 cc2eb28·017805d·33575eb·1c01142 + 문서 커밋(게이트가 실제로 도는 첫 커밋). 브랜치 `chore/code-cleanup`(미푸시).
+- 바탕화면 `집컴_서버_이관/01_이관_가이드.html`(사용자용)·`02_클로드_전달용_지시서.md`(클로드 전달용).
+
+### 작업 내용 (4) — 후속: Flutter 점검 · S3 정리 · CI/CD
+- 사용자 지적 "플러터 있을 텐데" — WSL 안만 찾고 "없다"고 단정했던 것. 실제는 윈도우 `C:\src\flutter`(3.47.2 stable).
+  `\\wsl.localhost` 경로에선 `flutter test`가 잠금 대기라 윈도우 임시 폴더로 rsync 후 실행: **analyze 0 · test 15 통과**.
+- S3: 사용자 "S3는 안 쓴다" → 참조 0건 `VisionS3Repository` 삭제(a685e8c), provider 주석을 실제 이유로. 아바타 업로드(viewer
+  Tank)는 S3를 계속 써서 `VISION_S3_BUCKET`·Tank 유지.
+- DB 엔진 dispose 우려는 철회: `.env`는 이미지에 안 들어가고(.dockerignore) 파드 DB URL은 Secret 고정이라 운영에선 URL이 안 바뀐다.
+- CI/CD 신설(저장소 비공개, 기존 워크플로 이력 없음):
+  - `backend-ci.yml`(ruff·mypy·import-linter·pytest, Dockerfile과 같은 CPU torch 치환 + shapely) · `frontend-ci.yml`
+    (pnpm 10·type-check·lint) · `gildle-ci.yml`(flutter 3.47.2 analyze·test) — 전부 GitHub 러너, PR·main push, 경로 필터.
+  - `backend-deploy.yml`: main의 backend-ci 성공(workflow_run, push 이벤트만) 또는 수동 → **라벨 `prod` 셀프호스티드 러너**
+    (운영 서버가 NAT 뒤) → `deploy.sh --external-db --build` → api·auth 외부 200 확인. CI가 통과한 head_sha를 체크아웃.
+  - 프론트 CD는 이미 Vercel 연동(main→Production, 브랜치→Preview, GitHub deployments로 확인)이라 추가 안 함.
+  - `deploy.sh`: `SUVISDEV_DATA_ROOT`로 hostPath·.env 출처를 덮어쓰기 + 그 경로에 `datasets` 없으면 중단.
+
+### 오류·막힌 점 (4)
+- **배포 함정**: 러너가 자기 체크아웃에서 deploy.sh를 돌리면 `__REPO_ROOT__`가 데이터 없는 체크아웃을 가리키는데, hostPath가
+  `DirectoryOrCreate`라 **에러 없이 빈 폴더가 운영에 마운트**된다. 개발 저장소에서 돌리면 작업 중 브랜치를 바꿔 버린다 →
+  코드는 체크아웃, 데이터·.env는 `SUVISDEV_DATA_ROOT`(러너 `.env`)로 분리하고 가드 추가.
+- 깨끗한 체크아웃(git worktree)으로 CI를 재현하자 **프론트가 pnpm 9에서 실패**("packages field missing") — `pnpm-workspace.yaml`의
+  `allowBuilds`가 pnpm 10 설정. lockfileVersion 9.0만 보고 9로 짐작한 것. pnpm 10으로 재현 통과 후 수정.
+- YAML 앵커(`&paths`)는 Actions 지원이 불확실해 풀어 씀. actionlint 0건(`.github/actionlint.yaml`에 `prod` 라벨 등록).
+- 러너는 노트북에 등록(`teagy`, v2.337.0, `~/actions-runner/.env`에 `SUVISDEV_DATA_ROOT`)까지 했으나, **상시 실행 systemd 유저
+  서비스 생성은 하네스 권한 정책(지속성)에 막힘** → 사용자가 `k8s/README.md` "CI/CD" 블록의 서비스 3줄을 직접 실행해야 한다.
+  그 전까지 GitHub에선 러너 offline, 배포 잡은 대기.
+- 사용자 질문(같은 세션): 네이버 로그인인데 이메일이 `@nate.com` — 네이버 프로필 API `email`은 네이버 계정의 **연락처 이메일**이라
+  외부 주소일 수 있다(정상). 아이디 `jst0432_naver`는 `{로컬}_{provider}` 규칙.
+
+---
+
 ## 2026-09-30
 
 ### 작업 내용
