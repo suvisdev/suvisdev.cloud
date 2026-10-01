@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 
+from gildle.domain.services.road_penalty import road_penalty
 from gildle.domain.value_objects.route_edge import RouteEdge
 
 PREFERENCES = ("fast", "shade", "green", "flat", "hilly")
@@ -52,10 +53,11 @@ def _shade(edge: RouteEdge, lookup: ShadeLookup | None) -> float:
     return max(0.0, min(1.0, max(s or 0.0, edge.tree_score)))
 
 
-def make_weight(
+def _preference_weight(
     preference: str, *, shade_lookup: ShadeLookup | None, elevation: Elevation | None
 ) -> tuple[WeightFn, float]:
-    """(간선 가중치 함수, 가중치/거리 하한). 모르는 선호는 빠른 길."""
+    """선호 하나의 (가중치 함수, 하한) — 차도 페널티는 뺀 값. make_weight·make_combined_weight가
+    페널티를 한 번만 곱한다(선호별로 곱하면 조합에서 거듭 걸린다)."""
     if preference == "shade":
         return (
             lambda e: e.base_distance_m * (1 + _SUN_PENALTY * (1 - _shade(e, shade_lookup)))
@@ -74,6 +76,15 @@ def make_weight(
             )
         ), 1 - _HILL_DISCOUNT
     return (lambda e: e.base_distance_m), 1.0
+
+
+def make_weight(
+    preference: str, *, shade_lookup: ShadeLookup | None, elevation: Elevation | None
+) -> tuple[WeightFn, float]:
+    """(간선 가중치 함수, 가중치/거리 하한). 모르는 선호는 빠른 길.
+    모든 선호에 차도 중심선 페널티(road_penalty, ≥1)가 곱해진다 — 하한은 그대로다."""
+    fn, floor = _preference_weight(preference, shade_lookup=shade_lookup, elevation=elevation)
+    return (lambda e: fn(e) * road_penalty(e)), floor
 
 
 def normalize_preferences(preferences: Iterable[str]) -> tuple[str, ...]:
@@ -106,7 +117,7 @@ def make_combined_weight(
     A* 휴리스틱이 그대로 안전하다(각 배율 ≥ 자기 하한 → 곱 ≥ 하한의 곱).
     """
     parts = [
-        make_weight(p, shade_lookup=shade_lookup, elevation=elevation)
+        _preference_weight(p, shade_lookup=shade_lookup, elevation=elevation)
         for p in normalize_preferences(preferences)
     ]
     if not parts:
@@ -122,7 +133,7 @@ def make_combined_weight(
         d = e.base_distance_m
         if d <= 0:
             return 0.0
-        m = 1.0
+        m = road_penalty(e)
         for fn in fns:
             m *= fn(e) / d
         return d * m

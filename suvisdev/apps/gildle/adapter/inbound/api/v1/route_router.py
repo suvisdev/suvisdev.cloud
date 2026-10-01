@@ -217,6 +217,8 @@ def _load_scored_edges() -> list[RouteEdge]:
             tree_score=float(r.get("tree_score", 0)),
             hazard_score=float(r.get("hazard_score", 0)),
             dog_friendly_score=float(r.get("dog_friendly_score", 0)),
+            highway=r.get("highway"),
+            sidewalk=bool(r.get("sidewalk", False)),
         )
         for r in rows
     ]

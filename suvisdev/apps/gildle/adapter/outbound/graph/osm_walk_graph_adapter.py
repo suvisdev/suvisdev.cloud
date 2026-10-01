@@ -74,6 +74,12 @@ class OsmWalkGraphAdapter(WalkGraphPort):
             else:
                 road_name = None
 
+            raw_hw = data.get("highway")
+            highway = (
+                str(raw_hw[0])
+                if isinstance(raw_hw, list) and raw_hw
+                else (str(raw_hw) if raw_hw is not None and not isinstance(raw_hw, list) else None)
+            )
             length = float(data.get("length", 0.0))
             mid = Coordinate(
                 latitude=(u_lat + v_lat) / 2,
@@ -88,6 +94,7 @@ class OsmWalkGraphAdapter(WalkGraphPort):
                     road_name=road_name,
                     from_coord=Coordinate(latitude=u_lat, longitude=u_lng),
                     to_coord=Coordinate(latitude=v_lat, longitude=v_lng),
+                    highway=highway,
                 )
             )
         return edges

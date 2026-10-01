@@ -112,6 +112,8 @@ def save_scored_edges(edges: list[RouteEdge], path: Path) -> None:
             "tree_score": round(e.tree_score, 6),
             "hazard_score": round(e.hazard_score, 6),
             "dog_friendly_score": round(e.dog_friendly_score, 6),
+            "highway": e.highway,
+            "sidewalk": e.sidewalk,
         }
         if e.from_coord is not None:
             rec["from_lat"] = e.from_coord.latitude
@@ -135,6 +137,8 @@ def load_scored_edges(path: Path) -> list[RouteEdge]:
             tree_score=r["tree_score"],
             hazard_score=r["hazard_score"],
             dog_friendly_score=r["dog_friendly_score"],
+            highway=r.get("highway"),
+            sidewalk=bool(r.get("sidewalk", False)),
         )
         for r in records
     ]

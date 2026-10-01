@@ -71,9 +71,12 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         elevation: Elevation | None = None,
     ) -> list[str]:
-        """선호(walk_preference)별 가중치로 최단거리 × 1.5 안에서 A*."""
-        if kind in ("fast", "via"):
-            return self._route.execute_shortest(edges, start, end)
+        """선호(walk_preference)별 가중치로 최단거리 × 1.5 안에서 A*.
+
+        빠른 길도 순수 거리가 아니라 차도 중심선 페널티(road_penalty)를 곱한 가중치로 찾는다
+        (2026-10-01) — 강남대로 차도 한가운데를 "최단"이라고 그리던 것을 보도로 보낸다."""
+        if kind == "via":
+            kind = "fast"
         weight, floor = make_weight(kind, shade_lookup=shade_lookup, elevation=elevation)
         return self._route.execute_weighted(
             edges, start, end, weight, floor, max_detour_ratio=MAX_DETOUR_RATIO
