@@ -33,15 +33,6 @@ export function Header() {
           Suvis<span className="font-extrabold">dev</span>
         </Link>
 
-        <nav className="hidden flex-1 items-center justify-center gap-8 md:flex lg:gap-10">
-          <Link href="/resume" className={navLinkClass}>
-            Resume
-          </Link>
-          <Link href="/contact#contact" className={navLinkClass}>
-            About
-          </Link>
-        </nav>
-
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5 md:gap-4">
           {isAdmin && (
             <>
