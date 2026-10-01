@@ -2,12 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { LogOut, User } from "lucide-react"
+import { BookOpen, ChevronDown, LayoutDashboard, LogOut, User } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
 import type { AuthFormsMode } from "@/app/login/auth-forms"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   logoutSession,
   getSuvisSession,
+  SUVIS_SESSION_CHANGED_EVENT,
   type SuvisSession,
 } from "@/lib/suvis-session"
 import { cn } from "@/lib/utils"
@@ -28,46 +37,80 @@ export function AuthLoginButton({ className }: AuthLoginButtonProps) {
     setSession(getSuvisSession())
   }, [])
 
+  // 헤더에 있던 관리자 메뉴가 이 드롭다운으로 들어와서, 다른 탭 로그인·로그아웃·만료(SessionSync)도
+  // 따라가야 한다 — 헤더가 듣던 이벤트를 그대로 구독한다.
   useEffect(() => {
     refreshSession()
+    window.addEventListener(SUVIS_SESSION_CHANGED_EVENT, refreshSession)
+    window.addEventListener("storage", refreshSession)
+    return () => {
+      window.removeEventListener(SUVIS_SESSION_CHANGED_EVENT, refreshSession)
+      window.removeEventListener("storage", refreshSession)
+    }
   }, [refreshSession, open])
 
   if (session) {
+    const name = session.nickname ?? session.username
+    const isAdmin = session.role === "admin"
+    // 오른쪽 상단은 이름 하나만 — 마이페이지·관리자 메뉴·로그아웃은 눌러서 연다(2026-10-01 사용자)
     return (
-      <div className={cn("flex shrink-0 items-center gap-2", className)}>
-        <span
-          className="hidden max-w-[7rem] truncate text-xs font-medium text-neutral-700 dark:text-neutral-300 sm:inline md:max-w-[9rem] md:text-sm"
-          title={session.nickname ?? session.username}
-        >
-          {session.nickname ?? session.username}
-        </span>
-        <Link
-          href="/mypage"
+      <DropdownMenu>
+        <DropdownMenuTrigger
           className={cn(
             navLinkClass,
-            "inline-flex items-center gap-1 font-semibold text-neutral-800 dark:text-neutral-200",
+            "inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 font-semibold text-neutral-800 outline-none hover:bg-neutral-100 focus-visible:ring-2 focus-visible:ring-neutral-300 dark:text-neutral-200 dark:hover:bg-neutral-800",
+            className
           )}
-          aria-label="마이페이지"
+          aria-label={`${name} 메뉴`}
         >
           <User className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">마이페이지</span>
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            void logoutSession()
-            setSession(null)
-          }}
-          className={cn(
-            navLinkClass,
-            "inline-flex items-center gap-1 font-semibold text-neutral-800 dark:text-neutral-200",
+          <span className="max-w-[7rem] truncate md:max-w-[9rem]">{name}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuLabel className="truncate">{name}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/mypage">
+              <User aria-hidden />
+              마이페이지
+            </Link>
+          </DropdownMenuItem>
+          {isAdmin && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/admin">
+                  <LayoutDashboard aria-hidden />
+                  Admin
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/lesson">
+                  <BookOpen aria-hidden />
+                  LESSON
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="pl-8">
+                <Link href="/titanic">타이타닉</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="pl-8">
+                <Link href="/titanic/data-collection">데이터 수집</Link>
+              </DropdownMenuItem>
+            </>
           )}
-          aria-label="로그아웃"
-        >
-          <LogOut className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">로그아웃</span>
-        </button>
-      </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              void logoutSession()
+              setSession(null)
+            }}
+          >
+            <LogOut aria-hidden />
+            로그아웃
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
 
