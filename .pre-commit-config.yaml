@@ -12,11 +12,15 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.9
     hooks:
+      # types_or로 .py만: 기본값은 jupyter도 포함해 코랩 노트북(자동 수정 불가 E702 등)을
+      # 고치는 커밋이 전부 막힌다. 노트북은 코랩 실행이 기준이라 린트 대상에서 뺀다.
       - id: ruff-check  # v0.16에서 `ruff`는 legacy alias
         args: [--fix]
         files: ^suvisdev/
+        types_or: [python, pyi]
       - id: ruff-format
         files: ^suvisdev/
+        types_or: [python, pyi]
 
   # 2. mypy — 정적 타입 검사 (2026-08-31 재활성화: 415→0건 해소)
   #    mirrors-mypy는 변경 파일만 개별 전달해 base class를 Any로 해석하는
