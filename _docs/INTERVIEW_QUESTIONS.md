@@ -58,6 +58,34 @@ typeshed가 `Counter`의 값을 int로 정의하는데 우리는 거리(float)�
 노트북 3개에 한 줄 세미콜론(E702) 같은 자동 수정이 안 되는 오류가 54건 있다. 훅 기본값은 jupyter도 검사해서, 게이트를 켜는 순간 노트북을 고치는 커밋이 전부 막힌다. 그런데 노트북은 코랩에서 실행해 결과를 내는 산출물이고, 이전에 ruff가 노트북을 재포맷한 것도 되돌리기로 결정했었다. 그래서 `types_or: [python, pyi]`로 `.py`만 보게 했다. 검사를 켜는 일은 "기존 작업 흐름을 막지 않는가"까지 확인해야 끝난다.
 </details>
 
+### Q9. GitHub Actions로 배포하는데 왜 셀프호스티드 러너가 필요했나? 위험은 없나?
+
+<details><summary>답 확인</summary>
+
+운영 서버(노트북 k3s)는 공유기 NAT 뒤에 있어 GitHub 서버가 SSH 등으로 들어올 수 없다. 대신 서버에 러너를 깔면 러너가 바깥(GitHub)으로 접속해 잡을 받아 오므로 포트를 열 필요가 없다. 위험은 "러너에서 도는 코드 = 서버에서 도는 코드"라는 점이다. 그래서 저장소를 비공개로 두어 외부 PR이 러너를 못 쓰게 하고, PR·브랜치 검사는 전부 GitHub 러너에서 돌리며, 셀프호스티드는 main의 CI 통과 뒤 배포 잡 하나만 쓴다.
+</details>
+
+### Q10. CI 통과 후 배포할 때 왜 `github.sha`가 아니라 `workflow_run.head_sha`를 체크아웃하나?
+
+<details><summary>답 확인</summary>
+
+`workflow_run`으로 시작된 배포 잡에서 `github.sha`는 "기본 브랜치의 최신 커밋"이다. CI가 도는 사이 main에 다른 커밋이 들어오면, 검사받지 않은 커밋을 배포하게 된다. `head_sha`는 방금 CI가 통과한 바로 그 커밋이라 "검사한 것만 배포"가 보장된다. 동시 배포도 `concurrency: deploy-prod`(취소 없음)로 한 줄로 세운다.
+</details>
+
+### Q11. 배포 스크립트의 데이터 경로가 틀리면 왜 그냥 실패하지 않고 위험했나?
+
+<details><summary>답 확인</summary>
+
+backend 파드의 데이터 마운트(datasets·crawled·gildle/data)가 hostPath `DirectoryOrCreate` 타입이라, 경로가 없으면 쿠버네티스가 **빈 폴더를 만들어 붙이고 성공**한다. 러너는 자기 작업 폴더에 git이 추적하는 파일만 받는데 데이터는 gitignore라 거기 없다. 그대로 돌리면 배포는 "성공"인데 운영 데이터가 사라진 것처럼 보인다. 그래서 데이터·.env 출처를 환경변수로 분리하고, 그 경로에 실데이터가 없으면 스크립트가 시작 전에 멈추게 했다. 에러를 내는 실패보다 조용한 성공이 더 위험하다.
+</details>
+
+### Q12. CI 워크플로를 푸시하기 전에 로컬에서 어떻게 검증했나? 개발 폴더에서 다 통과했는데 왜 또 했나?
+
+<details><summary>답 확인</summary>
+
+개발 폴더엔 gitignore된 파일(학습 산출물, node_modules, 서명키 등)이 있어서 CI 환경과 다르다. `git worktree`로 추적 파일만 있는 체크아웃을 만들고, 새 `python:3.13`·`node:22` 컨테이너와 윈도우 Flutter로 워크플로의 각 단계를 그대로 돌렸다. 그 결과 프론트가 pnpm 9에서 실패하는 걸 푸시 전에 잡았다(`allowBuilds`는 pnpm 10 설정). 문법은 actionlint로 따로 검사했다.
+</details>
+
 ### Q8. 집 데스크톱(GTX 1650 SUPER 4GB)으로 옮길 때 lora-server를 "그대로 복사"하면 안 되는 이유는?
 
 <details><summary>답 확인</summary>

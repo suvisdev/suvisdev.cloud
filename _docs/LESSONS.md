@@ -252,10 +252,13 @@
 | ✅ | 07-28 | 매 부팅마다 seed_assistants_if_empty ModuleNotFoundError가 try/except에 조용히 삼켜지고 있었다. | main.py가 존재하지 않는 모듈(assistants_pg_repository)을 import — 리네임이 아니라 애초에 구현된 적 없는 죽은 코드. | AssistantsPgRepository에 count/insert도 시드 데이터도 없음을 확인 후 해당 try/except 블록 통째로 제거. | MAINPAGE 2026-07-28 |
 | 🔁 | 07-28→09-17 | EXAONE 로드가 transformers 버전에 따라 TypeError·NotImplementedError·import 실패(07-28·09-01·09-17) | EXAONE 체크포인트 remote code가 transformers 5.x·gptqmodel·peft 조합과 비호환 | 로컬 체크포인트 최소 패치(07-28), AWQ 포기·hf fp16(09-01), 코랩은 transformers 5.5.0 고정+wte 보충(09-17) | MAINPAGE 2026-07-28 · MOVA 2026-09-01 · 2026-09-17 |
 
-## 인프라·배포 (88건)
+## 인프라·배포 (91건)
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 10-01 | CD 설계 중 발견: 러너 체크아웃에서 deploy.sh를 돌리면 운영 파드에 빈 데이터 폴더가 조용히 붙을 뻔함 | `__REPO_ROOT__`가 실행 위치 기준인데 hostPath가 `DirectoryOrCreate`라 틀린 경로도 에러 없이 생성 | 코드는 체크아웃, 데이터·.env는 `SUVISDEV_DATA_ROOT`로 분리 + `datasets` 없으면 중단하는 가드. "조용히 성공하는" 설정은 앞에서 막는다 | MAINPAGE 2026-10-01 |
+| ✅ | 10-01 | 프론트 CI가 깨끗한 체크아웃에서 pnpm 9로 실패("packages field missing") | `pnpm-workspace.yaml`의 `allowBuilds`는 pnpm 10 설정인데 lockfileVersion 9.0만 보고 9로 짐작 | git worktree(추적 파일만)로 CI를 로컬 재현해 푸시 전에 발견, pnpm 10으로. 개발 폴더 통과는 CI 통과가 아니다 | MAINPAGE 2026-10-01 |
+| ✅ | 10-01 | "노트북에 Flutter 없음"이라 보고했는데 사용자가 있다고 지적 | WSL 안만 찾고 단정 — SDK는 윈도우 `C:\src\flutter` | 윈도우 경로까지 탐색, `flutter test`는 윈도우 임시 폴더로 rsync 후 실행(UNC 잠금 대기). "없다"는 결론 전에 두 OS 다 본다 | MAINPAGE 2026-10-01 |
 | ✅ | 10-01 | 09-27 데드코드 정리(158파일) 뒤에도 고아 파일 8개가 남음 — 지운 왓처의 소비자 interactor 2개와 그 이벤트까지 | 파일 단위로 "안 쓰임"을 판단해, 지운 것의 소비자가 연쇄로 고아가 되는 걸 못 봄 | grimp import 그래프(패키지 밖 진입점·문자열 참조 포함)로 잎 모듈만 뽑고 심볼 참조를 다시 세 8개+연쇄 1개 삭제. 지운 뒤엔 그것만 쓰던 것을 한 번 더 센다 | MAINPAGE 2026-10-01 |
 | ✅ | 10-01 | 학습 데이터 백업 `.jsonl.bak-20260909`(207KB)가 git에 올라가 있음 | gitignore `datasets/**/*.jsonl`이 `.jsonl.bak-*` 접미사를 못 잡음 | `datasets/**/*.jsonl.bak*` 추가 + 추적 해제(로컬 보존) | MAINPAGE 2026-10-01 |
 | ✅ | 09-29 | uvx ruff가 최신 버전을 끌어와 무관 파일 17개를 통째로 재포맷 | pyproject에 ruff 버전 핀이 없어 버전마다 포맷 규칙이 달라짐 | `[tool.ruff] required-version = "==0.16.9"` — 다른 버전이면 ruff가 즉시 거부 | MAINPAGE 2026-09-29 |

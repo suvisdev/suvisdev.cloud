@@ -16,7 +16,9 @@
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
 - `[P]` 10-01 전체 코드 점검·정리(브랜치 `chore/code-cleanup`, 미푸시): pre-commit 게이트 복구(ruff rev·도커 실행·노트북 설치) ·
-  mypy 17→0(gildle 포트 `start_point` 계약 포함) · 고아 파일 8+연쇄 1 삭제 · 잔재 파일 5 · 집컴(DESKTOP-T89E5ID) 이관 런북 2종(바탕화면)
+  mypy 17→0(gildle 포트 `start_point` 계약 포함) · 고아 파일 8+연쇄 1 삭제 · 잔재 파일 5 · 집컴(DESKTOP-T89E5ID) 이관 런북 2종(바탕화면) ·
+  Flutter analyze 0/test 15 · 비전 S3 어댑터 삭제 · **CI/CD 신설**(3스택 CI + 백엔드 자동 배포, `k8s/README.md` "CI/CD").
+  **사용자 할 일**: 노트북 러너 상시 서비스 등록(README 블록 3줄, 하네스가 지속성 생성을 막음) → 푸시·main 머지 후 첫 실배포 확인
 
 - `[M]` 09-22 멀티턴 학습 데이터셋 구축(교사 470행이 전부 단일턴인데 서빙은 6턴 히스토리 주입 — 학습·서빙 불일치 규명 · `build_multiturn_dataset.py` 4패턴 231행 · 최종 607행 하드 체크 전 행 통과 · 코랩 노트북 평가셋에 멀티턴 포함 + `nopick_ok` 체크 추가 · 09-17 어댑터 폐기 결정 · 바탕화면 `colab/mova-colab-20260922/` 배치, **코랩 실행은 사용자 대기**)
 - `[M]`·`[P]` 09-17 f745447 노트북 프로덕션 배포(빌드 6m10s) + RAG 임베딩 bge-m3 컷오버 완주(`EMBEDDING_BACKEND` gemini→ollama 정정 · alembic `20260911_0001` · 파드 안 재색인 2,965건 실패 0 · 회귀 23/23 PASS · vector_search 1024 히트 실측)

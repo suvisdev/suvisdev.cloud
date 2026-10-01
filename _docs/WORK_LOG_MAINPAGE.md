@@ -92,6 +92,33 @@
 - 커밋 cc2eb28·017805d·33575eb·1c01142 + 문서 커밋(게이트가 실제로 도는 첫 커밋). 브랜치 `chore/code-cleanup`(미푸시).
 - 바탕화면 `집컴_서버_이관/01_이관_가이드.html`(사용자용)·`02_클로드_전달용_지시서.md`(클로드 전달용).
 
+### 작업 내용 (4) — 후속: Flutter 점검 · S3 정리 · CI/CD
+- 사용자 지적 "플러터 있을 텐데" — WSL 안만 찾고 "없다"고 단정했던 것. 실제는 윈도우 `C:\src\flutter`(3.47.2 stable).
+  `\\wsl.localhost` 경로에선 `flutter test`가 잠금 대기라 윈도우 임시 폴더로 rsync 후 실행: **analyze 0 · test 15 통과**.
+- S3: 사용자 "S3는 안 쓴다" → 참조 0건 `VisionS3Repository` 삭제(a685e8c), provider 주석을 실제 이유로. 아바타 업로드(viewer
+  Tank)는 S3를 계속 써서 `VISION_S3_BUCKET`·Tank 유지.
+- DB 엔진 dispose 우려는 철회: `.env`는 이미지에 안 들어가고(.dockerignore) 파드 DB URL은 Secret 고정이라 운영에선 URL이 안 바뀐다.
+- CI/CD 신설(저장소 비공개, 기존 워크플로 이력 없음):
+  - `backend-ci.yml`(ruff·mypy·import-linter·pytest, Dockerfile과 같은 CPU torch 치환 + shapely) · `frontend-ci.yml`
+    (pnpm 10·type-check·lint) · `gildle-ci.yml`(flutter 3.47.2 analyze·test) — 전부 GitHub 러너, PR·main push, 경로 필터.
+  - `backend-deploy.yml`: main의 backend-ci 성공(workflow_run, push 이벤트만) 또는 수동 → **라벨 `prod` 셀프호스티드 러너**
+    (운영 서버가 NAT 뒤) → `deploy.sh --external-db --build` → api·auth 외부 200 확인. CI가 통과한 head_sha를 체크아웃.
+  - 프론트 CD는 이미 Vercel 연동(main→Production, 브랜치→Preview, GitHub deployments로 확인)이라 추가 안 함.
+  - `deploy.sh`: `SUVISDEV_DATA_ROOT`로 hostPath·.env 출처를 덮어쓰기 + 그 경로에 `datasets` 없으면 중단.
+
+### 오류·막힌 점 (4)
+- **배포 함정**: 러너가 자기 체크아웃에서 deploy.sh를 돌리면 `__REPO_ROOT__`가 데이터 없는 체크아웃을 가리키는데, hostPath가
+  `DirectoryOrCreate`라 **에러 없이 빈 폴더가 운영에 마운트**된다. 개발 저장소에서 돌리면 작업 중 브랜치를 바꿔 버린다 →
+  코드는 체크아웃, 데이터·.env는 `SUVISDEV_DATA_ROOT`(러너 `.env`)로 분리하고 가드 추가.
+- 깨끗한 체크아웃(git worktree)으로 CI를 재현하자 **프론트가 pnpm 9에서 실패**("packages field missing") — `pnpm-workspace.yaml`의
+  `allowBuilds`가 pnpm 10 설정. lockfileVersion 9.0만 보고 9로 짐작한 것. pnpm 10으로 재현 통과 후 수정.
+- YAML 앵커(`&paths`)는 Actions 지원이 불확실해 풀어 씀. actionlint 0건(`.github/actionlint.yaml`에 `prod` 라벨 등록).
+- 러너는 노트북에 등록(`teagy`, v2.337.0, `~/actions-runner/.env`에 `SUVISDEV_DATA_ROOT`)까지 했으나, **상시 실행 systemd 유저
+  서비스 생성은 하네스 권한 정책(지속성)에 막힘** → 사용자가 `k8s/README.md` "CI/CD" 블록의 서비스 3줄을 직접 실행해야 한다.
+  그 전까지 GitHub에선 러너 offline, 배포 잡은 대기.
+- 사용자 질문(같은 세션): 네이버 로그인인데 이메일이 `@nate.com` — 네이버 프로필 API `email`은 네이버 계정의 **연락처 이메일**이라
+  외부 주소일 수 있다(정상). 아이디 `jst0432_naver`는 `{로컬}_{provider}` 규칙.
+
 ---
 
 ## 2026-09-30
