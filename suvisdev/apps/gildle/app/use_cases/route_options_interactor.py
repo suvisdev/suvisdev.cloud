@@ -166,7 +166,6 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         base_kind: str,
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
-        via_point: Coordinate,
         elevation: Elevation | None = None,
     ) -> RouteOptionDto | None:
         lookup = _lookup(edges)

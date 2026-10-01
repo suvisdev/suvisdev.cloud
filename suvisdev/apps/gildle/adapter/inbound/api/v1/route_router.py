@@ -713,7 +713,6 @@ def route_via(
         base_kind=request.base_kind if request.base_kind != "shade" or shade_lookup else "fast",
         shade_lookup=shade_lookup,
         via_name=request.via_name,
-        via_point=via,
         elevation=_load_elevation(),
     )
     if option is None:

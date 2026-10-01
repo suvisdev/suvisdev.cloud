@@ -78,13 +78,6 @@ export function parseTokenPair(data: unknown): TokenPair | null {
   return null
 }
 
-// 개별 프록시 라우트(경로 변형·로직이 있어 catch-all로 못 합치는 것)가 쿠키의 access를 Bearer로 읽는다.
-// 클라이언트가 더는 Authorization을 안 보내므로(쿠키로 전환), 프록시는 이걸로 인증을 붙인다.
-export async function cookieAuthHeader(): Promise<Record<string, string>> {
-  const access = (await cookies()).get(ACCESS_COOKIE)?.value
-  return access ? { Authorization: `Bearer ${access}` } : {}
-}
-
 // 프록시 pass-through 교체용 — 구 `request.headers.get("authorization")`(문자열 or null)과 같은 모양을
 // 쿠키에서 만든다. 기존 `auth ? { Authorization: auth } : {}` 코드를 그대로 두고 이 값만 바꿔 끼운다.
 export async function cookieBearer(): Promise<string | undefined> {

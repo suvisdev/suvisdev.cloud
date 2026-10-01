@@ -81,13 +81,10 @@ def _normalize_database_url(url: str) -> str:
 def _init_engine(
     url: str,
     label: str,
-    active_url: str | None,
 ) -> tuple[AsyncEngine | None, async_sessionmaker[AsyncSession] | None, str | None, str | None]:
+    # "URL이 같으면 기존 엔진 유지"는 호출부(ensure_*_database)가 판정한다
     if not url:
         return None, None, f"{label} URL이 설정되지 않았습니다.", None
-
-    # URL이 같으면 기존 엔진 유지
-    # (이미 전역변수에 할당된 상태에서 호출되므로 엔진을 여기서 생성할지 결정)
 
     try:
         parsed = urlparse(url.replace("postgresql+psycopg://", "postgresql://"))
@@ -122,7 +119,7 @@ def ensure_mova_database() -> tuple[bool, str | None]:
         return True, None
 
     reload_env()
-    engine, factory, err, active = _init_engine(url, "Mova", _active_mova_url)
+    engine, factory, err, active = _init_engine(url, "Mova")
     _mova_engine, _mova_session_factory, _mova_init_error, _active_mova_url = (
         engine,
         factory,
@@ -146,7 +143,7 @@ def ensure_viewer_database() -> tuple[bool, str | None]:
     if _viewer_session_factory is not None and _active_viewer_url == url:
         return True, None
 
-    engine, factory, err, active = _init_engine(url, "Viewer", _active_viewer_url)
+    engine, factory, err, active = _init_engine(url, "Viewer")
     _viewer_engine, _viewer_session_factory, _viewer_init_error, _active_viewer_url = (
         engine,
         factory,

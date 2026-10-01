@@ -1,4 +1,6 @@
 > **2026-09-27 정리**: `DetectiveWatsonWatcherHub`(watcher/detective_watson_watcher_hub.py)와 하네스 `harness_watson_triage.py`는 앱 어디서도 쓰이지 않아 삭제했다. 이 문서는 정책 설계 기록으로 남긴다.
+> **2026-10-01 정리**: 그때 빠졌던 왓처의 소비자 `HolmesInteractor`·`ReportWriterInteractor`와 Hub 이벤트
+> `InboundMessageEvent`도 참조 0건이라 삭제했다 — 아래 경로들은 더 이상 존재하지 않는다.
 
 # 왓슨(Watson) 인바운드 트리아지 — 구조 · 구현 현황
 
