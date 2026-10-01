@@ -147,6 +147,20 @@
 - Resume·About은 헤더에서 `hidden md:flex`라 **모바일에선 원래 안 보였는데**, 본문으로 옮겨 모바일에서도 보인다.
   내부 페이지는 `Link`(같은 탭), 지킬은 `<a target=_blank>`.
 - 검증: tsc·eslint 0, 캡처 — 홈 1280px(한 줄 4개)·500px(두 줄 줄바꿈), `/contact` 맨 위 ABOUT부터 표시.
+- PR #155 머지 → Vercel 운영 반영(순서·About href `/contact` HTML로 확인).
+
+### 작업 내용 (8) — 오른쪽 상단을 이름 드롭다운 하나로 (브랜치 `feat/header-user-menu`)
+- 사용자 지시: 마이페이지·로그아웃 등을 이름("태기") 클릭 메뉴로. 관리자 LESSON(타이타닉·데이터 수집)·Admin도 같이 넣어 헤더 오른쪽은
+  로그인 전 "로그인·회원가입", 로그인 후 "이름 ▾" 하나만. 이름은 원래 모바일에서 숨겨졌는데 이제 트리거라 모바일에도 보인다.
+- 드롭다운은 규칙대로 shadcn CLI로 받음(`components/ui/dropdown-menu.tsx`). 막힌 점 셋:
+  ① 로컬 node_modules가 **pnpm 11.21.0**로 설치돼 있어 pnpm 10 dlx가 store 불일치로 실패 → pnpm 11로 실행.
+  ② 최신 shadcn이 npm `cn` 패키지(shadcn 공식, 9월 신설)를 같이 추가 — 정체 확인 후 프로젝트 관례(`@/lib/utils`의 cn)로 바꾸고 제거.
+  ③ `radix-ui`(전체 묶음)는 lockfile +1498/−80, 기존 Dialog의 공통 부품(portal·primitive) 버전까지 바꿈 → 관례대로
+     `@radix-ui/react-dropdown-menu`만 추가해 **기존 의존성 변경 0줄**(+482).
+- 헤더가 듣던 세션 변경 이벤트(`suvis-session-changed`·storage)를 `AuthLoginButton`이 구독하도록 — 관리자 메뉴가 옮겨 오면서
+  다른 탭 로그아웃·만료(SessionSync)를 따라가야 해서. 헤더는 상태·이펙트 없이 로고+버튼만.
+- 검증: tsc·eslint 0, CI와 같은 pnpm 10 `--frozen-lockfile`(새 node:22 컨테이너) 통과, 캡처 — 임시 라우트에 가짜 관리자 세션을 넣고
+  Enter로 메뉴를 열어 확인(라우트 삭제), 로그아웃 상태 헤더 확인. 로그아웃 클릭 동작은 기존 로직(`logoutSession`) 그대로라 실클릭은 미확인.
 
 ---
 
