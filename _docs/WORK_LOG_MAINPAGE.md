@@ -161,6 +161,13 @@
   다른 탭 로그아웃·만료(SessionSync)를 따라가야 해서. 헤더는 상태·이펙트 없이 로고+버튼만.
 - 검증: tsc·eslint 0, CI와 같은 pnpm 10 `--frozen-lockfile`(새 node:22 컨테이너) 통과, 캡처 — 임시 라우트에 가짜 관리자 세션을 넣고
   Enter로 메뉴를 열어 확인(라우트 삭제), 로그아웃 상태 헤더 확인. 로그아웃 클릭 동작은 기존 로직(`logoutSession`) 그대로라 실클릭은 미확인.
+- PR #156 머지 → Vercel 운영 반영(로그아웃 상태 HTML에 Admin·LESSON 정적 링크 0 확인).
+- 막힌 점(작은 것): 임시 라우트를 지운 뒤 tsc가 `.next/dev/types/validator.ts`의 지운 라우트 참조로 실패 — gitignore된 dev 캐시라
+  `.next/dev` 삭제 후 0. 임시 라우트로 캡처한 뒤엔 dev 캐시도 같이 지울 것.
+
+### 작업 내용 (9) — 약속 타일 맨 뒤로 (브랜치 `feat/yaksok-last`)
+- 사용자 지시. `TEAM_PROJECTS` 배열에서 약속을 ARDA 뒤로(내용 변경 없이 순서만). 홈과 `/apps`가 같은 배열이라 둘 다 반영.
+  홈 순서 Mova · Gildle · ARDA · 약속(캡처 확인). tsc·eslint·prettier 0.
 
 ---
 

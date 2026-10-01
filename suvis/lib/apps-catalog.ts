@@ -44,6 +44,18 @@ export const APPS_CATALOG: AppCatalogItem[] = [
 
 export const TEAM_PROJECTS: AppCatalogItem[] = [
   {
+    id: "arda",
+    titleKo: "ARDA",
+    titleEn: "AI Recruitment Assistant",
+    href: "https://seuk.suvisdev.cloud",
+    available: true,
+    imageFirst: false,
+    gradient: "from-violet-500 via-purple-600 to-indigo-700",
+    image: "/apps-arda.svg",
+    team: "Team Seuk",
+    kind: "팀 프로젝트 · 원티드 해커톤 출품작",
+  },
+  {
     // 08-26 SEUK 카드로 교체됐던 팀 프로젝트 '약속'(알약 식별)을 복원(2026-09-28 사용자 요청).
     id: "yaksok",
     titleKo: "약속",
@@ -55,17 +67,5 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     image: "/apps-yaksok.jpg",
     team: "Team Seuk",
     kind: "팀 프로젝트 · 문화체육관광 해커톤 출품작",
-  },
-  {
-    id: "arda",
-    titleKo: "ARDA",
-    titleEn: "AI Recruitment Assistant",
-    href: "https://seuk.suvisdev.cloud",
-    available: true,
-    imageFirst: false,
-    gradient: "from-violet-500 via-purple-600 to-indigo-700",
-    image: "/apps-arda.svg",
-    team: "Team Seuk",
-    kind: "팀 프로젝트 · 원티드 해커톤 출품작",
   },
 ]
