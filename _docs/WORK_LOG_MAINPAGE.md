@@ -66,6 +66,14 @@
 - USB가 WSL에 안 붙음 — `!` sudo는 비번 창이 없어 실패, 사용자 터미널 mount도 미반영. 윈도우 `cmd.exe` 리다이렉트로 우회(LESSONS).
 - 정리(삭제) 스크립트 작성이 하네스 권한 검사(되돌릴 수 없는 삭제)에 막힘 → 사용자 실행 또는 권한 허용 대기. 삭제는 아직 안 함.
 
+### 작업 내용 (3) — USB 백업 확정 · 아키텍처 면접 질문
+- USB 백업 10묶음 **전부 체크섬 OK**(원본 tee sha256 = USB `Get-FileHash`), `RESTORE_GUIDE.md`·`README_먼저읽기.txt`·`MANIFEST.txt` 복사·해시 확인.
+  노트북 정리 명령·WSL 디스크 압축(`Optimize-VHD`)은 사용자에게 전달(실행 대기).
+- 인터뷰 질문에 처음부터 깔린 구조를 묻는 문항이 거의 없음을 집계로 확인(클린 아키텍처·SOLID·import-linter·RS256·Riverpod 0회) →
+  **"아키텍처·기술 선택 총정리" 12문항** 추가(모듈러 모놀리식·auth 분리·RS256 vs HS256·헥사고날 사례·Schema/Command/Dto·스타 토폴로지 강제·
+  FastAPI·Alembic·pgvector·BFF·Flutter+Riverpod·온프레미스). 답은 코드 확인 후 작성 — 백엔드는 `JWT_PUBLIC_KEY_B64`로 RS256 검증, viewer HS256
+  세션도 함께 받는 이행 중 상태임을 명시. 면접 HTML(사용자가 `진수택_이력서_자소서/`로 옮김) 49→61문항, 빌더를 줄 번호 대신 질문 제목으로 찾게 변경.
+
 
 ## 2026-10-01
 
