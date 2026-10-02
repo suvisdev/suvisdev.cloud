@@ -257,6 +257,7 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 10-02 | USB를 WSL에 마운트 못 함 — `!`로 친 sudo는 비번 창이 없어 실패, 사용자가 연 터미널의 mount도 Claude 셸에 안 보임 | 하네스 셸은 대화형 sudo 불가 + WSL 기동 후 꽂은 드라이브는 자동 마운트 안 됨 | 마운트 없이 윈도우 쪽에서 쓰기: `cmd.exe /c "wsl.exe -- tar -cf - … > D:\x.tar"`(cmd 리다이렉트는 바이너리 안전) + 원본 tee sha256과 USB `Get-FileHash` 대조 | MAINPAGE 2026-10-02 (2) |
 | ✅ | 10-01 | 집컴 WSL이 열린 창이 없으면 몇 분 만에 통째로 꺼짐(복원 중 db 재시작으로 발견) | WSL 기본 idle 타임아웃(인스턴스·VM) — systemd `enable`은 WSL이 켜져 있을 때만 의미 | `.wslconfig` `instanceIdleTimeout=-1`·`vmIdleTimeout=-1` + 로그온 작업(`conhost --headless`)으로 기동, 종료→작업만으로 외부 200 복구 확인. 무인 복구엔 윈도우 자동 로그인까지 필요 | MAINPAGE 2026-10-01 (11) |
 | 📌 | 10-01 | `deploy.sh --external-db`가 cloudflared를 즉시 replicas 1로 올려, 컷오버 전 실행 시 노트북과 같은 터널 토큰으로 커넥터 둘 | 09-29에 배포마다 530을 없애려 0→1 치환 apply로 바꾼 것 | 이관 땐 cloudflared만 뺀 단계를 수동 실행. 노트북 터널을 먼저 내리고(530 확인) DB 재복원 뒤 집컴 터널 기동 | MAINPAGE 2026-10-01 (11) |
 | ✅ | 10-01 | WSL에 CUDA 13.3이 깔렸는데 윈도우 드라이버 572.42는 12.8까지 | WSL 전용 CUDA 저장소는 최신 툴킷을 깖, 런타임은 윈도우 드라이버가 결정 | 윈도우 드라이버 616.92로 업데이트, sm_75 llama-server 73 tok/s | MAINPAGE 2026-10-01 (11) |
@@ -424,6 +425,7 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 10-02 | 데이터 동기화 스크립트가 업로드 성공 뒤 `tmp: unbound variable`로 종료 | 함수 안 `local tmp`를 EXIT trap이 참조 — trap은 함수가 끝난 뒤 돌아 지역 변수가 없다(`set -u`) | 임시 폴더를 전역 `TMP`로 한 번 만들고 trap도 최상위에. 실제 push→pull 왕복으로 15파일 체크섬 일치 확인 | GILDLE 2026-10-02 (2) |
 | ✅ | 09-28 | 웹 지도 배경 타일 전부가 'API KEY REQUIRED' 워터마크로 표시됨 | CARTO basemaps 정책 변경으로 무키 요청에 워터마크 타일 반환(도입 당시엔 무료) | OSM 타일 임시 교체 후 gildle-map.tsx를 네이버 지도 JS v3로 전면 재작성, leaflet 의존성 제거 | GILDLE 2026-09-28 |
 | ✅ | 09-28 | 프로덕션 첫 로드에서 네이버 지도가 빈 화면(컨테이너 높이 0) | 네이버 SDK가 컨테이너 인라인 스타일(position 등)을 덮어써 absolute inset-0이 무효 | gildle-map.tsx 컨테이너를 h-full w-full로 변경 후 재배포, Playwright로 789px·타일 렌더 확인 | GILDLE 2026-09-28 · MAINPAGE 2026-09-28 |
 | 📌 | 09-28→09-29 | Vercel에 NEXT_PUBLIC_NAVER_MAP_CLIENT_ID 등록이 필요한지 혼선 | NEXT_PUBLIC_ 값은 브라우저 노출 공개 식별자라 커밋 가능, 보호는 NCP Web 서비스 URL 허용 목록이 담당 | suvis/.env.production(추적 파일)에 키 커밋으로 대체, Vercel 환경변수 등록 불필요 판정 | GILDLE 2026-09-28 |
