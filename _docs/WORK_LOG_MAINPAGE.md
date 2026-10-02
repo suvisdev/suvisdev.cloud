@@ -75,6 +75,40 @@
   세션도 함께 받는 이행 중 상태임을 명시. 면접 HTML(사용자가 `진수택_이력서_자소서/`로 옮김) 49→61문항, 빌더를 줄 번호 대신 질문 제목으로 찾게 변경.
 
 
+### 작업 내용 (4) — 집컴 원격 접속 · 운영 측정 · 회원가입 500 · 구글 앱 로그인(보류)
+- **집컴 SSH**: `ssh.suvisdev.cloud` 터널 경로가 노트북 시절 설정 그대로 **Access 없이 열려 있었고 sshd가 비밀번호 로그인도 받는 상태**였다
+  (노트북에서 로그인 없이 `Permission denied (publickey,password)`까지 도달 확인, 비밀번호 시도는 안 함). 사용자가 Zero Trust에서
+  Access 앱(`ssh`, Emails 정책 1명, Cloudflare 로그인) 생성 → 302 로그인 리다이렉트 확인. 노트북 키 `~/.ssh/home_desktop` 생성,
+  `~/.ssh/config` `Host home`(ProxyCommand `cloudflared access ssh`), 집컴 authorized_keys 등록 → `ssh home` 동작(호스트 지문
+  SHA256:siK5PCL9…). 집컴 sudo는 비번 필요(k3s ctr import 등만 NOPASSWD), kubectl은 sudo 없이 됨.
+- **운영 측정(집컴)**: WSL 8.7GB 중 가용 3.5GB·**스왑 2GB 사용**. 판단 모델 v9 단독 — 콜드 로드 15.8s, 생성 16 tok/s(CPU).
+  집컴 세션이 넣은 `OLLAMA_KEEP_ALIVE=-1`이 백엔드에도 들어가 `keep_alive:"-1"` 문자열 전송 → Ollama **HTTP 400**
+  ("missing unit in duration") → 판단·이해 단계가 매 요청 즉시 실패, 결정론 경로로 6~8s(빠르지만 이해 꺼짐).
+- **운영 수정 1(사용자 승인)**: 집컴 `.env` `OLLAMA_KEEP_ALIVE=-1m`, `MOVA_CHAT_AGENT=0`(백업 `.env.bak-20261002-keepalive`) →
+  Secret 갱신 + backend 재시작(집컴 저장소가 c802a6b로 뒤처져 deploy.sh 대신 Secret만 수동). 400 사라짐. 이해 단계(2.4B CPU)가
+  실제로 돌면서 6.8~18.9s·20s 타임아웃 빈발. 재시작 직후엔 **감성 분석 모델 로드(84s/샤드)**가 CPU를 잡아 524 — 그리고 집컴에
+  `apps/ontology/runs/echo_sentiment/adapter`가 없어 결국 실패(리뷰 저장 때마다 `analyze_one`도 같은 로드 시도).
+- **APK 500**: auth `/auth/mobile/signup` — users에 같은 이메일 2쌍(id 1·3, 2·9; 각 쌍 구글+이메일) → `scalar_one_or_none`
+  MultipleResultsFound. `create_email_user` 중복 확인에 `limit(1)` → 409. 카카오 모바일 생성 경로도 이메일 중복을 확인하지 않아
+  중복의 출처로 보임(미수정).
+- **구글 앱 로그인(사용자 지시로 콘솔 설정은 출시 준비 때)**: auth `POST /auth/google/mobile`(id_token JWKS 검증, aud=GOOGLE_CLIENT_ID,
+  email_verified일 때만 이메일 사용, 연동 identity면 로그인·처음이면 생성·**같은 이메일 계정 있으면 409** — 사용자 결정), 앱 `google_sign_in`
+  7.2.0 + "Google로 계속하기" 버튼(serverClientId=웹 클라이언트 ID). Firebase(gildle, 711959837274)와 웹 OAuth 프로젝트(226054818742)가
+  달라 Android OAuth 클라이언트는 **226054818742 쪽**에 패키지명 + SHA-1 2개(업로드 `48:FF:D5:6E:…:11:E5`, Play 앱 서명 키) 필요.
+
+### 오류·막힌 점 (4)
+- `~/.ssh/config` 추가는 하네스 분류기가 지속성 변경으로 막음 → 사용자가 `!`로 직접 실행.
+- Cloudflare 대시보드 안내를 옛 UI 기준으로 해 사용자 화면과 어긋남, One-time PIN을 "기본 포함"이라 잘못 안내(현재는 Cloudflare 로그인이
+  기본, OTP는 자동 추가 안 됨) → 공식 문서 3곳 확인 후 정정. 앱 생성 중 다른 메뉴로 이동해 첫 앱이 저장되지 않음.
+- 집컴 노트북은 이미 정리됨(k3s·Ollama 모델·lora·llama.cpp·HF 캐시 없음) — 노트북 복귀는 USB 전체 복원이 필요.
+
+### 산출물 (4)
+- 브랜치 `feat/gildle-google-login`(미커밋): auth google 검증기·리포지토리·서비스·라우터·테스트 6개(auth 72 통과, ruff 통과),
+  gildle `auth.dart`·`google_config.dart`·pubspec(analyze 무이슈, test 18 통과).
+- 회원가입 500 수정은 따로 PR(`fix/auth-signup-duplicate-email`, auth 테스트 66 통과). 머지 후 중복 이메일 가입 시도로 409 확인 예정.
+- 미결: 이해 단계 끄기(A)·감성 분석 스위치(B, 코드 필요)·중복 계정 삭제(D — id 1에 채팅 179·추천 168 등 데이터, 3은 비어 있음).
+
+
 ## 2026-10-01
 
 ### 작업 내용

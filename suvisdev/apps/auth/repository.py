@@ -321,8 +321,12 @@ class UserRepository:
         UNIQUE라 이메일 앞부분에 짧은 난수를 붙여 만들고, 닉네임은 이메일 앞부분."""
         factory = get_viewer_session_factory()
         async with factory() as session:
+            # limit(1): 같은 이메일 계정이 이미 여럿 있는 DB(카카오·이메일 중복)에서도 409로 답한다
+            # (2026-10-02 운영: MultipleResultsFound → 500).
             existing = (
-                await session.execute(select(UserMirror.id).where(UserMirror.email == email))
+                await session.execute(
+                    select(UserMirror.id).where(UserMirror.email == email).limit(1)
+                )
             ).scalar_one_or_none()
             if existing is not None:
                 raise EmailAlreadyExists("이미 가입된 이메일입니다.")
