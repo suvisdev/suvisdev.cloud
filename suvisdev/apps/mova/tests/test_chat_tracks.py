@@ -1165,6 +1165,28 @@ class ChatInteractorMarkWatchedTests(unittest.IsolatedAsyncioTestCase):
         )
         repo.record_user_action.assert_awaited_once_with(3, 3, "watched")
 
+    async def test_watched_statement_records_before_agent(self) -> None:
+        # 2026-10-02 실사용: "택시 운전사는 봤어"를 v9가 작품 정보로 읽어 줄거리를 답했다.
+        interactor, repo = self._interactor()
+        interactor._agent = AsyncMock()
+        repo.search_movies_by_title.side_effect = lambda terms, _n: (
+            [_item(5, "택시운전사", "2017")] if terms == ["택시 운전사"] else []
+        )
+        resp = await interactor.chat(
+            MovaChatRequest(message="택시 운전사는 봤어", history=[], user_id=3)
+        )
+        repo.record_user_action.assert_awaited_once_with(3, 5, "watched")
+        interactor._agent.decide.assert_not_awaited()
+        self.assertIn("봤어요로 표시", resp.reply)
+
+    async def test_watched_statement_without_title_goes_to_agent(self) -> None:
+        interactor, repo = self._interactor()
+        interactor._agent = AsyncMock()
+        interactor._agent.decide.return_value = AgentDecision(terminal=None)
+        repo.search_movies_by_title.return_value = []
+        await interactor.chat(MovaChatRequest(message="그거 봤어", history=[], user_id=3))
+        interactor._agent.decide.assert_awaited_once()
+
 
 class ChatInteractorAgentTasteTests(unittest.IsolatedAsyncioTestCase):
     """에이전트 recommend_for_me·similar_to·taste_profile 터미널 분기(2026-09-29 v10 선구현)."""

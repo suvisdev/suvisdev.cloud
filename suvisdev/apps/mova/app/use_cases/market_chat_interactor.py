@@ -485,6 +485,23 @@ class ChatInteractor(ChatUseCase):
                 # 고른 제목으로 발화를 바꿔 에이전트에 넘긴다(서수 치환과 같은 방식).
                 request = request.model_copy(update={"message": title})
 
+        # -0.72. "○○ 봤어" 진술 — 제목이 카탈로그에서 잡히면 판단 모델 없이 봤어요로 기록한다.
+        #        v9는 mark_watched를 학습하지 않아 작품 정보 도구를 고르곤 했다(2026-10-02 실사용:
+        #        "택시 운전사는 봤어" → 줄거리·평가 답). "그거 봤어"처럼 제목이 안 잡히면 에이전트로.
+        if choice is None and _WATCHED_STATEMENT.search(request.message):
+            subject = _watched_subject(request.message)
+            context = _last_assistant_content(request.history_dicts())
+            newest = bool(_CHOICE_NEWEST.search(request.message))
+            for candidate in dict.fromkeys((subject, _TRAILING_PARTICLE.sub("", subject))):
+                movie, candidates = await self._resolve_watched_title(
+                    candidate, context=context, prefer_newest=newest
+                )
+                if movie is not None or candidates:
+                    logger.info(
+                        "[ChatInteractor] trace=%s 봤어요 진술 선분기 title=%r", trace_id, candidate
+                    )
+                    return await self._reply_mark_watched(request, trace_id, candidate, None)
+
         # -0.7. 에이전트(v9) — 판단 모델이 도구를 골라 돌리고, 사실은 템플릿·트랙이 답한다.
         if self._agent is not None:
             try:

@@ -28,6 +28,31 @@
 
 ---
 
+## 2026-10-02
+
+### 작업 내용
+- 사용자 제보 두 건: ① 채팅이 매우 느리고 524도 남 ② "택시 운전사는 봤어"를 봤어요로 기록하지 않고 줄거리·평가로 답함.
+
+### 수정/구현
+- ② `market_chat_interactor.chat()`에 **-0.72 봤어요 진술 선분기** — 발화가 `_WATCHED_STATEMENT`(문장 끝 "봤어"류)이고
+  `_watched_subject`(조사 뗀 것 포함)가 `_resolve_watched_title`로 한 편 또는 후보로 잡히면 판단 모델 없이 `_reply_mark_watched`.
+  제목이 안 잡히는 "그거 봤어"는 그대로 에이전트로(맥락 해석은 모델 몫). 후보 선택 이어받기(-0.75)가 잡은 턴은 건너뜀.
+  부수 효과로 이 발화는 CPU 판단 모델 호출이 사라져 빨라짐.
+- 테스트 2개(`test_chat_tracks.py` MarkWatched): 선분기 기록·에이전트 미호출 / 제목 없는 진술은 에이전트로. 수정 전 코드에서
+  첫 테스트 실패 확인. mova 테스트 482 통과, ruff check·format 통과.
+
+### 오류·막힌 점
+- ① 노트북에서 운영 API 실측: "안녕" 83s · "액션 영화 추천해줘" 112.6s, 재측정 땐 타임아웃(120s)·502. 노트북은 10-01 밤부터
+  운영이 아니라(집컴 DESKTOP-T89E5ID) 직접 진단 불가. 추정 원인: `MOVA_CHAT_AGENT=1`인데 집컴 Ollama는 **CPU 고정**(16 tok/s)이라
+  판단 모델 v9가 요청마다 CPU에서 돎 + 섀도 모델도 같은 CPU. lora는 GPU 73 tok/s라 주범 아님. 524는 Cloudflare 100초 한도.
+  같은 시각 집컴 쪽 세션이 배포 빌드 nice·`OLLAMA_KEEP_ALIVE=-1`(사용자 선택 c)을 진행 중 — 노트북에선 손대지 않음.
+  `nice docker build`는 클라이언트에만 걸려 BuildKit에 안 먹힌다는 점을 전달.
+- ② 원인: v9는 mark_watched를 학습하지 않고 프롬프트 few-shot으로만 처리 → 정보 도구를 고르면 기존 가드(`_rejected_watched`는
+  mark_watched를 골랐을 때만 동작)에 안 걸림.
+
+### 산출물
+- 브랜치 `fix/mova-watched-statement`(미커밋).
+
 ## 2026-10-01
 
 ### 작업 내용
