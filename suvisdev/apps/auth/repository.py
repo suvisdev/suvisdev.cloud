@@ -295,6 +295,77 @@ class UserRepository:
             await session.refresh(new_user)
             return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
 
+    async def find_or_create_by_google(
+        self, *, provider_user_id: str, email: str | None, nickname: str | None
+    ) -> User:
+        """구글 모바일 로그인 — 연동된 identity면 로그인, 처음이면 계정을 만든다.
+
+        같은 이메일의 계정이 이미 있으면 연결하지 않고 EmailAlreadyExists(409) —
+        사용자 결정(2026-10-02): 중복 계정을 만들지도, 남의 계정에 자동 연결하지도 않는다."""
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            row = (
+                await session.execute(
+                    select(UserMirror, GroupMirror.code)
+                    .join(UserIdentityMirror, UserIdentityMirror.user_id == UserMirror.id)
+                    .join(GroupMirror, UserMirror.group_id == GroupMirror.id)
+                    .where(
+                        UserIdentityMirror.provider == "google",
+                        UserIdentityMirror.provider_user_id == provider_user_id,
+                    )
+                )
+            ).one_or_none()
+            if row is not None:
+                user, group_code = row
+                return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
+
+            if email is not None:
+                taken = (
+                    await session.execute(
+                        select(UserMirror.id).where(UserMirror.email == email).limit(1)
+                    )
+                ).scalar_one_or_none()
+                if taken is not None:
+                    raise EmailAlreadyExists("이미 가입된 이메일입니다.")
+
+            group_id = (
+                await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
+            ).scalar_one_or_none()
+            if group_id is None:
+                raise RuntimeError(
+                    "groups 테이블에 'user' 코드가 없습니다 — viewer 시드 확인 필요."
+                )
+            local = (email or "").split("@", 1)[0][:40] or "google"
+            username = f"{local}_{secrets.token_hex(3)}"
+            while (
+                await session.execute(select(UserMirror.id).where(UserMirror.username == username))
+            ).scalar_one_or_none() is not None:
+                username = f"{local}_{secrets.token_hex(3)}"
+            new_user = UserMirror(
+                group_id=group_id,
+                username=username,
+                # OAuth 전용 계정 — 비밀번호 로그인은 쓰지 않으므로 무작위 값을 해시해 채운다.
+                password_hash=_hash_password(secrets.token_urlsafe(32)),
+                email=email or f"google_{provider_user_id}@google.local",
+                nickname=nickname or local,
+                gender=_DEFAULT_GENDER,
+                preferred_genres=[],
+                bio="",
+            )
+            session.add(new_user)
+            await session.flush()
+            session.add(
+                UserIdentityMirror(
+                    user_id=new_user.id,
+                    provider="google",
+                    provider_user_id=provider_user_id,
+                    email=email,
+                )
+            )
+            await session.commit()
+            await session.refresh(new_user)
+            return User(user_id=new_user.id, username=new_user.username, roles=[Role.USER])
+
     async def find_by_email_credentials(self, email: str, password: str) -> User | None:
         """앱 이메일 로그인 — users만 본다(관리자 계정은 앱으로 로그인하지 않는다)."""
         factory = get_viewer_session_factory()

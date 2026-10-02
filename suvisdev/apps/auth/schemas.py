@@ -41,6 +41,10 @@ class KakaoMobileLoginRequest(BaseModel):
     )
 
 
+class GoogleMobileLoginRequest(BaseModel):
+    id_token: str = Field(..., min_length=1, description="google_sign_in 로그인 결과의 id token")
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str

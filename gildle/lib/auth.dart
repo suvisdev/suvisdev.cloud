@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api_config.dart';
 import 'core/config/env.dart';
+import 'google_config.dart';
 
 /// 모바일 세션(백엔드가 발급한 자체 JWT/refresh token) 저장소.
 ///
@@ -155,7 +157,7 @@ class AuthSession {
   }
 }
 
-/// 로그인·회원가입 화면 — 카카오 또는 이메일. 필요한 곳(산책 기록 저장·기록·내 정보)에서
+/// 로그인·회원가입 화면 — 카카오·구글 또는 이메일. 필요한 곳(산책 기록 저장·기록·내 정보)에서
 /// push로 열고, 성공하면 `true`로 닫힌다. 이메일 가입은 필수 항목(이메일·비밀번호)과
 /// 필수 동의만 받는다(2026-09-28).
 class AuthScreen extends ConsumerStatefulWidget {
@@ -201,6 +203,37 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         final accessToken = await _obtainKakaoAccessToken();
         await _loginWithBackend(accessToken);
       }, '카카오 로그인에 실패했습니다');
+
+  Future<void>? _googleInit;
+
+  /// 구글 로그인 — id token만 받아 POST /auth/google/mobile로 보낸다(검증은 서버가).
+  /// 같은 이메일로 이미 가입된 계정이 있으면 서버가 409를 준다(2026-10-02 결정).
+  Future<void> _handleGoogleLogin() => _run(() async {
+        final signIn = GoogleSignIn.instance;
+        await (_googleInit ??= signIn.initialize(serverClientId: googleServerClientId));
+        final GoogleSignInAccount account;
+        try {
+          account = await signIn.authenticate();
+        } on GoogleSignInException catch (e) {
+          if (e.code == GoogleSignInExceptionCode.canceled) {
+            throw const _AuthError('로그인을 취소했습니다.');
+          }
+          rethrow;
+        }
+        final idToken = account.authentication.idToken;
+        if (idToken == null) throw const _AuthError('구글 인증 정보를 받지 못했습니다.');
+        final resp = await http.post(
+          Uri.parse('$authBaseUrl/auth/google/mobile'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'id_token': idToken}),
+        );
+        if (resp.statusCode == 409) {
+          await signIn.signOut();
+          throw const _AuthError('이미 가입된 이메일입니다. 기존 방법(이메일·카카오)으로 로그인해 주세요.');
+        }
+        if (resp.statusCode != 200) throw _AuthError('서버 오류(${resp.statusCode})');
+        await _saveTokens(resp.body);
+      }, '구글 로그인에 실패했습니다');
 
   Future<void> _handleEmail() async {
     final email = _email.text.trim().toLowerCase();
@@ -306,6 +339,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 ),
                 child: const Text(
                   '카카오로 계속하기',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _isLoading ? null : _handleGoogleLogin,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1F1F1F),
+                  side: const BorderSide(color: Color(0xFF747775)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text(
+                  'Google로 계속하기',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),

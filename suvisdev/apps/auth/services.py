@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from auth.google_mobile_verifier import GoogleMobileTokenVerifier
 from auth.kakao_mobile_verifier import KakaoMobileTokenVerifier
 from auth.mobile_refresh_store import MobileRefreshTokenStore
 from auth.oauth_adapters import OAuthError
@@ -47,6 +48,7 @@ class AuthService:
         oauth_state_store: OAuthStateStore | None = None,
         oauth_handoff_store: OAuthHandoffStore | None = None,
         kakao_mobile_verifier: KakaoMobileTokenVerifier | None = None,
+        google_mobile_verifier: GoogleMobileTokenVerifier | None = None,
         mobile_refresh_store: MobileRefreshTokenStore | None = None,
     ) -> None:
         self._users = user_repository or UserRepository()
@@ -60,6 +62,7 @@ class AuthService:
         self._oauth_state = oauth_state_store or OAuthStateStore()
         self._oauth_handoff = oauth_handoff_store or OAuthHandoffStore()
         self._kakao_mobile_verifier = kakao_mobile_verifier or KakaoMobileTokenVerifier()
+        self._google_mobile_verifier = google_mobile_verifier or GoogleMobileTokenVerifier()
         self._mobile_refresh = mobile_refresh_store or MobileRefreshTokenStore()
 
     def build_authorize_url(self, provider: str, state: str) -> str:
@@ -149,6 +152,17 @@ class AuthService:
         네임스페이스에 저장되어 웹 세션과 완전히 분리된다."""
         identity = await self._kakao_mobile_verifier.verify(access_token)
         user = await self._users.find_or_create_by_kakao(
+            provider_user_id=identity.provider_user_id,
+            email=identity.email,
+            nickname=identity.nickname,
+        )
+        return self._issue_mobile_pair(user, nickname=identity.nickname)
+
+    async def login_with_google_mobile(self, id_token: str) -> KakaoMobileTokenResponse:
+        """모바일 구글 로그인 — id_token을 JWKS로 검증하고 계정을 조회하거나 만든다.
+        같은 이메일 계정이 이미 있으면 EmailAlreadyExists(호출자가 409로 변환)."""
+        identity = await self._google_mobile_verifier.verify(id_token)
+        user = await self._users.find_or_create_by_google(
             provider_user_id=identity.provider_user_id,
             email=identity.email,
             nickname=identity.nickname,
