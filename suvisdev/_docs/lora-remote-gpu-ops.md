@@ -75,6 +75,58 @@ RECOMMENDATION_BACKEND=gemini
 ```
 로 바꾸고 EC2에서 `docker compose up -d --build backend` 재기동.
 
+## 6. 재학습 GGUF를 운영(집컴)에 반영 (2026-10-02)
+
+프로덕션 lora-server는 2026-10-01부터 집컴 **DESKTOP-T89E5ID**(GTX 1650 SUPER 4GB, 사용자
+`suvisdev`)에서 돈다. 집컴에서는 **GGUF를 만들 수 없다** — 어댑터 병합에 VRAM ~5GB가 필요하고,
+집컴 `~/.venv-exaone`에는 서빙 패키지(fastapi·uvicorn·httpx·pydantic)만 있다. 그래서 GGUF를 다른
+곳에서 만들어 **파일 하나만 옮기고** `/reload`로 갈아끼운다. GGUF는 GPU 아키텍처와 무관하므로
+노트북(sm_89)에서 구운 파일을 집컴(sm_75 빌드 `llama-server`)에서 그대로 쓴다.
+
+**① GGUF 만들기** (둘 중 하나)
+- 코랩: 학습 노트북이 Q5_K_M GGUF까지 뽑는다 → 결과 파일을 내려받는다.
+- 노트북(teagy): 어댑터를 `~/lora_adapters/`에 두고 `LATEST`를 갱신한 다음 아래를 실행한다.
+  ```bash
+  systemctl --user stop lora-server        # 병합에 VRAM ~5GB
+  cd ~/projects/suvisdev/suvisdev && ~/.venv-exaone/bin/python scripts/export_mova_gguf.py
+  systemctl --user start lora-server
+  ```
+  산출물은 `~/lora_adapters/gguf/<어댑터명>-Q5_K_M.gguf`(약 1.7GB)이다. 이 스크립트는 노트북의
+  `LATEST_GGUF`를 덮어쓰지만, 노트북은 이제 개발 전용이라 상관없다.
+- 체크섬을 남긴다: `sha256sum <파일>.gguf`
+
+**② 집컴으로 옮기기**: USB나 LAN으로 `~/lora_adapters/gguf/`에 복사한 다음, 집컴에서도
+`sha256sum`을 돌려 ①의 값과 같은지 확인한다(1.7GB라 전송 중에 깨지면 llama-server가 기동하지 못한다).
+
+**③ 집컴에서 교체** (WSL, 사용자 `suvisdev`)
+```bash
+NEW=~/lora_adapters/gguf/<어댑터명>-Q5_K_M.gguf
+cp ~/lora_adapters/LATEST_GGUF ~/lora_adapters/LATEST_GGUF.bak-$(date +%Y%m%d)   # 롤백용
+echo "$NEW" > ~/lora_adapters/LATEST_GGUF
+TOKEN=$(systemctl --user show lora-server -p Environment | grep -o 'LORA_SERVER_TOKEN=[^ ]*' | cut -d= -f2)
+curl -s -X POST http://127.0.0.1:8200/reload -H "X-Lora-Token: $TOKEN"
+curl -s http://127.0.0.1:8200/health      # model_loaded: true, adapter_dir가 $NEW인지
+```
+`/reload`는 자식 `llama-server`만 재기동하고 백엔드 파드는 건드리지 않는다. 그래서 몇 초 동안
+lora 호출이 실패할 수 있는데, 이때는 Gemini 자동 폴백 DI가 받친다. `LATEST_GGUF`에는 **절대경로**
+(`/home/suvisdev/...`)가 들어가야 한다. 노트북 경로(`/home/suteagy`)가 섞이면 기동에 실패한다
+(10-01 이관 때 실제로 고쳤던 부분).
+
+**④ 운영 회귀** (집컴에서, `NodePort`는 설치마다 다르니 매번 조회한다)
+```bash
+PORT=$(kubectl -n suvisdev get svc backend -o jsonpath='{.spec.ports[0].nodePort}')
+cd ~/projects/suvisdev/suvisdev
+~/.venv-exaone/bin/python scripts/eval_chat_queries.py    --base-url http://127.0.0.1:$PORT   # 기준 23/23
+~/.venv-exaone/bin/python scripts/eval_chat_multiturn.py  --base-url http://127.0.0.1:$PORT   # 기준 6/6
+```
+교체할지는 이 운영 하네스로 판단한다. 코랩 심판 점수는 두 번 연속 반대로 나왔다(WORK_LOG_MOVA 09-27).
+
+**롤백**: `cp ~/lora_adapters/LATEST_GGUF.bak-<날짜> ~/lora_adapters/LATEST_GGUF` 후 ③의 `/reload`.
+이전 GGUF는 지우지 말고 `gguf/`에 그대로 둔다.
+
+> mova 채팅의 **판단 모델**(`mova-agent-v9`)은 lora-server가 아니라 **Ollama** 모델이다(집컴은 CPU 고정).
+> 그쪽을 교체하려면 GGUF + Modelfile로 `ollama create`를 하고 `MOVA_AGENT_MODEL`을 바꾼다. 이 절의 대상이 아니다.
+
 ## 알려진 한계
 
 - `core/lol/lora_server_client.py`의 `is_ready()`(헬스체크)는

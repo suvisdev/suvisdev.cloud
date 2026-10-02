@@ -28,6 +28,27 @@
 
 ---
 
+## 2026-10-02
+
+### 작업 내용
+- 집컴 이관 후속 백로그 중 두 건: ① 재학습 lora GGUF를 집컴에 반영하는 절차를 문서화 ② ruff에서 `.ipynb` 제외(10-01에 남겨 둔 54건).
+
+### 수정/구현
+- `suvisdev/_docs/lora-remote-gpu-ops.md` §6 "재학습 GGUF를 운영(집컴)에 반영" 신설 — 집컴(GTX 1650 SUPER 4GB)은 병합 VRAM(~5GB)과
+  학습 패키지가 없어 GGUF를 만들 수 없음 → 코랩 또는 노트북 `export_mova_gguf.py`로 생성 → sha256 확인 후 복사 → `LATEST_GGUF` 백업·교체
+  → `/reload` → `/health` → 운영 하네스 2종 → 롤백. GGUF는 아키텍처 무관이라 sm_89에서 구운 파일을 sm_75 빌드에서 그대로 사용.
+  토큰은 `systemctl --user show lora-server -p Environment`에서 추출, 하네스 포트는 `kubectl get svc backend` nodePort 조회(설치마다 다름).
+  판단 모델 `mova-agent-v9`는 Ollama라 이 절차 대상이 아님을 명시.
+- `suvisdev/pyproject.toml` `[tool.ruff]`에 `extend-exclude = ["*.ipynb"]`.
+- 진행 문서: 집컴 상시 가동 마무리 완료 표시(사용자가 10-01에 자동 로그인·절전 끄기·재부팅 테스트 완료, BIOS AC 복구는 안 하기로 결정).
+
+### 오류·막힌 점
+- 없음. 노트북에서 문서의 명령 검증: 토큰 추출(64자)로 `/generate` 200, nodePort 조회 31386, `/health` 응답 형식 일치.
+  `ruff check .` **All checks passed**(54→0). `ruff format --check`는 `.md` 코드블록 8파일만 남음(10-01에 의도적으로 보류한 것, 손대지 않음).
+
+### 산출물
+- 미커밋: 위 두 파일 + 문서 갱신.
+
 ## 2026-10-01
 
 ### 작업 내용
