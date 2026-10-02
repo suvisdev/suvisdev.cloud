@@ -28,6 +28,58 @@
 
 ---
 
+## 2026-10-02
+
+### 작업 내용
+- 사용자 질문 "안내 시작 버튼으로 내비처럼 안내할 수 있나" → 09-30에 넣은 산책 중 길 안내(다음 꺾임 카드·이탈 진동/알림·새 길 찾기)가
+  이미 "이 길로 산책 시작"에 붙어 있어 버튼은 새로 만들지 않고, 내비에 빠진 네 가지를 앱에 추가: ① 음성 안내 ② 꺾임 직전 알림
+  ③ 진행 방향으로 지도 회전 ④ 도착 안내. 웹은 테스트 화면이라 반영 안 함(웹 전용 한계는 보완 불필요 원칙).
+- 노트북 WSL에 Flutter를 상시 설치 — 지금까지는 Windows Flutter(`C:\src\flutter`, WSL 경로에서 test 잠금)나 스크래치 설치를 오갔음.
+
+### 수정/구현
+- `domain/route_guidance.dart`: `nextCue(guidance, offRoute, spoken)` 순수 함수 — 꺾임마다 60m 앞("60미터 앞에서 왼쪽으로 가세요")과
+  25m 안("곧 …") 두 번, 끝점 25m 안에서 "도착했어요" 한 번. 꺾임 위치(m)를 key로 써서 중복 발화 방지, 이탈 중엔 침묵(이탈 알림이 따로 있음).
+  돌아오는 코스는 `progressM > 25m` 조건으로 출발 직후 도착 오판 방지.
+- `walk_alerts.dart`: `flutter_tts`(ko-KR, 속도 0.5)로 말하기 + 앱이 화면 뒤에 있을 때만 `walk_turn` 채널 알림(15초 뒤 자동 소멸). `muted` 플래그.
+- `walk_session_controller.dart`: 위치 갱신마다 `nextCue` → 말한 key 기록(재탐색 시 초기화), 상태에 `arrived`·`voiceOn`, `toggleVoice()`.
+- `walk_screen.dart`: 추적 모드 `follow`→`face`(걷는 방향이 위), 도착 시 기존 "산책을 끝낼까요?" 확인창, 안내 카드에 음성 켜기/끄기 버튼.
+- `AndroidManifest.xml`: Android 11+ TTS 엔진 조회용 `<queries>` `TTS_SERVICE`. `pubspec.yaml`: `flutter_tts ^4.2.5`(macos·windows 생성 등록 파일 동반 변경).
+- 테스트 3개 추가(5m 간격 가상 걷기로 발화 순서 검증, 루프 출발 직후 침묵, 이탈 중 침묵).
+
+### 오류·막힌 점
+- 없음. `flutter pub add`·`build`가 `analysis_options.yaml`을 또 자동 수정 → 되돌림(이전과 동일).
+- **실기기 미검증**: 화면 꺼진 상태에서 TTS가 실제로 나오는지(포그라운드 서비스가 엔진을 살려 두므로 될 것으로 보지만 기기 확인 필요),
+  `face` 모드 회전 체감, 알림 진동은 걸어 봐야 안다.
+
+### 산출물
+- WSL Flutter: `~/.cache/gildle-build/flutter`(3.47.5, 09-28 AAB와 같은 버전) + `source ~/.cache/gildle-build/env.sh`(JDK 17·Android SDK 경로 포함).
+  WSL 경로에서 `flutter analyze` 0·`flutter test` 18/18 통과(잠금 문제 없음).
+- 릴리스 APK(업로드 키 서명 확인, 131MB) `바탕화면/길들/gildle-release-20261002-voice.apk` — 빌드 동안만 `key.properties`의 `C:/`를 `/mnt/c/`로 바꾸고 원복.
+  버전은 1.0.4+5 그대로 — Play 업로드 AAB를 만들 땐 올려야 한다. **AAB는 실기기 확인 후 빌드(사용자 결정)**.
+- 브랜치 `feat/gildle-voice-guidance`, 커밋 `ef8a192`.
+
+### 작업 내용 (2) — 차도 수정 운영 검증 · 데이터 동기화 구조
+- **10-01 차도 페널티 운영 반영 확인**: 운영 `/api/gildle/routes/options`(강남역→신논현)의 `path`를 노트북 `scored_edges.json`
+  간선에 대응시켜 차도 비율 계산 — 빠른 길 963m·차도 **6.1%**(그늘 5.2%·편한 길 5.6%) vs 페널티 없는 순수 최단 805m·**50.8%**.
+  `highway` 키는 23만 간선 전부에 있음 → 이관 때 옮긴 데이터가 수정 후 버전.
+- **문제**: 코드는 main 머지 → CD로 집컴에 가지만 `apps/gildle/data/`(1.1GB)는 git 밖 hostPath라 안 간다. S3는 Arda 계정·유료라
+  제외(사용자) → **GitHub Releases(비공개, 무료, 파일당 2GB)**로.
+- `suvisdev/scripts/gildle_data_release.sh` — `push`(개발 머신, gh): 서빙 파일 15개(`scored_edges`·`node_elevation`·
+  `shade_scores`·`shade_scores_01~12`)를 tar.gz + sha256으로 Release `gildle-data-YYYYMMDD-HHMM`(latest 아님). `pull [태그]`
+  (운영 러너): curl+GitHub API로 받아(러너엔 gh가 없을 수 있음) 체크섬 확인 후 파일마다 `cp → mv`(원자 교체). 라우터가 세 파일 모두
+  mtime 캐시라 **재시작 불필요**. 생성용 입력(건물 356MB·graphml)은 서빙에 안 쓰여 제외(USB 백업에 있음). 롤백 = 이전 태그로 pull.
+- `.github/workflows/gildle-data-sync.yml` — workflow_dispatch(태그 입력, 비우면 최신), `[self-hosted, prod]`, `deploy-prod`
+  대기열 공유, 끝에 운영 경로 API 확인. actionlint(shellcheck 포함) 통과.
+- 바탕화면 `길들/` 옛 빌드 5개 삭제(0928 aab·apk, 0930·b·c aab) — 남김: `0930d.aab`(최신 AAB), `20261002-voice.apk`, 키·스토어 자료.
+
+### 오류·막힌 점 (2)
+- 첫 push가 업로드 뒤 `tmp: unbound variable`로 종료 — 함수 `local tmp`를 EXIT trap이 참조. 전역 `TMP`로 수정, 남은 임시 폴더 삭제.
+
+### 산출물 (2)
+- Release `gildle-data-20261002-1156`(52MB, 운영 데이터와 동일 — 첫 기준본). **검증**: 태그 비우고 pull → 노트북 임시 폴더,
+  체크섬 OK, 15개 전부 원본과 sha256 일치, 잔여 파일 0. 집컴 러너 실행은 머지 후 Actions에서 첫 실행 때 확인.
+- 커밋 `ccc71fd`.
+
 ## 2026-10-01
 
 ### 작업 내용

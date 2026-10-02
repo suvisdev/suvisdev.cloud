@@ -102,4 +102,44 @@ void main() {
     final t = guide.rejoinTarget(const GeoPoint(37.5, 127.0007), 10);
     expect(t.alongM, lessThan(420));
   });
+
+  // 경로를 따라 약 5m 간격으로 걸으며 나온 음성 안내를 모은다
+  List<String> walk(List<GeoPoint> route, List<GeoPoint> path) {
+    final guide = RouteGuide.build(route)!;
+    final spoken = <String>{};
+    final said = <String>[];
+    var progress = 0.0;
+    for (final p in path) {
+      final g = guide.locate(p, progress);
+      progress = g.progressM;
+      final cue = nextCue(g, offRoute: false, spoken: spoken);
+      if (cue != null) {
+        spoken.add(cue.key);
+        said.add(cue.text);
+      }
+    }
+    return said;
+  }
+
+  List<GeoPoint> along(GeoPoint from, GeoPoint to, int steps) => [
+        for (var i = 0; i <= steps; i++)
+          GeoPoint(from.lat + (to.lat - from.lat) * i / steps, from.lng + (to.lng - from.lng) * i / steps),
+      ];
+
+  test('음성 안내 — 꺾임마다 앞에서 한 번·직전에 한 번, 끝에서 도착', () {
+    final said = walk([_a, _b, _c], [...along(_a, _b, 40), ...along(_b, _c, 32)]);
+    expect(said, ['60미터 앞에서 오른쪽으로 가세요', '곧 오른쪽으로 가세요', '도착했어요']);
+  });
+
+  test('음성 안내 — 돌아오는 코스는 출발 직후 도착이라 말하지 않는다', () {
+    final said = walk(_loop, along(_a, _b, 10).take(3).toList());
+    expect(said, isEmpty);
+  });
+
+  test('음성 안내 — 이탈 중엔 말하지 않는다', () {
+    final guide = RouteGuide.build([_a, _b, _c])!;
+    final g = guide.locate(const GeoPoint(37.5016, 127.0), 0);
+    expect(nextCue(g, offRoute: true, spoken: {}), isNull);
+    expect(nextCue(g, offRoute: false, spoken: {})!.text, '40미터 앞에서 오른쪽으로 가세요');
+  });
 }

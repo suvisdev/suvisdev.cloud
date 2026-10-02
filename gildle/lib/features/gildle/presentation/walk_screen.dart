@@ -36,6 +36,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       if (prev?.points.length != next.points.length) _drawWalked(next);
       if (next.offRoute && prev?.offRoute != true) HapticFeedback.vibrate(); // 이탈하는 순간 한 번
       if (!identical(prev?.planned, next.planned)) _drawPlanned(next.planned); // 새 길을 받았을 때
+      if (next.arrived && prev?.arrived != true) _confirmStop(); // 도착하면 끝낼지 한 번 묻는다
       if (next.error != null && prev?.error != next.error) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -59,7 +60,8 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
               ),
               onMapReady: (c) async {
                 _map = c;
-                c.setLocationTrackingMode(NLocationTrackingMode.follow);
+                // 내비처럼 걷는 방향이 위로 오게 지도를 돌린다(지도를 끌면 SDK가 추적을 풀고, 위치 버튼으로 다시 켠다)
+                c.setLocationTrackingMode(NLocationTrackingMode.face);
                 await _drawPlanned(ref.read(walkSessionProvider).planned ?? widget.planned);
                 await _drawWalked(ref.read(walkSessionProvider));
               },
@@ -74,6 +76,8 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                   offRoute: state.offRoute,
                   rerouting: state.rerouting,
                   onReroute: ref.read(walkSessionProvider.notifier).reroute,
+                  voiceOn: state.voiceOn,
+                  onToggleVoice: ref.read(walkSessionProvider.notifier).toggleVoice,
                 ),
               ),
             Positioned(left: 12, right: 12, bottom: 12, child: _StatsCard(state: state, onStop: _confirmStop)),
@@ -180,12 +184,16 @@ class _GuidanceCard extends StatelessWidget {
     required this.offRoute,
     required this.rerouting,
     required this.onReroute,
+    required this.voiceOn,
+    required this.onToggleVoice,
   });
 
   final Guidance guidance;
   final bool offRoute;
   final bool rerouting;
   final VoidCallback onReroute;
+  final bool voiceOn;
+  final VoidCallback onToggleVoice;
 
   @override
   Widget build(BuildContext context) {
@@ -223,6 +231,13 @@ class _GuidanceCard extends StatelessWidget {
               ),
             if (!offRoute)
               Text('남은 ${formatKmShort(guidance.remainingM)}', style: theme.textTheme.labelSmall?.copyWith(color: muted)),
+            IconButton(
+              tooltip: voiceOn ? '음성 안내 끄기' : '음성 안내 켜기',
+              onPressed: onToggleVoice,
+              icon: Icon(voiceOn ? Icons.volume_up : Icons.volume_off, size: 20),
+              color: offRoute ? theme.colorScheme.onErrorContainer : muted,
+              visualDensity: VisualDensity.compact,
+            ),
           ],
         ),
       ),

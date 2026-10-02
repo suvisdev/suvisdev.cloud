@@ -49,6 +49,24 @@
 ### 산출물
 - 미커밋: 위 두 파일 + 문서 갱신.
 
+### 작업 내용 (2) — 노트북 USB 백업·복원 가이드 · 면접 예상 질문 HTML
+- 노트북은 이제 코드 작성 전용(검사·배포는 CI/CD·집컴) → C 드라이브 정리 전에 운영·학습 자산을 USB(D: One Touch 1.8TB, exFAT)로.
+  실측: C 420GB 중 WSL vhdx 163GB(내용 151GB), 윈도우 개발 도구 ~25GB, 게임 ~120GB, `C:\Team Seuk` 15GB(Arda — 미접촉).
+- **USB `D:\suvisdev_notebook_backup_20261002\`** — tar 10개(약 80GB): misc(.env·노트북 DB 덤프 `pg_dump -Fc` 45MB/63테이블·
+  compose), repo(git 밖 파일 164개 2.8GB — .env 4종·길들 데이터·서명 설정·datasets), config(lora-server·Ollama systemd, 터널 인증서,
+  gh), lora, ollama(23GB), hf(16GB), models(20GB), images(`docker save` 3종), datasets, llama.cpp + `windows\`(길들 서명 키 jks·
+  길들 키 폴더·10-01 이관 런북). 묶음마다 원본 스트림 sha256(tee)과 USB `Get-FileHash` 대조 → `MANIFEST.txt`.
+- **`RESTORE_GUIDE.md`**(클로드에 붙여 넣으면 WSL 설치→저장소·git 밖 파일→대용량→DB→Ollama→lora(sm 재빌드)→배포→터널 컷오버→
+  상시 가동→CD 러너까지 단계별 검증 포함, 10-01 막힌 점 반영) + `README_먼저읽기.txt`. DB·.env는 10-01 밤 노트북 스냅숏이라
+  집컴이 살아 있으면 그쪽이 최신임을 명시.
+- 면접 대비: 322문항 HTML을 만들었다가 사용자 요청으로 **49문항 선별본** `바탕화면/면접_예상_질문.html`(주제 6개, 문항마다 30초 핵심 한 줄 +
+  원문 답, 검색·익힘 체크·랜덤)으로 교체.
+
+### 오류·막힌 점 (2)
+- USB가 WSL에 안 붙음 — `!` sudo는 비번 창이 없어 실패, 사용자 터미널 mount도 미반영. 윈도우 `cmd.exe` 리다이렉트로 우회(LESSONS).
+- 정리(삭제) 스크립트 작성이 하네스 권한 검사(되돌릴 수 없는 삭제)에 막힘 → 사용자 실행 또는 권한 허용 대기. 삭제는 아직 안 함.
+
+
 ## 2026-10-01
 
 ### 작업 내용

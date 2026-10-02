@@ -30,6 +30,7 @@ const _windowAheadM = 250.0;
 const _offEnterM = 40.0; // 이만큼 벗어나면 이탈
 const _offExitM = 25.0; // 이 안으로 돌아오면 복귀(경계에서 깜빡이지 않게 차이를 둔다)
 const _soonM = 25.0;
+const _approachM = 60.0; // 음성 안내 — 꺾임 이만큼 앞에서 한 번, _soonM 안에서 한 번
 const _loopGapM = 50.0; // 시작·끝이 이 안이면 돌아오는 코스
 const _rejoinAheadM = 400.0; // 합류 지점은 이 앞까지만 찾는다(출발점 근처에서 끝점으로 건너뛰지 않게)
 
@@ -204,4 +205,28 @@ String guidanceText(Guidance g, {required bool offRoute}) {
   final side = _sideLabels[next.side]!;
   if (next.distanceM < _soonM) return '곧 $side';
   return '${(next.distanceM / 10).round() * 10}m 앞에서 $side';
+}
+
+const _spokenSides = {
+  TurnSide.left: '왼쪽으로 가세요',
+  TurnSide.right: '오른쪽으로 가세요',
+  TurnSide.back: '되돌아가세요',
+};
+
+/// 지금 말할 음성 안내. [spoken]에 든 key는 다시 말하지 않는다 — 호출자가 반환된 key를 넣어 둔다.
+/// 꺾임마다 "60미터 앞"·"곧" 두 번, 끝점에서 "도착"을 한 번. 이탈 중엔 이탈 알림이 따로 있어 말하지 않는다.
+({String key, String text})? nextCue(Guidance g, {required bool offRoute, required Set<String> spoken}) {
+  if (offRoute) return null;
+  if (g.remainingM < _soonM && g.progressM > _soonM) {
+    return spoken.contains('arrive') ? null : (key: 'arrive', text: '도착했어요');
+  }
+  final next = g.next;
+  if (next == null || next.distanceM > _approachM) return null;
+  final at = (g.progressM + next.distanceM).round(); // 꺾임 위치가 곧 그 꺾임의 이름
+  final side = _spokenSides[next.side]!;
+  if (next.distanceM < _soonM) {
+    return spoken.contains('soon-$at') ? null : (key: 'soon-$at', text: '곧 $side');
+  }
+  if (spoken.contains('soon-$at') || spoken.contains('near-$at')) return null;
+  return (key: 'near-$at', text: '${(next.distanceM / 10).round() * 10}미터 앞에서 $side');
 }

@@ -1,0 +1,48 @@
+# 길들 데이터 동기화 — 개발 머신이 GitHub Release로 올린 apps/gildle/data 서빙 파일을 운영 서버에 반영한다.
+#
+# 데이터는 git에 없어(hostPath) backend-deploy로는 안 간다. 개발 머신에서
+# `suvisdev/scripts/gildle_data_release.sh push`로 Release를 올린 뒤, Actions에서 이 워크플로를
+# 수동 실행(Run workflow)하면 운영 러너(라벨 `prod`)가 받아 교체한다. 라우터가 파일 mtime을 보고
+# 다시 읽으므로 재시작은 없다. 되돌리기 = 이전 태그로 다시 실행.
+name: gildle-data-sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "받을 Release 태그(비우면 최신 gildle-data-*)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: [self-hosted, prod]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 러너 설정 확인
+        run: |
+          : "${SUVISDEV_DATA_ROOT:?러너 .env에 SUVISDEV_DATA_ROOT가 없음}"
+          test -d "$SUVISDEV_DATA_ROOT/suvisdev/apps/gildle/data"
+
+      - name: 데이터 교체
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          GILDLE_DATA_DIR="$SUVISDEV_DATA_ROOT/suvisdev/apps/gildle/data" \
+            ./suvisdev/scripts/gildle_data_release.sh pull "$TAG"
+
+      - name: 경로 응답 확인
+        run: |
+          curl -fsS -o /dev/null -w 'routes/options %{http_code}\n' --retry 5 --retry-delay 6 --retry-all-errors \
+            -X POST 'https://api.suvisdev.cloud/api/gildle/routes/options' -H 'Content-Type: application/json' \
+            -d '{"start_lat":37.4979,"start_lng":127.0276,"end_lat":37.5045,"end_lng":127.0249}'
