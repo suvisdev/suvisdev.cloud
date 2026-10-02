@@ -40,6 +40,8 @@ class WalkSessionState {
     this.guidance,
     this.offRoute = false,
     this.rerouting = false,
+    this.arrived = false,
+    this.voiceOn = true,
     this.error,
     this.saved,
   });
@@ -57,6 +59,10 @@ class WalkSessionState {
 
   /// 이탈 후 새 길을 받아 오는 중
   final bool rerouting;
+
+  /// 계획 경로의 끝점에 닿았다(한 번 켜지면 산책이 끝날 때까지 유지)
+  final bool arrived;
+  final bool voiceOn;
   final String? error;
   final WalkDetail? saved;
 
@@ -76,6 +82,8 @@ class WalkSessionState {
     Guidance? guidance,
     bool? offRoute,
     bool? rerouting,
+    bool? arrived,
+    bool? voiceOn,
     String? error,
     WalkDetail? saved,
     bool clearError = true,
@@ -90,6 +98,8 @@ class WalkSessionState {
         guidance: guidance ?? this.guidance,
         offRoute: offRoute ?? this.offRoute,
         rerouting: rerouting ?? this.rerouting,
+        arrived: arrived ?? this.arrived,
+        voiceOn: voiceOn ?? this.voiceOn,
         error: clearError ? error : (error ?? this.error),
         saved: saved ?? this.saved,
       );
@@ -109,6 +119,7 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
   StreamSubscription<Position>? _positions;
   Timer? _ticker;
   RouteGuide? _guide;
+  final _spoken = <String>{}; // 이미 말한 음성 안내(nextCue의 key)
 
   Future<void> start({PlannedRoute? planned}) async {
     if (state.status == WalkStatus.tracking) return;
@@ -123,8 +134,14 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
     }
     final startedAt = DateTime.now();
     _guide = planned == null ? null : RouteGuide.build(planned.coordinates);
+    _spoken.clear();
     if (_guide != null) unawaited(_alerts.init());
-    state = WalkSessionState(status: WalkStatus.tracking, startedAt: startedAt, planned: planned);
+    state = WalkSessionState(
+      status: WalkStatus.tracking,
+      startedAt: startedAt,
+      planned: planned,
+      voiceOn: !_alerts.muted,
+    );
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (state.status == WalkStatus.tracking) {
         state = state.copyWith(elapsed: DateTime.now().difference(startedAt));
@@ -165,6 +182,17 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
     );
     if (off && !wasOff) unawaited(_alerts.offRoute(guidance.offM));
     if (!off && wasOff) unawaited(_alerts.clear());
+    final cue = guidance == null ? null : nextCue(guidance, offRoute: off, spoken: _spoken);
+    if (cue != null) {
+      _spoken.add(cue.key);
+      unawaited(_alerts.cue(cue.text));
+      if (cue.key == 'arrive') state = state.copyWith(arrived: true);
+    }
+  }
+
+  void toggleVoice() {
+    _alerts.muted = state.voiceOn;
+    state = state.copyWith(voiceOn: !state.voiceOn);
   }
 
   /// 이탈한 자리에서 새 길을 받는다. 목적지가 있는 길은 목적지까지, 돌아오는 코스는 원래 코스의
@@ -185,12 +213,14 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
       );
       final coords = [here, ...picked.coordinates, ...guide.remainderFrom(target.alongM)];
       _guide = RouteGuide.build(coords);
+      _spoken.clear();
       state = WalkSessionState(
         status: state.status,
         startedAt: state.startedAt,
         points: state.points,
         distanceM: state.distanceM,
         elapsed: state.elapsed,
+        voiceOn: state.voiceOn,
         planned: PlannedRoute(
           coordinates: coords,
           mode: planned.mode,

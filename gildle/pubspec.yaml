@@ -53,6 +53,8 @@ dependencies:
   # 가입 화면의 이용약관·개인정보처리방침 링크, 계정 삭제 안내(2026-09-28).
   url_launcher: ^6.3.1
   flutter_local_notifications: ^22.3.1
+  # 산책 중 음성 안내 — 꺾임·도착을 말로 알려 준다(2026-10-02).
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
