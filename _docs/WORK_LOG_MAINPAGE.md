@@ -106,6 +106,12 @@
   옛 파일은 USB 백업(`D:\전달파일`, `D:\suvisdev_notebook_backup_20261002`)에 있음.
 - 재부팅 직후 k3s가 노트북 cloudflared 파드를 앱보다 먼저 되살림 → 판단기가 18초 만에 0으로(앱 503). 공개 API 오류는 관측되지 않음.
 
+### 작업 내용 (6) — #170 첫 실전 CD · 집컴 이미지 적재 단축
+- #170 머지 → 노트북 러너가 끝까지 처리, 16분 36초 성공(노트북 빌드·배포 5분 28초, push 2분 20초, 집컴 docker save→k3s import
+  6분 56초, 재시작 1분 30초). 배포 중 공개 API 300회 중 실패 6(배포 끝난 뒤 58회는 0) — 노트북 CPU(빌드 + 옛 코드의 감정분석).
+- 집컴 k3s가 로컬 레지스트리에서 직접 받게: `registries.yaml` http 미러(사용자 sudo 1회), `sync-standby.sh`에서 docker pull·save·import 제거,
+  집컴 사본 매니페스트만 `127.0.0.1:5000/...`·`imagePullPolicy: Always`. 시험 파드 pull 1.9초.
+
 ## 2026-10-02
 
 ### 작업 내용
