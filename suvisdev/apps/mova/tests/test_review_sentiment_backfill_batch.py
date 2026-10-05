@@ -68,6 +68,10 @@ class AnalyzeMissingBatchTests(unittest.IsolatedAsyncioTestCase):
         _FakeRepo.sentiments = []
         _FakeAdapter.batch_calls = []
         self.interactor = ReviewSentimentBackfillInteractor(session_factory=_FakeSession)
+        # 이 묶음은 GPU가 있는 머신의 배치 동작을 고정한다 — GPU 판정은 아래 별도 묶음에서.
+        gpu = patch.object(module, "_gpu_available", return_value=True)
+        gpu.start()
+        self.addCleanup(gpu.stop)
 
     async def _run(self) -> dict[str, int]:
         with (
@@ -104,6 +108,38 @@ class AnalyzeMissingBatchTests(unittest.IsolatedAsyncioTestCase):
         stats = await self._run()
         self.assertEqual(stats, {"succeeded": 0, "failed": 0, "skipped": 0})
         self.assertEqual(_FakeAdapter.batch_calls, [])
+
+
+class NoGpuSkipsModelLoadTests(unittest.IsolatedAsyncioTestCase):
+    """GPU가 없으면 모델을 올리지 않는다 — CPU fp32 적재(약 10GB)가 운영 DB를 죽였다(2026-10-05)."""
+
+    def setUp(self) -> None:
+        _FakeRepo.targets = [(1, "인생 영화")]
+        _FakeRepo.sentiments = []
+        self.interactor = ReviewSentimentBackfillInteractor(session_factory=_FakeSession)
+
+    async def test_batch_returns_without_loading(self) -> None:
+        with (
+            patch.object(module, "_gpu_available", return_value=False),
+            patch.object(module, "_make_echo_adapter") as make,
+            patch(
+                "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
+                _FakeRepo,
+            ),
+        ):
+            stats = await self.interactor.analyze_missing(limit=None)
+        make.assert_not_called()
+        self.assertEqual(stats, {"succeeded": 0, "failed": 0, "skipped": 0})
+        self.assertEqual(_FakeRepo.sentiments, [])
+
+    async def test_single_review_returns_failed_without_loading(self) -> None:
+        with (
+            patch.object(module, "_gpu_available", return_value=False),
+            patch.object(module, "_make_echo_adapter") as make,
+        ):
+            result = await self.interactor.analyze_one(1)
+        make.assert_not_called()
+        self.assertEqual(result, "failed")
 
 
 if __name__ == "__main__":

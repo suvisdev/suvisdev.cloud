@@ -26,6 +26,20 @@ logger = logging.getLogger(__name__)
 SessionFactory = Callable[[], "AsyncSession"]
 
 
+def _gpu_available() -> bool:
+    """CUDA가 없으면 Echo는 EXAONE-2.4B를 4bit가 아닌 CPU fp32(약 10GB)로 올린다.
+
+    k3s 파드에는 GPU가 없어 운영에서는 늘 이 경우다 — 배포 때마다 기동 직후 스케줄러가
+    수 분 동안 모델을 올리다 집컴(8.9GB) 메모리를 고갈시켜 DB가 두 번 죽었다(2026-10-05).
+    GPU가 없으면 아예 로드하지 않는다(문서상 원래 'GPU 있는 로컬 머신에서만' 도는 기능).
+    """
+    try:
+        import torch
+    except ImportError:
+        return False
+    return bool(torch.cuda.is_available())
+
+
 def _make_echo_adapter() -> EchoSentimentAdapter:
     # ontology 어댑터는 lazy import — torch 로드가 무거워 GPU 경로에서만 당긴다.
     from pathlib import Path
@@ -63,6 +77,9 @@ class ReviewSentimentBackfillInteractor:
 
         from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
 
+        if not _gpu_available():
+            return "failed"
+
         async with self._session_factory() as session:
             repo = ReviewsPgRepository(session=session)
             body = await repo.get_body_for_embedding(review_id)
@@ -99,6 +116,9 @@ class ReviewSentimentBackfillInteractor:
         from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
 
         stats = {"succeeded": 0, "failed": 0, "skipped": 0}
+        if not _gpu_available():
+            logger.info("[sentiment_backfill] GPU 없음 — 모델을 올리지 않고 건너뜀")
+            return stats
         async with self._session_factory() as session:
             repo = ReviewsPgRepository(session=session)
             targets = await repo.list_missing_sentiment(limit=limit)

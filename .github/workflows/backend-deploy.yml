@@ -1,4 +1,5 @@
-# 백엔드 CD — main에서 backend-ci가 통과하면 운영 서버(노트북 teagy)에 배포한다.
+# 백엔드 CD — main에서 backend-ci가 통과하면 운영 서버(노트북 teagy)에 배포하고,
+# 예비 서버(집컴)에 같은 이미지를 반영한다(2026-10-05 노트북 우선·집컴 예비, k8s/failover/README.md).
 #
 # 운영 서버는 공유기 NAT 뒤라 GitHub이 접속할 수 없다 → 운영 서버에 설치한 셀프호스티드 러너
 # (라벨 `prod`)가 GitHub에 붙어 이 잡을 받는다. 저장소가 비공개라 외부 PR이 러너에서 돌 수 없고,
@@ -40,6 +41,11 @@ jobs:
       # 이미지 빌드 → k3s import → apply → rollout 대기 → 구 이미지 정리(deploy.sh가 전부 한다)
       - name: 배포
         run: ./k8s/deploy.sh --external-db --build
+
+      # 예비 서버(집컴)에 같은 이미지·매니페스트를 반영한다 — 집컴은 빌드하지 않는다.
+      # 바뀐 레이어만 집컴 로컬 레지스트리로 보낸다(k8s/failover/README.md, 2026-10-05).
+      - name: 예비 서버 동기화
+        run: ./k8s/sync-standby.sh
 
       - name: 외부 응답 확인
         run: |
