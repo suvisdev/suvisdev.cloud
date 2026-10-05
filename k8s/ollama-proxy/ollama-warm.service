@@ -1,0 +1,12 @@
+[Unit]
+Description=집컴 올라마 예열기 (노트북이 빠지면 집컴 모델을 올리고, 돌아오면 내린다)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash %h/ollama-proxy/warm_watch.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

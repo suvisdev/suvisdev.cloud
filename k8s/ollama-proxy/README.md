@@ -31,6 +31,7 @@ HAProxy :11435 ─┬─ laptop  127.0.0.1:21434 ──(노트북이 연 역방�
 | `haproxy.cfg` | 집컴 `~/ollama-proxy/haproxy.cfg` | 1초 점검 · 연결 오류 시 즉시 제외 · 재시도 · 노트북 제외 시 매달린 연결 끊기 |
 | `free_tunnel_port.sh` | 집컴 `~/ollama-proxy/free_tunnel_port.sh` | 노트북이 다시 붙기 전에, 끊긴 옛 세션이 쥔 21434 포트를 놓아 줌(같은 사용자라 sudo 불필요) |
 | `ollama-tunnel.service` | 노트북 `~/.config/systemd/user/` | `ssh -N -R 127.0.0.1:21434:127.0.0.1:11434`, `Restart=always` |
+| `warm_watch.sh` · `ollama-warm.service` | 집컴 `~/ollama-proxy/` · `~/.config/systemd/user/` | 노트북이 빠지면 집컴 CPU 모델을 바로 예열, 노트북이 2분 넘게 돌아와 있으면 내림 |
 
 ## 설치
 
@@ -41,6 +42,10 @@ mkdir -p ~/ollama-proxy && cp k8s/ollama-proxy/haproxy.cfg k8s/ollama-proxy/free
 chmod +x ~/ollama-proxy/free_tunnel_port.sh
 docker run -d --name ollama-proxy --restart unless-stopped --network host \
   -v ~/ollama-proxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro haproxy:3.0-alpine
+# 예열기 (유저 서비스, linger 필요)
+cp k8s/ollama-proxy/warm_watch.sh ~/ollama-proxy/ && chmod +x ~/ollama-proxy/warm_watch.sh
+cp k8s/ollama-proxy/ollama-warm.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now ollama-warm
 ```
 
 **노트북** (WSL, 집컴에 `~/.ssh/home_desktop` 키로 와이파이 SSH 가능해야 함):
@@ -83,4 +88,6 @@ systemctl --user status ollama-tunnel --no-pager; ollama ps
 - **집컴 CPU 올라마에 모델을 상주시키지 않는다.** 노트북이 받는 동안 집컴 모델은 예비일 뿐인데, 상주하면 집컴 메모리(8.9GB)를
   1GB 넘게 잡는다 — 10-05 배포 직후 메모리 부족으로 DB가 2분 넘게 멈춘 원인 중 하나. 내리기:
   `curl -s 127.0.0.1:11434/api/generate -d '{"model":"exaone3.5:2.4b","keep_alive":0}'`(bge-m3도 같은 방식).
-  노트북이 빠져 집컴으로 넘어오면 첫 요청에서 다시 올라온다(콜드 로드 약 15초).
+  노트북이 빠지면 예열기(`ollama-warm`)가 바로 올린다 — 10-05 실측 판단 모델 22초·임베딩 51초 뒤 준비 완료
+  (예열기 없이 요청이 직접 올리면 첫 요청 88초). 노트북이 2분 넘게 돌아와 있으면 예열기가 다시 내린다.
+  집컴 CPU에서 판단 모델 한 번은 데워진 뒤에도 10~17초 — 앱 타임아웃(20초)에 가깝다(이 변경 전 집컴 그대로의 속도).
