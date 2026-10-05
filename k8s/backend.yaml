@@ -69,8 +69,10 @@ spec:
             - name: REDIS_URL
               value: redis://redis:6379/0
             # 호스트(WSL)의 systemd 프로세스들 — 위 hostAliases가 10.42.0.1(호스트)로 매핑
+            # 올라마는 호스트의 중계기(HAProxy :11435)를 거친다 — 노트북 GPU가 켜져 있으면 노트북,
+            # 꺼져 있으면 호스트 올라마(:11434, CPU). 설치·되돌리기는 k8s/ollama-proxy/README.md (2026-10-05)
             - name: OLLAMA_BASE_URL
-              value: http://host.docker.internal:11434
+              value: http://host.docker.internal:11435
             - name: AWQ_SERVER_URL
               value: http://host.docker.internal:8100
             - name: LORA_SERVER_URL

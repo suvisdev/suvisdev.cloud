@@ -28,6 +28,34 @@
 
 ---
 
+## 2026-10-05
+
+### 작업 내용
+- 집컴(운영) mova 채팅이 느린 원인 확인: 집컴 GPU(GTX 1650 SUPER 4GB)는 lora-server가 쓰고 올라마는 CPU 전용
+  (`ollama ps` 100% CPU, `exaone3.5:2.4b` 4.2 tok/s). 노트북(RTX 4060 8GB)이 켜져 있을 때만 올라마 호출을 노트북 GPU로
+  보내고 꺼지면 집컴 CPU로 돌아가는 중계기를 붙임. DB·API·터널은 집컴 한 곳 그대로(이중화 검토 후 DB 분기 위험으로 기각).
+
+### 수정/구현
+- 집컴: HAProxy 컨테이너 `ollama-proxy`(`--network host`, `:11435`) — laptop `127.0.0.1:21434` 우선, desktop `127.0.0.1:11434` backup.
+  1초 점검, `observe layer4 error-limit 1 on-error mark-down`, `retry-on conn-failure empty-response`, `on-marked-down shutdown-sessions`.
+- 노트북: 유저 서비스 `ollama-tunnel`(`ssh -N -R 127.0.0.1:21434:127.0.0.1:11434`, `Restart=always`, 시작 전 집컴 옛 세션 포트 정리).
+  운영이 7일간 불러온 모델 4종 + 코드 기본값 2종을 같은 ID로 맞춤(공개 4종 pull, `mova-agent-v9`·`mova-understand-v7`은 집컴 blob을
+  sha256 검증 후 `ollama create`). 윈도우 로그온 작업 `WSL 유지 (올라마 터널)`(관리자 불필요) 등록.
+- `k8s/backend.yaml` `OLLAMA_BASE_URL` `:11434`→`:11435`, `k8s/ollama-proxy/`(설정 3개 + README), `k8s/README.md` 주의 항목.
+
+### 오류·막힌 점
+- 1차 설정(3초 점검)은 터널을 끊은 직후 503 1건 — backup은 활성 서버가 남아 있는 동안 재시도 대상이 아님.
+  연결 오류 즉시 제외 + L7 재시도로 바꾼 뒤 끊는 순간 실패 0건.
+- 노트북이 응답 없이 멈추는 경우(`kill -STOP`으로 흉내)는 처리 중이던 1건이 실패(약 5초) — 집컴 sshd에 ClientAlive가 없어
+  옛 세션이 포트를 쥔 채 남기 때문. 점검 타임아웃 2초 + 제외 시 연결 끊기로 이후 요청은 집컴. 1건 손실은 수용.
+- 집컴 사용자는 올라마 저장소를 못 읽음(권한) — 이미 있는 pgvector 이미지로 읽기 전용 마운트해 blob을 꺼냄.
+
+### 데이터
+- 실측(집컴에서 같은 요청): `exaone3.5:2.4b` 생성 5.40초·4.2 tok/s → 0.31초·120.5 tok/s, `bge-m3` 임베딩 0.605초 → 0.227초.
+
+### 산출물
+- 브랜치 `feat/ollama-laptop-gpu-proxy`. 머지되면 CD가 집컴 backend를 `:11435`로 재배포.
+
 ## 2026-10-02
 
 ### 작업 내용

@@ -1,0 +1,16 @@
+[Unit]
+Description=Ollama 역방향 터널: 데스크탑 127.0.0.1:21434 -> 노트북 Ollama 11434
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 노트북이 잠들거나 와이파이가 끊겼다 돌아오면 데스크탑에 옛 세션이 남아 21434를 쥐고 있을 수 있다.
+# 새로 붙기 전에 그 포트를 쥔 데스크탑 쪽 세션만 정리한다 (데스크탑 ~/ollama-proxy/free_tunnel_port.sh).
+ExecStartPre=-/usr/bin/ssh -i %h/.ssh/home_desktop -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%h/.ssh/known_hosts_ollama_tunnel suvisdev@172.30.1.21 ollama-proxy/free_tunnel_port.sh
+ExecStart=/usr/bin/ssh -N -i %h/.ssh/home_desktop -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%h/.ssh/known_hosts_ollama_tunnel -R 127.0.0.1:21434:127.0.0.1:11434 suvisdev@172.30.1.21
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

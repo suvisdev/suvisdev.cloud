@@ -12,10 +12,11 @@
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ✅ | infra | 10-05 | 올라마 중계기 첫 설정에서 노트북을 끊은 직후 요청 503 | HAProxy backup 서버는 활성 서버가 '살아 있음'으로 남은 점검 주기(최대 6초) 동안 재시도 대상이 아님 | 실제 요청의 연결 오류로 즉시 제외(`observe layer4 on-error mark-down`) + `retry-on conn-failure` → 끊는 순간 실패 0건. 응답 없이 멈춘 경우는 처리 중 1건 손실을 수용(`[MAINPAGE]` 10-05) |
 | ✅ | infra | 10-02 | `ssh.suvisdev.cloud`가 인증 없이 집컴 sshd(비밀번호 로그인 허용)까지 열려 있었음 | 노트북 시절 터널 라우트가 집컴 이관 때 그대로 살아남, Access 정책 없음 | Zero Trust Access(이메일 1명) 추가 → 302 확인, 키 로그인 준비. 비밀번호 로그인 끄기는 집컴 sudo 필요 |
 | ⏳ | mova | 10-02 | `OLLAMA_KEEP_ALIVE=-1` 적용 뒤 판단·이해 단계가 매 요청 HTTP 400 | 백엔드가 env 값을 문자열 `"-1"`로 보내고 Ollama는 단위 없는 문자열을 거부 | 운영 `.env`를 `-1m`으로. 숫자 문자열을 정수로 보내는 코드 수정은 미착수 |
 | ✅ | gildle | 10-02 | 앱 이메일 회원가입 500 | users에 같은 이메일 2쌍 → `scalar_one_or_none` MultipleResultsFound | 중복 확인 쿼리에 `limit(1)` → 409(PR `fix/auth-signup-duplicate-email`). 중복 계정 정리·카카오 경로 중복 방지는 별건 |
-| ⏳ | mova | 10-02 | 집컴 이관 뒤 mova 채팅 80~110초·524 | 측정(10-02): 판단 모델 콜드 로드 15.8s·CPU 16 tok/s, WSL 스왑 2GB, 이후 `keep_alive:"-1"` 400 | 운영 `.env` `MOVA_CHAT_AGENT=0`·`OLLAMA_KEEP_ALIVE=-1m`. 이해 단계(2.4B CPU)는 7~19s·20s 타임아웃 — 끌지 미결(`[P]` 10-02 (4)) |
+| ✅ | mova | 10-02 | 집컴 이관 뒤 mova 채팅 80~110초·524 | 측정(10-02): 판단 모델 콜드 로드 15.8s·CPU 16 tok/s, WSL 스왑 2GB, 이후 `keep_alive:"-1"` 400 | 운영 `.env` `MOVA_CHAT_AGENT=0`·`OLLAMA_KEEP_ALIVE=-1m`. 이해 단계(2.4B CPU)는 7~19s·20s 타임아웃 — 끌지 미결(`[P]` 10-02 (4)) → 10-05 올라마 호출을 노트북 GPU로 보내는 중계기(꺼지면 집컴 CPU): 2.4B 5.40초→0.31초(`[MAINPAGE]` 10-05) |
 | ⏳ | infra | 10-01 | 집컴 첫 CD 배포 15분(노트북 2~6분) | 미확인 — 첫 빌드 캐시·RAM·CPU 추정 | 다음 머지에서 단계별 시간 재측정(`[MAINPAGE]` 10-01 (11)) |
 | 🔁 | infra | 08-26 | 커밋 게이트가 조용히 꺼져 mypy가 0(08-31)→17건으로 불어남(08-26에 이어 두 번째) | 훅의 ruff rev(v0.4.9)가 pyproject `required-version ==0.16.9`와 어긋나 항상 실패 + 노트북에 훅 미설치 + mypy·lint-imports가 `language: system`인데 노트북엔 없음 | rev 맞춤, mypy·import-linter를 운영 이미지 안에서 실행, 노트북 설치, 17→0. 버전 핀을 올릴 땐 `.pre-commit-config.yaml` rev도 같이(`[MAINPAGE]` 10-01 (3)) |
 | ✅ | gildle | 09-30 | 강남대로에서 경로가 차도 한가운데를 지나고 횡단보도 아닌 곳을 건넘 | osmnx walk 그래프가 차도 중심선을 보도와 같은 비용으로 담고, scored_edges에 도로 종류가 없어 구분 불가 | 간선에 `highway`·`sidewalk`(15m 버퍼 기하 판정) 싣고 모든 가중치에 차도 배율(보도 있음 ×2~4, 없음 ×1.3) 한 번 곱함. 강남대로 차도 비율 100%→8~23%(길이 +12~20%). 10-01 CD 첫 자동 배포(PR #152)로 운영 반영·`/api/gildle/navigate` 실호출 확인(`[G]` 10-01) |
