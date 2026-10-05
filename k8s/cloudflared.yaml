@@ -1,8 +1,9 @@
-# Cloudflare Tunnel — 프로덕션(노트북) 전용. 기본 replicas: 0.
+# Cloudflare Tunnel — 기본 replicas: 0 (파일상 보호값). deploy.sh --external-db 는 1로 바꿔 apply 한다.
 #
-# ⚠️ 데스크톱에서 절대 replicas를 올리지 말 것: suvisdev/.env의 TUNNEL_TOKEN은
-# api./auth.suvisdev.cloud 터널 토큰이라, 여기서 켜면 프로덕션 트래픽이
-# 이 데스크톱 클러스터로 빨려 들어온다. 노트북 k8s 컷오버 때만 사용한다.
+# 2026-10-05부터 노트북·집컴 두 클러스터가 같은 터널 토큰을 쓴다. 어느 쪽 커넥터를 켤지는 사람이 아니라
+# 판단기가 정한다 — 노트북 serve-agent(앱이 건강하면 1), 집컴 standby-agent(노트북 심장박동이 끊기면 1).
+# DB·Redis가 집컴 한 곳이라 둘이 잠깐 겹쳐도 안전하다. 손으로 scale 하면 판단기가 5초 안에 되돌린다
+# — 손으로 빼려면 판단기부터 멈춘다(k8s/failover/README.md).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
