@@ -86,9 +86,12 @@ journalctl --user -u standby-agent -n 5 --no-pager -o cat; cat ~/serve/laptop_he
 
 ## 주의
 
-- **비밀값·설정을 바꾸면 두 기기의 `.env` 를 같이.** 차이는 두 줄뿐이어야 한다: 집컴 `ENABLE_MOVA_STARTUP=false`,
-  노트북 `PORTFOLIO_LLM_FALLBACK_URL=http://host.docker.internal:11434`(Gemini가 재시도 후에도 실패하면 노트북 GPU의
-  EXAONE 7.8B로 답함 — 중계기를 거치지 않으므로 집컴 CPU에 7.8B가 올라갈 일이 없다, 2026-10-06).
+- **비밀값·설정을 바꾸면 두 기기의 `.env` 를 같이.** 차이는 세 줄뿐이어야 한다(2026-10-06):
+  - 집컴 `ENABLE_MOVA_STARTUP=false` (스케줄러는 노트북만)
+  - 홈 AI 채팅: 노트북 `PORTFOLIO_LLM_BACKEND=exaone` + `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11434`
+    (노트북 GPU의 EXAONE 7.8B 먼저, 실패하면 Gemini 재시도), 집컴 `PORTFOLIO_LLM_BACKEND=gemini`(Gemini 재시도만).
+    7.8B는 중계기를 거치지 않고 노트북 올라마를 직접 부르므로 집컴 CPU에 올라갈 일이 없다.
+- 노트북 GPU(8GB)에서 7.8B(5.7GB)가 뜨면 mova 2.4B·임베딩이 잠깐 밀려나 다음 mova 요청이 몇 초 느릴 수 있다(7.8B는 5분 뒤 내려감).
 - 노트북 앱은 와이파이 너머 집컴 DB를 쓴다 — 요청당 쿼리 수만큼 지연이 붙는다(10-05 실측 검색 0.12초).
 - 집컴 IP `172.30.1.21` 이 바뀌면 `desktop-link.service`·`serve_agent.sh`·`../ollama-proxy/ollama-tunnel.service`·`sync-standby.sh` 기본값을 고친다.
 - 노트북이 응답 없이 멈추면(잠듦) 집컴 전환까지 약 30초 사이트가 530.

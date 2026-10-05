@@ -128,6 +128,12 @@
 - 시험 스크립트 실수 2번: 윈도우 curl이 한글 본문을 깨뜨려 400, 경로 변환으로 채팅 스크립트를 못 찾음 → 노트북을 한 번 더 껐다 켬.
   파이썬 송신(UTF-8)으로 바꾸고, 첫 채팅이 기록되지 않으면 끄기 전에 멈추는 가드 추가. Cloudflare는 파이썬 기본 UA를 1010으로 막음.
 
+### 작업 내용 (2) — 홈 AI 채팅 순서 변경(사용자 결정)
+- #172 배포(3분) 뒤 사용자 결정: **노트북은 EXAONE 7.8B 먼저, 실패하면 Gemini(재시도)**, 집컴은 Gemini(재시도)만.
+  `PORTFOLIO_LLM_FALLBACK_URL`(gemini→7.8B 대체)을 `PORTFOLIO_LLM_OLLAMA_URL`(exaone 모드의 7.8B 주소)로 바꾸고,
+  7.8B 타임아웃 40초(`PORTFOLIO_LLM_TIMEOUT_S`, 기존 120초) — 막히면 Gemini로 빨리 넘김. 노트북 `.env` = exaone + 노트북 올라마 직접,
+  집컴 `.env` = gemini. 테스트 29 통과.
+
 ## 2026-10-02
 
 ### 작업 내용

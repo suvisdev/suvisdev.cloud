@@ -18,6 +18,8 @@ from ontology.app.ports.output.hub_rag_errors import HubRagError
 
 _DEFAULT_MODEL = os.getenv("PORTFOLIO_LLM_MODEL", "exaone3.5:7.8b")
 _DEFAULT_KEEP_ALIVE = os.getenv("PORTFOLIO_LLM_KEEP_ALIVE", "5m")
+# 7.8B가 막히면 Gemini로 넘어가야 하므로 OllamaClient 기본(120초)보다 짧게 둔다(2026-10-06).
+_DEFAULT_TIMEOUT_S = float(os.getenv("PORTFOLIO_LLM_TIMEOUT_S", "40"))
 _NUM_CTX = 8192
 
 
@@ -29,13 +31,16 @@ class ExaoneLlmAdapter(HubLlmPort):
         keep_alive: str = _DEFAULT_KEEP_ALIVE,
         num_ctx: int = _NUM_CTX,
         base_url: str | None = None,
+        timeout_s: float = _DEFAULT_TIMEOUT_S,
     ) -> None:
-        # base_url: 기본은 OLLAMA_BASE_URL(중계기). 대체 경로는 노트북 올라마를 직접 가리킨다 —
-        # 중계기를 거치면 노트북이 빠졌을 때 집컴 CPU(8.9GB)에 7.8B를 올리게 된다(2026-10-06).
+        # base_url: 기본은 OLLAMA_BASE_URL(중계기). 노트북은 PORTFOLIO_LLM_OLLAMA_URL로 노트북 올라마를 직접
+        # 가리킨다 — 중계기를 거치면 노트북 올라마가 죽었을 때 집컴 CPU(8.9GB)에 7.8B를 올리게 된다(2026-10-06).
         if base_url:
-            self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive, base_url=base_url)
+            self._orchestrator = OllamaClient(
+                model=model, keep_alive=keep_alive, base_url=base_url, timeout=timeout_s
+            )
         else:
-            self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive)
+            self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive, timeout=timeout_s)
         self._num_ctx = num_ctx
 
     async def generate(self, prompt: str, *, system: str | None = None) -> str:
