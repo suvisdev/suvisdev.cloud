@@ -28,8 +28,14 @@ class ExaoneLlmAdapter(HubLlmPort):
         model: str = _DEFAULT_MODEL,
         keep_alive: str = _DEFAULT_KEEP_ALIVE,
         num_ctx: int = _NUM_CTX,
+        base_url: str | None = None,
     ) -> None:
-        self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive)
+        # base_url: 기본은 OLLAMA_BASE_URL(중계기). 대체 경로는 노트북 올라마를 직접 가리킨다 —
+        # 중계기를 거치면 노트북이 빠졌을 때 집컴 CPU(8.9GB)에 7.8B를 올리게 된다(2026-10-06).
+        if base_url:
+            self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive, base_url=base_url)
+        else:
+            self._orchestrator = OllamaClient(model=model, keep_alive=keep_alive)
         self._num_ctx = num_ctx
 
     async def generate(self, prompt: str, *, system: str | None = None) -> str:
