@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-05 **올라마 중계기**: 집컴 HAProxy `:11435` → 노트북 GPU(역방향 SSH 터널) 우선, 꺼지면 집컴 CPU. 2.4B 5.40초→0.31초 · 장애 시험 통과 · 브랜치 `feat/ollama-laptop-gpu-proxy`(머지 시 CD가 `OLLAMA_BASE_URL` 반영). 상세 `k8s/ollama-proxy/README.md`
 - `[P]` 10-01 (11) **프로덕션 노트북→집컴(DESKTOP-T89E5ID) 이관·컷오버 완료**: 터널·CD 러너(prod) 집컴으로, DB LAN 직결 재복원(count 일치) ·
   lora sm_75 GPU / Ollama CPU 고정 / 포트폴리오 챗봇 gemini · WSL 상시 가동(idle -1·로그온 작업) · 수동 배포 run 36874220807 성공.
   노트북=개발 전용, 운영 `.env`는 집컴 `~/projects/suvisdev/suvisdev/.env`. 노트북 운영 구성은 ~10-15까지 롤백용 보존.

@@ -215,6 +215,9 @@ api가 502였다(auth는 정상). 지금은 deploy.sh가 별칭을 먼저 만들
 
 ## 알려진 차이·주의
 
+- **올라마 중계기(2026-10-05)**: backend의 `OLLAMA_BASE_URL`은 `:11435`(호스트의 HAProxy)다. 노트북 GPU가
+  켜져 있으면 노트북 올라마, 꺼지면 호스트 올라마(:11434)로 자동으로 간다. 중계기 컨테이너가 없으면 올라마 호출이
+  전부 실패하니 새 서버에선 `k8s/ollama-proxy/README.md` 설치를 먼저 한다.
 - **호스트 프로세스 접근**(Ollama :11434 · lora-server :8200 등): 파드의
   `host.docker.internal`이 hostAliases로 `10.42.0.1`(flannel cni0 게이트웨이 =
   이 WSL 호스트)에 매핑돼 있다. 호스트 쪽 프로세스가 0.0.0.0에 바인딩돼
