@@ -80,3 +80,7 @@ systemctl --user status ollama-tunnel --no-pager; ollama ps
 - 집컴 IP `172.30.1.21`(공유기 DHCP)이 바뀌면 `ollama-tunnel.service`의 주소를 고친다.
 - 노트북 GPU 8GB에 `keep_alive -1m` 모델이 4개(약 6.5GB) 올라간다. `exaone3.5:7.8b`까지 부르면 일부가 내려갔다 올라온다.
 - 노트북이 잠들 때 처리 중이던 요청 1건은 실패한다(위 실측). mova는 그 경우 자체 폴백(결정론·Gemini)으로 답한다.
+- **집컴 CPU 올라마에 모델을 상주시키지 않는다.** 노트북이 받는 동안 집컴 모델은 예비일 뿐인데, 상주하면 집컴 메모리(8.9GB)를
+  1GB 넘게 잡는다 — 10-05 배포 직후 메모리 부족으로 DB가 2분 넘게 멈춘 원인 중 하나. 내리기:
+  `curl -s 127.0.0.1:11434/api/generate -d '{"model":"exaone3.5:2.4b","keep_alive":0}'`(bge-m3도 같은 방식).
+  노트북이 빠져 집컴으로 넘어오면 첫 요청에서 다시 올라온다(콜드 로드 약 15초).
