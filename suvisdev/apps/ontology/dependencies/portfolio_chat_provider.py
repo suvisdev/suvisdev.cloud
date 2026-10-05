@@ -22,22 +22,19 @@ from ontology.dependencies.hub_rag_provider import (
 
 
 def get_portfolio_llm_port() -> HubLlmPort:
-    """`PORTFOLIO_LLM_BACKEND` — exaone(기본): 로컬 7.8B, 실패 시 Gemini 폴백 / gemini: Gemini.
+    """`PORTFOLIO_LLM_BACKEND` — exaone(기본): EXAONE 7.8B 먼저, 실패하면 Gemini / gemini: Gemini만.
 
     Gemini는 일시 오류(429·502·503·504)면 한 번 더 부른다(2026-10-06, 'high demand' 503 실측).
-    gemini 모드에서 `PORTFOLIO_LLM_FALLBACK_URL`(올라마 주소)이 있으면 Gemini가 끝내 실패할 때 그 주소의
-    EXAONE 7.8B로 답한다 — 노트북 `.env`에만 둔다(노트북 GPU). 집컴은 비워 7.8B를 올리지 않는다.
+    exaone 모드의 올라마 주소는 `PORTFOLIO_LLM_OLLAMA_URL`(없으면 OLLAMA_BASE_URL). 운영(2026-10-06):
+    노트북 `.env` = exaone + `http://host.docker.internal:11434`(노트북 GPU 직접), 집컴 `.env` = gemini —
+    집컴(8.9GB)엔 7.8B를 올리지 않는다.
     매 호출 환경변수를 읽는다(테스트에서 patch.dict 가능해야 하므로 — hub_rag_provider와 동일).
     """
     gemini = RetryHubLlmAdapter(GeminiLlmAdapter())
     if os.getenv("PORTFOLIO_LLM_BACKEND", "exaone").strip().lower() == "gemini":
-        fallback_url = os.getenv("PORTFOLIO_LLM_FALLBACK_URL", "").strip()
-        if not fallback_url:
-            return gemini
-        return FallbackHubLlmAdapter(
-            primary=gemini, fallback=ExaoneLlmAdapter(base_url=fallback_url)
-        )
-    return FallbackHubLlmAdapter(primary=ExaoneLlmAdapter(), fallback=gemini)
+        return gemini
+    ollama_url = os.getenv("PORTFOLIO_LLM_OLLAMA_URL", "").strip() or None
+    return FallbackHubLlmAdapter(primary=ExaoneLlmAdapter(base_url=ollama_url), fallback=gemini)
 
 
 def get_portfolio_chat_use_case(

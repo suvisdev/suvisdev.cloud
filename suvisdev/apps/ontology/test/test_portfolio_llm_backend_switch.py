@@ -1,4 +1,4 @@
-"""PORTFOLIO_LLM_BACKEND 스위치 — 기본은 EXAONE→Gemini 폴백, gemini면 Gemini(재시도 포함)."""
+"""PORTFOLIO_LLM_BACKEND 스위치 — 기본은 EXAONE 7.8B→Gemini(재시도), gemini면 Gemini(재시도)만."""
 
 from __future__ import annotations
 
@@ -29,13 +29,13 @@ class PortfolioLlmBackendSwitchTests(unittest.TestCase):
 
     def test_gemini_selects_gemini_only(self) -> None:
         with patch.dict(
-            "os.environ", {"PORTFOLIO_LLM_BACKEND": "gemini", "PORTFOLIO_LLM_FALLBACK_URL": ""}
+            "os.environ", {"PORTFOLIO_LLM_BACKEND": "gemini", "PORTFOLIO_LLM_OLLAMA_URL": ""}
         ):
             self.assertIsInstance(get_portfolio_llm_port(), RetryHubLlmAdapter)
 
     def test_gemini_is_case_and_space_insensitive(self) -> None:
         with patch.dict(
-            "os.environ", {"PORTFOLIO_LLM_BACKEND": "  GEMINI ", "PORTFOLIO_LLM_FALLBACK_URL": ""}
+            "os.environ", {"PORTFOLIO_LLM_BACKEND": "  GEMINI ", "PORTFOLIO_LLM_OLLAMA_URL": ""}
         ):
             self.assertIsInstance(get_portfolio_llm_port(), RetryHubLlmAdapter)
 

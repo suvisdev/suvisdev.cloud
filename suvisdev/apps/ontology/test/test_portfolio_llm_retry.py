@@ -1,8 +1,8 @@
 """포트폴리오 채팅 LLM 재시도·노트북 7.8B 대체(2026-10-06).
 
 ① 일시 오류(502·503·429·504)는 한 번 더 부른다 ② 요청 오류(400)는 다시 부르지 않는다
-③ 재시도도 실패하면 오류를 그대로 올린다 ④ PORTFOLIO_LLM_FALLBACK_URL이 있으면 Gemini(재시도 포함)가
-끝내 실패할 때 그 주소의 EXAONE 7.8B로 답한다 — 없으면(집컴) 7.8B를 아예 만들지 않는다.
+③ 재시도도 실패하면 오류를 그대로 올린다 ④ exaone 모드: PORTFOLIO_LLM_OLLAMA_URL의 EXAONE 7.8B가 먼저,
+실패하면 Gemini(재시도 포함) — gemini 모드(집컴)는 7.8B를 아예 만들지 않는다.
 """
 
 from __future__ import annotations
@@ -74,38 +74,53 @@ class RetryHubLlmAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(inner.calls, 2)
 
 
-class PortfolioFallbackWiringTests(unittest.TestCase):
-    def test_gemini_without_fallback_url_is_retry_only(self) -> None:
-        env = {"PORTFOLIO_LLM_BACKEND": "gemini", "PORTFOLIO_LLM_FALLBACK_URL": ""}
+class PortfolioWiringTests(unittest.TestCase):
+    def test_gemini_mode_is_retry_only_even_with_ollama_url(self) -> None:
+        env = {
+            "PORTFOLIO_LLM_BACKEND": "gemini",
+            "PORTFOLIO_LLM_OLLAMA_URL": "http://host.docker.internal:11434",
+        }
         with patch.dict("os.environ", env):
             self.assertIsInstance(get_portfolio_llm_port(), RetryHubLlmAdapter)
 
-    def test_gemini_with_fallback_url_adds_exaone_at_that_url(self) -> None:
+    def test_exaone_mode_uses_ollama_url_then_gemini_with_retry(self) -> None:
         env = {
-            "PORTFOLIO_LLM_BACKEND": "gemini",
-            "PORTFOLIO_LLM_FALLBACK_URL": "http://host.docker.internal:11434/",
+            "PORTFOLIO_LLM_BACKEND": "exaone",
+            "PORTFOLIO_LLM_OLLAMA_URL": "http://host.docker.internal:11434/",
         }
         with patch.dict("os.environ", env):
             port = get_portfolio_llm_port()
         self.assertIsInstance(port, FallbackHubLlmAdapter)
-        self.assertIsInstance(port._primary, RetryHubLlmAdapter)  # noqa: SLF001
-        fallback = port._fallback  # noqa: SLF001
-        self.assertIsInstance(fallback, ExaoneLlmAdapter)
+        primary = port._primary  # noqa: SLF001
+        self.assertIsInstance(primary, ExaoneLlmAdapter)
         self.assertEqual(
-            fallback._orchestrator._base_url,  # noqa: SLF001
+            primary._orchestrator._base_url,  # noqa: SLF001
             "http://host.docker.internal:11434",
         )
+        self.assertEqual(primary._orchestrator._timeout, 40.0)  # noqa: SLF001
+        self.assertIsInstance(port._fallback, RetryHubLlmAdapter)  # noqa: SLF001
+
+    def test_exaone_mode_without_url_uses_default_ollama(self) -> None:
+        env = {"PORTFOLIO_LLM_BACKEND": "exaone", "PORTFOLIO_LLM_OLLAMA_URL": ""}
+        with patch.dict("os.environ", env):
+            port = get_portfolio_llm_port()
+        self.assertIsInstance(port, FallbackHubLlmAdapter)
+        self.assertIsInstance(port._primary, ExaoneLlmAdapter)  # noqa: SLF001
 
 
-class GeminiThenExaoneTests(unittest.IsolatedAsyncioTestCase):
-    async def test_exaone_answers_when_gemini_keeps_failing(self) -> None:
+class ExaoneThenGeminiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_exaone_answers_first(self) -> None:
+        exaone, gemini = _Flaky([]), _Flaky([])
+        port = FallbackHubLlmAdapter(primary=exaone, fallback=RetryHubLlmAdapter(gemini))
+        self.assertEqual(await port.generate("q"), "답변")
+        self.assertEqual((exaone.calls, gemini.calls), (1, 0))
+
+    async def test_gemini_answers_when_exaone_fails(self) -> None:
         with patch.object(retry_module.asyncio, "sleep", new=AsyncMock()):
-            gemini = _Flaky([503, 503])
-            exaone = _Flaky([])
-            port = FallbackHubLlmAdapter(primary=RetryHubLlmAdapter(gemini), fallback=exaone)
+            exaone, gemini = _Flaky([502]), _Flaky([503])
+            port = FallbackHubLlmAdapter(primary=exaone, fallback=RetryHubLlmAdapter(gemini))
             self.assertEqual(await port.generate("q"), "답변")
-        self.assertEqual(gemini.calls, 2)
-        self.assertEqual(exaone.calls, 1)
+        self.assertEqual((exaone.calls, gemini.calls), (1, 2))
 
 
 if __name__ == "__main__":
