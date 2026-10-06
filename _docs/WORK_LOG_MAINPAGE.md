@@ -195,7 +195,10 @@
 
 ### 오류·막힌 점 (5)
 - 확인한 것: 집 밖 노트북에서 `nc -z 127.0.0.1 5432` 실패(exit 1), Tailscale로 집컴 SSH·`standby-registry` `/v2/` 200, 러너 `.env`에 `KUBECONFIG` 있음,
-  `bash -n`·YAML 파싱 통과. **실제 CD 실행은 머지 후**(워크플로 파일이라 브랜치에서 미리 돌릴 수 없음) — 미검증.
+  `bash -n`·YAML 파싱 통과. 실제 CD 실행은 미검증 — 브랜치 `workflow_dispatch` 실행이 하네스 권한 검사('Production Deploy')에
+  막혀 사용자 실행 대기(`gh workflow run backend-deploy.yml --ref fix/cd-away-from-home`).
+- 스케줄러 결정(사용자, 10-06): 집 밖 동안 mova 주기 작업이 안 도는 것은 **그대로 감수**. 코드 확인 결과 5개 작업 모두 기동 시 바로
+  1회 실행 후 반복(채팅 트렌드 6시간, 나머지 24시간, 에디터 리뷰만 20시간 간격 가드)이라 집에 오면 자동으로 따라잡는다.
 
 ## 2026-10-02
 
