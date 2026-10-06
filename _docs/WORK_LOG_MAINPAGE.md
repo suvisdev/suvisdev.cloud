@@ -224,6 +224,9 @@
 - 홈 타일: 사용자 결정으로 Mova·Gildle 원형 타일만 새 아이콘(`/mova-icon.svg`·`/gildle-icon.svg`). `image`는 `/apps` 카드 커버에도 쓰여
   `AppCatalogItem.tileImage`(홈 타일 전용, 없으면 image)를 추가해 `/apps` 사진은 유지. Gildle "준비 중"은 완성 전까지 유지(사용자 결정).
   로컬 캡처로 홈·`/apps` 확인, tsc·eslint 0.
+- 홈 ARDA 타일도 새 아이콘(사용자가 Gemini 시안 중 고름: 둥근 획의 A + 가운데 ✦, 보라 그라데이션)을 SVG로 다시 그려 `suvis/public/arda-icon.svg`,
+  `apps-catalog.ts` ARDA `tileImage`. **ARDA 코드·저장소는 건드리지 않음**(사용자 지시 — 이 사이트 홈 타일만). 같은 파일을 바탕화면
+  `arda-icon.svg`·`arda-icon-1024.png`로도 전달. `/apps` 카드는 기존 `apps-arda.svg` 유지.
 
 ### 산출물 (5·6)
 - PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.

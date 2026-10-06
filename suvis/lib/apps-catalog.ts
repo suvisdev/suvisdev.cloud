@@ -56,6 +56,7 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     imageFirst: false,
     gradient: "from-violet-500 via-purple-600 to-indigo-700",
     image: "/apps-arda.svg",
+    tileImage: "/arda-icon.svg",
     team: "Team Seuk",
     kind: "팀 프로젝트 · 원티드 해커톤 출품작",
   },
