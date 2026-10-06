@@ -221,7 +221,9 @@
   `public/apple-icon.png`(180, 배경 #0A0A0D — 애플 아이콘은 투명 불가) 교체.
 - `suvis/app/layout.tsx` metadata `icons` → `/suvisdev-icon.png` + apple. 쓰이지 않게 된 v0 파일 `icon.svg`·`icon-light/dark-32x32.png` 삭제.
 - 확인: 로컬 `next dev`에서 `/`·`/contact`·`/resume`은 새 아이콘, `/mova`·`/gildle`은 각자 아이콘 유지. 흰/어두운 배경 128·32·16px 렌더 확인, tsc·eslint 0.
-- 홈 타일 그림(`apps-catalog.ts` 사진)과 Gildle "준비 중" 표시는 사용자 결정 대기로 그대로.
+- 홈 타일: 사용자 결정으로 Mova·Gildle 원형 타일만 새 아이콘(`/mova-icon.svg`·`/gildle-icon.svg`). `image`는 `/apps` 카드 커버에도 쓰여
+  `AppCatalogItem.tileImage`(홈 타일 전용, 없으면 image)를 추가해 `/apps` 사진은 유지. Gildle "준비 중"은 완성 전까지 유지(사용자 결정).
+  로컬 캡처로 홈·`/apps` 확인, tsc·eslint 0.
 
 ### 산출물 (5·6)
 - PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.

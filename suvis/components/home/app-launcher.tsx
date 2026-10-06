@@ -121,6 +121,7 @@ export function AppLauncher({ apps }: AppLauncherProps) {
 }
 
 function AppTile({ app }: { app: AppCatalogItem }) {
+  const tileSrc = app.tileImage ?? app.image
   const body = (
     <>
       <div
@@ -129,7 +130,7 @@ function AppTile({ app }: { app: AppCatalogItem }) {
           app.gradient
         )}
       >
-        {app.image && <Image src={app.image} alt="" fill sizes="72px" className="object-cover" />}
+        {tileSrc && <Image src={tileSrc} alt="" fill sizes="72px" className="object-cover" />}
       </div>
       <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">
         {app.titleKo}
