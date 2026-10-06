@@ -230,3 +230,15 @@ textarea,
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* ── 홈 배경: 흰 바탕 + 얇은 선 격자(Vercel 풍, 2026-10-06 사용자 선택) ──
+   맨 위 층(radial)이 가운데는 투명이라 격자가 보이고, 가장자리로 갈수록 흰색으로 덮어 격자가 사라진다. */
+.home-grid-bg {
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(ellipse 55% 50% at 50% 48%, transparent 0, #ffffff 85%),
+    linear-gradient(#ececec 1px, transparent 1px),
+    linear-gradient(90deg, #ececec 1px, transparent 1px);
+  background-size: 100% 100%, 56px 56px, 56px 56px;
+  background-position: center, center, center;
+}
