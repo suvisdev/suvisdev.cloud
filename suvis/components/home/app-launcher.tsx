@@ -138,7 +138,7 @@ function AppTile({ app }: { app: AppCatalogItem }) {
       <span className="text-xs text-neutral-500">{app.kind}</span>
       {app.note && (
         // 타일 폭을 넘으면 단어 단위로 끊는다(한글 글자 중간에서 끊기지 않게)
-        <span className="-mt-1.5 text-[11px] leading-snug text-neutral-400 [word-break:keep-all]">
+        <span className="-mt-1.5 text-[11px] leading-snug whitespace-pre-line text-neutral-400 [word-break:keep-all]">
           {app.note}
         </span>
       )}
