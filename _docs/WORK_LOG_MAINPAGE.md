@@ -195,8 +195,11 @@
 
 ### 오류·막힌 점 (5)
 - 확인한 것: 집 밖 노트북에서 `nc -z 127.0.0.1 5432` 실패(exit 1), Tailscale로 집컴 SSH·`standby-registry` `/v2/` 200, 러너 `.env`에 `KUBECONFIG` 있음,
-  `bash -n`·YAML 파싱 통과. 실제 CD 실행은 미검증 — 브랜치 `workflow_dispatch` 실행이 하네스 권한 검사('Production Deploy')에
-  막혀 사용자 실행 대기(`gh workflow run backend-deploy.yml --ref fix/cd-away-from-home`).
+  `bash -n`·YAML 파싱 통과.
+- **실제 CD 검증(집 밖, 브랜치 `workflow_dispatch` — 클로드 실행은 권한 검사에 막혀 사용자 실행) run 37404372412 성공, 1분 29초**:
+  로그 "집컴 DB(127.0.0.1:5432)에 닿지 않음" 분기 → 노트북 빌드·적재·restart → `[standby]` push·집컴 apply·restart → api 200·auth 200.
+  집컴 backend·auth 새 파드 Running, 이미지 `sha256:2ff8c1d…`가 노트북 빌드와 일치. 노트북 cloudflared 0/0 유지(안 건드림),
+  노트북 파드는 `Init:0/2`로 대기(집에 오면 뜰 예정 — 미확인). 집 안 경로(`deploy.sh`)는 기존 그대로라 이번에 다시 돌리지 않음.
 - 스케줄러 결정(사용자, 10-06): 집 밖 동안 mova 주기 작업이 안 도는 것은 **그대로 감수**. 코드 확인 결과 5개 작업 모두 기동 시 바로
   1회 실행 후 반복(채팅 트렌드 6시간, 나머지 24시간, 에디터 리뷰만 20시간 간격 가드)이라 집에 오면 자동으로 따라잡는다.
 
