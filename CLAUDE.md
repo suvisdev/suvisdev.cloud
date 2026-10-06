@@ -172,18 +172,18 @@ flutter run
 ./k8s/deploy.sh --build    # 이미지 재빌드 + rollout restart 포함
 kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 # CI/CD(2026-10-01): PR·main push마다 GitHub Actions가 3스택 검사. main에 백엔드가 머지되고
-# backend-ci가 통과하면 운영 서버의 셀프호스티드 러너가 deploy.sh --external-db --build를
-# 자동 실행한다 — 수동 배포는 Secret(.env)만 바꿀 때. 상세: k8s/README.md "CI/CD"
+# backend-ci가 통과하면 노트북의 셀프호스티드 러너(유일)가 deploy.sh --external-db --build로 빌드·배포하고
+# sync-standby.sh로 집컴에 반영한다 — 수동 배포는 Secret(.env)만 바꿀 때. 노트북이 집 밖이면 실패(미결,
+# k8s/failover/README.md "배포"). 상세: k8s/README.md "CI/CD"
 ```
 
 **구 `docker-compose.yaml`은 삭제됐다(2026-09-07)** — 데스크톱은 k8s가 대체.
 `suvisdev/.env`는 deploy.sh가 매번 Secret으로 변환해 주입하므로 compose 시절
 `--env-file` 누락 사고(빈 자격증명 502, 2026-07-30·08-04)는 구조적으로 재발
-불가(.env 없으면 스크립트가 즉시 실패). **노트북 프로덕션도 09-07 k3s 1단계로
-컷오버됨** — backend·auth·cloudflared는 파드, db·redis는 도커 컨테이너 유지.
-노트북 배포는 `./k8s/deploy.sh --external-db [--build]`. 노트북엔 db·redis
-운영·롤백용으로 `docker-compose.yaml`이 로컬 복구돼 있다(untracked). 절차·롤백은
-`k8s/README.md`.
+불가(.env 없으면 스크립트가 즉시 실패). **운영 구성(2026-10-05~06)은 아래 "주의사항 · 개인 배포 환경"** —
+두 기기 모두 k3s(backend·auth·cloudflared 파드), DB·Redis는 집컴 도커 한 곳. 배포는
+`./k8s/deploy.sh --external-db [--build]`. 노트북의 untracked `docker-compose.yaml`은 예전 롤백용 — 손대지 않는다.
+절차는 `k8s/README.md`·`k8s/failover/README.md`.
 
 ## 테스트
 
@@ -214,12 +214,9 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   것이었다** — S3 경로를 타는 코드는 정상 동작한다는 전제로 작업할 것.
   버킷은 **비공개**라 객체 공개 URL은 403이다. 표시에는
   `Tank.generate_presigned_url()`(기본 1시간)을 쓴다.
-- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: 프로덕션(노트북
-  teagy, k3s)은 기본 `lora`를 쓴다 —
-  `LORA_SERVER_URL=http://host.docker.internal:8200`으로 노트북 자체
-  `lora-server`(systemd, `:8200`)를 직결한다(2026-09-03 노트북 이전 때 설정.
-  k3s에선 hostAliases가 `host.docker.internal`→`10.42.0.1`로 매핑, 09-07
-  도달 확인). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
+- **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: 운영은 기본 `lora`를 쓴다 —
+  `LORA_SERVER_URL=http://host.docker.internal:8200`. lora-server는 **집컴**(GPU, `:8200`)에 있고, 노트북 앱은
+  `desktop-link`(ssh -L 8200)로 같은 서버에 닿는다(k3s hostAliases가 `host.docker.internal`→`10.42.0.1`). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
   받친다. 수동 전환이 필요하면 `suvisdev/.env`에서
   `RECOMMENDATION_BACKEND=gemini`로 바꾸고 `./k8s/deploy.sh --external-db`
   (Secret 갱신) + `kubectl -n suvisdev rollout restart deploy/backend`.
@@ -248,20 +245,16 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   데스크톱 이전). 모델 학습 전 `systemctl --user stop lora-server`, 학습 후
   `start` + `:8200/health` 확인. 재학습 후엔 `export_mova_gguf.py`로 GGUF
   변환 필수. `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
-- **데스크톱은 상시 서버가 아니다** — PC가 꺼지면 데스크톱 lora-server·
-  터널(`lora.suvisdev.cloud`)도 내려가지만, **프로덕션(노트북)은 자체
-  lora-server를 직결하므로 영향 없다** — 터널 530을 장애로 오판하지 말 것.
-  노트북 lora-server도 상시 서빙(2026-09-02 결정)이며
-  `lora-nb.suvisdev.cloud`(로컬 관리형 터널 `lora-nb`)로 노출된다. **노트북도
-  2026-09-09부터 GGUF 스택**(serve_gguf + 소스 CUDA 빌드 llama.cpp sm_89,
-  systemd drop-in override로 serve.py→serve_gguf 교체)으로 데스크톱과 동기화됨
-  — 어댑터 `mova_20260909_025528`, 구 08-25 AWQ(serve.py·LATEST)는 롤백용 보존.
-- 개인 배포 환경: **프로덕션은 노트북(teagy, RTX 4060) k3s 1단계**(backend·
-  auth·cloudflared 파드, db·redis 도커, 2026-09-07 컷오버), 데스크톱은 개발·
-  학습용 k3s. 구 개인 EC2(m7i-flex.large)는 **중지 보관**(09-04 결정 — Arda는
-  별도 인스턴스 `arda-api`가 서빙). 노트북이 꺼지면 개인 사이트 API 전부
-  다운(프론트 Vercel만 생존)이 감수한 트레이드오프다. Ollama에 의존하는
-  mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끌 수 있다(기본 true).
+- 개인 배포 환경(2026-10-05~06, 인수인계 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`):
+  - **집컴 `DESKTOP-T89E5ID`**(GTX 1650 SUPER 4GB, 상시 가동): **Postgres·Redis(도커, 유일)**·lora-server(GPU :8200)·
+    Ollama(CPU)·HAProxy `ollama-proxy`(:11435 노트북 GPU 우선/집컴 CPU 예비, :11436 노트북 전용)·로컬 레지스트리.
+    **이미지를 빌드하지 않는다**(메모리 부족으로 DB 크래시 2회, 10-05).
+  - **노트북 `teagy`**(RTX 4060, 들고 다님): Ollama GPU · CD 러너(유일) · 이미지 빌드. 집 LAN이면 노트북이
+    우선 서빙(`desktop-link`로 집컴 DB 사용), **집 밖이면 앱 서빙은 집컴, 노트북은 GPU만**(Tailscale `ollama-tunnel`).
+  - 누가 서빙할지는 노트북 `serve-agent`·집컴 `standby-agent`가 cloudflared replicas로 자동 전환(`k8s/failover/README.md`).
+  - Tailscale: 노트북 100.118.78.100, 집컴 100.91.129.31(내부 IP 172.30.1.21은 집에서만). 집컴 SSH:
+    `ssh -i ~/.ssh/home_desktop -o UserKnownHostsFile=~/.ssh/known_hosts_ollama_tunnel suvisdev@100.91.129.31`
+  - 구 개인 EC2는 중지 보관(Arda는 별도 `arda-api`). mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끈다(집컴 `.env`만).
 
 ## 하네스 설정 (`.claude/`)
 

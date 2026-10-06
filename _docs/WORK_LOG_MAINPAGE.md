@@ -134,6 +134,55 @@
   7.8B 타임아웃 40초(`PORTFOLIO_LLM_TIMEOUT_S`, 기존 120초) — 막히면 Gemini로 빨리 넘김. 노트북 `.env` = exaone + 노트북 올라마 직접,
   집컴 `.env` = gemini. 테스트 29 통과.
 
+### 작업 내용 (3) — Tailscale: 어디서나 노트북 GPU · 집컴 서빙 홈 채팅도 7.8B
+- 계기: 노트북을 집 밖 Wi-Fi(`hi01`, 192.168.0.x)에 붙였더니 노트북이 서빙에서 빠지고(09:42 serve-agent 터널 1→0, 앱 503) 집컴이 서빙.
+  원인은 `desktop-link`·`ollama-tunnel`이 둘 다 집컴 내부 IP `172.30.1.21:22`로 SSH 하는 구조 — 집 밖이면 GPU 빌려주기까지 같이 끊김
+  (집컴 HAProxy는 노트북을 빼고 CPU로, 홈 채팅은 집컴 `.env`가 gemini라 Gemini만).
+- 결정(사용자): 집 밖에서는 **앱은 집컴, GPU만 노트북**. Tailscale(개인 무료) vs Cloudflare SSH 비교 후 Tailscale — 바꿀 것이 IP 하나뿐.
+- 노트북·집컴 WSL에 Tailscale 설치(사용자): `teagy-laptop` 100.118.78.100 · `home-desktop` 100.91.129.31, **직접 연결 9ms**,
+  두 기기 key expiry 끔. 덕분에 집 밖에서 집컴 SSH 가능해짐.
+
+### 수정/구현 (3) — 운영 설정만 (저장소 코드 변경 없음)
+- 노트북 `~/.config/systemd/user/ollama-tunnel.service`: `suvisdev@172.30.1.21` → `suvisdev@100.91.129.31` (ExecStartPre·ExecStart 둘 다).
+  `desktop-link`·`serve_agent.sh`는 **일부러 내부 IP 유지** — 집 밖에서 노트북이 앱까지 서빙하면 DB 쿼리가 매번 인터넷을 건넘.
+- 집컴 `~/ollama-proxy/haproxy.cfg`: 7.8B 전용 입구 `frontend ollama_laptop_in :11436` → `backend ollama_laptop`(노트북 21434만, **backup 없음**).
+  노트북이 빠지면 즉시 503 → 앱이 Gemini로. 7.8B가 집컴 CPU에 올라갈 길이 없다. 기존 :11435(임베딩·판단)는 그대로.
+- 집컴 `suvisdev/.env`: `PORTFOLIO_LLM_BACKEND=gemini` → `exaone`, `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436` 추가 →
+  시크릿 `suvisdev-env` 재생성 + `rollout restart deploy/backend`(사용자 실행 — 클로드 실행은 하네스 권한 검사 'Production Deploy'에 막힘).
+- 백업: 노트북 `ollama-tunnel.service.bak-20261006-lan`, 집컴 `haproxy.cfg.bak-20261006`·`suvisdev/.env.bak-20261006-gemini`.
+
+### 오류·막힌 점 (3)
+- 집컴 `.env` 반영 스크립트를 클로드가 실행하려다 권한 검사에 막혔는데, 같은 명령에 들어 있던 스크립트 파일 생성까지 통째로 안 돼
+  사용자가 실행하니 "No such file". 파일만 따로 만들어 다시 실행. 또 WSL 터미널에서 윈도우 경로(`C:/…`)를 써서 한 번 더 실패 → `/mnt/c/…`.
+- 저장소 원본 `k8s/ollama-proxy/ollama-tunnel.service`·`haproxy.cfg`는 아직 옛 값 — 이 파일로 재설치하면 오늘 변경이 사라짐(미결, PR 예정).
+
+### 데이터 (3) — 실측
+- 집컴 서빙 상태에서 공개 API `POST /portfolio/chat`: 첫 질문 **200 · 13.0초**(7.8B 적재 포함) → 노트북 `ollama ps` = `exaone3.5:7.8b 100% GPU 5.7GB`,
+  두 번째 **200 · 8.8초**. HAProxy 상태: `ollama/laptop UP`, `ollama_laptop/laptop UP`.
+
+### 산출물 (3)
+- 운영 설정 3곳(위) · 이 문서들(WORK_LOG·LESSONS·INTERVIEW_QUESTIONS·`k8s/failover/README.md` 주의 항목).
+
+### 작업 내용 (4) — 인수인계 반영 · 집 밖 CD 실패 문서화
+- 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`(10-05~06 변경 전체·구조·CD 실패 경로)를 읽고 저장소 문서를 현행화.
+- 계기: #174 머지 후 backend-deploy 실패(run 37402009303, 상세 `WORK_LOG_GILDLE.md` 10-06). 루트 `CLAUDE.md`가 아직
+  "프로덕션 = 노트북, db·redis도 노트북"이라 세션이 상황을 잘못 읽음.
+
+### 수정/구현 (4) — 문서만
+- 루트 `CLAUDE.md`: CI/CD 주석(노트북 러너 → sync-standby, 집 밖 실패), compose 단락, `RECOMMENDATION_BACKEND`(lora-server는 집컴),
+  주의사항 "개인 배포 환경"을 두 기기 구성으로 교체(구 "데스크톱 상시 서버 아님"·노트북 lora-server 서술 삭제).
+- `k8s/failover/README.md`: "배포"에 집 밖 CD 실패 경고·고칠 방향 후보, 홈 채팅 `.env` 서술을 집컴 exaone(:11436)으로 정정.
+- `k8s/README.md` CI/CD 표: 러너 = 노트북(유일) + sync-standby, 집 밖 실패 링크.
+- `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`: 10-06 Tailscale 완료 인덱스 + 백로그 "노트북·집컴 이중화 후속" 4건. `LESSONS.md` ⏳ 1줄.
+
+### 오류·막힌 점 (4)
+- 미확인: 1단계 apply가 노트북 cloudflared를 1로 올린 약 15초 동안 외부 요청이 노트북으로 가서 실패했는지(인수인계 A-5 4번).
+  `CLAUDE.md` 주의사항 VRAM 항목의 `DESKTOP-IOAQ7L7` 서술은 현재 여부를 확인 못 해 그대로 둠.
+- 인수인계 개정판(섹션 B: 10-05 대화의 결정·맥락) 재반영: failover README에 GPU 자리 다툼 실측·"그대로" 결정, k8s/README에 머지 순서
+  규칙(#171 사례), PROGRESS 백로그에 방화벽 15432·`ssh home` 정리·"취업할 때까지 단순·무료" 방향. 모델 양쪽 동기화는
+  `k8s/ollama-proxy/README.md` 주의에 이미 있어 생략.
+- 새로 드러난 점: 집컴 `ENABLE_MOVA_STARTUP=false`라 노트북이 집 밖인 동안 mova 부팅·주기 작업이 어디서도 안 돈다(백로그 6번, 결정 필요).
+
 ## 2026-10-02
 
 ### 작업 내용

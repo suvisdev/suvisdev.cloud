@@ -42,7 +42,11 @@
 - 노트북 .venv에 lint-imports가 없어 `PYTHONPATH="$PWD:$PWD/apps" uvx --from import-linter lint-imports`로 실행.
 
 ### 산출물
-- 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제. 커밋은 안 함.
+- 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제.
+- PR #174 머지(`188c261`, CI 통과). backend-deploy run 37402009303 **실패** — 러너(노트북)의 `deploy.sh` 롤아웃이 10분 타임아웃.
+  노트북이 집 밖(10-06 Tailscale 구성: 앱은 집컴, 노트북은 GPU만)이라 desktop-link(내부 IP 172.30.1.21)가 끊겨 새 파드가 init `wait-db`에서 대기.
+  다음 단계 "예비 서버 동기화"가 건너뛰어져 **실제 서빙 중인 집컴에는 이번 이미지가 반영되지 않음**(변경이 `.importlinter`·문서뿐이라 기능 영향 없음).
+  구조적 미결: 노트북이 집 밖이면 CD가 매번 노트북 롤아웃에서 실패하고, `sync-standby.sh` 기본 호스트도 내부 IP라 집컴 반영이 안 됨.
 
 ---
 
