@@ -117,7 +117,7 @@ history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `
 http://127.0.0.1:31386`.
 
 ### 노트북·집컴 이중화 후속 (2026-10-06, 인수인계 `HANDOFF_suvisdev_2026-10-06.md`)
-1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영** — 10-06 수정(브랜치 `fix/cd-away-from-home`: DB 안 닿으면 노트북은 빌드·적재만 + sync-standby Tailscale). 집 밖 실 CD 검증 완료(run 37404372412, 1분 29초, 집컴 이미지 일치). 남은 것: PR #176 머지.
+1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영** — 10-06 수정(브랜치 `fix/cd-away-from-home`: DB 안 닿으면 노트북은 빌드·적재만 + sync-standby Tailscale). 집 밖 실 CD 검증 완료(run 37404372412, 1분 29초, 집컴 이미지 일치), PR #176 머지(`5e798c3`).
    현재 #174 이미지는 집컴 미반영(기능 영향 없음), 노트북 k3s에 `Init:0/2` 파드 2개(집에 오면 해소 예상).
 2. **저장소 원본 ≠ 운영** — `k8s/ollama-proxy/ollama-tunnel.service`(내부 IP), `k8s/ollama-proxy/haproxy.cfg`(:11436 없음), `suvisdev/.env.example`. 재설치하면 10-06 변경이 사라짐 → 운영 값에 맞추는 PR.
 3. **홈 채팅 답변 품질** — 자기소개·"무슨 모델이야"에 번역투 기술 나열. 사용자 판단: Gemini(`gemini-3.1-flash-lite`)가 오히려 더 나쁨 → 모델 교체 말고 `apps/ontology/app/use_cases/portfolio_chat_interactor.py` `SYSTEM_PROMPT` 개선(정체 질문 고정 답·few-shot·묻지 않은 기술 나열 금지). 착수 시점 사용자 확인.

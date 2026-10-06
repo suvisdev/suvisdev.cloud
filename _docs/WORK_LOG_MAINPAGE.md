@@ -203,6 +203,20 @@
 - 스케줄러 결정(사용자, 10-06): 집 밖 동안 mova 주기 작업이 안 도는 것은 **그대로 감수**. 코드 확인 결과 5개 작업 모두 기동 시 바로
   1회 실행 후 반복(채팅 트렌드 6시간, 나머지 24시간, 에디터 리뷰만 20시간 간격 가드)이라 집에 오면 자동으로 따라잡는다.
 
+### 작업 내용 (6) — 소개·연락 페이지(`/contact`) 현행화
+- 사용자 지적: 이메일 오기(`suvisdev@gmail.com`) + 소개 카드가 실제 구조와 다름. 사이트 나머지(이력서·푸터·개인정보 처리방침)는
+  이미 `ssuvisdev@gmail.com`이고 이 파일만 틀렸음. 인스타그램·X `@suvisdev`는 맞다고 사용자 확인.
+
+### 수정/구현 (6)
+- `suvis/lib/contact-profile.ts`: email → `ssuvisdev@gmail.com`. 주요 영역을 실제 구조로(웹 Next.js·앱 Flutter / Clean Architecture +
+  Hexagonal·스타 토폴로지 모듈러 모놀리식 / PostgreSQL·pgvector·Redis 집 서버 k3s / EXAONE LoRA·llama.cpp·Ollama·RAG(bge-m3)·Gemini 폴백),
+  "Neon" 삭제. 프로젝트 Titanic(데모) → Gildle, Apps 설명 "개인·팀 프로젝트 모음".
+- 검증: `tsc --noEmit` 0, eslint 0, 로컬 `next dev` + 헤드리스 크롬 캡처로 화면 확인(노트북엔 pnpm이 없어 `node_modules/.bin` 직접).
+- 남은 것: `/resume`의 "GPU 노트북 한 대의 k3s로 직접 운영" 서술도 낡음(미수정).
+
+### 산출물 (5·6)
+- PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.
+
 ## 2026-10-02
 
 ### 작업 내용
