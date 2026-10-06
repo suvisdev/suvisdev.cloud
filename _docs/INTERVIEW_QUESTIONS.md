@@ -39,6 +39,50 @@ mova·titanic의 기존 계약도 domain만 다루고 있어 같은 형식에 �
 
 ---
 
+## 2026-10-06 (Tailscale — 어디서나 노트북 GPU, 앱은 집컴)
+
+### T1. 노트북이 집 밖에 있을 때 앱 서빙은 집컴에 두고 GPU만 노트북으로 보낸 이유는?
+
+<details><summary>답 확인</summary>
+
+DB·Redis가 집컴 한 곳뿐이라, 노트북이 앱을 서빙하면 요청마다 DB 쿼리가 인터넷을 건넌다(왕복 수십 ms × 쿼리 수). 반면 올라마 호출은 요청당 한두 번이고 생성 자체가 수백 ms~수 초라 인터넷 지연이 묻힌다. 그래서 desktop-link는 내부 IP로 두어 집 밖에선 일부러 실패하게 하고, ollama-tunnel만 Tailscale로 옮겼다 — 설정 한 줄로 '집에선 둘 다 노트북, 밖에선 GPU만 노트북'이 된다.
+</details>
+
+### T2. Tailscale과 Cloudflare 터널을 둘 다 쓰는데 역할이 겹치지 않나?
+
+<details><summary>답 확인</summary>
+
+길이 다르다. Cloudflare 터널은 방문자 → 집컴(공개 도메인)이고, Tailscale은 내 기기끼리(노트북 ↔ 집컴)의 비공개 길이다. GPU 터널을 Cloudflare SSH로 해도 되지만 Access 정책·ProxyCommand가 붙고, Tailscale은 대상 IP 하나만 바꾸면 됐다.
+</details>
+
+### T3. 7.8B 전용 HAProxy 입구(:11436)를 따로 만든 이유는? 기존 :11435를 쓰면 안 되나?
+
+<details><summary>답 확인</summary>
+
+:11435에는 집컴 CPU가 backup으로 걸려 있어서, 노트북이 빠지면 7.8B(약 5GB)가 집컴(8.9GB, 메모리 부족으로 DB가 죽었던 곳)에 올라간다. :11436은 노트북만 두고 backup이 없어서 노트북이 없으면 즉시 503 → 앱이 Gemini로 넘긴다. 느린 답·장애보다 빠른 대체를 고른 것.
+</details>
+
+### T4. 앱이 노트북 올라마에 직접 붙지 않고 HAProxy를 거치게 한 이유는?
+
+<details><summary>답 확인</summary>
+
+노트북이 잠들면 TCP가 응답 없이 매달려, 직접 붙으면 매 요청이 40초 타임아웃을 다 기다린 뒤에야 Gemini로 간다. HAProxy는 1초 점검으로 노트북을 빼 두므로 다음 요청부터 바로 503 → Gemini. 손해는 그 순간 걸린 1건뿐이다.
+</details>
+
+### T5. Tailscale key expiry를 왜 껐나?
+
+<details><summary>답 확인</summary>
+
+기본 180일이 지나면 기기 키가 만료돼 재로그인 전까지 연결이 끊긴다. 사람이 쓰는 노트북이면 알아채지만, 서버 사이 터널은 조용히 끊겨 'GPU가 갑자기 CPU로 느려짐'으로만 나타난다. 무인 운영 기기라 만료를 끄고, 대신 관리 화면에서 기기를 관리한다.
+</details>
+
+### T6. 운영 설정만 바꾸고 저장소 원본은 아직 안 바꿨다 — 무엇이 위험한가?
+
+<details><summary>답 확인</summary>
+
+`k8s/ollama-proxy/`의 service·haproxy.cfg로 누가 재설치하면 내부 IP·:11436 없음으로 되돌아가 오늘 변경이 사라진다. 그래서 워크로그·LESSONS에 '미결'로 남기고 백업 파일명을 적었다. 다음 PR에서 원본을 운영 값에 맞춘다.
+</details>
+
 ## 2026-10-06 (포트폴리오 채팅 재시도 · 노트북 7.8B 대체)
 
 ### P1. Gemini 오류 중 어떤 것만 재시도하나? 왜 전부 하지 않나?

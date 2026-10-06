@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-06 **집 밖에서도 노트북 GPU(Tailscale)**: 노트북 `ollama-tunnel`만 Tailscale(`100.91.129.31`), 앱 서빙은 집 밖이면 집컴 · 집컴 HAProxy 7.8B 전용 `:11436` · 집컴 `.env` exaone → 집컴 서빙 홈 채팅 200·8.8초 노트북 GPU. 홈 채팅 Gemini 재시도(#172)·7.8B 먼저(#173). 인수인계 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`
 - `[G]` 10-06 **gildle 도메인 레이어 계약**: `.importlinter` `gildle-domain-independence`(domain → app·adapter 금지) · 7 kept · 위반 주입 시 BROKEN 확인
 - `[P]` 10-05 **노트북 우선 서빙 · 꺼지면 집컴**: DB·Redis는 집컴 한 곳, 판단기 2개(serve-agent·standby-agent), 꺼짐 시 530 약 31초 · 복귀 자동 · 배포 러너 노트북 + `sync-standby.sh` · 감정분석 GPU 없으면 로드 안 함. 상세 `k8s/failover/README.md`
 - `[P]` 10-05 **올라마 중계기**: 집컴 HAProxy `:11435` → 노트북 GPU(역방향 SSH 터널) 우선, 꺼지면 집컴 CPU. 2.4B 5.40초→0.31초 · 장애 시험 통과 · 브랜치 `feat/ollama-laptop-gpu-proxy`(머지 시 CD가 `OLLAMA_BASE_URL` 반영). 상세 `k8s/ollama-proxy/README.md`
@@ -114,6 +115,18 @@
 `scripts/eval_chat_queries.py`(23질의, 단일턴)·`scripts/eval_chat_multiturn.py`(6장면,
 history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `--base-url
 http://127.0.0.1:31386`.
+
+### 노트북·집컴 이중화 후속 (2026-10-06, 인수인계 `HANDOFF_suvisdev_2026-10-06.md`)
+1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영(최우선)** — 원인·후보는 `k8s/failover/README.md` "배포" 경고. 방향 사용자 결정 대기.
+   현재 #174 이미지는 집컴 미반영(기능 영향 없음), 노트북 k3s에 `Init:0/2` 파드 2개(집에 오면 해소 예상).
+2. **저장소 원본 ≠ 운영** — `k8s/ollama-proxy/ollama-tunnel.service`(내부 IP), `k8s/ollama-proxy/haproxy.cfg`(:11436 없음), `suvisdev/.env.example`. 재설치하면 10-06 변경이 사라짐 → 운영 값에 맞추는 PR.
+3. **홈 채팅 답변 품질** — 자기소개·"무슨 모델이야"에 번역투 기술 나열. 사용자 판단: Gemini(`gemini-3.1-flash-lite`)가 오히려 더 나쁨 → 모델 교체 말고 `apps/ontology/app/use_cases/portfolio_chat_interactor.py` `SYSTEM_PROMPT` 개선(정체 질문 고정 답·few-shot·묻지 않은 기술 나열 금지). 착수 시점 사용자 확인.
+4. 기존 미결: `OLLAMA_KEEP_ALIVE` 숫자 문자열 400 코드 수정, 집컴 첫 CD 15분 원인(아래).
+5. 잔여 정리(10-05 대화, 인수인계 B-2): 노트북 방화벽 **DB 이관용 15432 포트가 아직 열려 있음**(데스크톱 IP만 허용) — 닫기.
+   `ssh home`(Cloudflare 경유 `ssh.suvisdev.cloud`)은 시간 초과 — Tailscale로 대체돼 필요성 낮음, 정리 여부 결정.
+6. **확인 필요**: mova 부팅·주기 작업(감정분석 24시간 등)은 노트북만 돈다(집컴 `ENABLE_MOVA_STARTUP=false`). 노트북이 집 밖이면
+   노트북 backend가 안 떠 있으므로(10-06 확인: 옛 파드 Completed, 새 파드 Init) **그동안 어디서도 안 돈다** — 감수할지 결정.
+- 방향(10-05 사용자): **"취업할 때까지만 돌리면 된다"** — 과설계보다 단순·무료. Cloudflare 유료 LB(월 $5) 안 씀.
 
 ### 집컴 운영 후속 (2026-10-01, `[P]` 10-01 (11))
 - ~~앱 이메일 회원가입 500~~ **완료(10-02, PR #164 배포·운영 409 확인, `[P]` 10-02 (5))**. 남은 것: 중복 계정 정리(id 1에 사용 기록 다수, 3은 빈 계정 — 사용자 결정), 카카오 모바일 생성 경로의 이메일 중복 미확인, 구글 앱 로그인(`feat/gildle-google-login` 보관, Android OAuth 클라이언트 2개 등록 후 APK 확인·PR — 출시 준비 때)

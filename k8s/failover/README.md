@@ -46,6 +46,14 @@ mova 부팅 작업(스케줄러)은 노트북만 돈다: 집컴 `.env` 에 `ENAB
 
 노트북이 꺼져 있는 동안 머지하면 배포 잡은 노트북이 켜질 때까지 대기한다(집컴은 그동안 직전 버전으로 서빙).
 
+**⚠ 노트북이 집 밖이면 CD가 실패한다(10-06 run 37402009303, 미결).** `desktop-link`가 내부 IP라 노트북 k3s의 새 파드가
+init `wait-db`에서 멈추고 → 1단계 rollout이 600초 타임아웃 → 2단계 `sync-standby.sh`가 실행되지 않아 **실제 서빙 중인
+집컴에 반영되지 않는다.** 2단계가 돌았더라도 `STANDBY_HOST` 기본값(`suvisdev@172.30.1.21`)이 내부 IP라 실패했을 것.
+또 1단계 apply가 노트북 cloudflared를 1로 올려, serve-agent가 0으로 내리기까지 약 15초 외부 요청 일부가 노트북으로
+갔을 수 있다(미확인). 고칠 방향(사용자 결정 대기): 노트북 rollout 실패와 무관하게 sync 실행 · `STANDBY_HOST`를
+Tailscale IP(`100.91.129.31`)로 · 집컴 DB에 안 닿으면 노트북 rollout 건너뛰기 · cloudflared replicas는 serve-agent에만 맡기기.
+**집컴 빌드 부활은 금지**(10-05 메모리 부족으로 DB 크래시 2회). 그때까지 집 밖에서는 머지 후 집컴 반영이 안 된다는 것을 전제로 한다.
+
 ## 설치 기록
 
 **노트북** (`~/.config/systemd/user/`, linger):
@@ -89,11 +97,16 @@ journalctl --user -u standby-agent -n 5 --no-pager -o cat; cat ~/serve/laptop_he
 - **비밀값·설정을 바꾸면 두 기기의 `.env` 를 같이.** 차이는 세 줄뿐이어야 한다(2026-10-06):
   - 집컴 `ENABLE_MOVA_STARTUP=false` (스케줄러는 노트북만)
   - 홈 AI 채팅: 노트북 `PORTFOLIO_LLM_BACKEND=exaone` + `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11434`
-    (노트북 GPU의 EXAONE 7.8B 먼저, 실패하면 Gemini 재시도), 집컴 `PORTFOLIO_LLM_BACKEND=gemini`(Gemini 재시도만).
-    7.8B는 중계기를 거치지 않고 노트북 올라마를 직접 부르므로 집컴 CPU에 올라갈 일이 없다.
+    (노트북 GPU의 EXAONE 7.8B 먼저, 실패하면 Gemini 재시도), 집컴도 `PORTFOLIO_LLM_BACKEND=exaone` +
+    `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`(10-06 — 집컴 HAProxy의 노트북 전용 입구, 예비 없음).
+    어느 쪽이든 7.8B는 노트북 GPU에서만 돌고, 노트북이 없으면 바로 Gemini로 넘어간다 — 집컴 CPU에 올라갈 일이 없다.
 - 노트북 GPU(8GB)에서 7.8B(5.7GB)가 뜨면 mova 2.4B·임베딩이 잠깐 밀려나 다음 mova 요청이 몇 초 느릴 수 있다(7.8B는 5분 뒤 내려감).
+  10-05 실측: 챗봇 질문 뒤 첫 mova 채팅 22.8초(평소 6.5초), mova 뒤 첫 챗봇 11.4초. 10-06부터 집컴이 서빙할 때도 챗봇이
+  노트북 7.8B를 쓰므로 이 다툼은 서빙 위치와 무관하게 생긴다. 선택지(① 챗봇도 2.4B ② 7.8B 컨텍스트 8192→4096 ③ 그대로) 중
+  10-05 사용자 결정은 **그대로**.
 - 노트북 앱은 와이파이 너머 집컴 DB를 쓴다 — 요청당 쿼리 수만큼 지연이 붙는다(10-05 실측 검색 0.12초).
-- 집컴 IP `172.30.1.21` 이 바뀌면 `desktop-link.service`·`serve_agent.sh`·`../ollama-proxy/ollama-tunnel.service`·`sync-standby.sh` 기본값을 고친다.
+- 집컴 IP `172.30.1.21` 이 바뀌면 `desktop-link.service`·`serve_agent.sh`·`sync-standby.sh` 기본값을 고친다.
+- **2026-10-06 Tailscale**: 노트북 `ollama-tunnel`은 집컴 Tailscale IP `100.91.129.31`로 붙는다(집 밖에서도 노트북 GPU). `desktop-link`·`serve_agent.sh`는 일부러 내부 IP 유지 — 집 밖에선 앱 서빙은 집컴. `sync-standby.sh`는 손대지 않아 내부 IP 그대로(위 CD 경고). 집컴 HAProxy에 7.8B 전용 `:11436`(노트북만, 예비 없음), 집컴 `.env` = `PORTFOLIO_LLM_BACKEND=exaone` · `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`. 저장소 `../ollama-proxy/` 원본 파일은 아직 옛 값(워크로그 10-06 (3)).
 - 노트북이 응답 없이 멈추면(잠듦) 집컴 전환까지 약 30초 사이트가 530.
 - 노트북 재부팅 후에는 윈도우 로그인이 있어야 WSL 이 켜진다. 그 전까지는 집컴이 받는다.
 - 집컴 파드는 `imagePullPolicy: Always`라 **레지스트리 컨테이너(`standby-registry`)가 꺼져 있으면 새 파드가 뜨지 못한다**

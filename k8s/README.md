@@ -56,11 +56,13 @@ sudo visudo -c          # 문법 검증(반드시 OK 확인)
 | `backend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvisdev/`·`k8s/`) | ruff·mypy·import-linter·pytest |
 | `frontend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvis/`) | pnpm 10 install·type-check·lint (배포는 Vercel 연동) |
 | `gildle-ci.yml` | GitHub(ubuntu) | PR·main push(`gildle/`) | flutter 3.47.2 analyze·test (스토어 배포는 로컬) |
-| `backend-deploy.yml` | **운영 서버 셀프호스티드**(라벨 `prod`) | main의 backend-ci 성공 / 수동 | `deploy.sh --external-db --build` + 외부 200 확인 |
+| `backend-deploy.yml` | **노트북 셀프호스티드**(라벨 `prod`, 유일) | main의 backend-ci 성공 / 수동 | 노트북 `deploy.sh --external-db --build` → `sync-standby.sh`로 집컴 반영 → 외부 200 확인. **노트북이 집 밖이면 실패**(`failover/README.md` "배포") |
 
 **main에 백엔드가 머지되면 자동 배포된다.** 손으로 `deploy.sh`를 돌릴 일은 Secret만 바꿀 때
 (`.env` 수정 후 `./k8s/deploy.sh --external-db`)나 러너가 죽었을 때뿐이다. 수동 재배포는
 GitHub Actions → backend-deploy → Run workflow.
+
+**머지는 PR의 CI가 등록·통과한 뒤에 한다** — 10-05 #171을 CI 등록 전에 머지해 main CI가 취소됐고 재실행으로 복구했다.
 
 - 운영 서버는 NAT 뒤라 GitHub이 접속 못 한다 → 서버의 러너가 GitHub에 붙어 잡을 받는다. 저장소가
   비공개라 외부 PR은 러너에서 돌 수 없고, PR 검사는 전부 GitHub 러너에서 돈다.
