@@ -215,6 +215,14 @@
 - `/resume`(`suvis/app/resume/_components/resume-content.tsx`)의 "GPU 노트북 한 대의 k3s로 직접 운영" 두 곳(소개 문단·suvisdev.cloud 카드)
   → "집 서버와 GPU 노트북 두 대의 k3s"(카드엔 "노트북이 빠지면 집 서버가 자동으로 넘겨받음"). tsc·eslint 0, 헤드리스 크롬 캡처 확인.
 
+### 작업 내용 (7) — 사이트 기본 탭 아이콘을 직접 만든 SV 로고로
+- 홈·`/contact`·`/resume` 등 탭 아이콘이 v0 기본 로고였음. 저장소에 쓰이지 않던 `suvis/public/suvis-logo.png`(빨강·금 육각형 SV, 722×761,
+  오른쪽 위 "DeeVid AI" 워터마크, 로고가 왼쪽 아래로 치우침)를 Pillow로 육각형만 잘라 정사각형으로: `public/suvisdev-icon.png`(512, 투명),
+  `public/apple-icon.png`(180, 배경 #0A0A0D — 애플 아이콘은 투명 불가) 교체.
+- `suvis/app/layout.tsx` metadata `icons` → `/suvisdev-icon.png` + apple. 쓰이지 않게 된 v0 파일 `icon.svg`·`icon-light/dark-32x32.png` 삭제.
+- 확인: 로컬 `next dev`에서 `/`·`/contact`·`/resume`은 새 아이콘, `/mova`·`/gildle`은 각자 아이콘 유지. 흰/어두운 배경 128·32·16px 렌더 확인, tsc·eslint 0.
+- 홈 타일 그림(`apps-catalog.ts` 사진)과 Gildle "준비 중" 표시는 사용자 결정 대기로 그대로.
+
 ### 산출물 (5·6)
 - PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.
 
