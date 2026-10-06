@@ -17,6 +17,8 @@ export type AppCatalogItem = {
   tileImage?: string
   /** 홈 타일 아래 한 줄 — 개인/팀 프로젝트 구분 */
   kind: string
+  /** kind 아래 작은 글씨(해커톤 출품작 등). 줄바꿈되면 "해커톤 출품작"은 한 덩어리로 — \u00a0(줄바꿈 없는 공백) */
+  note?: string
 }
 
 export const APPS_CATALOG: AppCatalogItem[] = [
@@ -58,7 +60,8 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     image: "/apps-arda.svg",
     tileImage: "/arda-icon.svg",
     team: "Team Seuk",
-    kind: "팀 프로젝트 · 원티드 해커톤 출품작",
+    kind: "팀 프로젝트",
+    note: "원티드 해커톤\u00a0출품작",
   },
   {
     // 08-26 SEUK 카드로 교체됐던 팀 프로젝트 '약속'(알약 식별)을 복원(2026-09-28 사용자 요청).
@@ -72,6 +75,7 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     image: "/apps-yaksok.jpg",
     tileImage: "/yaksok-icon.svg",
     team: "Team Seuk",
-    kind: "팀 프로젝트 · 문화체육관광 해커톤 출품작",
+    kind: "팀 프로젝트",
+    note: "문화체육관광 해커톤\u00a0출품작",
   },
 ]
