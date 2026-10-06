@@ -212,7 +212,8 @@
   Hexagonal·스타 토폴로지 모듈러 모놀리식 / PostgreSQL·pgvector·Redis 집 서버 k3s / EXAONE LoRA·llama.cpp·Ollama·RAG(bge-m3)·Gemini 폴백),
   "Neon" 삭제. 프로젝트 Titanic(데모) → Gildle, Apps 설명 "개인·팀 프로젝트 모음".
 - 검증: `tsc --noEmit` 0, eslint 0, 로컬 `next dev` + 헤드리스 크롬 캡처로 화면 확인(노트북엔 pnpm이 없어 `node_modules/.bin` 직접).
-- 남은 것: `/resume`의 "GPU 노트북 한 대의 k3s로 직접 운영" 서술도 낡음(미수정).
+- `/resume`(`suvis/app/resume/_components/resume-content.tsx`)의 "GPU 노트북 한 대의 k3s로 직접 운영" 두 곳(소개 문단·suvisdev.cloud 카드)
+  → "집 서버와 GPU 노트북 두 대의 k3s"(카드엔 "노트북이 빠지면 집 서버가 자동으로 넘겨받음"). tsc·eslint 0, 헤드리스 크롬 캡처 확인.
 
 ### 산출물 (5·6)
 - PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.
