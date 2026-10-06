@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   title: 'Suvisdev - Developer Portfolio',
   description: 'Building innovative web experiences and AI-powered applications',
   generator: 'v0.app',
-  // 직접 만든 SV 육각형 로고(public/suvis-logo.png에서 워터마크 빼고 잘라 냄, 2026-10-06)
+  // Suvisdev 마크(코드 꺾쇠 + AI 반짝임, 2026-10-06) — 헤더는 같은 마크의 투명 배경판 suvisdev-mark.svg
   icons: {
-    icon: '/suvisdev-icon.png',
+    icon: '/suvisdev-icon.svg',
     apple: '/apple-icon.png',
   },
 }

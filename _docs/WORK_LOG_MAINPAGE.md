@@ -232,7 +232,11 @@
 - 홈 약속 타일도 새 아이콘(Gemini A안: 뷰파인더 네 모서리 + 비스듬한 2톤 캡슐, 하늘색 #38BDF8·#BAE6FD, 배경 #0B1220)을
   `suvis/public/yaksok-icon.svg`로 그려 `tileImage`(원형 타일에서 모서리가 잘려 안쪽 14~50으로 당김). 바탕화면 `yaksok-icon.svg`. 이로써 홈 타일 4개 모두 아이콘.
 - 헤더 로고(브랜치 `feat/header-logo`, 미배포): `suvis/components/header.tsx`에서 "Suvisdev" 글자 왼쪽에 탭 아이콘과 같은 SV 로고
-  (`/suvisdev-icon.png`, 24px) — 사용자 1안. 로컬 캡처로 줄 맞춤 확인, tsc·eslint 0. 3안(새 마크)은 Gemini 시안 대기 — 정해지면 헤더·탭 아이콘 함께 교체.
+  (`/suvisdev-icon.png`, 24px) — 사용자 1안. 로컬 캡처로 줄 맞춤 확인, tsc·eslint 0.
+  → 같은 날 3안 결정(Gemini C안: 코드 꺾쇠 ‹ › + 가운데 앰버 ✦): 원본을 잘라 나란히 렌더하며 SVG로 다시 그림 —
+  `public/suvisdev-mark.svg`(투명, 검정 #111 꺾쇠, 헤더용 36×21) · `public/suvisdev-icon.svg`(#121212 둥근 사각형 + 흰 꺾쇠, 탭 아이콘) ·
+  `public/apple-icon.png`(180) 재생성. `app/layout.tsx` icons → `/suvisdev-icon.svg`, 헤더 이미지 → 마크. 안 쓰게 된 `suvisdev-icon.png` 삭제
+  (원본 `suvis-logo.png`은 그대로). 헤더는 `/mova`·`/admin`에선 숨고 그 외는 라이트 고정이라 검정 꺾쇠 대비 문제 없음. 바탕화면에도 SVG 2개.
 - 약속 저장소를 개인 GitHub로 옮기기: 접근 가능한 조직(Seuk-Team·Seuk-Hackathon)·검색 어디에도 없음 → 사용자 "팀 깃허브를 끊은 듯, 패스".
 
 ### 산출물 (5·6)

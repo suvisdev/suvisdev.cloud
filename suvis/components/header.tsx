@@ -13,8 +13,8 @@ export function Header() {
           href="/"
           className="flex shrink-0 items-center gap-2 text-base font-bold tracking-tight text-neutral-900 transition-opacity hover:opacity-85 dark:text-neutral-100 md:text-lg"
         >
-          {/* 탭 아이콘과 같은 SV 로고(2026-10-06) */}
-          <Image src="/suvisdev-icon.png" alt="" width={24} height={24} className="h-6 w-6" priority />
+          {/* 탭 아이콘과 같은 Suvisdev 마크 — 코드 꺾쇠 + AI 반짝임(2026-10-06) */}
+          <Image src="/suvisdev-mark.svg" alt="" width={36} height={21} className="h-[21px] w-9" priority />
           <span>
             Suvis<span className="font-extrabold">dev</span>
           </span>
