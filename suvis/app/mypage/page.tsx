@@ -13,7 +13,6 @@ const GENDER_LABEL: Record<string, string> = {
   male: "남성",
   female: "여성",
   other: "기타",
-  undisclosed: "선택 안 함",
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -94,7 +93,10 @@ export default function MyPage() {
   const rows: { label: string; value: string }[] = [
     { label: "아이디", value: profile.username },
     { label: "이메일", value: profile.email },
-    { label: "성별", value: GENDER_LABEL[profile.gender] ?? profile.gender },
+    // 고르지 않았으면(소셜 로그인 계정은 항상) 줄을 숨긴다 — "선택 안 함"이 고른 값처럼 보였다(2026-10-06)
+    ...(profile.gender === "undisclosed"
+      ? []
+      : [{ label: "성별", value: GENDER_LABEL[profile.gender] ?? profile.gender }]),
     {
       label: "연결된 로그인",
       value: profile.providers.length
