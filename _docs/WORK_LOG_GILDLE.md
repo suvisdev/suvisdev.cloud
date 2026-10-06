@@ -41,6 +41,11 @@
 ### 오류·막힌 점
 - 노트북 .venv에 lint-imports가 없어 `PYTHONPATH="$PWD:$PWD/apps" uvx --from import-linter lint-imports`로 실행.
 
+### 작업 내용 (2) — 웹 탭 아이콘
+- 사용자가 고른 Gemini 시안(발자국, 큰 패드를 S자 길이 음각으로 가름, 에메랄드 단색)을 `suvis/public/gildle-icon.svg`(64×64, 배경 #0A0D0A,
+  심볼 #34D399)로 다시 그리고 `suvis/app/gildle/layout.tsx` metadata `icons`로 지정. `/gildle`·`/gildle/walks`만 적용 확인. 상세 `WORK_LOG_MOVA.md` 10-06.
+  앱 런처 아이콘은 그대로(교체 여부 미정).
+
 ### 산출물
 - 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제.
 - PR #174 머지(`188c261`, CI 통과). backend-deploy run 37402009303 **실패** — 러너(노트북)의 `deploy.sh` 롤아웃이 10분 타임아웃.

@@ -6,6 +6,8 @@ import "./mova.css"
 export const metadata: Metadata = {
   title: "Mova — AI Movie Agent",
   description: "취향 기반 영화·시리즈 추천 플랫폼",
+  // 상위 레이아웃의 공통 아이콘 대신 Mova 아이콘(2026-10-06). 파일 규칙 icon.svg는 상위 icons 설정을 못 덮어 metadata로 지정
+  icons: { icon: "/mova-icon.svg" },
 }
 
 export default function MovaLayout({ children }: { children: React.ReactNode }) {
