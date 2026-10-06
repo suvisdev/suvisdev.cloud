@@ -52,7 +52,12 @@
   — SVG를 헤드리스 크롬(투명 배경)으로 1024px 렌더 → `dart run flutter_launcher_icons`로 mipmap·drawable 재생성(적응형 xml은 그대로, inset 16%).
 - 미리보기 중 발견: S자 길 선이 패드 밖으로 나가 오른쪽 발가락을 가르고 아래 꼬리가 보임 → `clipPath`로 길을 패드 안에서만 그리게 수정.
   같은 SVG라 웹 탭 아이콘(`gildle-icon.svg`)도 함께 고침.
-- 확인: xxxhdpi 결과를 원형·둥근 사각형 마스크와 구형 아이콘으로 합성해 확인. **APK/AAB 빌드·실기기 확인은 안 함** — Play 반영은 다음 번들 빌드 때.
+- 확인: xxxhdpi 결과를 원형·둥근 사각형 마스크와 구형 아이콘으로 합성해 확인. PR #182 머지(`cce00f9`).
+- **번들 1.0.5+6 빌드**(`pubspec.yaml` 1.0.4+5 → 1.0.5+6): `flutter build appbundle --release --dart-define-from-file=dart_defines.json`
+  (Gradle 87.9초, 80.3MB, key.properties `storeFile`은 빌드 동안만 `/mnt/c/` 치환 후 원복). AAB 안 런처 아이콘·전경이 새 아이콘과 픽셀 동일,
+  manifest에 1.0.5, 서명 인증서 CN=gildle(릴리스 키) 확인. 바탕화면 `길들/gildle-release-20261006-1.0.5.aab`.
+  Play 등록정보 아이콘도 새로 `길들/gildle-icon-512.png`(옛 핀 아이콘은 `gildle-icon-512-old-pin.png`로 보존).
+  **실기기 설치 확인·Play 업로드는 안 함**(사용자 작업). 이 번들엔 10-02 음성 안내 등 그 뒤 변경도 모두 포함.
 
 ### 산출물
 - 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제.
