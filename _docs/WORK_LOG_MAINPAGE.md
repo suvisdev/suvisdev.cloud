@@ -237,6 +237,9 @@
   `public/suvisdev-mark.svg`(투명, 검정 #111 꺾쇠, 헤더용 36×21) · `public/suvisdev-icon.svg`(#121212 둥근 사각형 + 흰 꺾쇠, 탭 아이콘) ·
   `public/apple-icon.png`(180) 재생성. `app/layout.tsx` icons → `/suvisdev-icon.svg`, 헤더 이미지 → 마크. 안 쓰게 된 `suvisdev-icon.png` 삭제
   (원본 `suvis-logo.png`은 그대로). 헤더는 `/mova`·`/admin`에선 숨고 그 외는 라이트 고정이라 검정 꺾쇠 대비 문제 없음. 바탕화면에도 SVG 2개.
+  PR #187 배포(`3493d57`). → 사용자 정정: 원한 위치는 **오른쪽 로그인 이름("태기") 앞, 구글 프로필처럼 사람 아이콘 대신**.
+  `components/auth/auth-login-button.tsx` 드롭다운 트리거의 lucide `User`를 `/suvisdev-icon.svg`(20px, 원형)로 교체(메뉴 안 "마이페이지" 아이콘은 유지).
+  로그인 상태 확인은 임시 `public/_preview-seed.html`로 localStorage `suvis_session`을 넣고 캡처한 뒤 파일 삭제(백엔드 없음 → whoami가 401이 아니라 표시 유지).
 - 약속 저장소를 개인 GitHub로 옮기기: 접근 가능한 조직(Seuk-Team·Seuk-Hackathon)·검색 어디에도 없음 → 사용자 "팀 깃허브를 끊은 듯, 패스".
 
 ### 산출물 (5·6)
