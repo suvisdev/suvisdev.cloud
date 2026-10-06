@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { AuthLoginButton } from "@/components/auth/auth-login-button"
 
@@ -10,9 +11,13 @@ export function Header() {
       <div className="mx-auto flex h-11 w-full max-w-[1600px] items-center justify-between gap-6 md:h-12 md:gap-8">
         <Link
           href="/"
-          className="shrink-0 text-base font-bold tracking-tight text-neutral-900 transition-opacity hover:opacity-85 dark:text-neutral-100 md:text-lg"
+          className="flex shrink-0 items-center gap-2 text-base font-bold tracking-tight text-neutral-900 transition-opacity hover:opacity-85 dark:text-neutral-100 md:text-lg"
         >
-          Suvis<span className="font-extrabold">dev</span>
+          {/* 탭 아이콘과 같은 SV 로고(2026-10-06) */}
+          <Image src="/suvisdev-icon.png" alt="" width={24} height={24} className="h-6 w-6" priority />
+          <span>
+            Suvis<span className="font-extrabold">dev</span>
+          </span>
         </Link>
 
         <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5 md:gap-4">

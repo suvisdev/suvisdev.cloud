@@ -16,6 +16,8 @@
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
 - `[P]` 10-06 **집 밖에서도 노트북 GPU(Tailscale)**: 노트북 `ollama-tunnel`만 Tailscale(`100.91.129.31`), 앱 서빙은 집 밖이면 집컴 · 집컴 HAProxy 7.8B 전용 `:11436` · 집컴 `.env` exaone → 집컴 서빙 홈 채팅 200·8.8초 노트북 GPU. 홈 채팅 Gemini 재시도(#172)·7.8B 먼저(#173). 인수인계 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`
+- `[P]`·`[M]`·`[G]` 10-06 **사이트 아이콘 정비**: 탭 아이콘 3종(SV 로고·Mova·Gildle, #179·#180) · 홈 타일 4개 새 아이콘(#181·#184·#185·#186) ·
+  `/contact`(#177)·`/resume`(#178) 현행화 · 길들 런처 아이콘 + 번들 1.0.5+6(#182·#183, 바탕화면 AAB, Play 업로드는 사용자). 헤더 로고는 `feat/header-logo`(미배포)
 - `[G]` 10-06 **gildle 도메인 레이어 계약**: `.importlinter` `gildle-domain-independence`(domain → app·adapter 금지) · 7 kept · 위반 주입 시 BROKEN 확인
 - `[P]` 10-05 **노트북 우선 서빙 · 꺼지면 집컴**: DB·Redis는 집컴 한 곳, 판단기 2개(serve-agent·standby-agent), 꺼짐 시 530 약 31초 · 복귀 자동 · 배포 러너 노트북 + `sync-standby.sh` · 감정분석 GPU 없으면 로드 안 함. 상세 `k8s/failover/README.md`
 - `[P]` 10-05 **올라마 중계기**: 집컴 HAProxy `:11435` → 노트북 GPU(역방향 SSH 터널) 우선, 꺼지면 집컴 CPU. 2.4B 5.40초→0.31초 · 장애 시험 통과 · 브랜치 `feat/ollama-laptop-gpu-proxy`(머지 시 CD가 `OLLAMA_BASE_URL` 반영). 상세 `k8s/ollama-proxy/README.md`
