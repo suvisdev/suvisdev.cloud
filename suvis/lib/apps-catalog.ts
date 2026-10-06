@@ -13,6 +13,8 @@ export type AppCatalogItem = {
   icon?: string
   /** 카드 이미지 영역에 표시할 커버 사진 (public 경로) */
   image?: string
+  /** 홈 원형 타일에만 쓸 그림 — 없으면 image. /apps 카드 커버는 image 그대로 */
+  tileImage?: string
   /** 홈 타일 아래 한 줄 — 개인/팀 프로젝트 구분 */
   kind: string
 }
@@ -27,6 +29,7 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     imageFirst: false,
     gradient: "from-zinc-900 via-red-950 to-black",
     image: "/apps-mova.jpg",
+    tileImage: "/mova-icon.svg",
     kind: "개인 프로젝트",
   },
   {
@@ -38,6 +41,7 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     imageFirst: true,
     gradient: "from-emerald-400 via-green-500 to-teal-600",
     image: "/apps-gildle.jpg",
+    tileImage: "/gildle-icon.svg",
     kind: "개인 프로젝트",
   },
 ]
