@@ -46,6 +46,14 @@
   심볼 #34D399)로 다시 그리고 `suvis/app/gildle/layout.tsx` metadata `icons`로 지정. `/gildle`·`/gildle/walks`만 적용 확인. 상세 `WORK_LOG_MOVA.md` 10-06.
   앱 런처 아이콘은 그대로(교체 여부 미정).
 
+### 작업 내용 (3) — 앱 런처 아이콘을 새 발자국 아이콘으로
+- 기존: 초록 그라데이션 + 흰 지도 핀 속 발자국. 웹 아이콘(`suvis/public/gildle-icon.svg`)과 같은 모양으로 교체.
+- `gildle/assets/icon/`: `icon.png`(1024, 꽉 찬 #0A0D0A 배경 + 심볼), `icon_bg.png`(단색 #0A0D0A), `icon_fg.png`(투명, 발자국이 캔버스의 약 60%)
+  — SVG를 헤드리스 크롬(투명 배경)으로 1024px 렌더 → `dart run flutter_launcher_icons`로 mipmap·drawable 재생성(적응형 xml은 그대로, inset 16%).
+- 미리보기 중 발견: S자 길 선이 패드 밖으로 나가 오른쪽 발가락을 가르고 아래 꼬리가 보임 → `clipPath`로 길을 패드 안에서만 그리게 수정.
+  같은 SVG라 웹 탭 아이콘(`gildle-icon.svg`)도 함께 고침.
+- 확인: xxxhdpi 결과를 원형·둥근 사각형 마스크와 구형 아이콘으로 합성해 확인. **APK/AAB 빌드·실기기 확인은 안 함** — Play 반영은 다음 번들 빌드 때.
+
 ### 산출물
 - 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제.
 - PR #174 머지(`188c261`, CI 통과). backend-deploy run 37402009303 **실패** — 러너(노트북)의 `deploy.sh` 롤아웃이 10분 타임아웃.
