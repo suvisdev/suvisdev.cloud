@@ -7,6 +7,38 @@
 
 ---
 
+## 2026-10-06 (gildle 레이어 계약)
+
+### G1. gildle은 이미 스포크 독립 계약에 들어가 있었는데 왜 레이어 계약을 따로 추가했나?
+
+<details><summary>답 확인</summary>
+
+두 계약은 막는 방향이 다르다. 스포크 독립 계약은 앱과 앱 사이(gildle ↔ mova)를 막고, 레이어 계약은 한 앱 안에서 domain → app/adapter 방향을 막는다. gildle domain은 grep으로 깨끗했지만 "지금 깨끗하다"와 "앞으로도 깨지면 CI가 막는다"는 다르다. 그래서 mova·titanic과 같은 규칙을 도구로 강제했다.
+</details>
+
+### G2. 계약을 추가한 뒤 "7 kept"만 보고 끝내지 않고 위반을 일부러 넣어 본 이유는?
+
+<details><summary>답 확인</summary>
+
+모듈 이름을 잘못 적으면(예: 루트 패키지 경로 오타) 검사할 대상이 없어 계약이 항상 KEPT가 될 수 있다. `import gildle.adapter`를 domain에 넣었을 때 BROKEN이 뜨는 것을 보고 나서야 계약이 실제로 동작한다고 말할 수 있다.
+</details>
+
+### G3. gildle이 허브(ontology)를 전혀 import하지 않는데 스타-토폴로지 위반이 아닌가?
+
+<details><summary>답 확인</summary>
+
+아니다. 규칙은 "스포크는 허브만 의존할 수 있다"는 허용 범위이지, 허브를 반드시 쓰라는 뜻이 아니다. 다른 앱과 데이터를 주고받을 일이 없으면 아무 데도 의존하지 않는 독립 스포크가 가장 결합도가 낮다.
+</details>
+
+### G4. 왜 app → adapter 금지 계약은 넣지 않았나?
+
+<details><summary>답 확인</summary>
+
+mova·titanic의 기존 계약도 domain만 다루고 있어 같은 형식에 맞췄다(정밀한 수정). app → adapter까지 막으려면 세 앱에 일관되게 넣을지부터 따로 정해야 한다.
+</details>
+
+---
+
 ## 2026-10-06 (포트폴리오 채팅 재시도 · 노트북 7.8B 대체)
 
 ### P1. Gemini 오류 중 어떤 것만 재시도하나? 왜 전부 하지 않나?

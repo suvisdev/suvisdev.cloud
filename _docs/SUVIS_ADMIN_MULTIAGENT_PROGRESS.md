@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[G]` 10-06 **gildle 도메인 레이어 계약**: `.importlinter` `gildle-domain-independence`(domain → app·adapter 금지) · 7 kept · 위반 주입 시 BROKEN 확인
 - `[P]` 10-05 **노트북 우선 서빙 · 꺼지면 집컴**: DB·Redis는 집컴 한 곳, 판단기 2개(serve-agent·standby-agent), 꺼짐 시 530 약 31초 · 복귀 자동 · 배포 러너 노트북 + `sync-standby.sh` · 감정분석 GPU 없으면 로드 안 함. 상세 `k8s/failover/README.md`
 - `[P]` 10-05 **올라마 중계기**: 집컴 HAProxy `:11435` → 노트북 GPU(역방향 SSH 터널) 우선, 꺼지면 집컴 CPU. 2.4B 5.40초→0.31초 · 장애 시험 통과 · 브랜치 `feat/ollama-laptop-gpu-proxy`(머지 시 CD가 `OLLAMA_BASE_URL` 반영). 상세 `k8s/ollama-proxy/README.md`
 - `[P]` 10-01 (11) **프로덕션 노트북→집컴(DESKTOP-T89E5ID) 이관·컷오버 완료**: 터널·CD 러너(prod) 집컴으로, DB LAN 직결 재복원(count 일치) ·
