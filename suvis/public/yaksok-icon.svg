@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <clipPath id="cap"><rect x="17" y="26" width="30" height="12" rx="6"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0B1220"/>
+  <!-- 뷰파인더 네 모서리 — 원형 타일에서도 잘리지 않게 안쪽(14~50)에 -->
+  <path fill="none" stroke="#BAE6FD" stroke-width="2.8" d="M14 22V14h8M42 14h8v8M50 42v8h-8M22 50h-8v-8"/>
+  <!-- 비스듬한 캡슐: 왼쪽 아래 반은 진한 하늘색, 오른쪽 위 반은 밝은 하늘색 -->
+  <g transform="rotate(-45 32 32)" clip-path="url(#cap)">
+    <rect x="17" y="26" width="30" height="12" fill="#BAE6FD"/>
+    <rect x="17" y="26" width="15" height="12" fill="#38BDF8"/>
+  </g>
+</svg>

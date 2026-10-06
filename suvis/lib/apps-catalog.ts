@@ -70,6 +70,7 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     imageFirst: true,
     gradient: "from-sky-400 via-blue-500 to-cyan-600",
     image: "/apps-yaksok.jpg",
+    tileImage: "/yaksok-icon.svg",
     team: "Team Seuk",
     kind: "팀 프로젝트 · 문화체육관광 해커톤 출품작",
   },

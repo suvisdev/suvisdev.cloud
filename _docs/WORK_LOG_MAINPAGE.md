@@ -227,6 +227,8 @@
 - 홈 ARDA 타일도 새 아이콘(사용자가 Gemini 시안 중 고름: 둥근 획의 A + 가운데 ✦, 보라 그라데이션)을 SVG로 다시 그려 `suvis/public/arda-icon.svg`,
   `apps-catalog.ts` ARDA `tileImage`. **ARDA 코드·저장소는 건드리지 않음**(사용자 지시 — 이 사이트 홈 타일만). 같은 파일을 바탕화면
   `arda-icon.svg`·`arda-icon-1024.png`로도 전달. `/apps` 카드는 기존 `apps-arda.svg` 유지.
+- 홈 약속 타일도 새 아이콘(Gemini A안: 뷰파인더 네 모서리 + 비스듬한 2톤 캡슐, 하늘색 #38BDF8·#BAE6FD, 배경 #0B1220)을
+  `suvis/public/yaksok-icon.svg`로 그려 `tileImage`(원형 타일에서 모서리가 잘려 안쪽 14~50으로 당김). 바탕화면 `yaksok-icon.svg`. 이로써 홈 타일 4개 모두 아이콘.
 
 ### 산출물 (5·6)
 - PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.
