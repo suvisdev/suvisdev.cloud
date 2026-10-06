@@ -183,6 +183,20 @@
   `k8s/ollama-proxy/README.md` 주의에 이미 있어 생략.
 - 새로 드러난 점: 집컴 `ENABLE_MOVA_STARTUP=false`라 노트북이 집 밖인 동안 mova 부팅·주기 작업이 어디서도 안 돈다(백로그 6번, 결정 필요).
 
+### 작업 내용 (5) — 집 밖 CD 실패 수정 (브랜치 `fix/cd-away-from-home`)
+- 사용자 요청 "2번 고쳐줘". 방향은 인수인계 A-6 후보 중 가장 단순한 조합(사용자 방향 "취업할 때까지 단순·무료").
+
+### 수정/구현 (5)
+- `.github/workflows/backend-deploy.yml` "배포": `nc -z -w 3 127.0.0.1 5432`(desktop-link 포워딩)가 되면 기존 `deploy.sh --external-db --build`,
+  안 되면 `docker build` → `k3s ctr images import` → `rollout restart backend·auth`만(기다리지 않음, Secret·매니페스트·cloudflared apply 안 함).
+- `k8s/sync-standby.sh`: `STANDBY_HOST` 기본값 `suvisdev@172.30.1.21` → 집컴 Tailscale `suvisdev@100.91.129.31`.
+- 문서: failover README "배포"(경고 → 현재 동작), k8s/README CI/CD 표, 루트 CLAUDE.md CI/CD 주석, PROGRESS·LESSONS 상태.
+- 기각: `if: always()`로 동기화만 강제 — 10분 타임아웃을 매번 기다리고 cloudflared 1 부작용이 남음. 러너 집컴 이전 — 빌드 금지 제약.
+
+### 오류·막힌 점 (5)
+- 확인한 것: 집 밖 노트북에서 `nc -z 127.0.0.1 5432` 실패(exit 1), Tailscale로 집컴 SSH·`standby-registry` `/v2/` 200, 러너 `.env`에 `KUBECONFIG` 있음,
+  `bash -n`·YAML 파싱 통과. **실제 CD 실행은 머지 후**(워크플로 파일이라 브랜치에서 미리 돌릴 수 없음) — 미검증.
+
 ## 2026-10-02
 
 ### 작업 내용

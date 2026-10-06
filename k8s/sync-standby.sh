@@ -8,11 +8,11 @@
 # 예전처럼 docker pull → docker save → k3s ctr import 로 5.8GB를 통째 옮기던 단계(약 7분)가 없다.
 #
 # 사용: backend-deploy.yml 이 deploy.sh 다음에 부른다. 손으로: ./k8s/sync-standby.sh
-# 환경: STANDBY_HOST(기본 suvisdev@172.30.1.21), STANDBY_KEY(기본 ~/.ssh/home_desktop)
+# 환경: STANDBY_HOST(기본 suvisdev@100.91.129.31 — 집컴 Tailscale, 집 밖에서도 닿는다. 2026-10-06), STANDBY_KEY(기본 ~/.ssh/home_desktop)
 set -euo pipefail
 cd "$(dirname "$0")"
 
-HOST="${STANDBY_HOST:-suvisdev@172.30.1.21}"
+HOST="${STANDBY_HOST:-suvisdev@100.91.129.31}"
 KEY="${STANDBY_KEY:-$HOME/.ssh/home_desktop}"
 CTL="/tmp/standby-sync-$$.sock"
 SSH=(ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=10

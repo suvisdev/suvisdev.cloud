@@ -56,7 +56,7 @@ sudo visudo -c          # 문법 검증(반드시 OK 확인)
 | `backend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvisdev/`·`k8s/`) | ruff·mypy·import-linter·pytest |
 | `frontend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvis/`) | pnpm 10 install·type-check·lint (배포는 Vercel 연동) |
 | `gildle-ci.yml` | GitHub(ubuntu) | PR·main push(`gildle/`) | flutter 3.47.2 analyze·test (스토어 배포는 로컬) |
-| `backend-deploy.yml` | **노트북 셀프호스티드**(라벨 `prod`, 유일) | main의 backend-ci 성공 / 수동 | 노트북 `deploy.sh --external-db --build` → `sync-standby.sh`로 집컴 반영 → 외부 200 확인. **노트북이 집 밖이면 실패**(`failover/README.md` "배포") |
+| `backend-deploy.yml` | **노트북 셀프호스티드**(라벨 `prod`, 유일) | main의 backend-ci 성공 / 수동 | 노트북 `deploy.sh --external-db --build` → `sync-standby.sh`로 집컴 반영 → 외부 200 확인. 집 밖이면 노트북은 빌드·적재만(`failover/README.md` "배포") |
 
 **main에 백엔드가 머지되면 자동 배포된다.** 손으로 `deploy.sh`를 돌릴 일은 Secret만 바꿀 때
 (`.env` 수정 후 `./k8s/deploy.sh --external-db`)나 러너가 죽었을 때뿐이다. 수동 재배포는
