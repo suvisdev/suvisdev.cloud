@@ -28,6 +28,24 @@
 
 ---
 
+## 2026-10-06
+
+### 작업 내용
+- 사용자 질문 "길들은 스타-토폴로지가 안 들어갔나" → 확인 결과 gildle은 `spoke-independence`·`hub-independence`·
+  `auth-isolation`·`shared-independence` 계약에 이미 포함, lint-imports 6/6 KEPT, gildle↔타 앱 import 0건(허브도 안 쓰는 독립 스포크).
+- 빠져 있던 것은 레이어 계약(domain → app/adapter 금지) — mova·titanic에만 있었음. 사용자 요청으로 추가.
+
+### 수정/구현
+- `suvisdev/.importlinter`: Rule 4b `gildle-domain-independence` — `gildle.domain`이 `gildle.app`·`gildle.adapter`를 import 금지(mova/titanic과 같은 형식).
+
+### 오류·막힌 점
+- 노트북 .venv에 lint-imports가 없어 `PYTHONPATH="$PWD:$PWD/apps" uvx --from import-linter lint-imports`로 실행.
+
+### 산출물
+- 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제. 커밋은 안 함.
+
+---
+
 ## 2026-10-02
 
 ### 작업 내용
