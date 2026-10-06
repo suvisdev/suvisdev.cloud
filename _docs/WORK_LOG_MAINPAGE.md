@@ -242,6 +242,13 @@
   로그인 상태 확인은 임시 `public/_preview-seed.html`로 localStorage `suvis_session`을 넣고 캡처한 뒤 파일 삭제(백엔드 없음 → whoami가 401이 아니라 표시 유지).
 - 약속 저장소를 개인 GitHub로 옮기기: 접근 가능한 조직(Seuk-Team·Seuk-Hackathon)·검색 어디에도 없음 → 사용자 "팀 깃허브를 끊은 듯, 패스".
 
+### 작업 내용 (8) — 마이페이지 성별 "선택 안 함" 숨김
+- 사용자 질문 "마이페이지 성별에 선택 안 함이 왜 있나": 가입 폼 기본값이 `undisclosed`이고, 소셜 로그인 계정은 성별을 못 받아 항상
+  `undisclosed`로 생성(`oauth_identity_pg_repository.py`), 마이페이지는 닉네임만 수정 가능 → "선택 안 함"이 고른 값처럼 계속 보임.
+- 사용자 결정 1안: `suvis/app/mypage/page.tsx`에서 `undisclosed`면 성별 줄을 숨김(라벨 맵의 `undisclosed` 항목 제거). 연령대는 마이페이지에 표시 안 함.
+- 이어서 "mova에 성별이 필요했던 것 같다" → 확인 결과 mova 코드(백엔드·프론트)에 성별·연령대 사용 0건(ERD 문서에 칼럼만). 미리 구현은 하지 않기로(사용자 동의) —
+  최소 수집 원칙·나중에 해도 비용 같음. PROGRESS 백로그 "메인페이지"에 할 일 기록.
+
 ### 산출물 (5·6)
 - PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.
 
