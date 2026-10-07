@@ -63,6 +63,46 @@
 - 집컴 운영 파드에서 판정 함수 실측: 도메인 챗봇 노트북 GPU 7.8B / mova 이해 노트북 GPU 2.4B / mova 추천 집컴 GPU lora-server.
 - 화면: 임시 미리보기 라우트(가짜 응답) 1280·500px 캡처 확인 후 삭제.
 
+## 2026-10-07 (2) — mova 채팅 첫 화면 스크롤·느림·추천 칩
+
+### 작업 내용
+- 사용자: "처음 채팅 쳤을 때 스크롤 없게", "mova 채팅 엑사온이야? 왜 이렇게 느려", "추천 단어 업데이트",
+  이어서 "임베딩은 데스크톱으로 고정, 속도 차이는?".
+- 느림 원인(집컴 파드 로그 + 노트북 올라마 로그 대조, 같은 질문 22.8초 → 다음 4.1초):
+  ① 노트북 올라마가 비어 있었음 — 2.4B 로드 4.8초(재부팅 뒤 첫 호출), bge-m3 로드 2.2초(임베딩 요청이 keep_alive를
+  안 보내 올라마 기본 5분 뒤 내려감) ② lora-server(집컴 GTX 1650) 약 14초 — 직접 측정: 1,430토큰 프롬프트 처리 4.1초 +
+  200토큰 생성 2.8초(72 tok/s), 같은 프롬프트 재요청은 캐시로 2.8초. 처음 보는 질문은 매번 프롬프트 처리 비용을 낸다.
+- 임베딩 속도 비교(집컴에서): 질문 한 줄 집컴 CPU 직접 67~99ms vs 노트북 GPU 경유(Tailscale, 집 밖) 245~362ms,
+  긴 영화 설명은 514ms vs 234ms. 채팅은 짧은 질문이라 집컴 고정. 집컴 첫 호출 3.6초는 몇 시간 미사용 뒤뿐(4·8분 쉰 뒤 0.1초).
+- 같은 질문이 두 번 저장(대화 77·78, 두 번째는 conversation_id 없이 새 대화) — 14일간 16건(본인 계정 2건, 둘 다 칩 문구).
+  로컬 dev + 가짜 백엔드 + 윈도우 크롬 CDP(Node 내장 WebSocket)로 랜딩·메인·칩 × 응답 3초·22초 재현 → 전부 1회. **원인 미확정.**
+  lora 호출은 `asyncio.to_thread`라 이벤트 루프 블로킹 가설은 기각.
+- 추천 칩 후보 27개를 운영 API로 실측. 드러난 채팅 버그(미수정): "지금 극장에서 볼 만한 영화" → 엔드게임 상영관 되묻기,
+  "이번 주 박스오피스 순위" → 인사말, "기생충 평점 어때?" → "별점 0(리뷰 0건)", "인셉션 줄거리" → "별점 0(리뷰 3건)",
+  "공포는 싫고 긴장감 있는 영화" → 컨저링 3, "OO 같은 영화" → 그 작품 자신 포함.
+
+### 수정/구현
+- `suvis/app/mova/main/page.tsx` + `mova.css`: `.mova-app:has(.mova-chat-fill){height:100dvh}`, 페이지는 `flex-1 min-h-0` —
+  헤더·채팅·푸터가 화면에 딱 맞음(전: 900px 화면에 문서 979px). 푸터는 TMDB 고지라 유지.
+- `suvis/lib/mova-chat-suggestions.ts`: 실측에서 잘 답한 16개로 교체(신규: 봉준호·마동석·디즈니·잔잔한 영화·라라랜드 줄거리).
+- `ontology/adapter/outbound/llm/ollama_embedding_adapter.py`: `keep_alive`(OLLAMA_KEEP_ALIVE) 전송 + `OLLAMA_EMBED_URL`
+  (없으면 OLLAMA_BASE_URL). `.env`: 집컴 `http://host.docker.internal:11434`, 노트북 `:21435`. `.env.example` 문서화.
+- `k8s/failover/desktop-link.service`: `-L 0.0.0.0:21435`(파드가 집컴 올라마에 닿게) — 노트북 유닛 반영·재시작 완료.
+- `k8s/failover/README.md` ".env 차이" 목록에 임베딩 줄 추가.
+
+### 오류·막힌 점
+- WSL 플레이라이트 크로미움은 `libasound.so.2` 없음(sudo 필요) → 윈도우 크롬 `--remote-debugging-port` + 윈도우 `node.exe`로 CDP 직접 조작.
+  WSL→윈도우 디버깅 포트는 안 닿아 스크립트를 윈도우 쪽에서 실행.
+- `pkill -f mock_backend.py`가 자기 셸까지 종료(메모리에 적힌 함정 그대로) → 포트로 pid 찾아 kill.
+- `apps/ontology/test/agent/test_agent_loop.py` 수집 오류(`No module named 'ontology'`)는 변경 전에도 동일 — 기존 문제.
+
+### 데이터
+- 운영 API 실측 채팅 27건(익명, user_id 없음)이 chat 테이블에 남음.
+
+### 산출물
+- 테스트: ontology·viewer 162 passed(agent 제외), 신규 `test_ollama_embedding_adapter.py` 3개. 프론트 tsc·eslint 통과.
+- 화면: 로컬 1280·500px — 전송 전·로딩·답변 후 문서 높이 = 뷰포트(900), 30턴 대화는 목록만 내부 스크롤(652/4526).
+
 ## 2026-10-05
 
 ### 작업 내용

@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 # 노트북 앱은 DB·Redis를 집컴 한 곳에 둔다(데이터가 갈라지지 않게). 파드는 10.42.0.1(호스트)로 이 포트들에 닿는다.
-ExecStart=/usr/bin/ssh -N -i %h/.ssh/home_desktop -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%h/.ssh/known_hosts_ollama_tunnel -L 0.0.0.0:5432:127.0.0.1:5432 -L 0.0.0.0:6379:127.0.0.1:6379 -L 0.0.0.0:8200:127.0.0.1:8200 -L 127.0.0.1:21435:127.0.0.1:11434 suvisdev@172.30.1.21
+ExecStart=/usr/bin/ssh -N -i %h/.ssh/home_desktop -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%h/.ssh/known_hosts_ollama_tunnel -L 0.0.0.0:5432:127.0.0.1:5432 -L 0.0.0.0:6379:127.0.0.1:6379 -L 0.0.0.0:8200:127.0.0.1:8200 -L 0.0.0.0:21435:127.0.0.1:11434 suvisdev@172.30.1.21
 Restart=always
 RestartSec=3
 
