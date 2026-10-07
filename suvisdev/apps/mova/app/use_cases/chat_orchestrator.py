@@ -35,6 +35,41 @@ from mova.domain.value_objects.movie_title import MovieTitle
 
 logger = logging.getLogger(__name__)
 
+_TITLE_SPLIT = re.compile(r"[\s:·,.!?()\[\]'\"“”‘’\-–—~]+")
+_GROUNDING_HISTORY_TURNS = 6
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"\s+", "", text).lower()
+
+
+def _near(token: str, hay: str) -> bool:
+    """token이 hay에 그대로, 또는 3글자 이상이면 한 글자만 다르게 들어 있는가(오타 "인샙션"→"인셉션")."""
+    if token in hay:
+        return True
+    n = len(token)
+    if n < 3:
+        return False
+    return any(
+        sum(a != b for a, b in zip(token, hay[i : i + n], strict=True)) <= 1
+        for i in range(len(hay) - n + 1)
+    )
+
+
+def _title_grounded(title: str, message: str, history: list[dict[str, str]]) -> bool:
+    """제목이 이번 발화나 직전 대화(이어받기 "그거 예매해줘")에 근거가 있는가.
+
+    제목의 두 글자 이상 낱말 하나라도 나오면 근거로 본다 — 사용자는 "엔드게임"처럼 일부만 쓰고
+    모델은 "어벤져스: 엔드게임"으로 정식 제목을 돌려주기 때문이다."""
+    recent = history[-_GROUNDING_HISTORY_TURNS:]
+    hay = _norm(" ".join([message, *(m.get("content") or "" for m in recent)]))
+    whole = _norm(title)
+    if whole and _near(whole, hay):
+        return True
+    tokens = [_norm(t) for t in _TITLE_SPLIT.split(title)]
+    return any(_near(t, hay) for t in tokens if len(t) >= 2)
+
+
 _SHADOW_FIELDS = ("intent", "title", "region", "time", "chain", "followup")
 # 백그라운드 태스크가 GC로 사라지지 않게 참조를 잡아 둔다(asyncio 문서 권고)
 _shadow_tasks: set[asyncio.Task[None]] = set()
@@ -70,10 +105,17 @@ class ChatOrchestrator:
             return None
         self._start_shadow(message, history, u, time.monotonic() - t0, trace_id)
         intent = self._guard_intent(u, message)
-        movie = await self._verify_title(u.title)
+        title = u.title
+        if title and not _title_grounded(title, message, history):
+            # 2.4B 이해 모델이 발화에 없는 제목을 지어낸다(2026-10-07 운영 실측: "지금 극장에서 볼 만한
+            # 영화"→어벤져스: 엔드게임 예매, "공포는 싫고…"→인셉션, "인터스텔라 같은…"→아르테미스).
+            # 카탈로그에 실재하는 제목이라 아래 검증을 통과하므로, 발화·직전 대화에 근거가 있을 때만 쓴다.
+            logger.info("[Orchestrator] trace=%s 근거 없는 제목 버림 %r", trace_id, title)
+            title = None
+        movie = await self._verify_title(title)
         slots = VerifiedSlots(
             intent=intent,
-            title_text=u.title,
+            title_text=title,
             movie=movie,
             region=u.region,
             time=u.time,
@@ -85,7 +127,7 @@ class ChatOrchestrator:
             trace_id,
             intent,
             u.intent,
-            u.title,
+            title,
             f"{movie.title}({movie.year})" if movie else None,
             u.region,
             u.followup,

@@ -7,6 +7,7 @@ ChatInteractor가 destination=evaluate일 때 위임하는 앱 레이어 서비�
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from dataclasses import field as dataclasses_field
 
@@ -29,6 +30,20 @@ logger = logging.getLogger(__name__)
 # 자체 리뷰가 이보다 적으면 표본 부족을 반드시 명시한다(정직성 규칙).
 _SMALL_SAMPLE_THRESHOLD = 3
 
+# mova 리뷰가 없는데 모델이 쓰는 별점 구절 — "별점 0(리뷰 3건, 참고용)으로," "별점 2.5(리뷰 3건, 참고용)인"
+# (2026-10-07 운영 실측: 인셉션·기생충·라라랜드 모두 mova 리뷰 0건). 프롬프트로 막고, 새면 여기서 지운다.
+_UNBACKED_RATING = re.compile(
+    r"\s*(?:mova\s*)?별점\s*\d+(?:\.\d+)?\s*점?\s*(?:\([^)]*\))?"
+    r"\s*(?:인\s+|으로[,]?\s*|이며[,]?\s*|이고[,]?\s*|이에요[.]?\s*|입니다[.]?\s*|[.,]\s*)?"
+)
+
+
+def strip_unbacked_rating(text: str) -> str:
+    """근거(mova 리뷰 평균)가 없을 때 답변에서 별점 구절을 지운다."""
+    out = _UNBACKED_RATING.sub(" ", text)
+    return re.sub(r"\s{2,}", " ", out).replace(" .", ".").strip()
+
+
 _EVALUATION_SYSTEM_PROMPT = (
     "너는 mova의 영화 평가 도우미다. 아래 [데이터]만 근거로 해당 작품을 한국어로 "
     "**짧게(2~4문장)** 평가한다. 규칙:\n"
@@ -36,8 +51,9 @@ _EVALUATION_SYSTEM_PROMPT = (
     "2) 이어서 리뷰 발췌([mova 리뷰]·[관객 리뷰])의 공통 반응을 1~2문장으로 **요약**한다 — "
     "발췌를 그대로 옮기거나 나열하지 말고, 좋았다는 점과 아쉬웠다는 점을 압축한다. "
     "리뷰가 없으면 그 문장은 생략한다.\n"
-    "3) mova 리뷰 평균 별점은 '별점 4.5(리뷰 3건)'처럼 한 번만 짧게 언급하고, 표본 부족 표시가 있으면 "
-    "'참고용'이라고 덧붙인다. 다른 사이트 평점은 언급하지 않는다.\n"
+    "3) [mova 리뷰]에 평균 별점이 있을 때만 '별점 4.5(리뷰 3건)'처럼 한 번 짧게 언급하고, 표본 부족 표시가 "
+    "있으면 '참고용'이라고 덧붙인다. 평균 별점이 없으면 별점·리뷰 건수를 말하지 않는다 — [관객 리뷰] 개수를 "
+    "별점 건수로 쓰지 않는다. 다른 사이트 평점은 언급하지 않는다.\n"
     "4) 데이터에 없는 내용(수상·흥행·감독 의도 등)을 지어내지 않는다.\n"
     "5) 영어 리뷰는 한국어로 요약해 반영한다.\n"
     "6) '[정량]'·'[정성]' 같은 라벨·머리말·목록 없이 자연스러운 문장으로만 쓴다.\n"
@@ -192,12 +208,14 @@ class MovieEvaluationService:
     ) -> str:
         # 평점은 mova 자체 리뷰 기준만 — TMDB 유래 평점은 넣지 않는다(2026-09-28 사용자 결정
         # "우리 mova 기준으로 봐야지"). 외부(TMDB) 리뷰 본문은 관객 반응 근거로만 쓴다.
+        has_rating = aggregate_count > 0 and aggregate_avg is not None
         lines = [
             f"[작품] {title} ({year or '연도 미상'}) | 장르: {', '.join(genres) or '미상'}",
-            f"[mova 리뷰] {aggregate_count}건"
-            + (f", 평균 별점 {aggregate_avg}(5점 만점)" if aggregate_avg is not None else ""),
+            f"[mova 리뷰] {aggregate_count}건, 평균 별점 {aggregate_avg}(5점 만점)"
+            if has_rating
+            else "[mova 리뷰] 없음 — 별점을 언급하지 말 것",
         ]
-        if aggregate_count < _SMALL_SAMPLE_THRESHOLD:
+        if has_rating and aggregate_count < _SMALL_SAMPLE_THRESHOLD:
             lines.append(f"[주의] mova 리뷰 표본 부족(임계 {_SMALL_SAMPLE_THRESHOLD}건 미만).")
         if synopsis:
             lines.append(f"[시놉시스] {synopsis[:300]}")
@@ -223,4 +241,4 @@ class MovieEvaluationService:
             if synopsis:
                 summary += f" 줄거리: {synopsis[:150]}"
             return summary + " 지금 상세 평가 문장을 만드는 응답이 혼잡해서 숫자만 먼저 전해드려요."
-        return answer.text
+        return answer.text if has_rating else strip_unbacked_rating(answer.text)
