@@ -28,40 +28,80 @@
 
 ---
 
-## 2026-10-07
+## 2026-10-07 (5) — mova 랭킹(영화 상세 열람 수)
 
 ### 작업 내용
-- 사용자 요청: 노트북/집컴 중 어디서 서빙 중인지 매번 묻지 않고 어드민에서 보게 → 어드민 홈에 "서빙 서버" 배지.
-  이어서 "도메인 챗봇(홈 AI 채팅)·mova 챗봇을 따로" → 챗봇별로 지금 답하는 LLM 위치 카드.
-- 사용자 문의 "Tailscale 연결했는데 접속 못 한다 / 밖에서 GPU가 안 돈다" 점검. 결론: **밖에서도 GPU는 돈다** — 집컴 운영
-  파드에서 `:11435`·`:11436`에 `exaone3.5:2.4b` 1토큰 생성 → 둘 다 200, 직후 노트북 `ollama ps`에 2.4B가 `size_vram` 전량(GPU).
-  밖에서 안 되는 건 **노트북의 앱 서빙**뿐 — `desktop-link`가 내부 IP(172.30.1.21) 고정이라 재시도 67회째 시간 초과 →
-  serve-agent가 노트북 터널 0, 집컴이 서빙(설계대로, k8s/failover/README.md). Tailscale 자체는 direct 12ms.
-  desktop-link를 Tailscale로 돌리면 밖에서도 노트북이 서빙하지만 DB 쿼리마다 인터넷 왕복 → 유지 권고, 사용자 결정 대기.
-- 사용자 질문 "어드민 앱 관리·에이전트는 무슨 기능?" — 앱 관리는 프론트 하드코딩 목록(`lib/admin-apps-api.ts`, 백엔드 호출 없음),
-  에이전트는 `admin_agents_router.py` mock(ON/OFF는 메모리 값만, invoke·로그 가짜). 홈의 크롤링·사용자·최근 활동 수치도 mock.
+- 사용자: 랭킹 "AI 검색 TOP" → "mova 랭킹", 많이 클릭한 영화 순위. 선택(AskUserQuestion): **비로그인 열람까지 전부, 최근 7일**.
+- 기존 신호는 로그인 사용자의 채팅 카드 클릭+예매 의지+평가 후 긍정(user_actions, 클릭 30건·2명뿐). 랭킹은 6시간 스냅샷인데
+  스케줄러가 노트북에서만 돌아(집컴 ENABLE_MOVA_STARTUP=false) 노트북이 밖이면 갱신이 멈추는 구조.
 
 ### 수정/구현
-- `k8s/backend.yaml`: downward API `NODE_NAME`(spec.nodeName). 노드 이름 실측: 노트북 `teagy`, 집컴 `desktop-t89e5id`.
-- `suvisdev/apps/viewer/adapter/inbound/api/v1/admin_server_router.py`(신규, `require_admin`): `GET /viewer/admin/server` →
-  `{node, machine, chatbots[]}`. 챗봇 경로는 2초 프로브로 판정 — `PORTFOLIO_LLM_OLLAMA_URL`(두 기기 모두 "노트북 GPU 전용" 입구)
-  `/api/version`, `LORA_SERVER_URL/health`. 판정 규칙은 `portfolio_chat_provider`·`market_chat_provider`의 스위치와 동일하게
-  (PORTFOLIO_LLM_BACKEND·MOVA_CHAT_AGENT·MOVA_ORCHESTRATOR_ENABLED/MODEL·RECOMMENDATION_BACKEND).
-- `suvis/lib/admin-dashboard-api.ts` `getServingServer()`, `suvis/app/admin/page.tsx` 헤더 배지 + "챗봇 LLM 경로" 카드
-  (대시보드 로드와 분리 — 실패해도 나머지 표시).
+- `movie_views`(신규, 마이그레이션 `20261007_0001`): (movie_id, viewer_key, view_date) UNIQUE — 사람·영화·하루 1회.
+  viewer_key 로그인 "u<id>"(토큰 기준), 비로그인 "v<방문자 UUID>"(쿠키 suvis_vid, 방문자 통계와 같은 값).
+- `POST /mova/rankings/views`(무인증 근거 주석): optional_user, 봇 UA 제외, UUID 형식 검증, 없는 영화 FK 위반은 무시.
+- `RankingsInteractor.get_hot`: source=chat_trend는 최근 7일 열람 수를 **조회 때 바로 집계**(스냅샷 아님). `aggregate_chat_trend`
+  (스케줄러·새로고침 스냅샷)도 같은 기준으로.
+- 봇 판정 `is_bot_user_agent`를 analytics → `shared/user_agent.py`로 이동(스포크 간 import 금지라 두 앱 공용).
+- 프론트: 영화 상세(mova-title-view) 열람 시 `recordMovieView`, 탭 "mova 랭킹", 새로고침 버튼 삭제(실시간이라 불필요).
 
 ### 오류·막힌 점
-- 처음 쓴 에이전트 플래그 판정이 "0/false/no가 아니면 켜짐"이라 빈 값도 켜짐으로 읽혔다 → 프로바이더와 같은
-  `in ("1","true","yes")`로 맞춤. 이해 모델 기본값도 코드 실제값(`exaone3.5:7.8b`)으로 정정.
-- 노트북 셸에 `pnpm`이 없고 `corepack pnpm`은 Node 22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` → `node_modules/.bin/tsc`·`eslint` 직접 실행.
+- 리포지토리 SQL은 임시 Postgres(pgvector:pg16)에 운영 movies 스키마(pg_dump -s)와 마이그레이션 파일 SQL을 그대로 적용해 실행 —
+  방문자 3+로그인 1=4(같은 방문자 반복 1회), 봇·없는 영화 제외, 8일 전 기록은 창 밖 확인.
+- ruff format이 무관한 _docs 마크다운 2개를 고쳐 되돌림.
 
 ### 데이터
-- 없음.
+- 운영 DB에 `movie_views` 테이블 추가(배포 **전에** `alembic upgrade head` — 코드가 먼저 뜨면 랭킹 조회가 깨진다). 처음엔 비어 있어
+  mova 랭킹이 비어 보이다가 열람이 쌓이며 채워진다(기존 클릭 30건은 옮기지 않음).
 
 ### 산출물
-- 테스트 `apps/viewer/tests/test_admin_server_router.py` 9개 통과(운영 이미지 docker run), ruff 통과, 프론트 tsc·eslint 통과.
-- 집컴 운영 파드에서 판정 함수 실측: 도메인 챗봇 노트북 GPU 7.8B / mova 이해 노트북 GPU 2.4B / mova 추천 집컴 GPU lora-server.
-- 화면: 임시 미리보기 라우트(가짜 응답) 1280·500px 캡처 확인 후 삭제.
+- `apps/mova/tests/test_movie_view_ranking.py` 8개, 백엔드 1,085 passed(main 기준), import-linter 7 kept, 프론트 tsc·eslint, 랭킹 화면 캡처.
+## 2026-10-07 (4) — 홈 ARDA 타일 문구
+
+### 작업 내용
+- 사용자 요청: ARDA 타일 "인기 투표 1등" → "참가 공개 투표 1위"(수치는 사용자 제공, 직접 확인 안 함).
+
+### 수정/구현
+- `suvis/lib/apps-catalog.ts` note — "참가" 뒤만 일반 공백(좁은 휴대폰에서 거기서 줄바꿈), 나머지는 줄바꿈 금지 공백.
+
+### 산출물
+- 로컬 홈 캡처 1280·500px 확인(500px도 한 줄).
+
+## 2026-10-07 (3) — mova 채팅 버그 5건 · 중복 저장 추적
+
+### 작업 내용
+- 10-07 (2) 칩 실측에서 드러난 버그를 운영에 다시 보내 trace 로그로 원인 확인(배포로 파드가 바뀌어 첫 실측 로그는 소실).
+  3건이 같은 유형: 2.4B 이해 모델이 **발화에 없는 제목을 지어내고**, 카탈로그 정확 일치 검증만 있어 통과
+  ("지금 극장에서 볼 만한 영화"→어벤져스: 엔드게임 → '극장' 예매 가드와 겹쳐 엔드게임 상영관 되묻기, "공포는 싫고…"→인셉션,
+  "인터스텔라 같은…"→아르테미스). "이번 주 박스오피스 순위"는 예매 어휘에 없어 잡담→인사말. 박스오피스 카드 경로는 에이전트
+  모드(MOVA_CHAT_AGENT=1)에만 있었다. "OO 같은 영화" 유사작 경로도 에이전트 모드에만 연결.
+- "별점 0(리뷰 3건)": 인셉션·기생충·라라랜드 모두 **mova 리뷰 0건** — 모델이 별점을 지어내고 TMDB 리뷰 수를 건수로 붙였다
+  (라라랜드 "별점 2.5"도 날조). 프롬프트 규칙이 "별점 4.5(리뷰 3건)처럼 언급"이라 리뷰 없을 때도 쓰게 유도.
+- 중복 저장: DB로 본인 계정 3쌍(09-28 여행 39·40, 10-02 송강호 74·75, 10-07 마블 77·78) 확인, 매번 첫 대화엔 첫 교환만 있고
+  사용자는 둘째 대화에서 이어감. 스크린샷 사이드바에 "마블…"이 하나뿐 = 77 저장 직후·78 생성 전 화면이 **빈 새 대화 + 같은 질문 로딩**.
+  두 번째 요청은 user 1이지만 conversation_id 없음. 운영 빌드(next build/start) + 가짜 백엔드(실제 응답 녹화 재생, 22초 지연) +
+  윈도우 크롬 CDP로 랜딩 칩·메인 칩 재현 → 1회. `?q=` 제거(router.replace) 때 입력창 DOM이 같은 요소로 남아 재마운트 가설 기각.
+  남은 후보: 로그인 표시 플립으로 셸이 익명 분기로 재마운트. 원인 미확정 → 진단 기록 추가.
+
+### 수정/구현
+- `chat_orchestrator.py` `_title_grounded`: 제목(또는 2글자 이상 낱말)이 발화·직전 6턴에 있어야 사용, 3글자 이상은 한 글자 오타 허용.
+- `market_chat_interactor.py`: 예매 어휘에 `박스\s*오피스`, `_dispatch_slots`에서 `personal_recommend_cue`=similar → 유사작 경로,
+  `_reply_recommend`에 제외 장르(검색어·키워드·후보 필터). 수신 로그에 user·conv·src.
+- `market_chat_booking_interactor.py` `_DISCOVERY_NO_TITLE`(박스오피스·볼 만한) — 제목 없음 확정 뒤(assist_slots)에만. 레거시
+  assist는 제목 해석 전에 탐색 패턴을 봐서 "인턴 극장에서 볼 만해?"가 제목을 잃지 않게 분리.
+- `domain/value_objects/genre_exclusion.py`(신규): 장르+조사+싫/말고/빼고/제외/별로/아니고 → DB 장르 라벨.
+- `market_chat_evaluation_interactor.py`: 리뷰 없으면 "[mova 리뷰] 없음 — 별점을 언급하지 말 것", 프롬프트 3) 수정,
+  `strip_unbacked_rating` 코드 가드(운영 문장 3개로 확인).
+- 진단: `MovaChatRequest.send_source`(≤60자, 로그 전용), 프론트가 "submit|chip|autosend|choice + db/anon + 마운트 id",
+  401 재시도는 `retry401|` 접두.
+
+### 오류·막힌 점
+- 운영 빌드는 정적 페이지가 빌드 시 백엔드를 불러 가짜 백엔드로는 실패 → 빌드는 운영 API, 실행만 가짜 백엔드.
+
+### 데이터
+- 운영 API 확인 질의 6건(익명) 추가 저장.
+
+### 산출물
+- `apps/mova/tests/test_chat_bugs_1007.py` 14개(운영 발화 그대로) — 백엔드 1,091 passed. 프론트 tsc·eslint.
 
 ## 2026-10-07 (2) — mova 채팅 첫 화면 스크롤·느림·추천 칩
 
@@ -103,33 +143,40 @@
 - 테스트: ontology·viewer 162 passed(agent 제외), 신규 `test_ollama_embedding_adapter.py` 3개. 프론트 tsc·eslint 통과.
 - 화면: 로컬 1280·500px — 전송 전·로딩·답변 후 문서 높이 = 뷰포트(900), 30턴 대화는 목록만 내부 스크롤(652/4526).
 
-## 2026-10-07 (5) — mova 랭킹(영화 상세 열람 수)
+## 2026-10-07
 
 ### 작업 내용
-- 사용자: 랭킹 "AI 검색 TOP" → "mova 랭킹", 많이 클릭한 영화 순위. 선택(AskUserQuestion): **비로그인 열람까지 전부, 최근 7일**.
-- 기존 신호는 로그인 사용자의 채팅 카드 클릭+예매 의지+평가 후 긍정(user_actions, 클릭 30건·2명뿐). 랭킹은 6시간 스냅샷인데
-  스케줄러가 노트북에서만 돌아(집컴 ENABLE_MOVA_STARTUP=false) 노트북이 밖이면 갱신이 멈추는 구조.
+- 사용자 요청: 노트북/집컴 중 어디서 서빙 중인지 매번 묻지 않고 어드민에서 보게 → 어드민 홈에 "서빙 서버" 배지.
+  이어서 "도메인 챗봇(홈 AI 채팅)·mova 챗봇을 따로" → 챗봇별로 지금 답하는 LLM 위치 카드.
+- 사용자 문의 "Tailscale 연결했는데 접속 못 한다 / 밖에서 GPU가 안 돈다" 점검. 결론: **밖에서도 GPU는 돈다** — 집컴 운영
+  파드에서 `:11435`·`:11436`에 `exaone3.5:2.4b` 1토큰 생성 → 둘 다 200, 직후 노트북 `ollama ps`에 2.4B가 `size_vram` 전량(GPU).
+  밖에서 안 되는 건 **노트북의 앱 서빙**뿐 — `desktop-link`가 내부 IP(172.30.1.21) 고정이라 재시도 67회째 시간 초과 →
+  serve-agent가 노트북 터널 0, 집컴이 서빙(설계대로, k8s/failover/README.md). Tailscale 자체는 direct 12ms.
+  desktop-link를 Tailscale로 돌리면 밖에서도 노트북이 서빙하지만 DB 쿼리마다 인터넷 왕복 → 유지 권고, 사용자 결정 대기.
+- 사용자 질문 "어드민 앱 관리·에이전트는 무슨 기능?" — 앱 관리는 프론트 하드코딩 목록(`lib/admin-apps-api.ts`, 백엔드 호출 없음),
+  에이전트는 `admin_agents_router.py` mock(ON/OFF는 메모리 값만, invoke·로그 가짜). 홈의 크롤링·사용자·최근 활동 수치도 mock.
 
 ### 수정/구현
-- `movie_views`(신규, 마이그레이션 `20261007_0001`): (movie_id, viewer_key, view_date) UNIQUE — 사람·영화·하루 1회.
-  viewer_key 로그인 "u<id>"(토큰 기준), 비로그인 "v<방문자 UUID>"(쿠키 suvis_vid, 방문자 통계와 같은 값).
-- `POST /mova/rankings/views`(무인증 근거 주석): optional_user, 봇 UA 제외, UUID 형식 검증, 없는 영화 FK 위반은 무시.
-- `RankingsInteractor.get_hot`: source=chat_trend는 최근 7일 열람 수를 **조회 때 바로 집계**(스냅샷 아님). `aggregate_chat_trend`
-  (스케줄러·새로고침 스냅샷)도 같은 기준으로.
-- 봇 판정 `is_bot_user_agent`를 analytics → `shared/user_agent.py`로 이동(스포크 간 import 금지라 두 앱 공용).
-- 프론트: 영화 상세(mova-title-view) 열람 시 `recordMovieView`, 탭 "mova 랭킹", 새로고침 버튼 삭제(실시간이라 불필요).
+- `k8s/backend.yaml`: downward API `NODE_NAME`(spec.nodeName). 노드 이름 실측: 노트북 `teagy`, 집컴 `desktop-t89e5id`.
+- `suvisdev/apps/viewer/adapter/inbound/api/v1/admin_server_router.py`(신규, `require_admin`): `GET /viewer/admin/server` →
+  `{node, machine, chatbots[]}`. 챗봇 경로는 2초 프로브로 판정 — `PORTFOLIO_LLM_OLLAMA_URL`(두 기기 모두 "노트북 GPU 전용" 입구)
+  `/api/version`, `LORA_SERVER_URL/health`. 판정 규칙은 `portfolio_chat_provider`·`market_chat_provider`의 스위치와 동일하게
+  (PORTFOLIO_LLM_BACKEND·MOVA_CHAT_AGENT·MOVA_ORCHESTRATOR_ENABLED/MODEL·RECOMMENDATION_BACKEND).
+- `suvis/lib/admin-dashboard-api.ts` `getServingServer()`, `suvis/app/admin/page.tsx` 헤더 배지 + "챗봇 LLM 경로" 카드
+  (대시보드 로드와 분리 — 실패해도 나머지 표시).
 
 ### 오류·막힌 점
-- 리포지토리 SQL은 임시 Postgres(pgvector:pg16)에 운영 movies 스키마(pg_dump -s)와 마이그레이션 파일 SQL을 그대로 적용해 실행 —
-  방문자 3+로그인 1=4(같은 방문자 반복 1회), 봇·없는 영화 제외, 8일 전 기록은 창 밖 확인.
-- ruff format이 무관한 _docs 마크다운 2개를 고쳐 되돌림.
+- 처음 쓴 에이전트 플래그 판정이 "0/false/no가 아니면 켜짐"이라 빈 값도 켜짐으로 읽혔다 → 프로바이더와 같은
+  `in ("1","true","yes")`로 맞춤. 이해 모델 기본값도 코드 실제값(`exaone3.5:7.8b`)으로 정정.
+- 노트북 셸에 `pnpm`이 없고 `corepack pnpm`은 Node 22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` → `node_modules/.bin/tsc`·`eslint` 직접 실행.
 
 ### 데이터
-- 운영 DB에 `movie_views` 테이블 추가(배포 **전에** `alembic upgrade head` — 코드가 먼저 뜨면 랭킹 조회가 깨진다). 처음엔 비어 있어
-  mova 랭킹이 비어 보이다가 열람이 쌓이며 채워진다(기존 클릭 30건은 옮기지 않음).
+- 없음.
 
 ### 산출물
-- `apps/mova/tests/test_movie_view_ranking.py` 8개, 백엔드 1,085 passed(main 기준), import-linter 7 kept, 프론트 tsc·eslint, 랭킹 화면 캡처.
+- 테스트 `apps/viewer/tests/test_admin_server_router.py` 9개 통과(운영 이미지 docker run), ruff 통과, 프론트 tsc·eslint 통과.
+- 집컴 운영 파드에서 판정 함수 실측: 도메인 챗봇 노트북 GPU 7.8B / mova 이해 노트북 GPU 2.4B / mova 추천 집컴 GPU lora-server.
+- 화면: 임시 미리보기 라우트(가짜 응답) 1280·500px 캡처 확인 후 삭제.
 
 ## 2026-10-05
 
