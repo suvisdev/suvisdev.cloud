@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import Select, delete, func, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mova.adapter.outbound.orm.market_chat_orm import MovaChat
+from mova.adapter.outbound.orm.market_movie_views_orm import MovaMovieView
 from mova.adapter.outbound.orm.market_rankings_orm import MovaRanking
-from mova.adapter.outbound.orm.market_user_actions_orm import (
-    ACTION_BOOKING_INTENT,
-    ACTION_CLICK,
-    ACTION_EVAL_POSITIVE,
-    MovaUserAction,
-)
 from mova.adapter.outbound.orm.studio_movies_orm import MovaMovie
 from mova.app.dtos.market_rankings_dto import (
     ChatTrendAggRowDto,
@@ -30,6 +28,7 @@ from mova.domain.value_objects.market_rankings_vo import (
 )
 
 logger = logging.getLogger(__name__)
+_KST = ZoneInfo("Asia/Seoul")
 
 
 class RankingsPgRepository(RankingsRepositoryPort):
@@ -78,49 +77,78 @@ class RankingsPgRepository(RankingsRepositoryPort):
         logger.debug("[RankingsPgRepository] get_hot source=%s count=%d", source, len(items))
         return RankingListDto(items=items, source=source)
 
+    def _view_counts(self, days: int, limit: int) -> Select[tuple[int, int]]:
+        """최근 days일(KST 날짜 기준, 오늘 포함) 열람 수 상위 — (movie_id, views)."""
+        since = datetime.now(UTC).astimezone(_KST).date() - timedelta(days=days - 1)
+        views = func.count(MovaMovieView.id)
+        return (
+            select(MovaMovieView.movie_id.label("movie_id"), views.label("views"))
+            .where(MovaMovieView.view_date >= since)
+            .group_by(MovaMovieView.movie_id)
+            # 동점이면 최근에 열린 영화가 위
+            .order_by(views.desc(), func.max(MovaMovieView.viewed_at).desc())
+            .limit(limit)
+        )
+
     async def aggregate_chat_trend(self, days: int, limit: int) -> list[ChatTrendAggRowDto]:
-        """AI 검색 TOP 집계 — 2026-08-13: pick/hit(노출·응답) → user_actions.click.
+        """mova 랭킹 집계 — 2026-10-07: 채팅 카드 클릭(user_actions) → 영화 상세 열람(movie_views).
 
-        사용자가 채팅 결과 카드를 실제로 클릭한 경우만 신호로 카운트. 노출
-        (picks) 신호는 완전히 제외 — "검색만 하고 순위에 반영되는 건 이상,
-        클릭했을 때만 반영해야" 지침 반영.
-
-        2026-08-28 확장: 채팅 3트랙 결정에 따라 예매 의지(booking_intent)와
-        평가 후 긍정 반응(eval_positive)도 신호에 포함한다 — 단순 평가/예매
-        질의 자체는 여전히 미집계(액션이 기록되지 않으므로 자연 배제).
+        사용자 결정 "많이 클릭한 영화를 순위별로, 비로그인 열람까지". 어디서 들어오든(채팅 카드·목록·검색·랭킹)
+        상세를 연 것을 사람·영화·하루 1회로 센다. 예매 의지·평가 후 긍정 반응은 "클릭"이 아니라 뺐다.
         """
-        since = datetime.now(UTC) - timedelta(days=days)
-        click_count = func.count(MovaUserAction.id)
-
-        rows = (
-            await self._session.execute(
-                select(
-                    MovaUserAction.movie_id.label("movie_id"),
-                    click_count.label("click_count"),
-                )
-                .where(
-                    MovaUserAction.action_type.in_(
-                        (ACTION_CLICK, ACTION_BOOKING_INTENT, ACTION_EVAL_POSITIVE)
-                    )
-                )
-                .where(MovaUserAction.action_at >= since)
-                .group_by(MovaUserAction.movie_id)
-                .order_by(click_count.desc())
-                .limit(limit)
-            )
-        ).all()
-
+        rows = (await self._session.execute(self._view_counts(days, limit))).all()
         result = [
-            ChatTrendAggRowDto(
-                movie_id=r.movie_id,
-                click_count=int(r.click_count or 0),
-            )
-            for r in rows
+            ChatTrendAggRowDto(movie_id=r.movie_id, click_count=int(r.views or 0)) for r in rows
         ]
         logger.debug(
             "[RankingsPgRepository] aggregate_chat_trend days=%d count=%d", days, len(result)
         )
         return result
+
+    async def get_view_ranking(self, days: int, limit: int) -> RankingListDto:
+        counts = self._view_counts(days, limit).subquery()
+        rows = (
+            await self._session.execute(
+                select(MovaMovie, counts.c.views)
+                .join(counts, counts.c.movie_id == MovaMovie.id)
+                .order_by(counts.c.views.desc(), MovaMovie.id.asc())
+            )
+        ).all()
+        today = datetime.now(UTC).astimezone(_KST).date()
+        items = [
+            RankingItemDto(
+                id=m.id,
+                rank=rank,
+                movie_id=m.id,
+                chat_id=None,
+                source=RANKING_SOURCE_CHAT_TREND,
+                score=int(views),
+                badge=None,
+                ranked_at=today,
+                refined_query=None,
+                slug=m.slug,
+                title=m.title,
+                release_year=m.release_year or 0,
+                rating=float(m.rating or 0),
+                poster=m.poster_url or "",
+                genres=[],
+            )
+            for rank, (m, views) in enumerate(rows, start=1)
+        ]
+        return RankingListDto(items=items, source=RANKING_SOURCE_CHAT_TREND)
+
+    async def record_view(self, movie_id: int, viewer_key: str, view_date: date) -> bool:
+        try:
+            await self._session.execute(
+                insert(MovaMovieView)
+                .values(movie_id=movie_id, viewer_key=viewer_key, view_date=view_date)
+                .on_conflict_do_nothing(constraint="uq_movie_views_daily")
+            )
+            await self._session.commit()
+        except IntegrityError:  # 없는 movie_id(FK) — 공개 엔드포인트라 조용히 무시
+            await self._session.rollback()
+            return False
+        return True
 
     async def save_chat_trend_ranking(
         self,

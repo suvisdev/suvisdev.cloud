@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from pydantic import BaseModel, Field
 from shared.security.require_admin import AdminPrincipal, require_admin
+from shared.security.require_user import UserPrincipal, optional_user
 
 from mova.adapter.inbound.api.schemas.market_rankings_schema import (
     HotRankingListSchema,
@@ -41,9 +42,36 @@ async def get_hot_rankings(
     limit: int = Query(10, ge=1, le=50),
     use_case: RankingsUseCase = Depends(get_rankings_use_case),
 ) -> HotRankingListSchema:
-    """HOT 랭킹 조회 (source 별 최신 스냅샷)."""
+    """HOT 랭킹 조회 — box_office는 최신 스냅샷, chat_trend("mova 랭킹")는 최근 7일 열람 수를 바로 집계."""
     dto = await use_case.get_hot(source, limit)
     return dto.to_schema()
+
+
+class MovieViewRequest(BaseModel):
+    movie_id: int = Field(ge=1)
+    visitor_id: str | None = Field(default=None, max_length=64)
+
+
+@market_rankings_router.post("/views", status_code=204)
+async def record_movie_view(
+    req: MovieViewRequest,
+    request: Request,
+    principal: UserPrincipal | None = Depends(optional_user),
+    use_case: RankingsUseCase = Depends(get_rankings_use_case),
+) -> Response:
+    """영화 상세 열람 1건 — "mova 랭킹"(최근 7일 열람 수)의 신호(2026-10-07).
+
+    무인증: 비로그인 열람도 센다는 사용자 결정이라 인증을 요구할 수 없다. 받는 값은 영화 번호와 클라이언트가
+    만든 방문자 UUID뿐(개인정보 없음). 같은 (영화, 사람, 하루)는 한 번만 저장되고 봇 UA는 버려, 한 방문자가
+    부풀릴 수 있는 건 영화당 하루 1표다. 로그인이면 토큰의 사용자로 센다(바디 값은 쓰지 않음).
+    """
+    await use_case.record_view(
+        req.movie_id,
+        user_id=principal.user_id if principal else None,
+        visitor_id=req.visitor_id,
+        user_agent=request.headers.get("user-agent"),
+    )
+    return Response(status_code=204)
 
 
 @market_rankings_router.post("/refresh", response_model=RefreshRankingResponseSchema)

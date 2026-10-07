@@ -28,40 +28,43 @@
 
 ---
 
-## 2026-10-07
+## 2026-10-07 (5) — mova 랭킹(영화 상세 열람 수)
 
 ### 작업 내용
-- 사용자 요청: 노트북/집컴 중 어디서 서빙 중인지 매번 묻지 않고 어드민에서 보게 → 어드민 홈에 "서빙 서버" 배지.
-  이어서 "도메인 챗봇(홈 AI 채팅)·mova 챗봇을 따로" → 챗봇별로 지금 답하는 LLM 위치 카드.
-- 사용자 문의 "Tailscale 연결했는데 접속 못 한다 / 밖에서 GPU가 안 돈다" 점검. 결론: **밖에서도 GPU는 돈다** — 집컴 운영
-  파드에서 `:11435`·`:11436`에 `exaone3.5:2.4b` 1토큰 생성 → 둘 다 200, 직후 노트북 `ollama ps`에 2.4B가 `size_vram` 전량(GPU).
-  밖에서 안 되는 건 **노트북의 앱 서빙**뿐 — `desktop-link`가 내부 IP(172.30.1.21) 고정이라 재시도 67회째 시간 초과 →
-  serve-agent가 노트북 터널 0, 집컴이 서빙(설계대로, k8s/failover/README.md). Tailscale 자체는 direct 12ms.
-  desktop-link를 Tailscale로 돌리면 밖에서도 노트북이 서빙하지만 DB 쿼리마다 인터넷 왕복 → 유지 권고, 사용자 결정 대기.
-- 사용자 질문 "어드민 앱 관리·에이전트는 무슨 기능?" — 앱 관리는 프론트 하드코딩 목록(`lib/admin-apps-api.ts`, 백엔드 호출 없음),
-  에이전트는 `admin_agents_router.py` mock(ON/OFF는 메모리 값만, invoke·로그 가짜). 홈의 크롤링·사용자·최근 활동 수치도 mock.
+- 사용자: 랭킹 "AI 검색 TOP" → "mova 랭킹", 많이 클릭한 영화 순위. 선택(AskUserQuestion): **비로그인 열람까지 전부, 최근 7일**.
+- 기존 신호는 로그인 사용자의 채팅 카드 클릭+예매 의지+평가 후 긍정(user_actions, 클릭 30건·2명뿐). 랭킹은 6시간 스냅샷인데
+  스케줄러가 노트북에서만 돌아(집컴 ENABLE_MOVA_STARTUP=false) 노트북이 밖이면 갱신이 멈추는 구조.
 
 ### 수정/구현
-- `k8s/backend.yaml`: downward API `NODE_NAME`(spec.nodeName). 노드 이름 실측: 노트북 `teagy`, 집컴 `desktop-t89e5id`.
-- `suvisdev/apps/viewer/adapter/inbound/api/v1/admin_server_router.py`(신규, `require_admin`): `GET /viewer/admin/server` →
-  `{node, machine, chatbots[]}`. 챗봇 경로는 2초 프로브로 판정 — `PORTFOLIO_LLM_OLLAMA_URL`(두 기기 모두 "노트북 GPU 전용" 입구)
-  `/api/version`, `LORA_SERVER_URL/health`. 판정 규칙은 `portfolio_chat_provider`·`market_chat_provider`의 스위치와 동일하게
-  (PORTFOLIO_LLM_BACKEND·MOVA_CHAT_AGENT·MOVA_ORCHESTRATOR_ENABLED/MODEL·RECOMMENDATION_BACKEND).
-- `suvis/lib/admin-dashboard-api.ts` `getServingServer()`, `suvis/app/admin/page.tsx` 헤더 배지 + "챗봇 LLM 경로" 카드
-  (대시보드 로드와 분리 — 실패해도 나머지 표시).
+- `movie_views`(신규, 마이그레이션 `20261007_0001`): (movie_id, viewer_key, view_date) UNIQUE — 사람·영화·하루 1회.
+  viewer_key 로그인 "u<id>"(토큰 기준), 비로그인 "v<방문자 UUID>"(쿠키 suvis_vid, 방문자 통계와 같은 값).
+- `POST /mova/rankings/views`(무인증 근거 주석): optional_user, 봇 UA 제외, UUID 형식 검증, 없는 영화 FK 위반은 무시.
+- `RankingsInteractor.get_hot`: source=chat_trend는 최근 7일 열람 수를 **조회 때 바로 집계**(스냅샷 아님). `aggregate_chat_trend`
+  (스케줄러·새로고침 스냅샷)도 같은 기준으로.
+- 봇 판정 `is_bot_user_agent`를 analytics → `shared/user_agent.py`로 이동(스포크 간 import 금지라 두 앱 공용).
+- 프론트: 영화 상세(mova-title-view) 열람 시 `recordMovieView`, 탭 "mova 랭킹", 새로고침 버튼 삭제(실시간이라 불필요).
 
 ### 오류·막힌 점
-- 처음 쓴 에이전트 플래그 판정이 "0/false/no가 아니면 켜짐"이라 빈 값도 켜짐으로 읽혔다 → 프로바이더와 같은
-  `in ("1","true","yes")`로 맞춤. 이해 모델 기본값도 코드 실제값(`exaone3.5:7.8b`)으로 정정.
-- 노트북 셸에 `pnpm`이 없고 `corepack pnpm`은 Node 22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` → `node_modules/.bin/tsc`·`eslint` 직접 실행.
+- 리포지토리 SQL은 임시 Postgres(pgvector:pg16)에 운영 movies 스키마(pg_dump -s)와 마이그레이션 파일 SQL을 그대로 적용해 실행 —
+  방문자 3+로그인 1=4(같은 방문자 반복 1회), 봇·없는 영화 제외, 8일 전 기록은 창 밖 확인.
+- ruff format이 무관한 _docs 마크다운 2개를 고쳐 되돌림.
 
 ### 데이터
-- 없음.
+- 운영 DB에 `movie_views` 테이블 추가(배포 **전에** `alembic upgrade head` — 코드가 먼저 뜨면 랭킹 조회가 깨진다). 처음엔 비어 있어
+  mova 랭킹이 비어 보이다가 열람이 쌓이며 채워진다(기존 클릭 30건은 옮기지 않음).
 
 ### 산출물
-- 테스트 `apps/viewer/tests/test_admin_server_router.py` 9개 통과(운영 이미지 docker run), ruff 통과, 프론트 tsc·eslint 통과.
-- 집컴 운영 파드에서 판정 함수 실측: 도메인 챗봇 노트북 GPU 7.8B / mova 이해 노트북 GPU 2.4B / mova 추천 집컴 GPU lora-server.
-- 화면: 임시 미리보기 라우트(가짜 응답) 1280·500px 캡처 확인 후 삭제.
+- `apps/mova/tests/test_movie_view_ranking.py` 8개, 백엔드 1,085 passed(main 기준), import-linter 7 kept, 프론트 tsc·eslint, 랭킹 화면 캡처.
+## 2026-10-07 (4) — 홈 ARDA 타일 문구
+
+### 작업 내용
+- 사용자 요청: ARDA 타일 "인기 투표 1등" → "참가 공개 투표 1위"(수치는 사용자 제공, 직접 확인 안 함).
+
+### 수정/구현
+- `suvis/lib/apps-catalog.ts` note — "참가" 뒤만 일반 공백(좁은 휴대폰에서 거기서 줄바꿈), 나머지는 줄바꿈 금지 공백.
+
+### 산출물
+- 로컬 홈 캡처 1280·500px 확인(500px도 한 줄).
 
 ## 2026-10-07 (3) — mova 채팅 버그 5건 · 중복 저장 추적
 
@@ -140,16 +143,40 @@
 - 테스트: ontology·viewer 162 passed(agent 제외), 신규 `test_ollama_embedding_adapter.py` 3개. 프론트 tsc·eslint 통과.
 - 화면: 로컬 1280·500px — 전송 전·로딩·답변 후 문서 높이 = 뷰포트(900), 30턴 대화는 목록만 내부 스크롤(652/4526).
 
-## 2026-10-07 (4) — 홈 ARDA 타일 문구
+## 2026-10-07
 
 ### 작업 내용
-- 사용자 요청: ARDA 타일 "인기 투표 1등" → "참가 공개 투표 1위"(수치는 사용자 제공, 직접 확인 안 함).
+- 사용자 요청: 노트북/집컴 중 어디서 서빙 중인지 매번 묻지 않고 어드민에서 보게 → 어드민 홈에 "서빙 서버" 배지.
+  이어서 "도메인 챗봇(홈 AI 채팅)·mova 챗봇을 따로" → 챗봇별로 지금 답하는 LLM 위치 카드.
+- 사용자 문의 "Tailscale 연결했는데 접속 못 한다 / 밖에서 GPU가 안 돈다" 점검. 결론: **밖에서도 GPU는 돈다** — 집컴 운영
+  파드에서 `:11435`·`:11436`에 `exaone3.5:2.4b` 1토큰 생성 → 둘 다 200, 직후 노트북 `ollama ps`에 2.4B가 `size_vram` 전량(GPU).
+  밖에서 안 되는 건 **노트북의 앱 서빙**뿐 — `desktop-link`가 내부 IP(172.30.1.21) 고정이라 재시도 67회째 시간 초과 →
+  serve-agent가 노트북 터널 0, 집컴이 서빙(설계대로, k8s/failover/README.md). Tailscale 자체는 direct 12ms.
+  desktop-link를 Tailscale로 돌리면 밖에서도 노트북이 서빙하지만 DB 쿼리마다 인터넷 왕복 → 유지 권고, 사용자 결정 대기.
+- 사용자 질문 "어드민 앱 관리·에이전트는 무슨 기능?" — 앱 관리는 프론트 하드코딩 목록(`lib/admin-apps-api.ts`, 백엔드 호출 없음),
+  에이전트는 `admin_agents_router.py` mock(ON/OFF는 메모리 값만, invoke·로그 가짜). 홈의 크롤링·사용자·최근 활동 수치도 mock.
 
 ### 수정/구현
-- `suvis/lib/apps-catalog.ts` note — "참가" 뒤만 일반 공백(좁은 휴대폰에서 거기서 줄바꿈), 나머지는 줄바꿈 금지 공백.
+- `k8s/backend.yaml`: downward API `NODE_NAME`(spec.nodeName). 노드 이름 실측: 노트북 `teagy`, 집컴 `desktop-t89e5id`.
+- `suvisdev/apps/viewer/adapter/inbound/api/v1/admin_server_router.py`(신규, `require_admin`): `GET /viewer/admin/server` →
+  `{node, machine, chatbots[]}`. 챗봇 경로는 2초 프로브로 판정 — `PORTFOLIO_LLM_OLLAMA_URL`(두 기기 모두 "노트북 GPU 전용" 입구)
+  `/api/version`, `LORA_SERVER_URL/health`. 판정 규칙은 `portfolio_chat_provider`·`market_chat_provider`의 스위치와 동일하게
+  (PORTFOLIO_LLM_BACKEND·MOVA_CHAT_AGENT·MOVA_ORCHESTRATOR_ENABLED/MODEL·RECOMMENDATION_BACKEND).
+- `suvis/lib/admin-dashboard-api.ts` `getServingServer()`, `suvis/app/admin/page.tsx` 헤더 배지 + "챗봇 LLM 경로" 카드
+  (대시보드 로드와 분리 — 실패해도 나머지 표시).
+
+### 오류·막힌 점
+- 처음 쓴 에이전트 플래그 판정이 "0/false/no가 아니면 켜짐"이라 빈 값도 켜짐으로 읽혔다 → 프로바이더와 같은
+  `in ("1","true","yes")`로 맞춤. 이해 모델 기본값도 코드 실제값(`exaone3.5:7.8b`)으로 정정.
+- 노트북 셸에 `pnpm`이 없고 `corepack pnpm`은 Node 22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` → `node_modules/.bin/tsc`·`eslint` 직접 실행.
+
+### 데이터
+- 없음.
 
 ### 산출물
-- 로컬 홈 캡처 1280·500px 확인(500px도 한 줄).
+- 테스트 `apps/viewer/tests/test_admin_server_router.py` 9개 통과(운영 이미지 docker run), ruff 통과, 프론트 tsc·eslint 통과.
+- 집컴 운영 파드에서 판정 함수 실측: 도메인 챗봇 노트북 GPU 7.8B / mova 이해 노트북 GPU 2.4B / mova 추천 집컴 GPU lora-server.
+- 화면: 임시 미리보기 라우트(가짜 응답) 1280·500px 캡처 확인 후 삭제.
 
 ## 2026-10-05
 
