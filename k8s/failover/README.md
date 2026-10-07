@@ -95,8 +95,11 @@ journalctl --user -u standby-agent -n 5 --no-pager -o cat; cat ~/serve/laptop_he
 
 ## 주의
 
-- **비밀값·설정을 바꾸면 두 기기의 `.env` 를 같이.** 차이는 세 줄뿐이어야 한다(2026-10-06):
+- **비밀값·설정을 바꾸면 두 기기의 `.env` 를 같이.** 차이는 아래 줄들뿐이어야 한다(2026-10-06, 10-07 임베딩 추가):
   - 집컴 `ENABLE_MOVA_STARTUP=false` (스케줄러는 노트북만)
+  - 임베딩(bge-m3)은 집컴 올라마 고정(10-07): 집컴 `OLLAMA_EMBED_URL=http://host.docker.internal:11434`,
+    노트북 `OLLAMA_EMBED_URL=http://host.docker.internal:21435`(desktop-link → 집컴 올라마, 파드가 닿게 `0.0.0.0:21435`).
+    질문 한 줄 임베딩이 집컴 CPU 직접 약 0.1초, 노트북 GPU를 중계기·Tailscale로 거치면 약 0.35초라 네트워크 왕복이 더 컸다.
   - 홈 AI 채팅: 노트북 `PORTFOLIO_LLM_BACKEND=exaone` + `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11434`
     (노트북 GPU의 EXAONE 7.8B 먼저, 실패하면 Gemini 재시도), 집컴도 `PORTFOLIO_LLM_BACKEND=exaone` +
     `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`(10-06 — 집컴 HAProxy의 노트북 전용 입구, 예비 없음).

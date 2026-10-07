@@ -2,11 +2,12 @@ import { MovaChatShell } from "@/components/mova/mova-chat-shell"
 
 export default function MovaMainPage() {
   return (
-    // 높이를 "뷰포트 − 헤더"로 **명시**해야 챗 리스트만 내부 스크롤되고 입력창이 하단에 붙는다.
-    // 레이아웃 루트가 min-h-dvh(auto 높이)라 flex-1만으로는 안 묶인다 — 콘텐츠만큼 루트가 자라
-    // 입력창이 페이지 밖으로 밀렸다(2026-09-28 Playwright 실측: 루트 1130px > 뷰포트 900px).
-    // 헤더 실측: 데스크톱 57px(h-14+border), 모바일 86px(h-12+nav). 푸터는 스크롤 아래로 내려간다.
-    <div className="flex h-[calc(100dvh-86px)] min-h-0 flex-col overflow-hidden md:h-[calc(100dvh-57px)]">
+    // 채팅 페이지는 "헤더 + 채팅 + 푸터"가 화면에 딱 맞아 바깥 스크롤이 없다(2026-10-07 사용자 요청 — 전엔 푸터가
+    // 채팅 아래로 밀려 페이지가 푸터 높이만큼 스크롤됐다). mova-chat-fill 이 있으면 mova.css 가 레이아웃 루트를
+    // 100dvh 로 고정하고, 여기는 남은 높이(flex-1)만 차지한다. min-h-0 + overflow-hidden 이 있어야 챗 리스트만
+    // 내부 스크롤되고 입력창이 하단에 붙는다(루트가 콘텐츠만큼 자라던 2026-09-28 실측 문제).
+    // 푸터는 TMDB 출처 고지가 있어 숨기지 않는다.
+    <div className="mova-chat-fill flex min-h-0 flex-1 flex-col overflow-hidden">
       <MovaChatShell />
     </div>
   )
