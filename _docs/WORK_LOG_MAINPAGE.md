@@ -103,6 +103,34 @@
 - 테스트: ontology·viewer 162 passed(agent 제외), 신규 `test_ollama_embedding_adapter.py` 3개. 프론트 tsc·eslint 통과.
 - 화면: 로컬 1280·500px — 전송 전·로딩·답변 후 문서 높이 = 뷰포트(900), 30턴 대화는 목록만 내부 스크롤(652/4526).
 
+## 2026-10-07 (5) — mova 랭킹(영화 상세 열람 수)
+
+### 작업 내용
+- 사용자: 랭킹 "AI 검색 TOP" → "mova 랭킹", 많이 클릭한 영화 순위. 선택(AskUserQuestion): **비로그인 열람까지 전부, 최근 7일**.
+- 기존 신호는 로그인 사용자의 채팅 카드 클릭+예매 의지+평가 후 긍정(user_actions, 클릭 30건·2명뿐). 랭킹은 6시간 스냅샷인데
+  스케줄러가 노트북에서만 돌아(집컴 ENABLE_MOVA_STARTUP=false) 노트북이 밖이면 갱신이 멈추는 구조.
+
+### 수정/구현
+- `movie_views`(신규, 마이그레이션 `20261007_0001`): (movie_id, viewer_key, view_date) UNIQUE — 사람·영화·하루 1회.
+  viewer_key 로그인 "u<id>"(토큰 기준), 비로그인 "v<방문자 UUID>"(쿠키 suvis_vid, 방문자 통계와 같은 값).
+- `POST /mova/rankings/views`(무인증 근거 주석): optional_user, 봇 UA 제외, UUID 형식 검증, 없는 영화 FK 위반은 무시.
+- `RankingsInteractor.get_hot`: source=chat_trend는 최근 7일 열람 수를 **조회 때 바로 집계**(스냅샷 아님). `aggregate_chat_trend`
+  (스케줄러·새로고침 스냅샷)도 같은 기준으로.
+- 봇 판정 `is_bot_user_agent`를 analytics → `shared/user_agent.py`로 이동(스포크 간 import 금지라 두 앱 공용).
+- 프론트: 영화 상세(mova-title-view) 열람 시 `recordMovieView`, 탭 "mova 랭킹", 새로고침 버튼 삭제(실시간이라 불필요).
+
+### 오류·막힌 점
+- 리포지토리 SQL은 임시 Postgres(pgvector:pg16)에 운영 movies 스키마(pg_dump -s)와 마이그레이션 파일 SQL을 그대로 적용해 실행 —
+  방문자 3+로그인 1=4(같은 방문자 반복 1회), 봇·없는 영화 제외, 8일 전 기록은 창 밖 확인.
+- ruff format이 무관한 _docs 마크다운 2개를 고쳐 되돌림.
+
+### 데이터
+- 운영 DB에 `movie_views` 테이블 추가(배포 **전에** `alembic upgrade head` — 코드가 먼저 뜨면 랭킹 조회가 깨진다). 처음엔 비어 있어
+  mova 랭킹이 비어 보이다가 열람이 쌓이며 채워진다(기존 클릭 30건은 옮기지 않음).
+
+### 산출물
+- `apps/mova/tests/test_movie_view_ranking.py` 8개, 백엔드 1,085 passed(main 기준), import-linter 7 kept, 프론트 tsc·eslint, 랭킹 화면 캡처.
+
 ## 2026-10-05
 
 ### 작업 내용

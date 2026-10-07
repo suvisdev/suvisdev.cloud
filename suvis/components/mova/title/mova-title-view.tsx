@@ -23,6 +23,7 @@ import {
   fetchMovaReviewsByMovie,
   fetchMovaSentimentSummary,
   movaReviewToComment,
+  recordMovieView,
   removeFromWatchlist,
   toggleReviewVote,
   type ApiMovieRow,
@@ -113,6 +114,11 @@ export function MovaTitleView({
   useEffect(() => {
     setComments(movie.comments)
   }, [movie.comments])
+
+  // "mova 랭킹" 신호 — 어디서 들어왔든 상세를 열면 1번(같은 사람·영화·하루는 서버가 1번만 센다)
+  useEffect(() => {
+    if (movie.movieDbId) void recordMovieView(movie.movieDbId)
+  }, [movie.movieDbId])
 
   useEffect(() => {
     const s = getSuvisSession()

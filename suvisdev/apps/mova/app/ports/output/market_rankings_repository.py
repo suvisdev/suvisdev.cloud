@@ -24,7 +24,15 @@ class RankingsRepositoryPort(ABC):
 
     @abstractmethod
     async def aggregate_chat_trend(self, days: int, limit: int) -> list[ChatTrendAggRowDto]:
-        """최근 days일 picks를 movie_id별로 집계 — pick 횟수 + chat.hit_count 합산 상위 limit."""
+        """최근 days일 영화 상세 열람(movie_views, 사람·영화·하루 1회)을 movie_id별로 집계 — 상위 limit."""
+
+    @abstractmethod
+    async def get_view_ranking(self, days: int, limit: int) -> RankingListDto:
+        """ "mova 랭킹" — 최근 days일 열람 수 상위 limit를 조회 시점에 바로 집계(스냅샷 아님)."""
+
+    @abstractmethod
+    async def record_view(self, movie_id: int, viewer_key: str, view_date: date) -> bool:
+        """열람 1건 기록. 같은 (영화, 사람, 날짜)는 무시. 없는 영화면 False."""
 
     @abstractmethod
     async def save_chat_trend_ranking(

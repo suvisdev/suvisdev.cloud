@@ -146,8 +146,8 @@ export function MovaRecommendationCards({ items }: { items: MovaRecommendation[]
             key={item.id}
             href={`/mova/title/${item.id}`}
             onClick={() => {
-              // AI 검색 TOP 랭킹은 "노출(pick)"이 아닌 "클릭"만 신호로 삼음
-              // (2026-08-13). 비로그인은 트래킹 안 됨 — 백엔드가 401을 조용히 삼킴.
+              // 채팅 카드 클릭 기록(로그인만, 2026-08-13). mova 랭킹은 2026-10-07부터 이 클릭이 아니라
+              // 상세 화면 열람(비로그인 포함, recordMovieView)으로 센다 — 카드를 누르면 상세가 열려 함께 잡힌다.
               if (item.movieDbId && getSuvisSession()) {
                 void addReviewActivity({
                   movie_id: item.movieDbId,

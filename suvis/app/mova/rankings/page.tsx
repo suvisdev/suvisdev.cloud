@@ -4,13 +4,13 @@ import Link from "next/link"
 import { Crown, Medal, Star, TrendingUp } from "lucide-react"
 import { fetchMovaRankings, type MovaHotRankingItem } from "@/lib/mova-api"
 import { cn } from "@/lib/utils"
-import { RankingsRefreshButton } from "./rankings-refresh-button"
 
 export const metadata: Metadata = { title: "HOT 랭킹 — Mova" }
 
 const TABS = [
   { key: "box_office", label: "박스오피스" },
-  { key: "chat_trend", label: "AI 검색 TOP" },
+  // key는 백엔드 source 그대로(chat_trend) — 2026-10-07부터 최근 7일 영화 상세 열람 수 순위
+  { key: "chat_trend", label: "mova 랭킹" },
 ] as const
 
 type SourceKey = (typeof TABS)[number]["key"]
@@ -36,8 +36,6 @@ export default async function MovaRankingsPage({
             <TrendingUp className="h-5 w-5 text-mova-accent" />
             <h1 className="text-lg font-bold text-mova-text md:text-xl">HOT 랭킹</h1>
           </div>
-          {/* 새로고침은 chat_trend 집계만 지원 (백엔드 refresh) */}
-          {source === "chat_trend" && <RankingsRefreshButton source={source} />}
         </div>
 
         {/* source 탭 — searchParams 기반 SSR 전환 */}
@@ -161,7 +159,7 @@ function Podium({ top3 }: { top3: RankingItem[] }) {
   )
 }
 
-// AI 검색 TOP처럼 아직 순위가 덜 쌓인 탭에서 빈 슬롯을 채워, 박스오피스
+// mova 랭킹처럼 아직 순위가 덜 쌓인 탭에서 빈 슬롯을 채워, 박스오피스
 // 포디움과 같은 3열 실루엣을 유지한다 (2026-08-25 두 탭 불일치 지적).
 function PodiumPlaceholder({ rank }: { rank: 1 | 2 | 3 }) {
   const posterWidth = rank === 1 ? "w-full" : "w-[88%] md:w-[90%]"
