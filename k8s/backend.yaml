@@ -52,6 +52,10 @@ spec:
             # env(아래)가 envFrom(.env)보다 우선한다 — compose의 environment: 덮어쓰기와 동일
             - name: ENV
               value: production
+            # 이 파드가 뜬 노드(teagy=노트북, desktop-t89e5id=집컴) — 어드민 홈 "서빙 서버" 표시용
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef: { fieldPath: spec.nodeName }
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef: { name: suvisdev-env, key: POSTGRES_USER }
