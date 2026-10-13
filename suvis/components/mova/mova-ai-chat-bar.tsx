@@ -83,6 +83,9 @@ type ChatState = {
   error: string | null
 }
 
+/** 서버 로그 진단용 — 어떤 경로로 보냈나(중복 저장 원인 추적, 2026-10-07). */
+type SendSource = "submit" | "chip" | "autosend" | "choice"
+
 const CHAT_STORAGE_KEY = "mova-ai-chat-history-v2"
 
 /** 서버로 보내는 대화 기록 — 추천 카드 제목을 assistant 턴 앞에 붙인다. 카드는 화면에만 있고
@@ -349,6 +352,8 @@ export function MovaAiChatBar({
   const heroInputRef = useRef<HTMLTextAreaElement>(null)
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const autoSentRef = useRef(false)
+  // 진단용 마운트 id(2026-10-07) — 같은 질문 중복 저장이 "다시 마운트된 컴포넌트"에서 나가는지 서버 로그로 가린다.
+  const mountIdRef = useRef(Math.random().toString(36).slice(2, 7))
   const chatRef = useRef(chat)
   chatRef.current = chat
   const conversationIdRef = useRef(conversationId)
@@ -504,7 +509,7 @@ export function MovaAiChatBar({
     chatInputRef.current?.focus({ preventScroll: true })
   }, [isInitial, chat.loading])
 
-  const sendMessage = useCallback(async (text: string): Promise<boolean> => {
+  const sendMessage = useCallback(async (text: string, source: SendSource): Promise<boolean> => {
     const trimmed = text.trim()
     if (!trimmed || chatRef.current.loading) return false
 
@@ -523,12 +528,13 @@ export function MovaAiChatBar({
       history: history.slice(-10).map((m) => ({ role: m.role, content: historyContent(m) })),
       model: "flash15",
       conversation_id: conversationIdRef.current,
+      send_source: `${source}|${dbModeRef.current ? "db" : "anon"}|m=${mountIdRef.current}`,
     })
-    const doFetch = () =>
+    const doFetch = (payload = body) =>
       fetch("/api/mova/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body,
+        body: payload,
       })
 
     try {
@@ -537,7 +543,9 @@ export function MovaAiChatBar({
       // 프록시가 쿠키를 지웠으니 UI 세션도 정리하고 익명으로 1회 재시도해 채팅은 안 끊기게 한다.
       if (res.status === 401 && getSuvisSession()) {
         clearSuvisSession()
-        res = await doFetch()
+        const retry = JSON.parse(body) as Record<string, unknown>
+        retry.send_source = `retry401|${retry.send_source as string}`
+        res = await doFetch(JSON.stringify(retry))
       }
       const data = (await res.json()) as {
         reply?: string
@@ -607,7 +615,7 @@ export function MovaAiChatBar({
     if (chat.loading) return
     autoSentRef.current = true
     setPendingQuery(null)
-    void sendMessage(pendingQuery).finally(() => {
+    void sendMessage(pendingQuery, "autosend").finally(() => {
       // 뒤로 가기로 재진입해도 auto-send가 다시 발화하지 않도록 URL에서 q 제거.
       router.replace(pathname, { scroll: false })
     })
@@ -615,7 +623,7 @@ export function MovaAiChatBar({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    void sendMessage(inputValue)
+    void sendMessage(inputValue, "submit")
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -675,7 +683,7 @@ export function MovaAiChatBar({
               key={hint}
               type="button"
               disabled={chat.loading}
-              onClick={() => void sendMessage(hint)}
+              onClick={() => void sendMessage(hint, "chip")}
               className="border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
             >
               {hint}
@@ -750,7 +758,7 @@ export function MovaAiChatBar({
                         key={choice.slug}
                         type="button"
                         disabled={chat.loading}
-                        onClick={() => void sendMessage(`${choice.title} 어때?`)}
+                        onClick={() => void sendMessage(`${choice.title} 어때?`, "choice")}
                         className="border-mova-border bg-mova-surface text-mova-muted hover:border-mova-accent/30 hover:bg-mova-accent-soft hover:text-mova-text rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
                       >
                         {choice.year ? `${choice.title} (${choice.year})` : choice.title}

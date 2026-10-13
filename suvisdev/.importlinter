@@ -115,6 +115,16 @@ forbidden_modules =
     titanic.app
     titanic.adapter
 
+# Rule 4b: Gildle domain must stay pure (same rule as mova/titanic).
+[importlinter:contract:gildle-domain-independence]
+name = Gildle domain must not import app or adapter
+type = forbidden
+source_modules =
+    gildle.domain
+forbidden_modules =
+    gildle.app
+    gildle.adapter
+
 # Rule 5: auth is a parallel-build gateway (see suvisdev/apps/auth/_docs/) not yet
 # wired to real traffic. No existing app may depend on it this round — the reverse
 # direction (auth -> spoke) is already covered by spoke-independence above.

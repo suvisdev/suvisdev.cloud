@@ -28,6 +28,46 @@
 
 ---
 
+## 2026-10-06
+
+### 작업 내용
+- 사용자 질문 "길들은 스타-토폴로지가 안 들어갔나" → 확인 결과 gildle은 `spoke-independence`·`hub-independence`·
+  `auth-isolation`·`shared-independence` 계약에 이미 포함, lint-imports 6/6 KEPT, gildle↔타 앱 import 0건(허브도 안 쓰는 독립 스포크).
+- 빠져 있던 것은 레이어 계약(domain → app/adapter 금지) — mova·titanic에만 있었음. 사용자 요청으로 추가.
+
+### 수정/구현
+- `suvisdev/.importlinter`: Rule 4b `gildle-domain-independence` — `gildle.domain`이 `gildle.app`·`gildle.adapter`를 import 금지(mova/titanic과 같은 형식).
+
+### 오류·막힌 점
+- 노트북 .venv에 lint-imports가 없어 `PYTHONPATH="$PWD:$PWD/apps" uvx --from import-linter lint-imports`로 실행.
+
+### 작업 내용 (2) — 웹 탭 아이콘
+- 사용자가 고른 Gemini 시안(발자국, 큰 패드를 S자 길이 음각으로 가름, 에메랄드 단색)을 `suvis/public/gildle-icon.svg`(64×64, 배경 #0A0D0A,
+  심볼 #34D399)로 다시 그리고 `suvis/app/gildle/layout.tsx` metadata `icons`로 지정. `/gildle`·`/gildle/walks`만 적용 확인. 상세 `WORK_LOG_MOVA.md` 10-06.
+  앱 런처 아이콘은 그대로(교체 여부 미정).
+
+### 작업 내용 (3) — 앱 런처 아이콘을 새 발자국 아이콘으로
+- 기존: 초록 그라데이션 + 흰 지도 핀 속 발자국. 웹 아이콘(`suvis/public/gildle-icon.svg`)과 같은 모양으로 교체.
+- `gildle/assets/icon/`: `icon.png`(1024, 꽉 찬 #0A0D0A 배경 + 심볼), `icon_bg.png`(단색 #0A0D0A), `icon_fg.png`(투명, 발자국이 캔버스의 약 60%)
+  — SVG를 헤드리스 크롬(투명 배경)으로 1024px 렌더 → `dart run flutter_launcher_icons`로 mipmap·drawable 재생성(적응형 xml은 그대로, inset 16%).
+- 미리보기 중 발견: S자 길 선이 패드 밖으로 나가 오른쪽 발가락을 가르고 아래 꼬리가 보임 → `clipPath`로 길을 패드 안에서만 그리게 수정.
+  같은 SVG라 웹 탭 아이콘(`gildle-icon.svg`)도 함께 고침.
+- 확인: xxxhdpi 결과를 원형·둥근 사각형 마스크와 구형 아이콘으로 합성해 확인. PR #182 머지(`cce00f9`).
+- **번들 1.0.5+6 빌드**(`pubspec.yaml` 1.0.4+5 → 1.0.5+6): `flutter build appbundle --release --dart-define-from-file=dart_defines.json`
+  (Gradle 87.9초, 80.3MB, key.properties `storeFile`은 빌드 동안만 `/mnt/c/` 치환 후 원복). AAB 안 런처 아이콘·전경이 새 아이콘과 픽셀 동일,
+  manifest에 1.0.5, 서명 인증서 CN=gildle(릴리스 키) 확인. 바탕화면 `길들/gildle-release-20261006-1.0.5.aab`.
+  Play 등록정보 아이콘도 새로 `길들/gildle-icon-512.png`(옛 핀 아이콘은 `gildle-icon-512-old-pin.png`로 보존).
+  **실기기 설치 확인·Play 업로드는 안 함**(사용자 작업). 이 번들엔 10-02 음성 안내 등 그 뒤 변경도 모두 포함.
+
+### 산출물
+- 검증: 7 kept, 0 broken. 위반 주입(`apps/gildle/domain/_tmp_violation.py`에 `import gildle.adapter`) 시 "Gildle domain … BROKEN" 확인 후 파일 삭제.
+- PR #174 머지(`188c261`, CI 통과). backend-deploy run 37402009303 **실패** — 러너(노트북)의 `deploy.sh` 롤아웃이 10분 타임아웃.
+  노트북이 집 밖(10-06 Tailscale 구성: 앱은 집컴, 노트북은 GPU만)이라 desktop-link(내부 IP 172.30.1.21)가 끊겨 새 파드가 init `wait-db`에서 대기.
+  다음 단계 "예비 서버 동기화"가 건너뛰어져 **실제 서빙 중인 집컴에는 이번 이미지가 반영되지 않음**(변경이 `.importlinter`·문서뿐이라 기능 영향 없음).
+  구조적 미결: 노트북이 집 밖이면 CD가 매번 노트북 롤아웃에서 실패하고, `sync-standby.sh` 기본 호스트도 내부 IP라 집컴 반영이 안 됨.
+
+---
+
 ## 2026-10-02
 
 ### 작업 내용

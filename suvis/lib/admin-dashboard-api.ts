@@ -1,3 +1,5 @@
+import { safeApiErrorMessage } from "@/lib/user-facing-error"
+
 export type ActivityItem = {
   id: string
   label: string
@@ -23,4 +25,26 @@ export async function getRecentActivity(): Promise<ActivityItem[]> {
     { id: "3", label: "TMDB top_rated 20편 반영", time: "3시간 전", kind: "crawl" },
     { id: "4", label: "포스터 장르 분류기 ON 전환", time: "어제", kind: "agent" },
   ]
+}
+
+export type ChatbotRoute = {
+  chatbot: string
+  step: string
+  target: string
+}
+
+export type ServingServer = {
+  node: string
+  machine: string
+  chatbots: ChatbotRoute[]
+}
+
+/** 이 요청을 받은 backend 파드의 노드(노트북/집컴)와, 챗봇별로 지금 답하는 LLM 위치. */
+export async function getServingServer(): Promise<ServingServer> {
+  const res = await fetch("/api/backend/viewer/admin/server")
+  const data = (await res.json()) as ServingServer & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(safeApiErrorMessage(data.detail, "서버 정보를 불러오지 못했습니다.", res.status))
+  }
+  return data
 }

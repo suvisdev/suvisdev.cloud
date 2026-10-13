@@ -1,0 +1,13 @@
+[Unit]
+Description=집컴 예비 판단기 (노트북 심장박동이 끊기면 집컴 터널을 켜고, 노트북이 30초 서빙하면 끈다)
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+ExecStart=/bin/bash %h/serve/standby_agent.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

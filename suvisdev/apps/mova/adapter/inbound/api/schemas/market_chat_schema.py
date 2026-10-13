@@ -16,6 +16,9 @@ class MovaChatRequest(BaseModel):
         "미지정이고 로그인 상태면 서버가 새 스레드를 생성해 응답에 id를 담아 돌려준다. "
         "비로그인은 이 값과 무관하게 저장하지 않는다.",
     )
+    # 진단용(2026-10-07) — 같은 질문이 드물게 두 번 저장되는 원인 추적. 프론트가 "어떻게 보냈나|화면 모드|마운트 id"
+    # (예: "chip|db|m=k3f9a")를 실어 보내고 서버는 로그에만 남긴다. 동작에는 쓰지 않는다.
+    send_source: str | None = Field(default=None, max_length=60)
 
     def history_dicts(self) -> list[dict[str, str]]:
         return [

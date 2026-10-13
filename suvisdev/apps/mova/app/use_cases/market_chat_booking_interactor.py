@@ -50,6 +50,10 @@ _DISCOVERY_PATTERN = re.compile(
     r"뭐\s*(?:가\s*)?(?:있|볼|봐|나왔)|무슨\s*영화|어떤\s*(?:영화|작품)|상영작|상영\s*중인"
     r"|예매\s*(?:할\s*수\s*있는|가능한)\s*(?:영화|작품)(?!관)"
 )
+# 제목이 없다고 확정된 뒤(assist_slots)에만 보는 탐색 신호(2026-10-07: "이번 주 박스오피스 순위"·
+# "지금 극장에서 볼 만한 영화"). 레거시 assist는 제목 해석 전에 _DISCOVERY_PATTERN을 보므로
+# 여기 넣으면 "인턴 극장에서 볼 만해?"가 제목을 잃는다 — 그래서 따로 둔다.
+_DISCOVERY_NO_TITLE = re.compile(r"박스\s*오피스|볼\s*만한|볼만한")
 _DISCOVERY_LIST_LIMIT = 8
 
 # 지역-선행 발화("군자쪽에 예매할 시간 있어?")의 지명 신호 — title resolver가
@@ -374,7 +378,7 @@ class BookingAssistService:
             followed = await self._follow_up_by_date(message, history, trace_id, date)
             if followed is not None:
                 return followed
-        if _DISCOVERY_PATTERN.search(message):
+        if _DISCOVERY_PATTERN.search(message) or _DISCOVERY_NO_TITLE.search(message):
             return await self._discovery_reply(trace_id)
         return await self.assist(message=message, entities=[], trace_id=trace_id, history=history)
 

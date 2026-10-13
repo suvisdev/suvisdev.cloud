@@ -56,11 +56,13 @@ sudo visudo -c          # 문법 검증(반드시 OK 확인)
 | `backend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvisdev/`·`k8s/`) | ruff·mypy·import-linter·pytest |
 | `frontend-ci.yml` | GitHub(ubuntu) | PR·main push(`suvis/`) | pnpm 10 install·type-check·lint (배포는 Vercel 연동) |
 | `gildle-ci.yml` | GitHub(ubuntu) | PR·main push(`gildle/`) | flutter 3.47.2 analyze·test (스토어 배포는 로컬) |
-| `backend-deploy.yml` | **운영 서버 셀프호스티드**(라벨 `prod`) | main의 backend-ci 성공 / 수동 | `deploy.sh --external-db --build` + 외부 200 확인 |
+| `backend-deploy.yml` | **노트북 셀프호스티드**(라벨 `prod`, 유일) | main의 backend-ci 성공 / 수동 | 노트북 `deploy.sh --external-db --build` → `sync-standby.sh`로 집컴 반영 → 외부 200 확인. 집 밖이면 노트북은 빌드·적재만(`failover/README.md` "배포") |
 
 **main에 백엔드가 머지되면 자동 배포된다.** 손으로 `deploy.sh`를 돌릴 일은 Secret만 바꿀 때
 (`.env` 수정 후 `./k8s/deploy.sh --external-db`)나 러너가 죽었을 때뿐이다. 수동 재배포는
 GitHub Actions → backend-deploy → Run workflow.
+
+**머지는 PR의 CI가 등록·통과한 뒤에 한다** — 10-05 #171을 CI 등록 전에 머지해 main CI가 취소됐고 재실행으로 복구했다.
 
 - 운영 서버는 NAT 뒤라 GitHub이 접속 못 한다 → 서버의 러너가 GitHub에 붙어 잡을 받는다. 저장소가
   비공개라 외부 PR은 러너에서 돌 수 없고, PR 검사는 전부 GitHub 러너에서 돈다.
@@ -215,6 +217,11 @@ api가 502였다(auth는 정상). 지금은 deploy.sh가 별칭을 먼저 만들
 
 ## 알려진 차이·주의
 
+- **노트북 우선 · 집컴 예비(2026-10-05)**: 노트북이 켜져 있으면 노트북이 받고 꺼지면 집컴이 받는다. DB·Redis는 집컴 한 곳,
+  배포는 노트북 러너가 빌드 후 `sync-standby.sh`로 집컴에 이미지만 옮긴다. 판단기·설치·실측은 `k8s/failover/README.md`.
+- **올라마 중계기(2026-10-05)**: backend의 `OLLAMA_BASE_URL`은 `:11435`(호스트의 HAProxy)다. 노트북 GPU가
+  켜져 있으면 노트북 올라마, 꺼지면 호스트 올라마(:11434)로 자동으로 간다. 중계기 컨테이너가 없으면 올라마 호출이
+  전부 실패하니 새 서버에선 `k8s/ollama-proxy/README.md` 설치를 먼저 한다.
 - **호스트 프로세스 접근**(Ollama :11434 · lora-server :8200 등): 파드의
   `host.docker.internal`이 hostAliases로 `10.42.0.1`(flannel cni0 게이트웨이 =
   이 WSL 호스트)에 매핑돼 있다. 호스트 쪽 프로세스가 0.0.0.0에 바인딩돼

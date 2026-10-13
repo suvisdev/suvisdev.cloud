@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Activity, Bot, Loader2, Radar, Users } from "lucide-react"
+import { Activity, Bot, Loader2, Radar, Server, Users } from "lucide-react"
 import { AdminMenuButton } from "./_components/admin-menu-button"
 import { listAgents, type AgentSummary } from "@/lib/admin-api"
 import {
   getActiveUserCount,
   getRecentActivity,
+  getServingServer,
   getTodayCrawlCount,
   type ActivityItem,
+  type ServingServer,
 } from "@/lib/admin-dashboard-api"
 
 type DashboardState = {
@@ -22,6 +24,8 @@ type DashboardState = {
 export default function AdminHomePage() {
   const [data, setData] = useState<DashboardState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [server, setServer] = useState<ServingServer | null>(null)
+  const [serverError, setServerError] = useState(false)
 
   useEffect(() => {
     Promise.all([listAgents(), getTodayCrawlCount(), getActiveUserCount(), getRecentActivity()])
@@ -29,6 +33,10 @@ export default function AdminHomePage() {
         setData({ agents, crawlCount, userCount, activity }),
       )
       .catch((e: Error) => setError(e.message))
+    // 대시보드와 따로 — 서버 정보가 실패해도 나머지는 보이게
+    getServingServer()
+      .then(setServer)
+      .catch(() => setServerError(true))
   }, [])
 
   return (
@@ -41,6 +49,16 @@ export default function AdminHomePage() {
             <p className="text-xs text-slate-400">SUVIS 운영 현황</p>
           </div>
         </div>
+        <div
+          className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
+          title={server?.node ? `노드: ${server.node}` : undefined}
+        >
+          <Server className="h-3.5 w-3.5 text-slate-400" />
+          <span>서빙 서버</span>
+          <span className="font-semibold text-slate-800">
+            {server ? server.machine : serverError ? "확인 실패" : "…"}
+          </span>
+        </div>
       </header>
 
       <div className="p-4 md:p-6 lg:p-8">
@@ -48,6 +66,29 @@ export default function AdminHomePage() {
           <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
             {error}
           </p>
+        )}
+
+        {server && (
+          <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+            <h2 className="mb-3 text-sm font-bold text-slate-800">챗봇 LLM 경로</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[...new Set(server.chatbots.map((r) => r.chatbot))].map((name) => (
+                <div key={name} className="rounded-xl bg-slate-50 px-4 py-3">
+                  <p className="mb-1.5 text-xs font-semibold text-slate-800">{name}</p>
+                  <ul className="space-y-1">
+                    {server.chatbots
+                      .filter((r) => r.chatbot === name)
+                      .map((r) => (
+                        <li key={r.step} className="flex justify-between gap-3 text-xs">
+                          <span className="shrink-0 text-slate-400">{r.step}</span>
+                          <span className="text-right font-medium text-slate-700">{r.target}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {!data ? (

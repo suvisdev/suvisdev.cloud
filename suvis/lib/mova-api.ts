@@ -3,6 +3,7 @@ import type { MovaComment, MovaMovie } from "@/lib/mova-movies"
 import { MOVA_RANKING } from "@/lib/mova-movies"
 import { coercePosterUrl } from "@/lib/mova-poster"
 import { safeApiErrorMessage } from "@/lib/user-facing-error"
+import { getOrCreateVisitorId } from "@/lib/visitor-id"
 
 const API_BASE =
   process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
@@ -625,6 +626,20 @@ export async function fetchWatched(movieId: number): Promise<boolean> {
   if (!res.ok) return false
   const data = (await res.json()) as { watched?: boolean }
   return data.watched === true
+}
+
+/** 영화 상세 열람 기록 — "mova 랭킹"(최근 7일 열람 수)의 신호. 비로그인도 방문자 쿠키 ID로 센다.
+ *  같은 사람·영화·하루는 서버가 1번만 저장한다. 실패해도 화면에는 영향이 없다(2026-10-07). */
+export async function recordMovieView(movieId: number): Promise<void> {
+  try {
+    await fetch("/api/backend/mova/rankings/views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ movie_id: movieId, visitor_id: getOrCreateVisitorId() }),
+    })
+  } catch {
+    // 집계 실패는 조용히 무시
+  }
 }
 
 export async function addReviewActivity(input: {

@@ -28,6 +28,24 @@
 
 ---
 
+## 2026-10-06
+
+### 작업 내용
+- 브라우저 탭 아이콘이 사이트 공통(v0 기본 로고)이라 Mova 전용 아이콘으로 교체. 사용자가 Gemini 시안(말풍선 + 재생 삼각형 음각, 로즈 단색)을 고름.
+
+### 수정/구현
+- `suvis/public/mova-icon.svg`: 시안을 64×64 SVG로 다시 그림(배경 #0A0A0D, 심볼 #E85D8A, 삼각형은 배경색 음각·모서리 둥글게).
+- `suvis/app/mova/layout.tsx` metadata `icons: { icon: "/mova-icon.svg" }`.
+
+### 오류·막힌 점
+- 처음엔 Next 파일 규칙(`app/mova/icon.svg`)으로 넣었으나 `<link rel="icon">`이 공통 그대로 — 루트 레이아웃이 `metadata.icons`를 직접 지정해 하위
+  파일 규칙이 못 덮음. 레이아웃 metadata로 바꾸자 `/mova`·`/mova/rankings`만 `/mova-icon.svg`, `/`·`/contact`는 공통 유지(로컬 `next dev` HTML 확인).
+
+### 산출물
+- tsc·eslint 0, 헤드리스 크롬으로 200/32/16px 렌더 확인. 길들 아이콘과 같은 PR.
+
+---
+
 ## 2026-10-02
 
 ### 작업 내용

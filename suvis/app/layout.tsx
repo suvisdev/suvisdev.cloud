@@ -19,21 +19,9 @@ export const metadata: Metadata = {
   title: 'Suvisdev - Developer Portfolio',
   description: 'Building innovative web experiences and AI-powered applications',
   generator: 'v0.app',
+  // Suvisdev 마크(코드 꺾쇠 + AI 반짝임, 2026-10-06) — 헤더는 같은 마크의 투명 배경판 suvisdev-mark.svg
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
+    icon: '/suvisdev-icon.svg',
     apple: '/apple-icon.png',
   },
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { BookOpen, ChevronDown, LayoutDashboard, LogOut, User } from "lucide-react"
 import { AuthDialog } from "@/components/auth/auth-dialog"
@@ -63,7 +64,8 @@ export function AuthLoginButton({ className }: AuthLoginButtonProps) {
           )}
           aria-label={`${name} 메뉴`}
         >
-          <User className="h-3.5 w-3.5" aria-hidden />
+          {/* 구글 프로필처럼 이름 앞에 Suvisdev 마크(2026-10-06) */}
+          <Image src="/suvisdev-icon.svg" alt="" width={20} height={20} className="h-5 w-5 rounded-full" />
           <span className="max-w-[7rem] truncate md:max-w-[9rem]">{name}</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden />
         </DropdownMenuTrigger>

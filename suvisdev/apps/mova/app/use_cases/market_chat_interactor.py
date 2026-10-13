@@ -42,6 +42,7 @@ from mova.app.use_cases.market_chat_booking_interactor import (
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
 from mova.app.use_cases.market_chat_ordinal import resolve_ordinal_reference
+from mova.domain.value_objects.genre_exclusion import excluded_genres, has_excluded_genre
 from mova.domain.value_objects.movie_title import MovieTitle, series_key
 from ontology.app.agent.agent_loop import AgentDecision
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
@@ -85,6 +86,8 @@ _BOOKING_LEXICON = re.compile(
     # "인턴 몇 시에 해?"·"오늘 몇 시에 볼 수 있어?" — 시간표 질문의 구어형(09-27 라이브 확인).
     # '몇 시간짜리'는 제외(시간≠시각).
     r"|몇\s*시(?!간)"
+    # 주간 박스오피스 = 지금 상영작(2026-10-07: "이번 주 박스오피스 순위"가 잡담으로 빠져 인사만 했다)
+    r"|박스\s*오피스"
 )
 _RECOMMEND_WORD = re.compile(r"추천")
 
@@ -441,7 +444,12 @@ class ChatInteractor(ChatUseCase):
     async def chat(self, request: MovaChatRequest) -> ChatResponseDto:
         trace_id = uuid4().hex[:8]
         logger.info(
-            "[ChatInteractor] trace=%s question 수신 len=%d", trace_id, len(request.message)
+            "[ChatInteractor] trace=%s question 수신 len=%d user=%s conv=%s src=%s",
+            trace_id,
+            len(request.message),
+            request.user_id,
+            request.conversation_id,
+            request.send_source,
         )
         # -2. 서수 지시어("두번째꺼")를 직전 추천 카드 제목으로 치환 — 이후 모든 경로가 제목을 본다.
         rewritten = resolve_ordinal_reference(request.message, request.history_dicts())
@@ -620,6 +628,19 @@ class ChatInteractor(ChatUseCase):
         # 2. RAG 시맨틱 검색(ontology Hub) + 사용자 컨텍스트 (병렬). 0건이면 기존 태그
         #    키워드 검색으로 폴백 — Hub/Ollama 임베딩 장애 시에도 채팅 자체는 계속 동작해야 한다.
         rag_query = intent["refined_query"] or request.message
+        # "공포는 싫고 …" — 싫다고 한 장르는 검색어·태그 키워드에서 지우고 후보에서도 뺀다(2026-10-07).
+        excluded, _ = excluded_genres(request.message)
+        if excluded:
+            rag_query = excluded_genres(rag_query)[1]
+            intent["keywords"] = [
+                k for k in intent["keywords"] if not has_excluded_genre(str(k), excluded)
+            ]
+            logger.info(
+                "[ChatInteractor] trace=%s 제외 장르 %s → 검색어 %r",
+                trace_id,
+                sorted(excluded),
+                rag_query,
+            )
         catalog_task = self._hub_rag.search_movies(rag_query, k=8, trace_id=trace_id)
         if request.user_id:
             # self._repo·self._preferences는 둘 다 get_mova_db() 세션을 공유하므로
@@ -756,6 +777,24 @@ class ChatInteractor(ChatUseCase):
 
             search_wider = _search_catalog  # dedup 소진 시 재검색용 (폴백 경로만)
             catalog = await _search_catalog(16)
+
+        # 2.4. 싫다고 한 장르 제거 — 장르를 모르는 후보(태그 검색 결과 등)는 카탈로그에서 채워 판정한다.
+        if excluded:
+            described = {
+                c.id: c
+                for c in await self._repo.get_catalog_items(
+                    [int(c.id) for c in catalog if str(c.id).isdigit()]
+                )
+            }
+            before = len(catalog)
+            catalog = [
+                c
+                for c in catalog
+                if not has_excluded_genre((described.get(c.id) or c).genres, excluded)
+            ]
+            logger.info(
+                "[ChatInteractor] trace=%s 제외 장르 후보 %d→%d", trace_id, before, len(catalog)
+            )
 
         # 2.5. 대화 스레드에서 이미 추천한 영화 슬러그를 뽑아 후보에서 제거한다.
         #      "다른 것도 추천해줘" 같은 후속 질의에서 같은 영화 재소개 방지.
@@ -1417,6 +1456,11 @@ class ChatInteractor(ChatUseCase):
             return await self._reply_evaluation(request, trace_id, [title] if title else [])
         if slots.intent == "general":
             return await self._reply_general(request, trace_id)
+        # "인터스텔라 같은 영화"는 그 작품과 가까운 영화로(자기 자신 제외). 에이전트 경로에만 이어져 있어
+        # 운영(오케스트레이터)에선 조건 추천으로 빠져 시드 작품이 추천에 섞였다(2026-10-07 실측).
+        mode, seed = personal_recommend_cue(request.message)
+        if mode == "similar":
+            return await self._reply_personal_recommend(request, trace_id, seed_title=seed)
         return await self._reply_recommend(request, trace_id)
 
     async def _reply_evaluation(

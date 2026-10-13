@@ -1,0 +1,13 @@
+[Unit]
+Description=노트북 서빙 판단기 (앱이 건강하면 노트북 터널을 켜고, 집컴에 심장박동을 보낸다)
+After=network-online.target desktop-link.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash %h/serve/serve_agent.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

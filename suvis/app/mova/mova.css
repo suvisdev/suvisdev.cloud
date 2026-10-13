@@ -16,6 +16,11 @@
   color: var(--mova-text);
 }
 
+/* 채팅 페이지(/mova/main): 헤더·채팅·푸터를 화면 높이에 맞춰 바깥 스크롤을 없앤다(2026-10-07) */
+.mova-app:has(.mova-chat-fill) {
+  height: 100dvh;
+}
+
 /* Light mode override — Warm Cinema
    대비 강화: muted 텍스트·border·accent-soft 채도 상향 (2026-08-14).
    기존 값은 크림 배경 위에서 chip·소문구 가독성이 약해 사용자 지적. */

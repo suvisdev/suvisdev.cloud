@@ -28,6 +28,413 @@
 
 ---
 
+## 2026-10-07 (6) — 배포·운영 확인, lora 옵션 실측
+
+### 작업 내용
+- #198·#199 머지 → 운영 DB `alembic upgrade head`(20260930_0001 → 20261007_0001, 집컴 파드에 마이그레이션 파일 kubectl cp 후 실행)
+  → #200 병합 충돌(문서 2개, 양쪽 유지) 정리 후 머지·배포.
+- 운영 확인: 버그 질문 5개 재실측 — 상영작 안내 2건, 공포 제외(G20·결전의 날·나이브스 아웃), 유사작(그래비티·마션·인셉션),
+  평가 답변 별점 언급 없음(기생충·인셉션). 로그 "근거 없는 제목 버림" 3건. 랭킹: 같은 방문자 2회→1건, 봇 미저장, 조회 반영,
+  사이트 프록시 경로(/api/backend/mova/rankings/views) 204 — 시험 기록 2건은 삭제(테이블 0건).
+- lora 지연 선택지 중 사용자 선택 "llama.cpp 설정부터 측정": 집컴 lora-server를 잠시 내리고(그동안 Gemini 폴백) 같은 GGUF로
+  옵션별 llama-server를 띄워 1,040토큰 프롬프트 3회 평균 — 현재(-fa auto) 2.67초 389 tok/s·생성 73 tok/s, -fa on 동일,
+  -fa off 3.23초·59 tok/s, -ub 1024 2.60초(3%), -ub 256 동일. KV q8_0은 head 80이 블록 32로 안 나뉘어 불가. **현재 설정이 최선**.
+  운영 로그 최근 요청 lora 총 3.8~5.3초(프롬프트 1.9~3.3초 + 생성 약 2초) — 아침 22.8초는 콜드 로딩이 겹친 값.
+
+### 오류·막힌 점
+- 첫 측정은 마지막 설정(q8_0) 실패 트레이스만 보이게 출력을 잘라 결과 유실 → 결과 줄만 모아 재측정. 측정 스크립트는 trap으로
+  종료 시 lora-server 재시작(두 번 모두 active·/health 정상 확인).
+
+### 산출물
+- 지킬: 10-07 포스트 오후 절, issues B-013(4~5초·옵션 이득 없음)·B-014 종결·I-008, mova 페이지 랭킹 설명.
+
+## 2026-10-07 (5) — mova 랭킹(영화 상세 열람 수)
+
+### 작업 내용
+- 사용자: 랭킹 "AI 검색 TOP" → "mova 랭킹", 많이 클릭한 영화 순위. 선택(AskUserQuestion): **비로그인 열람까지 전부, 최근 7일**.
+- 기존 신호는 로그인 사용자의 채팅 카드 클릭+예매 의지+평가 후 긍정(user_actions, 클릭 30건·2명뿐). 랭킹은 6시간 스냅샷인데
+  스케줄러가 노트북에서만 돌아(집컴 ENABLE_MOVA_STARTUP=false) 노트북이 밖이면 갱신이 멈추는 구조.
+
+### 수정/구현
+- `movie_views`(신규, 마이그레이션 `20261007_0001`): (movie_id, viewer_key, view_date) UNIQUE — 사람·영화·하루 1회.
+  viewer_key 로그인 "u<id>"(토큰 기준), 비로그인 "v<방문자 UUID>"(쿠키 suvis_vid, 방문자 통계와 같은 값).
+- `POST /mova/rankings/views`(무인증 근거 주석): optional_user, 봇 UA 제외, UUID 형식 검증, 없는 영화 FK 위반은 무시.
+- `RankingsInteractor.get_hot`: source=chat_trend는 최근 7일 열람 수를 **조회 때 바로 집계**(스냅샷 아님). `aggregate_chat_trend`
+  (스케줄러·새로고침 스냅샷)도 같은 기준으로.
+- 봇 판정 `is_bot_user_agent`를 analytics → `shared/user_agent.py`로 이동(스포크 간 import 금지라 두 앱 공용).
+- 프론트: 영화 상세(mova-title-view) 열람 시 `recordMovieView`, 탭 "mova 랭킹", 새로고침 버튼 삭제(실시간이라 불필요).
+
+### 오류·막힌 점
+- 리포지토리 SQL은 임시 Postgres(pgvector:pg16)에 운영 movies 스키마(pg_dump -s)와 마이그레이션 파일 SQL을 그대로 적용해 실행 —
+  방문자 3+로그인 1=4(같은 방문자 반복 1회), 봇·없는 영화 제외, 8일 전 기록은 창 밖 확인.
+- ruff format이 무관한 _docs 마크다운 2개를 고쳐 되돌림.
+
+### 데이터
+- 운영 DB에 `movie_views` 테이블 추가(배포 **전에** `alembic upgrade head` — 코드가 먼저 뜨면 랭킹 조회가 깨진다). 처음엔 비어 있어
+  mova 랭킹이 비어 보이다가 열람이 쌓이며 채워진다(기존 클릭 30건은 옮기지 않음).
+
+### 산출물
+- `apps/mova/tests/test_movie_view_ranking.py` 8개, 백엔드 1,085 passed(main 기준), import-linter 7 kept, 프론트 tsc·eslint, 랭킹 화면 캡처.
+## 2026-10-07 (4) — 홈 ARDA 타일 문구
+
+### 작업 내용
+- 사용자 요청: ARDA 타일 "인기 투표 1등" → "참가 공개 투표 1위"(수치는 사용자 제공, 직접 확인 안 함).
+
+### 수정/구현
+- `suvis/lib/apps-catalog.ts` note — "참가" 뒤만 일반 공백(좁은 휴대폰에서 거기서 줄바꿈), 나머지는 줄바꿈 금지 공백.
+
+### 산출물
+- 로컬 홈 캡처 1280·500px 확인(500px도 한 줄).
+
+## 2026-10-07 (3) — mova 채팅 버그 5건 · 중복 저장 추적
+
+### 작업 내용
+- 10-07 (2) 칩 실측에서 드러난 버그를 운영에 다시 보내 trace 로그로 원인 확인(배포로 파드가 바뀌어 첫 실측 로그는 소실).
+  3건이 같은 유형: 2.4B 이해 모델이 **발화에 없는 제목을 지어내고**, 카탈로그 정확 일치 검증만 있어 통과
+  ("지금 극장에서 볼 만한 영화"→어벤져스: 엔드게임 → '극장' 예매 가드와 겹쳐 엔드게임 상영관 되묻기, "공포는 싫고…"→인셉션,
+  "인터스텔라 같은…"→아르테미스). "이번 주 박스오피스 순위"는 예매 어휘에 없어 잡담→인사말. 박스오피스 카드 경로는 에이전트
+  모드(MOVA_CHAT_AGENT=1)에만 있었다. "OO 같은 영화" 유사작 경로도 에이전트 모드에만 연결.
+- "별점 0(리뷰 3건)": 인셉션·기생충·라라랜드 모두 **mova 리뷰 0건** — 모델이 별점을 지어내고 TMDB 리뷰 수를 건수로 붙였다
+  (라라랜드 "별점 2.5"도 날조). 프롬프트 규칙이 "별점 4.5(리뷰 3건)처럼 언급"이라 리뷰 없을 때도 쓰게 유도.
+- 중복 저장: DB로 본인 계정 3쌍(09-28 여행 39·40, 10-02 송강호 74·75, 10-07 마블 77·78) 확인, 매번 첫 대화엔 첫 교환만 있고
+  사용자는 둘째 대화에서 이어감. 스크린샷 사이드바에 "마블…"이 하나뿐 = 77 저장 직후·78 생성 전 화면이 **빈 새 대화 + 같은 질문 로딩**.
+  두 번째 요청은 user 1이지만 conversation_id 없음. 운영 빌드(next build/start) + 가짜 백엔드(실제 응답 녹화 재생, 22초 지연) +
+  윈도우 크롬 CDP로 랜딩 칩·메인 칩 재현 → 1회. `?q=` 제거(router.replace) 때 입력창 DOM이 같은 요소로 남아 재마운트 가설 기각.
+  남은 후보: 로그인 표시 플립으로 셸이 익명 분기로 재마운트. 원인 미확정 → 진단 기록 추가.
+
+### 수정/구현
+- `chat_orchestrator.py` `_title_grounded`: 제목(또는 2글자 이상 낱말)이 발화·직전 6턴에 있어야 사용, 3글자 이상은 한 글자 오타 허용.
+- `market_chat_interactor.py`: 예매 어휘에 `박스\s*오피스`, `_dispatch_slots`에서 `personal_recommend_cue`=similar → 유사작 경로,
+  `_reply_recommend`에 제외 장르(검색어·키워드·후보 필터). 수신 로그에 user·conv·src.
+- `market_chat_booking_interactor.py` `_DISCOVERY_NO_TITLE`(박스오피스·볼 만한) — 제목 없음 확정 뒤(assist_slots)에만. 레거시
+  assist는 제목 해석 전에 탐색 패턴을 봐서 "인턴 극장에서 볼 만해?"가 제목을 잃지 않게 분리.
+- `domain/value_objects/genre_exclusion.py`(신규): 장르+조사+싫/말고/빼고/제외/별로/아니고 → DB 장르 라벨.
+- `market_chat_evaluation_interactor.py`: 리뷰 없으면 "[mova 리뷰] 없음 — 별점을 언급하지 말 것", 프롬프트 3) 수정,
+  `strip_unbacked_rating` 코드 가드(운영 문장 3개로 확인).
+- 진단: `MovaChatRequest.send_source`(≤60자, 로그 전용), 프론트가 "submit|chip|autosend|choice + db/anon + 마운트 id",
+  401 재시도는 `retry401|` 접두.
+
+### 오류·막힌 점
+- 운영 빌드는 정적 페이지가 빌드 시 백엔드를 불러 가짜 백엔드로는 실패 → 빌드는 운영 API, 실행만 가짜 백엔드.
+
+### 데이터
+- 운영 API 확인 질의 6건(익명) 추가 저장.
+
+### 산출물
+- `apps/mova/tests/test_chat_bugs_1007.py` 14개(운영 발화 그대로) — 백엔드 1,091 passed. 프론트 tsc·eslint.
+
+## 2026-10-07 (2) — mova 채팅 첫 화면 스크롤·느림·추천 칩
+
+### 작업 내용
+- 사용자: "처음 채팅 쳤을 때 스크롤 없게", "mova 채팅 엑사온이야? 왜 이렇게 느려", "추천 단어 업데이트",
+  이어서 "임베딩은 데스크톱으로 고정, 속도 차이는?".
+- 느림 원인(집컴 파드 로그 + 노트북 올라마 로그 대조, 같은 질문 22.8초 → 다음 4.1초):
+  ① 노트북 올라마가 비어 있었음 — 2.4B 로드 4.8초(재부팅 뒤 첫 호출), bge-m3 로드 2.2초(임베딩 요청이 keep_alive를
+  안 보내 올라마 기본 5분 뒤 내려감) ② lora-server(집컴 GTX 1650) 약 14초 — 직접 측정: 1,430토큰 프롬프트 처리 4.1초 +
+  200토큰 생성 2.8초(72 tok/s), 같은 프롬프트 재요청은 캐시로 2.8초. 처음 보는 질문은 매번 프롬프트 처리 비용을 낸다.
+- 임베딩 속도 비교(집컴에서): 질문 한 줄 집컴 CPU 직접 67~99ms vs 노트북 GPU 경유(Tailscale, 집 밖) 245~362ms,
+  긴 영화 설명은 514ms vs 234ms. 채팅은 짧은 질문이라 집컴 고정. 집컴 첫 호출 3.6초는 몇 시간 미사용 뒤뿐(4·8분 쉰 뒤 0.1초).
+- 같은 질문이 두 번 저장(대화 77·78, 두 번째는 conversation_id 없이 새 대화) — 14일간 16건(본인 계정 2건, 둘 다 칩 문구).
+  로컬 dev + 가짜 백엔드 + 윈도우 크롬 CDP(Node 내장 WebSocket)로 랜딩·메인·칩 × 응답 3초·22초 재현 → 전부 1회. **원인 미확정.**
+  lora 호출은 `asyncio.to_thread`라 이벤트 루프 블로킹 가설은 기각.
+- 추천 칩 후보 27개를 운영 API로 실측. 드러난 채팅 버그(미수정): "지금 극장에서 볼 만한 영화" → 엔드게임 상영관 되묻기,
+  "이번 주 박스오피스 순위" → 인사말, "기생충 평점 어때?" → "별점 0(리뷰 0건)", "인셉션 줄거리" → "별점 0(리뷰 3건)",
+  "공포는 싫고 긴장감 있는 영화" → 컨저링 3, "OO 같은 영화" → 그 작품 자신 포함.
+
+### 수정/구현
+- `suvis/app/mova/main/page.tsx` + `mova.css`: `.mova-app:has(.mova-chat-fill){height:100dvh}`, 페이지는 `flex-1 min-h-0` —
+  헤더·채팅·푸터가 화면에 딱 맞음(전: 900px 화면에 문서 979px). 푸터는 TMDB 고지라 유지.
+- `suvis/lib/mova-chat-suggestions.ts`: 실측에서 잘 답한 16개로 교체(신규: 봉준호·마동석·디즈니·잔잔한 영화·라라랜드 줄거리).
+- `ontology/adapter/outbound/llm/ollama_embedding_adapter.py`: `keep_alive`(OLLAMA_KEEP_ALIVE) 전송 + `OLLAMA_EMBED_URL`
+  (없으면 OLLAMA_BASE_URL). `.env`: 집컴 `http://host.docker.internal:11434`, 노트북 `:21435`. `.env.example` 문서화.
+- `k8s/failover/desktop-link.service`: `-L 0.0.0.0:21435`(파드가 집컴 올라마에 닿게) — 노트북 유닛 반영·재시작 완료.
+- `k8s/failover/README.md` ".env 차이" 목록에 임베딩 줄 추가.
+
+### 오류·막힌 점
+- WSL 플레이라이트 크로미움은 `libasound.so.2` 없음(sudo 필요) → 윈도우 크롬 `--remote-debugging-port` + 윈도우 `node.exe`로 CDP 직접 조작.
+  WSL→윈도우 디버깅 포트는 안 닿아 스크립트를 윈도우 쪽에서 실행.
+- `pkill -f mock_backend.py`가 자기 셸까지 종료(메모리에 적힌 함정 그대로) → 포트로 pid 찾아 kill.
+- `apps/ontology/test/agent/test_agent_loop.py` 수집 오류(`No module named 'ontology'`)는 변경 전에도 동일 — 기존 문제.
+
+### 데이터
+- 운영 API 실측 채팅 27건(익명, user_id 없음)이 chat 테이블에 남음.
+
+### 산출물
+- 테스트: ontology·viewer 162 passed(agent 제외), 신규 `test_ollama_embedding_adapter.py` 3개. 프론트 tsc·eslint 통과.
+- 화면: 로컬 1280·500px — 전송 전·로딩·답변 후 문서 높이 = 뷰포트(900), 30턴 대화는 목록만 내부 스크롤(652/4526).
+
+## 2026-10-07
+
+### 작업 내용
+- 사용자 요청: 노트북/집컴 중 어디서 서빙 중인지 매번 묻지 않고 어드민에서 보게 → 어드민 홈에 "서빙 서버" 배지.
+  이어서 "도메인 챗봇(홈 AI 채팅)·mova 챗봇을 따로" → 챗봇별로 지금 답하는 LLM 위치 카드.
+- 사용자 문의 "Tailscale 연결했는데 접속 못 한다 / 밖에서 GPU가 안 돈다" 점검. 결론: **밖에서도 GPU는 돈다** — 집컴 운영
+  파드에서 `:11435`·`:11436`에 `exaone3.5:2.4b` 1토큰 생성 → 둘 다 200, 직후 노트북 `ollama ps`에 2.4B가 `size_vram` 전량(GPU).
+  밖에서 안 되는 건 **노트북의 앱 서빙**뿐 — `desktop-link`가 내부 IP(172.30.1.21) 고정이라 재시도 67회째 시간 초과 →
+  serve-agent가 노트북 터널 0, 집컴이 서빙(설계대로, k8s/failover/README.md). Tailscale 자체는 direct 12ms.
+  desktop-link를 Tailscale로 돌리면 밖에서도 노트북이 서빙하지만 DB 쿼리마다 인터넷 왕복 → 유지 권고, 사용자 결정 대기.
+- 사용자 질문 "어드민 앱 관리·에이전트는 무슨 기능?" — 앱 관리는 프론트 하드코딩 목록(`lib/admin-apps-api.ts`, 백엔드 호출 없음),
+  에이전트는 `admin_agents_router.py` mock(ON/OFF는 메모리 값만, invoke·로그 가짜). 홈의 크롤링·사용자·최근 활동 수치도 mock.
+
+### 수정/구현
+- `k8s/backend.yaml`: downward API `NODE_NAME`(spec.nodeName). 노드 이름 실측: 노트북 `teagy`, 집컴 `desktop-t89e5id`.
+- `suvisdev/apps/viewer/adapter/inbound/api/v1/admin_server_router.py`(신규, `require_admin`): `GET /viewer/admin/server` →
+  `{node, machine, chatbots[]}`. 챗봇 경로는 2초 프로브로 판정 — `PORTFOLIO_LLM_OLLAMA_URL`(두 기기 모두 "노트북 GPU 전용" 입구)
+  `/api/version`, `LORA_SERVER_URL/health`. 판정 규칙은 `portfolio_chat_provider`·`market_chat_provider`의 스위치와 동일하게
+  (PORTFOLIO_LLM_BACKEND·MOVA_CHAT_AGENT·MOVA_ORCHESTRATOR_ENABLED/MODEL·RECOMMENDATION_BACKEND).
+- `suvis/lib/admin-dashboard-api.ts` `getServingServer()`, `suvis/app/admin/page.tsx` 헤더 배지 + "챗봇 LLM 경로" 카드
+  (대시보드 로드와 분리 — 실패해도 나머지 표시).
+
+### 오류·막힌 점
+- 처음 쓴 에이전트 플래그 판정이 "0/false/no가 아니면 켜짐"이라 빈 값도 켜짐으로 읽혔다 → 프로바이더와 같은
+  `in ("1","true","yes")`로 맞춤. 이해 모델 기본값도 코드 실제값(`exaone3.5:7.8b`)으로 정정.
+- 노트북 셸에 `pnpm`이 없고 `corepack pnpm`은 Node 22에서 `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` → `node_modules/.bin/tsc`·`eslint` 직접 실행.
+
+### 데이터
+- 없음.
+
+### 산출물
+- 테스트 `apps/viewer/tests/test_admin_server_router.py` 9개 통과(운영 이미지 docker run), ruff 통과, 프론트 tsc·eslint 통과.
+- 집컴 운영 파드에서 판정 함수 실측: 도메인 챗봇 노트북 GPU 7.8B / mova 이해 노트북 GPU 2.4B / mova 추천 집컴 GPU lora-server.
+- 화면: 임시 미리보기 라우트(가짜 응답) 1280·500px 캡처 확인 후 삭제.
+
+## 2026-10-05
+
+### 작업 내용
+- 집컴(운영) mova 채팅이 느린 원인 확인: 집컴 GPU(GTX 1650 SUPER 4GB)는 lora-server가 쓰고 올라마는 CPU 전용
+  (`ollama ps` 100% CPU, `exaone3.5:2.4b` 4.2 tok/s). 노트북(RTX 4060 8GB)이 켜져 있을 때만 올라마 호출을 노트북 GPU로
+  보내고 꺼지면 집컴 CPU로 돌아가는 중계기를 붙임. DB·API·터널은 집컴 한 곳 그대로(이중화 검토 후 DB 분기 위험으로 기각).
+
+### 수정/구현
+- 집컴: HAProxy 컨테이너 `ollama-proxy`(`--network host`, `:11435`) — laptop `127.0.0.1:21434` 우선, desktop `127.0.0.1:11434` backup.
+  1초 점검, `observe layer4 error-limit 1 on-error mark-down`, `retry-on conn-failure empty-response`, `on-marked-down shutdown-sessions`.
+- 노트북: 유저 서비스 `ollama-tunnel`(`ssh -N -R 127.0.0.1:21434:127.0.0.1:11434`, `Restart=always`, 시작 전 집컴 옛 세션 포트 정리).
+  운영이 7일간 불러온 모델 4종 + 코드 기본값 2종을 같은 ID로 맞춤(공개 4종 pull, `mova-agent-v9`·`mova-understand-v7`은 집컴 blob을
+  sha256 검증 후 `ollama create`). 윈도우 로그온 작업 `WSL 유지 (올라마 터널)`(관리자 불필요) 등록.
+- `k8s/backend.yaml` `OLLAMA_BASE_URL` `:11434`→`:11435`, `k8s/ollama-proxy/`(설정 3개 + README), `k8s/README.md` 주의 항목.
+
+### 오류·막힌 점
+- 1차 설정(3초 점검)은 터널을 끊은 직후 503 1건 — backup은 활성 서버가 남아 있는 동안 재시도 대상이 아님.
+  연결 오류 즉시 제외 + L7 재시도로 바꾼 뒤 끊는 순간 실패 0건.
+- 노트북이 응답 없이 멈추는 경우(`kill -STOP`으로 흉내)는 처리 중이던 1건이 실패(약 5초) — 집컴 sshd에 ClientAlive가 없어
+  옛 세션이 포트를 쥔 채 남기 때문. 점검 타임아웃 2초 + 제외 시 연결 끊기로 이후 요청은 집컴. 1건 손실은 수용.
+- 집컴 사용자는 올라마 저장소를 못 읽음(권한) — 이미 있는 pgvector 이미지로 읽기 전용 마운트해 blob을 꺼냄.
+
+### 데이터
+- 실측(집컴에서 같은 요청): `exaone3.5:2.4b` 생성 5.40초·4.2 tok/s → 0.31초·120.5 tok/s, `bge-m3` 임베딩 0.605초 → 0.227초.
+
+### 산출물
+- 브랜치 `feat/ollama-laptop-gpu-proxy`. 머지되면 CD가 집컴 backend를 `:11435`로 재배포.
+
+### 작업 내용 (2) — #166 머지·배포, 직후 DB 크래시 2분 23초
+- PR #166 머지(7365f40) → backend-ci 통과 → 집컴 CD(`deploy.sh --external-db --build`): 이미지 빌드 약 14분 30초 + import + 롤아웃,
+  워크플로 성공(19:17). 새 backend 파드 `OLLAMA_BASE_URL=:11435` 확인.
+- **19:19:07 Postgres 서버 프로세스가 죽어 전체 재초기화 → 19:21:30 복구 완료**(약 2분 23초 동안 API가 "database system is in recovery mode" 502/타임아웃).
+  집컴 WSL 메모리 8.9GB 중 여유 84MB·스왑 3.5/4GB·load 28 — 빌드·import·새·옛 파드 동시 기동 + 집컴 CPU 올라마 상주 모델 2개.
+  데이터 손실 없음(복구 후 movies 3921·users 11 동일, redo 0.36초). SSH도 배너 교환에서 시간 초과.
+- 조치: 집컴 CPU 올라마 상주 모델 2개 내림(노트북이 받으니 예비일 뿐 — 노트북이 빠질 때만 다시 올라옴) → 사용 3.2→2.2GB, 스왑 3.5→0.9GB.
+- 확인: 운영 파드 안에서 앱의 `OllamaClient`로 호출 → 중계기 노트북 처리 16→18건, 1.09초. 공개 API 200.
+
+### 오류·막힌 점 (2)
+- 근본 원인은 집컴 메모리(8.9GB)에서 CD가 이미지를 직접 빌드하는 것. 이번 변경과 무관하게 다음 배포에서도 재발할 수 있음 — 미결.
+  후보: ① 빌드를 GitHub 러너로 옮겨 레지스트리에서 받기 ② 집컴 `.wslconfig` 메모리 상향 ③ 배포 중 올라마·lora 일시 정지.
+
+### 작업 내용 (3) — 운영 파이프라인 시험 · 집컴 예열기
+- #167(문서) 머지 — `!**/*.md` 필터로 CI·배포가 돌지 않음 확인.
+- 운영 파드에서 앱 `OllamaClient`로 3단계 시험(공개 API는 내내 200): 평상시 노트북 판단 1.18초·임베딩 0.31초 →
+  노트북 끊음 첫 호출 **판단 88.18초·임베딩 45.94초**(집컴 모델을 내려 둔 탓의 콜드 로드, 앱 타임아웃 20초 초과) · 두 번째 10.23초 →
+  복귀 1.01초·0.21초.
+- 예열기 `ollama-warm`(집컴 유저 서비스): 중계기 상태가 노트북 DOWN이 되면 집컴 모델을 바로 올리고, 노트북 UP 120초 뒤 내림.
+  재시험: 끊고 판단 22초·임베딩 51초 만에 예열 완료, 이후 운영 호출 판단 17.4초(집컴 CPU 평소 속도)·임베딩 0.42초,
+  복귀 120초 뒤 두 모델 내림·집컴 사용 메모리 2.2GB.
+
+### 작업 내용 (4) — 노트북 끄기 실측 · 공개 API 채팅 · 임베딩 상주
+- #168 머지·배포(빌드 캐시로 5분): 배포 중 최저 여유 메모리 3.5GB(1차 84MB)·DB 재시작 없음. 직후 새 backend 기동으로 1~2분 부하 14.
+- 노트북 WSL 실제 종료(`wsl --shutdown`) 3분 → 로그온 작업으로 재시작: 5초 간격 요청 56회 실패 0, 복귀 8초 만에 터널 재연결.
+- 공개 API로 도메인 챗봇·mova 실제 채팅: 노트북 끈 직후 **도메인 챗봇 504(31초)·mova 69초에 추천 0편** — 두 기능 모두
+  RAG 임베딩을 쓰는데 집컴 bge-m3 콜드 로딩(50~70초)을 그대로 기다림. 예열기에서 bge-m3만 상주로 바꿈(집컴 여유 6.7→5.1GB).
+  재시험 끈 직후 도메인 챗봇 200·8.35초, mova 200·27.78초·추천 3편. 노트북 켬 상태는 8.21초·8.17초.
+
+### 작업 내용 (5) — 노트북 우선 서빙 · 꺼지면 집컴 (DB는 집컴 한 곳)
+- 사용자 결정: 집컴이 느리고 집컴 재빌드가 오래 걸려 노트북으로 운영하되, 노트북이 꺼지면 집컴이 받게. 노트북 운영 구성은
+  10-02에 지웠으므로 k3s 재설치(사용자 sudo 1회)부터. DB 이중화(복제·승격·되돌리기) 대신 **DB·Redis를 집컴 한 곳**에 두고
+  노트북 앱이 `desktop-link`(ssh -L 5432·6379·8200·21435)로 쓰게 해 앱 계층만 전환 — 데이터가 갈라질 수 없다.
+- 판단기: 노트북 `serve-agent`(앱→DB 요청이 건강하면 노트북 터널 1, 집컴에 심장박동) · 집컴 `standby-agent`(심장박동 15초 끊기면
+  집컴 터널 1, 노트북 30초 서빙이면 0). 노트북 배포 중엔 `deploy.sh --external-db`가 터널을 1로 올리므로 검증 끝까지 0으로 붙잡음.
+- 집컴 `.env` `ENABLE_MOVA_STARTUP=false`(스케줄러는 노트북만) · 배포 러너 노트북으로(집컴 러너 등록 해제) ·
+  `k8s/sync-standby.sh`(집컴 로컬 레지스트리로 바뀐 레이어만 push → import → apply → 재시작, 집컴은 빌드 안 함).
+- 감정분석 근본 원인: k3s 파드엔 GPU가 없어 Echo가 EXAONE-2.4B를 CPU fp32로 올림 — 집컴에선 기동 직후 메모리 고갈로 DB 크래시 2회,
+  노트북에선 어댑터가 있어 실제로 CPU 8코어·5.6GB로 돎. `_gpu_available()` 없으면 배치·단건 모두 로드 안 함(테스트 2 추가, 6 통과).
+
+### 데이터 (5)
+- 첫 전환: 공개 API 24회 실패 0(노트북 서빙 22:40:19, 집컴 물러남 22:40:50).
+- 노트북 WSL 종료 3분: 공개 API **530 약 31초**(22:43:48~22:44:19) 뒤 집컴 정상. 재시작 46초 뒤 노트북 복귀, 그 사이 시간 초과 2회.
+- 예비 동기화 첫 실행 약 12분(빈 레지스트리라 전 레이어).
+
+### 오류·막힌 점 (5)
+- 노트북 `.env` 백업을 같은 분(分) 이름으로 두 번 떠서 노트북 옛 `.env`(09-29)가 덮어써짐 — 운영에 필요한 건 집컴 `.env`라 영향 없음,
+  옛 파일은 USB 백업(`D:\전달파일`, `D:\suvisdev_notebook_backup_20261002`)에 있음.
+- 재부팅 직후 k3s가 노트북 cloudflared 파드를 앱보다 먼저 되살림 → 판단기가 18초 만에 0으로(앱 503). 공개 API 오류는 관측되지 않음.
+
+### 작업 내용 (6) — #170 첫 실전 CD · 집컴 이미지 적재 단축
+- #170 머지 → 노트북 러너가 끝까지 처리, 16분 36초 성공(노트북 빌드·배포 5분 28초, push 2분 20초, 집컴 docker save→k3s import
+  6분 56초, 재시작 1분 30초). 배포 중 공개 API 300회 중 실패 6(배포 끝난 뒤 58회는 0) — 노트북 CPU(빌드 + 옛 코드의 감정분석).
+- 집컴 k3s가 로컬 레지스트리에서 직접 받게: `registries.yaml` http 미러(사용자 sudo 1회), `sync-standby.sh`에서 docker pull·save·import 제거,
+  집컴 사본 매니페스트만 `127.0.0.1:5000/...`·`imagePullPolicy: Always`. 시험 파드 pull 1.9초.
+- #171 실전: 배포 2분 16초(노트북 56초 · 집컴 동기화 59초 — push 2초, 재시작 56초). 코드 변경이 없던 배포라 빌드는 캐시.
+  머지 순서 실수로 PR CI 등록 전에 머지 → main CI가 취소돼 배포 skipped, 같은 run 재실행으로 통과 후 배포.
+
+## 2026-10-06
+
+### 작업 내용
+- 노트북 끄기 재시험(WSL 3분 종료): 공개 API 530 약 26초 후 집컴 서빙, 복귀 자동. 끈 상태 실제 채팅 — 도메인 챗봇 200 13.70·7.56초,
+  mova 200 29.81·27.53초(추천 3편). 켬 상태 mova 9.63~12.71초.
+- 켬 상태 도메인 챗봇 502 1건 — 로그: Gemini `503 UNAVAILABLE ... high demand`(전환과 무관). 재시도 + 노트북 7.8B 대체 추가:
+  `RetryHubLlmAdapter`(429·502·503·504면 1.5초 뒤 한 번 더), gemini 모드에서 `PORTFOLIO_LLM_FALLBACK_URL`이 있으면
+  Gemini(재시도 포함) 실패 시 그 주소의 EXAONE 7.8B. 노트북 `.env`만 `http://host.docker.internal:11434`(노트북 올라마 직접 —
+  중계기를 거치면 노트북이 빠졌을 때 집컴 CPU에 7.8B가 올라간다). 테스트 7 추가, 포트폴리오 채팅 27 통과.
+
+### 오류·막힌 점
+- 시험 스크립트 실수 2번: 윈도우 curl이 한글 본문을 깨뜨려 400, 경로 변환으로 채팅 스크립트를 못 찾음 → 노트북을 한 번 더 껐다 켬.
+  파이썬 송신(UTF-8)으로 바꾸고, 첫 채팅이 기록되지 않으면 끄기 전에 멈추는 가드 추가. Cloudflare는 파이썬 기본 UA를 1010으로 막음.
+
+### 작업 내용 (2) — 홈 AI 채팅 순서 변경(사용자 결정)
+- #172 배포(3분) 뒤 사용자 결정: **노트북은 EXAONE 7.8B 먼저, 실패하면 Gemini(재시도)**, 집컴은 Gemini(재시도)만.
+  `PORTFOLIO_LLM_FALLBACK_URL`(gemini→7.8B 대체)을 `PORTFOLIO_LLM_OLLAMA_URL`(exaone 모드의 7.8B 주소)로 바꾸고,
+  7.8B 타임아웃 40초(`PORTFOLIO_LLM_TIMEOUT_S`, 기존 120초) — 막히면 Gemini로 빨리 넘김. 노트북 `.env` = exaone + 노트북 올라마 직접,
+  집컴 `.env` = gemini. 테스트 29 통과.
+
+### 작업 내용 (3) — Tailscale: 어디서나 노트북 GPU · 집컴 서빙 홈 채팅도 7.8B
+- 계기: 노트북을 집 밖 Wi-Fi(`hi01`, 192.168.0.x)에 붙였더니 노트북이 서빙에서 빠지고(09:42 serve-agent 터널 1→0, 앱 503) 집컴이 서빙.
+  원인은 `desktop-link`·`ollama-tunnel`이 둘 다 집컴 내부 IP `172.30.1.21:22`로 SSH 하는 구조 — 집 밖이면 GPU 빌려주기까지 같이 끊김
+  (집컴 HAProxy는 노트북을 빼고 CPU로, 홈 채팅은 집컴 `.env`가 gemini라 Gemini만).
+- 결정(사용자): 집 밖에서는 **앱은 집컴, GPU만 노트북**. Tailscale(개인 무료) vs Cloudflare SSH 비교 후 Tailscale — 바꿀 것이 IP 하나뿐.
+- 노트북·집컴 WSL에 Tailscale 설치(사용자): `teagy-laptop` 100.118.78.100 · `home-desktop` 100.91.129.31, **직접 연결 9ms**,
+  두 기기 key expiry 끔. 덕분에 집 밖에서 집컴 SSH 가능해짐.
+
+### 수정/구현 (3) — 운영 설정만 (저장소 코드 변경 없음)
+- 노트북 `~/.config/systemd/user/ollama-tunnel.service`: `suvisdev@172.30.1.21` → `suvisdev@100.91.129.31` (ExecStartPre·ExecStart 둘 다).
+  `desktop-link`·`serve_agent.sh`는 **일부러 내부 IP 유지** — 집 밖에서 노트북이 앱까지 서빙하면 DB 쿼리가 매번 인터넷을 건넘.
+- 집컴 `~/ollama-proxy/haproxy.cfg`: 7.8B 전용 입구 `frontend ollama_laptop_in :11436` → `backend ollama_laptop`(노트북 21434만, **backup 없음**).
+  노트북이 빠지면 즉시 503 → 앱이 Gemini로. 7.8B가 집컴 CPU에 올라갈 길이 없다. 기존 :11435(임베딩·판단)는 그대로.
+- 집컴 `suvisdev/.env`: `PORTFOLIO_LLM_BACKEND=gemini` → `exaone`, `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436` 추가 →
+  시크릿 `suvisdev-env` 재생성 + `rollout restart deploy/backend`(사용자 실행 — 클로드 실행은 하네스 권한 검사 'Production Deploy'에 막힘).
+- 백업: 노트북 `ollama-tunnel.service.bak-20261006-lan`, 집컴 `haproxy.cfg.bak-20261006`·`suvisdev/.env.bak-20261006-gemini`.
+
+### 오류·막힌 점 (3)
+- 집컴 `.env` 반영 스크립트를 클로드가 실행하려다 권한 검사에 막혔는데, 같은 명령에 들어 있던 스크립트 파일 생성까지 통째로 안 돼
+  사용자가 실행하니 "No such file". 파일만 따로 만들어 다시 실행. 또 WSL 터미널에서 윈도우 경로(`C:/…`)를 써서 한 번 더 실패 → `/mnt/c/…`.
+- 저장소 원본 `k8s/ollama-proxy/ollama-tunnel.service`·`haproxy.cfg`는 아직 옛 값 — 이 파일로 재설치하면 오늘 변경이 사라짐(미결, PR 예정).
+
+### 데이터 (3) — 실측
+- 집컴 서빙 상태에서 공개 API `POST /portfolio/chat`: 첫 질문 **200 · 13.0초**(7.8B 적재 포함) → 노트북 `ollama ps` = `exaone3.5:7.8b 100% GPU 5.7GB`,
+  두 번째 **200 · 8.8초**. HAProxy 상태: `ollama/laptop UP`, `ollama_laptop/laptop UP`.
+
+### 산출물 (3)
+- 운영 설정 3곳(위) · 이 문서들(WORK_LOG·LESSONS·INTERVIEW_QUESTIONS·`k8s/failover/README.md` 주의 항목).
+
+### 작업 내용 (4) — 인수인계 반영 · 집 밖 CD 실패 문서화
+- 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`(10-05~06 변경 전체·구조·CD 실패 경로)를 읽고 저장소 문서를 현행화.
+- 계기: #174 머지 후 backend-deploy 실패(run 37402009303, 상세 `WORK_LOG_GILDLE.md` 10-06). 루트 `CLAUDE.md`가 아직
+  "프로덕션 = 노트북, db·redis도 노트북"이라 세션이 상황을 잘못 읽음.
+
+### 수정/구현 (4) — 문서만
+- 루트 `CLAUDE.md`: CI/CD 주석(노트북 러너 → sync-standby, 집 밖 실패), compose 단락, `RECOMMENDATION_BACKEND`(lora-server는 집컴),
+  주의사항 "개인 배포 환경"을 두 기기 구성으로 교체(구 "데스크톱 상시 서버 아님"·노트북 lora-server 서술 삭제).
+- `k8s/failover/README.md`: "배포"에 집 밖 CD 실패 경고·고칠 방향 후보, 홈 채팅 `.env` 서술을 집컴 exaone(:11436)으로 정정.
+- `k8s/README.md` CI/CD 표: 러너 = 노트북(유일) + sync-standby, 집 밖 실패 링크.
+- `SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`: 10-06 Tailscale 완료 인덱스 + 백로그 "노트북·집컴 이중화 후속" 4건. `LESSONS.md` ⏳ 1줄.
+
+### 오류·막힌 점 (4)
+- 미확인: 1단계 apply가 노트북 cloudflared를 1로 올린 약 15초 동안 외부 요청이 노트북으로 가서 실패했는지(인수인계 A-5 4번).
+  `CLAUDE.md` 주의사항 VRAM 항목의 `DESKTOP-IOAQ7L7` 서술은 현재 여부를 확인 못 해 그대로 둠.
+- 인수인계 개정판(섹션 B: 10-05 대화의 결정·맥락) 재반영: failover README에 GPU 자리 다툼 실측·"그대로" 결정, k8s/README에 머지 순서
+  규칙(#171 사례), PROGRESS 백로그에 방화벽 15432·`ssh home` 정리·"취업할 때까지 단순·무료" 방향. 모델 양쪽 동기화는
+  `k8s/ollama-proxy/README.md` 주의에 이미 있어 생략.
+- 새로 드러난 점: 집컴 `ENABLE_MOVA_STARTUP=false`라 노트북이 집 밖인 동안 mova 부팅·주기 작업이 어디서도 안 돈다(백로그 6번, 결정 필요).
+
+### 작업 내용 (5) — 집 밖 CD 실패 수정 (브랜치 `fix/cd-away-from-home`)
+- 사용자 요청 "2번 고쳐줘". 방향은 인수인계 A-6 후보 중 가장 단순한 조합(사용자 방향 "취업할 때까지 단순·무료").
+
+### 수정/구현 (5)
+- `.github/workflows/backend-deploy.yml` "배포": `nc -z -w 3 127.0.0.1 5432`(desktop-link 포워딩)가 되면 기존 `deploy.sh --external-db --build`,
+  안 되면 `docker build` → `k3s ctr images import` → `rollout restart backend·auth`만(기다리지 않음, Secret·매니페스트·cloudflared apply 안 함).
+- `k8s/sync-standby.sh`: `STANDBY_HOST` 기본값 `suvisdev@172.30.1.21` → 집컴 Tailscale `suvisdev@100.91.129.31`.
+- 문서: failover README "배포"(경고 → 현재 동작), k8s/README CI/CD 표, 루트 CLAUDE.md CI/CD 주석, PROGRESS·LESSONS 상태.
+- 기각: `if: always()`로 동기화만 강제 — 10분 타임아웃을 매번 기다리고 cloudflared 1 부작용이 남음. 러너 집컴 이전 — 빌드 금지 제약.
+
+### 오류·막힌 점 (5)
+- 확인한 것: 집 밖 노트북에서 `nc -z 127.0.0.1 5432` 실패(exit 1), Tailscale로 집컴 SSH·`standby-registry` `/v2/` 200, 러너 `.env`에 `KUBECONFIG` 있음,
+  `bash -n`·YAML 파싱 통과.
+- **실제 CD 검증(집 밖, 브랜치 `workflow_dispatch` — 클로드 실행은 권한 검사에 막혀 사용자 실행) run 37404372412 성공, 1분 29초**:
+  로그 "집컴 DB(127.0.0.1:5432)에 닿지 않음" 분기 → 노트북 빌드·적재·restart → `[standby]` push·집컴 apply·restart → api 200·auth 200.
+  집컴 backend·auth 새 파드 Running, 이미지 `sha256:2ff8c1d…`가 노트북 빌드와 일치. 노트북 cloudflared 0/0 유지(안 건드림),
+  노트북 파드는 `Init:0/2`로 대기(집에 오면 뜰 예정 — 미확인). 집 안 경로(`deploy.sh`)는 기존 그대로라 이번에 다시 돌리지 않음.
+- 스케줄러 결정(사용자, 10-06): 집 밖 동안 mova 주기 작업이 안 도는 것은 **그대로 감수**. 코드 확인 결과 5개 작업 모두 기동 시 바로
+  1회 실행 후 반복(채팅 트렌드 6시간, 나머지 24시간, 에디터 리뷰만 20시간 간격 가드)이라 집에 오면 자동으로 따라잡는다.
+
+### 작업 내용 (6) — 소개·연락 페이지(`/contact`) 현행화
+- 사용자 지적: 이메일 오기(`suvisdev@gmail.com`) + 소개 카드가 실제 구조와 다름. 사이트 나머지(이력서·푸터·개인정보 처리방침)는
+  이미 `ssuvisdev@gmail.com`이고 이 파일만 틀렸음. 인스타그램·X `@suvisdev`는 맞다고 사용자 확인.
+
+### 수정/구현 (6)
+- `suvis/lib/contact-profile.ts`: email → `ssuvisdev@gmail.com`. 주요 영역을 실제 구조로(웹 Next.js·앱 Flutter / Clean Architecture +
+  Hexagonal·스타 토폴로지 모듈러 모놀리식 / PostgreSQL·pgvector·Redis 집 서버 k3s / EXAONE LoRA·llama.cpp·Ollama·RAG(bge-m3)·Gemini 폴백),
+  "Neon" 삭제. 프로젝트 Titanic(데모) → Gildle, Apps 설명 "개인·팀 프로젝트 모음".
+- 검증: `tsc --noEmit` 0, eslint 0, 로컬 `next dev` + 헤드리스 크롬 캡처로 화면 확인(노트북엔 pnpm이 없어 `node_modules/.bin` 직접).
+- `/resume`(`suvis/app/resume/_components/resume-content.tsx`)의 "GPU 노트북 한 대의 k3s로 직접 운영" 두 곳(소개 문단·suvisdev.cloud 카드)
+  → "집 서버와 GPU 노트북 두 대의 k3s"(카드엔 "노트북이 빠지면 집 서버가 자동으로 넘겨받음"). tsc·eslint 0, 헤드리스 크롬 캡처 확인.
+
+### 작업 내용 (7) — 사이트 기본 탭 아이콘을 직접 만든 SV 로고로
+- 홈·`/contact`·`/resume` 등 탭 아이콘이 v0 기본 로고였음. 저장소에 쓰이지 않던 `suvis/public/suvis-logo.png`(빨강·금 육각형 SV, 722×761,
+  오른쪽 위 "DeeVid AI" 워터마크, 로고가 왼쪽 아래로 치우침)를 Pillow로 육각형만 잘라 정사각형으로: `public/suvisdev-icon.png`(512, 투명),
+  `public/apple-icon.png`(180, 배경 #0A0A0D — 애플 아이콘은 투명 불가) 교체.
+- `suvis/app/layout.tsx` metadata `icons` → `/suvisdev-icon.png` + apple. 쓰이지 않게 된 v0 파일 `icon.svg`·`icon-light/dark-32x32.png` 삭제.
+- 확인: 로컬 `next dev`에서 `/`·`/contact`·`/resume`은 새 아이콘, `/mova`·`/gildle`은 각자 아이콘 유지. 흰/어두운 배경 128·32·16px 렌더 확인, tsc·eslint 0.
+- 홈 타일: 사용자 결정으로 Mova·Gildle 원형 타일만 새 아이콘(`/mova-icon.svg`·`/gildle-icon.svg`). `image`는 `/apps` 카드 커버에도 쓰여
+  `AppCatalogItem.tileImage`(홈 타일 전용, 없으면 image)를 추가해 `/apps` 사진은 유지. Gildle "준비 중"은 완성 전까지 유지(사용자 결정).
+  로컬 캡처로 홈·`/apps` 확인, tsc·eslint 0.
+- 홈 ARDA 타일도 새 아이콘(사용자가 Gemini 시안 중 고름: 둥근 획의 A + 가운데 ✦, 보라 그라데이션)을 SVG로 다시 그려 `suvis/public/arda-icon.svg`,
+  `apps-catalog.ts` ARDA `tileImage`. **ARDA 코드·저장소는 건드리지 않음**(사용자 지시 — 이 사이트 홈 타일만). 같은 파일을 바탕화면
+  `arda-icon.svg`·`arda-icon-1024.png`로도 전달. `/apps` 카드는 기존 `apps-arda.svg` 유지.
+  → 사용자 지적("3번째랑 모양이 다르다")으로 다시 그림: 처음엔 바깥선·안쪽선이 이어진 닫힌 고리로 그렸으나 원본은 **선 하나로 그린 열린 A**
+  (다리 끝이 안쪽으로 말려 올라가 끝남, 안쪽이 비어 큰 ✦). 원본을 잘라 나란히 렌더해 비교하며 획 4.6·반짝임 크기·색을 맞춤. 바탕화면 파일도 교체.
+- 홈 약속 타일도 새 아이콘(Gemini A안: 뷰파인더 네 모서리 + 비스듬한 2톤 캡슐, 하늘색 #38BDF8·#BAE6FD, 배경 #0B1220)을
+  `suvis/public/yaksok-icon.svg`로 그려 `tileImage`(원형 타일에서 모서리가 잘려 안쪽 14~50으로 당김). 바탕화면 `yaksok-icon.svg`. 이로써 홈 타일 4개 모두 아이콘.
+- 헤더 로고(브랜치 `feat/header-logo`, 미배포): `suvis/components/header.tsx`에서 "Suvisdev" 글자 왼쪽에 탭 아이콘과 같은 SV 로고
+  (`/suvisdev-icon.png`, 24px) — 사용자 1안. 로컬 캡처로 줄 맞춤 확인, tsc·eslint 0.
+  → 같은 날 3안 결정(Gemini C안: 코드 꺾쇠 ‹ › + 가운데 앰버 ✦): 원본을 잘라 나란히 렌더하며 SVG로 다시 그림 —
+  `public/suvisdev-mark.svg`(투명, 검정 #111 꺾쇠, 헤더용 36×21) · `public/suvisdev-icon.svg`(#121212 둥근 사각형 + 흰 꺾쇠, 탭 아이콘) ·
+  `public/apple-icon.png`(180) 재생성. `app/layout.tsx` icons → `/suvisdev-icon.svg`, 헤더 이미지 → 마크. 안 쓰게 된 `suvisdev-icon.png` 삭제
+  (원본 `suvis-logo.png`은 그대로). 헤더는 `/mova`·`/admin`에선 숨고 그 외는 라이트 고정이라 검정 꺾쇠 대비 문제 없음. 바탕화면에도 SVG 2개.
+  PR #187 배포(`3493d57`). → 사용자 정정: 원한 위치는 **오른쪽 로그인 이름("태기") 앞, 구글 프로필처럼 사람 아이콘 대신**.
+  `components/auth/auth-login-button.tsx` 드롭다운 트리거의 lucide `User`를 `/suvisdev-icon.svg`(20px, 원형)로 교체(메뉴 안 "마이페이지" 아이콘은 유지).
+  로그인 상태 확인은 임시 `public/_preview-seed.html`로 localStorage `suvis_session`을 넣고 캡처한 뒤 파일 삭제(백엔드 없음 → whoami가 401이 아니라 표시 유지).
+- 약속 저장소를 개인 GitHub로 옮기기: 접근 가능한 조직(Seuk-Team·Seuk-Hackathon)·검색 어디에도 없음 → 사용자 "팀 깃허브를 끊은 듯, 패스".
+
+### 작업 내용 (8) — 마이페이지 성별 "선택 안 함" 숨김
+- 사용자 질문 "마이페이지 성별에 선택 안 함이 왜 있나": 가입 폼 기본값이 `undisclosed`이고, 소셜 로그인 계정은 성별을 못 받아 항상
+  `undisclosed`로 생성(`oauth_identity_pg_repository.py`), 마이페이지는 닉네임만 수정 가능 → "선택 안 함"이 고른 값처럼 계속 보임.
+- 사용자 결정 1안: `suvis/app/mypage/page.tsx`에서 `undisclosed`면 성별 줄을 숨김(라벨 맵의 `undisclosed` 항목 제거). 연령대는 마이페이지에 표시 안 함.
+- 이어서 "mova에 성별이 필요했던 것 같다" → 확인 결과 mova 코드(백엔드·프론트)에 성별·연령대 사용 0건(ERD 문서에 칼럼만). 미리 구현은 하지 않기로(사용자 동의) —
+  최소 수집 원칙·나중에 해도 비용 같음. PROGRESS 백로그 "메인페이지"에 할 일 기록.
+
+### 작업 내용 (9) — 홈 팀 프로젝트 타일 문구 줄맞춤
+- "팀 프로젝트 · 원티드 해커톤 출품작"이 한 줄로 길게 감겨 개인 프로젝트 타일과 줄이 안 맞음 → `AppCatalogItem.note` 추가,
+  `kind`는 "팀 프로젝트"만, 해커톤 문구는 그 아래 11px(한 단계 작게). 넘치면 단어 단위로 끊고(`keep-all`) "해커톤\u00a0출품작"은 한 덩어리.
+- 확인: 로컬 캡처 데스크톱(약속만 "문화체육관광 / 해커톤 출품작" 두 줄)·좁은 화면(둘 다 두 줄). tsc·eslint 0.
+- 사용자 추가: ARDA에 "투표수 1등" 한 줄(→ 같은 날 "인기 투표 1등"으로 문구 변경, #191)(note에 `\n`, `whitespace-pre-line`). 수치는 사용자 제공(직접 확인 안 함).
+
+### 작업 내용 (10) — 홈 배경
+- 사용자 "배경을 회색으로 둘지": 실제 홈을 흉내 낸 정적 시안 6장(현재 회색·점 격자(Linear)·선 격자+페이드(Vercel)·메시 그라데이션(Stripe)·
+  앰버 오로라(Raycast)·따뜻한 종이+노이즈(Notion))을 바탕화면 `홈배경_시안/`에 PNG+HTML로. 사용자 선택: **2번 선 격자**.
+- `suvis/app/globals.css` `.home-grid-bg`(흰 바탕 + 56px #ececec 선 격자 + 가운데 보이고 가장자리로 사라지는 radial 덮개),
+  `app/page.tsx`의 `bg-[#e8e8e8]` 교체(홈만 — /apps·/contact 등은 그대로). 로컬 캡처(데스크톱·좁은 화면)로 시안과 같음 확인, tsc·eslint 0.
+- 이어서 "상단바와 색 차이를 조금": 흰 상단바와 흰 배경이 구분 안 됨 → 바탕·가장자리 덮개 `#f6f6f7`, 격자선 `#e4e4e7`(상단바는 흰색 유지). 로컬 캡처 확인.
+
+### 산출물 (5·6)
+- PR #175(문서)·#176(CD 수정) 머지(`5e798c3`). #176 머지로 backend-deploy 자동 실행.
+
 ## 2026-10-02
 
 ### 작업 내용
@@ -108,6 +515,19 @@
 - 회원가입 500 수정은 따로 PR(`fix/auth-signup-duplicate-email`, auth 테스트 66 통과). 머지 후 중복 이메일 가입 시도로 409 확인 예정.
 - 미결: 이해 단계 끄기(A)·감성 분석 스위치(B, 코드 필요)·중복 계정 삭제(D — id 1에 채팅 179·추천 168 등 데이터, 3은 비어 있음).
 
+
+### 작업 내용 (5) — 배포 확인 · 입구 필터 검토
+- PR #163(봤어요 선분기)·#164(회원가입 409) 머지 — #164는 #163과 문서 충돌(INTERVIEW·LESSONS)을 양쪽 보존으로 해결 후 머지.
+  CD 두 번 모두 성공(각 약 5분). 운영 확인: 중복 이메일 가입 → **409**(그 이메일 계정 수 2 그대로, 새 계정 없음),
+  비로그인 "택시 운전사는 봤어" → 봤어요 로그인 안내(선분기 경로), 배포 후에도 `MOVA_CHAT_AGENT=0`·`OLLAMA_KEEP_ALIVE=-1m` 유지,
+  채팅 11.5~12.9s.
+- 배포 직후 약 3분 502 — 감성 분석 시작 작업이 체크포인트 로드(93s/샤드) 후 어댑터 없음으로 실패. 배포마다 반복(스위치 미결).
+- 구글 앱 로그인은 `feat/gildle-google-login`(d6f7505)에 커밋·푸시만, 머지 안 함(Android OAuth 클라이언트 등록 전).
+- **입구 필터 검토(사용자 질문: Arda의 Caddy 같은 게 필요한가)**: 필요 없음 — 분류=Traefik(`ingress.yaml`), HTTPS 인증서=Cloudflare,
+  노출=터널(포트 닫힘), 토큰 재발급=auth(`/auth/refresh`·`/auth/mobile/refresh`, 로테이션). 빈 곳은 입구 요청 제한뿐(채팅 2곳만 앱에서
+  IP당 60초 20회, 인메모리). Traefik 3.7.8 RateLimit 미들웨어를 설계했으나 **보류**(사용자 결정): 길들 앱 경로(`api.../auth/`)만 덮고,
+  웹 로그인은 `auth.suvisdev.cloud → auth:9000` 직행 + Vercel BFF IP라 못 덮음, 기본 소스가 cloudflared 파드 IP라 `CF-Connecting-IP`
+  필수, 같은 IP(CGNAT·와이파이) 오탐 위험. 정식 공개 전에 Cloudflare 규칙과 함께 다시 검토.
 
 ## 2026-10-01
 

@@ -61,7 +61,7 @@ const PROJECTS = [
   {
     name: "suvisdev.cloud",
     desc: "모듈러 모놀리식 풀스택 플랫폼",
-    detail: "Clean Architecture + Star Topology 기반 통합 플랫폼. 소셜 로그인(Google·Kakao·Naver), httpOnly 쿠키 세션, RBAC 어드민, 방문자 통계. GPU 노트북 한 대의 k3s로 직접 운영",
+    detail: "Clean Architecture + Star Topology 기반 통합 플랫폼. 소셜 로그인(Google·Kakao·Naver), httpOnly 쿠키 세션, RBAC 어드민, 방문자 통계. 집 서버와 GPU 노트북 두 대의 k3s로 직접 운영(노트북이 빠지면 집 서버가 자동으로 넘겨받음)",
     tech: ["FastAPI", "Next.js", "Flutter", "Docker", "k3s", "Cloudflare"],
     link: "https://suvisdev.cloud",
   },
@@ -169,7 +169,7 @@ export function ResumeContent() {
             <p>
               LoRA 파인튜닝한 소형 모델이 도구를 고르는 채팅 에이전트와 Gemini API를 함께 쓰는
               AI 파이프라인, Clean Architecture 기반의 FastAPI 백엔드, Next.js + Flutter
-              멀티플랫폼 프론트엔드를 설계·구현하고 GPU 노트북 한 대의 k3s로 직접 운영 중입니다.
+              멀티플랫폼 프론트엔드를 설계·구현하고 집 서버와 GPU 노트북 두 대의 k3s로 직접 운영 중입니다.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
               <StatCard label="개발 기간" value="12주" />

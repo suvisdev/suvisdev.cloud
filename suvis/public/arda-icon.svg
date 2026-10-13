@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B9A4FA"/>
+      <stop offset="1" stop-color="#8B66F0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#2B1A54"/>
+  <!-- 선 하나로 그린 열린 A: 다리 끝이 안쪽으로 말려 올라간다 -->
+  <path fill="none" stroke="url(#g)" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"
+        d="M25.5 41.5C24.5 46.5 20 50.5 15.5 49.8 11.5 49.2 10.6 45.5 12 42L27 14.8C29.4 10.4 34.6 10.4 37 14.8L52 42C53.4 45.5 52.5 49.2 48.5 49.8 44 50.5 39.5 46.5 38.5 41.5"/>
+  <!-- 가운데 AI 반짝임 -->
+  <path fill="#E4D8FF" d="M32 21.4C33.1 29.3 34.2 31.3 41.9 32.4 34.2 33.5 33.1 35.5 32 43.4 30.9 35.5 29.8 33.5 22.1 32.4 29.8 31.3 30.9 29.3 32 21.4Z"/>
+</svg>

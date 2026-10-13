@@ -8,6 +8,7 @@ from mova.adapter.outbound.orm.market_conversations_orm import (
     MovaConversationMessage,
 )
 from mova.adapter.outbound.orm.market_game_scores_orm import MovaGameScore
+from mova.adapter.outbound.orm.market_movie_views_orm import MovaMovieView
 from mova.adapter.outbound.orm.market_picks_orm import MovaPick
 from mova.adapter.outbound.orm.market_rankings_orm import MovaRanking
 from mova.adapter.outbound.orm.market_review_comments_orm import MovaReviewComment
@@ -37,6 +38,7 @@ from mova.adapter.outbound.orm.studio_tags_orm import (
 )
 
 __all__ = [
+    "MovaMovieView",
     "MovaCollection",
     "MovaReviewComment",
     "MovaReviewVote",

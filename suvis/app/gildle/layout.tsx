@@ -5,6 +5,8 @@ import "./gildle.css"
 export const metadata: Metadata = {
   title: "Gildle — 반려견 산책 경로 추천",
   description: "나무 그늘, 위험구역 회피, 계절별 가중치 기반 반려견 친화 산책 경로 추천 앱",
+  // 상위 레이아웃의 공통 아이콘 대신 Gildle 아이콘(2026-10-06). 파일 규칙 icon.svg는 상위 icons 설정을 못 덮어 metadata로 지정
+  icons: { icon: "/gildle-icon.svg" },
 }
 
 export default function GildleLayout({ children }: { children: React.ReactNode }) {

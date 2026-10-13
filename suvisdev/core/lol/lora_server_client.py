@@ -72,7 +72,7 @@ class LoraServerError(Exception):
 
 
 class LoraServerClient:
-    """lora_server 호출 클라이언트 — 실패 3회면 60초 서킷 오픈, 그동안 호출자는 Gemini 폴백."""
+    """lora_server 호출 클라이언트 — 연속 실패 2회면 60초 서킷 오픈, 그동안 호출자는 Gemini 폴백."""
 
     def __init__(
         self,
