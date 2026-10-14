@@ -3,7 +3,8 @@ title: 진수택 개발자 프로필
 ---
 
 <!-- 홈 AI 채팅(/portfolio/chat) 근거용 공개 프로필. 사이트 /resume 공개 페이지에서 옮겼고,
-     전화번호·이메일 같은 연락처는 의도적으로 넣지 않는다(2026-09-27 사용자 결정). -->
+     전화번호·이메일 같은 연락처는 의도적으로 넣지 않는다(2026-09-27 사용자 결정).
+     2026-10-14: /resume 를 PDF 이력서 v18(2026-10-13)에 맞춰 고치면서 이 파일도 같은 사실로 맞춤. -->
 
 # 진수택 개발자 프로필
 
@@ -16,48 +17,62 @@ Suvisdev(수비스데브)는 진수택의 개발자 활동명이자 포트폴리
 
 ## 소개
 
-이름은 진수택이고, 풀스택 개발자입니다. 좌우명은 "코드로 문제를 해결하는 개발자"입니다.
-AI 영화 추천(Mova), 반려견 산책 경로(Gildle), 모바일 앱(susu)까지 하나의 모듈러 모놀리식
-아키텍처 위에서 기획부터 배포까지 전 과정을 개인 프로젝트로 수행했습니다.
-LoRA 파인튜닝과 Gemini API를 활용한 AI 파이프라인, Clean Architecture 기반 FastAPI 백엔드,
-Next.js + Flutter 멀티플랫폼 프론트엔드를 설계·구현하고 직접 운영하고 있습니다.
+이름은 진수택이고, LLM 에이전트와 AI 서비스를 직접 개발하고 운영하는 AI 엔지니어입니다.
+강점은 네 가지입니다.
+
+- LLM 에이전트: Claude Tool Calling으로 채용 에이전트 도구 12종을 구현하고, 데이터를 바꾸는 작업 5종은 담당자 승인 뒤에만 실행되게 설계했습니다.
+- 모델 학습과 평가: EXAONE 2.4B를 파인튜닝해 도구 선택 정확도를 83%에서 94%로 올렸고(평가 66건), Qwen3-8B는 도구 호출 평가 23건에서 Claude Haiku 4.5와 같은 정답 수를 냈습니다.
+- 서빙과 운영: 개인 서비스를 k3s 서버 2대로 이중화해 노트북이 꺼지면 약 31초 뒤 자택 서버가 API를 이어받게 했고, GPU 추론을 두 서버에 나눠 AWS 서버 없이 운영합니다.
+- 팀 프로젝트 리딩: 4인 팀 팀장으로 원티드 AI Championship 2026 본선에 진출했습니다(참가 1,300여 팀 중 TOP 20).
+
 포트폴리오 사이트는 https://suvisdev.cloud, 개발 블로그는 https://jk.suvisdev.cloud, GitHub은 https://github.com/suvisdev 입니다.
 연락은 사이트의 Contact 페이지를 통해 할 수 있습니다.
 
-주요 수치: 개발 기간 10주, 백엔드 테스트 550개 이상, Gildle 보행 그래프 233,964 edges.
+## 수상·대외 활동
+
+- 2026년 10월: 원티드 AI Championship 2026 본선 진출(참가 1,300여 팀 중 TOP 20). 참가작 공개 투표에서도 2026년 10월 5일 기준 1위였습니다.
+  4인 팀 팀장으로 팀 프로젝트 ARDA를 출품했습니다. ARDA는 대회용이 아니라 교육 과정 수료를 위한 팀 프로젝트로 만들었고, 대회에도 출품한 것입니다.
+- 본선 최종 순위와 인기상 같은 수상 결과는 이 자료에 없습니다.
 
 ## 학력·교육
 
 진수택의 학력과 교육 이력은 다음과 같습니다.
 
-- 대학: 2009년 3월부터 2015년까지 경상대학교 건축공학과에 재학했고 졸업하지 않고 자퇴했습니다.
-  전공은 건축공학이며, 이후 독학과 실무 프로젝트로 소프트웨어 개발자로 전향했습니다.
-- 교육 과정: 2026년 4월부터 2026년 10월까지 하이미디어 생성형 AI 과정을 수료 중입니다(팀 SEUK 소속).
-  이 과정에서 AI 모델 운영을 위한 하네스 시스템 설계와 AI 서비스 구현을 다루며, Python · FastAPI ·
-  Next.js · Flutter · AI/ML 파이프라인 구축을 실습했습니다. 팀 프로젝트로 AI 채용 도우미 ARDA를 만들었습니다.
-- 자격증·수상 정보는 이 자료에 없습니다.
+- 교육 과정: 2026년 4월부터 IBM x Red Hat AI Transformation AX Academy(대한상공회의소, 하이미디어)를 듣고 있고,
+  2026년 10월 27일 수료 예정입니다. 팀 Seuk의 팀장이며, 이 과정의 팀 프로젝트로 AI 채용 시스템 ARDA를 만들었습니다.
+  과정 안에서 Red Hat OpenShift Administration I (DO180) 실습도 했습니다(2026년 8월).
+- 모션랩학원 모션그래픽 과정: 2020년 6월부터 2021년 8월까지.
+- 대학: 2009년 3월부터 2014년 5월까지 경상대학교 건축공학과에 다녔고 중퇴했습니다.
+- 자격증 정보는 이 자료에 없습니다.
 
 ## 프로젝트
 
-- **Mova** — AI 영화 추천 플랫폼. EXAONE-3.5-2.4B LoRA 파인튜닝 모델과 Gemini 듀얼 백엔드로 개인화
-  추천을 하고, AI 리뷰 자동 생성, 박스오피스 랭킹, 영화 AI 챗봇을 제공합니다. 기술: FastAPI, Next.js,
-  EXAONE LoRA, Gemini, PostgreSQL, pgvector. 주소: https://suvisdev.cloud/mova
-- **Gildle(길들)** — 반려견 산책 경로 추천 앱. 한국어 이름은 "길들"(길을 들이다·길들이다에서 따온 이름)이고
-  영문 이름이 Gildle입니다. OpenStreetMap 기반 233,964 edges 보행 그래프에 나무 그늘·결빙 위험·
-  반려견 친화라는 3축 환경 점수를 매겨 계절별(봄가을·여름 그늘·겨울 안전) 최적 산책 경로를 찾습니다.
-  웹(Leaflet 지도)과 Flutter 안드로이드 앱이 있고, 앱은 Play 스토어 심사 대기 중입니다. 기술: FastAPI,
-  OSM/osmnx, Leaflet, Next.js, Flutter, Overpass API. 주소: https://suvisdev.cloud/gildle
-- **suvisdev.cloud** — 모듈러 모놀리식 풀스택 플랫폼. Clean Architecture와 Star Topology(Hub-Spoke)로
-  여러 앱을 한 백엔드에 통합했고, 소셜 로그인(Google·Kakao·Naver), RBAC 어드민, 방문자 통계를 갖췄습니다.
-  기술: FastAPI, Next.js, Flutter, Docker, Kubernetes(k3s), Cloudflare Tunnel, Vercel.
-- **ARDA** — 팀 SEUK의 AI 채용 도우미(팀 프로젝트). 주소: https://seuk.suvisdev.cloud
+- **ARDA (Eval-ATS)**: AI 기반 채용 프로세스 자동화 및 지원자 통합 관리 플랫폼. IBM x Red Hat AI 과정 팀 프로젝트(4인),
+  2026년 8월부터 10월까지. 진수택은 에이전트 담당(8월 24일부터)에서 팀장 겸 인프라 총괄(9월 4일부터)을 맡았습니다.
+  채용 과정의 반복 업무를 자동화하고 흩어진 지원자 정보를 한 플랫폼으로 모아, 채용 담당자가 지원자라는 사람에 집중할 수 있게 하는 시스템입니다.
+  담당자가 채팅으로 지원자 검색, 단계 변경, 면접관 배정을 시킬 수 있는 에이전트 '아르'의 도구 12종을 만들고, 데이터를 바꾸는 작업은 확인 카드로 승인받게 했습니다.
+  Qwen3-8B를 QLoRA로 파인튜닝해 도구 호출 평가 23건 중 17건(73.9%)으로 Claude Haiku 4.5와 같은 정답 수를 냈고,
+  컴퓨터 3대로 온프레미스 시연과 점검까지 직접 운영했습니다. 음성 인식과 팀원이 학습한 표정 ViT를 실시간 화상 면접에 연결했습니다.
+  주소: https://seuk.suvisdev.cloud, 기술 문서: https://ats.suvisdev.cloud
+- **Mova**: AI 영화 추천 서비스. EXAONE 2.4B를 LoRA로 파인튜닝해 영화 채팅에서 다음에 쓸 도구 하나만 고르게 하고,
+  출연진, 상영 시간표 같은 사실은 코드가 답하게 나눠 모델이 지어내지 못하게 했습니다. 도구 선택 정확도는 파인튜닝 전후
+  83%에서 94%(평가 66건, 프롬프트만 쓴 7.8B는 89%)입니다. 임베딩 모델 3종을 영화 205편, 질문 60개로 비교해 bge-m3로 바꿔
+  찾는 영화가 검색 결과 상위 8개 안에 드는 비율(Recall@8)을 39%에서 86%로 높였습니다. 주소: https://suvisdev.cloud/mova
+- **Gildle(길들)**: 반려견 산책 경로 추천 서비스. 한국어 이름은 "길들"(길을 들이다·길들이다에서 따온 이름)이고
+  영문 이름이 Gildle입니다. 서울 보행로 약 23만 구간에 건물 약 80만 동의 그림자를 달마다, 시간대마다 미리 계산해
+  그늘진 산책 길을 찾아 줍니다. 웹과 Flutter 안드로이드 앱이 있습니다. 주소: https://suvisdev.cloud/gildle
+- **suvisdev.cloud**: Mova와 Gildle을 한 백엔드에 모은 개인 프로젝트(1인, 2026년 7월부터). 기획부터 운영까지 혼자 만들었고
+  현재 개인 운영과 내부 테스트 단계입니다. 노트북(GPU)과 자택 서버 두 대를 k3s와 Cloudflare Tunnel로 묶어 노트북이 꺼지면
+  약 31초 뒤 자택 서버가 API를 이어받고(노트북을 끄는 시험으로 확인), 백엔드를 AWS에서 옮겨 EC2 사용액을 월 약 70달러 줄였습니다.
+  소셜 로그인(Google·Kakao·Naver), RBAC 어드민, 방문자 통계를 갖췄습니다. GitHub: https://github.com/suvisdev/suvisdev.cloud
 
 ## 기술 스택
 
-- 언어: Python, TypeScript, Dart
-- AI · ML: EXAONE (LoRA/QLoRA), Gemini API, LangChain, Hugging Face Transformers, PEFT · AWQ, llama.cpp GGUF, pgvector
-- 백엔드: FastAPI, SQLAlchemy, Alembic, PostgreSQL, Redis, JWT · OAuth 2.0
-- 프론트엔드: Next.js (App Router), React 19, Tailwind CSS, shadcn/ui, Leaflet
-- 모바일: Flutter, Kakao SDK, Dio
-- 인프라 · DevOps: Docker, Kubernetes(k3s), AWS EC2 · S3, Cloudflare Tunnel, nginx, GitHub Actions, Vercel
-- 데이터: OSM (osmnx), TMDB API, KOFIC API, Overpass API, KOBIS
+- LLM 에이전트: Claude API, Tool Calling (에이전트 도구 12종, 쓰기 작업 승인 카드, 규칙 라우터)
+- 모델 학습: QLoRA, LoRA (Qwen3-8B, EXAONE 2.4B 파인튜닝, 라벨 마스킹)
+- 평가: 자동 채점기, Recall@8 (Qwen과 Claude 비교, 평가셋 66건, 임베딩 3종 비교)
+- RAG와 체인: pgvector, bge-m3 (시맨틱 검색, 요약, 평가, 추천 3단 프롬프트 체인)
+- 서빙: Ollama, llama.cpp, HAProxy (GGUF 로컬 서빙, GPU 추론 중계, 비전 모델 MCP 서버)
+- 백엔드: Python, FastAPI, PostgreSQL, Redis
+- 인프라: Docker, k3s, AWS, GitHub Actions, Cloudflare Tunnel, Vercel (자동 배포, 서버 2대 자동 전환, PC 3대 온프레미스)
+- 프론트와 앱: React, Next.js, TypeScript, Flutter

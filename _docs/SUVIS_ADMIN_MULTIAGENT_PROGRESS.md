@@ -15,6 +15,8 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-14 **/resume 를 PDF 이력서 v18 에 맞춤 · 홈 ARDA "본선 TOP 20"**: Experience 섹션(원티드 AI Championship 2026 본선 TOP 20, 투표 1위 10.05 기준) ·
+  Arda 카드 추가 · 교육·학력 정정 · 확인 안 된 숫자 제거 · 휴대폰 레이아웃 수정 · 전화 가짜 링크 제거 · `profile.md` 같은 사실로 갱신(**홈 채팅 재색인은 남음**, 아래 홈 채팅 잔여 ①).
 - `[P]` 10-07 **어드민 서빙 서버·챗봇 경로 / mova 채팅 속도·버그 / mova 랭킹(전부 배포)**: 어드민 홈 "서빙 서버" 배지(NODE_NAME)·챗봇 LLM 경로 카드(#196) ·
   /mova/main 바깥 스크롤 제거·임베딩 keep_alive + 집컴 고정(`OLLAMA_EMBED_URL`)·추천 칩 실측 16개(#197) · 채팅 버그 5건(지어낸 제목 차단·상영작 안내·
   유사작·제외 장르·근거 없는 별점 제거)+중복 저장 진단 `send_source`(#198) · ARDA "참가 공개 투표 1위"(#199) · mova 랭킹 = 최근 7일 상세 열람 수
@@ -187,7 +189,7 @@ http://127.0.0.1:31386`.
   **코랩 실행은 사용자**. 합격 시 순서: `ollama create mova-understand` → `.env`
   `MOVA_ORCHESTRATOR_SHADOW_MODEL=mova-understand`로 **섀도 비교 1주**(`shadow_log.jsonl` 불일치 검토) →
   `MOVA_ORCHESTRATOR_MODEL` 전환. 09-28 저녁: 서수 지시어 치환, 에디터 리뷰 쿨다운, 게임 §P 정리, TMDB 최신작 500편.
-- 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동; 파일 하나만 바뀌면 파드에서
+- 홈 채팅 잔여: ① 문서 갱신 시 `ingest_portfolio_docs.py --reset` 재실행(수동; **10-14 profile.md 갱신분 미반영** — 파드에서 `python scripts/ingest_portfolio_docs.py datasets/portfolio_corpus`; 파일 하나만 바뀌면 파드에서
   리셋 없이 그 디렉터리만 넘겨도 됨 — `datasets/`는 hostPath) ② 7.8B 상주로 VRAM 7.8/8.2GB —
   mova 지연 실측되면 `PORTFOLIO_LLM_MODEL=exaone3.5:2.4b` 또는 `PORTFOLIO_LLM_BACKEND=gemini` ③ ~~후속 질문의
   검색어에 이전 턴 결합~~ **완료(09-29, `_retrieval_query`)** ④ 스트리밍 ⑤ ~~ontology `api/__init__.py` lazy import~~
