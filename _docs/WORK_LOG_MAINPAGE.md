@@ -28,6 +28,33 @@
 
 ---
 
+## 2026-10-14 — 길들 구글 로그인 머지(콘솔 등록은 아직)
+
+### 작업 내용
+- 10-02에 보관해 둔 `feat/gildle-google-login`(d6f7505)을 사용자 지시로 PR·머지. 10-13에 최신 main(f754341, 84커밋)을 브랜치에
+  병합 — 충돌 없음.
+- 운영 auth의 `GOOGLE_CLIENT_ID`가 앱 `google_config.dart`의 serverClientId와 같은 값임을 확인(auth 파드는 `suvisdev-env` Secret
+  `envFrom`) → 서버 환경변수 변경 불필요.
+- 서명 SHA-1 확인: 10-02 APK·10-06 AAB 모두 업로드 키 `48:FF:D5:6E:3E:07:60:2B:6A:64:F9:D6:BD:B1:17:CB:B5:72:11:E5`.
+
+### 수정/구현
+- 코드 변경은 10-02 커밋 그대로(auth `POST /auth/google/mobile`, 앱 "Google로 계속하기"). 이번엔 main 병합과 문서만.
+
+### 오류·막힌 점
+- Windows에서 릴리스 APK 빌드 실패: "Building with plugins requires symlink support" — 개발자 모드 꺼짐. 시스템 설정은 바꾸지 않고
+  WSL 빌드 환경(`~/.cache/gildle-build`)으로 빌드. `key.properties`의 storeFile이 Windows 경로라 작업 폴더 사본만 `/mnt/c/...`로 바꿈(gitignore 파일).
+- **콘솔 등록 미완**: GCP 226054818742에 Android OAuth 클라이언트 2개(업로드 키 SHA-1, Play 앱 서명 키 SHA-1)를 Chrome으로 등록하려 했으나
+  확장 미연결로 못 함. 등록 전까지 앱의 구글 버튼은 로그인 창이 뜨지 않는다.
+
+### 데이터
+- 없음.
+
+### 산출물
+- 검사(10-13, 병합 후): auth 테스트 72 통과·ruff·mypy(auth)·lint-imports 7 kept, gildle analyze 무이슈·test 18 통과.
+- 테스트 APK 바탕화면 `길들\gildle-release-20261013-google.apk`(1.0.5+6, 업로드 키 서명, google_sign_in·androidx.credentials 포함 확인).
+
+---
+
 ## 2026-10-07 (6) — 배포·운영 확인, lora 옵션 실측
 
 ### 작업 내용
