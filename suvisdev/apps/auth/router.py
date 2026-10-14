@@ -7,12 +7,14 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Response
 from fastapi.responses import RedirectResponse
 
+from auth.google_mobile_verifier import GoogleTokenInvalid
 from auth.kakao_mobile_verifier import KakaoTokenInvalid
 from auth.mobile_refresh_store import MobileTokenInvalid
 from auth.oauth_adapters import OAuthError
 from auth.refresh_store import ReuseDetected
 from auth.repository import EmailAlreadyExists
 from auth.schemas import (
+    GoogleMobileLoginRequest,
     KakaoMobileLoginRequest,
     KakaoMobileTokenResponse,
     LoginRequest,
@@ -132,6 +134,17 @@ async def kakao_mobile_login(body: KakaoMobileLoginRequest) -> KakaoMobileTokenR
         return await _service.login_with_kakao_mobile(body.access_token)
     except KakaoTokenInvalid as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
+
+
+@router.post("/auth/google/mobile", response_model=KakaoMobileTokenResponse)
+async def google_mobile_login(body: GoogleMobileLoginRequest) -> KakaoMobileTokenResponse:
+    """길들 앱 구글 로그인 — 클라는 id_token만 보낸다. 같은 이메일 계정이 있으면 409."""
+    try:
+        return await _service.login_with_google_mobile(body.id_token)
+    except GoogleTokenInvalid as e:
+        raise HTTPException(status_code=401, detail=str(e)) from e
+    except EmailAlreadyExists as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
 
 @router.post("/auth/mobile/signup", response_model=KakaoMobileTokenResponse, status_code=201)
