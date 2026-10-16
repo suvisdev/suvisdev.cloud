@@ -61,7 +61,8 @@ export const TEAM_PROJECTS: AppCatalogItem[] = [
     tileImage: "/arda-icon.svg",
     team: "Team Seuk",
     kind: "팀 프로젝트",
-    note: "원티드 해커톤\u00a0출품작\n본선\u00a0TOP\u00a020",
+    // 2026-10-16 공개 투표 최종 1위로 인기상 확정, 본선 TOP 20 아래 줄에 추가
+    note: "원티드 해커톤\u00a0출품작\n본선\u00a0TOP\u00a020\n인기상\u00a0수상",
   },
   {
     // 08-26 SEUK 카드로 교체됐던 팀 프로젝트 '약속'(알약 식별)을 복원(2026-09-28 사용자 요청).
