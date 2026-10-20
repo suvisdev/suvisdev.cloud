@@ -31,15 +31,9 @@ paths:
 - `lib/*-api.ts`마다 모듈 전용 `fetch` 래퍼를 하나 두고 모든 함수가 그것을
   경유한다. 개별 함수에서 `fetch`를 직접 부르지 않는다.
   ```ts
+  // lib/admin-api.ts — 인증은 httpOnly 쿠키가 진다(§3). 토큰·Authorization을 직접 다루지 않는다.
   async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
-    const token = getSuvisSession()?.token
-    const res = await fetch(`${API_BASE}/viewer/admin/agents${path}`, {
-      ...init,
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(init?.headers ?? {}),
-      },
-    })
+    const res = await fetch(`/api/backend/viewer/admin/agents${path}`, init)
     const data = (await res.json()) as T & ApiErrorBody
     if (!res.ok) {
       throw new Error(safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status))
@@ -60,7 +54,7 @@ paths:
 
 **토큰은 localStorage에 없다.** 로그인 시 `/api/auth/login`·`/api/auth/signup` BFF가
 access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클라이언트엔
-사용자 정보(id·username)만 준다. 구 `getSuvisSession()?.token` + `authHeader()`는
+사용자 정보(id·username·role — role은 `/mova/whoami`의 `roles`에서 온 **표시용**)만 준다. 구 `getSuvisSession()?.token` + `authHeader()`는
 제거됐다(XSS 탈취 방지).
 
 - **클라이언트는 Authorization 헤더를 직접 붙이지 않는다.** 인증 호출은 same-origin
@@ -70,7 +64,13 @@ access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클
   `lib/auth-bff.ts`의 `forwardToBackend`가 쿠키→Bearer + 401 시 리프레시까지 한다.
 - **경로 변형·로직이 있는 개별 프록시**(`/api/mova/*`·`/api/viewer/*`·`/api/dispatch/*` 등)는
   `cookieBearer()`로 쿠키의 access를 Bearer로 읽는다(구 `request.headers.get("authorization")`
-  pass-through 자리). 서버 헬퍼는 전부 `lib/auth-bff.ts`에 있다.
+  pass-through 자리). access가 없거나 만료됐으면 `cookieBearer()`가 refresh로 먼저 갱신한다
+  (2026-10-20) — 개별 프록시에서 토큰을 따로 갱신하지 않는다. 서버 헬퍼는 전부 `lib/auth-bff.ts`에 있다.
+- **갱신 실패 처리**: 게이트웨이가 401/403(만료·재사용 탐지)일 때만 쿠키를 지운다. 5xx·네트워크 오류면
+  쿠키를 두고 503을 준다(일시 장애로 로그아웃시키지 않는다). 같은 refresh의 동시 갱신은 서버 인스턴스
+  안에서 하나로 합친다(인스턴스가 여러 개면 남는 위험은 `auth-bff.ts` 주석).
+- **OAuth 로그인**(`/api/auth/oauth-exchange`·`oauth-consent`)은 access만 받으므로 `setAccessCookie`가
+  이전 계정의 refresh를 게이트웨이에서 폐기하고 쿠키를 지운다.
 - **로그아웃**은 `logoutSession()`(→ `/api/auth/logout`)이 refresh를 revoke하고 쿠키를 지운다 —
   `clearSuvisSession()`(localStorage만)으로 끝내지 않는다.
 - 백엔드 게이트웨이는 그대로다(access+refresh 발급·`/auth/refresh`·`/auth/logout` 재사용). 쿠키
@@ -107,5 +107,7 @@ access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클
   ```ts
   const message = e instanceof Error ? e.message : "답변을 가져오지 못했습니다."
   ```
-- 다른 파일의 핸들러를 재노출할 때는 재구현하지 말고 그대로 re-export한다:
-  `export { POST } from "@/components/api/chat/route"`
+- 다른 파일의 핸들러를 재노출할 때는 재구현하지 말고 그대로 re-export한다
+  (`export { POST } from "…/route"`).
+- 서버 비밀키(예: LLM API 키)를 쓰는 라우트는 무인증으로 열지 않는다. 2026-10-20 호출처 없이
+  익명으로 Gemini 키를 쓰던 `/api/chat`·`/api/gemini/chat`을 삭제했다.
