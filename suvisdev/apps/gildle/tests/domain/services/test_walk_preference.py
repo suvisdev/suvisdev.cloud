@@ -59,3 +59,16 @@ def test_combined_weight_applies_both_penalties():
     _, green_floor = make_combined_weight(["green", "shade"], shade_lookup=shade, elevation=ELEV)
     assert green_floor == 0.4
     assert combined_label(("flat", "shade")) == "편한 길 + 그늘 많은 길"
+
+
+def test_road_penalty_applies_once_for_any_number_of_preferences():
+    # 10-20 리뷰: 선호를 하나만 고르면 차도 페널티가 빠졌다(조합·make_weight에는 걸리던 것).
+    road = RouteEdge("a", "b", 100, _P, "", tree_score=0.0, highway="primary", sidewalk=True)
+    walk = RouteEdge("a", "b", 100, _P, "", tree_score=0.0)
+    shade = {("a", "b"): 1.0}
+    for prefs in ([], ["fast"], ["green"], ["flat"], ["shade"], ["flat", "shade"]):
+        fn, _ = make_combined_weight(prefs, shade_lookup=shade, elevation=ELEV)
+        assert fn(road) == fn(walk) * 4.0, prefs  # primary + 보도 → ×(1+3)
+    single, _ = make_combined_weight(["shade"], shade_lookup=shade, elevation=ELEV)
+    alone, _ = make_weight("shade", shade_lookup=shade, elevation=ELEV)
+    assert single(road) == alone(road)

@@ -80,23 +80,15 @@
 
 ## 진행 중 (현재 액티브)
 
-### 개인 백엔드 EC2 → 노트북 이전 — 컷오버 완료(2026-09-03 밤)
-- `api.`/`auth.suvisdev.cloud`는 **노트북(teagy)**이 서빙 — 09-07 k3s 1단계
-  컷오버로 backend·auth·cloudflared는 파드, db·redis는 도커 컨테이너
-  (`deploy.sh --external-db`). 터널 `suvisdev.cloud`의 커넥터는 노트북 단독.
-  프로덕션 DB는 EC2 덤프(09-03) 복원본.
-- ~~EC2 개인 스택 down·Elastic IP·t3.small 축소~~ — **09-04 결정 변경으로
-  폐기**: Arda는 신규 `arda-api`를 생성했고, 개인 EC2는 **중지 보관**
-  (EBS 월 ~$3, 필요 없다고 확정되면 종료. ARDA_AWS_DEPLOY_GUIDE 표 참고).
-- **남은 것**: ~~① 노트북 lora-server 어댑터 동기화~~ **(09-09 완료)** —
-  노트북을 AWQ(serve.py)→GGUF(serve_gguf) 스택으로 이전하고 재학습 어댑터
-  `mova_20260909_025528`(loss 0.52) 반영. 소스 CUDA 빌드(sm_89)+drop-in
-  override, RTX 4060 256tok 2.38s. 상세 `[P]`·`[M]` 09-09.
-  ~~브라우저 실사용 검증~~(09-09 API 레벨 전수
-  완료 — 채팅·gildle 경로계산·auth·웹 카카오 OAuth 302까지 실측, `[P]` 09-09.
-  카카오 동의 화면부터의 브라우저 클릭만 사용자 확인 잔여). ~~루트 CLAUDE.md
-  낡은 EC2 서술 갱신~~(09-08 완료 — 노트북 k3s·EC2 중지 보관 기준으로 교체).
-  상세: SUBDOMAIN_MIGRATION_PLAN.md.
+### 운영 구성 (현재 — 2026-10-05~06 이후, 상세 루트 `CLAUDE.md` "개인 배포 환경"·`k8s/failover/README.md`)
+- **DB·Redis는 집컴(`DESKTOP-T89E5ID`) 도커 한 곳**(lora-server GPU·Ollama CPU·HAProxy·로컬 레지스트리도 집컴).
+  두 기기 모두 k3s(backend·auth·cloudflared 파드), 같은 터널 토큰.
+- **서빙: 노트북(`teagy`)이 집 LAN이면 노트북 우선, 집 밖이면 집컴** — 노트북 `serve-agent`·집컴 `standby-agent`가
+  cloudflared replicas로 자동 전환. 집 밖에서 노트북은 GPU(Ollama)만 Tailscale로 빌려준다.
+- CD 러너는 노트북 하나: 빌드 → `sync-standby.sh`(Tailscale)로 집컴 반영. 집 밖 CD는 10-06 수정·실검증 완료(백로그 1번).
+- 개인 EC2는 **중지 보관**(EBS 월 ~$3, 필요 없다고 확정되면 종료. ARDA_AWS_DEPLOY_GUIDE 표 참고).
+- 이력: 09-03 EC2 → 노트북 컷오버 · 09-07 k3s 1단계(당시엔 노트북 단독 커넥터·노트북 도커 DB) · 09-09 노트북 lora GGUF 이전·API 전수 검증(카카오 동의 화면부터의 브라우저 클릭 확인만 사용자 잔여)
+  (`[P]`·`[M]` 09-09, SUBDOMAIN_MIGRATION_PLAN.md) → 10-05~06 위 두 기기 구성으로 대체(10-20 이 절 정리).
 
 ### 서브도메인 이사 — seuk(팀 프로젝트)만 (2026-09-03 결정 변경)
 - **개인 앱(mova·gildle)은 이사 안 함** — 서빙 실익 없음(세션 분리·OAuth

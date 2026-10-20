@@ -10,7 +10,9 @@ import '../config/env.dart';
 /// 슬롯으로 폴백 — /mova/chat처럼 인증 불필요한 엔드포인트에는 영향 없다.
 const String _devAuthToken = String.fromEnvironment('DEV_AUTH_TOKEN');
 
-Dio createDio() {
+/// [onSessionExpired]: refresh가 401로 실패해 로컬 세션이 지워졌을 때 한 번 부른다 — 로그인 상태를
+/// 내려야 기록·내 정보·산책 저장이 다시 로그인을 요구한다(2026-10-20, 예전엔 토큰만 지워지고 계속 "로그인됨").
+Dio createDio({void Function()? onSessionExpired}) {
   final dio = Dio(
     BaseOptions(
       baseUrl: AppConfig.apiBaseUrl,
@@ -48,6 +50,8 @@ Dio createDio() {
               return handler.next(e);
             }
           }
+          // 네트워크 오류로 refresh만 실패했으면 세션이 남아 있다 — 지워졌을 때만 만료로 본다.
+          if (!await AuthSession.hasStoredSession()) onSessionExpired?.call();
         }
         handler.next(error);
       },
@@ -57,4 +61,6 @@ Dio createDio() {
   return dio;
 }
 
-final dioProvider = Provider<Dio>((ref) => createDio());
+final dioProvider = Provider<Dio>(
+  (ref) => createDio(onSessionExpired: () => ref.read(loggedInProvider.notifier).state = false),
+);

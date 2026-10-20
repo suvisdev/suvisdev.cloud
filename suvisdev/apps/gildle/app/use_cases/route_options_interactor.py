@@ -69,13 +69,20 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         end: str,
         shade_lookup: Mapping[tuple[str, str], float] | None,
         elevation: Elevation | None = None,
+        winter: bool = False,
     ) -> list[str]:
         """선호(walk_preference)별 가중치로 최단거리 × 1.5 안에서 A*.
 
         빠른 길도 순수 거리가 아니라 차도 중심선 페널티(road_penalty)를 곱한 가중치로 찾는다
-        (2026-10-01) — 강남대로 차도 한가운데를 "최단"이라고 그리던 것을 보도로 보낸다."""
+        (2026-10-01) — 강남대로 차도 한가운데를 "최단"이라고 그리던 것을 보도로 보낸다.
+        겨울 안전 모드의 빠른 길은 `/routes`의 겨울 가중치(차도 페널티 × 결빙 위험구역 20m 안 ×6)를
+        그대로 쓴다(2026-10-20 — 후보 API가 계절을 배지로만 써서 결빙 회피가 빠져 있었다)."""
         if kind == "via":
             kind = "fast"
+        if winter and kind == "fast":
+            return self._route.execute_bounded(
+                edges, start, end, SeasonMode.WINTER_SAFETY, max_detour_ratio=MAX_DETOUR_RATIO
+            )
         weight, floor = make_weight(kind, shade_lookup=shade_lookup, elevation=elevation)
         return self._route.execute_weighted(
             edges, start, end, weight, floor, max_detour_ratio=MAX_DETOUR_RATIO
@@ -93,14 +100,15 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         extra_kinds: tuple[str, ...] = (),
         via_node: str | None = None,
         via_name: str | None = None,
+        winter: bool = False,
     ) -> list[RouteOptionDto]:
         lookup = _lookup(edges)
 
         def kind_path(kind: str) -> list[str]:
             if via_node is None:
-                return self._path_for(kind, edges, start, end, shade_lookup, elevation)
-            first = self._path_for(kind, edges, start, via_node, shade_lookup, elevation)
-            second = self._path_for(kind, edges, via_node, end, shade_lookup, elevation)
+                return self._path_for(kind, edges, start, end, shade_lookup, elevation, winter)
+            first = self._path_for(kind, edges, start, via_node, shade_lookup, elevation, winter)
+            second = self._path_for(kind, edges, via_node, end, shade_lookup, elevation, winter)
             return first + second[1:] if first and second else []
 
         fast = kind_path("fast")
@@ -146,6 +154,16 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
             )
             for kind, path, _ in kept
         ]
+        if winter:  # 겨울의 빠른 길은 결빙 위험구역을 돌아갈 수 있어 '가장 짧은'이 아니다
+            out = [
+                replace(
+                    o,
+                    reason=o.reason.replace("가장 짧은 길이에요.", "결빙 위험구역을 피해 가요.", 1),
+                )
+                if o.kind == "fast"
+                else o
+                for o in out
+            ]
         logger.info(
             "[RouteOptions] %s→%s 후보 %s (추천 %s) 장소 %d곳",
             start,
@@ -167,10 +185,12 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
         elevation: Elevation | None = None,
+        winter: bool = False,
     ) -> RouteOptionDto | None:
         lookup = _lookup(edges)
-        first = self._path_for(base_kind, edges, start, via_node, shade_lookup, elevation)
-        second = self._path_for(base_kind, edges, via_node, end, shade_lookup, elevation)
+        # 겨울이면 plan()의 빠른 길과 같은 결빙 회피 — 장소를 들러도 위험구역으로 돌아가지 않는다(10-20)
+        first = self._path_for(base_kind, edges, start, via_node, shade_lookup, elevation, winter)
+        second = self._path_for(base_kind, edges, via_node, end, shade_lookup, elevation, winter)
         if not first or not second:
             return None
         path = first + second[1:]

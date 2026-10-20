@@ -9,13 +9,19 @@ import 'map_controller.dart';
 import 'walk_detail_screen.dart';
 import 'walk_session_controller.dart';
 
-/// 목록·통계는 화면이 열릴 때마다 다시 받는다(저장·삭제 뒤 최신을 보장하는 가장 단순한 방법).
+/// 목록·통계. 홈의 IndexedStack이 기록·내 정보 탭을 계속 살려 두므로 autoDispose만으로는 다시 받지
+/// 않는다 — 산책 저장·기록 삭제에 성공하면 [refreshWalkLists]로 직접 무효화한다(2026-10-20).
 final walksListProvider = FutureProvider.autoDispose<List<WalkSummary>>(
   (ref) => ref.watch(walksApiProvider).list(),
 );
 final walkStatsProvider = FutureProvider.autoDispose<WalkStats>(
   (ref) => ref.watch(walksApiProvider).stats(),
 );
+
+void refreshWalkLists(WidgetRef ref) {
+  ref.invalidate(walksListProvider);
+  ref.invalidate(walkStatsProvider);
+}
 
 class WalksScreen extends ConsumerWidget {
   const WalksScreen({super.key});
@@ -36,8 +42,7 @@ class WalksScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('기록')),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(walksListProvider);
-          ref.invalidate(walkStatsProvider);
+          refreshWalkLists(ref);
           await ref.read(walksListProvider.future);
         },
         child: walks.when(

@@ -81,6 +81,31 @@ def test_same_path_keeps_recommended_kind():
     assert opts[0].recommended and len(opts) == 2
 
 
+def test_winter_fast_option_avoids_icing_zone():
+    # 10-20 리뷰: 겨울 안전 모드가 추천 배지만 바꾸고 결빙 회피는 안 했다.
+    from gildle.domain.entities.hazard_zone import HazardZone
+
+    icy = HazardZone(1, Coordinate(37.5000, 127.0010), 30.0, 5, "A-B 결빙")  # A-B 중간
+    route = CalculateDogFriendlyRouteInteractor(
+        tree_repository=FakeTreeSegmentRepository(),
+        hazard_repository=FakeHazardZoneRepository([icy]),
+        route_graph=AStarRouteGraphAdapter(),
+        weight_calculator=RouteWeightCalculator(),
+    )
+    it = RouteOptionsInteractor(route=route, places=_Places())
+    plain = it.plan(EDGES, "A", "D", shade_lookup=None, recommended_kind="fast")
+    assert plain[0].path == ["A", "B", "D"]  # 겨울이 아니면 위험구역을 그대로 지난다
+    winter = it.plan(EDGES, "A", "D", shade_lookup=None, recommended_kind="fast", winter=True)
+    fast = winter[0]
+    assert fast.kind == "fast" and fast.recommended
+    assert fast.path == ["A", "C", "D"]
+    assert "결빙 위험구역을 피해" in fast.reason and "가장 짧은" not in fast.reason
+    # 장소를 들렀다 가는 길(/routes/via)도 겨울이면 같은 회피(2차 리뷰: via엔 계절이 안 넘어갔다)
+    via = dict(base_kind="fast", shade_lookup=None, via_name="D 앞")
+    assert it.via(EDGES, "A", "D", "B", **via).path == ["A", "B", "D", "B"]
+    assert it.via(EDGES, "A", "D", "B", **via, winter=True).path == ["A", "C", "D", "B"]
+
+
 def test_via_goes_through_place():
     opt = _interactor().via(
         EDGES,

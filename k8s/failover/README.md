@@ -18,7 +18,7 @@
 
 | 어디 | 서비스 | 규칙 |
 |---|---|---|
-| 노트북 | `serve-agent` (`serve_agent.sh`) | 5초마다 Traefik → backend → 집컴 DB 를 타는 요청 1건. 2번 연속 200이면 노트북 터널 1, 3번 연속 실패면 0. 매 주기 집컴 `~/serve/laptop_heartbeat` 에 상태 기록 |
+| 노트북 | `serve-agent` (`serve_agent.sh`) | 5초마다 Traefik → backend → 집컴 DB 를 타는 요청 1건 + Traefik → auth JWKS 1건(10-20, auth만 죽어도 빠지게). 둘 다 200이 2번 연속이면 노트북 터널 1, 3번 연속 실패면 0. 매 주기 집컴 `~/serve/laptop_heartbeat` 에 상태 기록 |
 | 집컴 | `standby-agent` (`standby_agent.sh`) | 심장박동이 15초 넘게 끊기거나 serving 이 아니면 집컴 터널 1. 노트북이 30초 연속 serving 이면 0 |
 
 두 터널이 잠깐 겹치는 동안(노트북 복귀 후 30초)은 Cloudflare 가 둘에 나눠 보낸다 — DB가 하나라 안전하다.
@@ -49,8 +49,9 @@ mova 부팅 작업(스케줄러)은 노트북만 돈다: 집컴 `.env` 에 `ENAB
 **노트북이 집 밖일 때(10-06 수정).** 예전엔 `desktop-link`(내부 IP)가 끊겨 노트북 새 파드가 init `wait-db`에서 멈추고
 rollout 600초 타임아웃 → 집컴 동기화가 실행되지 않아 실제 서빙 중인 집컴에 반영되지 않았다(run 37402009303). 지금은:
 - 1단계 앞에서 `nc -z 127.0.0.1 5432`(desktop-link 포워딩)로 집컴 DB에 닿는지 본다. 안 닿으면 `deploy.sh` 대신
-  빌드 · k3s 적재 · `rollout restart`만 하고 기다리지 않는다(Secret·매니페스트·cloudflared apply 안 함). 노트북 파드는 집에
-  돌아와 DB가 닿으면 새 이미지로 뜬다. cloudflared를 1로 올리지 않으므로 serve-agent가 내리기 전 15초 틈도 없다.
+  빌드 · k3s 적재 · `deploy.sh --external-db --no-tunnel`(Secret·매니페스트 apply, cloudflared만 제외) · `rollout restart`만 하고
+  기다리지 않는다. 노트북 파드는 집에 돌아와 DB가 닿으면 새 이미지·새 설정으로 뜬다(10-20 전에는 apply를 빼서 새 이미지가
+  옛 매니페스트로 떴다). cloudflared를 1로 올리지 않으므로 serve-agent가 내리기 전 15초 틈도 없다.
 - `sync-standby.sh` 기본 `STANDBY_HOST`는 집컴 Tailscale(`suvisdev@100.91.129.31`) — 집 안팎 모두 닿는다.
 - 집 밖 push는 인터넷 업로드라 바뀐 레이어가 크면(의존성 변경 등) 오래 걸릴 수 있다.
 **집컴 빌드 부활은 금지**(10-05 메모리 부족으로 DB 크래시 2회).
@@ -110,7 +111,7 @@ journalctl --user -u standby-agent -n 5 --no-pager -o cat; cat ~/serve/laptop_he
   10-05 사용자 결정은 **그대로**.
 - 노트북 앱은 와이파이 너머 집컴 DB를 쓴다 — 요청당 쿼리 수만큼 지연이 붙는다(10-05 실측 검색 0.12초).
 - 집컴 IP `172.30.1.21` 이 바뀌면 `desktop-link.service`·`serve_agent.sh` 기본값을 고친다(`sync-standby.sh`·`ollama-tunnel`은 Tailscale IP).
-- **2026-10-06 Tailscale**: 노트북 `ollama-tunnel`은 집컴 Tailscale IP `100.91.129.31`로 붙는다(집 밖에서도 노트북 GPU). `desktop-link`·`serve_agent.sh`는 일부러 내부 IP 유지 — 집 밖에선 앱 서빙은 집컴. `sync-standby.sh`는 10-06부터 Tailscale IP(위 "배포"). 집컴 HAProxy에 7.8B 전용 `:11436`(노트북만, 예비 없음), 집컴 `.env` = `PORTFOLIO_LLM_BACKEND=exaone` · `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`. 저장소 `../ollama-proxy/` 원본 파일은 아직 옛 값(워크로그 10-06 (3)).
+- **2026-10-06 Tailscale**: 노트북 `ollama-tunnel`은 집컴 Tailscale IP `100.91.129.31`로 붙는다(집 밖에서도 노트북 GPU). `desktop-link`·`serve_agent.sh`는 일부러 내부 IP 유지 — 집 밖에선 앱 서빙은 집컴. `sync-standby.sh`는 10-06부터 Tailscale IP(위 "배포"). 집컴 HAProxy에 7.8B 전용 `:11436`(노트북만, 예비 없음), 집컴 `.env` = `PORTFOLIO_LLM_BACKEND=exaone` · `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`. 저장소 `../ollama-proxy/` 원본 파일은 10-20에 문서 기준으로 맞췄다(실기기와 `diff` 확인은 `../ollama-proxy/README.md` "설치").
 - 노트북이 응답 없이 멈추면(잠듦) 집컴 전환까지 약 30초 사이트가 530.
 - 노트북 재부팅 후에는 윈도우 로그인이 있어야 WSL 이 켜진다. 그 전까지는 집컴이 받는다.
 - 집컴 파드는 `imagePullPolicy: Always`라 **레지스트리 컨테이너(`standby-registry`)가 꺼져 있으면 새 파드가 뜨지 못한다**

@@ -8,10 +8,8 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text, UniqueConstra
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mova.adapter.outbound.orm.base_orm import MovaModel
+from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM, MovaModel
 from viewer.adapter.outbound.orm.user_orm import User
-
-_EMBEDDING_DIM = 768
 
 
 class MovaReview(MovaModel):
@@ -36,7 +34,7 @@ class MovaReview(MovaModel):
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(_EMBEDDING_DIM),
+        Vector(MOVA_EMBEDDING_DIM),
         nullable=True,
         comment="body 임베딩. body=NULL이면 컬럼도 NULL. HNSW 인덱스 idx_reviews_embedding_hnsw",
     )

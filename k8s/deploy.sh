@@ -6,6 +6,8 @@
 #   ./k8s/deploy.sh --build         # 이미지 재빌드 후 배포(backend/auth 재시작 포함)
 #   ./k8s/deploy.sh --external-db   # 노트북 1단계: db·redis는 기존 도커 컨테이너를 그대로 쓰고
 #                                   #   (external-db-redis.yaml) nginx-alias.yaml·ingress.yaml까지 apply
+#   ./k8s/deploy.sh --external-db --no-tunnel   # cloudflared만 빼고 apply — 노트북이 집 밖일 때 CD가 쓴다
+#                                   #   (터널 켜기·끄기는 serve-agent 몫, .github/workflows/backend-deploy.yml)
 #   플래그는 조합 가능: ./k8s/deploy.sh --external-db --build
 #
 # 전제: k3s 설치돼 있을 것(README.md 설치 절 참고).
@@ -27,10 +29,12 @@ HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}"   # __HF_CACHE__ — 감성 배�
 
 BUILD=0
 EXTERNAL_DB=0
+NO_TUNNEL=0
 for arg in "$@"; do
   case "$arg" in
     --build) BUILD=1 ;;
     --external-db) EXTERNAL_DB=1 ;;
+    --no-tunnel) NO_TUNNEL=1 ;;
     *) echo "알 수 없는 옵션: $arg" >&2; exit 1 ;;
   esac
 done
@@ -100,7 +104,9 @@ kubectl apply \
 # 치환해 apply한다 — 0으로 apply한 뒤 scale 1로 되살리던 방식은 배포마다 터널 파드가 죽었다
 # 새로 떠 api./auth.suvisdev.cloud가 ~10초 530이었다(2026-09-29 실측). 그 전엔 scale을 잊으면
 # 530이 계속됐다(2026-09-09 사고).
-if [ "$EXTERNAL_DB" = 1 ]; then
+if [ "$NO_TUNNEL" = 1 ]; then
+  echo "[skip] cloudflared apply 안 함(--no-tunnel)"
+elif [ "$EXTERNAL_DB" = 1 ]; then
   grep -q '^  replicas: 0$' cloudflared.yaml || { echo "cloudflared.yaml replicas 줄을 못 찾음" >&2; exit 1; }
   sed 's/^  replicas: 0$/  replicas: 1/' cloudflared.yaml | kubectl apply -f -
 else
