@@ -43,6 +43,7 @@ Karpathy 네 원칙(묵시적 가정 금지·최소 diff)은 **항상** 유지�
 | `contents/` | 콘텐츠 데모(soccer chat 등) | Spoke | — |
 | `analytics/` | 방문자 통계 | Spoke | — |
 | `media/` | (구 susu) 모바일 카메라 사진 → S3 저장·OCR | Spoke | — |
+| `deolmi/` | 덜미 — 매크로·봇 탐지(SDK 신호 채점·토큰 검증), 2026-10-20 신설 | Spoke | `deolmi/_docs/CLAUDE.md` |
 | `sample/` | 순수 스켈레톤(main.py 미등록, 전 파일 `__init__.py`) | Spoke | — |
 
 - **프로덕션 인증은 auth 게이트웨이**(`/auth/login`·`/auth/signup`, RS256) —

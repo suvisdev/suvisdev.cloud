@@ -7,6 +7,7 @@ root_packages =
     execsuite
     dispatch
     gildle
+    deolmi
     contents
     sample
     analytics
@@ -28,6 +29,7 @@ forbidden_modules =
     execsuite
     dispatch
     gildle
+    deolmi
     contents
     sample
     analytics
@@ -53,6 +55,7 @@ modules =
     execsuite
     dispatch
     gildle
+    deolmi
     contents
     sample
     analytics
@@ -125,6 +128,16 @@ forbidden_modules =
     gildle.app
     gildle.adapter
 
+# Rule 4c: Deolmi domain must stay pure (same rule as mova/titanic/gildle).
+[importlinter:contract:deolmi-domain-independence]
+name = Deolmi domain must not import app or adapter
+type = forbidden
+source_modules =
+    deolmi.domain
+forbidden_modules =
+    deolmi.app
+    deolmi.adapter
+
 # Rule 5: auth is a parallel-build gateway (see suvisdev/apps/auth/_docs/) not yet
 # wired to real traffic. No existing app may depend on it this round — the reverse
 # direction (auth -> spoke) is already covered by spoke-independence above.
@@ -135,6 +148,7 @@ source_modules =
     contents
     dispatch
     gildle
+    deolmi
     mova
     ontology
     sample
@@ -157,6 +171,7 @@ forbidden_modules =
     contents
     dispatch
     gildle
+    deolmi
     mova
     ontology
     sample
