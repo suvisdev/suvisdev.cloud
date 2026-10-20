@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mova.adapter.outbound.orm.base_orm import MovaModel
+from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM, MovaModel
 
 AGE_RATINGS = ("전체", "12세", "15세", "청불")
 
@@ -19,9 +19,6 @@ AGE_RATINGS = ("전체", "12세", "15세", "청불")
 # 노출 유지(미확인을 배제로 취급하지 않음) — movies_pg_repository.list_movies(),
 # market_chat_pg_repository.py 후보 쿼리에서 함께 참조한다.
 ALLOWED_ORIGINAL_LANGUAGES = ("ko", "en")
-
-# Gemini text-embedding-004 기준 차원 (mova가 이미 Gemini 어댑터 사용 중, MOVA_ERD.md v3 확정).
-_EMBEDDING_DIM = 768
 
 
 def slugify_movie(title: str) -> str:
@@ -76,7 +73,7 @@ class MovaMovie(MovaModel):
         comment="TMDB videos의 YouTube 트레일러 video key. https://www.youtube.com/embed/{key}로 조립",
     )
     embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(_EMBEDDING_DIM),
+        Vector(MOVA_EMBEDDING_DIM),
         nullable=True,
         comment="추천용 임베딩. HNSW/IVFFlat 인덱스는 별도 리비전",
     )

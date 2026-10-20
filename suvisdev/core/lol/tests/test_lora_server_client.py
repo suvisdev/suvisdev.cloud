@@ -75,12 +75,39 @@ def test_generate_success_first_try(monkeypatch):
     assert len(calls) == 1
 
 
-def test_generate_retries_once_on_timeout_then_succeeds(monkeypatch):
+def test_generate_retries_once_on_connect_timeout_then_succeeds(monkeypatch):
     calls: list[dict] = []
-    results = [httpx.TimeoutException("timeout"), _FakeResponse(json_data={"text": "ok"})]
+    results = [httpx.ConnectTimeout("timeout"), _FakeResponse(json_data={"text": "ok"})]
     monkeypatch.setattr(module.httpx, "Client", _fake_client_class(results, calls))
     orch = _orchestrator()
     assert orch.generate("prompt") == "ok"
+    assert len(calls) == 2
+
+
+def test_generate_does_not_retry_on_read_timeout(monkeypatch):
+    """연결은 됐는데 응답이 없으면(read 타임아웃) 재시도 없이 바로 실패해 Gemini 폴백으로 간다.
+
+    재시도하면 read 60s를 두 번 기다려 폴백까지 120s+가 걸렸다(2026-10-20 리뷰).
+    """
+    calls: list[dict] = []
+    results = [httpx.ReadTimeout("read timeout"), _FakeResponse(json_data={"text": "late"})]
+    monkeypatch.setattr(module.httpx, "Client", _fake_client_class(results, calls))
+    orch = _orchestrator()
+    with pytest.raises(LoraServerError) as exc_info:
+        orch.generate("prompt")
+    assert exc_info.value.status_code == 504
+    assert len(calls) == 1
+
+
+def test_read_timeouts_open_circuit_after_two_requests(monkeypatch):
+    """응답 없는 서버: 요청 2건(각 1회 시도)으로 서킷이 열리고 3번째는 HTTP 호출 없이 실패."""
+    calls: list[dict] = []
+    results = [httpx.ReadTimeout("t1"), httpx.ReadTimeout("t2")]
+    monkeypatch.setattr(module.httpx, "Client", _fake_client_class(results, calls))
+    orch = _orchestrator()
+    for _ in range(3):
+        with pytest.raises(LoraServerError):
+            orch.generate("prompt")
     assert len(calls) == 2
 
 

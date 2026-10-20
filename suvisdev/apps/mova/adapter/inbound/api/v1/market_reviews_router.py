@@ -48,14 +48,14 @@ async def _embed_review_then_recompute_taste(
     review_id: int,
     user_id: int,
 ) -> None:
-    """BG task 하나로 두 단계 체이닝 — 리뷰 임베딩 저장 성공 시에만 취향 벡터 재계산.
+    """BG task 하나로 두 단계 체이닝 — 리뷰 임베딩 후 취향 벡터 재계산.
 
-    임베딩 실패면 취향 벡터는 그대로 두고 다음 크론 안전망이 처리한다.
+    임베딩이 실패해도 재계산한다 — 본문 수정 시 update_review가 임베딩을 비우므로,
+    재계산해야 옛 벡터 기여분이 취향에서 빠진다(재임베딩은 크론 안전망이 처리).
     두 단계 다 실패해도 리뷰 자체는 이미 저장돼 있으니 요청은 성공 응답.
     """
-    outcome = await embedding_backfill.embed_one(review_id)
-    if outcome == "succeeded":
-        await taste_recompute.recompute_for_user(user_id)
+    await embedding_backfill.embed_one(review_id)
+    await taste_recompute.recompute_for_user(user_id)
 
 
 market_reviews_router = APIRouter(prefix="/reviews", tags=["mova-reviews"])
@@ -117,7 +117,7 @@ async def add_review(
 ) -> ReviewSchema:
     """별점·감상평 리뷰 저장(재제출 시 기존 리뷰 upsert). 별점만/본문만/둘 다 허용.
 
-    body가 있으면 응답 후 background에서 임베딩 생성 + 성공 시 취향 벡터
+    body가 있으면 응답 후 background에서 임베딩 생성 + 취향 벡터
     재계산(체이닝). 실패해도 리뷰는 남고 크론이 안전망으로 나중에 잡음.
     body가 없으면 임베딩은 스킵하지만 rating 변경으로도 취향 벡터 후보가 달라질
     수 있으니 recompute만 걸어둔다.
@@ -197,7 +197,7 @@ async def update_review(
     """리뷰 수정 — 본인 리뷰만 가능(IDOR 방지).
 
     body/rating이 바뀌었을 가능성이 있으면 background에서 임베딩 재생성 +
-    성공 시 취향 벡터 재계산(체이닝). update가 부분 갱신이라 body 유무를
+    취향 벡터 재계산(체이닝). update가 부분 갱신이라 body 유무를
     여기서 못 가려 항상 체인을 건다(embed_one이 body 없으면 자체 스킵).
     """
     existing = await use_case.get_by_id(review_id)

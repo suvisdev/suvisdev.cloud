@@ -21,6 +21,9 @@ load_dotenv(_BACKEND_ROOT / ".env")
 # contents ORM 등록 — 모듈 import 시 테이블이 ContentsBase.metadata에 붙는다.
 from pgvector.sqlalchemy import Vector  # noqa: F401,E402
 
+# analytics·ontology(hub_knowledge)도 grid_neo_theone_base.Base에 붙는다 — 빠지면
+# autogenerate가 visitor_activity·hub_knowledge를 drop_table로 제안한다(2026-10-20).
+import analytics.adapter.outbound.orm.visitor_activity_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.player_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.schedule_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.stadium_orm  # noqa: F401,E402
@@ -43,6 +46,10 @@ import gildle.adapter.outbound.orm.walk_orm  # noqa: F401,E402
 
 # mova ORM 등록 — 패키지 __init__이 전체 서브모듈을 import해 MovaBase.metadata에 붙인다.
 import mova.adapter.outbound.orm  # noqa: F401,E402
+
+# user_taste_vectors는 패키지 __init__에 없어 따로 등록한다(빠지면 drop_table 제안).
+import mova.adapter.outbound.orm.platform_user_taste_vectors_orm  # noqa: F401,E402
+import ontology.adapter.outbound.orm.hub_knowledge_orm  # noqa: F401,E402
 import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_rose_model_orm  # noqa: F401,E402
