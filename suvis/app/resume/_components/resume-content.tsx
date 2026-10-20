@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
   { id: "about", label: "ABOUT", icon: User },
-  { id: "experience", label: "EXPERIENCE", icon: Trophy },
+  { id: "awards", label: "AWARDS", icon: Trophy },
   { id: "projects", label: "PROJECTS", icon: FolderKanban },
   { id: "techstack", label: "TECH STACK", icon: Layers },
   { id: "education", label: "EDUCATION", icon: GraduationCap },
@@ -24,7 +24,7 @@ function glue(text: string) {
 const ROLE = "AI Engineer"
 const HEADLINE = "LLM 에이전트와 AI 서비스를 직접 개발하고 운영하는 AI 엔지니어"
 
-// 문구와 수치는 PDF 이력서 v18(2026-10-13)과 같게 둔다. 한쪽만 고치면 서로 어긋난다.
+// 문구와 수치는 PDF 이력서 v23(2026-10-20, AI 엔지니어판)과 같게 둔다. 한쪽만 고치면 서로 어긋난다.
 const STRENGTHS = [
   {
     label: "LLM 에이전트",
@@ -32,7 +32,7 @@ const STRENGTHS = [
   },
   {
     label: "모델 학습과 평가",
-    text: "EXAONE 2.4B를 파인튜닝해 도구 선택 정확도 83% → 94%(평가 66건), Qwen3-8B는 도구 호출 평가 23건에서 Claude Haiku 4.5와 같은 정답 수",
+    text: "EXAONE 3.5 2.4B를 파인튜닝해 도구 선택 정확도 83% → 94%(평가 66건), Qwen3-8B는 도구 호출 평가 23건에서 Claude Haiku 4.5와 같은 정답 수",
   },
   {
     label: "서빙과 운영",
@@ -44,23 +44,27 @@ const STRENGTHS = [
   },
 ]
 
-const EXPERIENCE = [
-  {
-    period: "2026.10",
-    title: "원티드 AI Championship 2026 본선 진출(참가 1,300여 팀 중 TOP 20)",
-    desc: "참가작 공개 투표 1위(2026.10.05 기준), 4인 팀 팀장으로 팀 프로젝트 Arda 출품",
-  },
-]
+// PDF '수상 및 대외 활동' 섹션. 인기상은 화면 위쪽 배지와 첫 성과 카드에서도 보이게 강조한다.
+const AWARD = {
+  period: "2026.10",
+  title: "원티드 AI Championship 2026 인기상",
+  issuer: "원티드랩, 2026.10.17",
+  highlight: "참가작 공개 투표 최종 1위",
+  lines: [
+    "본선 진출(참가 1,300여 팀 중 TOP 20), 팀장으로 Arda 출품",
+    "본선 데스매치 통과(20팀 중 10팀), 3분 스피치까지 직접 발표",
+  ],
+}
 
 const TECH_STACK = [
   { category: "LLM 에이전트", items: ["Claude API", "Tool Calling"], usage: "에이전트 도구 12종, 쓰기 작업 승인 카드, 규칙 라우터" },
-  { category: "모델 학습", items: ["QLoRA", "LoRA"], usage: "Qwen3-8B, EXAONE 2.4B 파인튜닝, 라벨 마스킹" },
+  { category: "모델 학습", items: ["QLoRA", "LoRA"], usage: "Qwen3-8B, EXAONE 3.5 2.4B 파인튜닝, 라벨 마스킹" },
   { category: "평가", items: ["자동 채점기", "Recall@8"], usage: "Qwen과 Claude 비교, 평가셋 66건, 임베딩 3종 비교" },
   { category: "RAG와 체인", items: ["pgvector", "bge-m3"], usage: "시맨틱 검색, 3단 프롬프트 체인(요약, 평가, 추천)" },
   { category: "서빙", items: ["Ollama", "llama.cpp", "HAProxy"], usage: "GGUF 로컬 서빙, GPU 추론 중계, 비전 모델 MCP 서버" },
   { category: "백엔드", items: ["Python", "FastAPI", "PostgreSQL"], usage: "채용 시스템 API, 1인 모듈러 모놀리식 백엔드" },
   { category: "인프라", items: ["Docker", "k3s", "AWS", "GitHub Actions"], usage: "자동 배포, 서버 2대 자동 전환, PC 3대 온프레미스" },
-  { category: "프론트와 앱", items: ["React", "Next.js", "TypeScript", "Flutter"], usage: "웹 화면, Android 앱(Google Play 내부 테스트)" },
+  { category: "프론트와 앱", items: ["React", "Next.js", "Flutter"], usage: "웹 화면, Android 앱(Google Play 내부 테스트)" },
 ]
 
 const PROJECTS = [
@@ -71,16 +75,20 @@ const PROJECTS = [
     overview:
       "채용 과정의 반복 업무를 자동화하고 흩어진 지원자 정보를 한 플랫폼으로 모아, 채용 담당자가 '지원자라는 사람'에 집중할 수 있게 하는 시스템",
     results: [
-      { label: "Claude Haiku 4.5와 같은 정답 수", text: "Qwen3-8B를 파인튜닝해 도구 호출 평가 23건 중 17건(73.9%)" },
       { label: "온프레미스 시연", text: "AWS 의존을 낮추려고 로컬 모델로 바꿔 컴퓨터 3대로 시연과 점검까지 직접 운영" },
-      { label: "AI 면접 기능 구현", text: "음성 인식과 팀원이 학습한 표정 ViT를 실시간 화상 면접에 연결" },
+      { label: "심사 기간 무중단 운영", text: "데모 계정 보호, 고정 응답(LLM 비용 0), 자동 배포와 매일 백업, 알람 6종" },
+      {
+        label: "Qwen 파인튜닝과 운영 판단",
+        text: "도구 호출 평가 23건 중 17건(73.9%)으로 Claude Haiku 4.5와 같은 정답 수였지만, T4 첫 기동 78초와 답변 품질을 보고 운영은 Claude로",
+      },
     ],
     points: [
       "담당자가 채팅으로 지원자 검색, 단계 변경, 면접관 배정을 시킬 수 있는 에이전트 '아르'의 도구 12종을 만들고, 데이터를 바꾸는 작업은 확인 카드로 승인받게 함",
-      "Qwen3-8B를 QLoRA로 파인튜닝하며, 긴 시스템 프롬프트에 손실이 쏠리던 문제를 답변 부분만 학습하게(라벨 마스킹) 바꿔 해결하고, Claude와 같은 평가 23건으로 비교함",
-      "지원서를 요약, 평가, 추천 체인으로 읽어 공고 기준 100점으로 채점하고 서류 단계를 자동 판정함",
+      "Qwen3-8B를 QLoRA로 파인튜닝하며, 긴 시스템 프롬프트에 손실이 쏠리던 문제에 답변 부분만 학습하도록 라벨 마스킹을 적용하고 채점 오류를 수정한 뒤, 같은 평가 23건으로 후속 모델을 비교함",
+      "파인튜닝한 Qwen을 GGUF로 바꿔 Ollama로 띄우고, 컴퓨터 3대에 API와 DB, 면접 분석, LLM을 나눠 Cloudflare Tunnel 도메인으로 연결함",
+      "지원서를 요약, 평가, 추천 체인으로 읽어 공고 기준 100점으로 채점하고 서류 단계를 자동 판정함(단계 이동은 자동, 최종 합격과 불합격 메일은 담당자)",
       "클린 아키텍처 중 필요한 부분만 골라 헥사고날 구조로 재편해, 모델 파일 하나를 71개 파일이 불러 쓰던 백엔드를 업무 단위 4개로 나누고 고칠 범위를 좁힘(PR 20개)",
-      "팀장을 맡은 뒤 전임 팀장 계정의 AWS를 본인 계정으로 옮기고 권한을 역할별로 나눴으며, 자동 배포와 매일 DB 백업, 알람 6종을 갖춤",
+      "팀장을 맡은 뒤 전임 팀장 계정의 AWS를 본인 계정으로 옮기고 권한을 역할별로 나눔",
     ],
     tech: ["Python", "FastAPI", "PostgreSQL(pgvector)", "Claude API", "Qwen3-8B(QLoRA)", "Ollama", "Docker", "AWS", "React", "Flutter"],
     links: [
@@ -96,13 +104,16 @@ const PROJECTS = [
     overview:
       "좋아하는 영화와 반려견 산책에 AI를 붙여, 대화로 영화를 찾고 그늘진 산책 길을 추천받는 서비스를 기획부터 운영까지 혼자 만든 플랫폼(현재 개인 운영과 내부 테스트 단계)",
     results: [
-      { label: "도구 선택 정확도 83% → 94%", text: "EXAONE 2.4B 파인튜닝 전후, 평가 66건 기준(프롬프트만 쓴 7.8B는 89%)" },
+      { label: "도구 선택 정확도 83% → 94%", text: "EXAONE 3.5 2.4B 파인튜닝 전후, 평가 66건(프롬프트만 쓴 7.8B는 89%)" },
       { label: "영화 검색 적중률 39% → 86%", text: "임베딩 모델을 바꿔, 질문 60개에서 찾는 영화가 검색 결과 상위 8개 안에 드는 비율(Recall@8)을 높임" },
       { label: "AWS EC2 사용액 월 약 70달러 절감", text: "백엔드를 노트북과 자택 서버로 옮겨 GPU 추론까지 직접 운영" },
-      { label: "서버 2대 이중화", text: "노트북이 꺼져도 약 31초 뒤 자택 서버가 API를 이어받음(노트북을 끄는 시험으로 확인)" },
+      {
+        label: "서버 2대 이중화",
+        text: "노트북이 꺼져도 약 31초 뒤 자택 서버가 API를 이어받고 판단 모델은 CPU로, 채팅은 Gemini로 넘김(노트북을 끄는 시험으로 확인)",
+      },
     ],
     points: [
-      "EXAONE 2.4B를 LoRA로 파인튜닝해 영화 채팅에서 다음에 쓸 도구 하나만 고르게 하고, 출연진, 상영 시간표 같은 사실은 코드가 답하게 나눠 모델이 지어내지 못하게 함",
+      "EXAONE 3.5 2.4B를 LoRA로 파인튜닝해 영화 채팅에서 다음에 쓸 도구 하나만 고르게 하고, 출연진, 상영 시간표 같은 사실은 코드가 조회해 답하게 나눔",
       "임베딩 모델 3종을 영화 205편, 질문 60개로 직접 비교해 가장 잘 찾는 bge-m3로 바꾸고 검색 데이터를 다시 만듦(2,965건)",
       "서울 보행로 약 23만 구간에 건물 약 80만 동의 그림자를 달마다, 시간대마다 미리 계산해 그늘진 산책 길을 찾아 줌",
       "노트북(GPU)과 자택 서버 두 대를 Cloudflare Tunnel로 묶어 노트북이 꺼지면 자택 서버가 넘겨받게 하고, Ollama 추론은 노트북 GPU로 먼저 보냄",
@@ -171,6 +182,7 @@ export function ResumeContent() {
             <p className="mt-3 text-sm leading-relaxed text-neutral-500 [word-break:keep-all]">
               {glue(HEADLINE)}
             </p>
+            <AwardBadge onClick={() => scrollTo("awards")} />
           </div>
 
           <nav className="space-y-1">
@@ -215,6 +227,7 @@ export function ResumeContent() {
           {ROLE}
         </p>
         <p className="mt-2 text-sm leading-relaxed text-neutral-500 [word-break:keep-all]">{glue(HEADLINE)}</p>
+        <AwardBadge onClick={() => scrollTo("awards")} />
       </div>
 
       {/* RIGHT CONTENT */}
@@ -230,20 +243,38 @@ export function ResumeContent() {
               </div>
             ))}
           </dl>
-          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <StatCard label="원티드 AI Championship 2026 본선" value="TOP 20" />
+          <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="원티드 AI Championship 2026 공개 투표 최종 1위" value="인기상" featured />
+            <StatCard label="본선 진출(참가 1,300여 팀 중)" value="TOP 20" />
             <StatCard label="도구 선택 정확도(평가 66건)" value="83% → 94%" />
             <StatCard label="노트북이 꺼질 때 자동 전환" value="약 31초" />
           </div>
         </section>
 
-        {/* EXPERIENCE */}
-        <section id="experience" ref={(el) => { sectionRefs.current.experience = el }}>
-          <SectionHeader num="02" title="Experience" />
-          <div className="mt-6 space-y-6">
-            {EXPERIENCE.map((e) => (
-              <TimelineItem key={e.title} period={e.period} title={glue(e.title)} desc={glue(e.desc)} />
-            ))}
+        {/* AWARDS */}
+        <section id="awards" ref={(el) => { sectionRefs.current.awards = el }}>
+          <SectionHeader num="02" title="Awards" />
+          <div className="mt-6 rounded-xl border-2 border-amber-400 bg-amber-50 p-5 [word-break:keep-all]">
+            <div className="flex items-start gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
+                <Trophy className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-amber-700">{AWARD.period}</p>
+                <h3 className="mt-0.5 text-lg font-bold text-neutral-900">{AWARD.title}</h3>
+                <p className="mt-1 text-sm font-semibold text-amber-700">
+                  {AWARD.highlight}
+                  <span className="ml-2 font-normal text-neutral-500">({AWARD.issuer})</span>
+                </p>
+                <ul className="mt-3 space-y-1 text-sm leading-relaxed text-neutral-600">
+                  {AWARD.lines.map((line) => (
+                    <li key={line} className="relative pl-3.5 before:absolute before:left-0 before:top-[0.6em] before:h-1 before:w-1 before:rounded-full before:bg-amber-500">
+                      {glue(line)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -372,12 +403,34 @@ function Badge({ children }: { children: React.ReactNode }) {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, featured = false }: { label: string; value: string; featured?: boolean }) {
   return (
-    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-center">
-      <p className="text-lg font-bold text-amber-600">{value}</p>
-      <p className="mt-0.5 text-xs text-neutral-400 [word-break:keep-all]">{label}</p>
+    <div
+      className={cn(
+        "rounded-lg border px-4 py-3 text-center",
+        featured ? "border-amber-400 bg-amber-500 text-white shadow-sm" : "border-neutral-200 bg-neutral-50"
+      )}
+    >
+      <p className={cn("flex items-center justify-center gap-1.5 text-lg font-bold", featured ? "text-white" : "text-amber-600")}>
+        {featured && <Trophy className="h-4 w-4" aria-hidden />}
+        {value}
+      </p>
+      <p className={cn("mt-0.5 text-xs [word-break:keep-all]", featured ? "text-amber-50" : "text-neutral-400")}>{label}</p>
     </div>
+  )
+}
+
+// 이름 바로 아래의 인기상 배지. 누르면 수상 섹션으로 내려간다.
+function AwardBadge({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-left text-xs font-semibold text-amber-700 transition-colors [word-break:keep-all] hover:bg-amber-100"
+    >
+      <Trophy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      {AWARD.title}
+    </button>
   )
 }
 
