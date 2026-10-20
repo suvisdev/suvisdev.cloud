@@ -61,3 +61,7 @@ class CalculateDogFriendlyRouteUseCase(ABC):
     ) -> list[str]:
         """임의 가중치(산책 선호)로, 길이가 최단의 (1+max_detour_ratio)배를 넘지 않는 경로."""
         raise NotImplementedError
+
+    def winter_factor_fn(self) -> Callable[[RouteEdge], float]:
+        """간선별 겨울 결빙 배율(≥1) — 산책 선호 가중치에 곱한다. 기본 구현은 미지원."""
+        raise NotImplementedError

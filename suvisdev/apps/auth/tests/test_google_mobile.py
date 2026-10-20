@@ -104,13 +104,10 @@ def google_key(monkeypatch):
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
     class _FakeJwkClient:
-        def __init__(self, _url: str) -> None:
-            pass
-
         def get_signing_key_from_jwt(self, _token: str):
             return type("K", (), {"key": key.public_key()})()
 
-    monkeypatch.setattr(verifier_module, "PyJWKClient", _FakeJwkClient)
+    monkeypatch.setattr(verifier_module, "_JWKS_CLIENT", _FakeJwkClient())
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "web-client.apps.googleusercontent.com")
     return key
 

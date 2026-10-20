@@ -147,6 +147,9 @@ class AuthService:
         if user is None:
             self._refresh.revoke_family(rotated.family_id)
             raise ReuseDetected("계정이 존재하지 않습니다.")
+        # 계정 조회(await) 동안 로그아웃이 끝났으면 발급하지 않는다 — 회전 직후 확인만으로는 이 틈이 남았다.
+        if self._refresh.is_family_revoked(rotated.family_id):
+            raise ReuseDetected("이미 로그아웃된 세션입니다.")
         access_token = self._tokens.issue_access_token(
             sub=rotated.sub, roles=user.role_values(), aud=rotated.aud, expires_min=_ACCESS_TTL_MIN
         )

@@ -94,3 +94,19 @@ async def test_old_mobile_user_session_still_refreshes(ctx):
     resp = await service.mobile_refresh("1:s")
     assert resp.refresh_token.startswith("1:")
     assert json.loads(fake.get("auth:refresh:mobile:1") or "{}")["sv"] == 2
+
+
+@pytest.mark.asyncio
+async def test_logout_during_account_lookup_blocks_issue(ctx, monkeypatch):
+    """회전 뒤 계정 조회(await) 사이에 로그아웃이 끝나면 토큰을 발급하지 않는다."""
+    service, fake = ctx
+    _old_web_session(fake, "old", ["user"])
+    original = _FakeUserRepository.find_by_subject
+
+    async def _lookup_then_logout(self, sub):
+        await service.logout("old")
+        return await original(self, sub)
+
+    monkeypatch.setattr(_FakeUserRepository, "find_by_subject", _lookup_then_logout)
+    with pytest.raises(ReuseDetected):
+        await service.refresh("old")

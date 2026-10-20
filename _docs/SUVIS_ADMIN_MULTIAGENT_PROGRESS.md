@@ -126,7 +126,8 @@ http://127.0.0.1:31386`.
 4. **올라마 설정 대조**: 집컴 `diff ~/ollama-proxy/haproxy.cfg ~/projects/suvisdev/k8s/ollama-proxy/haproxy.cfg`, 노트북 `ollama-tunnel.service` — 설정 줄이 다르면 운영 값이 정답, 저장소를 고침.
 5. **길들 앱**: 새 AAB 1.0.6+7 이상(저장 재시도·세션 만료·업데이트 버튼) + 실기기 확인, 구글 Android OAuth 클라이언트·카카오 Play 서명 키 해시 등록.
 6. (선택) mova 임베딩 백필 3종 `--dry-run` 먼저.
-7. 남은 개선(미착수): main.py 전역 422 처리기(inf 입력 500), 겨울 결빙 회피를 그늘·푸른·편한 길 후보까지, `@google/generative-ai` 미사용 의존성 정리, viewer 죽은 `login_pg_repository.py`.
+7. 남은 개선(미착수): refresh 동시 갱신 응답 경합(구조 개선 미결 — 해결안은 브라우저엔 고정 세션 ID, 회전 토큰은 BFF 서버 쪽 관리: 인증 구조 변경이라 사용자 결정), main.py 전역 422 처리기(inf 입력 500), `@google/generative-ai` 미사용 의존성 정리, viewer 죽은 `login_pg_repository.py`.
+8. Codex 확인 리뷰 새 지적 5건(10-20 (5), 미착수): 관리자 계정의 사용자 기능 호환성 보완, OAuth 로그인 시 이전 세션 정리 호출의 시간 제한, 모바일 세션 갱신 경합, 길들 산책 저장 응답 유실 후 중복 저장, mova 임베딩 작업 중 리뷰 수정 시 옛 벡터 저장.
 
 ### 노트북·집컴 이중화 후속 (2026-10-06, 인수인계 `HANDOFF_suvisdev_2026-10-06.md`)
 1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영** — 10-06 수정(브랜치 `fix/cd-away-from-home`: DB 안 닿으면 노트북은 빌드·적재만 + sync-standby Tailscale). 집 밖 실 CD 검증 완료(run 37404372412, 1분 29초, 집컴 이미지 일치), PR #176 머지(`5e798c3`).
@@ -398,10 +399,11 @@ http://127.0.0.1:31386`.
 - 09-28 밤: 출시 준비 — 게스트 모드·이메일 가입(필수만)·앱/웹 계정 삭제·방침 개정, 앱 토큰 401 버그 수정,
   AAB `gildle-release-20260928.aab`. `[G]` 09-28. **사용자 몫**: 가이드(`gildle/_docs/GILDLE_PLAY_CONSOLE_GUIDE.md`)대로
   앱 콘텐츠 입력 → 내부 테스트 업로드·카카오 키 해시(Play 서명 키) → 스크린샷 → 비공개 테스트 12명·14일.
-- 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 콘솔 인증 후 스토어
+- 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 스토어
   등록정보(스크린샷·설명에 서울 한정·콘텐츠 등급·데이터 보안 양식) + `GILDLE_APP_STORE_URL` →
   FCM 발송(보낼 알림 결정 후) → ⑤ 그늘 실측(사진 5곳) → 모델 A(walks 쌓인 뒤) · 모델 D(DEM).
-  **사용자 몫은 Play Console 인증 대기 — 09-28 기준 미승인, 최소 한 달 예상(그동안 출시 항목 보류).** 준비 상태 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
+  Play Console 인증·앱 생성은 09-28 완료 — 남은 사용자 몫은 새 AAB(1.0.6+7 이상)·실기기 확인·내부 테스트 업로드(위 "10-20 리뷰 수정 후속" 5번).
+  현재 상태 표: `gildle/_docs/GILDLE_PLAY_CONSOLE_GUIDE.md` "현재 상태", 준비 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
 
 - 09-30 저녁: 경로 방향 화살표·후보별 색("코스 N")·선호 복수 선택(웹·앱·백엔드 `preferences`). `[G]` 09-30.
   산책 중 다음 방향 한 줄 안내·경로 이탈 알림(진동)도 추가(클라이언트 계산, 웹·앱 같은 규칙).

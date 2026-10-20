@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from urllib.parse import urlencode
 
@@ -72,7 +73,8 @@ class GoogleOAuthAdapter(OAuthProviderPort):
             raise OAuthError("Google 응답에 id_token이 없습니다.", status_code=502)
 
         try:
-            signing_key = _JWKS_CLIENT.get_signing_key_from_jwt(id_token)
+            # 키를 새로 받을 때는 동기 HTTP라 이벤트 루프를 막지 않게 스레드에서 돌린다.
+            signing_key = await asyncio.to_thread(_JWKS_CLIENT.get_signing_key_from_jwt, id_token)
             claims = jwt.decode(
                 id_token,
                 signing_key.key,
