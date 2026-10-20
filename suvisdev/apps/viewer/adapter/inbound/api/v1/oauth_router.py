@@ -8,7 +8,7 @@ import secrets
 import time
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -23,6 +23,10 @@ _FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _STATE_MAX_AGE_SECONDS = 600
 _STATE_KEY_PREFIX = "viewer:oauth:state:"
+# 로그인을 시작한 브라우저에만 심는 state nonce 쿠키 — 콜백에서 state와 대조한다.
+# 브라우저가 백엔드 /viewer/oauth/{provider}/login·callback을 직접 오가므로(프론트
+# oauth-buttons가 window.location 이동, REDIRECT_URI가 백엔드 콜백) 같은 호스트 쿠키로 충분하다.
+_STATE_COOKIE = "viewer_oauth_state"
 
 _state_client: redis.Redis | None = None
 
@@ -45,7 +49,8 @@ def _state_secret() -> bytes:
 
 
 def _sign_state() -> str:
-    """CSRF state를 쿠키 없이 자체 서명해 발급한다 — 브라우저/프록시의 쿠키 유실 문제를 피한다.
+    """CSRF state를 자체 서명해 발급한다. 브라우저 결합은 콜백에서 _STATE_COOKIE로 따로 확인한다
+    (2026-10-20 — 구 버전은 쿠키 없이 서명·1회 소비만 봤다).
 
     서명과 별개로 nonce를 Redis에 TTL로 적어 두고 콜백에서 1회 소비한다 —
     서명만으로는 10분 내 무한 재사용이 가능해 로그인 CSRF에 쓰일 수 있었다
@@ -81,14 +86,28 @@ def _verify_state(state: str) -> bool:
 @oauth_router.get("/{provider}/login")
 async def oauth_login(
     provider: str,
+    request: Request,
     use_case: OAuthLoginUseCase = Depends(get_oauth_login_use_case),
 ) -> RedirectResponse:
+    state = _sign_state()
     try:
-        url = use_case.build_authorize_url(provider=provider, state=_sign_state())
+        url = use_case.build_authorize_url(provider=provider, state=state)
     except OAuthError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
-    return RedirectResponse(url=url, status_code=302)
+    response = RedirectResponse(url=url, status_code=302)
+    # SameSite=Lax: 프로바이더가 돌려보내는 콜백은 최상위 GET 이동이라 쿠키가 실린다.
+    # cloudflared 뒤에서는 scheme이 http로 보여 X-Forwarded-Proto로 https 여부를 판단한다.
+    response.set_cookie(
+        _STATE_COOKIE,
+        state.split(".", 1)[0],
+        max_age=_STATE_MAX_AGE_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https",
+        path="/",
+    )
+    return response
 
 
 @oauth_router.get("/{provider}/callback")
@@ -97,7 +116,16 @@ async def oauth_callback(
     code: str,
     state: str,
     use_case: OAuthLoginUseCase = Depends(get_oauth_login_use_case),
+    state_cookie: str | None = Cookie(default=None, alias=_STATE_COOKIE),
 ) -> RedirectResponse:
+    # state가 이 브라우저에서 시작된 로그인인지 확인 — 서명·1회 소비만으로는 공격자가
+    # 자기 계정으로 받은 미사용 콜백 URL을 피해자에게 열게 하는 로그인 CSRF를 못 막는다
+    # (2026-10-20 리뷰).
+    nonce = state.split(".", 1)[0]
+    if not state_cookie or not hmac.compare_digest(
+        state_cookie.encode("utf-8"), nonce.encode("utf-8")
+    ):
+        raise HTTPException(status_code=400, detail="state 값이 유효하지 않습니다 (CSRF 의심).")
     if not _verify_state(state):
         raise HTTPException(status_code=400, detail="state 값이 유효하지 않습니다 (CSRF 의심).")
 
@@ -109,10 +137,12 @@ async def oauth_callback(
     logger.info("🤖 [OAuthRouter] %s 콜백 완료 — kind=%s", provider, result.kind)
     # kind="session": 기존에 연결된 계정 → 바로 로그인.
     # kind="consent_required": 신규 신원 → 프론트가 약관 동의 화면을 먼저 보여줘야 한다.
-    return RedirectResponse(
+    response = RedirectResponse(
         url=f"{_FRONTEND_URL}/oauth/callback?type={result.kind}&code={result.code}",
         status_code=302,
     )
+    response.delete_cookie(_STATE_COOKIE, path="/")
+    return response
 
 
 class OAuthExchangeRequest(BaseModel):
