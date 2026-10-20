@@ -102,6 +102,15 @@ class RefreshTokenStore:
         - 유예 안 + 후속도 이미 회전됨(A→B→C 뒤 늦은 A) → 계열은 두고 RefreshSuperseded(409). B를 돌려주면
           클라이언트 쿠키가 이미 쓴 B로 덮여 다음 정상 refresh가 재사용으로 몰린다.
         - 유예 밖 → 재사용 공격으로 보고 계열 폐기
+
+        claim 키는 TTL(14일)로만 사라진다는 전제다 — 운영 Redis는 maxmemory 0·noeviction이라 축출이
+        없다(2026-10-20 확인). 축출 정책을 켜면 claim만 사라져 옛 토큰이 다시 회전될 수 있으니 이
+        전제부터 다시 볼 것.
+
+        남는 한계: 늦은 중복에 B를 돌려준 직후 B가 C로 회전되면, 그 응답이 브라우저에 늦게
+        닿아 쿠키가 B로 돌아갈 수 있다. B도 유예 10초 안이면 C를 다시 받아 복구되지만, 10초
+        뒤에 B로 갱신하면 재사용으로 폐기된다. 응답 도착 순서는 서버가 알 수 없어 여기서는 막지
+        못한다(이 순서가 되려면 10초 안에 회전이 두 번 일어나야 해 드물다).
         """
         raw = self._client.get(f"auth:refresh:{jti}")
         if raw is None:
@@ -109,7 +118,8 @@ class RefreshTokenStore:
 
         data = json.loads(raw)
         family_id = data["family_id"]
-        # used=True는 claim 도입 전에 회전된 토큰 — 기존대로 재사용 처리
+        # used=True는 claim 도입 전에 회전된 토큰 — 기존대로 재사용 처리. 그 전에 배포된 버전엔
+        # 유예가 없어 used=True가 곧 재사용이었다(유예 키를 쓴 중간 버전은 운영에 나간 적 없음).
         if data.get("used") or self.is_family_revoked(family_id):
             self.revoke_family(family_id)
             raise ReuseDetected(f"이미 사용된 리프레시 토큰 재사용 감지: family={family_id}")

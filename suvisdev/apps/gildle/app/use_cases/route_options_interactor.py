@@ -76,7 +76,8 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         빠른 길도 순수 거리가 아니라 차도 중심선 페널티(road_penalty)를 곱한 가중치로 찾는다
         (2026-10-01) — 강남대로 차도 한가운데를 "최단"이라고 그리던 것을 보도로 보낸다.
         겨울 안전 모드의 빠른 길은 `/routes`의 겨울 가중치(차도 페널티 × 결빙 위험구역 20m 안 ×6)를
-        그대로 쓴다(2026-10-20 — 후보 API가 계절을 배지로만 써서 결빙 회피가 빠져 있었다)."""
+        그대로 쓴다(2026-10-20 — 후보 API가 계절을 배지로만 써서 결빙 회피가 빠져 있었다).
+        그 밖의 후보(그늘·푸른·편한·언덕길)는 선호 가중치에 같은 결빙 배율을 곱한다(10-20 2차)."""
         if kind == "via":
             kind = "fast"
         if winter and kind == "fast":
@@ -84,6 +85,12 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
                 edges, start, end, SeasonMode.WINTER_SAFETY, max_detour_ratio=MAX_DETOUR_RATIO
             )
         weight, floor = make_weight(kind, shade_lookup=shade_lookup, elevation=elevation)
+        if winter:
+            preference_weight, icy = weight, self._route.winter_factor_fn()
+
+            def weight(e: RouteEdge) -> float:
+                return preference_weight(e) * icy(e)
+
         return self._route.execute_weighted(
             edges, start, end, weight, floor, max_detour_ratio=MAX_DETOUR_RATIO
         )
