@@ -45,6 +45,8 @@ KEYBOARD_HUMAN = {
     "click_iv_std": 0,
     "kbd_click_count": 1,
 }
+# 제출 버튼 없는 폼에서 Enter로 바로 제출 — 클릭 이벤트 자체가 없다.
+ENTER_SUBMIT_HUMAN = {**KEYBOARD_HUMAN, "click_count": 0, "kbd_click_count": 0}
 
 
 def make_site(

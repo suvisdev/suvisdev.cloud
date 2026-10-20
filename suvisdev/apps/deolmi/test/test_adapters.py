@@ -3,9 +3,10 @@ from __future__ import annotations
 import pytest
 from fakes import HUMAN, _FakeRedis
 
-from deolmi.adapter.outbound.cache.redis_velocity_adapter import RedisVelocityAdapter
+from deolmi.adapter.outbound.kvstore.redis_velocity_adapter import RedisVelocityAdapter
 from deolmi.adapter.outbound.ml.isolation_forest_model_adapter import IsolationForestModelAdapter
 from deolmi.adapter.outbound.repositories.event_pg_repository import EventPgLogWriter
+from deolmi.adapter.outbound.repositories.site_pg_repository import SitePgLookup
 from deolmi.adapter.outbound.security.jwt_score_token_adapter import JwtScoreTokenAdapter
 from deolmi.app.dtos.score_dto import ScoreResultDto
 from deolmi.app.errors import (
@@ -118,6 +119,13 @@ class _FakeSession:
     async def commit(self) -> None:
         self.committed = True
 
+    async def execute(self, stmt: object) -> _FakeSession:
+        assert not self.closed  # 세션이 열려 있는 동안에만 조회
+        return self
+
+    def scalar_one_or_none(self) -> None:
+        return None
+
 
 @pytest.mark.asyncio
 async def test_log_writer_opens_a_fresh_session_per_event():
@@ -134,3 +142,16 @@ async def test_log_writer_opens_a_fresh_session_per_event():
     await writer.add(1, "1.2.3.4", HUMAN, result)
     assert len(sessions) == 2
     assert all(s.committed and s.closed and len(s.added) == 1 for s in sessions)
+
+
+@pytest.mark.asyncio
+async def test_site_lookup_returns_its_connection_right_after_the_query():
+    # 요청 세션을 응답 뒤까지 쥐면 BackgroundTasks 로그가 같은 풀을 또 기다려 막힌다 — 조회 직후 닫는다.
+    sessions: list[_FakeSession] = []
+
+    def factory() -> _FakeSession:
+        sessions.append(_FakeSession())
+        return sessions[-1]
+
+    assert await SitePgLookup(factory).get_active("pk_x") is None  # type: ignore[arg-type]
+    assert len(sessions) == 1 and sessions[0].closed

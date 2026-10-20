@@ -47,11 +47,15 @@ def no_mouse_input(s: Mapping[str, float]) -> bool:
     """마우스 없이 터치·키보드로 쓴 세션 — 모바일 사용자, Enter로 제출하는 사람.
 
     모델은 마우스 세션으로만 학습했으므로(마우스 특징이 0이면 무조건 '이상치') 이런 세션은
-    모델로 판단하지 않는다. 단 터치·키보드 흔적이 전혀 없는 '움직임 없는 클릭'은 여기 해당하지 않는다.
+    모델로 판단하지 않는다(키 리듬 등 규칙은 그대로 본다). 키보드 사용자는 두 경우다 —
+    버튼을 Enter로 누르면 키보드 클릭(kbd_click_count)이 남고, 제출 버튼 없는 폼에서 Enter로
+    바로 제출(implicit submission)하면 클릭이 아예 없이 키 입력만 남는다.
+    단 터치·키보드 흔적이 없는 '움직임 없는 클릭'은 여기 해당하지 않는다.
     """
-    return s.get("move_count", 0) == 0 and (
-        s.get("touch_count", 0) > 0 or s.get("kbd_click_count", 0) > 0
-    )
+    if s.get("move_count", 0) != 0:
+        return False
+    keys_only = s.get("key_count", 0) > 0 and s.get("click_count", 0) == 0
+    return s.get("touch_count", 0) > 0 or s.get("kbd_click_count", 0) > 0 or keys_only
 
 
 def rule_score(s: Mapping[str, float], velocity_count: int) -> RuleResult:

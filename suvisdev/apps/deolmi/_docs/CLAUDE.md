@@ -37,6 +37,8 @@
    부트스트랩(현재 상태). 규칙만으로 차단 수준이면 모델을 건너뛴다(cheap_first, 폭주 대응). 최종 = max(규칙, 모델).
    **마우스 없이 터치·키보드로 쓴 세션(`no_mouse_input`)도 모델을 건너뛴다** — 모델은 마우스 세션으로만 학습해
    (재학습도 `move_count > 0`만) 마우스 특징이 0이면 사람이어도 0.99로 나온다(10-20 실측). 이때 `model_score`는 `null`.
+   키보드 사용자는 두 경우를 다 인정한다: 버튼을 Enter로 누름(`kbd_click_count > 0`), 제출 버튼 없는 폼에서 Enter로 바로
+   제출(implicit submission — 클릭 이벤트 없이 키 입력만). 키 리듬 등 규칙은 그대로 적용된다(일정 간격 자동 입력은 차단).
 
 터치·키보드 신호(10-20 추가): SDK가 궤적은 `pointermove`의 마우스·펜만 보고(모바일 탭이 흉내 내는 마우스 이벤트·띄엄띄엄한
 손가락 좌표가 '직선 이동'으로 잡히지 않게), 터치는 `touchstart`·`touchmove` 횟수(`touch_count`)만, 키보드로 누른 클릭은
@@ -56,8 +58,11 @@
   Redis 장애 시 `/verify`는 503(fail-closed), 속도는 0으로 보고 채점은 계속(fail-open). 동기 `redis` 클라이언트(저장소 관례)라
   인터랙터가 `asyncio.to_thread`로 부르고, 접속·명령 제한은 1초. 모델만 프로세스 메모리.
 - 이벤트 로그는 **응답을 보낸 뒤** 라우터의 `BackgroundTasks`가 `record_event`로 쓴다(폭주 때 응답이 DB 쓰기를 기다리지
-  않게). 요청 세션이 닫혔을 수 있어 `EventPgLogWriter`가 쓸 때마다 세션 팩토리에서 새 세션을 뽑는다(mova 리뷰 임베딩과
-  같은 방식). 저장 실패는 로그만 남긴다. 재시작 직전 몇 건이 빠질 수 있다(재학습 원천일 뿐이라 허용).
+  않게). `EventPgLogWriter`가 쓸 때마다 세션 팩토리에서 새 세션을 뽑는다(mova 리뷰 임베딩과 같은 방식). 저장 실패는 로그만
+  남긴다. 재시작 직전 몇 건이 빠질 수 있다(재학습 원천일 뿐이라 허용).
+- **score·verify는 요청 세션(`get_db`)을 쓰지 않는다.** 요청 세션은 응답 뒤 백그라운드 작업이 끝날 때까지 연결을 쥐는데,
+  그 로그가 같은 풀에서 연결을 하나 더 기다려 동시 요청이 풀을 채우면 서로 막혔다(풀 1개 E2E에서 20건 중 500·풀 타임아웃
+  재현 → 수정 후 전부 200). 키 조회는 `SitePgLookup`이 조회 동안만 연결을 빌리고 바로 돌려준다. 어드민 경로는 그대로 `get_db`.
 - 신호 상한(`score_schema.py`): 횟수 100만, 거리 10억 px, 시간 10억 ms. NaN·무한대는 422. JSON `1e309`는 파이썬에서 inf가
   되고 FastAPI 기본 422 처리기가 그 inf를 응답에 되돌려 쓰다 500이 나므로, 공개 요청 바디는 검증 전에 inf를 None으로 바꾼다.
 - 특징(`FEATURE_ORDER`)을 늘리면 `SignalsSchema`·SDK `features()`·`bootstrap_samples` 열을 같이 늘리고, 기존 모델 파일은 버리고 재학습.
@@ -93,8 +98,11 @@ PYTHONPATH="$PWD:$PWD/apps" python -m deolmi.scripts.retrain_model   # allow 로
 
 ## 테스트
 
-`apps/deolmi/test/` (fake 포트 + `_FakeRedis` + 어댑터 + main과 같은 미들웨어 순서의 라우터·CORS 테스트). 2026-10-20 67개 통과,
-임시 Postgres·Redis로 마이그레이션·HTTP 전 흐름(터치·키보드 사람 allow, 새 프로세스에서도 재사용 400) 확인.
+`apps/deolmi/test/` (fake 포트 + `_FakeRedis` + 어댑터 + main과 같은 미들웨어 순서의 라우터·CORS 테스트). 2026-10-20 75개,
+임시 Postgres·Redis로 마이그레이션·HTTP 전 흐름(터치·키보드 사람 allow, 새 프로세스에서도 재사용 400, 풀 1개 동시 20건) 확인.
+`test_sdk_signals.py`는 `sdk_driver.js`로 **SDK를 node에서 실제로 돌려** 브라우저 이벤트 순서(Enter 바로 제출·버튼 Enter·
+터치·`el.click()`)에서 나온 신호를 서버에 넣는다. node가 없으면 건너뛴다(운영 이미지엔 없음, GitHub ubuntu 러너엔 있음).
+Redis 어댑터 폴더는 `adapter/outbound/kvstore/` — `cache/`라 하면 `suvisdev/.gitignore`의 `cache/` 규칙에 걸려 커밋에서 빠진다.
 
 ## 할 일·로드맵
 

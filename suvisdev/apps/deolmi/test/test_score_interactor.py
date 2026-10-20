@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from fakes import (
     BOT,
+    ENTER_SUBMIT_HUMAN,
     HUMAN,
     KEYBOARD_HUMAN,
     TOUCH_HUMAN,
@@ -58,7 +59,7 @@ async def test_human_goes_through_model_and_is_allowed():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("signals", [TOUCH_HUMAN, KEYBOARD_HUMAN])
+@pytest.mark.parametrize("signals", [TOUCH_HUMAN, KEYBOARD_HUMAN, ENTER_SUBMIT_HUMAN])
 async def test_touch_and_keyboard_humans_are_allowed_without_model(signals):
     # 모델(마우스 세션만 학습)은 이들을 이상치로 보므로 아예 묻지 않는다.
     model = _FakeModel(0.99)

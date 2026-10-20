@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from fakes import BOT, HUMAN, KEYBOARD_HUMAN, TOUCH_HUMAN
+from fakes import BOT, ENTER_SUBMIT_HUMAN, HUMAN, KEYBOARD_HUMAN, TOUCH_HUMAN
 
 from deolmi.domain.services.origin_policy import host_of, origin_allowed
 from deolmi.domain.services.scoring_policy import (
@@ -55,7 +55,7 @@ def test_velocity_alone_never_blocks():
     assert verdict_of(r.score) == "challenge" and r.reasons
 
 
-@pytest.mark.parametrize("signals", [TOUCH_HUMAN, KEYBOARD_HUMAN])
+@pytest.mark.parametrize("signals", [TOUCH_HUMAN, KEYBOARD_HUMAN, ENTER_SUBMIT_HUMAN])
 def test_touch_and_keyboard_humans_trip_no_rule(signals):
     assert rule_score(signals, velocity_count=1).score == 0.0
     assert no_mouse_input(signals)

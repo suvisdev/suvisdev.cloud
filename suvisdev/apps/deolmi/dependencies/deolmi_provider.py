@@ -8,13 +8,16 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_db, get_mova_session_factory
-from deolmi.adapter.outbound.cache.redis_velocity_adapter import RedisVelocityAdapter
+from deolmi.adapter.outbound.kvstore.redis_velocity_adapter import RedisVelocityAdapter
 from deolmi.adapter.outbound.ml.isolation_forest_model_adapter import IsolationForestModelAdapter
 from deolmi.adapter.outbound.repositories.event_pg_repository import (
     EventPgLogWriter,
     EventPgRepository,
 )
-from deolmi.adapter.outbound.repositories.site_pg_repository import SitePgRepository
+from deolmi.adapter.outbound.repositories.site_pg_repository import (
+    SitePgLookup,
+    SitePgRepository,
+)
 from deolmi.adapter.outbound.security.jwt_score_token_adapter import JwtScoreTokenAdapter
 from deolmi.app.ports.input.score_use_case import ScoreUseCase
 from deolmi.app.ports.input.site_admin_use_case import SiteAdminUseCase
@@ -60,11 +63,17 @@ def _tokens() -> JwtScoreTokenAdapter:
     return _tokens_for(secret)
 
 
-def get_score_use_case(db: AsyncSession = Depends(get_db)) -> ScoreUseCase:
+def get_score_use_case() -> ScoreUseCase:
+    # 요청 세션(get_db)을 쓰지 않는다 — 요청 세션은 응답 뒤 로그 기록이 끝날 때까지 연결을 쥐고,
+    # 그 로그가 같은 풀에서 연결을 또 기다려 동시 요청이 풀을 채우면 서로 막힌다.
+    # 조회·로그가 각자 짧게 빌리고 바로 돌려준다(SitePgLookup·EventPgLogWriter).
+    try:
+        factory = get_mova_session_factory()
+    except RuntimeError as e:  # get_db와 같게: DB 미설정이면 503
+        raise HTTPException(status_code=503, detail=str(e)) from e
     return ScoreInteractor(
-        sites=SitePgRepository(session=db),
-        # 로그는 응답 뒤(BackgroundTasks)에 쓰므로 요청 세션 대신 세션 팩토리를 준다.
-        events=EventPgLogWriter(get_mova_session_factory()),
+        sites=SitePgLookup(factory),
+        events=EventPgLogWriter(factory),
         model=_model(),
         tokens=_tokens(),
         velocity=_velocity(),

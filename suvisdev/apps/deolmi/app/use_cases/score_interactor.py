@@ -15,7 +15,7 @@ from deolmi.app.ports.input.score_use_case import ScoreUseCase
 from deolmi.app.ports.output.anomaly_model_port import AnomalyModelPort
 from deolmi.app.ports.output.event_repository import EventLogPort
 from deolmi.app.ports.output.score_token_port import ScoreTokenPort
-from deolmi.app.ports.output.site_repository import SiteRepositoryPort
+from deolmi.app.ports.output.site_repository import SiteLookupPort
 from deolmi.app.ports.output.velocity_port import VelocityPort
 from deolmi.domain.services.origin_policy import origin_allowed
 from deolmi.domain.services.scoring_policy import (
@@ -41,7 +41,7 @@ class ScoreInteractor(ScoreUseCase):
 
     def __init__(
         self,
-        sites: SiteRepositoryPort,
+        sites: SiteLookupPort,
         events: EventLogPort,
         model: AnomalyModelPort,
         tokens: ScoreTokenPort,
