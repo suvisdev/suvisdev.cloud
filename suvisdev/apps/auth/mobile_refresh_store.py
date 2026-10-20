@@ -12,6 +12,8 @@ refresh_token 하나만으로) 어느 Redis 키를 봐야 하는지 알 수 있�
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -22,6 +24,11 @@ import redis
 
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _REFRESH_TTL = timedelta(days=14)
+# 로테이션으로 밀려난 이전 secret의 해시를 몇 개까지 기억할지 — 이 목록과 맞을 때만
+# "실제 발급했던 토큰의 재사용"으로 보고 세션을 폐기한다.
+_USED_KEEP = 10
+# 세션 저장 형식 표식 — refresh_store._SESSION_VERSION과 같은 의미.
+_SESSION_VERSION = 2
 
 
 class MobileTokenInvalid(Exception):
@@ -35,10 +42,15 @@ class MobileSession:
     sub: str
     aud: str
     roles: list[str]
+    legacy: bool = False  # 형식 표식 없이 저장된 옛 세션에서 회전했는가
 
 
 def _key(user_id: str) -> str:
     return f"auth:refresh:mobile:{user_id}"
+
+
+def _digest(secret: str) -> str:
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
 
 def _parse(refresh_token: str) -> tuple[str, str]:
@@ -52,27 +64,50 @@ class MobileRefreshTokenStore:
     def __init__(self, *, redis_url: str = _REDIS_URL) -> None:
         self._client = redis.from_url(redis_url, decode_responses=True)
 
-    def issue(self, *, user_id: str, sub: str, aud: str, roles: list[str]) -> str:
+    def issue(
+        self, *, user_id: str, sub: str, aud: str, roles: list[str], used: list[str] | None = None
+    ) -> str:
         secret = secrets.token_urlsafe(24)
-        payload = json.dumps({"secret": secret, "sub": sub, "aud": aud, "roles": roles})
+        payload = json.dumps(
+            {
+                "secret": secret,
+                "sub": sub,
+                "aud": aud,
+                "roles": roles,
+                "used": used or [],
+                "sv": _SESSION_VERSION,
+            }
+        )
         self._client.set(_key(user_id), payload, ex=int(_REFRESH_TTL.total_seconds()))
         return f"{user_id}:{secret}"
 
     def rotate(self, *, refresh_token: str) -> MobileSession:
-        """검증 후 새 refresh_token으로 교체(로테이션)한다. 저장된 값과 다르면(이미
-        로테이션됐거나 위조) 해당 유저의 모바일 세션을 폐기하고 거부한다."""
+        """검증 후 새 refresh_token으로 교체(로테이션)한다.
+
+        secret이 다를 때 세션을 폐기하는 건 **이전에 실제로 발급했다가 로테이션된
+        secret**(used 해시 목록)과 맞을 때뿐이다 — 탈취된 토큰의 재사용 신호.
+        그 밖의 불일치(임의 문자열)는 거부만 한다. 구 버전은 불일치면 무조건 세션을
+        지워서, 공개 refresh API에 `<user_id>:<아무 값>`만 보내도 남의 세션을 끊을 수
+        있었다(2026-10-20 리뷰)."""
         user_id, secret = _parse(refresh_token)
         raw = self._client.get(_key(user_id))
         if raw is None:
             raise MobileTokenInvalid("모바일 세션이 존재하지 않거나 만료되었습니다.")
 
         data = json.loads(raw)
-        if data["secret"] != secret:
-            self._client.delete(_key(user_id))
-            raise MobileTokenInvalid(f"모바일 refresh_token 재사용 감지: user_id={user_id}")
+        used: list[str] = data.get("used", [])  # 필드 도입 전 세션은 목록 없음
+        if not hmac.compare_digest(data["secret"].encode("utf-8"), secret.encode("utf-8")):
+            if _digest(secret) in used:
+                self._client.delete(_key(user_id))
+                raise MobileTokenInvalid(f"모바일 refresh_token 재사용 감지: user_id={user_id}")
+            raise MobileTokenInvalid("모바일 refresh_token이 일치하지 않습니다.")
 
         new_token = self.issue(
-            user_id=user_id, sub=data["sub"], aud=data["aud"], roles=data["roles"]
+            user_id=user_id,
+            sub=data["sub"],
+            aud=data["aud"],
+            roles=data["roles"],
+            used=[_digest(data["secret"]), *used][:_USED_KEEP],
         )
         return MobileSession(
             refresh_token=new_token,
@@ -80,6 +115,7 @@ class MobileRefreshTokenStore:
             sub=data["sub"],
             aud=data["aud"],
             roles=data["roles"],
+            legacy="sv" not in data,
         )
 
     def revoke(self, *, refresh_token: str) -> None:

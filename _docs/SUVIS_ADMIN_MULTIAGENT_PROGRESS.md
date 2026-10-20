@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-20 **Codex 전체 리뷰 → 6개 영역 수정(PR #209~#213 머지, 배포 성공)** · 디스코드 커밋 알림 웹훅 · Claude 수정/Codex 리뷰 분담(Codex OK 후 커밋). 덜미 #207은 머지 보류. 남은 사용자 작업은 아래 "10-20 리뷰 수정 후속".
 - `[P]` 10-20 **덜미(deolmi) 매크로 탐지 앱 신설(브랜치 `feat/deolmi-app` PR)**: 바탕화면 `매크로/botguard`를 `suvisdev/apps/deolmi` 스포크로 이식 — `/api/deolmi/score·verify·sdk.js·admin/*`, 테이블 2개(마이그레이션 `20261020_0001`), 테스트 45개·임시 DB E2E 통과. 남은 것은 아래 백로그 "덜미".
 - `[P]` 10-14 **/resume 를 PDF 이력서 v18 에 맞춤 · 홈 ARDA "본선 TOP 20"**: Experience 섹션(원티드 AI Championship 2026 본선 TOP 20, 투표 1위 10.05 기준) ·
   Arda 카드 추가 · 교육·학력 정정 · 확인 안 된 숫자 제거 · 휴대폰 레이아웃 수정 · 전화 가짜 링크 제거 · `profile.md` 같은 사실로 갱신(**홈 채팅 재색인은 남음**, 아래 홈 채팅 잔여 ①).
@@ -119,6 +120,16 @@
 history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `--base-url
 http://127.0.0.1:31386`.
 
+### 10-20 리뷰 수정 후속 (사용자 작업, `[P]` 10-20 (3))
+1. **덜미 #207**: `.env`에 `DEOLMI_TOKEN_SECRET` → Claude가 CI·Codex 확인 후 머지 → `./k8s/deploy.sh --external-db` → 운영 `alembic upgrade head` → 키 발급.
+2. **로그인 확인**: 운영 `.env` `*_REDIRECT_URI` 호스트가 `api.suvisdev.cloud`인지(OAuth state 쿠키 결합 — 다르면 콜백 400), 실제 브라우저로 Google·Kakao 로그인 1회, 관리자 계정 재로그인.
+3. **노트북 serve-agent 설치**: `cp k8s/failover/serve_agent.sh ~/serve/serve_agent.sh && systemctl --user restart serve-agent`.
+4. **올라마 설정 대조**: 집컴 `diff ~/ollama-proxy/haproxy.cfg ~/projects/suvisdev/k8s/ollama-proxy/haproxy.cfg`, 노트북 `ollama-tunnel.service` — 설정 줄이 다르면 운영 값이 정답, 저장소를 고침.
+5. **길들 앱**: 새 AAB 1.0.6+7 이상(저장 재시도·세션 만료·업데이트 버튼) + 실기기 확인, 구글 Android OAuth 클라이언트·카카오 Play 서명 키 해시 등록.
+6. (선택) mova 임베딩 백필 3종 `--dry-run` 먼저.
+7. 남은 개선(미착수): refresh 동시 갱신 응답 경합(구조 개선 미결 — 해결안은 브라우저엔 고정 세션 ID, 회전 토큰은 BFF 서버 쪽 관리: 인증 구조 변경이라 사용자 결정), main.py 전역 422 처리기(inf 입력 500), `@google/generative-ai` 미사용 의존성 정리, viewer 죽은 `login_pg_repository.py`.
+8. Codex 확인 리뷰 새 지적 5건(10-20 (5), 미착수): 관리자 계정의 사용자 기능 호환성 보완, OAuth 로그인 시 이전 세션 정리 호출의 시간 제한, 모바일 세션 갱신 경합, 길들 산책 저장 응답 유실 후 중복 저장, mova 임베딩 작업 중 리뷰 수정 시 옛 벡터 저장.
+
 ### 덜미(deolmi) 매크로 탐지 (2026-10-20, `[P]` 10-20, 설명 `suvisdev/apps/deolmi/_docs/CLAUDE.md`)
 1. 운영 반영(사용자): 커밋·머지 → `.env`에 `DEOLMI_TOKEN_SECRET` 추가 + `./k8s/deploy.sh --external-db`(Secret) → 운영 DB `alembic upgrade head` → 어드민으로 키 발급.
 2. 데모 화면 없음(botguard `demo/index.html` 상당) — 만들 위치(suvis 페이지 vs 백엔드 정적) 미정.
@@ -127,7 +138,7 @@ http://127.0.0.1:31386`.
 ### 노트북·집컴 이중화 후속 (2026-10-06, 인수인계 `HANDOFF_suvisdev_2026-10-06.md`)
 1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영** — 10-06 수정(브랜치 `fix/cd-away-from-home`: DB 안 닿으면 노트북은 빌드·적재만 + sync-standby Tailscale). 집 밖 실 CD 검증 완료(run 37404372412, 1분 29초, 집컴 이미지 일치), PR #176 머지(`5e798c3`).
    현재 #174 이미지는 집컴 미반영(기능 영향 없음), 노트북 k3s에 `Init:0/2` 파드 2개(집에 오면 해소 예상).
-2. **저장소 원본 ≠ 운영** — `k8s/ollama-proxy/ollama-tunnel.service`(내부 IP), `k8s/ollama-proxy/haproxy.cfg`(:11436 없음), `suvisdev/.env.example`. 재설치하면 10-06 변경이 사라짐 → 운영 값에 맞추는 PR.
+2. ~~저장소 원본 ≠ 운영~~ → 10-20 PR #210로 원본을 문서 기준 운영 구성에 맞춤. **기기에서 `diff`로 운영 값과 대조는 남음**(아래 10-20 후속).
 3. **홈 채팅 답변 품질** — 자기소개·"무슨 모델이야"에 번역투 기술 나열. 사용자 판단: Gemini(`gemini-3.1-flash-lite`)가 오히려 더 나쁨 → 모델 교체 말고 `apps/ontology/app/use_cases/portfolio_chat_interactor.py` `SYSTEM_PROMPT` 개선(정체 질문 고정 답·few-shot·묻지 않은 기술 나열 금지). 착수 시점 사용자 확인.
 4. 기존 미결: `OLLAMA_KEEP_ALIVE` 숫자 문자열 400 코드 수정, 집컴 첫 CD 15분 원인(아래).
 5. 잔여 정리(10-05 대화, 인수인계 B-2): 노트북 방화벽 **DB 이관용 15432 포트가 아직 열려 있음**(데스크톱 IP만 허용) — 닫기.
@@ -394,10 +405,11 @@ http://127.0.0.1:31386`.
 - 09-28 밤: 출시 준비 — 게스트 모드·이메일 가입(필수만)·앱/웹 계정 삭제·방침 개정, 앱 토큰 401 버그 수정,
   AAB `gildle-release-20260928.aab`. `[G]` 09-28. **사용자 몫**: 가이드(`gildle/_docs/GILDLE_PLAY_CONSOLE_GUIDE.md`)대로
   앱 콘텐츠 입력 → 내부 테스트 업로드·카카오 키 해시(Play 서명 키) → 스크린샷 → 비공개 테스트 12명·14일.
-- 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 콘솔 인증 후 스토어
+- 남은 것: **실기기에서 APK 설치·확인**(지도 인증·위치 권한·산책 저장·아이콘) → 스토어
   등록정보(스크린샷·설명에 서울 한정·콘텐츠 등급·데이터 보안 양식) + `GILDLE_APP_STORE_URL` →
   FCM 발송(보낼 알림 결정 후) → ⑤ 그늘 실측(사진 5곳) → 모델 A(walks 쌓인 뒤) · 모델 D(DEM).
-  **사용자 몫은 Play Console 인증 대기 — 09-28 기준 미승인, 최소 한 달 예상(그동안 출시 항목 보류).** 준비 상태 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
+  Play Console 인증·앱 생성은 09-28 완료 — 남은 사용자 몫은 새 AAB(1.0.6+7 이상)·실기기 확인·내부 테스트 업로드(위 "10-20 리뷰 수정 후속" 5번).
+  현재 상태 표: `gildle/_docs/GILDLE_PLAY_CONSOLE_GUIDE.md` "현재 상태", 준비 표: `gildle/_docs/GILDLE_APP_RELEASE_PLAN.md`.
 
 - 09-30 저녁: 경로 방향 화살표·후보별 색("코스 N")·선호 복수 선택(웹·앱·백엔드 `preferences`). `[G]` 09-30.
   산책 중 다음 방향 한 줄 안내·경로 이탈 알림(진동)도 추가(클라이언트 계산, 웹·앱 같은 규칙).

@@ -4,7 +4,7 @@ from typing import Any
 
 from auth.google_mobile_verifier import GoogleMobileTokenVerifier
 from auth.kakao_mobile_verifier import KakaoMobileTokenVerifier
-from auth.mobile_refresh_store import MobileRefreshTokenStore
+from auth.mobile_refresh_store import MobileRefreshTokenStore, MobileTokenInvalid
 from auth.oauth_adapters import OAuthError
 from auth.oauth_adapters.google import GoogleOAuthAdapter
 from auth.oauth_adapters.kakao import KakaoOAuthAdapter
@@ -20,6 +20,14 @@ from auth.security import JwtAdapter
 # 전까지 프론트에서 10분마다 401을 받아 재로그인이 유도되던 이슈의 즉시 fix.
 _ACCESS_TTL_MIN = 60 * 24 * 7
 _MOBILE_AUD = "suvis-susu"
+
+
+def _is_stale_admin_session(legacy: bool, stored_roles: list[str]) -> bool:
+    """형식 표식(sv) 없는 옛 세션 중 admin 역할이 든 것 — 배포 전 admins 로그인 세션은 sub가
+    양수 admins.id라 refresh 재확인에서 같은 번호의 users 행으로 잘못 해석된다. users 행
+    관리자와 구분할 정보가 없으니 admin 옛 세션은 모두 재로그인시키고, 일반 사용자 옛 세션은
+    그대로 통과시킨다(전체 재로그인 회피)."""
+    return legacy and "admin" in stored_roles
 
 
 class OAuthIdentityNotLinked(Exception):
@@ -130,8 +138,20 @@ class AuthService:
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
         rotated = self._refresh.rotate(jti=refresh_token)  # 재사용 시 ReuseDetected
+        if _is_stale_admin_session(rotated.legacy, rotated.roles):
+            self._refresh.revoke_family(rotated.family_id)
+            raise ReuseDetected("세션 형식이 바뀌었습니다. 다시 로그인하세요.")
+        # Redis에 저장된 sub·roles를 그대로 복사하지 않고 계정·현재 역할을 다시 읽는다 —
+        # 탈퇴·권한 회수 뒤에도 refresh로 옛 권한이 계속 재발급되던 문제(2026-10-20 리뷰).
+        user = await self._users.find_by_subject(rotated.sub)
+        if user is None:
+            self._refresh.revoke_family(rotated.family_id)
+            raise ReuseDetected("계정이 존재하지 않습니다.")
+        # 계정 조회(await) 동안 로그아웃이 끝났으면 발급하지 않는다 — 회전 직후 확인만으로는 이 틈이 남았다.
+        if self._refresh.is_family_revoked(rotated.family_id):
+            raise ReuseDetected("이미 로그아웃된 세션입니다.")
         access_token = self._tokens.issue_access_token(
-            sub=rotated.sub, roles=rotated.roles, aud=rotated.aud, expires_min=_ACCESS_TTL_MIN
+            sub=rotated.sub, roles=user.role_values(), aud=rotated.aud, expires_min=_ACCESS_TTL_MIN
         )
         return TokenResponse(
             access_token=access_token,
@@ -140,11 +160,9 @@ class AuthService:
         )
 
     async def logout(self, refresh_token: str) -> None:
-        try:
-            rotated = self._refresh.rotate(jti=refresh_token)
-            self._refresh.revoke_family(rotated.family_id)
-        except ReuseDetected:
-            pass  # 이미 무효화된 토큰 — 로그아웃 목적은 이미 달성된 상태
+        # 회전하지 않고 레코드로 계열을 바로 폐기한다 — 구 버전은 rotate가 실패하면(회전된 옛
+        # 토큰) 무시해서 최신 토큰이 살아 있는 채로 204였다(2026-10-20 리뷰).
+        self._refresh.revoke_by_jti(refresh_token)
 
     async def login_with_kakao_mobile(self, access_token: str) -> KakaoMobileTokenResponse:
         """모바일(susu) 전용 — kapi로 access_token을 검증한 뒤 곧바로 계정을 만들거나
@@ -213,8 +231,16 @@ class AuthService:
 
     async def mobile_refresh(self, refresh_token: str) -> TokenResponse:
         session = self._mobile_refresh.rotate(refresh_token=refresh_token)
+        if _is_stale_admin_session(session.legacy, session.roles):
+            self._mobile_refresh.revoke_user(user_id=session.user_id)
+            raise MobileTokenInvalid("세션 형식이 바뀌었습니다. 다시 로그인하세요.")
+        # 웹 refresh와 같은 이유로 계정·현재 역할을 다시 확인한다.
+        user = await self._users.find_by_subject(session.sub)
+        if user is None:
+            self._mobile_refresh.revoke_user(user_id=session.user_id)
+            raise MobileTokenInvalid("계정이 존재하지 않습니다.")
         access_jwt = self._tokens.issue_access_token(
-            sub=session.sub, roles=session.roles, aud=session.aud, expires_min=_ACCESS_TTL_MIN
+            sub=session.sub, roles=user.role_values(), aud=session.aud, expires_min=_ACCESS_TTL_MIN
         )
         return TokenResponse(
             access_token=access_jwt,

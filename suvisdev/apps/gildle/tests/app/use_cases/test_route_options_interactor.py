@@ -106,6 +106,26 @@ def test_winter_fast_option_avoids_icing_zone():
     assert it.via(EDGES, "A", "D", "B", **via, winter=True).path == ["A", "C", "D", "B"]
 
 
+def test_winter_other_options_also_avoid_icing_zone():
+    # 10-20 2차: 겨울 회피가 빠른 길에만 걸려 푸른 길 후보는 결빙 숲길로 그대로 안내했다.
+    from gildle.domain.entities.hazard_zone import HazardZone
+
+    icy = HazardZone(1, Coordinate(37.5010, 127.0010), 30.0, 5, "A-C 결빙")  # 숲길 A-C 중간
+    route = CalculateDogFriendlyRouteInteractor(
+        tree_repository=FakeTreeSegmentRepository(),
+        hazard_repository=FakeHazardZoneRepository([icy]),
+        route_graph=AStarRouteGraphAdapter(),
+        weight_calculator=RouteWeightCalculator(),
+    )
+    it = RouteOptionsInteractor(route=route, places=_Places())
+    plain = it.plan(EDGES, "A", "D", shade_lookup=None, recommended_kind="green")
+    assert [o.path for o in plain] == [["A", "B", "D"], ["A", "C", "D"]]
+    winter = it.plan(EDGES, "A", "D", shade_lookup=None, recommended_kind="green", winter=True)
+    assert all("C" not in o.path for o in winter)  # 푸른 길도 결빙 숲길을 피해 맨길과 겹친다
+    via = dict(base_kind="green", shade_lookup=None, via_name="D 앞")
+    assert "C" not in it.via(EDGES, "A", "D", "B", **via, winter=True).path
+
+
 def test_via_goes_through_place():
     opt = _interactor().via(
         EDGES,

@@ -33,6 +33,12 @@ class _EmailRepo:
             return None
         return User(user_id=row[0], username=email, roles=[Role.USER])
 
+    async def find_by_subject(self, sub):
+        for user_id, _ in self.users.values():
+            if str(user_id) == sub:
+                return User(user_id=user_id, username="", roles=[Role.USER])
+        return None
+
     async def delete_user(self, user_id):
         self.deleted.append(user_id)
         before = len(self.users)
@@ -114,6 +120,18 @@ def test_delete_account_removes_user_and_mobile_session(ctx):
     assert repo.deleted == [100] and "a@b.co" not in repo.users
     refreshed = client.post("/auth/mobile/refresh", json={"refresh_token": tokens["refresh_token"]})
     assert refreshed.status_code == 401  # 세션도 폐기
+
+
+def test_mobile_refresh_rejects_when_account_deleted_elsewhere(ctx):
+    """다른 경로(웹 탈퇴 등)로 계정이 사라지면 남아 있던 모바일 refresh도 거부된다."""
+    client, repo, fake = ctx
+    tokens = client.post(
+        "/auth/mobile/signup", json={"email": "a@b.co", "password": "longenough"}
+    ).json()
+    repo.users.clear()  # 모바일 세션은 그대로 둔 채 계정만 삭제
+    refreshed = client.post("/auth/mobile/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert refreshed.status_code == 401
+    assert "auth:refresh:mobile:100" not in fake._store
 
 
 def test_delete_account_rejects_web_token(ctx):

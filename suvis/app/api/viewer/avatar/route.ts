@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
-import { cookieBearer } from "@/lib/auth-bff"
+import { cookieBearerOr503 } from "@/lib/auth-bff"
 
 export async function POST(request: Request) {
-  const auth = await cookieBearer()
+  const auth = await cookieBearerOr503()
+  if (auth instanceof NextResponse) return auth
   // FormData를 다시 넘긴다 — Content-Type을 직접 넣으면 boundary가 달라져 깨진다.
   const form = await request.formData()
   try {
