@@ -66,6 +66,9 @@ class _FakeUserRepository:
         assert provider_user_id == "kakao-1"
         return User(user_id=42, username=nickname or "kakao-user", roles=[Role.USER])
 
+    async def find_by_subject(self, sub):
+        return User(user_id=int(sub), username="", roles=[Role.USER]) if sub == "42" else None
+
 
 @pytest.fixture()
 def shared_fake_redis() -> _FakeRedis:
@@ -129,6 +132,23 @@ def test_mobile_refresh_rotates_and_reuse_is_rejected(client):
 
     reuse = client.post("/auth/mobile/refresh", json={"refresh_token": refresh_token})
     assert reuse.status_code == 401
+    # 실제로 발급됐던(로테이션된) 토큰의 재사용이라 세션 전체가 폐기된다
+    after_reuse = client.post("/auth/mobile/refresh", json={"refresh_token": new_refresh_token})
+    assert after_reuse.status_code == 401
+
+
+def test_mobile_refresh_with_forged_secret_does_not_revoke_victim_session(client):
+    """무인증으로 `<user_id>:<임의값>`을 보내도 거부만 되고 피해자 세션은 살아 있다."""
+    login_resp = client.post("/auth/kakao/mobile", json={"access_token": "valid-token"})
+    refresh_token = login_resp.json()["refresh_token"]
+
+    forged = client.post("/auth/mobile/refresh", json={"refresh_token": "42:not-a-real-secret"})
+    assert forged.status_code == 401
+    non_ascii = client.post("/auth/mobile/refresh", json={"refresh_token": "42:비밀"})
+    assert non_ascii.status_code == 401
+
+    still_ok = client.post("/auth/mobile/refresh", json={"refresh_token": refresh_token})
+    assert still_ok.status_code == 200
 
 
 # G3 — 모바일/웹 분리 ---------------------------------------------------------

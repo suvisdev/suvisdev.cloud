@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import jwt as pyjwt
 import pytest
 from fastapi.testclient import TestClient
 
@@ -43,6 +44,8 @@ class _FakeUserRepository:
         self._emails: set[str] = {"existing@example.com"}
         self._next_id = 100
         self.create_user_calls: list[dict] = []
+        # refresh 재확인용 — sub → 현재 역할. 테스트가 지우거나 바꿔 탈퇴·권한 회수를 재현한다.
+        self.accounts: dict[str, list[Role]] = {"1": [Role.ADMIN], "2": [Role.USER]}
 
     async def find_by_credentials(self, username, password):
         if username == "admin" and password == "correct-password":
@@ -50,6 +53,10 @@ class _FakeUserRepository:
         if username == "new-signup-user" and password == "correct-password123":
             return User(user_id=101, username="new-signup-user", roles=[Role.USER])
         return None
+
+    async def find_by_subject(self, sub):
+        roles = self.accounts.get(sub)
+        return None if roles is None else User(user_id=int(sub), username="", roles=roles)
 
     async def find_by_oauth_identity(self, provider, provider_user_id):
         if provider == "google" and provider_user_id == "linked-sub":
@@ -144,6 +151,33 @@ def test_refresh_rotates_and_reuse_is_rejected(client):
     # 재사용 감지로 family 전체가 폐기되어, 정상 파생 토큰도 더 이상 못 씀
     also_revoked = client.post("/auth/refresh", json={"refresh_token": new_refresh_token})
     assert also_revoked.status_code == 401
+
+
+def _login_admin_refresh_token(client) -> str:
+    resp = client.post(
+        "/auth/login",
+        json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"},
+    )
+    return resp.json()["refresh_token"]
+
+
+def test_refresh_uses_current_roles_not_stored_ones(client, user_repo):
+    """권한 회수 후 refresh는 Redis에 저장된 옛 roles(admin)가 아니라 현재 역할로 발급한다."""
+    refresh_token = _login_admin_refresh_token(client)
+    user_repo.accounts["1"] = [Role.USER]  # DB에서 관리자 권한 회수
+
+    resp = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+    assert resp.status_code == 200
+    claims = pyjwt.decode(resp.json()["access_token"], options={"verify_signature": False})
+    assert claims["roles"] == ["user"]
+
+
+def test_refresh_rejects_and_revokes_when_account_is_gone(client, user_repo):
+    refresh_token = _login_admin_refresh_token(client)
+    del user_repo.accounts["1"]  # 탈퇴
+
+    resp = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+    assert resp.status_code == 401
 
 
 def _start_login_and_extract_state(

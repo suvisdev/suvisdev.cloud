@@ -68,9 +68,17 @@ apps/mova/adapter/inbound/api/v1/whoami_router.py   # GET /mova/whoami — RBAC 
   `core.matrix.grid_oracle_database_manager.get_viewer_session_factory()`를 그대로 재사용.
   → 부수 효과: 아직 신규 유저를 만들 수 없음 — `GET /auth/callback/{provider}`는 viewer
   쪽에서 이미 연동된 identity만 성공(미연동 시 409). 회원가입은 범위 밖.
-- 비밀번호 검증: 기존 `admins`/`users.password_hash`가 sha256이라
+- 비밀번호 검증: ~~기존 `admins`/`users.password_hash`가 sha256이라
   `_verify_legacy_sha256_password()`로 그 규칙(sha256 다이제스트 + 레거시 평문 폴백)을
-  그대로 재현. bcrypt로 "고치면" 기존 계정 로그인이 깨지므로 그대로 둘 것.
+  그대로 재현. bcrypt로 "고치면" 기존 계정 로그인이 깨지므로 그대로 둘 것.~~
+  **(도입 당시 기록 — 지금은 따르지 않는다.)** 현재 규칙(`repository.py`
+  `_verify_password`·`_rehash_if_legacy`): `$2a$/$2b$/$2y$`로 시작하면 bcrypt로, 그 외는
+  레거시 sha256 다이제스트(`hmac.compare_digest`)로만 검증한다. **평문 동등 비교 폴백은
+  2026-09-11 제거됐다**(해시 자체를 비밀번호로 내면 통과하던 pass-the-hash 경로) — 되살리지
+  않는다. 레거시 sha256 계정은 로그인 성공 시 bcrypt로 재해시되고, 신규 가입은 처음부터 bcrypt.
+- (2026-10-20) `admins` 행으로 로그인한 토큰의 `sub`는 **음수**(`-admins.id`, `admin_subject_id`)다 —
+  `users.id`와 겹치지 않게. refresh는 Redis의 옛 roles를 복사하지 않고 `find_by_subject`로
+  계정·현재 역할을 다시 읽으며, 계정이 없으면 거부한다.
 - Role enum은 `viewer.app.dtos.role.UserRole`을 import하지 않고 `apps/auth/rbac.py`에
   독립적으로 정의(의도적 중복 — import-linter 격리 방향 때문).
 - RoleChecker도 `apps/auth/security.py`(auth 자체용, 미사용 대기)와

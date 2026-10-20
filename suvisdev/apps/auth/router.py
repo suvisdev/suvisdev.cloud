@@ -12,7 +12,7 @@ from auth.kakao_mobile_verifier import KakaoTokenInvalid
 from auth.mobile_refresh_store import MobileTokenInvalid
 from auth.oauth_adapters import OAuthError
 from auth.refresh_store import ReuseDetected
-from auth.repository import EmailAlreadyExists
+from auth.repository import EmailAlreadyExists, UsernameAlreadyExists
 from auth.schemas import (
     GoogleMobileLoginRequest,
     KakaoMobileLoginRequest,
@@ -66,7 +66,7 @@ async def login(body: LoginRequest) -> TokenResponse:
 async def signup(body: SignupRequest) -> TokenResponse:
     try:
         return await _service.signup(body.email, body.password, body.username, body.aud)
-    except EmailAlreadyExists as e:
+    except (EmailAlreadyExists, UsernameAlreadyExists) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 
 

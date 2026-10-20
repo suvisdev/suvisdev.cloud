@@ -4,7 +4,7 @@ from typing import Any
 
 from auth.google_mobile_verifier import GoogleMobileTokenVerifier
 from auth.kakao_mobile_verifier import KakaoMobileTokenVerifier
-from auth.mobile_refresh_store import MobileRefreshTokenStore
+from auth.mobile_refresh_store import MobileRefreshTokenStore, MobileTokenInvalid
 from auth.oauth_adapters import OAuthError
 from auth.oauth_adapters.google import GoogleOAuthAdapter
 from auth.oauth_adapters.kakao import KakaoOAuthAdapter
@@ -130,8 +130,14 @@ class AuthService:
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
         rotated = self._refresh.rotate(jti=refresh_token)  # 재사용 시 ReuseDetected
+        # Redis에 저장된 sub·roles를 그대로 복사하지 않고 계정·현재 역할을 다시 읽는다 —
+        # 탈퇴·권한 회수 뒤에도 refresh로 옛 권한이 계속 재발급되던 문제(2026-10-20 리뷰).
+        user = await self._users.find_by_subject(rotated.sub)
+        if user is None:
+            self._refresh.revoke_family(rotated.family_id)
+            raise ReuseDetected("계정이 존재하지 않습니다.")
         access_token = self._tokens.issue_access_token(
-            sub=rotated.sub, roles=rotated.roles, aud=rotated.aud, expires_min=_ACCESS_TTL_MIN
+            sub=rotated.sub, roles=user.role_values(), aud=rotated.aud, expires_min=_ACCESS_TTL_MIN
         )
         return TokenResponse(
             access_token=access_token,
@@ -213,8 +219,13 @@ class AuthService:
 
     async def mobile_refresh(self, refresh_token: str) -> TokenResponse:
         session = self._mobile_refresh.rotate(refresh_token=refresh_token)
+        # 웹 refresh와 같은 이유로 계정·현재 역할을 다시 확인한다.
+        user = await self._users.find_by_subject(session.sub)
+        if user is None:
+            self._mobile_refresh.revoke_user(user_id=session.user_id)
+            raise MobileTokenInvalid("계정이 존재하지 않습니다.")
         access_jwt = self._tokens.issue_access_token(
-            sub=session.sub, roles=session.roles, aud=session.aud, expires_min=_ACCESS_TTL_MIN
+            sub=session.sub, roles=user.role_values(), aud=session.aud, expires_min=_ACCESS_TTL_MIN
         )
         return TokenResponse(
             access_token=access_jwt,
