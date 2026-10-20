@@ -100,6 +100,10 @@ def test_winter_fast_option_avoids_icing_zone():
     assert fast.kind == "fast" and fast.recommended
     assert fast.path == ["A", "C", "D"]
     assert "결빙 위험구역을 피해" in fast.reason and "가장 짧은" not in fast.reason
+    # 장소를 들렀다 가는 길(/routes/via)도 겨울이면 같은 회피(2차 리뷰: via엔 계절이 안 넘어갔다)
+    via = dict(base_kind="fast", shade_lookup=None, via_name="D 앞")
+    assert it.via(EDGES, "A", "D", "B", **via).path == ["A", "B", "D", "B"]
+    assert it.via(EDGES, "A", "D", "B", **via, winter=True).path == ["A", "C", "D", "B"]
 
 
 def test_via_goes_through_place():

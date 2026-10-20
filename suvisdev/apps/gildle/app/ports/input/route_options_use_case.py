@@ -43,6 +43,7 @@ class RouteOptionsUseCase(ABC):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
         elevation: Mapping[str, float] | None = None,
+        winter: bool = False,
     ) -> RouteOptionDto | None: ...
 
     @abstractmethod

@@ -185,10 +185,12 @@ class RouteOptionsInteractor(RouteOptionsUseCase):
         shade_lookup: Mapping[tuple[str, str], float] | None,
         via_name: str,
         elevation: Elevation | None = None,
+        winter: bool = False,
     ) -> RouteOptionDto | None:
         lookup = _lookup(edges)
-        first = self._path_for(base_kind, edges, start, via_node, shade_lookup, elevation)
-        second = self._path_for(base_kind, edges, via_node, end, shade_lookup, elevation)
+        # 겨울이면 plan()의 빠른 길과 같은 결빙 회피 — 장소를 들러도 위험구역으로 돌아가지 않는다(10-20)
+        first = self._path_for(base_kind, edges, start, via_node, shade_lookup, elevation, winter)
+        second = self._path_for(base_kind, edges, via_node, end, shade_lookup, elevation, winter)
         if not first or not second:
             return None
         path = first + second[1:]
