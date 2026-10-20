@@ -111,7 +111,7 @@ journalctl --user -u standby-agent -n 5 --no-pager -o cat; cat ~/serve/laptop_he
   10-05 사용자 결정은 **그대로**.
 - 노트북 앱은 와이파이 너머 집컴 DB를 쓴다 — 요청당 쿼리 수만큼 지연이 붙는다(10-05 실측 검색 0.12초).
 - 집컴 IP `172.30.1.21` 이 바뀌면 `desktop-link.service`·`serve_agent.sh` 기본값을 고친다(`sync-standby.sh`·`ollama-tunnel`은 Tailscale IP).
-- **2026-10-06 Tailscale**: 노트북 `ollama-tunnel`은 집컴 Tailscale IP `100.91.129.31`로 붙는다(집 밖에서도 노트북 GPU). `desktop-link`·`serve_agent.sh`는 일부러 내부 IP 유지 — 집 밖에선 앱 서빙은 집컴. `sync-standby.sh`는 10-06부터 Tailscale IP(위 "배포"). 집컴 HAProxy에 7.8B 전용 `:11436`(노트북만, 예비 없음), 집컴 `.env` = `PORTFOLIO_LLM_BACKEND=exaone` · `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`. 저장소 `../ollama-proxy/` 원본 파일은 아직 옛 값(워크로그 10-06 (3)).
+- **2026-10-06 Tailscale**: 노트북 `ollama-tunnel`은 집컴 Tailscale IP `100.91.129.31`로 붙는다(집 밖에서도 노트북 GPU). `desktop-link`·`serve_agent.sh`는 일부러 내부 IP 유지 — 집 밖에선 앱 서빙은 집컴. `sync-standby.sh`는 10-06부터 Tailscale IP(위 "배포"). 집컴 HAProxy에 7.8B 전용 `:11436`(노트북만, 예비 없음), 집컴 `.env` = `PORTFOLIO_LLM_BACKEND=exaone` · `PORTFOLIO_LLM_OLLAMA_URL=http://host.docker.internal:11436`. 저장소 `../ollama-proxy/` 원본 파일은 10-20에 문서 기준으로 맞췄다(실기기와 `diff` 확인은 `../ollama-proxy/README.md` "설치").
 - 노트북이 응답 없이 멈추면(잠듦) 집컴 전환까지 약 30초 사이트가 530.
 - 노트북 재부팅 후에는 윈도우 로그인이 있어야 WSL 이 켜진다. 그 전까지는 집컴이 받는다.
 - 집컴 파드는 `imagePullPolicy: Always`라 **레지스트리 컨테이너(`standby-registry`)가 꺼져 있으면 새 파드가 뜨지 못한다**
