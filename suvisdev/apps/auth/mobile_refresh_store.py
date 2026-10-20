@@ -27,6 +27,8 @@ _REFRESH_TTL = timedelta(days=14)
 # 로테이션으로 밀려난 이전 secret의 해시를 몇 개까지 기억할지 — 이 목록과 맞을 때만
 # "실제 발급했던 토큰의 재사용"으로 보고 세션을 폐기한다.
 _USED_KEEP = 10
+# 세션 저장 형식 표식 — refresh_store._SESSION_VERSION과 같은 의미.
+_SESSION_VERSION = 2
 
 
 class MobileTokenInvalid(Exception):
@@ -40,6 +42,7 @@ class MobileSession:
     sub: str
     aud: str
     roles: list[str]
+    legacy: bool = False  # 형식 표식 없이 저장된 옛 세션에서 회전했는가
 
 
 def _key(user_id: str) -> str:
@@ -66,7 +69,14 @@ class MobileRefreshTokenStore:
     ) -> str:
         secret = secrets.token_urlsafe(24)
         payload = json.dumps(
-            {"secret": secret, "sub": sub, "aud": aud, "roles": roles, "used": used or []}
+            {
+                "secret": secret,
+                "sub": sub,
+                "aud": aud,
+                "roles": roles,
+                "used": used or [],
+                "sv": _SESSION_VERSION,
+            }
         )
         self._client.set(_key(user_id), payload, ex=int(_REFRESH_TTL.total_seconds()))
         return f"{user_id}:{secret}"
@@ -105,6 +115,7 @@ class MobileRefreshTokenStore:
             sub=data["sub"],
             aud=data["aud"],
             roles=data["roles"],
+            legacy="sv" not in data,
         )
 
     def revoke(self, *, refresh_token: str) -> None:

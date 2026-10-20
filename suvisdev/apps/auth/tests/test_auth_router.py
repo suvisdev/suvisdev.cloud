@@ -92,8 +92,12 @@ def user_repo():
 
 
 @pytest.fixture()
-def client(rsa_keypair, monkeypatch, user_repo):
-    fake_redis = _FakeRedis()
+def fake_redis():
+    return _FakeRedis()
+
+
+@pytest.fixture()
+def client(rsa_keypair, monkeypatch, user_repo, fake_redis):
     monkeypatch.setattr(refresh_module.redis, "from_url", lambda *a, **k: fake_redis)
     monkeypatch.setattr(oauth_state_module.redis, "from_url", lambda *a, **k: fake_redis)
     monkeypatch.setattr(oauth_handoff_module.redis, "from_url", lambda *a, **k: fake_redis)
@@ -133,7 +137,7 @@ def test_login_wrong_password_returns_401(client):
     assert resp.status_code == 401
 
 
-def test_refresh_rotates_and_reuse_is_rejected(client):
+def test_refresh_rotates_and_reuse_is_rejected(client, fake_redis):
     login_resp = client.post(
         "/auth/login",
         json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"},
@@ -145,6 +149,12 @@ def test_refresh_rotates_and_reuse_is_rejected(client):
     new_refresh_token = refreshed.json()["refresh_token"]
     assert new_refresh_token != refresh_token
 
+    # 10초 유예 안의 재요청은 같은 새 토큰(BFF 다중 인스턴스 동시 refresh)
+    racing = client.post("/auth/refresh", json={"refresh_token": refresh_token})
+    assert racing.status_code == 200
+    assert racing.json()["refresh_token"] == new_refresh_token
+
+    fake_redis.delete(f"auth:refresh:grace:{refresh_token}")  # 유예 만료
     reuse = client.post("/auth/refresh", json={"refresh_token": refresh_token})
     assert reuse.status_code == 401
 

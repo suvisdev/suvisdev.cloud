@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Session
@@ -68,6 +68,8 @@ def _sha(raw: str) -> str:
 def repo(monkeypatch) -> UserRepository:
     engine = create_engine("sqlite://")
     AuthMirrorBase.metadata.create_all(engine)  # 테스트 전용 인메모리 DB — 운영 DDL 아님
+    with engine.begin() as conn:  # 운영 users.username UNIQUE 제약 재현(미러 ORM엔 없음)
+        conn.execute(text("CREATE UNIQUE INDEX ux_users_username ON users (username)"))
     with Session(engine) as s:
         s.add_all([GroupMirror(id=1, code="admin"), GroupMirror(id=2, code="user")])
         s.add(
@@ -156,3 +158,21 @@ async def test_kakao_nickname_colliding_with_existing_username_gets_unique_usern
 
     fresh = await repo.find_or_create_by_kakao(provider_user_id="k-2", email=None, nickname="새닉")
     assert fresh.username == "새닉"  # 겹치지 않으면 닉네임 그대로
+
+
+@pytest.mark.asyncio
+async def test_kakao_signup_retries_once_when_username_taken_concurrently(repo, monkeypatch):
+    """확인 시점엔 비어 있었지만 INSERT 직전에 다른 가입이 같은 username을 가져간 경우(레이스)."""
+
+    async def _never_taken(_session: Any, _username: str) -> bool:
+        return False
+
+    monkeypatch.setattr(module, "_username_taken", _never_taken)
+    created = await repo.find_or_create_by_kakao(
+        provider_user_id="k-race", email=None, nickname="someone"
+    )
+    assert created.username.startswith("someone_")
+    again = await repo.find_or_create_by_kakao(
+        provider_user_id="k-race", email=None, nickname="someone"
+    )
+    assert again.user_id == created.user_id  # identity도 정상 저장됨

@@ -21,6 +21,7 @@ from typing import Any
 import bcrypt
 from sqlalchemy import ForeignKey, String, delete, select
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from auth.rbac import Role
@@ -341,18 +342,30 @@ class UserRepository:
             username = resolved_nickname[:50]
             while await _username_taken(session, username):
                 username = f"{resolved_nickname[:40]}_{secrets.token_hex(3)}"
-            new_user = UserMirror(
-                group_id=group_id,
-                username=username,
-                password_hash=_hash_password(secrets.token_urlsafe(32)),
-                email=email or f"kakao_{provider_user_id}@kakao.local",
-                nickname=resolved_nickname,
-                gender=_DEFAULT_GENDER,
-                preferred_genres=[],
-                bio="",
-            )
-            session.add(new_user)
-            await session.flush()
+            password_hash = _hash_password(secrets.token_urlsafe(32))
+            # 확인과 INSERT 사이에 같은 닉네임 가입이 끼어들면(동시 가입) UNIQUE 위반이 난다 —
+            # 롤백하고 접미사 username으로 한 번만 다시 시도한다(2026-10-20 2차 리뷰).
+            for attempt in range(2):
+                if attempt:
+                    username = f"{resolved_nickname[:40]}_{secrets.token_hex(3)}"
+                new_user = UserMirror(
+                    group_id=group_id,
+                    username=username,
+                    password_hash=password_hash,
+                    email=email or f"kakao_{provider_user_id}@kakao.local",
+                    nickname=resolved_nickname,
+                    gender=_DEFAULT_GENDER,
+                    preferred_genres=[],
+                    bio="",
+                )
+                session.add(new_user)
+                try:
+                    await session.flush()
+                    break
+                except IntegrityError:
+                    await session.rollback()
+                    if attempt:
+                        raise
 
             session.add(
                 UserIdentityMirror(
