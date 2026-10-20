@@ -136,9 +136,9 @@ export function AuthForms({
           password: formProps.password,
         }),
       })
-      let body: { id?: number; username?: string; detail?: unknown }
+      let body: { id?: number; username?: string; role?: "admin" | "user"; detail?: unknown }
       try {
-        body = (await res.json()) as { id?: number; username?: string; detail?: unknown }
+        body = (await res.json()) as { id?: number; username?: string; role?: "admin" | "user"; detail?: unknown }
       } catch {
         patchLogin({ message: "서버 응답을 읽을 수 없습니다." })
         return
@@ -155,7 +155,7 @@ export function AuthForms({
         })
         return
       }
-      saveSuvisSession({ id: body.id, username: body.username || `user-${body.id}` })
+      saveSuvisSession({ id: body.id, username: body.username || `user-${body.id}`, role: body.role })
       patchLogin({ message: "로그인에 성공했습니다." })
       onAuthSuccess?.()
       if (variant === "page") {

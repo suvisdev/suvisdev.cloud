@@ -28,9 +28,9 @@ suvis/
 │   ├── page.tsx                 # 메인 페이지
 │   ├── globals.css              # 전역 스타일 (shadcn 토큰 + mova 토큰 @theme 등록)
 │   ├── api/                     # Next.js API Routes (백엔드 프록시)
-│   │   ├── auth/                # 로그인·회원가입·oauth
+│   │   ├── auth/                # 로그인·회원가입·oauth·refresh·logout BFF(httpOnly 쿠키)
+│   │   ├── backend/[...path]/   # catch-all 프록시(쿠키→Bearer, 401 시 refresh — lib/auth-bff.ts)
 │   │   ├── analytics/           # 방문자 통계
-│   │   ├── chat/, gemini/       # AI 챗 프록시
 │   │   ├── dispatch/            # 이메일·텔레그램·디스코드·주소록 발송
 │   │   ├── harvester/           # 크롤링(sites/policies/scrape/crawl)
 │   │   ├── mova/                # 영화 추천 전체 API
@@ -56,7 +56,6 @@ suvis/
 │   ├── titanic/                 # Titanic 섹션
 │   │   ├── page.tsx
 │   │   ├── data-collection/     # CSV 업로드 (James)
-│   │   ├── passengers/          # 승객 조회 (Walter)
 │   │   └── smith-captain/       # 선장 채팅 (Smith)
 │   └── vision/                  # 비전(이미지 업로드·object-detection)
 ├── components/
@@ -162,14 +161,13 @@ suvis/
 | 라우트 | 역할 | 백엔드 연동 |
 |--------|------|-----------|
 | `/` | 메인 | — |
-| `/login`, `/signup` | 로그인·회원가입 | `POST /viewer/login/login`, `POST /viewer/signup/signup` |
+| `/login`, `/signup` | 로그인·회원가입 | `/api/auth/login`·`/api/auth/signup` BFF → auth 게이트웨이 `POST /auth/login`·`/auth/signup`(토큰은 httpOnly 쿠키, 응답엔 id·username·role만). viewer 구 login/signup 라우터는 2026-09-11 언마운트 |
 | `/oauth/callback`, `/oauth/consent` | OAuth 콜백·동의 | `apps/auth` |
 | `/contact`, `/lesson`, `/apps`, `/devlog` | 정적/카탈로그 페이지 | — |
 | `/mail`, `/mail/contacts` | 연락처 데모(관리자 전용 — `AdminAuthGate`) | `dispatch` email·adress(`require_admin`, 세션 Bearer 전달) |
 | `/dispatch`, `/telegram`, `/soccer/chat`, `/langchain/chat` | 발송·챗 데모(관리자 전용 — `AdminAuthGate`) | `dispatch`, `execsuite` 등(`require_admin`, 세션 Bearer 전달) |
 | `/titanic` | Titanic 메인 | — |
 | `/titanic/data-collection` | CSV 업로드 | `POST /titanic/james/...` |
-| `/titanic/passengers` | 승객 조회 | `GET /titanic/walter/...` |
 | `/titanic/smith-captain` | 선장 채팅 | `POST /titanic/smith/chat` |
 | `/vision`, `/vision/object-detection` | 비전 업로드·객체 검출 | `apps/ontology` vision |
 | `/mova/**` | Mova(영화 추천) 전체 — `main`/`movies`/`collections`/`rankings`/`title`/`mypage`/`login` | `apps/mova` 전체(`lib/mova-api.ts`) |
@@ -252,7 +250,7 @@ suvis/
 | 루트 Karpathy 원칙 | (상단 [[CLAUDE]] 링크) |
 | React 세부 규칙 | `_docs/react-rules.md` |
 | 스타일링(Tailwind+shadcn 토큰) 정책 | `_docs/DESIGN.md` |
-| 다크 모드 구현 명세 | `_docs/darkmode_spec.md` |
+| 테마 명세(경로 고정: /mova 다크·그 외 라이트) | `_docs/darkmode_spec.md` |
 | API 클라이언트·라우트 핸들러 규칙 | `.claude/rules/api-standards.md` |
 | TypeScript 규칙 | `.claude/rules/typescript.md` |
 | 백엔드 API | `suvisdev/CLAUDE.md` (경로만) |

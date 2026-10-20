@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server"
 import { backendFetch, BACKEND_DOWN } from "@/lib/backend-client"
-import { cookieBearer } from "@/lib/auth-bff"
+import { cookieBearerOr503 } from "@/lib/auth-bff"
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
-    const auth = await cookieBearer()
+    const auth = await cookieBearerOr503()
+    if (auth instanceof NextResponse) return auth
     const res = await backendFetch("/api/v1/dispatch/adress/upload", {
       method: "POST",
       headers: auth ? { Authorization: auth } : {},
