@@ -682,6 +682,7 @@ def route_options(
         shade_lookup=shade_lookup,
         recommended_kind=_RECOMMENDED_KIND.get(request.mode, "fast"),
         elevation=_load_elevation(),
+        winter=request.mode == SeasonMode.WINTER_SAFETY.value,
     )
     return {"options": [_option_json(o) for o in options], "night": night}
 
