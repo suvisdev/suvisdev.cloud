@@ -2,11 +2,11 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import {
   ACCESS_COOKIE,
-  AUTH_UNAVAILABLE,
   REFRESH_COOKIE,
   clearTokens,
   isExpired,
   refreshOnce,
+  retryLaterResponse,
   writeTokens,
 } from "@/lib/auth-bff"
 
@@ -16,6 +16,7 @@ import {
 // - 무효(401/403): 쿠키를 지우고 비로그인으로 넘긴다(세션이 실제로 끝났다).
 // - 인증 서버 장애·5초 초과: 라우트로 보내지 않고 503 — 만료 토큰으로 401이 나거나 /mova/chat이 익명으로
 //   강등되지 않게 한다. 쿠키는 그대로 두니 클라가 재시도하면 된다.
+// - 회전 경합(409 refresh_superseded): 쿠키를 지우지 않고 409 — 다른 요청이 심은 새 쿠키로 재시도하면 된다.
 // 공개 API·catch-all(/api/backend)은 matcher에 넣지 않는다 — 인증 서버 장애와 무관하게 동작해야 한다
 // (catch-all은 forwardToBackend가 401일 때만 503으로 바꾼다).
 export async function proxy(request: NextRequest) {
@@ -25,9 +26,8 @@ export async function proxy(request: NextRequest) {
   if (!refresh || (access && !isExpired(access))) return NextResponse.next()
 
   const result = await refreshOnce(refresh)
-  if (result.kind === "unavailable") {
-    return NextResponse.json({ detail: AUTH_UNAVAILABLE }, { status: 503 })
-  }
+  const retry = retryLaterResponse(result)
+  if (retry) return retry
   if (result.kind === "ok") {
     request.cookies.set(ACCESS_COOKIE, result.tokens.access_token)
     request.cookies.set(REFRESH_COOKIE, result.tokens.refresh_token)

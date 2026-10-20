@@ -70,7 +70,8 @@ access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클
   한도(4MB) 때문에 `missing` 조건으로 빼고 라우트에서 `cookieBearerOr503()`를 쓴다. 서버 헬퍼는 전부
   `lib/auth-bff.ts`에 있다.
 - **갱신 실패 처리**: 게이트웨이가 401/403(만료·재사용 탐지)일 때만 쿠키를 지운다. 5xx·네트워크 오류·5초
-  무응답이면 쿠키를 두고 503을 준다(로그아웃·익명 강등 없음). catch-all은 장애 시 기존 쿠키로 진행하고
+  무응답이면 쿠키를 두고 503을 준다(로그아웃·익명 강등 없음). 게이트웨이 409 `refresh_superseded`(다른 요청이
+  방금 회전한 옛 refresh)면 쿠키를 두고 409 — 클라가 새 쿠키로 다시 시도한다. catch-all은 장애 시 기존 쿠키로 진행하고
   백엔드가 401일 때만 503으로 바꾼다. 같은 refresh의 동시 갱신은 서버 인스턴스 안에서 하나로 합치고,
   인스턴스 간 중복은 백엔드 auth refresh 유예(fix/auth-review-1020)가 배포돼야 해소된다.
 - **OAuth 로그인**(`/api/auth/oauth-exchange`·`oauth-consent`)은 access만 받으므로 `setAccessCookie`가

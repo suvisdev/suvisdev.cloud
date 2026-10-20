@@ -104,13 +104,26 @@ export type RefreshResult =
   | { kind: "ok"; tokens: TokenPair }
   | { kind: "invalid" } // 게이트웨이가 401/403 — 만료·재사용 탐지. 쿠키를 지운다.
   | { kind: "unavailable" } // 5xx·네트워크 오류 — 세션은 살아 있을 수 있으니 쿠키를 두고 재시도하게 한다.
+  // 409 refresh_superseded — 이 refresh는 다른 요청이 방금 회전했다(백엔드 10초 유예). 세션은 살아 있고
+  // 브라우저엔 곧 새 쿠키가 심긴다. 쿠키를 지우지 않고 409로 돌려 클라가 다시 시도하게 한다.
+  | { kind: "superseded" }
 
 export const AUTH_UNAVAILABLE = "인증 서버에 잠시 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."
+
+// 쿠키를 그대로 두고 재시도하게 하는 갱신 결과(장애 503·회전 경합 409)를 응답으로 바꾼다. 그 외엔 null.
+export function retryLaterResponse(r: RefreshResult | null): NextResponse | null {
+  if (r?.kind === "unavailable") return NextResponse.json({ detail: AUTH_UNAVAILABLE }, { status: 503 })
+  if (r?.kind === "superseded") {
+    return NextResponse.json({ detail: "로그인 정보가 방금 갱신됐습니다. 다시 시도해 주세요." }, { status: 409 })
+  }
+  return null
+}
 
 async function rotateRefresh(refresh: string): Promise<RefreshResult> {
   try {
     // 응답 없는 인증 서버에 플랫폼 타임아웃까지 매달리지 않게 5초에서 끊고 장애(503)로 처리한다.
     const r = await gatewayPost("/auth/refresh", { refresh_token: refresh }, AbortSignal.timeout(5_000))
+    if (r.status === 409) return { kind: "superseded" }
     if (r.status === 401 || r.status === 403) return { kind: "invalid" }
     const tokens = r.ok ? parseTokenPair(await r.json().catch(() => ({}))) : null
     return tokens ? { kind: "ok", tokens } : { kind: "unavailable" }
@@ -134,8 +147,9 @@ export function refreshOnce(refresh: string): Promise<RefreshResult> {
   const p = rotateRefresh(refresh)
   refreshing.set(refresh, p)
   void p.then((r) => {
-    // 일시 장애 결과는 남기지 않는다 — 다음 요청이 바로 다시 시도할 수 있게.
-    setTimeout(() => refreshing.delete(refresh), r.kind === "unavailable" ? 0 : REUSE_GRACE_MS)
+    // 성공·무효만 남긴다 — 장애·회전 경합은 다음 요청이 바로 다시 시도할 수 있게.
+    const keep = r.kind === "ok" || r.kind === "invalid"
+    setTimeout(() => refreshing.delete(refresh), keep ? REUSE_GRACE_MS : 0)
   })
   return p
 }
@@ -174,14 +188,13 @@ export async function cookieBearer(): Promise<string | undefined> {
 }
 
 // proxy.ts를 거치지 않는 multipart 업로드 라우트용(Vercel 미들웨어 본문 한도 4MB를 피하려고 matcher에서 뺐다).
-// 여기서 직접 갱신하고, 인증 서버 장애면 그대로 돌려줄 503 응답을 준다.
+// 여기서 직접 갱신하고, 인증 서버 장애·회전 경합이면 그대로 돌려줄 503/409 응답을 준다.
 export async function cookieBearerOr503(): Promise<string | undefined | NextResponse> {
   const access = (await cookies()).get(ACCESS_COOKIE)?.value
   if (access && !isExpired(access)) return `Bearer ${access}`
   const r = await refreshFromCookie()
-  if (r?.kind === "unavailable") {
-    return NextResponse.json({ detail: AUTH_UNAVAILABLE }, { status: 503 })
-  }
+  const retry = retryLaterResponse(r)
+  if (retry) return retry
   if (r?.kind === "ok") return `Bearer ${r.tokens.access_token}`
   if (r?.kind === "invalid" || !access) return undefined
   return `Bearer ${access}`
@@ -228,10 +241,9 @@ export async function forwardToBackend(
   if (backendRes.status === 401) {
     const r = await refreshFromCookie()
     if (r?.kind === "ok") backendRes = await call(`Bearer ${r.tokens.access_token}`)
-    // 인증 서버 장애를 401로 돌려주면 클라가 로그아웃 처리한다 — 재시도 가능한 503으로 구분한다.
-    else if (r?.kind === "unavailable") {
-      return NextResponse.json({ detail: AUTH_UNAVAILABLE }, { status: 503 })
-    }
+    // 장애·회전 경합을 401로 돌려주면 클라가 로그아웃 처리한다 — 재시도 가능한 503/409로 구분한다.
+    const retry = retryLaterResponse(r)
+    if (retry) return retry
   }
 
   // 본문이 없어야 하는 상태(삭제 성공 204 등)에 빈 버퍼라도 실으면 Response 생성이 던진다.
