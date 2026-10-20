@@ -48,7 +48,8 @@ class ScoreResultDto:
     score: float
     verdict: Verdict
     rule_score: float
-    model_score: float | None  # None이면 규칙만으로 차단 수준이라 모델을 생략함(폭주 대응)
+    # None이면 모델을 생략함 — 규칙만으로 차단 수준(폭주 대응)이거나, 마우스 없는 터치·키보드 세션
+    model_score: float | None
     decided_by: str
     reasons: list[str]  # 왜 의심하는지 — 이의 제기 대응과 디버깅용
 
@@ -66,9 +67,20 @@ class ScoreResultDto:
 
 
 @dataclass(frozen=True)
+class ScoreEventDto:
+    """채점 로그 한 줄 — 응답을 보낸 뒤 저장한다(폭주 때 응답이 DB 쓰기를 기다리지 않게)."""
+
+    site_id: int
+    ip: str
+    signals: dict[str, float]
+    result: ScoreResultDto
+
+
+@dataclass(frozen=True)
 class IssuedScoreDto:
     token: str
     verdict: Verdict  # 브라우저용 참고값 — 실제 판단은 고객 서버가 /verify로 한다
+    event: ScoreEventDto  # 응답에는 안 나간다 — 라우터가 응답 뒤 record_event로 넘긴다
 
     def to_schema(self) -> ScoreResponseSchema:
         from deolmi.adapter.inbound.api.schemas.score_schema import ScoreResponseSchema

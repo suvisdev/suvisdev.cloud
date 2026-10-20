@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import pytest
-from fakes import BOT, HUMAN
+from fakes import BOT, HUMAN, KEYBOARD_HUMAN, TOUCH_HUMAN
 
 from deolmi.domain.services.origin_policy import host_of, origin_allowed
 from deolmi.domain.services.scoring_policy import (
     FEATURE_ORDER,
-    VELOCITY_BLOCK,
+    VELOCITY_BURST,
     VELOCITY_SUSPECT,
+    no_mouse_input,
     rule_score,
     to_features,
     verdict_of,
@@ -45,7 +46,28 @@ def test_single_rules(signals, expected):
 def test_velocity_thresholds():
     assert rule_score(HUMAN, VELOCITY_SUSPECT - 1).score == 0.0
     assert rule_score(HUMAN, VELOCITY_SUSPECT).score == 0.60
-    assert rule_score(HUMAN, VELOCITY_BLOCK).score == 0.92
+    assert rule_score(HUMAN, VELOCITY_BURST).score == 0.75
+
+
+def test_velocity_alone_never_blocks():
+    # PC방·회사 NAT: 사람 수백 명이 IP 하나 — 속도만으로는 challenge까지만.
+    r = rule_score(HUMAN, velocity_count=10_000)
+    assert verdict_of(r.score) == "challenge" and r.reasons
+
+
+@pytest.mark.parametrize("signals", [TOUCH_HUMAN, KEYBOARD_HUMAN])
+def test_touch_and_keyboard_humans_trip_no_rule(signals):
+    assert rule_score(signals, velocity_count=1).score == 0.0
+    assert no_mouse_input(signals)
+
+
+def test_click_without_any_movement_or_keyboard_still_flagged():
+    # 터치도 키보드 클릭도 없이 움직임 없는 클릭 — 스크립트의 el.click()·좌표 클릭.
+    s = {**KEYBOARD_HUMAN, "kbd_click_count": 0}
+    assert rule_score(s, velocity_count=1).score == 0.80
+    assert not no_mouse_input(s)
+    # 키보드 클릭 1번에 마우스 아닌 클릭이 더 있으면 여전히 의심.
+    assert rule_score({**KEYBOARD_HUMAN, "click_count": 3, "click_iv_std": 300}, 1).score == 0.80
 
 
 def test_missing_counts_do_not_trigger_interval_rules():

@@ -3,17 +3,24 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from deolmi.app.dtos.score_dto import IssuedScoreDto, ScoreCommand, ScoreResultDto, VerifyCommand
+from deolmi.app.dtos.score_dto import (
+    IssuedScoreDto,
+    ScoreCommand,
+    ScoreEventDto,
+    ScoreResultDto,
+    VerifyCommand,
+)
 from deolmi.app.errors import BadSecretError, OriginNotAllowedError, UnknownSiteError
 from deolmi.app.ports.input.score_use_case import ScoreUseCase
 from deolmi.app.ports.output.anomaly_model_port import AnomalyModelPort
-from deolmi.app.ports.output.event_repository import EventRepositoryPort
+from deolmi.app.ports.output.event_repository import EventLogPort
 from deolmi.app.ports.output.score_token_port import ScoreTokenPort
 from deolmi.app.ports.output.site_repository import SiteRepositoryPort
 from deolmi.app.ports.output.velocity_port import VelocityPort
 from deolmi.domain.services.origin_policy import origin_allowed
 from deolmi.domain.services.scoring_policy import (
     BLOCK_THRESHOLD,
+    no_mouse_input,
     rule_score,
     to_features,
     verdict_of,
@@ -28,12 +35,14 @@ class ScoreInteractor(ScoreUseCase):
 
     폭주 대응(cheap_first): 규칙만으로 이미 차단 수준이면 모델을 건너뛴다 — 티켓 오픈처럼
     요청이 쏟아질 때 비용을 아끼는 장치. 최종 점수는 max(규칙, 모델).
+    로그는 응답을 보낸 뒤 record_event로 쓴다 — 폭주 때 응답이 DB 쓰기를 기다리지 않게.
+    Redis(속도·토큰 기록)는 동기 클라이언트라 스레드로 넘겨 이벤트 루프를 막지 않는다.
     """
 
     def __init__(
         self,
         sites: SiteRepositoryPort,
-        events: EventRepositoryPort,
+        events: EventLogPort,
         model: AnomalyModelPort,
         tokens: ScoreTokenPort,
         velocity: VelocityPort,
@@ -51,17 +60,20 @@ class ScoreInteractor(ScoreUseCase):
         if not origin_allowed(command.origin, site.domains):
             raise OriginNotAllowedError(command.origin or "")
 
-        velocity = self._velocity.record(f"{site.site_key}:{command.client_ip}")
+        velocity = await asyncio.to_thread(
+            self._velocity.record, f"{site.site_key}:{command.client_ip}"
+        )
         result = await self._evaluate(command.signals, velocity)
-
-        # 로그는 재학습 원천이지만, 저장 실패가 채점 응답을 막으면 안 된다.
-        try:
-            await self._events.add(site.id, command.client_ip, command.signals, result)
-        except Exception:
-            logger.exception("[deolmi] 이벤트 저장 실패 — 응답은 그대로 보낸다")
-
         token = self._tokens.issue(site.site_key, result.to_dict())
-        return IssuedScoreDto(token=token, verdict=result.verdict)
+        event = ScoreEventDto(site.id, command.client_ip, command.signals, result)
+        return IssuedScoreDto(token=token, verdict=result.verdict, event=event)
+
+    async def record_event(self, event: ScoreEventDto) -> None:
+        # 로그는 재학습 원천이지만, 저장 실패가 채점을 깨면 안 된다.
+        try:
+            await self._events.add(event.site_id, event.ip, event.signals, event.result)
+        except Exception:
+            logger.exception("[deolmi] 이벤트 저장 실패 — 채점 결과는 이미 나갔다")
 
     async def verify(self, command: VerifyCommand) -> ScoreResultDto:
         payload = self._tokens.decode(command.token)
@@ -69,12 +81,13 @@ class ScoreInteractor(ScoreUseCase):
         if site is None or not secret_matches(command.secret, site.secret_hash):
             raise BadSecretError
         # 비밀 키가 맞을 때만 소모한다 — 틀린 키로 남의 토큰을 태워 버리지 못하게.
-        self._tokens.consume(payload)
+        await asyncio.to_thread(self._tokens.consume, payload)
         return ScoreResultDto.from_dict(payload.result)
 
     async def _evaluate(self, signals: dict[str, float], velocity: int) -> ScoreResultDto:
         rule = rule_score(signals, velocity)
-        if rule.score >= BLOCK_THRESHOLD:
+        # 모델은 마우스 세션만 안다 — 터치·키보드 세션은 마우스 특징이 0이라 사람이어도 이상치로 나온다.
+        if rule.score >= BLOCK_THRESHOLD or no_mouse_input(signals):
             model_score = None
             final = rule.score
             decided_by = "rule"

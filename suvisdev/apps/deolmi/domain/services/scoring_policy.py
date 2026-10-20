@@ -16,13 +16,14 @@ Verdict = Literal["allow", "challenge", "block"]
 BLOCK_THRESHOLD = 0.80
 CHALLENGE_THRESHOLD = 0.55
 
-# 같은 사이트·같은 IP가 창(10초) 안에 이만큼 넘게 때리면 의심/차단 — 예매 폭주 대응.
+# 같은 사이트·같은 IP가 창(10초) 안에 이만큼 넘게 때리면 의심 — 예매 폭주 대응.
+# 속도만으로는 차단하지 않는다(challenge 상한): PC방·회사·통신사 NAT처럼 사람 여럿이 IP 하나를 쓴다.
 VELOCITY_SUSPECT = 20
-VELOCITY_BLOCK = 60
+VELOCITY_BURST = 60
 
 # 모델 특징 벡터의 순서. 학습과 추론이 같은 순서여야 한다 — 늘리면 기존 모델 파일은 못 쓴다.
 FEATURE_ORDER: tuple[str, ...] = (
-    "move_count",  # mousemove 이벤트 수
+    "move_count",  # 마우스·펜 pointermove 이벤트 수(터치는 touch_count로 따로 센다)
     "path_px",  # 마우스 이동 총 거리(px)
     "straightness",  # 시작~끝 직선거리 / 실제 경로 (1에 가까우면 자로 그은 직선)
     "click_iv_mean",  # 클릭 간격 평균(ms)
@@ -42,6 +43,17 @@ def to_features(signals: Mapping[str, float]) -> list[float]:
     return [float(signals.get(k, 0.0)) for k in FEATURE_ORDER]
 
 
+def no_mouse_input(s: Mapping[str, float]) -> bool:
+    """마우스 없이 터치·키보드로 쓴 세션 — 모바일 사용자, Enter로 제출하는 사람.
+
+    모델은 마우스 세션으로만 학습했으므로(마우스 특징이 0이면 무조건 '이상치') 이런 세션은
+    모델로 판단하지 않는다. 단 터치·키보드 흔적이 전혀 없는 '움직임 없는 클릭'은 여기 해당하지 않는다.
+    """
+    return s.get("move_count", 0) == 0 and (
+        s.get("touch_count", 0) > 0 or s.get("kbd_click_count", 0) > 0
+    )
+
+
 def rule_score(s: Mapping[str, float], velocity_count: int) -> RuleResult:
     score, reasons = 0.0, []
 
@@ -56,13 +68,15 @@ def rule_score(s: Mapping[str, float], velocity_count: int) -> RuleResult:
         hit(0.90, "클릭 간격이 비정상적으로 규칙적")
     if s.get("path_px", 0) > 50 and s.get("straightness", 0) > 0.985:
         hit(0.85, "마우스가 자로 그은 듯 직선으로 이동")
-    if s.get("click_count", 0) >= 1 and s.get("move_count", 0) == 0:
+    # 키보드(Enter·Space)가 만든 클릭과 터치는 마우스가 안 움직여도 사람이다 — 그 밖의 클릭만 본다.
+    mouse_clicks = s.get("click_count", 0) - s.get("kbd_click_count", 0)
+    if mouse_clicks >= 1 and s.get("move_count", 0) == 0 and s.get("touch_count", 0) == 0:
         hit(0.80, "마우스 움직임 없이 클릭만 발생")
     if 0 < s.get("dwell_ms", 1e9) < 300:
         hit(0.75, "폼을 채우고 제출하기까지 시간이 비현실적으로 짧음")
 
-    if velocity_count >= VELOCITY_BLOCK:
-        hit(0.92, "같은 출처에서 비정상적으로 많은 요청(폭주)")
+    if velocity_count >= VELOCITY_BURST:
+        hit(0.75, "같은 출처에서 비정상적으로 많은 요청(폭주)")
     elif velocity_count >= VELOCITY_SUSPECT:
         hit(0.60, "같은 출처에서 요청이 몰림")
 

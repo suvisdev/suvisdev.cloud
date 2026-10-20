@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+import redis
+
 from deolmi.app.dtos.score_dto import ScoreResultDto
 from deolmi.app.dtos.site_dto import EventSummaryDto, SiteCreateCommand, SiteDto
 from deolmi.app.ports.output.anomaly_model_port import AnomalyModelPort
@@ -25,6 +27,24 @@ HUMAN = {
     "dwell_ms": 6500,
 }
 BOT = {**HUMAN, "key_iv_std": 0, "click_iv_std": 0, "straightness": 1.0}
+# 휴대폰: 마우스 없음, 터치 스크롤·탭. 키보드: 마우스를 안 쓰고 Tab·Enter로 제출.
+TOUCH_HUMAN = {
+    **HUMAN,
+    "move_count": 0,
+    "path_px": 0,
+    "straightness": 0,
+    "touch_count": 40,
+}
+KEYBOARD_HUMAN = {
+    **HUMAN,
+    "move_count": 0,
+    "path_px": 0,
+    "straightness": 0,
+    "click_count": 1,
+    "click_iv_mean": 0,
+    "click_iv_std": 0,
+    "kbd_click_count": 1,
+}
 
 
 def make_site(
@@ -111,3 +131,35 @@ class _FakeVelocity(VelocityPort):
     def record(self, key: str) -> int:
         self.keys.append(key)
         return self.count
+
+
+class _FakeRedis:
+    """dict 기반 최소 Redis — deolmi가 쓰는 set(nx, ex)·incr·expire만. down이면 연결 오류."""
+
+    def __init__(self) -> None:
+        self.store: dict[str, str] = {}
+        self.ttl: dict[str, int] = {}
+        self.down = False
+
+    def _check(self) -> None:
+        if self.down:
+            raise redis.ConnectionError("redis down")
+
+    def set(self, key: str, value: str, nx: bool = False, ex: int | None = None) -> bool | None:
+        self._check()
+        if nx and key in self.store:
+            return None
+        self.store[key] = value
+        if ex is not None:
+            self.ttl[key] = ex
+        return True
+
+    def incr(self, key: str) -> int:
+        self._check()
+        self.store[key] = str(int(self.store.get(key, "0")) + 1)
+        return int(self.store[key])
+
+    def expire(self, key: str, seconds: int) -> bool:
+        self._check()
+        self.ttl[key] = seconds
+        return True

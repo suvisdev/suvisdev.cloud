@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import func, select
@@ -9,7 +10,21 @@ from deolmi.adapter.outbound.orm.event_orm import DeolmiEventOrm
 from deolmi.adapter.outbound.orm.site_orm import DeolmiSiteOrm
 from deolmi.app.dtos.score_dto import ScoreResultDto
 from deolmi.app.dtos.site_dto import EventSummaryDto
-from deolmi.app.ports.output.event_repository import EventRepositoryPort
+from deolmi.app.ports.output.event_repository import EventLogPort, EventRepositoryPort
+
+
+class EventPgLogWriter(EventLogPort):
+    """응답을 보낸 뒤(BackgroundTasks) 로그를 쓴다. 그때는 요청 세션이 이미 닫혔을 수 있어
+    쓸 때마다 세션을 새로 뽑는다 — mova review_embedding_backfill과 같은 방식."""
+
+    def __init__(self, session_factory: Callable[[], AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def add(
+        self, site_id: int, ip: str, signals: dict[str, float], result: ScoreResultDto
+    ) -> None:
+        async with self._session_factory() as session:
+            await EventPgRepository(session).add(site_id, ip, signals, result)
 
 
 class EventPgRepository(EventRepositoryPort):

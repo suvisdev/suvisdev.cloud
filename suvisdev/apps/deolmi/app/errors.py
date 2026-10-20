@@ -26,3 +26,7 @@ class TokenInvalidError(ValueError):
 
 class TokenReusedError(ValueError):
     """이미 검증에 쓴 토큰(리플레이) → 400."""
+
+
+class TokenStoreUnavailableError(RuntimeError):
+    """사용한 토큰 기록소(Redis)에 닿지 못함 → 503. 재사용을 못 막으니 통과시키지 않는다."""

@@ -3,15 +3,17 @@ from __future__ import annotations
 import os
 from functools import cache
 
+import redis
 from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.matrix.grid_oracle_database_manager import get_db
-from deolmi.adapter.outbound.memory.sliding_window_velocity_adapter import (
-    SlidingWindowVelocityAdapter,
-)
+from core.matrix.grid_oracle_database_manager import get_db, get_mova_session_factory
+from deolmi.adapter.outbound.cache.redis_velocity_adapter import RedisVelocityAdapter
 from deolmi.adapter.outbound.ml.isolation_forest_model_adapter import IsolationForestModelAdapter
-from deolmi.adapter.outbound.repositories.event_pg_repository import EventPgRepository
+from deolmi.adapter.outbound.repositories.event_pg_repository import (
+    EventPgLogWriter,
+    EventPgRepository,
+)
 from deolmi.adapter.outbound.repositories.site_pg_repository import SitePgRepository
 from deolmi.adapter.outbound.security.jwt_score_token_adapter import JwtScoreTokenAdapter
 from deolmi.app.ports.input.score_use_case import ScoreUseCase
@@ -19,9 +21,9 @@ from deolmi.app.ports.input.site_admin_use_case import SiteAdminUseCase
 from deolmi.app.use_cases.score_interactor import ScoreInteractor
 from deolmi.app.use_cases.site_admin_interactor import SiteAdminInteractor
 
-# 모델·토큰(jti 기록)·속도 창은 프로세스에 하나씩만 있어야 한다 — 요청마다 만들면
-# 재사용 차단과 폭주 측정이 매번 초기화된다. 모델은 첫 요청 때 학습(수 초)한다;
+# 모델·Redis 클라이언트는 프로세스에 하나씩만 둔다. 모델은 첫 요청 때 학습(수 초)한다;
 # 이 provider들은 동기 함수라 FastAPI가 스레드풀에서 돌려 이벤트 루프를 막지 않는다.
+# 토큰 jti 기록·속도 창은 Redis(REDIS_URL)에 있다 — 노트북↔집컴 서빙 전환·재시작에도 이어진다.
 
 
 @cache
@@ -30,13 +32,24 @@ def _model() -> IsolationForestModelAdapter:
 
 
 @cache
-def _velocity() -> SlidingWindowVelocityAdapter:
-    return SlidingWindowVelocityAdapter(window_s=10.0)
+def _redis() -> redis.Redis:
+    # from_url은 접속하지 않는다(첫 명령 때 연결). 장애 때 요청이 오래 매달리지 않게 1초 제한.
+    return redis.from_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        decode_responses=True,
+        socket_timeout=1.0,
+        socket_connect_timeout=1.0,
+    )
+
+
+@cache
+def _velocity() -> RedisVelocityAdapter:
+    return RedisVelocityAdapter(_redis(), window_s=10)
 
 
 @cache
 def _tokens_for(secret: str) -> JwtScoreTokenAdapter:
-    return JwtScoreTokenAdapter(secret)
+    return JwtScoreTokenAdapter(secret, _redis())
 
 
 def _tokens() -> JwtScoreTokenAdapter:
@@ -50,7 +63,8 @@ def _tokens() -> JwtScoreTokenAdapter:
 def get_score_use_case(db: AsyncSession = Depends(get_db)) -> ScoreUseCase:
     return ScoreInteractor(
         sites=SitePgRepository(session=db),
-        events=EventPgRepository(session=db),
+        # 로그는 응답 뒤(BackgroundTasks)에 쓰므로 요청 세션 대신 세션 팩토리를 준다.
+        events=EventPgLogWriter(get_mova_session_factory()),
         model=_model(),
         tokens=_tokens(),
         velocity=_velocity(),

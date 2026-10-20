@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from deolmi.adapter.inbound.api.schemas.score_schema import (
@@ -25,6 +25,7 @@ from deolmi.app.errors import (
     TokenExpiredError,
     TokenInvalidError,
     TokenReusedError,
+    TokenStoreUnavailableError,
     UnknownSiteError,
 )
 from deolmi.app.ports.input.score_use_case import ScoreUseCase
@@ -41,6 +42,7 @@ _ERROR_STATUS: dict[type[Exception], tuple[int, str]] = {
     TokenExpiredError: (400, "token expired"),
     TokenInvalidError: (401, "invalid token"),
     TokenReusedError: (400, "token already used"),
+    TokenStoreUnavailableError: (503, "token store unavailable"),
 }
 
 
@@ -70,13 +72,17 @@ async def sdk() -> FileResponse:
 async def score(
     req: ScoreRequestSchema,
     request: Request,
+    background_tasks: BackgroundTasks,
     use_case: ScoreUseCase = Depends(get_score_use_case),
 ) -> ScoreResponseSchema:
     command = ScoreCommand.from_schema(req, request.headers.get("origin"), _client_ip(request))
     try:
-        return (await use_case.score(command)).to_schema()
+        issued = await use_case.score(command)
     except (UnknownSiteError, OriginNotAllowedError) as e:
         raise _http_error(e) from e
+    # 로그는 응답을 보낸 뒤 쓴다 — 폭주 때 응답이 DB 쓰기를 기다리지 않게.
+    background_tasks.add_task(use_case.record_event, issued.event)
+    return issued.to_schema()
 
 
 @score_router.post("/verify", response_model=ScoreResultSchema)
@@ -86,5 +92,11 @@ async def verify(
 ) -> ScoreResultSchema:
     try:
         return (await use_case.verify(VerifyCommand.from_schema(req))).to_schema()
-    except (BadSecretError, TokenExpiredError, TokenInvalidError, TokenReusedError) as e:
+    except (
+        BadSecretError,
+        TokenExpiredError,
+        TokenInvalidError,
+        TokenReusedError,
+        TokenStoreUnavailableError,
+    ) as e:
         raise _http_error(e) from e
