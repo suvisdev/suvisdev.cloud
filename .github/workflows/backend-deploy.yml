@@ -40,17 +40,19 @@ jobs:
 
       # 이미지 빌드 → k3s import → apply → rollout 대기 → 구 이미지 정리(deploy.sh가 전부 한다)
       # 노트북이 집 밖이면 desktop-link(집컴 DB 포워딩, 내부 IP)가 끊겨 새 파드가 wait-db에서 멈추고 rollout이
-      # 10분 뒤 실패해 집컴 동기화까지 막혔다(2026-10-06 run 37402009303). 그때는 빌드·적재·재시작 요청만 하고
-      # 기다리지 않는다 — 노트북 파드는 집에 돌아와 DB가 닿으면 새 이미지로 뜬다. cloudflared도 건드리지 않는다
-      # (서빙 전환은 serve-agent 몫).
+      # 10분 뒤 실패해 집컴 동기화까지 막혔다(2026-10-06 run 37402009303). 그때는 빌드·적재 + Secret·매니페스트
+      # apply + 재시작 요청만 하고 기다리지 않는다 — 노트북 파드는 집에 돌아와 DB가 닿으면 새 이미지·새 설정으로
+      # 뜬다. apply를 빼면 귀가 후 새 이미지가 옛 매니페스트로 떠 serve-agent가 그대로 서빙을 가져갔다(2026-10-20
+      # 리뷰). cloudflared만 건드리지 않는다(--no-tunnel, 서빙 전환은 serve-agent 몫).
       - name: 배포
         run: |
           if nc -z -w 3 127.0.0.1 5432; then
             ./k8s/deploy.sh --external-db --build
           else
-            echo "집컴 DB(127.0.0.1:5432)에 닿지 않음 — 노트북이 집 밖. 빌드·적재만 하고 서빙은 집컴이 맡는다"
+            echo "집컴 DB(127.0.0.1:5432)에 닿지 않음 — 노트북이 집 밖. 빌드·적재·apply(터널 제외)만 하고 서빙은 집컴이 맡는다"
             docker build -t suvisdev-app:latest suvisdev
             docker save suvisdev-app:latest | sudo k3s ctr images import -
+            ./k8s/deploy.sh --external-db --no-tunnel
             kubectl -n suvisdev rollout restart deploy/backend deploy/auth
           fi
 
