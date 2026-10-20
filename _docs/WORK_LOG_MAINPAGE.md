@@ -42,6 +42,7 @@
 
 ### 산출물
 - 이 항목 자체가 웹훅 테스트 커밋(브랜치 `docs/1020-discord-webhook`).
+- 같은 날 결정: PR 머지는 Claude가 CI 통과 확인 후 직접 한다(선행 작업이 필요한 PR은 보류하고 알림) — 루트 `CLAUDE.md` "브랜치 전략"에 규칙 추가. GitHub auto-merge는 쓰지 않음.
 
 ---
 

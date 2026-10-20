@@ -236,6 +236,11 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 - `main` — 기본 브랜치(PR 대상). `suvisdev` — 주 작업 브랜치. `suvis` — 프론트 작업용.
 - **`develop` 브랜치는 없다.** 머지 방향은 `suvisdev` → `main`이다.
 - 커밋·푸시는 사용자가 요청할 때만 한다.
+- **PR 머지는 Claude가 CI 확인 후 한다(2026-10-20 사용자 결정).** 사용자 요청으로 PR을 만들면
+  `gh pr checks <번호> --watch`로 CI 통과를 확인한 뒤 머지한다(CI가 경로 필터라 문서만 바뀐 PR은 검사가 없다 → 바로 머지).
+  main 머지 = 운영 자동 배포(backend-deploy)이므로 **머지 전에 사용자 작업이 필요한 PR은 머지하지 않고 알린다** —
+  새 환경 변수(`.env`·Secret), DB 마이그레이션, 그 밖에 수동 선행 단계가 있는 경우. CI 실패 시 고친 뒤 다시 확인한다.
+  GitHub 자동 머지(auto-merge)·main 보호 규칙은 쓰지 않는다(꺼져 있음).
 
 ## 주의사항
 
