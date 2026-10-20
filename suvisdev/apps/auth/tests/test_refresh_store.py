@@ -6,6 +6,7 @@ import pytest
 
 from auth import refresh_store as module
 from auth.refresh_store import (
+    RefreshSuperseded,
     RefreshTokenStore,
     ReuseDetected,
 )
@@ -169,13 +170,13 @@ def test_concurrent_rotate_loser_after_successor_saved(adapter, fake):
 
 
 def test_late_duplicate_after_successor_rotated_is_rejected_without_revoking(adapter, clock):
-    """A→B→C 뒤 늦게 온 A — 이미 쓴 B를 돌려주지 않고(쿠키 덮어쓰기 방지) 401만, 계열은 유지."""
+    """A→B→C 뒤 늦게 온 A — 이미 쓴 B를 돌려주지 않고(쿠키 덮어쓰기 방지) superseded, 계열 유지."""
     a, family_id = _issue(adapter)
     b = adapter.rotate(jti=a)
     c = adapter.rotate(jti=b.jti)
     clock.t += 1
 
-    with pytest.raises(ReuseDetected):
+    with pytest.raises(RefreshSuperseded):
         adapter.rotate(jti=a)
     assert adapter.is_family_revoked(family_id) is False
     d = adapter.rotate(jti=c.jti)  # 현재 쿠키(C)로는 계속 정상 회전
@@ -210,3 +211,56 @@ def test_new_sessions_carry_version_and_old_ones_rotate_as_legacy(adapter, fake)
         '{"sub": "1", "aud": "suvis-mova", "roles": ["admin"], "family_id": "f", "used": false}',
     )
     assert adapter.rotate(jti="old").legacy is True
+
+
+def test_logout_with_rotated_old_token_revokes_whole_family(adapter):
+    """A→B→C 뒤 A로 로그아웃해도 계열을 찾아 폐기한다 — C도 더는 못 쓴다."""
+    a, family_id = _issue(adapter)
+    b = adapter.rotate(jti=a)
+    c = adapter.rotate(jti=b.jti)
+    adapter.revoke_by_jti(a)
+    assert adapter.is_family_revoked(family_id) is True
+    with pytest.raises(ReuseDetected):
+        adapter.rotate(jti=c.jti)
+
+
+def test_logout_between_revoked_check_and_claim_invalidates_rotation(adapter, fake):
+    """폐기 확인 뒤 claim NX 직전에 로그아웃이 끼면 회전은 무효, 후속 토큰도 지운다."""
+    jti, family_id = _issue(adapter)
+
+    def _logout(key: str, nx: bool) -> None:
+        if nx:
+            fake.before_set = None
+            adapter.revoke_family(family_id)
+
+    def _arm(key: str, nx: bool) -> None:  # 첫 set(후속 토큰 저장)은 통과
+        fake.before_set = _logout
+
+    fake.before_set = _arm
+    with pytest.raises(ReuseDetected):
+        adapter.rotate(jti=jti)
+    tokens = [
+        k
+        for k in fake._store
+        if k.startswith("auth:refresh:") and not k.startswith("auth:refresh:claim:")
+    ]
+    assert tokens == [f"auth:refresh:{jti}"]  # 후속 토큰 없음
+
+
+def test_duplicate_within_grace_after_logout_is_invalid_not_superseded(adapter):
+    jti, family_id = _issue(adapter)
+    adapter.rotate(jti=jti)
+    adapter.revoke_family(family_id)
+    with pytest.raises(ReuseDetected) as e:
+        adapter.rotate(jti=jti)
+    assert not isinstance(e.value, RefreshSuperseded)
+
+
+def test_claim_outlives_original_record(adapter, clock, fake):
+    """claim은 회전 시점부터 14일 — 발급 시점부터 14일인 원본 레코드보다 늦게 만료된다."""
+    jti, _ = _issue(adapter)
+    clock.t += 5 * 24 * 3600
+    adapter.rotate(jti=jti)
+    clock.t += 9 * 24 * 3600 + 1  # 원본 레코드(발급 후 14일) 만료 직후
+    assert fake.get(f"auth:refresh:{jti}") is None
+    assert fake.get(f"auth:refresh:claim:{jti}") is not None

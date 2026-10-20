@@ -31,6 +31,12 @@ class ReuseDetected(Exception):
     """이미 사용(rotate)된 리프레시 토큰이 다시 제출됨 — 세션 계열 탈취 의심."""
 
 
+class RefreshSuperseded(ReuseDetected):
+    """유예 안의 늦은 중복 요청 — 후속 토큰이 이미 회전돼 있다. 계열은 살아 있으므로
+    라우터가 일반 무효(401)와 구분해 409 `refresh_superseded`로 답한다(클라이언트는
+    현재 쿠키를 지우지 말고 재시도)."""
+
+
 @dataclass(frozen=True)
 class RotatedToken:
     jti: str
@@ -93,7 +99,7 @@ class RefreshTokenStore:
 
         이미 claim된 jti가 다시 오면:
         - 유예(_GRACE_SECONDS) 안 + 후속 토큰이 아직 미사용 → 같은 후속 토큰(동시 요청)
-        - 유예 안 + 후속도 이미 회전됨(A→B→C 뒤 늦은 A) → 계열은 두고 401만. B를 돌려주면
+        - 유예 안 + 후속도 이미 회전됨(A→B→C 뒤 늦은 A) → 계열은 두고 RefreshSuperseded(409). B를 돌려주면
           클라이언트 쿠키가 이미 쓴 B로 덮여 다음 정상 refresh가 재사용으로 몰린다.
         - 유예 밖 → 재사용 공격으로 보고 계열 폐기
         """
@@ -120,6 +126,10 @@ class RefreshTokenStore:
                 ex=int(_REFRESH_TTL.total_seconds()),
             )
             if won:
+                # 폐기 확인과 claim 사이에 로그아웃(계열 폐기)이 끼었으면 회전을 무효로 한다.
+                if self.is_family_revoked(family_id):
+                    self._client.delete(f"auth:refresh:{new_jti}")
+                    raise ReuseDetected("이미 로그아웃된 세션입니다.")
                 return _rotated(data, new_jti)
             self._client.delete(f"auth:refresh:{new_jti}")  # 다른 요청이 먼저 회전했다
             claim = self._client.get(_claim_key(jti))
@@ -128,11 +138,20 @@ class RefreshTokenStore:
 
         claimed = json.loads(claim)
         if _now() - claimed["at"] <= _GRACE_SECONDS:
+            if self.is_family_revoked(family_id):
+                raise ReuseDetected("이미 로그아웃된 세션입니다.")
             if self._client.get(_claim_key(claimed["next"])) is None:
                 return _rotated(data, claimed["next"])
-            raise ReuseDetected("이미 다음 토큰으로 넘어간 늦은 중복 요청입니다.")
+            raise RefreshSuperseded("refresh_superseded")
         self.revoke_family(family_id)
         raise ReuseDetected(f"이미 사용된 리프레시 토큰 재사용 감지: family={family_id}")
+
+    def revoke_by_jti(self, jti: str) -> None:
+        """로그아웃 — 회전 여부와 무관하게 토큰 레코드로 계열을 찾아 폐기한다. 회전된 옛
+        토큰(A→B→C 뒤 A)으로 로그아웃해도 C까지 끊긴다. 레코드가 없으면(만료) 할 일 없음."""
+        raw = self._client.get(f"auth:refresh:{jti}")
+        if raw is not None:
+            self.revoke_family(json.loads(raw)["family_id"])
 
     def revoke_family(self, family_id: str) -> None:
         self._client.set(

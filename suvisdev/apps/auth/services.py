@@ -157,11 +157,9 @@ class AuthService:
         )
 
     async def logout(self, refresh_token: str) -> None:
-        try:
-            rotated = self._refresh.rotate(jti=refresh_token)
-            self._refresh.revoke_family(rotated.family_id)
-        except ReuseDetected:
-            pass  # 이미 무효화된 토큰 — 로그아웃 목적은 이미 달성된 상태
+        # 회전하지 않고 레코드로 계열을 바로 폐기한다 — 구 버전은 rotate가 실패하면(회전된 옛
+        # 토큰) 무시해서 최신 토큰이 살아 있는 채로 204였다(2026-10-20 리뷰).
+        self._refresh.revoke_by_jti(refresh_token)
 
     async def login_with_kakao_mobile(self, access_token: str) -> KakaoMobileTokenResponse:
         """모바일(susu) 전용 — kapi로 access_token을 검증한 뒤 곧바로 계정을 만들거나

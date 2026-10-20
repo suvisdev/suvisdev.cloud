@@ -11,7 +11,7 @@ from auth.google_mobile_verifier import GoogleTokenInvalid
 from auth.kakao_mobile_verifier import KakaoTokenInvalid
 from auth.mobile_refresh_store import MobileTokenInvalid
 from auth.oauth_adapters import OAuthError
-from auth.refresh_store import ReuseDetected
+from auth.refresh_store import RefreshSuperseded, ReuseDetected
 from auth.repository import EmailAlreadyExists, UsernameAlreadyExists
 from auth.schemas import (
     GoogleMobileLoginRequest,
@@ -79,6 +79,9 @@ async def logout(body: RefreshRequest) -> None:
 async def refresh(body: RefreshRequest) -> TokenResponse:
     try:
         return await _service.refresh(body.refresh_token)
+    except RefreshSuperseded as e:
+        # 늦은 중복 요청 — 계열은 살아 있다. 401(쿠키 삭제)과 구분해 클라이언트가 현재 쿠키로 재시도.
+        raise HTTPException(status_code=409, detail="refresh_superseded") from e
     except ReuseDetected as e:
         raise HTTPException(status_code=401, detail=str(e)) from e
 

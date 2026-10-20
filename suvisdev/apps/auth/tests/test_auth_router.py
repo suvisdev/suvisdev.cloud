@@ -163,6 +163,26 @@ def test_refresh_rotates_and_reuse_is_rejected(client, monkeypatch):
     assert also_revoked.status_code == 401
 
 
+def test_late_duplicate_refresh_returns_409_superseded_and_keeps_session(client):
+    a = _login_admin_refresh_token(client)
+    b = client.post("/auth/refresh", json={"refresh_token": a}).json()["refresh_token"]
+    c = client.post("/auth/refresh", json={"refresh_token": b}).json()["refresh_token"]
+
+    late = client.post("/auth/refresh", json={"refresh_token": a})
+    assert late.status_code == 409
+    assert late.json() == {"detail": "refresh_superseded"}
+    assert client.post("/auth/refresh", json={"refresh_token": c}).status_code == 200
+
+
+def test_logout_with_old_rotated_token_kills_latest(client):
+    a = _login_admin_refresh_token(client)
+    b = client.post("/auth/refresh", json={"refresh_token": a}).json()["refresh_token"]
+    c = client.post("/auth/refresh", json={"refresh_token": b}).json()["refresh_token"]
+
+    assert client.post("/auth/logout", json={"refresh_token": a}).status_code == 204
+    assert client.post("/auth/refresh", json={"refresh_token": c}).status_code == 401
+
+
 def _login_admin_refresh_token(client) -> str:
     resp = client.post(
         "/auth/login",
