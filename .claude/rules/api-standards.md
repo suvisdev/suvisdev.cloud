@@ -64,12 +64,15 @@ access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클
   `lib/auth-bff.ts`의 `forwardToBackend`가 쿠키→Bearer + 401 시 리프레시까지 한다.
 - **경로 변형·로직이 있는 개별 프록시**(`/api/mova/*`·`/api/viewer/*`·`/api/dispatch/*` 등)는
   `cookieBearer()`로 쿠키의 access를 Bearer로 읽는다(구 `request.headers.get("authorization")`
-  pass-through 자리). access가 없거나 만료됐으면 라우트보다 앞의 **`suvis/proxy.ts`**가 `/api/**`
-  (`/api/auth/**` 제외) 전체에 대해 refresh로 먼저 갱신한다(2026-10-20) — 개별 프록시에서 토큰을 따로
-  갱신하지 않는다. 서버 헬퍼는 전부 `lib/auth-bff.ts`에 있다.
-- **갱신 실패 처리**: 게이트웨이가 401/403(만료·재사용 탐지)일 때만 쿠키를 지운다. 5xx·네트워크 오류면
-  쿠키를 두고 503을 준다 — 라우트까지 보내지 않으므로 로그아웃·익명 강등이 생기지 않는다. 같은 refresh의
-  동시 갱신은 서버 인스턴스 안에서 하나로 합치고, 인스턴스 간 중복은 백엔드 refresh 유예(10초)가 받는다.
+  pass-through 자리). access가 없거나 만료됐으면 라우트보다 앞의 **`suvis/proxy.ts`**가 refresh로 먼저
+  갱신한다(2026-10-20). proxy matcher는 **인증을 쓰는 라우트 목록**이다 — 새 인증 라우트를 만들면 거기 추가한다.
+  공개 API·catch-all은 넣지 않고(인증 서버 장애와 무관하게 동작), multipart 업로드는 Vercel 미들웨어 본문
+  한도(4MB) 때문에 `missing` 조건으로 빼고 라우트에서 `cookieBearerOr503()`를 쓴다. 서버 헬퍼는 전부
+  `lib/auth-bff.ts`에 있다.
+- **갱신 실패 처리**: 게이트웨이가 401/403(만료·재사용 탐지)일 때만 쿠키를 지운다. 5xx·네트워크 오류·5초
+  무응답이면 쿠키를 두고 503을 준다(로그아웃·익명 강등 없음). catch-all은 장애 시 기존 쿠키로 진행하고
+  백엔드가 401일 때만 503으로 바꾼다. 같은 refresh의 동시 갱신은 서버 인스턴스 안에서 하나로 합치고,
+  인스턴스 간 중복은 백엔드 auth refresh 유예(fix/auth-review-1020)가 배포돼야 해소된다.
 - **OAuth 로그인**(`/api/auth/oauth-exchange`·`oauth-consent`)은 access만 받으므로 `setAccessCookie`가
   이전 계정의 refresh를 게이트웨이에서 폐기하고 쿠키를 지운다.
 - **로그아웃**은 `logoutSession()`(→ `/api/auth/logout`)이 refresh를 revoke하고 쿠키를 지운다 —

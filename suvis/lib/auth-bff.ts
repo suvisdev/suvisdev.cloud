@@ -63,11 +63,12 @@ export async function setAccessCookie(res: NextResponse, token: string): Promise
 }
 
 // auth 게이트웨이 POST 대행(로그인·회원가입·리프레시·로그아웃 공용).
-export function gatewayPost(path: string, body: unknown): Promise<Response> {
+export function gatewayPost(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   return fetch(`${AUTH_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   })
 }
 
@@ -108,7 +109,8 @@ export const AUTH_UNAVAILABLE = "인증 서버에 잠시 연결할 수 없습니
 
 async function rotateRefresh(refresh: string): Promise<RefreshResult> {
   try {
-    const r = await gatewayPost("/auth/refresh", { refresh_token: refresh })
+    // 응답 없는 인증 서버에 플랫폼 타임아웃까지 매달리지 않게 5초에서 끊고 장애(503)로 처리한다.
+    const r = await gatewayPost("/auth/refresh", { refresh_token: refresh }, AbortSignal.timeout(5_000))
     if (r.status === 401 || r.status === 403) return { kind: "invalid" }
     const tokens = r.ok ? parseTokenPair(await r.json().catch(() => ({}))) : null
     return tokens ? { kind: "ok", tokens } : { kind: "unavailable" }
@@ -121,7 +123,8 @@ async function rotateRefresh(refresh: string): Promise<RefreshResult> {
 // 폐기하므로(refresh_store.rotate), 여러 요청이 각자 회전하면 정상 세션이 끊긴다. 끝난 뒤에도 잠깐
 // 결과를 남겨, 새 쿠키가 브라우저에 반영되기 전에 옛 refresh로 출발한 요청도 같은 결과를 받게 한다.
 // 이 맵은 서버 인스턴스(프로세스) 안에서만 공유된다. Vercel이 동시 요청을 서로 다른 인스턴스로 보내는
-// 경우는 백엔드 refresh 유예(10초 안에 옛 refresh가 다시 오면 같은 결과를 돌려줌)가 받기로 했다(2026-10-20).
+// 경우는 백엔드 auth의 refresh 유예(10초 안에 옛 refresh가 다시 오면 같은 결과 반환, fix/auth-review-1020)가
+// 받는다 — 그 변경이 배포되기 전까지는 다중 인스턴스 경쟁으로 세션이 끊길 수 있다.
 const REUSE_GRACE_MS = 10_000
 const refreshing = new Map<string, Promise<RefreshResult>>()
 
@@ -163,11 +166,25 @@ export function isExpired(jwt: string): boolean {
 
 // 프록시 pass-through 교체용 — 구 `request.headers.get("authorization")`(문자열 or null)과 같은 모양을
 // 쿠키에서 만든다. 기존 `auth ? { Authorization: auth } : {}` 코드를 그대로 두고 이 값만 바꿔 끼운다.
-// access 만료·부재 시 갱신은 라우트보다 앞의 `proxy.ts`가 /api/** 전체에 대해 끝내 둔다 — 여기 도착한
-// access는 이미 새것이고, 인증 서버 장애면 proxy가 503으로 끊어 라우트(익명 강등)까지 오지 않는다.
+// access 만료·부재 시 갱신은 라우트보다 앞의 `proxy.ts`가 인증 라우트(matcher 목록)에 대해 끝내 둔다 —
+// 여기 도착한 access는 이미 새것이고, 인증 서버 장애면 proxy가 503으로 끊어 라우트(익명 강등)까지 오지 않는다.
 export async function cookieBearer(): Promise<string | undefined> {
   const access = (await cookies()).get(ACCESS_COOKIE)?.value
   return access ? `Bearer ${access}` : undefined
+}
+
+// proxy.ts를 거치지 않는 multipart 업로드 라우트용(Vercel 미들웨어 본문 한도 4MB를 피하려고 matcher에서 뺐다).
+// 여기서 직접 갱신하고, 인증 서버 장애면 그대로 돌려줄 503 응답을 준다.
+export async function cookieBearerOr503(): Promise<string | undefined | NextResponse> {
+  const access = (await cookies()).get(ACCESS_COOKIE)?.value
+  if (access && !isExpired(access)) return `Bearer ${access}`
+  const r = await refreshFromCookie()
+  if (r?.kind === "unavailable") {
+    return NextResponse.json({ detail: AUTH_UNAVAILABLE }, { status: 503 })
+  }
+  if (r?.kind === "ok") return `Bearer ${r.tokens.access_token}`
+  if (r?.kind === "invalid" || !access) return undefined
+  return `Bearer ${access}`
 }
 
 const BODYLESS = new Set(["GET", "HEAD"])
@@ -197,9 +214,17 @@ export async function forwardToBackend(
       redirect: "manual",
     })
 
-  // 만료 전 갱신은 proxy.ts가 했다. 여기선 exp가 남았는데도 401이 난 경우만 한 번 더 회전한다.
+  // catch-all은 공개 API도 지나가므로 proxy.ts에 넣지 않았다. 대신 여기서 만료 전 갱신을 하되, 인증 서버
+  // 장애면 기존 쿠키 그대로 진행한다 — 공개 API는 영향이 없고, 인증이 필요한 API만 401→아래에서 503이 된다.
   // 쿠키 갱신·삭제는 refreshFromCookie가 cookies()에 기록한다 — 아래에서 만드는 응답에 함께 실린다.
-  let backendRes = await call(await cookieBearer())
+  let bearer = await cookieBearer()
+  const access = bearer?.slice("Bearer ".length)
+  if (!access || isExpired(access)) {
+    const r = await refreshFromCookie()
+    if (r?.kind === "ok") bearer = `Bearer ${r.tokens.access_token}`
+    else if (r?.kind === "invalid") bearer = undefined
+  }
+  let backendRes = await call(bearer)
   if (backendRes.status === 401) {
     const r = await refreshFromCookie()
     if (r?.kind === "ok") backendRes = await call(`Bearer ${r.tokens.access_token}`)
