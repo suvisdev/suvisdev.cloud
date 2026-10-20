@@ -132,13 +132,10 @@ async function rotateRefresh(refresh: string): Promise<RefreshResult> {
   }
 }
 
-// 같은 refresh로 동시에 들어온 갱신을 하나로 합친다. 백엔드는 이미 쓴 refresh가 다시 오면 family 전체를
-// 폐기하므로(refresh_store.rotate), 여러 요청이 각자 회전하면 정상 세션이 끊긴다. 끝난 뒤에도 잠깐
-// 결과를 남겨, 새 쿠키가 브라우저에 반영되기 전에 옛 refresh로 출발한 요청도 같은 결과를 받게 한다.
-// 이 맵은 서버 인스턴스(프로세스) 안에서만 공유된다. Vercel이 동시 요청을 서로 다른 인스턴스로 보내는
-// 경우는 백엔드 auth의 refresh 유예(10초 안에 옛 refresh가 다시 오면 같은 결과 반환, fix/auth-review-1020)가
-// 받는다 — 그 변경이 배포되기 전까지는 다중 인스턴스 경쟁으로 세션이 끊길 수 있다.
-const REUSE_GRACE_MS = 10_000
+// 같은 refresh로 **동시에 진행 중인** 갱신만 하나로 합친다(인스턴스 안 호출 수 절약). 끝난 결과는 남기지
+// 않는다 — 남기면 B→C 회전 뒤 늦게 온 옛 A가 백엔드를 거치지 않고 이미 쓴 B를 받아 현재 C 쿠키를 덮어쓰고,
+// B 유예가 지나 계열이 폐기된다(2026-10-20 Codex 리뷰 재현). 늦은 중복·다중 인스턴스 경쟁은 백엔드 auth의
+// refresh 유예가 판정한다: 10초 안 옛 refresh는 후속이 미사용이면 같은 결과, 이미 회전됐으면 409 superseded.
 const refreshing = new Map<string, Promise<RefreshResult>>()
 
 export function refreshOnce(refresh: string): Promise<RefreshResult> {
@@ -146,11 +143,7 @@ export function refreshOnce(refresh: string): Promise<RefreshResult> {
   if (pending) return pending
   const p = rotateRefresh(refresh)
   refreshing.set(refresh, p)
-  void p.then((r) => {
-    // 성공·무효만 남긴다 — 장애·회전 경합은 다음 요청이 바로 다시 시도할 수 있게.
-    const keep = r.kind === "ok" || r.kind === "invalid"
-    setTimeout(() => refreshing.delete(refresh), keep ? REUSE_GRACE_MS : 0)
-  })
+  void p.finally(() => refreshing.delete(refresh))
   return p
 }
 

@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 10-20 **Codex 전체 리뷰 → 6개 영역 수정(PR #209~#213 머지, 배포 성공)** · 디스코드 커밋 알림 웹훅 · Claude 수정/Codex 리뷰 분담(Codex OK 후 커밋). 덜미 #207은 머지 보류. 남은 사용자 작업은 아래 "10-20 리뷰 수정 후속".
 - `[P]` 10-14 **/resume 를 PDF 이력서 v18 에 맞춤 · 홈 ARDA "본선 TOP 20"**: Experience 섹션(원티드 AI Championship 2026 본선 TOP 20, 투표 1위 10.05 기준) ·
   Arda 카드 추가 · 교육·학력 정정 · 확인 안 된 숫자 제거 · 휴대폰 레이아웃 수정 · 전화 가짜 링크 제거 · `profile.md` 같은 사실로 갱신(**홈 채팅 재색인은 남음**, 아래 홈 채팅 잔여 ①).
 - `[P]` 10-07 **어드민 서빙 서버·챗봇 경로 / mova 채팅 속도·버그 / mova 랭킹(전부 배포)**: 어드민 홈 "서빙 서버" 배지(NODE_NAME)·챗봇 LLM 경로 카드(#196) ·
@@ -118,10 +119,19 @@
 history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `--base-url
 http://127.0.0.1:31386`.
 
+### 10-20 리뷰 수정 후속 (사용자 작업, `[P]` 10-20 (3))
+1. **덜미 #207**: `.env`에 `DEOLMI_TOKEN_SECRET` → Claude가 CI·Codex 확인 후 머지 → `./k8s/deploy.sh --external-db` → 운영 `alembic upgrade head` → 키 발급.
+2. **로그인 확인**: 운영 `.env` `*_REDIRECT_URI` 호스트가 `api.suvisdev.cloud`인지(OAuth state 쿠키 결합 — 다르면 콜백 400), 실제 브라우저로 Google·Kakao 로그인 1회, 관리자 계정 재로그인.
+3. **노트북 serve-agent 설치**: `cp k8s/failover/serve_agent.sh ~/serve/serve_agent.sh && systemctl --user restart serve-agent`.
+4. **올라마 설정 대조**: 집컴 `diff ~/ollama-proxy/haproxy.cfg ~/projects/suvisdev/k8s/ollama-proxy/haproxy.cfg`, 노트북 `ollama-tunnel.service` — 설정 줄이 다르면 운영 값이 정답, 저장소를 고침.
+5. **길들 앱**: 새 AAB 1.0.6+7 이상(저장 재시도·세션 만료·업데이트 버튼) + 실기기 확인, 구글 Android OAuth 클라이언트·카카오 Play 서명 키 해시 등록.
+6. (선택) mova 임베딩 백필 3종 `--dry-run` 먼저.
+7. 남은 개선(미착수): main.py 전역 422 처리기(inf 입력 500), 겨울 결빙 회피를 그늘·푸른·편한 길 후보까지, `@google/generative-ai` 미사용 의존성 정리, viewer 죽은 `login_pg_repository.py`.
+
 ### 노트북·집컴 이중화 후속 (2026-10-06, 인수인계 `HANDOFF_suvisdev_2026-10-06.md`)
 1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영** — 10-06 수정(브랜치 `fix/cd-away-from-home`: DB 안 닿으면 노트북은 빌드·적재만 + sync-standby Tailscale). 집 밖 실 CD 검증 완료(run 37404372412, 1분 29초, 집컴 이미지 일치), PR #176 머지(`5e798c3`).
    현재 #174 이미지는 집컴 미반영(기능 영향 없음), 노트북 k3s에 `Init:0/2` 파드 2개(집에 오면 해소 예상).
-2. **저장소 원본 ≠ 운영** — `k8s/ollama-proxy/ollama-tunnel.service`(내부 IP), `k8s/ollama-proxy/haproxy.cfg`(:11436 없음), `suvisdev/.env.example`. 재설치하면 10-06 변경이 사라짐 → 운영 값에 맞추는 PR.
+2. ~~저장소 원본 ≠ 운영~~ → 10-20 PR #210로 원본을 문서 기준 운영 구성에 맞춤. **기기에서 `diff`로 운영 값과 대조는 남음**(아래 10-20 후속).
 3. **홈 채팅 답변 품질** — 자기소개·"무슨 모델이야"에 번역투 기술 나열. 사용자 판단: Gemini(`gemini-3.1-flash-lite`)가 오히려 더 나쁨 → 모델 교체 말고 `apps/ontology/app/use_cases/portfolio_chat_interactor.py` `SYSTEM_PROMPT` 개선(정체 질문 고정 답·few-shot·묻지 않은 기술 나열 금지). 착수 시점 사용자 확인.
 4. 기존 미결: `OLLAMA_KEEP_ALIVE` 숫자 문자열 400 코드 수정, 집컴 첫 CD 15분 원인(아래).
 5. 잔여 정리(10-05 대화, 인수인계 B-2): 노트북 방화벽 **DB 이관용 15432 포트가 아직 열려 있음**(데스크톱 IP만 허용) — 닫기.
