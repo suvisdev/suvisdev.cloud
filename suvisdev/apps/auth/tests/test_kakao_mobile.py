@@ -30,8 +30,11 @@ class _FakeRedis:
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
 
-    def set(self, key, value, ex=None):
+    def set(self, key, value, ex=None, nx=False):
+        if nx and key in self._store:
+            return None
         self._store[key] = value
+        return True
 
     def get(self, key):
         return self._store.get(key)

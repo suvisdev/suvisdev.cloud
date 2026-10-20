@@ -80,7 +80,8 @@ apps/mova/adapter/inbound/api/v1/whoami_router.py   # GET /mova/whoami — RBAC 
   `users.id`와 겹치지 않게. refresh는 Redis의 옛 roles를 복사하지 않고 `find_by_subject`로
   계정·현재 역할을 다시 읽으며, 계정이 없으면 거부한다. 세션 값엔 형식 표식 `"sv": 2`가 있고,
   표식 없는 옛 세션 중 roles에 admin이 든 것은 refresh를 거부·폐기한다(웹·모바일). 웹 refresh는
-  회전 직후 10초 동안 같은 옛 jti에 같은 새 결과를 돌려준다(`auth:refresh:grace:{jti}`, BFF 동시 요청).
+  회전 직후 10초 동안 같은 옛 jti에 같은 새 결과를 돌려준다(BFF 동시 요청). 회전 선점은 `auth:refresh:claim:{jti}`
+  SET NX 한 번(값=후속 jti·시각)으로 원자적이고, 후속이 이미 회전됐으면 계열은 두고 401만 낸다.
 - Role enum은 `viewer.app.dtos.role.UserRole`을 import하지 않고 `apps/auth/rbac.py`에
   독립적으로 정의(의도적 중복 — import-linter 격리 방향 때문).
 - RoleChecker도 `apps/auth/security.py`(auth 자체용, 미사용 대기)와

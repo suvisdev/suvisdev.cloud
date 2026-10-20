@@ -29,8 +29,11 @@ class _FakeRedis:
     def __init__(self) -> None:
         self._store: dict[str, str] = {}
 
-    def set(self, key, value, ex=None):
+    def set(self, key, value, ex=None, nx=False):
+        if nx and key in self._store:
+            return None
         self._store[key] = value
+        return True
 
     def get(self, key):
         return self._store.get(key)
@@ -92,12 +95,8 @@ def user_repo():
 
 
 @pytest.fixture()
-def fake_redis():
-    return _FakeRedis()
-
-
-@pytest.fixture()
-def client(rsa_keypair, monkeypatch, user_repo, fake_redis):
+def client(rsa_keypair, monkeypatch, user_repo):
+    fake_redis = _FakeRedis()
     monkeypatch.setattr(refresh_module.redis, "from_url", lambda *a, **k: fake_redis)
     monkeypatch.setattr(oauth_state_module.redis, "from_url", lambda *a, **k: fake_redis)
     monkeypatch.setattr(oauth_handoff_module.redis, "from_url", lambda *a, **k: fake_redis)
@@ -137,7 +136,7 @@ def test_login_wrong_password_returns_401(client):
     assert resp.status_code == 401
 
 
-def test_refresh_rotates_and_reuse_is_rejected(client, fake_redis):
+def test_refresh_rotates_and_reuse_is_rejected(client, monkeypatch):
     login_resp = client.post(
         "/auth/login",
         json={"username": "admin", "password": "correct-password", "aud": "suvis-mova"},
@@ -154,7 +153,8 @@ def test_refresh_rotates_and_reuse_is_rejected(client, fake_redis):
     assert racing.status_code == 200
     assert racing.json()["refresh_token"] == new_refresh_token
 
-    fake_redis.delete(f"auth:refresh:grace:{refresh_token}")  # 유예 만료
+    real_now = refresh_module._now
+    monkeypatch.setattr(refresh_module, "_now", lambda: real_now() + 11)  # 10초 유예 만료
     reuse = client.post("/auth/refresh", json={"refresh_token": refresh_token})
     assert reuse.status_code == 401
 
