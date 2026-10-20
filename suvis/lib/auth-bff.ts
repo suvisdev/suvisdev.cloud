@@ -29,12 +29,12 @@ function cookieOptions(maxAge: number) {
   }
 }
 
-function writeTokens(jar: CookieJar, tokens: TokenPair): void {
+export function writeTokens(jar: CookieJar, tokens: TokenPair): void {
   jar.set(ACCESS_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
   jar.set(REFRESH_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_MAX_AGE))
 }
 
-function clearTokens(jar: CookieJar): void {
+export function clearTokens(jar: CookieJar): void {
   // maxAge 0 = 즉시 만료. path를 맞춰 지워야 브라우저가 실제로 제거한다.
   jar.set(ACCESS_COOKIE, "", cookieOptions(0))
   jar.set(REFRESH_COOKIE, "", cookieOptions(0))
@@ -120,12 +120,12 @@ async function rotateRefresh(refresh: string): Promise<RefreshResult> {
 // 같은 refresh로 동시에 들어온 갱신을 하나로 합친다. 백엔드는 이미 쓴 refresh가 다시 오면 family 전체를
 // 폐기하므로(refresh_store.rotate), 여러 요청이 각자 회전하면 정상 세션이 끊긴다. 끝난 뒤에도 잠깐
 // 결과를 남겨, 새 쿠키가 브라우저에 반영되기 전에 옛 refresh로 출발한 요청도 같은 결과를 받게 한다.
-// 남은 위험: 이 맵은 서버 인스턴스(프로세스) 안에서만 공유된다 — Vercel이 동시 요청을 서로 다른
-// 인스턴스로 보내면 여전히 재사용 탐지에 걸릴 수 있다. 완전히 막으려면 백엔드가 직전 refresh를 짧게 유예해야 한다.
+// 이 맵은 서버 인스턴스(프로세스) 안에서만 공유된다. Vercel이 동시 요청을 서로 다른 인스턴스로 보내는
+// 경우는 백엔드 refresh 유예(10초 안에 옛 refresh가 다시 오면 같은 결과를 돌려줌)가 받기로 했다(2026-10-20).
 const REUSE_GRACE_MS = 10_000
 const refreshing = new Map<string, Promise<RefreshResult>>()
 
-function refreshOnce(refresh: string): Promise<RefreshResult> {
+export function refreshOnce(refresh: string): Promise<RefreshResult> {
   const pending = refreshing.get(refresh)
   if (pending) return pending
   const p = rotateRefresh(refresh)
@@ -150,7 +150,7 @@ export async function refreshFromCookie(): Promise<RefreshResult | null> {
 }
 
 // JWT exp만 본다(서명 검증은 백엔드 몫). 못 읽으면 만료 아님으로 두고 백엔드 판정(401)에 맡긴다.
-function isExpired(jwt: string): boolean {
+export function isExpired(jwt: string): boolean {
   try {
     const payload = JSON.parse(
       Buffer.from(jwt.split(".")[1] ?? "", "base64url").toString(),
@@ -163,15 +163,10 @@ function isExpired(jwt: string): boolean {
 
 // 프록시 pass-through 교체용 — 구 `request.headers.get("authorization")`(문자열 or null)과 같은 모양을
 // 쿠키에서 만든다. 기존 `auth ? { Authorization: auth } : {}` 코드를 그대로 두고 이 값만 바꿔 끼운다.
-// access가 없거나(쿠키 maxAge=토큰 TTL이라 만료되면 브라우저가 지운다) 만료 직전이면 refresh로 먼저
-// 회전한다 — 개별 프록시도 갱신되고, 로그인 선택인 /mova/chat이 조용히 익명으로 떨어지지 않는다.
+// access 만료·부재 시 갱신은 라우트보다 앞의 `proxy.ts`가 /api/** 전체에 대해 끝내 둔다 — 여기 도착한
+// access는 이미 새것이고, 인증 서버 장애면 proxy가 503으로 끊어 라우트(익명 강등)까지 오지 않는다.
 export async function cookieBearer(): Promise<string | undefined> {
-  let access = (await cookies()).get(ACCESS_COOKIE)?.value
-  if (!access || isExpired(access)) {
-    const r = await refreshFromCookie()
-    if (r?.kind === "ok") access = r.tokens.access_token
-    else if (r?.kind === "invalid") access = undefined
-  }
+  const access = (await cookies()).get(ACCESS_COOKIE)?.value
   return access ? `Bearer ${access}` : undefined
 }
 
@@ -202,6 +197,7 @@ export async function forwardToBackend(
       redirect: "manual",
     })
 
+  // 만료 전 갱신은 proxy.ts가 했다. 여기선 exp가 남았는데도 401이 난 경우만 한 번 더 회전한다.
   // 쿠키 갱신·삭제는 refreshFromCookie가 cookies()에 기록한다 — 아래에서 만드는 응답에 함께 실린다.
   let backendRes = await call(await cookieBearer())
   if (backendRes.status === 401) {

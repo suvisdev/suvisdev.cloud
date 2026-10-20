@@ -64,11 +64,12 @@ access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클
   `lib/auth-bff.ts`의 `forwardToBackend`가 쿠키→Bearer + 401 시 리프레시까지 한다.
 - **경로 변형·로직이 있는 개별 프록시**(`/api/mova/*`·`/api/viewer/*`·`/api/dispatch/*` 등)는
   `cookieBearer()`로 쿠키의 access를 Bearer로 읽는다(구 `request.headers.get("authorization")`
-  pass-through 자리). access가 없거나 만료됐으면 `cookieBearer()`가 refresh로 먼저 갱신한다
-  (2026-10-20) — 개별 프록시에서 토큰을 따로 갱신하지 않는다. 서버 헬퍼는 전부 `lib/auth-bff.ts`에 있다.
+  pass-through 자리). access가 없거나 만료됐으면 라우트보다 앞의 **`suvis/proxy.ts`**가 `/api/**`
+  (`/api/auth/**` 제외) 전체에 대해 refresh로 먼저 갱신한다(2026-10-20) — 개별 프록시에서 토큰을 따로
+  갱신하지 않는다. 서버 헬퍼는 전부 `lib/auth-bff.ts`에 있다.
 - **갱신 실패 처리**: 게이트웨이가 401/403(만료·재사용 탐지)일 때만 쿠키를 지운다. 5xx·네트워크 오류면
-  쿠키를 두고 503을 준다(일시 장애로 로그아웃시키지 않는다). 같은 refresh의 동시 갱신은 서버 인스턴스
-  안에서 하나로 합친다(인스턴스가 여러 개면 남는 위험은 `auth-bff.ts` 주석).
+  쿠키를 두고 503을 준다 — 라우트까지 보내지 않으므로 로그아웃·익명 강등이 생기지 않는다. 같은 refresh의
+  동시 갱신은 서버 인스턴스 안에서 하나로 합치고, 인스턴스 간 중복은 백엔드 refresh 유예(10초)가 받는다.
 - **OAuth 로그인**(`/api/auth/oauth-exchange`·`oauth-consent`)은 access만 받으므로 `setAccessCookie`가
   이전 계정의 refresh를 게이트웨이에서 폐기하고 쿠키를 지운다.
 - **로그아웃**은 `logoutSession()`(→ `/api/auth/logout`)이 refresh를 revoke하고 쿠키를 지운다 —
