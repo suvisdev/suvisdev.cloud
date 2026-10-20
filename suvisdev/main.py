@@ -35,6 +35,8 @@ from core.matrix.grid_oracle_database_manager import (
     verify_connection,
 )
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+from deolmi.adapter.inbound.api import deolmi_router
+from deolmi.adapter.inbound.api.public_cors import DeolmiPublicCorsMiddleware
 from dispatch.adapter.inbound.api import dispatch_router
 from execsuite.adapter.inbound.api import execsuite_router
 from gildle.adapter.inbound.api import gildle_router
@@ -371,6 +373,10 @@ async def request_path_logger(request: Request, call_next):
     return response
 
 
+# 가장 바깥(마지막 add) — 고객 사이트의 /api/deolmi/score preflight를 전역 CORS보다 먼저 받는다.
+app.add_middleware(DeolmiPublicCorsMiddleware)
+
+
 app.include_router(mova_router)
 app.include_router(titanic_router, prefix="/api")
 app.include_router(gildle_router, prefix="/api")
@@ -384,6 +390,7 @@ app.include_router(portfolio_router)  # /portfolio/chat — 홈 AI 채팅(공개
 app.include_router(nlp_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(media_router, prefix="/api")
+app.include_router(deolmi_router, prefix="/api")  # /api/deolmi/* — 매크로 탐지(고객 사이트용)
 
 
 @app.get("/api-login", response_class=HTMLResponse, include_in_schema=False)

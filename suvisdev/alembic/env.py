@@ -29,6 +29,10 @@ import contents.adapter.outbound.orm.schedule_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.stadium_orm  # noqa: F401,E402
 import contents.adapter.outbound.orm.team_orm  # noqa: F401,E402
 
+# deolmi ORM 등록 — 모듈 import 시 테이블이 DeolmiBase.metadata에 붙는다.
+import deolmi.adapter.outbound.orm.event_orm  # noqa: F401,E402
+import deolmi.adapter.outbound.orm.site_orm  # noqa: F401,E402
+
 # grid_neo_theone_base.Base 등록 — titanic_passengers/bookings, dispatch_adress/inbox,
 # vision_uploads, pdf_loader_documents가 실제로 붙는 Base (TitanicBase와는 별개,
 # 지금까지 target_metadata 밖이었음).
@@ -67,6 +71,7 @@ from core.matrix.grid_oracle_database_manager import (  # noqa: E402
     ViewerBase,
     _normalize_database_url,
 )
+from deolmi.adapter.outbound.orm.base import DeolmiBase  # noqa: E402
 from gildle.adapter.outbound.orm.base import GildleBase  # noqa: E402
 
 config = context.config
@@ -78,6 +83,7 @@ target_metadata = [
     TitanicBase.metadata,
     NeoTheOneBase.metadata,
     GildleBase.metadata,
+    DeolmiBase.metadata,
     ContentsBase.metadata,
     MovaBase.metadata,
     ViewerBase.metadata,
