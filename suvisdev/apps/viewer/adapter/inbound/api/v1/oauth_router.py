@@ -132,6 +132,17 @@ async def oauth_callback(
     try:
         result = await use_case.handle_callback(provider=provider, code=code)
     except OAuthError as e:
+        # 502는 Cloudflare가 자기 오류 화면으로 덮어 detail이 사용자에게 안 보인다 — 원인은 로그로만 남는다.
+        # 공급자 응답 원문(e.message의 ':' 뒤)은 개인정보가 섞일 수 있어 남기지 않고, 분류와 원인 예외만 남긴다.
+        cause = e.__cause__
+        logger.warning(
+            "[OAuthRouter] %s 콜백 실패(%s): %s | 원인=%s: %s",
+            provider,
+            e.status_code,
+            e.message.split(":", 1)[0],
+            type(cause).__name__ if cause else "-",
+            cause if cause else "-",
+        )
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
     logger.info("🤖 [OAuthRouter] %s 콜백 완료 — kind=%s", provider, result.kind)
