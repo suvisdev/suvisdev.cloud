@@ -6,6 +6,9 @@
 #   pull [태그]    운영 러너에서(.github/workflows/gildle-data-sync.yml). 태그를 비우면 최신 gildle-data-*.
 #                  체크섬 확인 후 파일마다 rename으로 교체 — 라우터가 파일 mtime을 보고 다시 읽으므로
 #                  재시작이 필요 없다. 되돌리려면 이전 태그로 다시 pull.
+#   standby        pull 직후 같은 러너에서. 방금 받은 파일을 집컴(예비 서버)에 그대로 보내고 양쪽 sha256을 비교한다
+#                  — 집 밖이면 서빙은 집컴이라 노트북만 바꾸면 반영이 안 된다(2026-10-20 리뷰). 경로는 sync-standby.sh와
+#                  같은 Tailscale SSH, 집컴 데이터 폴더는 그쪽 deploy.sh의 SUVISDEV_DATA_ROOT($HOME/projects/suvisdev) 기준.
 #
 # 생성용 입력(seoul_buildings_osm.json·graph_cache/seoul.graphml 등)은 서빙에 안 쓰여 넣지 않는다.
 set -euo pipefail
@@ -52,8 +55,25 @@ print(max(tags) if tags else "")')
   echo "교체: $tag → $DATA_DIR (${#FILES[@]}개)"
 }
 
+standby() {
+  # shellcheck disable=SC2016  # $HOME은 집컴에서 풀려야 한다(sync-standby.sh의 REL과 같음)
+  local host="${STANDBY_HOST:-suvisdev@100.91.129.31}" dir='$HOME/projects/suvisdev/suvisdev/apps/gildle/data' here there
+  local ssh=(ssh -i "${STANDBY_KEY:-$HOME/.ssh/home_desktop}" -o BatchMode=yes -o ConnectTimeout=15
+             -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts_ollama_tunnel")
+  # 임시 폴더에 풀고 파일마다 rename — pull과 같은 방식. -m: 도착 시각을 mtime으로(라우터가 mtime으로 다시 읽는다).
+  tar -cf - -C "$DATA_DIR" "${FILES[@]}" | "${ssh[@]}" "$host" "set -e; cd $dir; rm -rf .incoming; mkdir .incoming
+    tar -xmf - -C .incoming; for f in ${FILES[*]}; do mv -f .incoming/\$f \$f; done; rmdir .incoming"
+  here=$(cd "$DATA_DIR" && sha256sum "${FILES[@]}")
+  there=$("${ssh[@]}" "$host" "cd $dir && sha256sum ${FILES[*]}")
+  if [ "$here" != "$there" ]; then
+    echo "집컴 체크섬 불일치:" >&2; diff <(echo "$here") <(echo "$there") >&2; exit 1
+  fi
+  echo "집컴 일치: ${#FILES[@]}개 sha256 동일 → $host:$dir"
+}
+
 case "${1:-}" in
   push) push ;;
   pull) pull "${2:-}" ;;
-  *) echo "사용법: $0 push | pull [태그]" >&2; exit 2 ;;
+  standby) standby ;;
+  *) echo "사용법: $0 push | pull [태그] | standby" >&2; exit 2 ;;
 esac

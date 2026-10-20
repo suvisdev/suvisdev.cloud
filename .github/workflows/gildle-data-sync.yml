@@ -4,6 +4,8 @@
 # `suvisdev/scripts/gildle_data_release.sh push`로 Release를 올린 뒤, Actions에서 이 워크플로를
 # 수동 실행(Run workflow)하면 운영 러너(라벨 `prod`)가 받아 교체한다. 라우터가 파일 mtime을 보고
 # 다시 읽으므로 재시작은 없다. 되돌리기 = 이전 태그로 다시 실행.
+# 러너는 노트북뿐이라, 받은 파일을 집컴(예비 서버)에도 보내고 양쪽 sha256을 비교한다 — 집 밖이면 서빙은
+# 집컴이고, 집 안이어도 나중에 집컴으로 넘어가면 옛 데이터가 나오던 누락(2026-10-20 리뷰).
 name: gildle-data-sync
 
 on:
@@ -41,6 +43,13 @@ jobs:
           GILDLE_DATA_DIR="$SUVISDEV_DATA_ROOT/suvisdev/apps/gildle/data" \
             ./suvisdev/scripts/gildle_data_release.sh pull "$TAG"
 
+      # sync-standby.sh와 같은 Tailscale SSH(집 안팎 모두 닿음). 체크섬이 다르면 실패한다.
+      - name: 집컴 반영 (체크섬 비교)
+        run: |
+          GILDLE_DATA_DIR="$SUVISDEV_DATA_ROOT/suvisdev/apps/gildle/data" \
+            ./suvisdev/scripts/gildle_data_release.sh standby
+
+      # 서빙 중인 쪽(노트북이든 집컴이든)이 응답하는지만 본다 — 데이터 내용은 위 체크섬이 확인한다.
       - name: 경로 응답 확인
         run: |
           curl -fsS -o /dev/null -w 'routes/options %{http_code}\n' --retry 5 --retry-delay 6 --retry-all-errors \
