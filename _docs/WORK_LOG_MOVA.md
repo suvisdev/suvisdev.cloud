@@ -28,6 +28,27 @@
 
 ---
 
+## 2026-10-20 — Codex 리뷰 반영(PR #209)
+
+### 작업 내용
+- Codex 전체 리뷰 중 mova 지적 반영. 상세·전체 맥락은 `WORK_LOG_MAINPAGE.md` 10-20 (3).
+
+### 수정/구현
+- 임베딩 차원: `GeminiEmbeddingAdapter` 기본값이 09-11(bge-m3 전환) 이후 1024라 mova 리뷰·영화 임베딩(768 컬럼) 저장이 실패하고 있었음 → `MOVA_EMBEDDING_DIM=768` 하나로 명시(리뷰 BG·백필 CLI 2개). 모델은 그대로(gemini-embedding-001)라 기존 벡터와 같은 공간.
+- 리뷰 본문 수정 시 임베딩 NULL + 취향 재계산, LoRA read 타임아웃 무재시도, 감정분석 스케줄러: GPU 없음=즉시 종료(10-05 결정 유지)·빈 배치=계속 폴링·전부 실패 2회=종료.
+- alembic env에 `user_taste_vectors`(+hub_knowledge·visitor_activity) ORM 등록.
+
+### 오류·막힌 점
+- 운영에서 차원 오류로 비어 있을 임베딩 건수는 미확인(운영 DB 안 봄).
+
+### 데이터
+- 머지 후 선택: `backfill_review_embeddings_cli.py`·`backfill_movie_embeddings_cli.py`·`backfill_taste_vectors_cli.py`(`--dry-run` 먼저).
+
+### 산출물
+- PR #209 머지(`8f245d7`), 배포 `0d55db5` 성공.
+
+---
+
 ## 2026-10-06
 
 ### 작업 내용

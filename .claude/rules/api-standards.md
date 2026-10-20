@@ -72,8 +72,9 @@ access·refresh를 **httpOnly 쿠키**(`sv_access`·`sv_refresh`)로 심고, 클
 - **갱신 실패 처리**: 게이트웨이가 401/403(만료·재사용 탐지)일 때만 쿠키를 지운다. 5xx·네트워크 오류·5초
   무응답이면 쿠키를 두고 503을 준다(로그아웃·익명 강등 없음). 게이트웨이 409 `refresh_superseded`(다른 요청이
   방금 회전한 옛 refresh)면 쿠키를 두고 409 — 클라가 새 쿠키로 다시 시도한다. catch-all은 장애 시 기존 쿠키로 진행하고
-  백엔드가 401일 때만 503으로 바꾼다. 같은 refresh의 동시 갱신은 서버 인스턴스 안에서 하나로 합치고,
-  인스턴스 간 중복은 백엔드 auth refresh 유예(fix/auth-review-1020)가 배포돼야 해소된다.
+  백엔드가 401일 때만 503으로 바꾼다. 같은 refresh의 **진행 중인** 동시 갱신만 서버 인스턴스 안에서 하나로
+  합치고 끝난 결과는 캐시하지 않는다(캐시하면 늦은 옛 refresh가 이미 쓴 토큰으로 쿠키를 되돌림). 늦은 중복·
+  인스턴스 간 중복은 백엔드 auth refresh 유예(10초, PR #213)가 판정한다.
 - **OAuth 로그인**(`/api/auth/oauth-exchange`·`oauth-consent`)은 access만 받으므로 `setAccessCookie`가
   이전 계정의 refresh를 게이트웨이에서 폐기하고 쿠키를 지운다.
 - **로그아웃**은 `logoutSession()`(→ `/api/auth/logout`)이 refresh를 revoke하고 쿠키를 지운다 —
