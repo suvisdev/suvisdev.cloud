@@ -3,6 +3,7 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'auth.dart';
 import 'core/config/env.dart';
@@ -98,15 +99,28 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
+// 서버 store_url(GILDLE_APP_STORE_URL)이 비어 있을 때 쓰는 Play 스토어 주소.
+const _playStoreUrl = 'https://play.google.com/store/apps/details?id=cloud.suvisdev.gildle';
+
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
+  bool _updateShown = false;
+  late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
     super.initState();
+    // 앱을 켜 둔 채 최소 버전이 올라가도 알 수 있게, 돌아올 때마다 버전을 다시 확인한다.
+    _lifecycle = AppLifecycleListener(onResume: () => ref.invalidate(versionCheckProvider));
     Future.microtask(() {
       if (ref.read(loggedInProvider)) ref.read(pushRegistrarProvider).register();
     });
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   Future<void> _logout() async {
@@ -132,10 +146,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.listen<bool>(loggedInProvider, (prev, next) {
       if (next && prev != true) ref.read(pushRegistrarProvider).register();
     });
-    // 최소 지원 버전 미만이면 닫을 수 없는 안내를 띄운다(스토어 링크는 등록 뒤 store_url로).
+    // 최소 지원 버전 미만이면 닫을 수 없는 안내를 띄운다 — '업데이트'는 서버 store_url(없으면 Play 스토어)로.
+    // 확인 실패(오프라인 등)도 null이라 이미 띄운 안내는 닫지 않는다. 업데이트하면 앱이 새로 시작된다.
     ref.listen(versionCheckProvider, (_, next) {
       final info = next.valueOrNull;
-      if (info == null) return;
+      if (info == null || _updateShown) return;
+      _updateShown = true;
       showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -144,6 +160,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: AlertDialog(
             title: const Text('업데이트가 필요합니다'),
             content: Text('이 버전은 더 이상 지원되지 않습니다. 최신 버전 ${info.latestVersion}으로 업데이트해 주세요.'),
+            actions: [
+              FilledButton(
+                onPressed: () => launchUrl(
+                  Uri.parse(info.storeUrl ?? _playStoreUrl),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: const Text('업데이트'),
+              ),
+            ],
           ),
         ),
       );

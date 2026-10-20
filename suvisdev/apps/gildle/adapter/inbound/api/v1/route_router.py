@@ -682,6 +682,7 @@ def route_options(
         shade_lookup=shade_lookup,
         recommended_kind=_RECOMMENDED_KIND.get(request.mode, "fast"),
         elevation=_load_elevation(),
+        winter=request.mode == SeasonMode.WINTER_SAFETY.value,
     )
     return {"options": [_option_json(o) for o in options], "night": night}
 
@@ -714,6 +715,7 @@ def route_via(
         shade_lookup=shade_lookup,
         via_name=request.via_name,
         elevation=_load_elevation(),
+        winter=request.mode == SeasonMode.WINTER_SAFETY.value,
     )
     if option is None:
         raise HTTPException(status_code=404, detail="들렀다 가는 경로를 찾지 못했어요.")
