@@ -18,7 +18,7 @@
 
 | 어디 | 서비스 | 규칙 |
 |---|---|---|
-| 노트북 | `serve-agent` (`serve_agent.sh`) | 5초마다 Traefik → backend → 집컴 DB 를 타는 요청 1건. 2번 연속 200이면 노트북 터널 1, 3번 연속 실패면 0. 매 주기 집컴 `~/serve/laptop_heartbeat` 에 상태 기록 |
+| 노트북 | `serve-agent` (`serve_agent.sh`) | 5초마다 Traefik → backend → 집컴 DB 를 타는 요청 1건 + Traefik → auth JWKS 1건(10-20, auth만 죽어도 빠지게). 둘 다 200이 2번 연속이면 노트북 터널 1, 3번 연속 실패면 0. 매 주기 집컴 `~/serve/laptop_heartbeat` 에 상태 기록 |
 | 집컴 | `standby-agent` (`standby_agent.sh`) | 심장박동이 15초 넘게 끊기거나 serving 이 아니면 집컴 터널 1. 노트북이 30초 연속 serving 이면 0 |
 
 두 터널이 잠깐 겹치는 동안(노트북 복귀 후 30초)은 Cloudflare 가 둘에 나눠 보낸다 — DB가 하나라 안전하다.
