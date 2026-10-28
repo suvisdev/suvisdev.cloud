@@ -43,6 +43,7 @@
 ### 오류·막힌 점
 - 임베딩 모델은 /api/generate 를 400 으로 거절 → /api/embed 로 같은 keep_alive 를 보내게 고침(실측 후).
 - systemd 유저 서비스 설치는 권한 분류기가 막음 → 사용자가 install.sh 직접 실행.
+- 설치 뒤 /status 의 GPU 가 빈 목록 — systemd 유저 서비스 PATH 에 /usr/lib/wsl/lib(nvidia-smi)가 없음 → which 실패 시 그 경로로 찾게 고침(최소 PATH 로 재현·확인).
 
 ### 데이터
 - 없음.

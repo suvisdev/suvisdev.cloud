@@ -26,12 +26,15 @@ import ipaddress
 import json
 import logging
 import os
+import shutil
 import subprocess
 import threading
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+# systemd 유저 서비스의 PATH 에는 WSL GPU 도구 폴더(/usr/lib/wsl/lib)가 없다(2026-10-28 실측 — GPU 칸이 비었다)
+NVIDIA_SMI = shutil.which("nvidia-smi") or "/usr/lib/wsl/lib/nvidia-smi"
 TOKEN = os.environ.get("OPS_AGENT_TOKEN", "")
 BIND = os.environ.get("OPS_AGENT_BIND", "0.0.0.0")
 PORT = int(os.environ.get("OPS_AGENT_PORT", "8210"))
@@ -190,7 +193,7 @@ def gpu_status() -> list[dict]:
     try:
         out = _run(
             [
-                "nvidia-smi",
+                NVIDIA_SMI,
                 "--query-gpu=name,memory.used,memory.total,utilization.gpu",
                 "--format=csv,noheader,nounits",
             ],
