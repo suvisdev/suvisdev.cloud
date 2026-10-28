@@ -28,6 +28,28 @@
 
 ---
 
+## 2026-10-28 (2) — 운영 제어 2단계: 백엔드 /viewer/admin/ops
+
+### 작업 내용
+- 관리자 버튼의 서버 쪽. 브라우저 → 이 API(관리자 JWT) → 노트북 ops-agent(토큰은 서버 안에만).
+
+### 수정/구현
+- `apps/viewer/adapter/inbound/api/v1/admin_ops_router.py`: GET `/admin/ops`(상태, 못 닿으면 reachable=false),
+  POST `/arda/{start|stop}`, `/arda/ai-mode`, `/ollama/{load|unload}`. 경로·본문은 Literal·Field 로 고정(에이전트 부르기 전 422),
+  에이전트 거절은 상태 코드 그대로, 누가 무엇을 눌렀는지 로그. `/arda/ai-mode` 를 `/arda/{action}` 앞에 둠(뒤면 422).
+- `.env.example`: `OPS_AGENT_URL`(노트북 Tailscale IP — 노트북·집컴 파드 모두 401 로 닿음 실측), `OPS_AGENT_TOKEN`.
+
+### 오류·막힌 점
+- 없음. 운영 .env 에 두 키 추가와 Secret 반영은 사용자 몫(운영 시크릿 파일).
+
+### 데이터
+- 없음.
+
+### 산출물
+- 브랜치 `feat/admin-ops-api`. 시험 14개(관리자만·고정 경로 전달·잘못된 동작 422·거절 코드 유지·못 닿음·토큰 없음), ruff·mypy(새 파일)·lint-imports 7 kept.
+
+---
+
 ## 2026-10-28 — 운영 제어 에이전트 1단계(노트북)
 
 ### 작업 내용
