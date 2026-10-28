@@ -2,7 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Cpu, Loader2, Power, Server, Zap } from "lucide-react"
-import { getOps, postOps, type OpsStatus } from "@/lib/admin-dashboard-api"
+import {
+  getMaintenanceState,
+  getOps,
+  postOps,
+  setMaintenance,
+  type MaintenanceState,
+  type OpsStatus,
+} from "@/lib/admin-dashboard-api"
+
+const MAINTENANCE_SERVICES: { key: keyof MaintenanceState; label: string }[] = [
+  { key: "mova", label: "Mova" },
+  { key: "gildle", label: "길들" },
+]
 
 // 버튼이 보내는 동작 → 화면에 보일 이름
 const ACTION_LABEL: Record<string, string> = {
@@ -27,8 +39,33 @@ export function OpsControlCard() {
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [maintenance, setMaintenanceState] = useState<MaintenanceState | null>(null)
+  const [toggling, setToggling] = useState<keyof MaintenanceState | null>(null)
+
+  const toggleMaintenance = async (service: keyof MaintenanceState, label: string) => {
+    if (!maintenance) return
+    const on = !maintenance[service]
+    if (
+      on &&
+      !window.confirm(`${label} 점검 모드를 켭니다. 사용자는 점검 안내만 보게 됩니다. 계속할까요?`)
+    )
+      return
+    setToggling(service)
+    try {
+      setMaintenanceState(await setMaintenance(service, on))
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setToggling(null)
+    }
+  }
 
   const refresh = useCallback(async () => {
+    // 점검 모드는 노트북과 무관하게 백엔드에 있다 — 에이전트 상태와 따로 읽는다
+    getMaintenanceState()
+      .then(setMaintenanceState)
+      .catch(() => setMaintenanceState(null))
     try {
       const next = await getOps()
       setOps(next)
@@ -259,6 +296,39 @@ export function OpsControlCard() {
           </div>
         </div>
       )}
+
+      {/* mova·길들 점검 모드 — 노트북 연결과 무관(백엔드 DB) */}
+      <div className="mt-3 rounded-xl bg-slate-50 px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-800">점검 모드</p>
+          <span className="text-[11px] text-slate-400">켜면 사용자에게 점검 안내, API 는 503</span>
+        </div>
+        {!maintenance ? (
+          <p className="text-xs text-slate-400">점검 상태를 읽지 못했습니다.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {MAINTENANCE_SERVICES.map(({ key, label }) => {
+              const on = maintenance[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={toggling !== null}
+                  onClick={() => toggleMaintenance(key, label)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${
+                    on
+                      ? "bg-amber-500 text-white"
+                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {toggling === key && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {label} · {on ? "점검 중 (끄기)" : "운영 중 (점검 켜기)"}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </section>
   )
 }

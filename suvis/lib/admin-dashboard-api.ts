@@ -100,3 +100,31 @@ export async function postOps(path: string, body?: Record<string, string>): Prom
     throw new Error(safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status))
   }
 }
+
+export type MaintenanceState = { mova: boolean; gildle: boolean }
+
+/** 점검 모드 — 노트북 에이전트와 무관하게 백엔드 DB 에 있다(노트북이 꺼져도 켜고 끌 수 있다). */
+export async function getMaintenanceState(): Promise<MaintenanceState> {
+  const res = await fetch("/api/backend/viewer/maintenance", { cache: "no-store" })
+  const data = (await res.json()) as MaintenanceState & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(safeApiErrorMessage(data.detail, "점검 상태를 불러오지 못했습니다.", res.status))
+  }
+  return data
+}
+
+export async function setMaintenance(
+  service: keyof MaintenanceState,
+  on: boolean
+): Promise<MaintenanceState> {
+  const res = await fetch(`/api/backend/viewer/admin/ops/maintenance/${service}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ on }),
+  })
+  const data = (await res.json().catch(() => ({}))) as MaintenanceState & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(safeApiErrorMessage(data.detail, "점검 상태를 바꾸지 못했습니다.", res.status))
+  }
+  return data
+}

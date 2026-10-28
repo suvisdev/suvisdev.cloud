@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { MaintenanceGate } from "@/components/maintenance-gate"
+import { getMaintenance } from "@/lib/maintenance"
 import "./gildle.css"
 
 export const metadata: Metadata = {
@@ -9,10 +11,13 @@ export const metadata: Metadata = {
   icons: { icon: "/gildle-icon.svg" },
 }
 
-export default function GildleLayout({ children }: { children: React.ReactNode }) {
+export default async function GildleLayout({ children }: { children: React.ReactNode }) {
+  const maintenance = await getMaintenance()
   return (
     <div className="gildle-app flex min-h-screen flex-col">
-      {children}
+      <MaintenanceGate on={maintenance.gildle} name="길들">
+        {children}
+      </MaintenanceGate>
       <footer className="mt-auto border-t border-gildle-border bg-gildle-surface/60">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-1 px-4 py-3 md:px-6">
           <nav className="flex flex-col gap-0.5 text-[10px] text-gildle-muted md:flex-row md:flex-wrap md:items-center md:gap-x-2 md:gap-y-0.5">

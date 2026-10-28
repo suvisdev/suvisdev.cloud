@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response as StarletteResponse
@@ -51,6 +51,10 @@ from ontology.adapter.inbound.api import (
 from titanic.adapter.inbound.api import titanic_router
 from viewer.adapter.inbound.api import viewer_router
 from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
+from viewer.adapter.outbound.pg.maintenance_pg_repository import (
+    load_maintenance,
+    maintenance_service_for,
+)
 
 keymaker = get_keymaker()
 
@@ -342,6 +346,22 @@ class _ApiAuthMiddleware(BaseHTTPMiddleware):
 
 
 app = FastAPI(title="Suvisdev Main Page", lifespan=lifespan)
+
+
+# mova·길들 점검 모드(관리자 운영 제어 4단계) — 켜진 서비스의 API 를 503 으로 막는다. CORS 보다 먼저
+# 등록해 CORS 가 바깥에 오게 한다(503 에도 CORS 헤더가 붙는다). 상태는 10초 캐시, 못 읽으면 막지 않는다.
+@app.middleware("http")
+async def maintenance_gate(request: Request, call_next):
+    service = maintenance_service_for(request.url.path)
+    if service is None or request.method == "OPTIONS":
+        return await call_next(request)
+    if (await load_maintenance()).get(service):
+        return JSONResponse(
+            {"detail": "점검 중입니다. 잠시 후 다시 이용해 주세요.", "maintenance": service},
+            status_code=503,
+        )
+    return await call_next(request)
+
 
 # allow_origins=["*"] + allow_credentials=True는 오구성이다(모든 출처에 자격증명
 # 허용). 프론트 실제 origin만 화이트리스트로 둔다(auth_main.py와 동일 방식).
