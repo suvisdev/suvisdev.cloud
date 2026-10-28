@@ -7,6 +7,14 @@ import ops_agent as oa
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _inline_jobs(monkeypatch, tmp_path):
+    # 이 PC 의 실제 모드 파일(~/.config/ops-agent/arda_ai_mode)에 기대지 않는다
+    monkeypatch.setattr(oa, "AI_MODE_FILE", str(tmp_path / "arda_ai_mode"))
+    # 시험에서는 뒤에서 돌리지 않고 그 자리에서 끝낸다(결과를 바로 확인하려고)
+    monkeypatch.setattr(oa, "RUN_IN_BACKGROUND", False)
+
+
 @pytest.mark.parametrize(
     "ip,ok",
     [
@@ -176,3 +184,37 @@ def test_ai_mode_defaults_to_cpu_when_file_missing_or_garbage(tmp_path):
         f.write_text("quantum")
         assert oa.read_ai_mode() == "cpu"
         assert oa.compose_files("cpu") == ["-f", oa.ARDA_COMPOSE]
+
+
+def test_background_job_is_reported_in_status(monkeypatch):
+    monkeypatch.setattr(oa, "RUN_IN_BACKGROUND", True)
+    done = __import__("threading").Event()
+    monkeypatch.setattr(oa, "_compose", lambda *a, **k: done.wait(2) or "")
+    res = oa.act("/arda/stop", {})
+    assert res["accepted"] and res["job"]["state"] == "running"
+    with pytest.raises(oa.OpsError) as e:  # 도는 동안 다른 동작은 409
+        oa.act("/arda/start", {})
+    assert e.value.status == 409
+    done.set()
+    for _ in range(50):
+        if oa.job_snapshot()["state"] != "running":
+            break
+        __import__("time").sleep(0.02)
+    assert oa.job_snapshot()["state"] == "ok"
+    assert oa._action_lock.acquire(blocking=False)
+    oa._action_lock.release()
+
+
+def test_failed_job_records_error_and_releases_lock(monkeypatch):
+    def boom(*a, **k):
+        raise oa.OpsError(502, "compose 실패")
+
+    monkeypatch.setattr(oa, "_compose", boom)
+    with pytest.raises(oa.OpsError):
+        oa.act("/arda/start", {})
+    assert (
+        oa.job_snapshot()["state"] == "failed"
+        and "compose 실패" in oa.job_snapshot()["error"]
+    )
+    assert oa._action_lock.acquire(blocking=False)
+    oa._action_lock.release()

@@ -11,6 +11,7 @@
   (2026-10-28 실측: 두 경로 모두 401 = 닿고 토큰 확인).
 - 누가 무엇을 눌렀는지 로그에 남긴다(관리자 id·이름·동작·결과).
 - 에이전트가 거절한 이유(409 동작 중, 404 없는 모델 등)는 상태 코드 그대로 돌려준다.
+- 동작은 접수만 하고 바로 돌아온다(accepted + job). 진행·결과는 GET 의 job 으로 본다.
 """
 
 from __future__ import annotations
@@ -30,8 +31,8 @@ admin_ops_router = APIRouter(prefix="/admin/ops", tags=["admin"])
 
 _DEFAULT_URL = "http://100.118.78.100:8210"
 _STATUS_TIMEOUT = 10.0
-# Arda 켜기(up -d)·GPU 전환은 이미지 기동과 모델 로드로 1~3분 걸린다. 에이전트 쪽 상한(300s)보다 조금 길게
-_ACTION_TIMEOUT = 330.0
+# 동작은 에이전트가 202 로 바로 접수하고 뒤에서 돌린다(Cloudflare 100초 제한) — 접수만 기다리면 된다
+_ACTION_TIMEOUT = 20.0
 
 
 class AiModeRequest(BaseModel):
