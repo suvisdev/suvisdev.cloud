@@ -136,3 +136,43 @@ def test_arda_commands_are_fixed_argument_lists():
     ):
         oa.act("/arda/stop", {})
     assert seen[0] == ["docker", "compose", "-f", oa.ARDA_COMPOSE, "stop"]
+
+
+def test_ai_mode_rejects_unknown_value():
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/arda/ai-mode", {"mode": "tpu"})
+    assert e.value.status == 400
+
+
+def test_ai_mode_gpu_recreates_only_lie_detection_and_remembers(tmp_path):
+    seen = []
+    mode_file = tmp_path / "arda_ai_mode"
+    with (
+        mock.patch.object(oa, "AI_MODE_FILE", str(mode_file)),
+        mock.patch.object(
+            oa, "_run", side_effect=lambda args, timeout: seen.append(args) or ""
+        ),
+    ):
+        oa.act("/arda/ai-mode", {"mode": "gpu"})
+        assert mode_file.read_text() == "gpu"
+        seen.clear()
+        oa.act("/arda/start", {})  # 다음 켜기도 GPU 덮어쓰기를 같이 쓴다
+    assert seen[0] == [
+        "docker",
+        "compose",
+        "-f",
+        oa.ARDA_COMPOSE,
+        "-f",
+        oa.ARDA_COMPOSE_GPU,
+        "up",
+        "-d",
+    ]
+
+
+def test_ai_mode_defaults_to_cpu_when_file_missing_or_garbage(tmp_path):
+    f = tmp_path / "m"
+    with mock.patch.object(oa, "AI_MODE_FILE", str(f)):
+        assert oa.read_ai_mode() == "cpu"
+        f.write_text("quantum")
+        assert oa.read_ai_mode() == "cpu"
+        assert oa.compose_files("cpu") == ["-f", oa.ARDA_COMPOSE]

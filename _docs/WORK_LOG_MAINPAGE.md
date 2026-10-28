@@ -39,6 +39,8 @@
 - `k8s/ops-agent/ops_agent.py`(표준 라이브러리만): GET /status(Arda 컨테이너·GPU·Ollama), POST /arda/start·stop, /ollama/load·unload.
   토큰(X-Ops-Token, 상수 시간 비교) + 출발지 제한(127/8, k3s 10.42/16, Tailscale 100.64/10) + 고정 인자 + 설치된 모델만 + 동작 잠금(409).
 - `install.sh`(토큰 생성·systemd 유저 서비스, 실행 파일은 ~/.local/lib 로 복사), `ops-agent.service`, README, 시험 16개.
+- 사용자 추가 요청: Arda 음성 인식·표정 모델도 GPU 로(지금은 CPU — STT 답변당 30~100초). `/arda/ai-mode` 추가(모드 파일 기억, 거짓말 탐지만 재생성),
+  Arda 쪽 GPU 덮어쓰기는 Seuk-Team/Arda#375. 실측: 5초 오디오 0.62초 on cuda, VRAM 약 1.3GB. 시험 19개.
 
 ### 오류·막힌 점
 - 임베딩 모델은 /api/generate 를 400 으로 거절 → /api/embed 로 같은 keep_alive 를 보내게 고침(실측 후).
