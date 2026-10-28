@@ -48,3 +48,55 @@ export async function getServingServer(): Promise<ServingServer> {
   }
   return data
 }
+
+// ── 운영 제어(2026-10-28) — /viewer/admin/ops → 노트북 ops-agent ─────────────────
+export type OpsJob = {
+  action: string | null
+  target: string
+  state: "idle" | "running" | "ok" | "failed"
+  error: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+export type OpsStatus = {
+  reachable: boolean
+  detail?: string
+  arda?: {
+    available: boolean
+    error?: string
+    services?: { service: string; state: string; status: string }[]
+    ai_mode?: "gpu" | "cpu"
+    ai_device?: string | null
+  }
+  gpu?: { name: string; memory_used_mib: number; memory_total_mib: number; utilization_pct: number }[]
+  ollama?: {
+    available: boolean
+    error?: string
+    loaded?: { name: string; size_vram: number | null; expires_at: string | null }[]
+    installed?: string[]
+  }
+  job?: OpsJob
+}
+
+export async function getOps(): Promise<OpsStatus> {
+  const res = await fetch("/api/backend/viewer/admin/ops", { cache: "no-store" })
+  const data = (await res.json()) as OpsStatus & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(safeApiErrorMessage(data.detail, "운영 상태를 불러오지 못했습니다.", res.status))
+  }
+  return data
+}
+
+/** 동작은 접수만 하고 바로 돌아온다 — 진행·결과는 getOps() 의 job 으로 본다. */
+export async function postOps(path: string, body?: Record<string, string>): Promise<void> {
+  const res = await fetch(`/api/backend/viewer/admin/ops${path}`, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { detail?: unknown }
+    throw new Error(safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status))
+  }
+}

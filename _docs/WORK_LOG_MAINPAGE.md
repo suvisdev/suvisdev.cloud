@@ -28,6 +28,29 @@
 
 ---
 
+## 2026-10-28 (3) — 운영 제어 3단계: 관리자 홈 카드 + 동작 비동기
+
+### 작업 내용
+- 관리자 홈에 "운영 제어 · 노트북" 카드: Arda 켜기·끄기, AI 면접 CPU/GPU, GPU VRAM 막대, Ollama 모델 올리기·내리기.
+- 동작을 비동기로 바꿈: Arda 켜기·GPU 전환·모델 로드가 1~3분 — Cloudflare 가 100초 넘는 요청을 524 로 끊는다.
+
+### 수정/구현
+- ops-agent: 동작은 입력 검사 뒤 202 로 접수하고 스레드에서 실행, `/status` 에 job(action·target·state·error·시각). 실패해도 잠금 해제.
+- 백엔드 admin_ops_router: 동작 대기 330초 → 20초(접수만 기다림).
+- suvis: `lib/admin-dashboard-api.ts` getOps·postOps, `app/admin/_components/ops-control-card.tsx`(job 도는 동안 3초, 평소 30초마다 상태 갱신, 끄기는 확인 창).
+
+### 오류·막힌 점
+- ops-agent 시험 1개가 이 PC 의 실제 모드 파일(gpu)을 읽어 실패 → 시험마다 임시 모드 파일로 분리.
+- PR #219 배포가 집컴 동기화에서 실패(집컴 부하로 backend 교체 10분 초과). 시간 초과 뒤 교체는 끝나 있었다(새 파드 Running 확인).
+
+### 데이터
+- 없음.
+
+### 산출물
+- 브랜치 `feat/admin-ops-card`. ops-agent 시험 21개, 백엔드 시험 14개, tsc·eslint 통과(새 파일만 prettier, 기존 파일은 원래 서식 그대로).
+
+---
+
 ## 2026-10-28 (2) — 운영 제어 2단계: 백엔드 /viewer/admin/ops
 
 ### 작업 내용

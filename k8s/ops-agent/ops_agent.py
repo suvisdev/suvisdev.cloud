@@ -16,7 +16,8 @@
 - 출발지: 자기 자신 · k3s 파드망(10.42.0.0/16) · Tailscale(100.64.0.0/10) 만. 집컴이 서빙할 때
   집컴 백엔드가 Tailscale 로 부른다. 그 밖(공유기 LAN 등)은 토큰이 맞아도 거절한다.
 - 셸을 쓰지 않는다. 명령은 인자 목록으로 고정이고, 모델 이름은 Ollama 에 실제 설치된 이름만 받는다.
-- 동작(켜기·끄기·올리기·내리기)은 한 번에 하나만 — 버튼을 연달아 눌러도 겹치지 않는다.
+- 동작(켜기·끄기·올리기·내리기)은 한 번에 하나만 — 버튼을 연달아 눌러도 겹치지 않는다(409).
+- 동작은 202 로 접수하고 뒤에서 돈다(Cloudflare 100초 제한). 진행·결과는 /status 의 job.
 
 의존성 없이 표준 라이브러리만 쓴다(WSL 의 python3 로 바로 돈다). 설치는 같은 폴더 README.
 """
@@ -31,6 +32,7 @@ import os
 import shutil
 import subprocess
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -274,7 +276,12 @@ def ollama_status() -> dict:
 
 
 def status() -> dict:
-    return {"arda": arda_status(), "gpu": gpu_status(), "ollama": ollama_status()}
+    return {
+        "arda": arda_status(),
+        "gpu": gpu_status(),
+        "ollama": ollama_status(),
+        "job": job_snapshot(),
+    }
 
 
 def _installed_model(model: object) -> str:
@@ -286,34 +293,91 @@ def _installed_model(model: object) -> str:
     return model
 
 
+# 오래 걸리는 동작(Arda 켜기·GPU 전환·모델 로드)은 1~3분 — Cloudflare 가 100초 넘는 요청을 524 로 끊으므로
+# 받자마자 202 로 접수하고 뒤에서 돌린다. 진행·결과는 /status 의 job 으로 본다(2026-10-28).
+RUN_IN_BACKGROUND = True
+_job: dict = {
+    "action": None,
+    "target": "",
+    "state": "idle",
+    "error": None,
+    "started_at": None,
+    "finished_at": None,
+}
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+def job_snapshot() -> dict:
+    return dict(_job)
+
+
+def _plan(path: str, body: dict):
+    """입력 검사는 여기서 바로 한다(잘못된 요청은 접수 전에 400·404). 실제 일은 돌려주는 함수가 한다."""
+    if path == "/arda/start":
+        return (lambda: _compose("up", "-d", timeout=300)), ""
+    if path == "/arda/stop":
+        return (lambda: _compose("stop", timeout=180)), ""
+    if path == "/arda/ai-mode":
+        mode = body.get("mode")
+        if mode not in ("gpu", "cpu"):
+            raise OpsError(400, 'mode 는 "gpu" 또는 "cpu"')
+
+        def switch() -> None:
+            # 거짓말 탐지만 다시 만든다 — api·db 는 그대로라 로그인·화면은 끊기지 않는다
+            _compose("up", "-d", "lie-detection", timeout=300, mode=mode)
+            write_ai_mode(mode)
+
+        return switch, mode
+    if path in ("/ollama/load", "/ollama/unload"):
+        model = _installed_model(body.get("model"))
+        # 빈 프롬프트 + keep_alive -1: 생성 없이 GPU 에 올려 두기만 한다(Ollama 공식 방법), 0 이면 내린다
+        keep = -1 if path == "/ollama/load" else 0
+        return (lambda: _keep_alive(model, keep)), model
+    raise OpsError(404, "없는 동작")
+
+
+def _finish(fn) -> None:
+    try:
+        fn()
+        _job.update(state="ok", error=None, finished_at=_now())
+    except OpsError as e:
+        _job.update(state="failed", error=str(e), finished_at=_now())
+        log.warning("실패 %s: %s", _job["action"], e)
+    except Exception as e:  # 뒤에서 도는 동작이 죽어도 잠금은 풀어야 한다
+        _job.update(
+            state="failed", error=f"{type(e).__name__}: {e}", finished_at=_now()
+        )
+        log.exception("예외 %s", _job["action"])
+    finally:
+        _action_lock.release()
+
+
 def act(path: str, body: dict) -> dict:
     if not _action_lock.acquire(blocking=False):
         raise OpsError(409, "다른 동작이 진행 중이다 — 끝난 뒤 다시 누른다")
     try:
-        if path == "/arda/start":
-            _compose("up", "-d", timeout=300)
-            return {"ok": True, "arda": arda_status()}
-        if path == "/arda/stop":
-            _compose("stop", timeout=180)
-            return {"ok": True, "arda": arda_status()}
-        if path == "/arda/ai-mode":
-            mode = body.get("mode")
-            if mode not in ("gpu", "cpu"):
-                raise OpsError(400, 'mode 는 "gpu" 또는 "cpu"')
-            # 거짓말 탐지만 다시 만든다 — api·db 는 그대로라 로그인·화면은 끊기지 않는다
-            _compose("up", "-d", "lie-detection", timeout=300, mode=mode)
-            write_ai_mode(mode)
-            return {"ok": True, "arda": arda_status()}
-        if path == "/ollama/load":
-            # 빈 프롬프트 + keep_alive -1: 생성 없이 GPU 에 올려 두기만 한다(Ollama 공식 방법)
-            _keep_alive(_installed_model(body.get("model")), -1)
-            return {"ok": True, "ollama": ollama_status()}
-        if path == "/ollama/unload":
-            _keep_alive(_installed_model(body.get("model")), 0)
-            return {"ok": True, "ollama": ollama_status()}
-        raise OpsError(404, "없는 동작")
-    finally:
+        fn, target = _plan(path, body)
+    except Exception:
         _action_lock.release()
+        raise
+    _job.update(
+        action=path,
+        target=target,
+        state="running",
+        error=None,
+        started_at=_now(),
+        finished_at=None,
+    )
+    if RUN_IN_BACKGROUND:
+        threading.Thread(target=_finish, args=(fn,), daemon=True).start()
+    else:
+        _finish(fn)
+        if _job["state"] == "failed":
+            raise OpsError(502, _job["error"] or "실패")
+    return {"accepted": True, "job": job_snapshot()}
 
 
 # ── HTTP ─────────────────────────────────────────────────────
@@ -367,7 +431,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.path,
                 body.get("model", ""),
             )
-            self._send(200, act(self.path, body))
+            self._send(202, act(self.path, body))
         except json.JSONDecodeError:
             self._send(400, {"error": "JSON 이 아니다"})
         except OpsError as e:
