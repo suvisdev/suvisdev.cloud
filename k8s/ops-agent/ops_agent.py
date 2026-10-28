@@ -6,6 +6,8 @@
   GET  /status          Arda 컨테이너 상태 · GPU(VRAM) · Ollama 에 올라간 모델과 설치된 모델
   POST /arda/start      docker compose up -d   (infra/onprem — 노트북 온프레미스 Arda)
   POST /arda/stop       docker compose stop    (unless-stopped 라 다음 부팅에도 꺼진 채 남는다)
+  POST /arda/ai-mode    {"mode": "gpu"|"cpu"}  거짓말 탐지(음성 인식·표정)를 GPU 또는 CPU 로 다시 띄운다.
+                        고른 모드는 파일에 남아, 다음 /arda/start 도 그 모드로 켠다
   POST /ollama/load     {"model": "..."}  모델을 GPU 에 올려 둔다(keep_alive -1)
   POST /ollama/unload   {"model": "..."}  모델을 내린다(keep_alive 0)
 
@@ -40,6 +42,13 @@ BIND = os.environ.get("OPS_AGENT_BIND", "0.0.0.0")
 PORT = int(os.environ.get("OPS_AGENT_PORT", "8210"))
 ARDA_COMPOSE = os.environ.get(
     "ARDA_COMPOSE", "/mnt/c/Team Seuk/Arda/infra/onprem/docker-compose.yml"
+)
+ARDA_COMPOSE_GPU = os.environ.get(
+    "ARDA_COMPOSE_GPU",
+    os.path.join(os.path.dirname(ARDA_COMPOSE), "docker-compose.gpu.yml"),
+)
+AI_MODE_FILE = os.environ.get(
+    "ARDA_AI_MODE_FILE", os.path.expanduser("~/.config/ops-agent/arda_ai_mode")
 )
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 
@@ -136,8 +145,46 @@ def _run(args: list[str], timeout: int) -> str:
     return done.stdout
 
 
-def _compose(*cmd: str, timeout: int) -> str:
-    return _run(["docker", "compose", "-f", ARDA_COMPOSE, *cmd], timeout)
+def read_ai_mode() -> str:
+    try:
+        with open(AI_MODE_FILE, encoding="utf-8") as f:
+            mode = f.read().strip()
+    except OSError:
+        return "cpu"
+    return mode if mode in ("gpu", "cpu") else "cpu"
+
+
+def write_ai_mode(mode: str) -> None:
+    os.makedirs(os.path.dirname(AI_MODE_FILE), exist_ok=True)
+    with open(AI_MODE_FILE, "w", encoding="utf-8") as f:
+        f.write(mode)
+
+
+def compose_files(mode: str) -> list[str]:
+    files = ["-f", ARDA_COMPOSE]
+    if mode == "gpu":
+        files += ["-f", ARDA_COMPOSE_GPU]
+    return files
+
+
+def _compose(*cmd: str, timeout: int, mode: str | None = None) -> str:
+    files = compose_files(mode if mode is not None else read_ai_mode())
+    return _run(["docker", "compose", *files, *cmd], timeout)
+
+
+def lie_detection_device() -> str | None:
+    """지금 떠 있는 거짓말 탐지 컨테이너의 STT_DEVICE — 파일에 적힌 모드와 실제가 다를 때 보이려고."""
+    try:
+        cid = _compose("ps", "-q", "lie-detection", timeout=20).strip()
+        if not cid:
+            return None
+        env = _run(["docker", "inspect", "-f", "{{json .Config.Env}}", cid], timeout=10)
+    except OpsError:
+        return None
+    for item in json.loads(env or "[]"):
+        if item.startswith("STT_DEVICE="):
+            return item.split("=", 1)[1]
+    return "cpu"
 
 
 def _ollama(path: str, body: dict | None = None, timeout: int = 10) -> dict:
@@ -184,6 +231,8 @@ def arda_status() -> dict:
             "services": parse_compose_ps(
                 _compose("ps", "-a", "--format", "json", timeout=20)
             ),
+            "ai_mode": read_ai_mode(),
+            "ai_device": lie_detection_device(),
         }
     except OpsError as e:
         return {"available": False, "error": str(e)}
@@ -246,6 +295,14 @@ def act(path: str, body: dict) -> dict:
             return {"ok": True, "arda": arda_status()}
         if path == "/arda/stop":
             _compose("stop", timeout=180)
+            return {"ok": True, "arda": arda_status()}
+        if path == "/arda/ai-mode":
+            mode = body.get("mode")
+            if mode not in ("gpu", "cpu"):
+                raise OpsError(400, 'mode 는 "gpu" 또는 "cpu"')
+            # 거짓말 탐지만 다시 만든다 — api·db 는 그대로라 로그인·화면은 끊기지 않는다
+            _compose("up", "-d", "lie-detection", timeout=300, mode=mode)
+            write_ai_mode(mode)
             return {"ok": True, "arda": arda_status()}
         if path == "/ollama/load":
             # 빈 프롬프트 + keep_alive -1: 생성 없이 GPU 에 올려 두기만 한다(Ollama 공식 방법)

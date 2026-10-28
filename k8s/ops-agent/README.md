@@ -11,6 +11,7 @@ systemd 유저 서비스로 돈다. 1단계는 노트북(Arda 온프레미스 + 
 |---|---|
 | `GET /status` | Arda 컨테이너 상태, GPU(VRAM·사용률), Ollama 올라간 모델·설치된 모델 |
 | `POST /arda/start` · `/arda/stop` | `docker compose -f infra/onprem/docker-compose.yml up -d` · `stop` (Arda 저장소) |
+| `POST /arda/ai-mode` `{"mode": "gpu"|"cpu"}` | 거짓말 탐지만 GPU 덮어쓰기(infra/onprem/docker-compose.gpu.yml) 포함·제외로 다시 띄움. 모드는 `~/.config/ops-agent/arda_ai_mode` 에 남아 다음 켜기에도 씀 |
 | `POST /ollama/load` · `/ollama/unload` `{"model": ...}` | keep_alive -1 / 0. 임베딩 모델은 `/api/embed` 로 |
 
 ## 지키는 것
@@ -31,8 +32,10 @@ journalctl --user -u ops-agent -f   # 로그
 ## 시험
 
 ```bash
-python3 -m pytest k8s/ops-agent -q   # 출발지·토큰·파싱·허용 목록(16개)
+python3 -m pytest k8s/ops-agent -q   # 출발지·토큰·파싱·허용 목록·AI 모드(19개)
 ```
 
 2026-10-28 노트북 실측: `/status` 로 Arda 7개 컨테이너·RTX 4060 VRAM·설치 모델 6개를 읽음,
 없는 모델 404, nomic-embed-text 올리기→올라감·내리기→내려감, 토큰 없으면 401.
+
+2026-10-28 GPU 모드 실측: `/arda/ai-mode gpu` → 거짓말 탐지 STT_DEVICE=cuda, 5초 오디오 전사 0.62초, VRAM 약 1.3GB.
