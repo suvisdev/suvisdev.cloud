@@ -28,6 +28,31 @@
 
 ---
 
+## 2026-10-28 — 운영 제어 에이전트 1단계(노트북)
+
+### 작업 내용
+- 사용자 요청: 메인 도메인 관리자 페이지에서 mova·길들·Arda 를 버튼으로 켜고 끄고, 쓰는 모델을 GPU 에 올리고 내리는 버튼.
+  5단계로 나눔(1 노트북 에이전트 · 2 백엔드 /admin/ops · 3 관리자 카드 · 4 mova·길들 점검 모드 · 5 집컴). mova·길들 끄기는 점검 모드(사용자 결정).
+- 같은 날 Arda 는 AWS 종료 뒤 노트북 온프레미스로 옮김(Seuk-Team/Arda#371·#374, 자동 기동).
+
+### 수정/구현
+- `k8s/ops-agent/ops_agent.py`(표준 라이브러리만): GET /status(Arda 컨테이너·GPU·Ollama), POST /arda/start·stop, /ollama/load·unload.
+  토큰(X-Ops-Token, 상수 시간 비교) + 출발지 제한(127/8, k3s 10.42/16, Tailscale 100.64/10) + 고정 인자 + 설치된 모델만 + 동작 잠금(409).
+- `install.sh`(토큰 생성·systemd 유저 서비스, 실행 파일은 ~/.local/lib 로 복사), `ops-agent.service`, README, 시험 16개.
+
+### 오류·막힌 점
+- 임베딩 모델은 /api/generate 를 400 으로 거절 → /api/embed 로 같은 keep_alive 를 보내게 고침(실측 후).
+- systemd 유저 서비스 설치는 권한 분류기가 막음 → 사용자가 install.sh 직접 실행.
+- 설치 뒤 /status 의 GPU 가 빈 목록 — systemd 유저 서비스 PATH 에 /usr/lib/wsl/lib(nvidia-smi)가 없음 → which 실패 시 그 경로로 찾게 고침(최소 PATH 로 재현·확인).
+
+### 데이터
+- 없음.
+
+### 산출물
+- 브랜치 `feat/ops-agent`. 노트북 실측: /status(Arda 7개·RTX 4060·모델 6개), 없는 모델 404, nomic-embed-text 올리기·내리기, 토큰 없음 401.
+
+---
+
 ## 2026-10-20 (5) — Codex 수정 확인 리뷰 → 남은 7건 처리
 
 ### 작업 내용
