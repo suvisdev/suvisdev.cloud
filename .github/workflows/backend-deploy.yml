@@ -64,6 +64,6 @@ jobs:
       - name: 외부 응답 확인
         run: |
           curl -fsS -o /dev/null -w 'api %{http_code}\n' --retry 10 --retry-delay 6 --retry-all-errors \
-            'https://api.suvisdev.cloud/mova/movies?limit=1'
+            'https://api.suvisdev.cloud/healthz'
           curl -fsS -o /dev/null -w 'auth %{http_code}\n' --retry 10 --retry-delay 6 --retry-all-errors \
             'https://auth.suvisdev.cloud/.well-known/jwks.json'

@@ -18,6 +18,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response as StarletteResponse
 
@@ -32,6 +33,7 @@ from contents.adapter.inbound.api import contents_router
 from core.matrix.grid_oracle_database_manager import (
     create_tables,
     dispose_engine,
+    get_mova_session_factory,
     verify_connection,
 )
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
@@ -438,6 +440,22 @@ async def logout() -> RedirectResponse:
     resp = RedirectResponse(url="/api-login", status_code=303)
     resp.delete_cookie("api_auth", path="/")
     return resp
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz() -> JSONResponse:
+    """서빙 판단기(k8s/failover/serve_agent.sh)·배포 확인용 — 앱이 떠 있고 DB 에 닿는지만 본다.
+
+    점검 모드(maintenance_gate)와 무관해야 한다. 10-29 판단기가 /mova/search 를 보다가 Mova 점검
+    503 을 장애로 읽고 터널을 내려 사이트 전체가 4분 내려갔다.
+    """
+    try:
+        async with get_mova_session_factory()() as session:
+            await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=5)
+    except Exception as e:
+        logger.warning("[healthz] DB 확인 실패: %s", e)
+        return JSONResponse({"ok": False}, status_code=503)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/")
