@@ -11,7 +11,8 @@ DESK=suvisdev@172.30.1.21
 SSH=(ssh -i "$HOME/.ssh/home_desktop" -o BatchMode=yes -o ConnectTimeout=5 -o LogLevel=ERROR
      -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts_ollama_tunnel"
      -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-serve-%r@%h" -o ControlPersist=120)
-PROBE='/mova/search?q=%EC%9D%B8%ED%84%B4&limit=1'
+# 앱 + DB 만 보는 전용 주소. 서비스 API(/mova/…)는 점검 모드면 503 이라 쓰면 안 된다(10-29 사고: 점검 켜자 터널이 내려감)
+PROBE='/healthz'
 AUTH_PROBE='/.well-known/jwks.json'   # ingress.yaml 이 auth:9000 으로 보냄. 공개 키(JWT_PUBLIC_KEY_B64)가 없으면 500
 ok=0; bad=0; last=""
 
