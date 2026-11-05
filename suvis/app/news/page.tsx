@@ -107,6 +107,11 @@ export default async function NewsPage({ searchParams }: { searchParams: SearchP
           추정한 기사입니다. 한국어 뉴스 기사만 판정하고, 숨기지 않으며, 기사 내용이 사실인지는
           판정하지 않습니다.
         </p>
+        <p className="mt-1">
+          <strong className="text-foreground font-medium">AI 요약</strong>과 영어 제목 번역은 LG
+          EXAONE 3.5 모델이 자동으로 만든 것이라 틀릴 수 있습니다. 중요한 내용은 원문에서 확인해
+          주세요.
+        </p>
       </footer>
     </main>
   )

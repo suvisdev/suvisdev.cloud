@@ -8,11 +8,13 @@ from news.app.dtos.news_dtos import (
     ArticleDto,
     FetchedArticle,
     StoredArticle,
+    SummaryTarget,
     TopicCreateCommand,
     TopicDto,
     TopicUpdateCommand,
     VerdictCommand,
 )
+from news.domain.ko_summary import KoSummary
 
 
 class NewsRepositoryPort(ABC):
@@ -66,6 +68,17 @@ class NewsRepositoryPort(ABC):
         self, *, section: str, group: str | None, limit: int, before: datetime | None
     ) -> list[ArticleDto]:
         """RSS 로 모은 기사(origin=feed) 최신순. group 이 있으면 그 묶음만."""
+
+    # 한국어 제목·요약
+    @abstractmethod
+    async def pending_summaries(self, *, limit: int, max_tries: int) -> list[SummaryTarget]:
+        """요약이 없고 실패가 max_tries 번 미만인 기사. AI 섹션 먼저, 그 안에서 최신순."""
+
+    @abstractmethod
+    async def save_summary(self, article_id: int, summary: KoSummary, model: str) -> None: ...
+
+    @abstractmethod
+    async def mark_summary_failed(self, article_id: int) -> None: ...
 
     @abstractmethod
     async def search_articles(

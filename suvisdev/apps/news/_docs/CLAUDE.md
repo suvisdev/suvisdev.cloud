@@ -95,7 +95,16 @@ GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배�
 `suvis/next.config.mjs` rewrites 가 `news.suvisdev.cloud` 의 `/` 를 `/news` 로 보낸다. `suvisdev.cloud/news` 도 같은 화면. 허브 타일 `AI 소식`(`lib/apps-catalog.ts`, 아이콘 `public/news-icon.svg`).
 **도메인 연결은 사용자 콘솔 작업**: Vercel `suvis` 프로젝트 Domains 에 `news.suvisdev.cloud`, Cloudflare DNS `news` CNAME → `cname.vercel-dns.com`(Vercel 안내값 우선).
 
+## 한국어 제목·요약 (11-05, alembic `20261105_0003`)
+
+- 노트북 올라마 **EXAONE 3.5 7.8B**(`adapter/outbound/llm/ollama_ko_summarizer.py`)가 영어 글 제목을 옮기고 모든 글을 2~3문장으로 요약 → `news_articles.title_ko·summary_ko`.
+  한국어 글은 원제 그대로(`domain/ko_summary.py`). 출력 검사에 걸리면 `ko_tries` 를 세고 3번이면 그만. 모델 서버가 안 되면 그 주기는 멈춘다(실패로 세지 않음).
+- 스케줄러가 수집 뒤 `NEWS_SUMMARY_BATCH`(기본 80)건까지 — **AI 섹션 먼저**, 최신순. 화면은 한국어 제목(작게 원제)·'AI 요약' 표시. `/search` 는 한국어 제목·요약도 찾는다.
+- 주소는 노트북 올라마 직접(`NEWS_SUMMARY_OLLAMA_URL` → `PORTFOLIO_LLM_OLLAMA_URL` → `OLLAMA_BASE_URL`). 중계기를 거치면 노트북이 죽었을 때 집컴 CPU 에 7.8B 를 올린다.
+- 11-05 실측(RTX 4060): 글당 2.4~3.8초(첫 글 7.5초), 실제 코드 흐름 27건 실패 0. 2.4B 는 영어 제목을 옮기지 않아 쓰지 않음.
+  첫 지시문은 "왜 중요한지"를 시켜 원문에 없는 평가("중요한 발전")가 붙어서 "원문에 없는 평가 금지"로 바꿈. 가끔 이름을 옮긴다(PolicyIK → 정책IK).
+
 ## 남은 단계 (newsdesk `docs/구현가이드.md` §7)
 
-3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층)과 영어 글 한국어 요약 · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
+3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층) · '오늘의 핫한 소식'(HF Daily Papers 추천 수·HN 점수 + EXAONE 요약) · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
 본문 30일 보관 정리, 같은 소식 묶음 표시도 아직이다.

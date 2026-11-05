@@ -7,6 +7,7 @@ from news.app.dtos.news_dtos import (
     ArticleDto,
     CollectReport,
     SectionDto,
+    SummaryReport,
     TopicCreateCommand,
     TopicDto,
     TopicUpdateCommand,
@@ -17,6 +18,12 @@ class NewsCollectUseCase(ABC):
     @abstractmethod
     async def collect_once(self) -> CollectReport:
         """RSS(섹션별) + 검색어 탭을 한 번 모으고, 판정 범위 기사만 규칙 판정까지 한다."""
+
+
+class NewsSummarizeUseCase(ABC):
+    @abstractmethod
+    async def summarize_pending(self, limit: int) -> SummaryReport:
+        """요약이 없는 기사를 limit 건까지 한국어 제목·요약한다(AI 섹션 먼저)."""
 
 
 class NewsReadUseCase(ABC):
