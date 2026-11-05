@@ -11,6 +11,7 @@ root_packages =
     sample
     analytics
     media
+    news
     core
     auth
     shared
@@ -32,6 +33,7 @@ forbidden_modules =
     sample
     analytics
     media
+    news
 # 아래 예외 (a)(Rule 2 주석 참고)와 동일: ontology가 DB 세션을 위해 core를
 # 임포트하고, core.grid_oracle이 테이블 등록을 위해 spoke ORM을 임포트하는
 # 간접 사슬. 직접 hub→spoke 임포트가 아니므로 허용.
@@ -57,6 +59,7 @@ modules =
     sample
     analytics
     media
+    news
     auth
 # Allowed exceptions (known, documented). Two intentional cross-spoke couplings:
 #
@@ -124,6 +127,16 @@ source_modules =
 forbidden_modules =
     gildle.app
     gildle.adapter
+
+# news 도메인(AI 판정기·관련성·주소 정규화)은 표준 라이브러리만 쓴다 — newsdesk 하네스와 같은 코드를 유지하려고.
+[importlinter:contract:news-domain-purity]
+name = News domain must not import app or adapter
+type = forbidden
+source_modules =
+    news.domain
+forbidden_modules =
+    news.app
+    news.adapter
 
 # Rule 5: auth is a parallel-build gateway (see suvisdev/apps/auth/_docs/) not yet
 # wired to real traffic. No existing app may depend on it this round — the reverse

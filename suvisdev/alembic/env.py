@@ -49,6 +49,7 @@ import mova.adapter.outbound.orm  # noqa: F401,E402
 
 # user_taste_vectors는 패키지 __init__에 없어 따로 등록한다(빠지면 drop_table 제안).
 import mova.adapter.outbound.orm.platform_user_taste_vectors_orm  # noqa: F401,E402
+import news.adapter.outbound.orm.news_orm  # noqa: F401,E402
 import ontology.adapter.outbound.orm.hub_knowledge_orm  # noqa: F401,E402
 import ontology.adapter.outbound.orm.vision_upload_orm  # noqa: F401,E402
 import titanic.adapter.outbound.orm.passenger_jack_trainer_orm  # noqa: F401,E402
@@ -68,6 +69,7 @@ from core.matrix.grid_oracle_database_manager import (  # noqa: E402
     _normalize_database_url,
 )
 from gildle.adapter.outbound.orm.base import GildleBase  # noqa: E402
+from news.adapter.outbound.orm.base import NewsBase  # noqa: E402
 
 config = context.config
 if config.config_file_name is not None:
@@ -81,6 +83,7 @@ target_metadata = [
     ContentsBase.metadata,
     MovaBase.metadata,
     ViewerBase.metadata,
+    NewsBase.metadata,
 ]
 
 

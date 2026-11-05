@@ -1,0 +1,15 @@
+[
+  {"name": "연합뉴스", "url": "https://www.yna.co.kr/rss/news.xml"},
+  {"name": "뉴시스", "url": "https://newsis.com/RSS/sokbo.xml"},
+  {"name": "한겨레", "url": "https://www.hani.co.kr/rss/"},
+  {"name": "경향신문", "url": "https://www.khan.co.kr/rss/rssdata/total_news.xml"},
+  {"name": "동아일보", "url": "https://rss.donga.com/total.xml"},
+  {"name": "조선일보", "url": "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml"},
+  {"name": "SBS", "url": "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER"},
+  {"name": "JTBC", "url": "https://news-ex.jtbc.co.kr/v1/get/rss/newsflesh"},
+  {"name": "매일경제", "url": "https://www.mk.co.kr/rss/40300001/"},
+  {"name": "한국경제", "url": "https://www.hankyung.com/feed/all-news"},
+  {"name": "전자신문", "url": "https://rss.etnews.com/Section901.xml"},
+  {"name": "ZDNet Korea", "url": "https://feeds.feedburner.com/zdkorea"},
+  {"name": "오마이뉴스", "url": "http://rss.ohmynews.com/rss/ohmynews.xml"}
+]

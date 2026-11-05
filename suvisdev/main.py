@@ -44,6 +44,7 @@ from media.router import media_router
 from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
+from news.adapter.inbound.api import news_router_root
 from ontology.adapter.inbound.api import (
     nlp_router,
     ontology_router,
@@ -162,6 +163,17 @@ async def lifespan(app: FastAPI):
                         "[main] ENABLE_MOVA_STARTUP=false — mova 부팅 작업"
                         "(TMDB 시드·랭킹/KOFIC 스케줄러) 비활성화됨"
                     )
+                # news 수집은 mova 와 따로 켠다 — 노트북에서만 ENABLE_NEWS_SCHEDULER=true (기본 꺼짐)
+                from news.adapter.inbound.scheduler.news_collect_scheduler import (
+                    news_scheduler_enabled,
+                    run_news_collect_scheduler,
+                )
+
+                if news_scheduler_enabled():
+                    app.state.news_scheduler = asyncio.create_task(run_news_collect_scheduler())
+                    logger.info(
+                        "[main] 뉴스 수집 스케줄러 시작 (NEWS_COLLECT_INTERVAL_SECONDS 주기)"
+                    )
             except Exception as e:
                 logger.error(
                     "DB ???/?? ??? ?? ? DB ?? API? 503 ??: %s",
@@ -204,6 +216,13 @@ async def lifespan(app: FastAPI):
             editor_reviews_task.cancel()
             try:
                 await editor_reviews_task
+            except asyncio.CancelledError:
+                pass
+        news_task = getattr(app.state, "news_scheduler", None)
+        if news_task is not None:
+            news_task.cancel()
+            try:
+                await news_task
             except asyncio.CancelledError:
                 pass
         await dispose_engine()
@@ -406,6 +425,7 @@ app.include_router(portfolio_router)  # /portfolio/chat — 홈 AI 채팅(공개
 app.include_router(nlp_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(media_router, prefix="/api")
+app.include_router(news_router_root, prefix="/api/v1")  # /api/v1/news — news.suvisdev.cloud
 
 
 @app.get("/api-login", response_class=HTMLResponse, include_in_schema=False)
