@@ -161,3 +161,35 @@ def test_latest_feed_list_is_valid():
     assert len(by_section["ai"]) >= 15 and len(by_section["economy"]) >= 10  # AI 가 메인
     assert all(f.group != "search" for f in feeds)
     assert not any("sbs.co.kr" in f.url for f in feeds)  # SBS RSS 는 개인 리더 이용만 허용
+
+
+def _rss_with_date(pub: str) -> bytes:
+    return (
+        '<?xml version="1.0"?><rss version="2.0"><channel><title>x</title><item>'
+        f"<title>제목</title><link>https://x.example/1</link><pubDate>{pub}</pubDate>"
+        "</item></channel></rss>"
+    ).encode()
+
+
+def test_naive_date_is_read_in_feed_local_time():
+    from datetime import UTC, datetime
+
+    kst = FeedSource(
+        name="AI타임스", url="https://x.example/rss", group="ko_media", naive_tz_minutes=540
+    )
+    (a,) = parse_feed(_rss_with_date("2026-11-05 17:27:15"), kst)
+    assert a.published_at == datetime(2026, 11, 5, 8, 27, 15, tzinfo=UTC)  # 한국 17:27 = UTC 08:27
+    # 시간대가 붙은 날짜는 설정과 상관없이 그대로
+    (b,) = parse_feed(_rss_with_date("Thu, 05 Nov 2026 17:40:00 +0900"), kst)
+    assert b.published_at == datetime(2026, 11, 5, 8, 40, tzinfo=UTC)
+    # 설정이 없으면 예전처럼 UTC 로 읽는다
+    plain = FeedSource(name="x", url="https://x.example/rss", group="outlet")
+    (c,) = parse_feed(_rss_with_date("2026-11-05 17:27:15"), plain)
+    assert c.published_at == datetime(2026, 11, 5, 17, 27, 15, tzinfo=UTC)
+
+
+def test_feed_list_sets_kst_for_naive_korean_ai_media():
+    feeds = {f.name: f for f in load_latest_feeds()}
+    assert feeds["AI타임스"].naive_tz_minutes == 540
+    assert feeds["인공지능신문"].naive_tz_minutes == 540
+    assert feeds["OpenAI"].naive_tz_minutes == 0
