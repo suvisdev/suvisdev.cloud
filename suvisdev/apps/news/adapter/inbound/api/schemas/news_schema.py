@@ -59,6 +59,7 @@ class ArticleSchema(BaseModel):
     reasons_ko: list[str]
     section: SectionCode
     group: str  # 출처 묶음 코드 — /sections 의 groups[].code
+    sort_at: datetime | None  # 다음 쪽은 마지막 글의 이 값을 before 로 넘긴다
 
 
 class CollectReportSchema(BaseModel):

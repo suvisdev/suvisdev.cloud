@@ -39,6 +39,5 @@
   {"name": "뉴시스 경제", "url": "https://www.newsis.com/RSS/economy.xml", "group": "outlet"},
   {"name": "동아일보 경제", "url": "https://rss.donga.com/economy.xml", "group": "outlet"},
   {"name": "경향신문 경제", "url": "https://www.khan.co.kr/rss/rssdata/economy_news.xml", "group": "outlet"},
-  {"name": "한겨레 경제", "url": "https://www.hani.co.kr/rss/economy/", "group": "outlet"},
   {"name": "JTBC 경제", "url": "https://news-ex.jtbc.co.kr/v1/get/rss/section/economy", "group": "outlet"}
 ]

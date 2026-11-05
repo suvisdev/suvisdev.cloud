@@ -111,6 +111,8 @@ class ArticleDto:
     reasons_ko: list[str]
     section: str = DEFAULT_SECTION
     group: str = ""
+    # 목록 정렬·다음 쪽(before) 기준 시각. 날짜를 안 주는 피드가 있어 published_at 대신 이것으로 넘긴다.
+    sort_at: datetime | None = None
 
 
 @dataclass(frozen=True)

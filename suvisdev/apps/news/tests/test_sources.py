@@ -113,6 +113,18 @@ def test_parse_feed_reads_content_and_author():
     assert a.section == "economy" and a.group == "outlet"
 
 
+def test_parse_feed_unescapes_double_encoded_title():
+    rss = (
+        '<?xml version="1.0"?><rss version="2.0"><channel><title>x</title><item>'
+        "<title>&amp;quot;페트병&amp;quot; 위장…&amp;#039;과징금&amp;#039; 유지</title>"
+        "<link>https://x.example/1</link><pubDate>Thu, 05 Nov 2026 08:58:00 +0900</pubDate>"
+        "</item></channel></rss>"
+    )
+    feed = FeedSource(name="머니투데이", url="https://x.example/rss", group="outlet")
+    (a,) = parse_feed(rss.encode(), feed)
+    assert a.title == "\"페트병\" 위장…'과징금' 유지"
+
+
 def test_parse_feed_skips_arxiv_revisions_and_strips_header():
     feed = FeedSource(name="arXiv", url="https://rss.arxiv.org/rss/cs.CL", group="paper")
     (a,) = parse_feed(_ARXIV.encode(), feed)

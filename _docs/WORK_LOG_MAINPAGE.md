@@ -28,6 +28,34 @@
 
 ---
 
+## 2026-11-05 (4) — news 2단계: 화면(suvis/app/news) + news.suvisdev.cloud 연결
+
+### 작업 내용
+- `suvis/app/news` 를 서버 컴포넌트로 만들었다. 섹션 전환(AI 기술 기본 · 경제 부록), 검색 폼(GET), 출처 묶음 탭, 주제(저장 검색어) 탭,
+  기사 목록(제목=원문 링크·매체·묶음·KST 시각·요약 3줄), 배지는 `<details>` 로 누르면 이유 + "자동 판정이라 틀릴 수 있음",
+  "AI 배지 글 숨기기"(쿼리 `hide_ai=1`), 더 보기. 필터는 전부 쿼리만 바꾸는 링크라 클라이언트 JS 가 없다.
+- `next.config.mjs` rewrites: 호스트가 `news.suvisdev.cloud` 일 때 `/` 만 `/news` 로. 화면 안 링크는 경로 없이 쿼리만 써서
+  `news.suvisdev.cloud/?section=economy` 와 `suvisdev.cloud/news?section=economy` 가 둘 다 동작한다. apex `/news` 301 은 도메인 연결 전이라 넣지 않았다.
+- 허브 타일 `AI 소식`(href `/news` — 도메인 연결 전에도 열림), 아이콘 `public/news-icon.svg`.
+
+### 오류·막힌 점 (화면 확인 중 발견)
+- **한겨레 경제 RSS 는 글에 날짜가 없다**(title·summary·link·category 뿐). 날짜 없는 글은 수집 시각으로 정렬돼 첫 수집분 30건이 경제 첫 화면을 다 차지했고,
+  마지막 글에 날짜가 없으면 "더 보기"가 사라졌다. → 피드에서 빼고(경제 13곳), API 에 `sort_at` 을 더해 다음 쪽 기준을 published_at 대신 `sort_at` 으로.
+- **머니투데이 제목의 개체가 두 번 인코딩**(`&amp;quot;`)돼 화면에 `&quot;`·`&#039;` 가 보였다. → RSS 파서 `_text` 가 한 번 더 `html.unescape`. 테스트 추가.
+- 개발 서버가 `revalidate` fetch 응답을 캐시해 백엔드를 고친 뒤에도 옛 응답이 보였다 → `.next/cache/fetch-cache` 를 지우고 확인.
+
+### 데이터
+- 화면 확인: 로컬 미리보기 API(실수집 SQLite 사본 1,564건) + `next dev`. 사본에만 배지 표시 확인용 판정 2건(AI 작성·AI 생성 의심)을 넣었다 — 실제 판정 아님.
+  묶음 탭(논문)·주제 탭(mixture of experts)·경제 섹션·배지 펼치기·더 보기(`before=sort_at`)·검색("transformer", 결과 없음 문구)·375px(가로 넘침 없음, 문서 폭 375) 확인.
+- `Host: news.suvisdev.cloud` 로 `/?section=economy` 요청 → 경제 뉴스 화면, 일반 호스트 `/` → 홈(타일 `AI 소식` 보임).
+- 프론트 `type-check`·`lint` 통과. 백엔드 테스트 36 → 37, ruff·mypy(news) 0건·import-linter 8 kept.
+- 콘솔 404 1건은 방문자 통계 ping — 미리보기 API 에 analytics 라우터가 없어서(화면 문제 아님).
+
+### 산출물
+- 브랜치 `feat/news-web`. 사용자 몫: 운영 DB `alembic upgrade head`, Vercel 도메인 `news.suvisdev.cloud` 추가, Cloudflare `news` CNAME.
+
+---
+
 ## 2026-11-05 (3) — news 섹션 개편: 메인 AI 기술 · 부록 경제
 
 ### 작업 내용
