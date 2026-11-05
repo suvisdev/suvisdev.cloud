@@ -39,10 +39,17 @@ mova 부팅 작업(스케줄러)은 노트북만 돈다: 집컴 `.env` 에 `ENAB
 
 `backend-deploy.yml` 의 러너는 **노트북**(라벨 `prod`, 집컴 러너는 10-05 등록 해제).
 1. `deploy.sh --external-db --build` — 노트북에서 빌드(집컴 15분 빌드·메모리 고갈 없음)
-2. `sync-standby.sh` — 집컴 로컬 레지스트리(`standby-registry`, 127.0.0.1:5000)로 바뀐 레이어만 push →
+2. 외부 응답 확인(`api.`·`auth.`) — 11-05 부터 집컴 동기화 **앞**에서 한다. 동기화가 실패해도 서빙 쪽 확인은 돈다.
+3. `sync-standby.sh` — 집컴 로컬 레지스트리(`standby-registry`, 127.0.0.1:5000)로 바뀐 레이어만 push →
    같은 매니페스트를 집컴 사본만 `image: 127.0.0.1:5000/suvisdev-app:latest`·`imagePullPolicy: Always`로 바꿔 apply →
    backend·auth 재시작 — 집컴 k3s가 레지스트리에서 바뀐 레이어만 직접 받는다. **집컴은 빌드하지 않는다.**
    (10-06 전에는 집컴에서 docker pull → save → `k3s ctr import`로 5.8GB를 통째 옮겨 이 단계만 약 7분이었다.)
+
+**집컴 롤아웃은 느리다(11-05 실측).** 집컴 WSL 가상 디스크가 `D:\WSL\Ubuntu\ext4.vhdx`(HDD)라 캐시가 식은 상태의 새 backend 는
+재시작부터 Ready 까지 10분 48초가 걸렸다(파이썬 import 6분, 노트북은 21초). 그래서 `sync-standby.sh` 의 롤아웃 대기와
+`backend.yaml`·`auth.yaml` 의 `progressDeadlineSeconds` 를 둘 다 1200초로 둔다. 600초 시절 10-30·11-05 배포가 실패로 찍혔지만
+롤아웃은 그 뒤 끝나 집컴도 새 버전이었다. 실패가 다시 나면 `kubectl -n suvisdev get pods` 로 집컴 파드가 결국 Ready 인지부터 본다.
+C:(SSD)는 여유 128GB 라 126GiB vhdx 이동은 아직 못 한다.
 
 노트북이 꺼져 있는 동안 머지하면 배포 잡은 노트북이 켜질 때까지 대기한다(집컴은 그동안 직전 버전으로 서빙).
 

@@ -283,10 +283,11 @@
 | ✅ | 07-28 | 매 부팅마다 seed_assistants_if_empty ModuleNotFoundError가 try/except에 조용히 삼켜지고 있었다. | main.py가 존재하지 않는 모듈(assistants_pg_repository)을 import — 리네임이 아니라 애초에 구현된 적 없는 죽은 코드. | AssistantsPgRepository에 count/insert도 시드 데이터도 없음을 확인 후 해당 try/except 블록 통째로 제거. | MAINPAGE 2026-07-28 |
 | 🔁 | 07-28→09-17 | EXAONE 로드가 transformers 버전에 따라 TypeError·NotImplementedError·import 실패(07-28·09-01·09-17) | EXAONE 체크포인트 remote code가 transformers 5.x·gptqmodel·peft 조합과 비호환 | 로컬 체크포인트 최소 패치(07-28), AWQ 포기·hf fp16(09-01), 코랩은 transformers 5.5.0 고정+wte 보충(09-17) | MAINPAGE 2026-07-28 · MOVA 2026-09-01 · 2026-09-17 |
 
-## 인프라·배포 (97건)
+## 인프라·배포 (98건)
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 10-30→11-05 | 배포가 "예비 서버 동기화"에서 실패 표시, 뒤 단계 외부 응답 확인이 건너뛰어짐(실제로는 47초 뒤 집컴 롤아웃 완료) | 집컴 WSL 디스크가 HDD(D:)라 새 backend 기동 10분 48초(import 6분 + 폰트 캐시) > rollout 대기·진행 기한 600초 | 대기·progressDeadlineSeconds 1200초, 외부 확인을 동기화 앞으로, 폰트 캐시를 이미지에 굽기 | MAINPAGE 2026-11-05 (2) |
 | ✅ | 10-02 | USB를 WSL에 마운트 못 함 — `!`로 친 sudo는 비번 창이 없어 실패, 사용자가 연 터미널의 mount도 Claude 셸에 안 보임 | 하네스 셸은 대화형 sudo 불가 + WSL 기동 후 꽂은 드라이브는 자동 마운트 안 됨 | 마운트 없이 윈도우 쪽에서 쓰기: `cmd.exe /c "wsl.exe -- tar -cf - … > D:\x.tar"`(cmd 리다이렉트는 바이너리 안전) + 원본 tee sha256과 USB `Get-FileHash` 대조 | MAINPAGE 2026-10-02 (2) |
 | ✅ | 10-01 | 집컴 WSL이 열린 창이 없으면 몇 분 만에 통째로 꺼짐(복원 중 db 재시작으로 발견) | WSL 기본 idle 타임아웃(인스턴스·VM) — systemd `enable`은 WSL이 켜져 있을 때만 의미 | `.wslconfig` `instanceIdleTimeout=-1`·`vmIdleTimeout=-1` + 로그온 작업(`conhost --headless`)으로 기동, 종료→작업만으로 외부 200 복구 확인. 무인 복구엔 윈도우 자동 로그인까지 필요 | MAINPAGE 2026-10-01 (11) |
 | 📌 | 10-01 | `deploy.sh --external-db`가 cloudflared를 즉시 replicas 1로 올려, 컷오버 전 실행 시 노트북과 같은 터널 토큰으로 커넥터 둘 | 09-29에 배포마다 530을 없애려 0→1 치환 apply로 바꾼 것 | 이관 땐 cloudflared만 뺀 단계를 수동 실행. 노트북 터널을 먼저 내리고(530 확인) DB 재복원 뒤 집컴 터널 기동 | MAINPAGE 2026-10-01 (11) |

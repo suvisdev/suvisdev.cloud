@@ -15,6 +15,9 @@ metadata:
   namespace: suvisdev
 spec:
   replicas: 1
+  # 기본 600초로는 집컴(WSL 디스크가 HDD)에서 새 파드가 Ready 되기 전에 기한이 지난다 —
+  # 11-05 재시작부터 Ready 까지 10분 48초. sync-standby.sh 의 rollout 대기(1200초)와 같이 맞춘다.
+  progressDeadlineSeconds: 1200
   selector:
     matchLabels:
       app: backend

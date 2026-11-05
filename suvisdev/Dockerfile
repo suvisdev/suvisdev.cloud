@@ -27,6 +27,12 @@ RUN sed -e 's#whl/cu126#whl/cpu#' -e 's/+cu126/+cpu/' requirements.txt > /tmp/re
     && pip install --no-cache-dir --timeout 120 --retries 5 -r /tmp/requirements-cpu.txt \
     && rm /tmp/requirements-cpu.txt
 
+# 4-1. matplotlib 폰트 캐시를 빌드 때 만들어 둔다. 없으면 새 컨테이너가 뜰 때마다 부팅 중에 다시 만든다 —
+#      노트북은 몇 초지만 집컴(WSL 디스크가 HDD)은 74초가 걸려 배포 롤아웃 대기 시간을 넘겼다(2026-11-05).
+#      캐시 위치를 HOME 과 상관없게 고정한다(/root/.cache 아래에는 hf-cache hostPath 가 붙는다).
+ENV MPLCONFIGDIR=/opt/matplotlib
+RUN python -c "import matplotlib.font_manager"
+
 # 5. 내 컴퓨터의 suvisdev 폴더 안 소스코드를 도커 컴퓨터로 전부 복사합니다.
 COPY . .
 

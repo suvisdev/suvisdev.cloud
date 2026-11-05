@@ -6,6 +6,8 @@ metadata:
   namespace: suvisdev
 spec:
   replicas: 1
+  # backend 와 같은 이미지라 집컴(HDD)에서 똑같이 느리게 뜬다 — backend.yaml 설명 참고.
+  progressDeadlineSeconds: 1200
   selector:
     matchLabels:
       app: auth
