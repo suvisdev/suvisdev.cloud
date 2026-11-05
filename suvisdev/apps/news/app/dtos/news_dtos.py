@@ -115,6 +115,29 @@ class ArticleDto:
     group: str = ""
     # 목록 정렬·다음 쪽(before) 기준 시각. 날짜를 안 주는 피드가 있어 published_at 대신 이것으로 넘긴다.
     sort_at: datetime | None = None
+    # 노트북 EXAONE 이 만든 한국어 제목(영어 글만 번역, 한국어 글은 원제 그대로)·2~3문장 요약. 아직 안 만들었으면 None
+    title_ko: str | None = None
+    summary_ko: str | None = None
+
+
+@dataclass(frozen=True)
+class SummaryTarget:
+    """한국어 제목·요약을 만들 기사 1건."""
+
+    id: int
+    title: str
+    summary: str
+    body: str
+    source_name: str | None
+    section: str
+
+
+@dataclass
+class SummaryReport:
+    done: int = 0
+    failed: int = 0  # 모델 출력이 형식에 안 맞음 — 실패 횟수를 세고 3번이면 더 시도하지 않는다
+    unavailable: bool = False  # 올라마가 꺼졌거나 시간 초과 — 이번 주기는 멈추고 다음 주기에 다시
+    model: str = ""
 
 
 @dataclass(frozen=True)

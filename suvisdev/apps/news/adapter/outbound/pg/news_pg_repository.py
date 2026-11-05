@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from news.adapter.outbound.orm.news_orm import (
@@ -19,12 +19,14 @@ from news.app.dtos.news_dtos import (
     ArticleDto,
     FetchedArticle,
     StoredArticle,
+    SummaryTarget,
     TopicCreateCommand,
     TopicDto,
     TopicUpdateCommand,
     VerdictCommand,
 )
 from news.app.ports.output.news_repository import NewsRepositoryPort
+from news.domain.ko_summary import KoSummary
 from news.domain.url import canonical_url
 
 _CHUNK = 500
@@ -262,10 +264,13 @@ class NewsPgRepository(NewsRepositoryPort):
         stmt = select(NewsArticleOrm).where(NewsArticleOrm.section == section)
         for tok in tokens:
             needle = tok.lower()
+            # 한국어 제목·요약도 찾는다 — 영어 논문을 "전문가 혼합" 같은 한국어로 찾을 수 있게
             stmt = stmt.where(
                 or_(
                     func.lower(NewsArticleOrm.title).contains(needle, autoescape=True),
                     func.lower(NewsArticleOrm.summary).contains(needle, autoescape=True),
+                    func.lower(NewsArticleOrm.title_ko).contains(needle, autoescape=True),
+                    func.lower(NewsArticleOrm.summary_ko).contains(needle, autoescape=True),
                 )
             )
         if before is not None:
@@ -299,6 +304,51 @@ class NewsPgRepository(NewsRepositoryPort):
                     section=r.section,
                     group=r.feed_group,
                     sort_at=r.sort_at,
+                    title_ko=r.title_ko,
+                    summary_ko=r.summary_ko,
                 )
             )
         return out
+
+    # ── 한국어 제목·요약 ───────────────────────────────────────
+    async def pending_summaries(self, *, limit: int, max_tries: int) -> list[SummaryTarget]:
+        ai_first = case((NewsArticleOrm.section == "ai", 0), else_=1)
+        stmt = (
+            select(NewsArticleOrm)
+            .where(NewsArticleOrm.summary_ko.is_(None), NewsArticleOrm.ko_tries < max_tries)
+            .order_by(ai_first, NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc())
+            .limit(limit)
+        )
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [
+            SummaryTarget(
+                id=r.id,
+                title=r.title,
+                summary=r.summary,
+                body=r.body,
+                source_name=r.source_name,
+                section=r.section,
+            )
+            for r in rows
+        ]
+
+    async def save_summary(self, article_id: int, summary: KoSummary, model: str) -> None:
+        await self._session.execute(
+            update(NewsArticleOrm)
+            .where(NewsArticleOrm.id == article_id)
+            .values(
+                title_ko=summary.title_ko,
+                summary_ko=summary.summary_ko,
+                ko_model=model[:40],
+                ko_at=datetime.now(UTC),
+            )
+        )
+        await self._session.commit()
+
+    async def mark_summary_failed(self, article_id: int) -> None:
+        await self._session.execute(
+            update(NewsArticleOrm)
+            .where(NewsArticleOrm.id == article_id)
+            .values(ko_tries=NewsArticleOrm.ko_tries + 1)
+        )
+        await self._session.commit()

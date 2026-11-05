@@ -10,11 +10,14 @@ import asyncio
 import logging
 import os
 
-from news.dependencies.news_provider import run_collect_once
+from news.dependencies.news_provider import run_collect_once, run_summarize_once
 
 logger = logging.getLogger(__name__)
 
 NEWS_COLLECT_INTERVAL_SECONDS = max(300, int(os.getenv("NEWS_COLLECT_INTERVAL_SECONDS", "1800")))
+# 수집 뒤 한국어 제목·요약을 몇 건까지 할지. 노트북 EXAONE 7.8B 글당 약 3초 → 80건이면 4분 남짓(11-05 실측 기준).
+# 30분 주기면 하루 3,840건까지 — 하루 수집량(약 1,000건)과 첫 적재분을 넉넉히 따라간다. 0 이면 요약하지 않는다.
+NEWS_SUMMARY_BATCH = max(0, int(os.getenv("NEWS_SUMMARY_BATCH", "80")))
 
 
 def news_scheduler_enabled() -> bool:
@@ -42,4 +45,18 @@ async def run_news_collect_scheduler() -> None:
             raise
         except Exception:
             logger.exception("[news] 수집 주기 실패 — 다음 주기에 다시 시도")
+        if NEWS_SUMMARY_BATCH:
+            try:
+                summary = await run_summarize_once(NEWS_SUMMARY_BATCH)
+                logger.info(
+                    "[news] 한국어 요약 | 완료 %d · 실패 %d · 모델 응답 없음 %s · %s",
+                    summary.done,
+                    summary.failed,
+                    summary.unavailable,
+                    summary.model,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("[news] 요약 주기 실패 — 다음 주기에 다시 시도")
         await asyncio.sleep(NEWS_COLLECT_INTERVAL_SECONDS)

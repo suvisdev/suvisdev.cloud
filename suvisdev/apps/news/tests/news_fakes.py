@@ -11,6 +11,7 @@ from news.app.dtos.news_dtos import (
     FeedSource,
     FetchedArticle,
     StoredArticle,
+    SummaryTarget,
     TopicCreateCommand,
     TopicDto,
     TopicUpdateCommand,
@@ -18,6 +19,11 @@ from news.app.dtos.news_dtos import (
 )
 from news.app.ports.output.news_repository import NewsRepositoryPort
 from news.app.ports.output.news_source_ports import FeedReaderPort, NewsSearchPort
+from news.app.ports.output.news_summarizer_port import (
+    ArticleSummarizerPort,
+    SummarizerUnavailableError,
+)
+from news.domain.ko_summary import KoSummary
 from news.domain.url import canonical_url
 
 
@@ -28,6 +34,22 @@ class FakeRepo(NewsRepositoryPort):
         self.links: dict[int, dict[int, float]] = {}
         self.verdicts: dict[tuple[int, str], VerdictCommand] = {}
         self.last_query: tuple[object, ...] = ()
+        self.summary_queue: list[SummaryTarget] = []
+        self.summaries: dict[int, tuple[KoSummary, str]] = {}
+        self.summary_failures: dict[int, int] = {}
+
+    async def pending_summaries(self, *, limit: int, max_tries: int) -> list[SummaryTarget]:
+        return [
+            t
+            for t in self.summary_queue
+            if t.id not in self.summaries and self.summary_failures.get(t.id, 0) < max_tries
+        ][:limit]
+
+    async def save_summary(self, article_id: int, summary: KoSummary, model: str) -> None:
+        self.summaries[article_id] = (summary, model)
+
+    async def mark_summary_failed(self, article_id: int) -> None:
+        self.summary_failures[article_id] = self.summary_failures.get(article_id, 0) + 1
 
     async def list_topics(
         self, *, public_only: bool, active_only: bool, section: str | None = None
@@ -179,3 +201,22 @@ def art(
         origin=origin,
         **kw,  # type: ignore[arg-type]
     )
+
+
+class FakeSummarizer(ArticleSummarizerPort):
+    """제목에 '고장' 이 있으면 형식 틀림(None), '정전' 이면 서버 문제, 그 밖은 '요약: 제목'."""
+
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+
+    @property
+    def model_name(self) -> str:
+        return "fake-7.8b"
+
+    async def summarize(self, target: SummaryTarget) -> KoSummary | None:
+        self.calls.append(target.id)
+        if "정전" in target.title:
+            raise SummarizerUnavailableError("connection refused")
+        if "고장" in target.title:
+            return None
+        return KoSummary(title_ko=f"번역 {target.title}", summary_ko=f"요약: {target.title}")

@@ -31,6 +31,9 @@ export type NewsArticle = {
   group: string
   /** 목록 정렬 시각(날짜 없는 글은 수집 시각) — 다음 쪽은 마지막 글의 이 값을 before 로 넘긴다 */
   sort_at: string | null
+  /** 노트북 EXAONE 이 만든 한국어 제목(영어 글만 번역)·2~3문장 요약. 아직 안 만들었으면 null */
+  title_ko: string | null
+  summary_ko: string | null
 }
 
 export type NewsResult<T> = { ok: true; data: T } | { ok: false; message: string }

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -64,6 +65,12 @@ class NewsArticleOrm(NewsBase):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sort_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # 노트북 EXAONE 한국어 제목·요약(20261105_0003). 영어 글은 제목 번역, 한국어 글은 원제 그대로
+    title_ko: Mapped[str | None] = mapped_column(String(500))
+    summary_ko: Mapped[str | None] = mapped_column(Text)
+    ko_model: Mapped[str | None] = mapped_column(String(40))
+    ko_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ko_tries: Mapped[int] = mapped_column(Integer, server_default="0")
 
 
 class NewsTopicArticleOrm(NewsBase):

@@ -60,6 +60,9 @@ class ArticleSchema(BaseModel):
     section: SectionCode
     group: str  # 출처 묶음 코드 — /sections 의 groups[].code
     sort_at: datetime | None  # 다음 쪽은 마지막 글의 이 값을 before 로 넘긴다
+    # 노트북 EXAONE 한국어 제목(영어 글만 번역)·2~3문장 요약 — 아직 안 만들었으면 null
+    title_ko: str | None
+    summary_ko: str | None
 
 
 class CollectReportSchema(BaseModel):

@@ -38,8 +38,30 @@ function AiBadge({ article }: { article: NewsArticle }) {
   )
 }
 
+/** 요약: 한국어 AI 요약이 있으면 그것(앞에 'AI 요약' 표시), 없으면 피드가 준 요약. */
+function Summary({ article }: { article: NewsArticle }) {
+  if (article.summary_ko) {
+    return (
+      <p className="text-muted-foreground mt-1.5 text-sm leading-relaxed break-words [word-break:keep-all]">
+        <span className="border-border text-foreground mr-1.5 inline-block rounded border px-1 align-[1px] text-[10px] leading-4 font-medium">
+          AI 요약
+        </span>
+        {article.summary_ko}
+      </p>
+    )
+  }
+  if (!article.summary) return null
+  return (
+    <p className="text-muted-foreground mt-1.5 line-clamp-3 text-sm leading-relaxed break-words [word-break:keep-all]">
+      {article.summary}
+    </p>
+  )
+}
+
 export function ArticleItem({ article, groupLabel }: { article: NewsArticle; groupLabel: string }) {
   const date = formatDate(article.published_at)
+  const title = article.title_ko || article.title
+  const translated = title !== article.title
   return (
     <li className="border-border border-b py-4 last:border-b-0">
       <a
@@ -48,8 +70,13 @@ export function ArticleItem({ article, groupLabel }: { article: NewsArticle; gro
         rel="noopener noreferrer"
         className="text-foreground text-base leading-snug font-semibold break-words [word-break:keep-all] hover:underline"
       >
-        {article.title}
+        {title}
       </a>
+      {translated && (
+        <p className="text-muted-foreground mt-0.5 text-xs break-words" lang="en">
+          {article.title}
+        </p>
+      )}
       <p className="text-muted-foreground mt-1 flex flex-wrap gap-x-1.5 text-xs">
         <span>{article.source_name ?? article.source_domain}</span>
         {groupLabel && <span aria-hidden>·</span>}
@@ -57,11 +84,7 @@ export function ArticleItem({ article, groupLabel }: { article: NewsArticle; gro
         {date && <span aria-hidden>·</span>}
         {date && <time dateTime={article.published_at ?? undefined}>{date}</time>}
       </p>
-      {article.summary && (
-        <p className="text-muted-foreground mt-1.5 line-clamp-3 text-sm leading-relaxed break-words [word-break:keep-all]">
-          {article.summary}
-        </p>
-      )}
+      <Summary article={article} />
       <AiBadge article={article} />
     </li>
   )
