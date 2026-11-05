@@ -43,6 +43,7 @@ Karpathy 네 원칙(묵시적 가정 금지·최소 diff)은 **항상** 유지�
 | `contents/` | 콘텐츠 데모(soccer chat 등) | Spoke | — |
 | `analytics/` | 방문자 통계 | Spoke | — |
 | `media/` | (구 susu) 모바일 카메라 사진 → S3 저장·OCR | Spoke | — |
+| `news/` | news.suvisdev.cloud — 검색어 탭·최신 뉴스(RSS) 수집 + AI 기사 배지 (2026-11-05) | Spoke | `news/_docs/CLAUDE.md` |
 | `sample/` | 순수 스켈레톤(main.py 미등록, 전 파일 `__init__.py`) | Spoke | — |
 
 - **프로덕션 인증은 auth 게이트웨이**(`/auth/login`·`/auth/signup`, RS256) —
@@ -50,7 +51,7 @@ Karpathy 네 원칙(묵시적 가정 금지·최소 diff)은 **항상** 유지�
 - **DB:** PostgreSQL(노트북 k3s 외부 도커). Mova·Viewer(Secom)는 동일 DB URL을 공유하는 경우가 많음 (`DATABASE_URL` / `MOVA_DATABASE_URL` / `SECOM_DATABASE_URL`).
 - **진입점:** `main.py` — lifespan에서 `verify_connection()` → `create_tables()` → `seed_viewer_if_empty()`.
 - **현재 main.py 등록 앱(2026-09-11 실측):** mova, titanic, gildle, viewer,
-  execsuite, dispatch, contents, ontology(vision·nlp 포함), analytics, media.
+  execsuite, dispatch, contents, ontology(vision·nlp 포함), analytics, media, news(2026-11-05, `/api/v1/news`).
 - **테스트:** `apps/<app>/tests/` 또는 `test/` (앱별 기존 이름 유지). `suvisdev/tests/` 루트 폴더는 **사용하지 않음**.
 
 ---

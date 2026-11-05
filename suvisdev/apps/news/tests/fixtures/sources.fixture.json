@@ -1,0 +1,5 @@
+{
+  "_note": "합성 테스트 기사 전용 출처 목록. 가상 매체다.",
+  "known": ["ganadaily.example", "dabroadcast.example", "ganaeconomy.example"],
+  "blocked": []
+}

@@ -28,6 +28,32 @@
 
 ---
 
+## 2026-11-05 — news.suvisdev.cloud 1단계: 수집 뼈대 + AI 기사 배지 판정
+
+### 작업 내용
+- 새 개인 프로젝트 news.suvisdev.cloud. 뉴스를 검색어 탭·최신 뉴스 탭으로 모으고, AI가 만든 기사에는 숨기지 않고 배지를 단다.
+  판정 하네스는 바탕화면 `뉴스
+ewsdesk`(Claude 스킬 `news-ai-filter`)에서 먼저 만들고, 그 판정 코드를 `apps/news/domain/ai_filter/` 로 그대로 옮겼다.
+- 사용자 결정(인터뷰): 공개 읽기 전용, 카테고리 = 검색어, 방문자도 검색, 애매한 기사는 집컴 올라마 2차 판정, 운영자 아침 메일. 매일 최신 뉴스 수집 추가.
+
+### 수정/구현
+- `apps/news` 헥사고날 앱: 수집·읽기·운영자 인터랙터, 네이버 뉴스 검색 어댑터(개발자센터·API HUB 헤더를 URL 로 고름), RSS 어댑터(`latest_feeds.json` 13곳),
+  `NewsPgRepository`(Postgres 전용 구문 없이 — SQLite 로 테스트), 스케줄러(`ENABLE_NEWS_SCHEDULER`, 기본 꺼짐), 공개 API `/api/v1/news/topics·latest`, 운영자 API `/admin/topics·collect`.
+- 원문 페이지는 가져오지 않는다(저장소 기존 저작권 원칙). 판정은 제목·요약 + RSS 가 직접 준 본문만. 요약만 있는 기사는 본문 신호를 n/a 로 둔다.
+- alembic `20261105_0001`(news_topics·news_articles·news_topic_articles·news_verdicts), env.py 에 NewsBase 등록, `.importlinter` 에 news(스포크 독립 + 도메인 순수성), pytest.ini, `.env.example`.
+
+### 오류·막힌 점
+- 실제 RSS 13곳 737건을 돌리자 'AI 생성 의심' 3건이 전부 SBS 방송 요약 — 번호 목록(`1.`·`01.`)을 마크다운 글머리로 센 탓. 글머리표(`-` `*` `•`)만 세도록 바꾸고 하네스 0.1.1 → 같은 737건에서 0건.
+- SBS RSS 본문에 "RSS 피드는 개인 리더 이용 목적으로 허용, 피드를 이용한 게시 등 무단 복제 금지" 문구가 있다. 공개 화면에 RSS 기사를 보여 주는 범위는 사용자 결정으로 남김.
+
+### 데이터
+- 로컬 SQLite 실측(네이버 키 없음): RSS 13곳 737건 수집 11~21초, 두 번째 주기 중복 0, 본문 제공 매체는 조선·SBS·ZDNet(+연합 일부).
+- 합성 기사 17건 회귀(가상 매체): C 모드 normal 8/0/0, ai 0/1/7 — 규칙을 보고 만든 기사라 성능 수치가 아니다.
+
+### 산출물
+- 브랜치 `feat/news-collector`. 검증: news 테스트 25개 통과, ruff·format 통과, mypy strict(news) 통과, import-linter 8 kept.
+- 운영 반영 전 사용자 작업: 운영 DB `alembic upgrade head`, 네이버 검색 API 키, 노트북 `.env` `ENABLE_NEWS_SCHEDULER=true`.
+
 ## 2026-10-28 (3) — 운영 제어 3단계: 관리자 홈 카드 + 동작 비동기
 
 ### 작업 내용
