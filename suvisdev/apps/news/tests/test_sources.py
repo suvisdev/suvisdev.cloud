@@ -76,12 +76,55 @@ def test_naver_client_disabled_without_keys(monkeypatch):
     assert NaverNewsSearchClient.from_env().enabled is False
 
 
+_ARXIV = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>cs.CL updates on arXiv.org</title>
+<item><title>Sparse Experts</title><link>https://arxiv.org/abs/2611.00001</link>
+<description>arXiv:2611.00001v1 Announce Type: new
+Abstract: We study sparse experts.</description>
+<pubDate>Thu, 05 Nov 2026 00:00:00 -0500</pubDate></item>
+<item><title>Old Paper v3</title><link>https://arxiv.org/abs/2401.00002</link>
+<description>arXiv:2401.00002v3 Announce Type: replace
+Abstract: Revised.</description>
+<pubDate>Thu, 05 Nov 2026 00:00:00 -0500</pubDate></item>
+<item><title>Cross Paper</title><link>https://arxiv.org/abs/2611.00003</link>
+<description>arXiv:2611.00003v1 Announce Type: replace-cross
+Abstract: Revised cross.</description>
+<pubDate>Thu, 05 Nov 2026 00:00:00 -0500</pubDate></item>
+</channel></rss>"""
+
+_ATOM_RELEASES = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Release notes from ollama</title>
+<entry><title>v0.13.0</title><link rel="alternate" href="https://github.com/ollama/ollama/releases/tag/v0.13.0"/>
+<updated>2026-11-05T01:31:38Z</updated>
+<content type="html">&lt;p&gt;New models: example-moe&lt;/p&gt;</content></entry>
+<entry><title>v0.12.9</title><link rel="alternate" href="https://github.com/ollama/ollama/releases/tag/v0.12.9"/>
+<updated>2026-10-30T01:00:00Z</updated>
+<content type="html">&lt;p&gt;Fixes&lt;/p&gt;</content></entry>
+</feed>"""
+
+
 def test_parse_feed_reads_content_and_author():
-    (a,) = parse_feed(_RSS.encode(), FeedSource(name="가나일보", url="https://x.example/rss"))
+    feed = FeedSource(name="가나일보", url="https://x.example/rss", group="outlet")
+    (a,) = parse_feed(_RSS.encode(), feed)
     assert a.title == "시립도서관 야간 운영 늘린다"
     assert a.summary == "가나시 시립도서관이 밤 10시까지 연다."
     assert "시는 3일 발표했다." in a.body  # content:encoded 본문
     assert a.author == "김민준 기자" and a.source_name == "가나일보" and a.origin == "feed"
+    assert a.section == "economy" and a.group == "outlet"
+
+
+def test_parse_feed_skips_arxiv_revisions_and_strips_header():
+    feed = FeedSource(name="arXiv", url="https://rss.arxiv.org/rss/cs.CL", group="paper")
+    (a,) = parse_feed(_ARXIV.encode(), feed)
+    assert a.title == "Sparse Experts" and a.summary == "We study sparse experts."
+    assert a.section == "ai" and a.group == "paper"
+
+
+def test_parse_feed_keeps_newest_n_and_uses_body_when_no_summary():
+    feed = FeedSource(name="Ollama", url="https://g.example/r.atom", group="release", max_items=1)
+    (a,) = parse_feed(_ATOM_RELEASES.encode(), feed)
+    assert a.title == "v0.13.0"  # 최신 1건만
+    assert a.summary == "New models: example-moe"
 
 
 @pytest.mark.asyncio
@@ -93,11 +136,16 @@ async def test_rss_reader_fetches_with_user_agent():
         return httpx.Response(200, content=_RSS.encode())
 
     reader = RssFeedReader(transport=httpx.MockTransport(handler))
-    items = await reader.read(FeedSource(name="가나일보", url="https://x.example/rss"))
+    items = await reader.read(
+        FeedSource(name="가나일보", url="https://x.example/rss", group="outlet")
+    )
     assert len(items) == 1 and agents[0].startswith("suvisdev-news/")
 
 
 def test_latest_feed_list_is_valid():
     feeds = load_latest_feeds()
-    assert len(feeds) >= 10
     assert len({f.url for f in feeds}) == len(feeds)
+    by_section = {s: [f for f in feeds if f.section == s] for s in ("ai", "economy")}
+    assert len(by_section["ai"]) >= 15 and len(by_section["economy"]) >= 10  # AI 가 메인
+    assert all(f.group != "search" for f in feeds)
+    assert not any("sbs.co.kr" in f.url for f in feeds)  # SBS RSS 는 개인 리더 이용만 허용

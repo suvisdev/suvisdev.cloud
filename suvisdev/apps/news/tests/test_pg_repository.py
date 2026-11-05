@@ -30,14 +30,24 @@ async def repo():
     await engine.dispose()
 
 
-def _a(n: int, origin: str = "feed", minutes: int = 0) -> FetchedArticle:
+def _a(
+    n: int,
+    origin: str = "feed",
+    minutes: int = 0,
+    section: str = "ai",
+    group: str = "lab",
+    title: str | None = None,
+    summary: str = "요약",
+) -> FetchedArticle:
     return FetchedArticle(
         url=f"https://a.example/{n}?utm_source=x",
-        title=f"기사 {n}",
-        summary="요약",
+        title=title or f"기사 {n}",
+        summary=summary,
         source_domain="a.example",
         origin=origin,
         published_at=datetime(2026, 11, 5, 9, tzinfo=UTC) + timedelta(minutes=minutes),
+        section=section,
+        group=group,
     )
 
 
@@ -69,8 +79,46 @@ async def test_topic_articles_with_badges_and_paging(repo):
     assert rows[0].badge == "ai_suspected" and rows[1].badge == "none"
     older = await repo.list_topic_articles(topic.id, limit=10, before=rows[0].published_at)
     assert [r.title for r in older] == ["기사 1"]
-    latest = await repo.list_latest(limit=10, before=None)
+    latest = await repo.list_latest(section="ai", group=None, limit=10, before=None)
     assert [r.title for r in latest] == ["기사 3"]  # 최신 탭은 RSS 기사만
+
+
+@pytest.mark.asyncio
+async def test_latest_by_section_and_group(repo):
+    await repo.save_articles(
+        [
+            _a(1, minutes=0, group="lab"),
+            _a(2, minutes=10, group="paper"),
+            _a(3, minutes=20, section="economy", group="outlet"),
+        ]
+    )
+    ai = await repo.list_latest(section="ai", group=None, limit=10, before=None)
+    assert [(r.title, r.group) for r in ai] == [("기사 2", "paper"), ("기사 1", "lab")]
+    papers = await repo.list_latest(section="ai", group="paper", limit=10, before=None)
+    assert [r.title for r in papers] == ["기사 2"]
+    econ = await repo.list_latest(section="economy", group=None, limit=10, before=None)
+    assert [(r.title, r.section) for r in econ] == [("기사 3", "economy")]
+
+
+@pytest.mark.asyncio
+async def test_search_matches_all_tokens_case_insensitive_within_section(repo):
+    await repo.save_articles(
+        [
+            _a(1, minutes=0, title="Sparse Mixture of Experts", summary="routing"),
+            _a(2, minutes=10, title="Dense model", summary="no MIXTURE here"),
+            _a(3, minutes=20, title="금리 인하 기대", section="economy", group="outlet"),
+            _a(4, minutes=30, title="100% 달성", section="economy", group="outlet"),
+        ]
+    )
+    rows = await repo.search_articles(["mixture"], section="ai", limit=10, before=None)
+    assert [r.title for r in rows] == ["Dense model", "Sparse Mixture of Experts"]  # 요약도 본다
+    rows = await repo.search_articles(["Mixture", "routing"], section="ai", limit=10, before=None)
+    assert [r.title for r in rows] == ["Sparse Mixture of Experts"]
+    assert await repo.search_articles(["금리"], section="ai", limit=10, before=None) == []
+    rows = await repo.search_articles(["금리"], section="economy", limit=10, before=None)
+    assert [r.title for r in rows] == ["금리 인하 기대"]
+    rows = await repo.search_articles(["%"], section="economy", limit=10, before=None)
+    assert [r.title for r in rows] == ["100% 달성"]  # LIKE 특수문자는 글자 그대로
 
 
 @pytest.mark.asyncio
@@ -86,15 +134,18 @@ async def test_llm_verdict_overrides_rules_and_version_tracking(repo):
             )
         ]
     )
-    (row,) = await repo.list_latest(limit=5, before=None)
+    (row,) = await repo.list_latest(section="ai", group=None, limit=5, before=None)
     assert row.badge == "ai_suspected"
 
 
 @pytest.mark.asyncio
 async def test_topic_crud(repo):
-    t = await repo.create_topic(TopicCreateCommand(query="환율", label="환율", is_public=False))
-    assert await repo.find_topic_by_query("환율") == t
+    t = await repo.create_topic(
+        TopicCreateCommand(query="환율", label="환율", is_public=False, section="economy")
+    )
+    assert await repo.find_topic_by_query("환율") == t and t.section == "economy"
     assert await repo.list_topics(public_only=True, active_only=True) == []
+    assert await repo.list_topics(public_only=False, active_only=True, section="ai") == []
     u = await repo.update_topic(
         TopicUpdateCommand(topic_id=t.id, is_public=True, label="환율 소식")
     )

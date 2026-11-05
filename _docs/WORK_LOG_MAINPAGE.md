@@ -28,6 +28,41 @@
 
 ---
 
+## 2026-11-05 (3) — news 섹션 개편: 메인 AI 기술 · 부록 경제
+
+### 작업 내용
+- 사용자가 목적을 밝힘: **새 AI 기술·아키텍처 변화를 바로 알아 공부하려는 것**. 1단계의 최신 뉴스 13곳(종합지)은 목적과 맞지 않아,
+  메인은 AI 1차 출처, 경제는 부록으로 두고 둘 다 검색해서 볼 수 있게 했다.
+- 후보 RSS 를 직접 받아 응답·최신 글을 확인(AI 26곳 중 22곳 채택, 경제 16곳 중 14곳). 안 된 곳: Anthropic·Meta AI 404, r/MachineLearning 429, 이데일리 응답 없음.
+
+### 오류·막힌 점
+- **영어 1차 출처에 기사 판정 규칙을 그대로 돌리면 오탐.** 받아 둔 AI 피드(국내 AI 매체 제외 3,321건)에 0.1.1 규칙을 돌리니 'AI 생성 의심' 13건
+  (AWS ML 4·Latent Space 3·MS Research 2·r/LocalLLaMA 2·Interconnects 1·OpenAI 1), 보류 208건(NVIDIA 99/100 등). 같은 날 경제 언론 982건은 0건.
+  → 판정 범위를 출처 묶음으로 제한(국내 AI 매체·경제 언론·뉴스 검색). 범위 밖은 본문도 저장하지 않는다.
+- OpenAI 피드 1,359건·Hugging Face 897건처럼 보관본 전체를 주는 피드 → 피드당 최신 50건(`max_items`).
+- arXiv RSS 의 절반이 개정 공지(cs.CL 159건 중 69, cs.LG 445건 중 193) → `Announce Type: replace*` 건너뜀, 머리말 제거.
+  arXiv 는 하루치가 같은 시각이라 50건으로 자르면 잘려 나가서 300건으로 둠.
+- SBS RSS("개인 리더 이용만 허용") 는 경제 섹션에도 넣지 않음.
+
+### 수정/구현
+- `domain/sections.py`: 섹션(ai·economy), 묶음 8개, `JUDGED_GROUPS`. `latest_feeds.json` 36곳(묶음 표시), 로드할 때 묶음 검사.
+- 수집: 검색어 탭이 자기 섹션의 이번 주기 RSS 글을 관련성으로 고름(AI 탭은 검색 API 없이 동작), 경제 탭만 뉴스 검색 API 를 더 씀.
+  같은 주소는 먼저 온 RSS 묶음을 남김. `CollectReport.not_judged`.
+- 읽기: `/sections`, `/topics?section=`, `/latest?section=&group=`(기본 ai), `/search?q=&section=`(모아 둔 기사 제목·요약, LIKE escape). 운영자 탭 생성에 `section`.
+- alembic `20261105_0002`(news_articles.section·feed_group + ix(section, sort_at), news_topics.section). 0001 이 운영에 아직 안 올라가 `upgrade head` 한 번에 둘 다 반영된다.
+
+### 데이터
+- 테스트 25 → 36개 통과. ruff·format 통과, mypy(news) 0건, import-linter 8 kept. 마이그레이션 0001+0002 ↔ ORM 비교 차이 0, 되돌리기 깨끗.
+  (로컬 mypy 는 viewer `oauth_router.py:83` 1건을 내는데 main 에서도 같다 — 로컬 venv 의존성 차이, CI 는 통과.)
+- 로컬 SQLite 실수집(네이버 키 없음): 피드 36곳 전부 응답, 1,564건(AI 947·경제 617) 37.8초, 두 번째 주기 새 글 2건.
+  판정 717건(국내 AI 매체 100·경제 언론 617) 전부 normal, 판정 범위 밖 847건, 본문 저장은 조선비즈 49건뿐.
+  검색어 탭: "mixture of experts" 17건·"agent" 100건 이상·"금리"(경제) 8건. `/search` "transformer" 41건·"환율"(경제) 10건.
+
+### 산출물
+- 브랜치 `feat/news-ai-sections`. 운영 반영 전 사용자 작업은 1단계와 같다(`alembic upgrade head`, 노트북 `.env` 스케줄러, 네이버 키는 경제 검색에만).
+
+---
+
 ## 2026-11-05 (2) — 배포: 집컴 예비 동기화가 47초 차이로 실패 표시
 
 ### 작업 내용

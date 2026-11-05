@@ -34,6 +34,7 @@ class NewsTopicOrm(NewsBase):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     query: Mapped[str] = mapped_column(String(100), unique=True)
     label: Mapped[str] = mapped_column(String(50))
+    section: Mapped[str] = mapped_column(String(16), server_default="ai")  # ai | economy
     is_public: Mapped[bool] = mapped_column(Boolean, server_default=true())
     active: Mapped[bool] = mapped_column(Boolean, server_default=true())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -43,7 +44,10 @@ class NewsArticleOrm(NewsBase):
     """수집한 기사. 본문(body)은 RSS 가 직접 준 것만 — 원문 페이지는 가져오지 않는다. 화면·API 로 내보내지 않는다."""
 
     __tablename__ = "news_articles"
-    __table_args__ = (Index("ix_news_articles_origin_sort_at", "origin", "sort_at"),)
+    __table_args__ = (
+        Index("ix_news_articles_origin_sort_at", "origin", "sort_at"),
+        Index("ix_news_articles_section_sort_at", "section", "sort_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     canonical_url: Mapped[str] = mapped_column(String(1000), unique=True)
@@ -55,6 +59,8 @@ class NewsArticleOrm(NewsBase):
     body: Mapped[str] = mapped_column(Text, server_default="")
     author: Mapped[str] = mapped_column(String(100), server_default="")
     origin: Mapped[str] = mapped_column(String(16))  # "search" | "feed"
+    section: Mapped[str] = mapped_column(String(16), server_default="ai")  # ai | economy
+    feed_group: Mapped[str] = mapped_column(String(16), server_default="")  # domain/sections.GROUPS
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sort_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

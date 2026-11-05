@@ -30,7 +30,7 @@ def build_collect_use_case(session: AsyncSession) -> NewsCollectUseCase:
 
 
 def get_news_read_use_case(db: AsyncSession = Depends(get_db)) -> NewsReadUseCase:
-    return NewsReadInteractor(repository=NewsPgRepository(session=db))
+    return NewsReadInteractor(repository=NewsPgRepository(session=db), feeds=load_latest_feeds())
 
 
 def get_news_topic_admin_use_case(db: AsyncSession = Depends(get_db)) -> NewsTopicAdminUseCase:

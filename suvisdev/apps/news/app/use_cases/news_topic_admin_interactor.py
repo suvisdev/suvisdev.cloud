@@ -8,6 +8,7 @@ from news.app.dtos.news_dtos import TopicCreateCommand, TopicDto, TopicUpdateCom
 from news.app.errors import DuplicateTopicError, TopicNotFoundError, TopicValidationError
 from news.app.ports.input.news_use_cases import NewsTopicAdminUseCase
 from news.app.ports.output.news_repository import NewsRepositoryPort
+from news.domain.sections import SECTIONS, is_section
 
 MAX_QUERY_LEN = 100
 MAX_LABEL_LEN = 50
@@ -27,6 +28,8 @@ class NewsTopicAdminInteractor(NewsTopicAdminUseCase):
             raise TopicValidationError(f"검색어는 1~{MAX_QUERY_LEN}자")
         if len(label) > MAX_LABEL_LEN:
             raise TopicValidationError(f"탭 이름은 {MAX_LABEL_LEN}자 이하")
+        if not is_section(command.section):
+            raise TopicValidationError(f"섹션은 {', '.join(SECTIONS)} 중 하나")
         if await self._repository.find_topic_by_query(query) is not None:
             raise DuplicateTopicError(query)
         return await self._repository.create_topic(replace(command, query=query, label=label))

@@ -43,7 +43,10 @@ async def admin_create_topic(
     use_case: NewsTopicAdminUseCase = Depends(get_news_topic_admin_use_case),
 ) -> AdminTopicSchema:
     command = TopicCreateCommand(
-        query=payload.query, label=payload.label, is_public=payload.is_public
+        query=payload.query,
+        label=payload.label,
+        is_public=payload.is_public,
+        section=payload.section,
     )
     try:
         return _topic(await use_case.create_topic(command))

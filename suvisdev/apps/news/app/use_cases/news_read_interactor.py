@@ -1,23 +1,49 @@
-"""공개 읽기 — 검색어 탭 목록, 탭별 기사, 최신 뉴스. news.suvisdev.cloud 는 로그인 없이 이것만 쓴다."""
+"""공개 읽기 — 섹션·검색어 탭 목록, 탭별 기사, 섹션별 최신, 모아 둔 기사 검색.
+news.suvisdev.cloud 는 로그인 없이 이것만 쓴다. 메인은 AI 섹션, 경제는 부록.
+"""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
-from news.app.dtos.news_dtos import ArticleDto, TopicDto
-from news.app.errors import TopicNotFoundError
+from news.app.dtos.news_dtos import ArticleDto, FeedSource, GroupDto, SectionDto, TopicDto
+from news.app.errors import NewsQueryError, TopicNotFoundError
 from news.app.ports.input.news_use_cases import NewsReadUseCase
 from news.app.ports.output.news_repository import NewsRepositoryPort
+from news.domain.sections import GROUPS, SECTIONS, is_section
 
 MAX_LIMIT = 100
+MAX_QUERY_LEN = 50
+MAX_TOKENS = 5
 
 
 class NewsReadInteractor(NewsReadUseCase):
-    def __init__(self, repository: NewsRepositoryPort) -> None:
+    def __init__(self, repository: NewsRepositoryPort, feeds: Sequence[FeedSource] = ()) -> None:
         self._repository = repository
+        self._feeds = list(feeds)
 
-    async def list_public_topics(self) -> list[TopicDto]:
-        return await self._repository.list_topics(public_only=True, active_only=True)
+    async def list_sections(self) -> list[SectionDto]:
+        out: list[SectionDto] = []
+        for code, label in SECTIONS.items():
+            groups = [
+                GroupDto(
+                    code=g,
+                    label=g_label,
+                    feeds=[f.name for f in self._feeds if f.group == g],
+                )
+                for g, (g_section, g_label) in GROUPS.items()
+                if g_section == code
+            ]
+            out.append(SectionDto(code=code, label=label, groups=groups))
+        return out
+
+    async def list_public_topics(self, section: str | None = None) -> list[TopicDto]:
+        if section is not None:
+            _check_section(section)
+        return await self._repository.list_topics(
+            public_only=True, active_only=True, section=section
+        )
 
     async def list_topic_articles(
         self, topic_id: int, *, limit: int, before: datetime | None
@@ -30,8 +56,32 @@ class NewsReadInteractor(NewsReadUseCase):
             topic_id, limit=_clamp(limit), before=before
         )
 
-    async def list_latest(self, *, limit: int, before: datetime | None) -> list[ArticleDto]:
-        return await self._repository.list_latest(limit=_clamp(limit), before=before)
+    async def list_latest(
+        self, *, section: str, group: str | None, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        _check_section(section)
+        if group is not None and (group not in GROUPS or GROUPS[group][0] != section):
+            raise NewsQueryError(f"{section} 섹션에 없는 묶음: {group}")
+        return await self._repository.list_latest(
+            section=section, group=group, limit=_clamp(limit), before=before
+        )
+
+    async def search(
+        self, query: str, *, section: str, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        _check_section(section)
+        q = " ".join(query.split())
+        if not q or len(q) > MAX_QUERY_LEN:
+            raise NewsQueryError(f"검색어는 1~{MAX_QUERY_LEN}자")
+        tokens = list(dict.fromkeys(q.split()))[:MAX_TOKENS]
+        return await self._repository.search_articles(
+            tokens, section=section, limit=_clamp(limit), before=before
+        )
+
+
+def _check_section(section: str) -> None:
+    if not is_section(section):
+        raise NewsQueryError(f"없는 섹션: {section}")
 
 
 def _clamp(limit: int) -> int:

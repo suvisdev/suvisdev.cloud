@@ -15,6 +15,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 11-05 **news 섹션 개편 — 메인 AI 기술 · 부록 경제**: 목적이 "새 AI 기술·아키텍처 공부"로 확정돼 피드를 AI 22곳(연구소 블로그·arXiv·GitHub 릴리스·해설·커뮤니티·국내 AI 매체) + 경제 14곳으로 교체, `/sections`·`/latest?section=&group=`·`/search`, 검색어 탭 섹션별 RSS 매칭, AI 배지 판정은 국내 뉴스 기사 묶음만, alembic `20261105_0002`. **남은 것**: 운영 DB `alembic upgrade head`(0001·0002 둘 다 아직), 노트북 `.env` 스케줄러, 2단계 화면.
 - `[P]` 11-05 **news.suvisdev.cloud 1단계(수집 뼈대)**: `apps/news` — 검색어 탭(네이버 뉴스 검색 API)·최신 뉴스(언론사 RSS 13곳) 수집, 관련성 필터, AI 기사 규칙 판정(배지, 숨기지 않음), 공개 읽기 API·운영자 검색어 API, 스케줄러(노트북만, 기본 꺼짐), alembic `20261105_0001`. **남은 것**: 운영 DB `alembic upgrade head`·네이버 키·노트북 `.env` 는 사용자, 2~6단계(화면·방문자 검색·올라마 2차 판정·아침 메일·정답셋)는 newsdesk `docs/구현가이드.md` §7.
 - `[P]` 10-20 **Codex 전체 리뷰 → 6개 영역 수정(PR #209~#213 머지, 배포 성공)** · 디스코드 커밋 알림 웹훅 · Claude 수정/Codex 리뷰 분담(Codex OK 후 커밋). 덜미 #207은 머지 보류. 남은 사용자 작업은 아래 "10-20 리뷰 수정 후속".
 - `[P]` 10-14 **/resume 를 PDF 이력서 v18 에 맞춤 · 홈 ARDA "본선 TOP 20"**: Experience 섹션(원티드 AI Championship 2026 본선 TOP 20, 투표 1위 10.05 기준) ·
