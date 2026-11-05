@@ -1,15 +1,44 @@
 [
-  {"name": "연합뉴스", "url": "https://www.yna.co.kr/rss/news.xml"},
-  {"name": "뉴시스", "url": "https://newsis.com/RSS/sokbo.xml"},
-  {"name": "한겨레", "url": "https://www.hani.co.kr/rss/"},
-  {"name": "경향신문", "url": "https://www.khan.co.kr/rss/rssdata/total_news.xml"},
-  {"name": "동아일보", "url": "https://rss.donga.com/total.xml"},
-  {"name": "조선일보", "url": "https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml"},
-  {"name": "SBS", "url": "https://news.sbs.co.kr/news/newsflashRssFeed.do?plink=RSSREADER"},
-  {"name": "JTBC", "url": "https://news-ex.jtbc.co.kr/v1/get/rss/newsflesh"},
-  {"name": "매일경제", "url": "https://www.mk.co.kr/rss/40300001/"},
-  {"name": "한국경제", "url": "https://www.hankyung.com/feed/all-news"},
-  {"name": "전자신문", "url": "https://rss.etnews.com/Section901.xml"},
-  {"name": "ZDNet Korea", "url": "https://feeds.feedburner.com/zdkorea"},
-  {"name": "오마이뉴스", "url": "http://rss.ohmynews.com/rss/ohmynews.xml"}
+  {"name": "OpenAI", "url": "https://openai.com/news/rss.xml", "group": "lab"},
+  {"name": "Google DeepMind", "url": "https://deepmind.google/blog/feed/basic/", "group": "lab"},
+  {"name": "Google Research", "url": "https://research.google/blog/rss/", "group": "lab"},
+  {"name": "Hugging Face", "url": "https://huggingface.co/blog/feed.xml", "group": "lab"},
+  {"name": "NVIDIA 개발자", "url": "https://developer.nvidia.com/blog/feed", "group": "lab"},
+  {"name": "Microsoft Research", "url": "https://www.microsoft.com/en-us/research/feed/", "group": "lab"},
+  {"name": "AWS ML", "url": "https://aws.amazon.com/blogs/machine-learning/feed/", "group": "lab"},
+
+  {"name": "arXiv 언어모델(cs.CL)", "url": "https://rss.arxiv.org/rss/cs.CL", "group": "paper", "max_items": 300},
+  {"name": "arXiv 머신러닝(cs.LG)", "url": "https://rss.arxiv.org/rss/cs.LG", "group": "paper", "max_items": 300},
+
+  {"name": "vLLM", "url": "https://github.com/vllm-project/vllm/releases.atom", "group": "release"},
+  {"name": "Ollama", "url": "https://github.com/ollama/ollama/releases.atom", "group": "release"},
+  {"name": "Transformers", "url": "https://github.com/huggingface/transformers/releases.atom", "group": "release"},
+
+  {"name": "Simon Willison", "url": "https://simonwillison.net/atom/everything/", "group": "commentary"},
+  {"name": "Latent Space", "url": "https://www.latent.space/feed", "group": "commentary"},
+  {"name": "Interconnects", "url": "https://www.interconnects.ai/feed", "group": "commentary"},
+  {"name": "Import AI", "url": "https://jack-clark.net/feed/", "group": "commentary"},
+  {"name": "Lilian Weng", "url": "https://lilianweng.github.io/index.xml", "group": "commentary"},
+
+  {"name": "GeekNews", "url": "https://news.hada.io/rss/news", "group": "community"},
+  {"name": "Hacker News (LLM)", "url": "https://hnrss.org/newest?q=LLM&points=50", "group": "community"},
+  {"name": "r/LocalLLaMA", "url": "https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day", "group": "community"},
+
+  {"name": "AI타임스", "url": "https://www.aitimes.com/rss/allArticle.xml", "group": "ko_media"},
+  {"name": "인공지능신문", "url": "https://www.aitimes.kr/rss/allArticle.xml", "group": "ko_media"},
+
+  {"name": "연합뉴스 경제", "url": "https://www.yna.co.kr/rss/economy.xml", "group": "outlet"},
+  {"name": "연합뉴스 마켓+", "url": "https://www.yna.co.kr/rss/market.xml", "group": "outlet"},
+  {"name": "매일경제 경제", "url": "https://www.mk.co.kr/rss/30100041/", "group": "outlet"},
+  {"name": "매일경제 증권", "url": "https://www.mk.co.kr/rss/50200011/", "group": "outlet"},
+  {"name": "한국경제 경제", "url": "https://www.hankyung.com/feed/economy", "group": "outlet"},
+  {"name": "한국경제 증권", "url": "https://www.hankyung.com/feed/finance", "group": "outlet"},
+  {"name": "조선비즈", "url": "https://biz.chosun.com/arc/outboundfeeds/rss/?outputType=xml", "group": "outlet"},
+  {"name": "머니투데이", "url": "https://rss.mt.co.kr/mt_news.xml", "group": "outlet"},
+  {"name": "서울경제", "url": "https://www.sedaily.com/rss/economy", "group": "outlet"},
+  {"name": "뉴시스 경제", "url": "https://www.newsis.com/RSS/economy.xml", "group": "outlet"},
+  {"name": "동아일보 경제", "url": "https://rss.donga.com/economy.xml", "group": "outlet"},
+  {"name": "경향신문 경제", "url": "https://www.khan.co.kr/rss/rssdata/economy_news.xml", "group": "outlet"},
+  {"name": "한겨레 경제", "url": "https://www.hani.co.kr/rss/economy/", "group": "outlet"},
+  {"name": "JTBC 경제", "url": "https://news-ex.jtbc.co.kr/v1/get/rss/section/economy", "group": "outlet"}
 ]

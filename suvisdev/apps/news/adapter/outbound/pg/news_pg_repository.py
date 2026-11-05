@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from news.adapter.outbound.orm.news_orm import (
@@ -37,7 +37,12 @@ def _chunks[T](items: Sequence[T], size: int = _CHUNK) -> Iterator[Sequence[T]]:
 
 def _topic_dto(row: NewsTopicOrm) -> TopicDto:
     return TopicDto(
-        id=row.id, query=row.query, label=row.label, is_public=row.is_public, active=row.active
+        id=row.id,
+        query=row.query,
+        label=row.label,
+        is_public=row.is_public,
+        active=row.active,
+        section=row.section,
     )
 
 
@@ -46,12 +51,16 @@ class NewsPgRepository(NewsRepositoryPort):
         self._session = session
 
     # ── 검색어 탭 ──────────────────────────────────────────────
-    async def list_topics(self, *, public_only: bool, active_only: bool) -> list[TopicDto]:
+    async def list_topics(
+        self, *, public_only: bool, active_only: bool, section: str | None = None
+    ) -> list[TopicDto]:
         stmt = select(NewsTopicOrm).order_by(NewsTopicOrm.id)
         if public_only:
             stmt = stmt.where(NewsTopicOrm.is_public.is_(True))
         if active_only:
             stmt = stmt.where(NewsTopicOrm.active.is_(True))
+        if section is not None:
+            stmt = stmt.where(NewsTopicOrm.section == section)
         rows = (await self._session.execute(stmt)).scalars().all()
         return [_topic_dto(r) for r in rows]
 
@@ -67,7 +76,11 @@ class NewsPgRepository(NewsRepositoryPort):
 
     async def create_topic(self, command: TopicCreateCommand) -> TopicDto:
         row = NewsTopicOrm(
-            query=command.query, label=command.label, is_public=command.is_public, active=True
+            query=command.query,
+            label=command.label,
+            section=command.section,
+            is_public=command.is_public,
+            active=True,
         )
         self._session.add(row)
         await self._session.flush()
@@ -130,6 +143,8 @@ class NewsPgRepository(NewsRepositoryPort):
                 body=item.body,
                 author=item.author[:100],
                 origin=item.origin,
+                section=item.section,
+                feed_group=item.group,
                 published_at=item.published_at,
                 sort_at=item.published_at or now,
             )
@@ -149,6 +164,8 @@ class NewsPgRepository(NewsRepositoryPort):
                 source_name=existing[url].source_name,
                 author=existing[url].author,
                 is_new=url in new_urls,
+                section=existing[url].section,
+                group=existing[url].feed_group,
             )
             for url in urls
         ]
@@ -226,8 +243,31 @@ class NewsPgRepository(NewsRepositoryPort):
         stmt = stmt.order_by(NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc()).limit(limit)
         return await self._with_badges(list((await self._session.execute(stmt)).scalars()))
 
-    async def list_latest(self, *, limit: int, before: datetime | None) -> list[ArticleDto]:
-        stmt = select(NewsArticleOrm).where(NewsArticleOrm.origin == "feed")
+    async def list_latest(
+        self, *, section: str, group: str | None, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        stmt = select(NewsArticleOrm).where(
+            NewsArticleOrm.origin == "feed", NewsArticleOrm.section == section
+        )
+        if group is not None:
+            stmt = stmt.where(NewsArticleOrm.feed_group == group)
+        if before is not None:
+            stmt = stmt.where(NewsArticleOrm.sort_at < before)
+        stmt = stmt.order_by(NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc()).limit(limit)
+        return await self._with_badges(list((await self._session.execute(stmt)).scalars()))
+
+    async def search_articles(
+        self, tokens: Sequence[str], *, section: str, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        stmt = select(NewsArticleOrm).where(NewsArticleOrm.section == section)
+        for tok in tokens:
+            needle = tok.lower()
+            stmt = stmt.where(
+                or_(
+                    func.lower(NewsArticleOrm.title).contains(needle, autoescape=True),
+                    func.lower(NewsArticleOrm.summary).contains(needle, autoescape=True),
+                )
+            )
         if before is not None:
             stmt = stmt.where(NewsArticleOrm.sort_at < before)
         stmt = stmt.order_by(NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc()).limit(limit)
@@ -256,6 +296,8 @@ class NewsPgRepository(NewsRepositoryPort):
                     published_at=r.published_at,
                     badge=chosen.badge if chosen else "none",
                     reasons_ko=list(chosen.reasons_ko) if chosen else [],
+                    section=r.section,
+                    group=r.feed_group,
                 )
             )
         return out

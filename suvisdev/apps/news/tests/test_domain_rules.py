@@ -19,3 +19,11 @@ def test_canonical_url_drops_tracking_params_and_fragment():
     b = canonical_url("https://www.example.com/news/1?id=7&plink=RSS")
     assert a == b == "https://www.example.com/news/1?id=7"
     assert domain_of_url("https://m.news.example.co.kr/a") == "news.example.co.kr"
+
+
+def test_sections_judge_only_korean_news_groups():
+    from news.domain.sections import GROUPS, SECTIONS, section_of_group, should_judge
+
+    assert list(SECTIONS) == ["ai", "economy"]  # 메인 AI, 부록 경제
+    assert {g for g in GROUPS if should_judge(g)} == {"ko_media", "outlet", "search"}
+    assert section_of_group("paper") == "ai" and section_of_group("outlet") == "economy"

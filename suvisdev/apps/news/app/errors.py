@@ -14,3 +14,7 @@ class TopicValidationError(ValueError):
 
 class DuplicateTopicError(ValueError):
     """같은 검색어가 이미 있음 → 409."""
+
+
+class NewsQueryError(ValueError):
+    """공개 조회 입력값 오류(없는 섹션·묶음, 빈 검색어 등) → 400."""

@@ -1,10 +1,15 @@
-"""news 앱 Command·Dto. 수집 원천(검색 API·RSS)이 달라도 같은 FetchedArticle 로 모은다."""
+"""news 앱 Command·Dto. 수집 원천(검색 API·RSS)이 달라도 같은 FetchedArticle 로 모은다.
+
+섹션(section)은 ai(메인) · economy(부록), 묶음(group)은 domain/sections.py 의 GROUPS 코드다.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+from news.domain.sections import DEFAULT_SECTION, section_of_group
 
 
 @dataclass(frozen=True)
@@ -21,12 +26,20 @@ class FetchedArticle:
     link: str | None = None  # 검색 API 의 네이버 링크 등 원문 주소와 다른 경우
     body: str = ""
     author: str = ""  # RSS 작성자 필드 — 본문에 기자명이 없을 때 NO_BYLINE 오탐을 막는다
+    section: str = DEFAULT_SECTION
+    group: str = ""
 
 
 @dataclass(frozen=True)
 class FeedSource:
     name: str
     url: str
+    group: str
+    max_items: int = 50  # 피드가 보관본 전체를 주는 곳(OpenAI 1,359건 등)이 있어 최신 N건만
+
+    @property
+    def section(self) -> str:
+        return section_of_group(self.group)
 
 
 @dataclass(frozen=True)
@@ -36,6 +49,7 @@ class TopicDto:
     label: str
     is_public: bool
     active: bool
+    section: str = DEFAULT_SECTION
 
 
 @dataclass(frozen=True)
@@ -43,6 +57,7 @@ class TopicCreateCommand:
     query: str
     label: str
     is_public: bool = True
+    section: str = DEFAULT_SECTION
 
 
 @dataclass(frozen=True)
@@ -66,6 +81,8 @@ class StoredArticle:
     source_name: str | None
     author: str
     is_new: bool
+    section: str = DEFAULT_SECTION
+    group: str = ""
 
 
 @dataclass(frozen=True)
@@ -92,6 +109,22 @@ class ArticleDto:
     published_at: datetime | None
     badge: str
     reasons_ko: list[str]
+    section: str = DEFAULT_SECTION
+    group: str = ""
+
+
+@dataclass(frozen=True)
+class GroupDto:
+    code: str
+    label: str
+    feeds: list[str]
+
+
+@dataclass(frozen=True)
+class SectionDto:
+    code: str
+    label: str
+    groups: list[GroupDto]
 
 
 @dataclass
@@ -102,5 +135,6 @@ class CollectReport:
     irrelevant: int = 0
     new_articles: int = 0
     judged: int = 0
+    not_judged: int = 0  # 판정 범위 밖(영어·1차 출처 묶음)이라 규칙 판정을 하지 않은 기사
     verdicts: dict[str, int] = field(default_factory=lambda: {"normal": 0, "pending": 0, "ai": 0})
     errors: list[str] = field(default_factory=list)

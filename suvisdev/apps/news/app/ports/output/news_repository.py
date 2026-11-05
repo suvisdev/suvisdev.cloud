@@ -18,7 +18,9 @@ from news.app.dtos.news_dtos import (
 class NewsRepositoryPort(ABC):
     # 검색어 탭
     @abstractmethod
-    async def list_topics(self, *, public_only: bool, active_only: bool) -> list[TopicDto]: ...
+    async def list_topics(
+        self, *, public_only: bool, active_only: bool, section: str | None = None
+    ) -> list[TopicDto]: ...
 
     @abstractmethod
     async def get_topic(self, topic_id: int) -> TopicDto | None: ...
@@ -60,4 +62,13 @@ class NewsRepositoryPort(ABC):
     ) -> list[ArticleDto]: ...
 
     @abstractmethod
-    async def list_latest(self, *, limit: int, before: datetime | None) -> list[ArticleDto]: ...
+    async def list_latest(
+        self, *, section: str, group: str | None, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        """RSS 로 모은 기사(origin=feed) 최신순. group 이 있으면 그 묶음만."""
+
+    @abstractmethod
+    async def search_articles(
+        self, tokens: Sequence[str], *, section: str, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        """모아 둔 기사에서 제목·요약에 단어가 모두 들어간 것 최신순 (대소문자 무시)."""

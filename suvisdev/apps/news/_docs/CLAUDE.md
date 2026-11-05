@@ -1,38 +1,63 @@
 # news 앱 — news.suvisdev.cloud (2026-11-05)
 
-뉴스를 모아 **검색어 탭**과 **최신 뉴스 탭**으로 보여 주고, AI가 만든 기사에는 **숨기지 않고 배지**를 단다.
+**목적: 새 AI 기술·아키텍처 변화를 바로 알아 공부하는 것**(2026-11-05 사용자 결정).
+메인은 **AI 섹션**(연구소 블로그·논문·릴리스·해설·커뮤니티·국내 AI 매체), **경제 섹션은 부록**(경제 언론 RSS + 검색).
+국내 뉴스 기사에서 AI가 만든 기사에는 **숨기지 않고 배지**를 단다.
 판정 기준의 원천은 하네스 저장소 밖 폴더(`Desktop\뉴스\newsdesk`)의 `news-ai-filter` 스킬 `references/rubric.md` 다.
 
 ## 원칙
 
-- **원문 페이지는 가져오지 않는다.** 검색 API·RSS 가 직접 준 것(제목·요약·링크·날짜·작성자, 일부 매체의 `content:encoded` 본문)만 쓴다.
+- **원문 페이지는 가져오지 않는다.** RSS·검색 API 가 직접 준 것(제목·요약·링크·날짜·작성자, 일부 피드의 본문)만 쓴다.
   저장소의 기존 저작권 원칙(`ontology/.../google_news_scraper.py`, `mova/.../editor_reviews_scheduler.py`)과 같다.
-- **화면·API 에 본문을 내보내지 않는다.** `ArticleSchema` 에는 제목·요약·원문 링크·배지만 있다.
+- **화면·API 에 본문을 내보내지 않는다.** `ArticleSchema` 에는 제목·요약·원문 링크·섹션·묶음·배지만 있다.
+- **AI 배지 판정은 한국어 뉴스 기사 묶음만**(`domain/sections.py` `JUDGED_GROUPS` = 국내 AI 매체·경제 언론·뉴스 검색).
+  기사체 신호(기자명, '-다'체, 인용 표기)를 보는 규칙이라 영어 글·1차 출처에는 맞지 않는다 — 11-05 실측:
+  국내 AI 매체를 뺀 AI 피드 3,321건에 돌리면 'AI 생성 의심' 13건(OpenAI·AWS·Microsoft Research 공식 블로그 포함), 보류 208건.
+  판정하지 않는 묶음은 **본문도 저장하지 않는다**(본문은 판정에만 쓰므로).
 - **배지는 신호로만 말한다.** `ai_disclosed`(매체가 AI 작성을 밝힘) → "AI 작성", `ai_suspected`(규칙·2차 판정 추정) → "AI 생성 의심",
   누르면 `reasons_ko`. "가짜·허위" 같은 단정은 쓰지 않는다. 사실 여부는 판정하지 않는다.
 - **`domain/ai_filter/` 는 newsdesk 하네스 `scripts/ai_filter/` 와 같은 파일이다.** 표준 라이브러리만 쓴다(`.importlinter` news-domain-purity).
   기준을 바꾸면 rubric → `thresholds.json` → `signals.py` 순서로 고치고 `harness_version` 을 올린다. 버전이 바뀌면 다음 수집 주기에 그 주기 기사부터 다시 판정된다.
 - **수집 스케줄러는 노트북에서만** (`ENABLE_NEWS_SCHEDULER=true`, 기본 꺼짐). 꺼져 있어도 `POST /api/v1/news/admin/collect` 로 한 주기를 돌릴 수 있다.
+- **방문자 검색은 모아 둔 기사에서만** 찾는다(`/search`). 외부 검색 API 를 부르지 않아 할당량을 쓰지 않는다.
+
+## 섹션·묶음 (`domain/sections.py`, 피드 목록 `adapter/outbound/http/latest_feeds.json`)
+
+| 섹션 | 묶음 | 피드 (11-05 응답 확인) | 판정 |
+|---|---|---|---|
+| ai | lab 연구소·기업 블로그 | OpenAI, Google DeepMind, Google Research, Hugging Face, NVIDIA 개발자, Microsoft Research, AWS ML | 안 함 |
+| ai | paper 논문 | arXiv cs.CL·cs.LG (새 논문만, 개정 공지 `replace` 건너뜀, 피드당 300건) | 안 함 |
+| ai | release 오픈소스 릴리스 | GitHub `releases.atom` — vLLM, Ollama, Transformers | 안 함 |
+| ai | commentary 해설·뉴스레터 | Simon Willison, Latent Space, Interconnects, Import AI, Lilian Weng | 안 함 |
+| ai | community 커뮤니티 | GeekNews, Hacker News(LLM·50점 이상), r/LocalLLaMA | 안 함 |
+| ai | ko_media 국내 AI 매체 | AI타임스, 인공지능신문 | **함** |
+| economy | outlet 경제 언론 | 연합(경제·마켓+), 매경(경제·증권), 한경(경제·증권), 조선비즈, 머니투데이, 서울경제, 뉴시스·동아·경향·한겨레·JTBC 경제 | **함** |
+| economy | search 뉴스 검색 | 경제 검색어 탭의 네이버 뉴스 검색 결과(키 있을 때) | **함** |
+
+- 피드는 최신 50건만(`max_items`, 보관본 전체를 주는 피드가 있음 — OpenAI 1,359건·Hugging Face 897건).
+- SBS 는 RSS 에 "개인 리더 이용 목적만 허용, 게시 금지" 문구가 있어 넣지 않는다. 안 되는 곳: Anthropic·Meta AI(RSS 404), r/MachineLearning(429).
+- 피드를 더하려면 `latest_feeds.json` 에 `{"name", "url", "group"}` 한 줄(묶음 코드는 위 표). 판정 범위는 묶음으로 정해진다.
 
 ## 흐름
 
 ```text
 스케줄러(30분) 또는 POST /admin/collect
  → NewsCollectInteractor
-     ├ 검색어 탭: NaverNewsSearchClient(키 없으면 건너뜀) → domain.relevance 로 관련 기사만
-     ├ 최신 뉴스: RssFeedReader × latest_feeds.json(13곳)
-     ├ canonical_url 로 중복 제거(검색·RSS 둘 다 걸리면 RSS 쪽을 남김)
-     ├ NewsPgRepository.save_articles / link_topic_articles
-     └ 현재 하네스 버전 rules 판정이 없는 기사만 classify(mode C, 스레드) → save_verdicts
-GET /topics · /topics/{id}/articles · /latest → 배지 = llm 판정이 있으면 llm, 없으면 rules
+     ├ RSS × latest_feeds.json(36곳) — 섹션·묶음 표시, 피드당 최신 N건, arXiv 개정 공지 건너뜀
+     ├ 검색어 탭: 자기 섹션의 이번 주기 RSS 글을 domain.relevance 로 고름
+     │    └ 경제 탭은 NaverNewsSearchClient(키 없으면 건너뜀) 결과도 더함
+     ├ canonical_url 로 중복 제거(먼저 온 RSS 묶음을 남김, 검색·RSS 둘 다면 RSS)
+     ├ 판정 범위 밖 묶음은 본문을 비움 → NewsPgRepository.save_articles / link_topic_articles
+     └ 판정 범위 묶음 중 현재 하네스 버전 rules 판정이 없는 기사만 classify(mode C, 스레드) → save_verdicts
+GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배지 = llm 판정이 있으면 llm, 없으면 rules
 ```
 
-## ERD (alembic `20261105_0001`)
+## ERD (alembic `20261105_0001` + `20261105_0002`)
 
 | 테이블 | 열 | 비고 |
 |---|---|---|
-| `news_topics` | id · query(UQ) · label · is_public · active · created_at | 운영자 검색어 = 탭 |
-| `news_articles` | id · canonical_url(UQ) · link · source_domain · source_name · title · summary · body · author · origin(search/feed) · published_at · sort_at · fetched_at | body 는 RSS 가 준 본문만, 내보내지 않음 |
+| `news_topics` | id · query(UQ) · label · **section** · is_public · active · created_at | 운영자 검색어 = 탭 |
+| `news_articles` | id · canonical_url(UQ) · link · source_domain · source_name · title · summary · body · author · origin(search/feed) · **section · feed_group** · published_at · sort_at · fetched_at | body 는 판정 범위 묶음에서 RSS 가 준 본문만, 내보내지 않음. ix(section, sort_at) |
 | `news_topic_articles` | topic_id(FK, PK) · article_id(FK, PK) · relevance · matched_at | |
 | `news_verdicts` | id · article_id(FK) · layer(rules/llm) · harness_version · verdict(normal/pending/ai) · badge · reasons_ko(JSONB) · signals(JSONB) · created_at | UQ(article_id, layer) |
 
@@ -40,19 +65,27 @@ GET /topics · /topics/{id}/articles · /latest → 배지 = llm 판정이 있�
 
 | 메서드 | 경로 | 인증 |
 |---|---|---|
-| GET | `/topics` | 없음 |
+| GET | `/sections` | 없음 — 섹션·묶음·피드 이름 |
+| GET | `/topics?section=` | 없음 |
 | GET | `/topics/{id}/articles?limit=&before=` | 없음 (비공개·꺼진 탭은 404) |
-| GET | `/latest?limit=&before=` | 없음 |
-| GET·POST | `/admin/topics` | require_admin |
+| GET | `/latest?section=ai&group=&limit=&before=` | 없음 (section 기본 ai, 다른 섹션 묶음은 400) |
+| GET | `/search?q=&section=ai&limit=&before=` | 없음 (q 1~50자, 단어 5개까지, 제목·요약에 모두 포함) |
+| GET·POST | `/admin/topics` (POST 에 `section`) | require_admin |
 | PATCH·DELETE | `/admin/topics/{id}` | require_admin |
 | POST | `/admin/collect` | require_admin |
 
 ## 환경 변수
 
 `ENABLE_NEWS_SCHEDULER` · `NEWS_COLLECT_INTERVAL_SECONDS`(최소 300) · `NAVER_SEARCH_CLIENT_ID` · `NAVER_SEARCH_CLIENT_SECRET` ·
-`NAVER_SEARCH_API_URL`(비우면 개발자센터, `apigw.ntruss.com` 이면 API HUB 헤더). 키가 없으면 RSS 만 모은다.
+`NAVER_SEARCH_API_URL`(비우면 개발자센터, `apigw.ntruss.com` 이면 API HUB 헤더). 키가 없어도 RSS 36곳과 검색어 탭(RSS 매칭)은 돈다 — 키는 경제 탭의 뉴스 검색에만 쓴다.
+
+## 실측 (11-05, 로컬 SQLite, 네이버 키 없음)
+
+- 피드 36곳 전부 응답, 첫 주기 1,564건(AI 947 · 경제 617) 37.8초, 두 번째 주기 새 글 2건.
+- 판정 717건(국내 AI 매체 100 · 경제 언론 617) 전부 normal, 판정 범위 밖 847건. 본문 저장은 경제 언론 49건(조선비즈)뿐.
+- 검색어 탭(RSS 매칭): "mixture of experts" 17건 · "agent" 100건 이상 · "금리"(경제) 8건. `/search` "transformer"(ai) 41건 · "환율"(경제) 10건.
 
 ## 남은 단계 (newsdesk `docs/구현가이드.md` §7)
 
-2 화면(suvis `app/news` + 호스트 rewrite) · 3 방문자 검색 · 4 올라마 2차 판정(llm 층) · 5 아침 메일 · 6 정답셋·평가.
+2 화면(suvis `app/news` + 호스트 rewrite, 메인 AI 묶음 탭 + 부록 경제) · 3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층)과 영어 글 한국어 요약 · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
 본문 30일 보관 정리, 같은 소식 묶음 표시도 아직이다.

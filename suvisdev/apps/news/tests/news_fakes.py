@@ -27,12 +27,17 @@ class FakeRepo(NewsRepositoryPort):
         self.articles: dict[str, StoredArticle] = {}
         self.links: dict[int, dict[int, float]] = {}
         self.verdicts: dict[tuple[int, str], VerdictCommand] = {}
+        self.last_query: tuple[object, ...] = ()
 
-    async def list_topics(self, *, public_only: bool, active_only: bool) -> list[TopicDto]:
+    async def list_topics(
+        self, *, public_only: bool, active_only: bool, section: str | None = None
+    ) -> list[TopicDto]:
         return [
             t
             for t in self.topics.values()
-            if (not public_only or t.is_public) and (not active_only or t.active)
+            if (not public_only or t.is_public)
+            and (not active_only or t.active)
+            and (section is None or t.section == section)
         ]
 
     async def get_topic(self, topic_id: int) -> TopicDto | None:
@@ -42,7 +47,14 @@ class FakeRepo(NewsRepositoryPort):
         return next((t for t in self.topics.values() if t.query == query), None)
 
     async def create_topic(self, command: TopicCreateCommand) -> TopicDto:
-        t = TopicDto(len(self.topics) + 1, command.query, command.label, command.is_public, True)
+        t = TopicDto(
+            len(self.topics) + 1,
+            command.query,
+            command.label,
+            command.is_public,
+            True,
+            command.section,
+        )
         self.topics[t.id] = t
         return t
 
@@ -79,6 +91,8 @@ class FakeRepo(NewsRepositoryPort):
                 source_name=it.source_name,
                 author=it.author,
                 is_new=True,
+                section=it.section,
+                group=it.group,
             )
             self.articles[url] = s
             out.append(s)
@@ -106,7 +120,16 @@ class FakeRepo(NewsRepositoryPort):
     ) -> list[ArticleDto]:
         return []
 
-    async def list_latest(self, *, limit: int, before: datetime | None) -> list[ArticleDto]:
+    async def list_latest(
+        self, *, section: str, group: str | None, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        self.last_query = ("latest", section, group, limit)
+        return []
+
+    async def search_articles(
+        self, tokens: Sequence[str], *, section: str, limit: int, before: datetime | None
+    ) -> list[ArticleDto]:
+        self.last_query = ("search", section, tuple(tokens), limit)
         return []
 
 
@@ -140,8 +163,14 @@ class FakeFeeds(FeedReaderPort):
 def art(
     url: str, title: str, summary: str = "", origin: str = "search", **kw: str
 ) -> FetchedArticle:
+    """기사 하나. RSS 기사(origin=feed)는 group 을 안 주면 경제 언론(outlet)으로 본다."""
+    from news.domain.sections import section_of_group
     from news.domain.url import domain_of_url
 
+    if origin == "feed":
+        kw.setdefault("group", "outlet")
+    if kw.get("group"):
+        kw.setdefault("section", section_of_group(kw["group"]))
     return FetchedArticle(
         url=url,
         title=title,
