@@ -2,11 +2,13 @@
 
 피드가 준 것(제목·요약·링크·날짜·작성자, 일부는 content 본문)만 쓴다. 기사 원문 페이지는
 가져오지 않는다(저장소 저작권 원칙). 피드 목록은 latest_feeds.json — 2026-11-05 응답 확인:
-AI 섹션 22곳(연구소 블로그·논문·릴리스·해설·커뮤니티·국내 AI 매체) + 경제 섹션 14곳.
+AI 섹션 22곳(연구소 블로그·논문·릴리스·해설·커뮤니티·국내 AI 매체) + 경제 섹션 13곳
+(한겨레 경제는 글에 날짜가 없어 뺐다).
 """
 
 from __future__ import annotations
 
+import html
 import json
 import re
 from datetime import UTC, datetime
@@ -51,9 +53,12 @@ def load_latest_feeds() -> tuple[FeedSource, ...]:
 
 
 def _text(html_or_text: str) -> str:
+    # 제목에 개체가 두 번 인코딩된 피드가 있다(머니투데이 `&amp;quot;` → 한 번 풀면 `&quot;` 가 화면에 남음, 11-05).
+    # feedparser·BeautifulSoup 가 한 번 푼 뒤 남은 개체를 한 번 더 푼다.
     if "<" not in html_or_text:
-        return " ".join(html_or_text.split())
-    return BeautifulSoup(html_or_text, "html.parser").get_text(separator="\n", strip=True)
+        return html.unescape(" ".join(html_or_text.split()))
+    text = BeautifulSoup(html_or_text, "html.parser").get_text(separator="\n", strip=True)
+    return html.unescape(text)
 
 
 def _published(entry: Any) -> datetime | None:

@@ -31,11 +31,13 @@
 | ai | commentary 해설·뉴스레터 | Simon Willison, Latent Space, Interconnects, Import AI, Lilian Weng | 안 함 |
 | ai | community 커뮤니티 | GeekNews, Hacker News(LLM·50점 이상), r/LocalLLaMA | 안 함 |
 | ai | ko_media 국내 AI 매체 | AI타임스, 인공지능신문 | **함** |
-| economy | outlet 경제 언론 | 연합(경제·마켓+), 매경(경제·증권), 한경(경제·증권), 조선비즈, 머니투데이, 서울경제, 뉴시스·동아·경향·한겨레·JTBC 경제 | **함** |
+| economy | outlet 경제 언론 | 연합(경제·마켓+), 매경(경제·증권), 한경(경제·증권), 조선비즈, 머니투데이, 서울경제, 뉴시스·동아·경향·JTBC 경제 (13곳) | **함** |
 | economy | search 뉴스 검색 | 경제 검색어 탭의 네이버 뉴스 검색 결과(키 있을 때) | **함** |
 
 - 피드는 최신 50건만(`max_items`, 보관본 전체를 주는 피드가 있음 — OpenAI 1,359건·Hugging Face 897건).
 - SBS 는 RSS 에 "개인 리더 이용 목적만 허용, 게시 금지" 문구가 있어 넣지 않는다. 안 되는 곳: Anthropic·Meta AI(RSS 404), r/MachineLearning(429).
+- 한겨레 경제 RSS 는 글에 날짜가 없어(11-05 화면 확인 때 발견) 뺐다 — 날짜 없는 글은 수집 시각으로 정렬돼 첫 수집분 30건이 경제 첫 화면을 다 차지했다.
+- 목록 정렬·다음 쪽 기준은 `sort_at`(날짜가 없으면 수집 시각) — API 가 내보내고 화면은 마지막 글의 `sort_at` 을 `before` 로 넘긴다.
 - 피드를 더하려면 `latest_feeds.json` 에 `{"name", "url", "group"}` 한 줄(묶음 코드는 위 표). 판정 범위는 묶음으로 정해진다.
 
 ## 흐름
@@ -43,7 +45,7 @@
 ```text
 스케줄러(30분) 또는 POST /admin/collect
  → NewsCollectInteractor
-     ├ RSS × latest_feeds.json(36곳) — 섹션·묶음 표시, 피드당 최신 N건, arXiv 개정 공지 건너뜀
+     ├ RSS × latest_feeds.json(35곳) — 섹션·묶음 표시, 피드당 최신 N건, arXiv 개정 공지 건너뜀
      ├ 검색어 탭: 자기 섹션의 이번 주기 RSS 글을 domain.relevance 로 고름
      │    └ 경제 탭은 NaverNewsSearchClient(키 없으면 건너뜀) 결과도 더함
      ├ canonical_url 로 중복 제거(먼저 온 RSS 묶음을 남김, 검색·RSS 둘 다면 RSS)
@@ -77,15 +79,21 @@ GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배�
 ## 환경 변수
 
 `ENABLE_NEWS_SCHEDULER` · `NEWS_COLLECT_INTERVAL_SECONDS`(최소 300) · `NAVER_SEARCH_CLIENT_ID` · `NAVER_SEARCH_CLIENT_SECRET` ·
-`NAVER_SEARCH_API_URL`(비우면 개발자센터, `apigw.ntruss.com` 이면 API HUB 헤더). 키가 없어도 RSS 36곳과 검색어 탭(RSS 매칭)은 돈다 — 키는 경제 탭의 뉴스 검색에만 쓴다.
+`NAVER_SEARCH_API_URL`(비우면 개발자센터, `apigw.ntruss.com` 이면 API HUB 헤더). 키가 없어도 RSS 35곳과 검색어 탭(RSS 매칭)은 돈다 — 키는 경제 탭의 뉴스 검색에만 쓴다.
 
 ## 실측 (11-05, 로컬 SQLite, 네이버 키 없음)
 
-- 피드 36곳 전부 응답, 첫 주기 1,564건(AI 947 · 경제 617) 37.8초, 두 번째 주기 새 글 2건.
+- 피드 36곳 전부 응답, 첫 주기 1,564건(AI 947 · 경제 617) 37.8초, 두 번째 주기 새 글 2건. (이 실측 뒤 날짜 없는 한겨레 경제 30건 피드를 빼 지금은 35곳)
 - 판정 717건(국내 AI 매체 100 · 경제 언론 617) 전부 normal, 판정 범위 밖 847건. 본문 저장은 경제 언론 49건(조선비즈)뿐.
 - 검색어 탭(RSS 매칭): "mixture of experts" 17건 · "agent" 100건 이상 · "금리"(경제) 8건. `/search` "transformer"(ai) 41건 · "환율"(경제) 10건.
 
+## 화면 (2단계, 11-05)
+
+`suvis/app/news` — 서버 컴포넌트(`lib/news-api.ts` 로 이 API 를 부름). 섹션 전환·검색·묶음 탭·주제 탭·배지(누르면 이유)·"AI 배지 글 숨기기"·더 보기(`sort_at`).
+`suvis/next.config.mjs` rewrites 가 `news.suvisdev.cloud` 의 `/` 를 `/news` 로 보낸다. `suvisdev.cloud/news` 도 같은 화면. 허브 타일 `AI 소식`(`lib/apps-catalog.ts`, 아이콘 `public/news-icon.svg`).
+**도메인 연결은 사용자 콘솔 작업**: Vercel `suvis` 프로젝트 Domains 에 `news.suvisdev.cloud`, Cloudflare DNS `news` CNAME → `cname.vercel-dns.com`(Vercel 안내값 우선).
+
 ## 남은 단계 (newsdesk `docs/구현가이드.md` §7)
 
-2 화면(suvis `app/news` + 호스트 rewrite, 메인 AI 묶음 탭 + 부록 경제) · 3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층)과 영어 글 한국어 요약 · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
+3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층)과 영어 글 한국어 요약 · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
 본문 30일 보관 정리, 같은 소식 묶음 표시도 아직이다.

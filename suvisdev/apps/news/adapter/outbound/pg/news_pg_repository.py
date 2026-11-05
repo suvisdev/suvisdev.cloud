@@ -298,6 +298,7 @@ class NewsPgRepository(NewsRepositoryPort):
                     reasons_ko=list(chosen.reasons_ko) if chosen else [],
                     section=r.section,
                     group=r.feed_group,
+                    sort_at=r.sort_at,
                 )
             )
         return out

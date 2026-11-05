@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0B1220"/>
+  <!-- 신문(글 묶음) + 반짝임(AI) — news.suvisdev.cloud (2026-11-05) -->
+  <rect x="13" y="17" width="31" height="33" rx="4" fill="none" stroke="#60A5FA" stroke-width="3"/>
+  <path d="M19.5 26h18M19.5 32.5h18M19.5 39h11" fill="none" stroke="#60A5FA" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48.5 11.5l2.4 5.6 5.6 2.4-5.6 2.4-2.4 5.6-2.4-5.6-5.6-2.4 5.6-2.4z" fill="#FBBF24"/>
+</svg>

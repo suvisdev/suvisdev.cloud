@@ -24,6 +24,7 @@ _ROW = ArticleDto(
     reasons_ko=["기자 이름이 없음"],
     section="economy",
     group="outlet",
+    sort_at=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
 )
 
 
@@ -72,6 +73,7 @@ def test_public_endpoints_without_login():
     rows = c.get("/api/v1/news/topics/1/articles?limit=5").json()
     assert rows[0]["badge"] == "ai_suspected" and rows[0]["reasons_ko"] == ["기자 이름이 없음"]
     assert rows[0]["section"] == "economy" and rows[0]["group"] == "outlet"
+    assert rows[0]["sort_at"].startswith("2026-11-05T00:30")  # 다음 쪽 기준 시각
     assert "body" not in rows[0]  # 본문은 내보내지 않는다
     assert c.get("/api/v1/news/topics/2/articles").status_code == 404
     assert c.get("/api/v1/news/latest").json() == []
