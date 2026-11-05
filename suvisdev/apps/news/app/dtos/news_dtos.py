@@ -36,6 +36,8 @@ class FeedSource:
     url: str
     group: str
     max_items: int = 50  # 피드가 보관본 전체를 주는 곳(OpenAI 1,359건 등)이 있어 최신 N건만
+    # 날짜에 시간대가 안 붙은 피드의 현지 시각 UTC 차이(분). AI타임스·인공지능신문은 "2026-11-05 17:27:15"(한국 시각)
+    naive_tz_minutes: int = 0
 
     @property
     def section(self) -> str:

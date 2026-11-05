@@ -24,8 +24,8 @@
   {"name": "Hacker News (LLM)", "url": "https://hnrss.org/newest?q=LLM&points=50", "group": "community"},
   {"name": "r/LocalLLaMA", "url": "https://www.reddit.com/r/LocalLLaMA/top/.rss?t=day", "group": "community"},
 
-  {"name": "AI타임스", "url": "https://www.aitimes.com/rss/allArticle.xml", "group": "ko_media"},
-  {"name": "인공지능신문", "url": "https://www.aitimes.kr/rss/allArticle.xml", "group": "ko_media"},
+  {"name": "AI타임스", "url": "https://www.aitimes.com/rss/allArticle.xml", "group": "ko_media", "naive_tz": "+09:00"},
+  {"name": "인공지능신문", "url": "https://www.aitimes.kr/rss/allArticle.xml", "group": "ko_media", "naive_tz": "+09:00"},
 
   {"name": "연합뉴스 경제", "url": "https://www.yna.co.kr/rss/economy.xml", "group": "outlet"},
   {"name": "연합뉴스 마켓+", "url": "https://www.yna.co.kr/rss/market.xml", "group": "outlet"},

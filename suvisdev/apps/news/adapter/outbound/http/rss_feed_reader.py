@@ -11,7 +11,7 @@ from __future__ import annotations
 import html
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -31,6 +31,18 @@ _FEEDS_PATH = Path(__file__).resolve().parent / "latest_feeds.json"
 # 11-05 cs.CL 159건 중 69건, cs.LG 445건 중 193건이 개정이었다.
 _ARXIV_HEAD = re.compile(r"^arXiv:\S+\s+Announce Type:\s*(\S+)\s+Abstract:\s*", re.IGNORECASE)
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+# 날짜 문자열 끝에 시간대(Z, +09:00, +0900, GMT, KST …)가 있는가. 없으면 feedparser 가 UTC 로 읽는다 —
+# 11-05 운영 첫 수집에서 한국 시각을 UTC 로 읽어 국내 AI 매체 글이 9시간 미래로 저장돼 AI 메인 맨 위를 차지했다.
+_HAS_TZ = re.compile(r"(?:Z|[+-]\d{2}:?\d{2}|[A-Za-z]{2,5})\s*$")
+_TZ_SETTING = re.compile(r"^([+-])(\d{2}):(\d{2})$")
+
+
+def _tz_minutes(setting: str) -> int:
+    m = _TZ_SETTING.match(setting)
+    if not m:
+        raise ValueError(f"latest_feeds.json: naive_tz {setting!r} 는 +09:00 꼴이어야 함")
+    minutes = int(m.group(2)) * 60 + int(m.group(3))
+    return -minutes if m.group(1) == "-" else minutes
 
 
 @lru_cache(maxsize=1)
@@ -47,6 +59,7 @@ def load_latest_feeds() -> tuple[FeedSource, ...]:
                 url=str(f["url"]),
                 group=group,
                 max_items=int(f.get("max_items", 50)),
+                naive_tz_minutes=_tz_minutes(str(f.get("naive_tz", "+00:00"))),
             )
         )
     return tuple(feeds)
@@ -61,11 +74,15 @@ def _text(html_or_text: str) -> str:
     return html.unescape(text)
 
 
-def _published(entry: Any) -> datetime | None:
+def _published(entry: Any, naive_tz_minutes: int = 0) -> datetime | None:
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if not parsed:
         return None
-    return datetime(parsed[0], parsed[1], parsed[2], parsed[3], parsed[4], parsed[5], tzinfo=UTC)
+    dt = datetime(parsed[0], parsed[1], parsed[2], parsed[3], parsed[4], parsed[5], tzinfo=UTC)
+    raw = str(entry.get("published") or entry.get("updated") or "").strip()
+    if naive_tz_minutes and raw and not _HAS_TZ.search(raw):
+        dt -= timedelta(minutes=naive_tz_minutes)  # 현지 시각으로 적힌 값을 UTC 로
+    return dt
 
 
 def parse_feed(content: bytes | str, feed: FeedSource) -> list[FetchedArticle]:
@@ -96,7 +113,7 @@ def parse_feed(content: bytes | str, feed: FeedSource) -> list[FetchedArticle]:
                 summary=summary[:1000],
                 source_domain=domain_of_url(url),
                 origin="feed",
-                published_at=_published(entry),
+                published_at=_published(entry, feed.naive_tz_minutes),
                 source_name=feed.name,
                 body=body,
                 author=str(entry.get("author") or "").strip(),
