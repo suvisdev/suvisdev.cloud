@@ -8,7 +8,8 @@
 # 예전처럼 docker pull → docker save → k3s ctr import 로 5.8GB를 통째 옮기던 단계(약 7분)가 없다.
 #
 # 사용: backend-deploy.yml 이 deploy.sh 다음에 부른다. 손으로: ./k8s/sync-standby.sh
-# 환경: STANDBY_HOST(기본 suvisdev@100.91.129.31 — 집컴 Tailscale, 집 밖에서도 닿는다. 2026-10-06), STANDBY_KEY(기본 ~/.ssh/home_desktop)
+# 환경: STANDBY_HOST(기본 suvisdev@100.91.129.31 — 집컴 Tailscale, 집 밖에서도 닿는다. 2026-10-06), STANDBY_KEY(기본 ~/.ssh/home_desktop),
+#       STANDBY_ROLLOUT_TIMEOUT(기본 1200초 — 아래 ROLLOUT_TIMEOUT 설명)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -21,6 +22,11 @@ IMG=suvisdev-app:latest
 REG_LOCAL=127.0.0.1:15000   # 노트북 쪽 임시 터널 → 집컴 127.0.0.1:5000
 REG_DESK=127.0.0.1:5000     # 집컴 k3s가 받는 주소
 REL='$HOME/serve/k8s-release'
+# 집컴 롤아웃 대기(초). 집컴 WSL 디스크가 HDD(D:\WSL\Ubuntu)라 캐시가 식은 상태의 새 backend 는
+# 파이썬 import 만 6분이 걸린다 — 재시작부터 Ready 까지 33초~10분 48초(2026-10-20~11-05 실측, 노트북은 21초).
+# 600초로는 10-30·11-05 두 번 실패 표시가 났다(11-05 는 47초 차이, 롤아웃은 그 뒤 끝남). 매니페스트의
+# progressDeadlineSeconds(1200)와 같이 맞춘다 — 하나만 늘리면 다른 쪽이 먼저 실패를 낸다.
+ROLLOUT_TIMEOUT="${STANDBY_ROLLOUT_TIMEOUT:-1200}"
 
 "${SSH[@]}" -fN -M -S "$CTL" -L "$REG_LOCAL:127.0.0.1:5000" "$HOST"
 trap '"${SSH[@]}" -S "$CTL" -O exit "$HOST" >/dev/null 2>&1 || true' EXIT
@@ -43,8 +49,8 @@ tar -cf - --exclude='./ollama-proxy/*.log' . | "${SSH[@]}" "$HOST" "tar -xf - -C
   grep -q 'image: $REG_DESK/$IMG' backend.yaml && grep -q 'image: $REG_DESK/$IMG' auth.yaml
   SUVISDEV_DATA_ROOT=\$HOME/projects/suvisdev ./deploy.sh --external-db >/dev/null
   kubectl -n suvisdev rollout restart deploy/backend deploy/auth
-  kubectl -n suvisdev rollout status deploy/backend --timeout=600s
-  kubectl -n suvisdev rollout status deploy/auth --timeout=600s
+  kubectl -n suvisdev rollout status deploy/backend --timeout=${ROLLOUT_TIMEOUT}s
+  kubectl -n suvisdev rollout status deploy/auth --timeout=${ROLLOUT_TIMEOUT}s
   sudo -n k3s crictl images 2>/dev/null | awk '\$1 == \"<none>\" { print \$3 }' | xargs -r sudo -n k3s crictl rmi >/dev/null 2>&1 || true
   kubectl -n suvisdev get pods"
 echo "[standby] 완료"

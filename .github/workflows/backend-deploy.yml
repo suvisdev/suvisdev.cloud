@@ -56,14 +56,17 @@ jobs:
             kubectl -n suvisdev rollout restart deploy/backend deploy/auth
           fi
 
-      # 예비 서버(집컴)에 같은 이미지·매니페스트를 반영한다 — 집컴은 빌드하지 않는다.
-      # 바뀐 레이어만 집컴 로컬 레지스트리로 보낸다(k8s/failover/README.md, 2026-10-05).
-      - name: 예비 서버 동기화
-        run: ./k8s/sync-standby.sh
-
+      # 실제 서빙 쪽 확인을 예비 동기화보다 먼저 한다 — 예비 동기화가 실패하면 뒤 단계가 건너뛰어져
+      # 10-30·11-05 배포는 외부 확인 없이 끝났다(2026-11-05). 집컴 재시작은 롤링이라 이 뒤에도 끊기지 않는다.
       - name: 외부 응답 확인
         run: |
           curl -fsS -o /dev/null -w 'api %{http_code}\n' --retry 10 --retry-delay 6 --retry-all-errors \
             'https://api.suvisdev.cloud/healthz'
           curl -fsS -o /dev/null -w 'auth %{http_code}\n' --retry 10 --retry-delay 6 --retry-all-errors \
             'https://auth.suvisdev.cloud/.well-known/jwks.json'
+
+      # 예비 서버(집컴)에 같은 이미지·매니페스트를 반영한다 — 집컴은 빌드하지 않는다.
+      # 바뀐 레이어만 집컴 로컬 레지스트리로 보낸다(k8s/failover/README.md, 2026-10-05).
+      # 집컴은 WSL 디스크가 HDD라 새 backend 가 뜨는 데 최대 11분가량 걸린다 — 대기는 sync-standby.sh 의 20분.
+      - name: 예비 서버 동기화
+        run: ./k8s/sync-standby.sh

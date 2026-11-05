@@ -28,12 +28,39 @@
 
 ---
 
+## 2026-11-05 (2) — 배포: 집컴 예비 동기화가 47초 차이로 실패 표시
+
+### 작업 내용
+- PR #224(news 1단계) 머지 후 backend-deploy 가 "예비 서버 동기화"에서 실패. 10-30(#223)도 같은 단계·같은 증상이었다.
+  노트북 롤아웃은 성공, `api.suvisdev.cloud/healthz` 200. 실패 뒤 단계인 "외부 응답 확인"은 두 번 다 건너뛰어졌다.
+
+### 오류·막힌 점
+- 집컴 `rollout status --timeout=600s` 가 "1 old replicas are pending termination" 에서 시간 초과 — 새 파드가 Ready 전이라 옛 파드가 안 내려간 것.
+- 집컴 파드 시각(UTC): 06:17:37 재시작 → 06:19:59 컨테이너 시작(이미지 받기 1분 15초) → 06:26:16 첫 로그(파이썬 import 6분) →
+  06:26:53~06:28:07 matplotlib 폰트 캐시 생성 → 06:28:25 Ready. 대기 종료는 06:27:38, **47초 차이**. 그 뒤 롤아웃은 끝나 집컴도 새 버전이었다(거짓 경보).
+- 원인: 집컴 WSL 가상 디스크가 `D:\WSL\Ubuntu\ext4.vhdx`(WD20EZAZ **HDD**, 126GiB). 캐시가 식으면 torch 등 라이브러리를 HDD 에서 읽는다.
+  같은 이미지가 노트북에서는 컨테이너 시작부터 Ready 까지 21초. 10-28 이후 의존성 파일 변경은 없다.
+- 집컴 롤아웃 기록(재시작 요청 → backend 완료): 10-20 33초, 10-28 3분 4초·9분 19초, 10-29 3분 59초, 10-30·11-05 10분 초과.
+- C:(SSD 465GB)는 여유 128GB 라 vhdx 를 옮길 수 없다.
+
+### 수정/구현
+- `k8s/sync-standby.sh`: 롤아웃 대기 600 → 1200초(`STANDBY_ROLLOUT_TIMEOUT`).
+- `k8s/backend.yaml`·`auth.yaml`: `progressDeadlineSeconds: 1200` — 기본 600초로 두면 대기를 늘려도 진행 기한 초과로 먼저 실패한다.
+- `backend-deploy.yml`: "외부 응답 확인"을 "예비 서버 동기화" 앞으로 — 집컴이 실패해도 서빙 쪽 확인은 돈다.
+- `Dockerfile`: `MPLCONFIGDIR=/opt/matplotlib` 고정 + 빌드 때 폰트 캐시 생성. 작은 이미지로 시험: 새 컨테이너 두 번 모두 캐시를 그대로 쓰고
+  (`generated new fontManager` 없음), 캐시 없는 위치로 돌린 대조군만 새로 만든다.
+- 11-05 news 항목의 경로 줄바꿈 깨짐(`뉴스/newsdesk`) 수정.
+
+### 산출물
+- 브랜치 `fix/standby-rollout-timeout`. 실제 효과(집컴 기동 시간)는 다음 배포 로그에서 확인한다.
+
+---
+
 ## 2026-11-05 — news.suvisdev.cloud 1단계: 수집 뼈대 + AI 기사 배지 판정
 
 ### 작업 내용
 - 새 개인 프로젝트 news.suvisdev.cloud. 뉴스를 검색어 탭·최신 뉴스 탭으로 모으고, AI가 만든 기사에는 숨기지 않고 배지를 단다.
-  판정 하네스는 바탕화면 `뉴스
-ewsdesk`(Claude 스킬 `news-ai-filter`)에서 먼저 만들고, 그 판정 코드를 `apps/news/domain/ai_filter/` 로 그대로 옮겼다.
+  판정 하네스는 바탕화면 `뉴스/newsdesk`(Claude 스킬 `news-ai-filter`)에서 먼저 만들고, 그 판정 코드를 `apps/news/domain/ai_filter/` 로 그대로 옮겼다.
 - 사용자 결정(인터뷰): 공개 읽기 전용, 카테고리 = 검색어, 방문자도 검색, 애매한 기사는 집컴 올라마 2차 판정, 운영자 아침 메일. 매일 최신 뉴스 수집 추가.
 
 ### 수정/구현
