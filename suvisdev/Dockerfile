@@ -27,8 +27,9 @@ RUN sed -e 's#whl/cu126#whl/cpu#' -e 's/+cu126/+cpu/' requirements.txt > /tmp/re
     && pip install --no-cache-dir --timeout 120 --retries 5 -r /tmp/requirements-cpu.txt \
     && rm /tmp/requirements-cpu.txt
 
-# 4-1. matplotlib 폰트 캐시를 빌드 때 만들어 둔다. 없으면 새 컨테이너가 뜰 때마다 부팅 중에 다시 만든다 —
-#      노트북은 몇 초지만 집컴(WSL 디스크가 HDD)은 74초가 걸려 배포 롤아웃 대기 시간을 넘겼다(2026-11-05).
+# 4-1. matplotlib 폰트 캐시를 빌드 때 만들어 둔다. 없으면 새 컨테이너가 뜰 때마다 부팅 중에 다시 만든다
+#      (집컴 로그 `generated new fontManager`). 시간 단축은 거의 없다 — 11-05 집컴 실측에서 서버 시작 직전 구간이
+#      1분 51초 → 1분 47초. 집컴 기동이 느린 건 HDD 에서 라이브러리를 읽는 6분 탓이다(k8s/failover/README.md).
 #      캐시 위치를 HOME 과 상관없게 고정한다(/root/.cache 아래에는 hf-cache hostPath 가 붙는다).
 ENV MPLCONFIGDIR=/opt/matplotlib
 RUN python -c "import matplotlib.font_manager"

@@ -48,7 +48,9 @@ mova 부팅 작업(스케줄러)은 노트북만 돈다: 집컴 `.env` 에 `ENAB
 **집컴 롤아웃은 느리다(11-05 실측).** 집컴 WSL 가상 디스크가 `D:\WSL\Ubuntu\ext4.vhdx`(HDD)라 캐시가 식은 상태의 새 backend 는
 재시작부터 Ready 까지 10분 48초가 걸렸다(파이썬 import 6분, 노트북은 21초). 그래서 `sync-standby.sh` 의 롤아웃 대기와
 `backend.yaml`·`auth.yaml` 의 `progressDeadlineSeconds` 를 둘 다 1200초로 둔다. 600초 시절 10-30·11-05 배포가 실패로 찍혔지만
-롤아웃은 그 뒤 끝나 집컴도 새 버전이었다. 실패가 다시 나면 `kubectl -n suvisdev get pods` 로 집컴 파드가 결국 Ready 인지부터 본다.
+롤아웃은 그 뒤 끝나 집컴도 새 버전이었다. 1200초로 바꾼 #225 배포는 9분 53초로 통과했다(600초에 거의 닿음).
+실패가 다시 나면 `kubectl -n suvisdev get pods` 로 집컴 파드가 결국 Ready 인지부터 본다.
+Dockerfile 의 폰트 캐시 굽기는 집컴 기동을 거의 줄이지 못했다(4초) — 느린 건 라이브러리 읽기다.
 C:(SSD)는 여유 128GB 라 126GiB vhdx 이동은 아직 못 한다.
 
 노트북이 꺼져 있는 동안 머지하면 배포 잡은 노트북이 켜질 때까지 대기한다(집컴은 그동안 직전 버전으로 서빙).
