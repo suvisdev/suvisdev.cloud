@@ -5,7 +5,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -24,12 +26,13 @@ class RouterTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.session = "s1"
+        self.ollama_url = "http://127.0.0.1:9"
 
     def run_hook(self, **event) -> str:
         event = {"session_id": self.session, "cwd": CWD, **event}
         result = subprocess.run(
             [sys.executable, str(ROUTER)], input=json.dumps(event), text=True, capture_output=True,
-            env={**os.environ, "TMPDIR": self.tmp.name}, check=True,
+            env={**os.environ, "TMPDIR": self.tmp.name, "SKILL_ROUTER_OLLAMA_URL": self.ollama_url}, check=True,
         )
         if not result.stdout:
             return ""
@@ -151,6 +154,74 @@ class RouterTest(unittest.TestCase):
         for rule in ROUTES["prompt"]:
             if SUBAGENT_SKILLS & set(rule["skills"]):
                 self.assertIn("명시 요청", rule["why"])
+
+
+class IntentTest(RouterTest):
+    def start_model(self, content):
+        calls = self.calls = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                calls.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({"message": {"content": content}}).encode())
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        self.ollama_url = f"http://127.0.0.1:{server.server_port}"
+
+    def test_model_routes_intent_the_rules_miss(self):
+        self.start_model('{"skills": ["systematic-debugging"]}')
+        self.assertIn("`systematic-debugging`", self.prompt("로그인 눌러도 아무 반응이 없어"))
+        self.assertFalse(self.denied)
+
+    def test_rule_match_skips_the_model(self):
+        self.start_model('{"skills": ["dataviz"]}')
+        context = self.prompt("로그인 오류가 나")
+        self.assertIn("systematic-debugging", context)
+        self.assertEqual(self.calls, [])
+
+    def test_model_cannot_pick_unknown_or_subagent_skills(self):
+        self.start_model('{"skills": ["today-date", "pstack:thermos", "pstack:arena"]}')
+        self.assertEqual(self.prompt("로그인 눌러도 반응이 없어"), "")
+
+    def test_model_garbage_is_ignored(self):
+        for content in ["not json", '{"skills": "run"}', '[1, 2]', '{"skills": [1]}']:
+            self.start_model(content)
+            self.assertEqual(self.prompt("반응이 없어"), "", content)
+
+    def test_model_down_means_no_context_and_no_failure(self):
+        self.assertEqual(self.prompt("로그인 눌러도 반응이 없어"), "")
+
+    def test_files_and_commands_never_call_the_model(self):
+        self.start_model('{"skills": ["dataviz"]}')
+        self.edit("_docs/a.md")
+        self.bash("git status")
+        self.assertEqual(self.calls, [])
+
+    def test_slash_command_never_calls_the_model(self):
+        self.start_model('{"skills": ["dataviz"]}')
+        self.prompt("/code-review")
+        self.assertEqual(self.calls, [])
+
+    def test_model_pick_is_announced_once_per_session(self):
+        self.start_model('{"skills": ["run"]}')
+        self.assertIn("`run`", self.prompt("이거 좀 봐"))
+        self.assertEqual(self.prompt("이거 좀 봐"), "")
+
+    def test_long_paste_is_truncated(self):
+        self.start_model('{"skills": []}')
+        self.prompt("가" * 5000)
+        self.assertLessEqual(len(self.calls[0]["messages"][1]["content"]), 2000)
+
+    def test_intent_skills_exclude_subagent_skills(self):
+        intent = json.loads((CLAUDE_DIR / "skill-intent.json").read_text(encoding="utf-8"))
+        self.assertEqual(SUBAGENT_SKILLS & set(intent["examples"]), set())
 
 
 if __name__ == "__main__":
