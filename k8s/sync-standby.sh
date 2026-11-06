@@ -8,16 +8,27 @@
 # 예전처럼 docker pull → docker save → k3s ctr import 로 5.8GB를 통째 옮기던 단계(약 7분)가 없다.
 #
 # 사용: backend-deploy.yml 이 deploy.sh 다음에 부른다. 손으로: ./k8s/sync-standby.sh
-# 환경: STANDBY_HOST(기본 suvisdev@100.91.129.31 — 집컴 Tailscale, 집 밖에서도 닿는다. 2026-10-06), STANDBY_KEY(기본 ~/.ssh/home_desktop),
+# 환경: STANDBY_HOST(기본: 집 안이면 내부 IP, 아니면 Tailscale), STANDBY_KEY(기본 ~/.ssh/home_desktop),
 #       STANDBY_ROLLOUT_TIMEOUT(기본 1200초 — 아래 ROLLOUT_TIMEOUT 설명)
 set -euo pipefail
 cd "$(dirname "$0")"
 
-HOST="${STANDBY_HOST:-suvisdev@100.91.129.31}"
 KEY="${STANDBY_KEY:-$HOME/.ssh/home_desktop}"
 CTL="/tmp/standby-sync-$$.sock"
 SSH=(ssh -i "$KEY" -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=10
      -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$HOME/.ssh/known_hosts_ollama_tunnel")
+# 같은 집이어도 Tailscale 이 중계(DERP tok)로 붙어 2.7MB/s, 내부 IP 는 34.4MB/s(2026-11-06 실측). 11-05 는 push 만 30분이 걸렸다.
+# 내부 IP 는 SSH 인증까지 통과할 때만 쓴다 — 다른 네트워크의 같은 주소는 호스트 키 확인에서 걸러진다.
+HOST="${STANDBY_HOST:-}"
+if [ -z "$HOST" ]; then
+  # 집컴에 부하가 있으면 SSH 연결만 수 초가 걸린다(11-06 실측 2.5~27초). 못 닿으면 Tailscale 로 간다.
+  if timeout 15 ssh -n -o ConnectTimeout=8 "${SSH[@]:1}" suvisdev@172.30.1.21 true 2>/dev/null; then
+    HOST=suvisdev@172.30.1.21
+  else
+    HOST=suvisdev@100.91.129.31
+  fi
+fi
+echo "[standby] 경로 $HOST"
 IMG=suvisdev-app:latest
 REG_LOCAL=127.0.0.1:15000   # 노트북 쪽 임시 터널 → 집컴 127.0.0.1:5000
 REG_DESK=127.0.0.1:5000     # 집컴 k3s가 받는 주소

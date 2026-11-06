@@ -1,5 +1,6 @@
 # 1. Python이 설치된 기본 환경을 가져옵니다.
-FROM python:3.13-slim
+# 태그만 쓰면 원본이 갱신될 때 전체 레이어가 다시 빌드·전송돼 11-05 배포가 40분 제한에 걸렸다. 올릴 때 digest를 직접 바꾼다.
+FROM python:3.13-slim@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc
 
 # 2. 도커 내부에서 작업할 폴더 위치를 지정합니다.
 WORKDIR /suvisdev

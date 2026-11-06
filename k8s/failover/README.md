@@ -61,7 +61,7 @@ rollout 600초 타임아웃 → 집컴 동기화가 실행되지 않아 실제 �
   빌드 · k3s 적재 · `deploy.sh --external-db --no-tunnel`(Secret·매니페스트 apply, cloudflared만 제외) · `rollout restart`만 하고
   기다리지 않는다. 노트북 파드는 집에 돌아와 DB가 닿으면 새 이미지·새 설정으로 뜬다(10-20 전에는 apply를 빼서 새 이미지가
   옛 매니페스트로 떴다). cloudflared를 1로 올리지 않으므로 serve-agent가 내리기 전 15초 틈도 없다.
-- `sync-standby.sh` 기본 `STANDBY_HOST`는 집컴 Tailscale(`suvisdev@100.91.129.31`) — 집 안팎 모두 닿는다.
+- `sync-standby.sh`는 내부 IP로 SSH가 되면 그쪽을 쓰고, 아니면 집컴 Tailscale(`suvisdev@100.91.129.31`)을 쓴다(11-06).
   **11-06 실측: 같은 집에 있어도 Tailscale 이 직결이 아니라 중계(DERP tok)로 붙어 2.7MB/s, 내부 IP 는 34.4MB/s.** 11-05 push 30분의 원인일 수 있다(그때 중계였는지는 확인 못 함).
 - 집 밖 push는 인터넷 업로드라 바뀐 레이어가 크면(의존성 변경 등) 오래 걸릴 수 있다.
 **집컴 빌드 부활은 금지**(10-05 메모리 부족으로 DB 크래시 2회).
