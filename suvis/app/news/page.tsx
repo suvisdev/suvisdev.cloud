@@ -79,22 +79,25 @@ export default async function NewsPage({ searchParams }: { searchParams: SearchP
   const intro = INTRO[view.section]
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 md:py-12">
-      <header>
-        <p className="text-muted-foreground text-xs font-medium tracking-[0.2em] uppercase">
-          Suvisdev News
-        </p>
-        <h1 className="text-foreground mt-2 text-2xl font-bold tracking-tight md:text-3xl">
-          {intro.title}
-        </h1>
-        <p className="text-muted-foreground mt-2 text-sm [word-break:keep-all]">{intro.desc}</p>
-      </header>
+    <main className="mx-auto max-w-3xl px-4 py-8 md:py-12 lg:max-w-5xl">
+      {/* 넓은 화면의 오른쪽 칸(17rem + 간격)은 글마다 그 글의 용어가 차지한다 */}
+      <div className="lg:pr-[19rem]">
+        <header>
+          <p className="text-muted-foreground text-xs font-medium tracking-[0.2em] uppercase">
+            Suvisdev News
+          </p>
+          <h1 className="text-foreground mt-2 text-2xl font-bold tracking-tight md:text-3xl">
+            {intro.title}
+          </h1>
+          <p className="text-muted-foreground mt-2 text-sm [word-break:keep-all]">{intro.desc}</p>
+        </header>
 
-      <div className="mt-6 space-y-4">
-        <SectionSwitch current={view.section} />
-        <SearchForm section={view.section} q={view.q} />
-        <GroupTabs view={view} groups={groups} />
-        {topics.ok && <TopicTabs view={view} topics={topics.data} />}
+        <div className="mt-6 space-y-4">
+          <SectionSwitch current={view.section} />
+          <SearchForm section={view.section} q={view.q} />
+          <GroupTabs view={view} groups={groups} />
+          {topics.ok && <TopicTabs view={view} topics={topics.data} />}
+        </div>
       </div>
 
       <ArticleSection view={view} result={articles} groupLabels={groupLabels} />
@@ -111,6 +114,10 @@ export default async function NewsPage({ searchParams }: { searchParams: SearchP
           <strong className="text-foreground font-medium">AI 요약</strong>과 영어 제목 번역은 LG
           EXAONE 3.5 모델이 자동으로 만든 것이라 틀릴 수 있습니다. 중요한 내용은 원문에서 확인해
           주세요.
+        </p>
+        <p className="mt-1">
+          <strong className="text-foreground font-medium">용어</strong> 설명은 미리 써 둔 용어
+          사전에서 글에 나오는 말을 찾아 보여 줍니다. 사전에 없는 용어는 나오지 않습니다.
         </p>
       </footer>
     </main>

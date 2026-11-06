@@ -5,12 +5,14 @@ news.suvisdev.cloud 는 로그인 없이 이것만 쓴다. 메인은 AI 섹션, 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime
 
 from news.app.dtos.news_dtos import ArticleDto, FeedSource, GroupDto, SectionDto, TopicDto
 from news.app.errors import NewsQueryError, TopicNotFoundError
 from news.app.ports.input.news_use_cases import NewsReadUseCase
 from news.app.ports.output.news_repository import NewsRepositoryPort
+from news.domain.glossary import find_terms
 from news.domain.sections import GROUPS, SECTIONS, is_section
 
 MAX_LIMIT = 100
@@ -52,8 +54,8 @@ class NewsReadInteractor(NewsReadUseCase):
         # 비공개·꺼진 탭은 없는 것과 같게 다룬다 (존재 여부를 흘리지 않는다)
         if topic is None or not topic.is_public or not topic.active:
             raise TopicNotFoundError(topic_id)
-        return await self._repository.list_topic_articles(
-            topic_id, limit=_clamp(limit), before=before
+        return _with_terms(
+            await self._repository.list_topic_articles(topic_id, limit=_clamp(limit), before=before)
         )
 
     async def list_latest(
@@ -62,8 +64,10 @@ class NewsReadInteractor(NewsReadUseCase):
         _check_section(section)
         if group is not None and (group not in GROUPS or GROUPS[group][0] != section):
             raise NewsQueryError(f"{section} 섹션에 없는 묶음: {group}")
-        return await self._repository.list_latest(
-            section=section, group=group, limit=_clamp(limit), before=before
+        return _with_terms(
+            await self._repository.list_latest(
+                section=section, group=group, limit=_clamp(limit), before=before
+            )
         )
 
     async def search(
@@ -74,9 +78,24 @@ class NewsReadInteractor(NewsReadUseCase):
         if not q or len(q) > MAX_QUERY_LEN:
             raise NewsQueryError(f"검색어는 1~{MAX_QUERY_LEN}자")
         tokens = list(dict.fromkeys(q.split()))[:MAX_TOKENS]
-        return await self._repository.search_articles(
-            tokens, section=section, limit=_clamp(limit), before=before
+        return _with_terms(
+            await self._repository.search_articles(
+                tokens, section=section, limit=_clamp(limit), before=before
+            )
         )
+
+
+def _with_terms(rows: list[ArticleDto]) -> list[ArticleDto]:
+    """글마다 제목·요약에 나오는 사전 용어를 붙인다. 저장하지 않으니 사전을 고치면 지난 글에도 바로 반영된다."""
+    return [
+        replace(
+            a,
+            terms=find_terms(
+                f"{a.title_ko or ''} {a.title} {a.summary_ko or ''} {a.summary}", a.section
+            ),
+        )
+        for a in rows
+    ]
 
 
 def _check_section(section: str) -> None:
