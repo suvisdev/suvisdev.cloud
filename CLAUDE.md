@@ -276,6 +276,7 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 .claude/
 ├── settings.json          # 훅 설정 (커밋됨, 팀 공용)
 ├── skill-routes.json      # 작업 구간→스킬 규칙. 판정은 scripts/skill_router.py(훅), 테스트는 scripts/test_skill_router.py
+├── skill-intent.json      # 규칙에 안 걸린 요청의 의도 판단 예시(무료 로컬 모델)
 ├── settings.local.json    # 개인 권한 허용 목록
 ├── rules/                 # 경로별 코딩 규칙 — 해당 파일을 다룰 때 자동 로드
 │   ├── typescript.md      #   **/*.ts, **/*.tsx
@@ -313,7 +314,8 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 ### 훅
 
 `scripts/skill_router.py`는 프롬프트·수정 파일·명령·검사 실패를 코드로 판정해 맞는 스킬(프로젝트·pstack·기본 제공)을
-알린다. 파일 수정과 커밋·PR은 해당 스킬의 첫 호출을 한 번 거부해 먼저 읽게 한다. 규칙은 `skill-routes.json`만 고치면 되고,
+알린다. 규칙에 안 걸린 요청은 무료 로컬 모델(`skill-intent.json`, Ollama EXAONE 7.8B)이 의도로 판단하고, 모델이 없거나 5초를 넘기면 판단 없이 진행한다.
+파일 수정과 커밋·PR은 해당 스킬의 첫 호출을 한 번 거부해 먼저 읽게 한다. 규칙은 `skill-routes.json`만 고치면 되고,
 서브에이전트를 띄우는 스킬은 명시 요청 표현에만 연결한다. pstack의 세션 강제 진입은 `~/.claude/pstack-models.md`의
 `session hook: off`로 끈다. 커밋·머지 관문은 "브랜치 전략"의 `scripts/codex_gate.py`.
 
