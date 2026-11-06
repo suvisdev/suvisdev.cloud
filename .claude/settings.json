@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "git pull --ff-only 2>&1 || true"
+          },
+          {
+            "type": "command",
+            "command": "git config core.hooksPath .claude/githooks 2>/dev/null || true"
           }
         ]
       }
@@ -17,6 +21,48 @@
           {
             "type": "command",
             "command": "grep -qiE 'commit|커밋' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"커밋 요청으로 보임: 커밋 전에 작업 영역에 맞는 _docs/WORK_LOG_MOVA|GILDLE|MAINPAGE.md(오늘 작업 기록)와 _docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md(완료분 삭제·남은 작업/계획 유지)를 이번 작업에 맞게 먼저 갱신한 뒤, 문서와 코드를 함께 커밋할 것.\"}}' || true"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/scripts/skill_router.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/scripts/skill_router.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/scripts/codex_gate.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/scripts/skill_router.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/scripts/codex_gate.py\"",
+            "timeout": 60
           }
         ]
       }

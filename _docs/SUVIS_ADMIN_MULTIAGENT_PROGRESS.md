@@ -13,6 +13,8 @@
 
 ## 완료됨 (워크로그 날짜 인덱스 — 상세는 재기록 안 함)
 
+- 스킬 자동 적용·Codex 관문·자동 머지 하네스: `WORK_LOG_MAINPAGE.md` 2026-11-06 (4)
+
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
 - `[P]` 11-06 **어드민 노트북 서버 켜기·끄기**: 끄면 k3s·Arda·Ollama·도커·러너가 모두 멈추고 재부팅해도 꺼져 있음, 사이트는 집컴이 이어받음(DB 는 집컴 유지). 사용자 sudo 설치 필요. 바깥 응답이 느린 원인은 Cloudflare LA 경유(서버 위치 무관, 미해결).
