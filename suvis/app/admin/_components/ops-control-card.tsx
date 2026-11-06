@@ -44,7 +44,7 @@ const SERVER_STOP_CONFIRM =
   "· 백엔드·Arda·Ollama·도커·배포 러너가 멈추고, 재부팅해도 꺼져 있습니다.\n" +
   "· 사이트는 집컴이 이어받습니다. 집컴이 준비된 걸 확인한 뒤에 끕니다.\n" +
   "· 끄는 동안 뉴스 수집·요약이 멈추고 AI 채팅은 Gemini 로 넘어갑니다.\n" +
-  "· Arda(seuk.suvisdev.cloud)는 접속되지 않습니다.\n\n" +
+  "· Arda(seuk.suvisdev.cloud)는 화면이 열려도 로그인이 안 됩니다.\n\n" +
   "계속할까요?"
 
 /** 운영 제어 — 노트북 서버 전체 켜기·끄기, Arda 켜기·끄기, Arda AI GPU·CPU, Ollama 모델 GPU 올리기·내리기.
