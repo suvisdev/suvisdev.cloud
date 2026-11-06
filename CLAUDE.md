@@ -92,6 +92,7 @@ cloud.suvisdev/
 | 문서 성격 | 위치 |
 |-----------|------|
 | 공통·인프라·워크스페이스 설정 (Obsidian, 심볼릭 링크 등) | `_docs/` |
+| 결정 기록(ADR): 왜 그렇게 정했고 무엇을 버렸는지 | `_docs/decisions/` |
 | 백엔드 아키텍처·API·ERD·FastAPI 규칙 | `suvisdev/_docs/` |
 | 앱별 ERD·도메인 설계 | `suvisdev/apps/<app>/_docs/` |
 | 프론트엔드 화면 설계·컴포넌트·Next.js 규칙 | `suvis/_docs/` |
@@ -130,6 +131,9 @@ cloud.suvisdev/
 작업으로 학습·면접 대비용 인터뷰 질문 5~10개를 추가한다(최신 날짜가 맨 위,
 답은 `<details>`로 접기, "무엇을"보다 "왜 그렇게"를 묻기). 사용자가 변경
 내용을 스스로 설명할 수 있게 하는 장치다.
+
+**결정이 있었으면 `_docs/decisions/`에 ADR을 쓴다(2026-11-06 신설)** — 되돌리기 어렵거나 대안을 버린 결정, 사용자가 정한 운영 방침이 대상이다.
+형식과 번호 규칙은 그 폴더의 `README.md`. 작업 내역은 워크로그, 실패와 극복은 LESSONS에 쓰고 ADR에는 결정과 이유만 남긴다.
 
 **`_docs/LESSONS.md`도 함께 갱신한다(2026-09-29 신설)** — 그날 **잘못됐던 것을
 어떻게 극복했는지**를 한 줄씩 적는 압축 층이다(증상 → 원인 → 극복 · 상태 · 근거
@@ -239,7 +243,7 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   묻지 않고 머지까지 끝낸다. 메인 폴더의 브랜치는 바꾸지 않고 `origin/main`에서 만든 worktree에서 진행한다. 질문·조사만 한 작업이나
   사용자가 커밋을 원하지 않은 작업은 제외한다.
   1. `verification-before-completion`으로 실제 검증한다. 실패하면 고친다.
-  2. 워크로그 등 문서를 갱신하고 `git add` 후 `python3 .claude/scripts/codex_gate.py review`를 실행한다(오래 걸리므로 백그라운드).
+  2. 워크로그와 결정이 있으면 ADR을 갱신하고 `git add` 후 `python3 .claude/scripts/codex_gate.py review`를 실행한다(오래 걸리므로 백그라운드).
   3. 지적은 코드로 확인해 고치고 다시 리뷰받는다. 사용자에게 묻지 않고 OK까지 반복한다(11-06 사용자 지시). **보고는 Codex가 답이 없을 때와 변경 완료 때만 한다.**
   4. 커밋·푸시·`gh pr create` 후 `gh pr checks <번호> --watch`. CI 실패도 고쳐서 2번부터 다시 한다.
   5. `gh pr merge <번호> --merge --match-head-commit <SHA>`로 머지하고(다른 명령과 잇지 않는다) 끝에 결과만 짧게 보고한다.
