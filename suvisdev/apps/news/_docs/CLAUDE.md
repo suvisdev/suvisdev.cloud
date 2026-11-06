@@ -28,7 +28,7 @@
 | ai | lab 연구소·기업 블로그 | OpenAI, Google DeepMind, Google Research, Hugging Face, NVIDIA 개발자, Microsoft Research, AWS ML | 안 함 |
 | ai | paper 논문 | arXiv cs.CL·cs.LG (새 논문만, 개정 공지 `replace` 건너뜀, 피드당 300건) | 안 함 |
 | ai | release 오픈소스 릴리스 | GitHub `releases.atom` — vLLM, Ollama, Transformers | 안 함 |
-| ai | commentary 해설·뉴스레터 | Simon Willison, Latent Space, Interconnects, Import AI, Lilian Weng | 안 함 |
+| ai | commentary 해설·뉴스레터 | Simon Willison, Latent Space, Interconnects, Import AI, Lilian Weng, TLDR AI | 안 함 |
 | ai | community 커뮤니티 | GeekNews, Hacker News(LLM·50점 이상), r/LocalLLaMA | 안 함 |
 | ai | ko_media 국내 AI 매체 | AI타임스, 인공지능신문 | **함** |
 | economy | outlet 경제 언론 | 연합(경제·마켓+), 매경(경제·증권), 한경(경제·증권), 조선비즈, 머니투데이, 서울경제, 뉴시스·동아·경향·JTBC 경제 (13곳) | **함** |
@@ -47,21 +47,24 @@
 ```text
 스케줄러(30분) 또는 POST /admin/collect
  → NewsCollectInteractor
-     ├ RSS × latest_feeds.json(35곳) — 섹션·묶음 표시, 피드당 최신 N건, arXiv 개정 공지 건너뜀
+     ├ RSS × latest_feeds.json(36곳) — 섹션·묶음 표시, 피드당 최신 N건, arXiv 개정 공지 건너뜀
      ├ 검색어 탭: 자기 섹션의 이번 주기 RSS 글을 domain.relevance 로 고름
      │    └ 경제 탭은 NaverNewsSearchClient(키 없으면 건너뜀) 결과도 더함
      ├ canonical_url 로 중복 제거(먼저 온 RSS 묶음을 남김, 검색·RSS 둘 다면 RSS)
      ├ 판정 범위 밖 묶음은 본문을 비움 → NewsPgRepository.save_articles / link_topic_articles
      └ 판정 범위 묶음 중 현재 하네스 버전 rules 판정이 없는 기사만 classify(mode C, 스레드) → save_verdicts
-GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배지 = llm 판정이 있으면 llm, 없으면 rules
+스케줄러만, 수집 뒤
+ → NewsHotInteractor: HF Daily Papers·Hacker News 반응 수치 → 새 글 저장 + hot_* 칸 갱신
+ → NewsSummarizeInteractor: 핫한 글 먼저, 그다음 AI 섹션, 경제 순으로 NEWS_SUMMARY_BATCH 건
+GET /sections · /hot · /topics · /topics/{id}/articles · /latest · /search → 배지 = llm 판정이 있으면 llm, 없으면 rules
 ```
 
-## ERD (alembic `20261105_0001` + `20261105_0002`)
+## ERD (alembic `20261105_0001` ~ `20261105_0004`)
 
 | 테이블 | 열 | 비고 |
 |---|---|---|
 | `news_topics` | id · query(UQ) · label · **section** · is_public · active · created_at | 운영자 검색어 = 탭 |
-| `news_articles` | id · canonical_url(UQ) · link · source_domain · source_name · title · summary · body · author · origin(search/feed) · **section · feed_group** · published_at · sort_at · fetched_at | body 는 판정 범위 묶음에서 RSS 가 준 본문만, 내보내지 않음. ix(section, sort_at) |
+| `news_articles` | id · canonical_url(UQ) · link · source_domain · source_name · title · summary · body · author · origin(search/feed) · **section · feed_group** · published_at · sort_at · fetched_at · title_ko · summary_ko · ko_model · ko_at · ko_tries · hot_source · hot_score · hot_label · hot_at | body 는 판정 범위 묶음에서 RSS 가 준 본문만, 내보내지 않음. ix(section, sort_at) |
 | `news_topic_articles` | topic_id(FK, PK) · article_id(FK, PK) · relevance · matched_at | |
 | `news_verdicts` | id · article_id(FK) · layer(rules/llm) · harness_version · verdict(normal/pending/ai) · badge · reasons_ko(JSONB) · signals(JSONB) · created_at | UQ(article_id, layer) |
 
@@ -70,6 +73,7 @@ GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배�
 | 메서드 | 경로 | 인증 |
 |---|---|---|
 | GET | `/sections` | 없음 — 섹션·묶음·피드 이름 |
+| GET | `/hot?limit=3` | 없음 — 오늘의 핫한 소식(논문·커뮤니티 따로) |
 | GET | `/topics?section=` | 없음 |
 | GET | `/topics/{id}/articles?limit=&before=` | 없음 (비공개·꺼진 탭은 404) |
 | GET | `/latest?section=ai&group=&limit=&before=` | 없음 (section 기본 ai, 다른 섹션 묶음은 400) |
@@ -81,11 +85,11 @@ GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배�
 ## 환경 변수
 
 `ENABLE_NEWS_SCHEDULER` · `NEWS_COLLECT_INTERVAL_SECONDS`(최소 300) · `NAVER_SEARCH_CLIENT_ID` · `NAVER_SEARCH_CLIENT_SECRET` ·
-`NAVER_SEARCH_API_URL`(비우면 개발자센터, `apigw.ntruss.com` 이면 API HUB 헤더). 키가 없어도 RSS 35곳과 검색어 탭(RSS 매칭)은 돈다 — 키는 경제 탭의 뉴스 검색에만 쓴다.
+`NAVER_SEARCH_API_URL`(비우면 개발자센터, `apigw.ntruss.com` 이면 API HUB 헤더). 키가 없어도 RSS 36곳과 검색어 탭(RSS 매칭)은 돈다 — 키는 경제 탭의 뉴스 검색에만 쓴다.
 
 ## 실측 (11-05, 로컬 SQLite, 네이버 키 없음)
 
-- 피드 36곳 전부 응답, 첫 주기 1,564건(AI 947 · 경제 617) 37.8초, 두 번째 주기 새 글 2건. (이 실측 뒤 날짜 없는 한겨레 경제 30건 피드를 빼 지금은 35곳)
+- 피드 36곳 전부 응답, 첫 주기 1,564건(AI 947 · 경제 617) 37.8초, 두 번째 주기 새 글 2건. (이 실측 뒤 날짜 없는 한겨레 경제 30건 피드를 빼고 11-06 TLDR AI 를 더해 지금도 36곳)
 - 판정 717건(국내 AI 매체 100 · 경제 언론 617) 전부 normal, 판정 범위 밖 847건. 본문 저장은 경제 언론 49건(조선비즈)뿐.
 - 검색어 탭(RSS 매칭): "mixture of experts" 17건 · "agent" 100건 이상 · "금리"(경제) 8건. `/search` "transformer"(ai) 41건 · "환율"(경제) 10건.
 
@@ -103,6 +107,8 @@ GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배�
 - 주소는 노트북 올라마 직접(`NEWS_SUMMARY_OLLAMA_URL` → `PORTFOLIO_LLM_OLLAMA_URL` → `OLLAMA_BASE_URL`). 중계기를 거치면 노트북이 죽었을 때 집컴 CPU 에 7.8B 를 올린다.
 - 11-05 실측(RTX 4060): 글당 2.4~3.8초(첫 글 7.5초), 실제 코드 흐름 27건 실패 0. 2.4B 는 영어 제목을 옮기지 않아 쓰지 않음.
   첫 지시문은 "왜 중요한지"를 시켜 원문에 없는 평가("중요한 발전")가 붙어서 "원문에 없는 평가 금지"로 바꿈. 가끔 이름을 옮긴다(PolicyIK → 정책IK).
+- 11-06 이름 망가짐: "원문 그대로 둔다"만으로는 'Claude Opus 5'→"클레어 오퍼스 5", 'Kimi K3.1 Pro'→"김미 프로"가 나왔다(제목 16건 중 3건). 음역 금지와 예시를 넣어 같은 16건에서 0건, 실제 핫한 글 49건에서 1건('OpenAI'→"오픈에이아이"). 없어지지는 않는다.
+- **내용 없는 글은 요약하지 않는다**(`domain/feed_text.py`). HN RSS 요약 칸은 "Article URL … Points …", Reddit 링크 글은 "submitted by … [link] [comments]" 뿐이라 모델이 제목만 보고 지어냈다('LLM Voice'→"음성 표현 기술"). 껍데기를 걷어 낸 뒤 40자 미만이면 제목만 옮기고 `summary_ko=""`(끝난 글, 다시 시도 안 함)로 둔다. `is_korean` 제목이면 모델을 부르지 않는다. 지난 글은 alembic `0004` 가 정리했다.
 
 ## 용어 정리 (11-06, `domain/glossary.py` + `glossary.json`)
 
@@ -112,7 +118,15 @@ GET /sections · /topics · /topics/{id}/articles · /latest · /search → 배�
 - 11-06 실측(운영 글 묶음별 최대 100건): 논문 64% · 커뮤니티 55% · 해설 54% · 릴리스 50% · 연구소 46% · 국내 AI 매체 25% · 경제 언론 21% 에 용어가 잡힘(사전 98개, 오탐 손질 전 수치). 사전에 없는 새 용어는 안 나온다 — `glossary.json` 에 한 줄 더하면 된다.
 - 화면: 넓은 화면은 글 오른쪽 칸(17rem), 좁은 화면은 글 아래.
 
+## 오늘의 핫한 소식 (11-06, `domain/hot.py`, `adapter/outbound/http/hot_sources.py`, alembic `20261105_0004`)
+
+- **화제 정도는 모델이 판단하지 않고 사람들의 반응 수치로 정한다.** 논문은 Hugging Face Daily Papers 추천 수(오늘·어제, 상위 30), 커뮤니티는 Hacker News 점수(Algolia API, 48시간·100점 초과·AI 제목만, 상위 30). 키 필요 없음. 단위가 달라 합치지 않고 따로 순위를 매긴다.
+- 수집 주기마다 `news_articles.hot_*` 를 덮어쓴다(누적 아님). 새 글은 기사로 저장(`paper`·`community` 묶음, 판정 안 함), arXiv RSS 와 주소가 같은 논문은 한 글로 합쳐진다. 요약 순서에서 핫한 글이 먼저다. `hot_at` 이 12시간(`HOT_WINDOW_HOURS`) 지난 글은 안 보인다 — 노트북이 한나절 넘게 꺼지면 칸이 비고, 화면은 칸을 통째로 뺀다.
+- 화면은 AI 섹션 첫 화면에만(검색·탭·묶음·이전 글에는 없음), 출처별 3건. 수치 표시는 이 칸에서만.
+- 한계: HN 링크 글은 원문을 가져오지 않으므로 요약이 없고 **제목 번역과 수치만** 나온다. 11-06 실측 HN 19건 중 15건. 요약이 있는 건 작성자가 직접 쓴 글(Ask HN 등)뿐. HF 논문은 초록을 요약한다.
+- 11-06 실측(실제 API·로컬 EXAONE): HF 30건·HN 19건 오류 0, 요약 60건 176초(글당 2.9초) 실패 0.
+
 ## 남은 단계 (newsdesk `docs/구현가이드.md` §7)
 
-3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층) · '오늘의 핫한 소식'(HF Daily Papers 추천 수·HN 점수 + EXAONE 요약) · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
+3 방문자 검색 캐시·상한 · 4 올라마 2차 판정(llm 층) · 5 아침 메일("어제 AI 소식") · 6 정답셋·평가.
 본문 30일 보관 정리, 같은 소식 묶음 표시도 아직이다.

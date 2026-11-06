@@ -69,6 +69,14 @@ class ArticleSchema(BaseModel):
     title_ko: str | None
     summary_ko: str | None
     terms: list[TermSchema]  # 글에 나오는 전문 용어와 뜻(고정 사전)
+    hot_label: str | None  # 화제 수치 — "추천 83", "1,267점 · 댓글 741"
+
+
+class HotSchema(BaseModel):
+    """오늘의 핫한 소식 — 단위가 달라 출처별로 따로 순위를 매긴다."""
+
+    papers: list[ArticleSchema]
+    community: list[ArticleSchema]
 
 
 class CollectReportSchema(BaseModel):

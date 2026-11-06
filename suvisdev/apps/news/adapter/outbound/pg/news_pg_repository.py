@@ -18,6 +18,7 @@ from news.adapter.outbound.orm.news_orm import (
 from news.app.dtos.news_dtos import (
     ArticleDto,
     FetchedArticle,
+    HotUpdate,
     StoredArticle,
     SummaryTarget,
     TopicCreateCommand,
@@ -306,17 +307,40 @@ class NewsPgRepository(NewsRepositoryPort):
                     sort_at=r.sort_at,
                     title_ko=r.title_ko,
                     summary_ko=r.summary_ko,
+                    hot_label=r.hot_label,
                 )
             )
         return out
 
+    # ── 오늘의 핫한 소식 ───────────────────────────────────────
+    async def set_hot(self, updates: Sequence[HotUpdate]) -> None:
+        now = datetime.now(UTC)
+        for u in updates:
+            await self._session.execute(
+                update(NewsArticleOrm)
+                .where(NewsArticleOrm.id == u.article_id)
+                .values(hot_source=u.source, hot_score=u.score, hot_label=u.label[:60], hot_at=now)
+            )
+        await self._session.commit()
+
+    async def list_hot(self, source: str, *, limit: int, since: datetime) -> list[ArticleDto]:
+        stmt = (
+            select(NewsArticleOrm)
+            .where(NewsArticleOrm.hot_source == source, NewsArticleOrm.hot_at >= since)
+            .order_by(NewsArticleOrm.hot_score.desc(), NewsArticleOrm.id.desc())
+            .limit(limit)
+        )
+        return await self._with_badges(list((await self._session.execute(stmt)).scalars()))
+
     # ── 한국어 제목·요약 ───────────────────────────────────────
     async def pending_summaries(self, *, limit: int, max_tries: int) -> list[SummaryTarget]:
+        # 핫한 소식이 맨 위에 보이니 먼저, 그다음 AI 섹션(목적이 AI 공부), 경제는 마지막
+        hot_first = case((NewsArticleOrm.hot_source.is_not(None), 0), else_=1)
         ai_first = case((NewsArticleOrm.section == "ai", 0), else_=1)
         stmt = (
             select(NewsArticleOrm)
             .where(NewsArticleOrm.summary_ko.is_(None), NewsArticleOrm.ko_tries < max_tries)
-            .order_by(ai_first, NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc())
+            .order_by(hot_first, ai_first, NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc())
             .limit(limit)
         )
         rows = (await self._session.execute(stmt)).scalars().all()

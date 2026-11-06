@@ -7,6 +7,7 @@ from datetime import datetime
 from news.app.dtos.news_dtos import (
     ArticleDto,
     FetchedArticle,
+    HotUpdate,
     StoredArticle,
     SummaryTarget,
     TopicCreateCommand,
@@ -68,6 +69,14 @@ class NewsRepositoryPort(ABC):
         self, *, section: str, group: str | None, limit: int, before: datetime | None
     ) -> list[ArticleDto]:
         """RSS 로 모은 기사(origin=feed) 최신순. group 이 있으면 그 묶음만."""
+
+    # 오늘의 핫한 소식
+    @abstractmethod
+    async def set_hot(self, updates: Sequence[HotUpdate]) -> None: ...
+
+    @abstractmethod
+    async def list_hot(self, source: str, *, limit: int, since: datetime) -> list[ArticleDto]:
+        """since 이후에 수치가 갱신된 글을 그 출처의 수치 높은 순으로."""
 
     # 한국어 제목·요약
     @abstractmethod

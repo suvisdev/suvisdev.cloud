@@ -121,6 +121,39 @@ class ArticleDto:
     summary_ko: str | None = None
     # 글에 나오는 전문 용어와 뜻(domain/glossary.py 사전). 읽을 때 계산한다 — 저장하지 않는다
     terms: tuple[GlossaryTerm, ...] = ()
+    hot_label: str | None = None  # 오늘의 핫한 소식에서만 — "추천 83", "1,267점 · 댓글 741"
+
+
+@dataclass(frozen=True)
+class HotItem:
+    """화제 출처(HF Daily Papers·Hacker News)에서 받은 글 1건과 그 반응 수치."""
+
+    article: FetchedArticle
+    source: str  # domain/hot.py HOT_PAPERS | HOT_COMMUNITY
+    score: int
+    label: str
+
+
+@dataclass(frozen=True)
+class HotUpdate:
+    article_id: int
+    source: str
+    score: int
+    label: str
+
+
+@dataclass(frozen=True)
+class HotDto:
+    """오늘의 핫한 소식 — 단위가 달라 출처별로 따로 순위를 매긴다."""
+
+    papers: list[ArticleDto]
+    community: list[ArticleDto]
+
+
+@dataclass
+class HotReport:
+    fetched: dict[str, int] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

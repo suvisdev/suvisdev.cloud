@@ -2,7 +2,7 @@
 
 피드가 준 것(제목·요약·링크·날짜·작성자, 일부는 content 본문)만 쓴다. 기사 원문 페이지는
 가져오지 않는다(저장소 저작권 원칙). 피드 목록은 latest_feeds.json — 2026-11-05 응답 확인:
-AI 섹션 22곳(연구소 블로그·논문·릴리스·해설·커뮤니티·국내 AI 매체) + 경제 섹션 13곳
+AI 섹션 23곳(연구소 블로그·논문·릴리스·해설·커뮤니티·국내 AI 매체) + 경제 섹션 13곳
 (한겨레 경제는 글에 날짜가 없어 뺐다).
 """
 
@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 
 from news.app.dtos.news_dtos import FeedSource, FetchedArticle
 from news.app.ports.output.news_source_ports import FeedReaderPort
+from news.domain.feed_text import clean_feed_summary
 from news.domain.sections import GROUPS
 from news.domain.url import domain_of_url
 
@@ -106,6 +107,9 @@ def parse_feed(content: bytes | str, feed: FeedSource) -> list[FetchedArticle]:
             body = _text(str(contents[0].get("value") or ""))
         if body and (body == summary or not summary):
             summary = body[:500]  # 릴리스 노트처럼 요약 없이 본문만 주는 피드
+        summary = clean_feed_summary(
+            summary
+        )  # HN 링크·점수, Reddit 작성자 같은 껍데기는 내용이 아니다
         out.append(
             FetchedArticle(
                 url=url,
