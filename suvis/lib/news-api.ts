@@ -17,6 +17,8 @@ export type NewsTopic = { id: number; label: string; query: string; section: New
 
 export type NewsBadge = "none" | "ai_disclosed" | "ai_suspected"
 
+export type NewsTerm = { term: string; desc: string }
+
 export type NewsArticle = {
   id: number
   title: string
@@ -34,6 +36,8 @@ export type NewsArticle = {
   /** 노트북 EXAONE 이 만든 한국어 제목(영어 글만 번역)·2~3문장 요약. 아직 안 만들었으면 null */
   title_ko: string | null
   summary_ko: string | null
+  /** 글에 나오는 전문 용어와 뜻(백엔드 고정 사전). 백엔드 배포가 Vercel 보다 늦는 동안에는 없을 수 있다 */
+  terms?: NewsTerm[]
 }
 
 export type NewsResult<T> = { ok: true; data: T } | { ok: false; message: string }

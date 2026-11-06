@@ -45,6 +45,11 @@ class TopicUpdateSchema(BaseModel):
     active: bool | None = None
 
 
+class TermSchema(BaseModel):
+    term: str
+    desc: str
+
+
 class ArticleSchema(BaseModel):
     """화면용 기사. 본문은 없다 — 제목·요약·원문 링크만 (저작권)."""
 
@@ -63,6 +68,7 @@ class ArticleSchema(BaseModel):
     # 노트북 EXAONE 한국어 제목(영어 글만 번역)·2~3문장 요약 — 아직 안 만들었으면 null
     title_ko: str | None
     summary_ko: str | None
+    terms: list[TermSchema]  # 글에 나오는 전문 용어와 뜻(고정 사전)
 
 
 class CollectReportSchema(BaseModel):

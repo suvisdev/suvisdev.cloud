@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from news.domain.glossary import GlossaryTerm
 from news.domain.sections import DEFAULT_SECTION, section_of_group
 
 
@@ -118,6 +119,8 @@ class ArticleDto:
     # 노트북 EXAONE 이 만든 한국어 제목(영어 글만 번역, 한국어 글은 원제 그대로)·2~3문장 요약. 아직 안 만들었으면 None
     title_ko: str | None = None
     summary_ko: str | None = None
+    # 글에 나오는 전문 용어와 뜻(domain/glossary.py 사전). 읽을 때 계산한다 — 저장하지 않는다
+    terms: tuple[GlossaryTerm, ...] = ()
 
 
 @dataclass(frozen=True)
