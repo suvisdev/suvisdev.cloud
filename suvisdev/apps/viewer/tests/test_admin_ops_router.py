@@ -57,6 +57,7 @@ def test_requires_admin() -> None:
     assert c.get("/admin/ops").status_code == 401
     assert c.post("/admin/ops/arda/start").status_code == 401
     assert c.post("/admin/ops/server/stop").status_code == 401
+    assert c.post("/admin/ops/server/stop-all").status_code == 401
     assert c.post("/admin/ops/server/start").status_code == 401
 
 
@@ -79,6 +80,7 @@ def test_status_unreachable_is_not_an_error(monkeypatch: pytest.MonkeyPatch) -> 
     ("url", "body", "expected"),
     [
         ("/admin/ops/server/stop", None, ("POST", "/server/stop", None)),
+        ("/admin/ops/server/stop-all", None, ("POST", "/server/stop-all", None)),
         ("/admin/ops/server/start", None, ("POST", "/server/start", None)),
         ("/admin/ops/arda/start", None, ("POST", "/arda/start", None)),
         ("/admin/ops/arda/stop", None, ("POST", "/arda/stop", None)),
