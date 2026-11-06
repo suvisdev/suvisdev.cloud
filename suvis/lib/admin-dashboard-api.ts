@@ -65,7 +65,7 @@ export type OpsStatus = {
   reachable: boolean
   detail?: string
   /** 노트북 서버 전체 켜짐·꺼짐. 에이전트를 아직 갱신하지 않았으면 없다 */
-  server?: { state: "on" | "off" }
+  server?: { state: "on" | "off" | "all-off" }
   arda?: {
     available: boolean
     error?: string

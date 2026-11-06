@@ -6,6 +6,7 @@
   POST /admin/ops/ollama/{load|unload} {"model": "..."} 노트북 GPU 에 모델 올리기·내리기
   POST /admin/ops/maintenance/{mova|gildle} {"on": bool} 점검 모드(에이전트 아님, DB)
   POST /admin/ops/server/{start|stop}  노트북 서버 전체 켜기·끄기. 끄면 집컴이 이어받고, 켜기는 집컴 백엔드가 전달한다
+  POST /admin/ops/server/stop-all      노트북·집컴 전부 끄기. 다시 켜기는 어드민으로 못 한다(노트북 바로가기)
 
 - 브라우저는 에이전트를 직접 부르지 않는다. 관리자 JWT(require_admin)를 여기서 확인하고, 에이전트 토큰
   (OPS_AGENT_TOKEN)은 서버 안에만 있다.
@@ -138,7 +139,7 @@ async def ollama_action(
 
 @admin_ops_router.post("/server/{action}")
 async def server_action(
-    action: Literal["start", "stop"], admin: AdminPrincipal = Depends(require_admin)
+    action: Literal["start", "stop", "stop-all"], admin: AdminPrincipal = Depends(require_admin)
 ) -> dict[str, Any]:
     return await _act(admin, f"/server/{action}")
 

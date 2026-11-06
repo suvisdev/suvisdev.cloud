@@ -12,14 +12,15 @@
   POST /ollama/unload   {"model": "..."}  모델을 내린다(keep_alive 0)
   POST /server/stop     이 노트북의 서버 전체를 끈다(k3s·Arda·Ollama·도커·배포 러너). 재부팅해도 꺼진 채 남는다.
                         집컴이 이어받은 걸 확인한 뒤에 내리므로 사이트가 내려가지 않는다. 집컴이 준비 안 됐으면 409
-  POST /server/start    다시 켠다. 노트북이 서빙을 시작할 때까지 기다린다
+  POST /server/stop-all 노트북과 집컴을 모두 끈다(DB·Redis 포함). 사이트가 내려가고 어드민도 쓸 수 없다
+  POST /server/start    다시 켠다(전체 끄기 뒤라면 집컴부터). 노트북이 서빙을 시작할 때까지 기다린다
 
 지키는 것:
 - 토큰: 헤더 X-Ops-Token 이 OPS_AGENT_TOKEN 과 같아야 한다(상수 시간 비교).
 - 출발지: 자기 자신 · k3s 파드망(10.42.0.0/16) · Tailscale(100.64.0.0/10) 만. 집컴이 서빙할 때
   집컴 백엔드가 Tailscale 로 부른다. 그 밖(공유기 LAN 등)은 토큰이 맞아도 거절한다.
 - 셸을 쓰지 않는다. 명령은 인자 목록으로 고정이고, 모델 이름은 Ollama 에 실제 설치된 이름만 받는다.
-  루트 권한은 laptop-server-switch(루트 소유, on·off 만 허용)로만 쓴다.
+  루트 권한은 laptop-server-switch·home-server-switch(루트 소유, on·off 만 허용)로만 쓴다.
 - 동작(켜기·끄기·올리기·내리기)은 한 번에 하나만 — 버튼을 연달아 눌러도 겹치지 않는다(409).
 - 동작은 202 로 접수하고 뒤에서 돈다(Cloudflare 100초 제한). 진행·결과는 /status 의 job.
 
@@ -67,6 +68,9 @@ KUBECONFIG = os.environ.get("KUBECONFIG", "/etc/rancher/k3s/k3s.yaml")
 HOME_HOST = os.environ.get("HOME_SSH_HOST", "suvisdev@100.91.129.31")
 HOME_KEY = os.path.expanduser("~/.ssh/home_desktop")
 HOME_KNOWN_HOSTS = os.path.expanduser("~/.ssh/known_hosts_ollama_tunnel")
+HOME_SWITCH = "/usr/local/sbin/home-server-switch"
+# 예비 판단기를 끄지 않으면 노트북이 없는 걸 보고 집컴 터널을 다시 올린다
+HOME_SERVICES = "lora-server ollama-warm standby-agent"
 # 서빙 판단기는 맨 먼저 멈추고 맨 나중에 켜야 해서 따로 다룬다
 SERVE_AGENT = "serve-agent"
 RUNNER = "actions-runner"
@@ -334,7 +338,7 @@ def read_server_state() -> str:
             state = f.read().strip()
     except OSError:
         return "on"
-    return "off" if state == "off" else "on"
+    return state if state in ("off", "all-off") else "on"
 
 
 def write_server_state(state: str) -> None:
@@ -414,8 +418,7 @@ def _runner_alive() -> bool:
     return done.returncode == 0
 
 
-def check_can_stop() -> None:
-    """끄면 집컴이 받아야 한다. 집컴이 못 받으면 사이트가 내려가므로 아예 시작하지 않는다."""
+def _check_laptop_ready_to_stop() -> None:
     if runner_busy():
         raise OpsError(409, "배포가 진행 중이다 — 끝난 뒤 다시 누른다")
     # 이게 없으면 터널과 Arda 만 끄고 멈춰 절반만 꺼진다 — 아무것도 건드리기 전에 확인한다
@@ -428,6 +431,25 @@ def check_can_stop() -> None:
             409,
             "켜기·끄기 스크립트가 설치되지 않았다(k8s/ops-agent/install-server-switch.sh)",
         )
+
+
+def check_can_stop_all() -> None:
+    """집컴까지 끌 수 없으면 노트북도 끄지 않는다 — 집컴만 남아 혼자 서빙하게 된다."""
+    _check_laptop_ready_to_stop()
+    try:
+        listing = _home("sudo -n -l")
+    except OpsError as e:
+        raise OpsError(409, f"집컴에 닿지 않아 끄지 않았다: {e}") from e
+    if not sudo_rule_ok(listing, HOME_SWITCH):
+        raise OpsError(
+            409,
+            "집컴 스위치가 설치되지 않았다(install-server-switch.sh home, k8s/ops-agent/README.md)",
+        )
+
+
+def check_can_stop() -> None:
+    """끄면 집컴이 받아야 한다. 집컴이 못 받으면 사이트가 내려가므로 아예 시작하지 않는다."""
+    _check_laptop_ready_to_stop()
     try:
         active = _home("systemctl --user is-active standby-agent").strip()
         ready = _home_ready()
@@ -481,6 +503,10 @@ def server_stop() -> None:
         raise
     time.sleep(HOME_SETTLE_SECONDS)
     write_server_state("off")
+    _shut_down_laptop()
+
+
+def _shut_down_laptop() -> None:
     # 4. 노트북 터널을 먼저 닫아 받던 요청을 끝내고, 그다음 나머지를 끈다.
     #    여기부터는 일부가 실패해도 계속 간다 — 멈추면 절반만 꺼진 채 남는다. 같은 버튼으로 다시 시도할 수 있다
     with contextlib.suppress(OpsError):
@@ -508,7 +534,37 @@ def server_stop() -> None:
     _user_services("disable", *USER_SERVICES)
 
 
+def server_stop_all() -> None:
+    """앱을 먼저 끄고 DB 를 맨 나중에 끈다. 이미 꺼진 부분이 있어도 그대로 지나가므로 다시 실행할 수 있다."""
+    was_on = read_server_state() == "on"
+    try:
+        _stop_runner()
+        _user_services("disable", SERVE_AGENT)
+        _home(f"systemctl --user disable --now {HOME_SERVICES}", 90)
+    except OpsError:
+        with contextlib.suppress(OpsError):
+            _home(f"systemctl --user enable --now {HOME_SERVICES}", 90)
+        if was_on:
+            _user_services("enable", RUNNER, SERVE_AGENT)
+        raise
+    write_server_state("all-off")
+    # 받던 요청을 먼저 끊는다. 못 해도 뒤의 스위치가 파드까지 없애고, 다시 켜면 예비 판단기가 터널 수를 맞춘다
+    with contextlib.suppress(OpsError):
+        _home(
+            "KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl -n suvisdev "
+            "scale deploy/cloudflared --replicas=0"
+        )
+    try:
+        _shut_down_laptop()
+    finally:
+        _home(f"sudo -n {HOME_SWITCH} off", 300)
+
+
 def server_start() -> None:
+    # 노트북 앱은 집컴 DB 없이 뜨지 못한다. 실패하면 노트북은 켜지 않고 끝낸다 — 다시 실행할 수 있다
+    if read_server_state() == "all-off":
+        _home(f"sudo -n {HOME_SWITCH} on", 300)
+        _home(f"systemctl --user enable --now {HOME_SERVICES}", 90)
     _run(["sudo", "-n", SERVER_SWITCH, "on"], 300)
     _user_services("enable", *USER_SERVICES, RUNNER, SERVE_AGENT)
     write_server_state("on")
@@ -571,9 +627,12 @@ def _plan(path: str, body: dict):
     if path == "/server/stop":
         check_can_stop()
         return server_stop, ""
+    if path == "/server/stop-all":
+        check_can_stop_all()
+        return server_stop_all, ""
     if path == "/server/start":
         return server_start, ""
-    if path.startswith(("/arda/", "/ollama/")) and read_server_state() == "off":
+    if path.startswith(("/arda/", "/ollama/")) and read_server_state() != "on":
         raise OpsError(409, "노트북 서버가 꺼져 있다 — 먼저 켠다")
     if path == "/arda/start":
         return (lambda: _compose("up", "-d", timeout=300)), ""

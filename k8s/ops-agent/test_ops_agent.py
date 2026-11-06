@@ -5,6 +5,7 @@ from unittest import mock
 
 import ops_agent as oa
 import pytest
+import server_on
 
 
 @pytest.fixture(autouse=True)
@@ -249,6 +250,7 @@ class _Laptop:
         self.fail: str | None = None  # 이 문자열이 든 명령은 실패한다
         self.laptop_tunnel = "1"
         self.sudo_listing = SUDO_LISTING.format(switch=oa.SERVER_SWITCH)
+        self.home_sudo_listing = SUDO_LISTING.format(switch=oa.HOME_SWITCH)
         self.runner_alive = False
         monkeypatch.setattr(oa, "_run", self.run)
         monkeypatch.setattr(oa, "runner_busy", lambda: False)
@@ -263,6 +265,8 @@ class _Laptop:
         if args[:3] == ["sudo", "-n", "-l"]:
             return self.sudo_listing
         if args[0] == "ssh":
+            if "sudo -n -l" in joined:
+                return self.home_sudo_listing
             if "is-active standby-agent" in joined:
                 return self.standby + "\n"
             if "get deploy" in joined:
@@ -476,3 +480,140 @@ def test_unknown_action_is_still_404_while_off():
     with pytest.raises(oa.OpsError) as e:
         oa.act("/rm-rf", {})
     assert e.value.status == 404
+
+
+def _home_order(lap):
+    return [
+        lap.index("disable", "actions-runner"),
+        lap.index("disable", "serve-agent"),
+        # 예비 판단기를 먼저 꺼야 노트북이 내려가도 집컴 터널이 다시 뜨지 않는다
+        lap.index("ssh", "disable --now", "standby-agent"),
+        lap.index("ssh", "scale", "--replicas=0"),
+        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "off"]),
+        lap.index("ssh", oa.HOME_SWITCH, "off"),  # DB 는 맨 나중
+    ]
+
+
+def test_stop_all_stops_home_last_and_does_not_wait_for_handover(monkeypatch):
+    lap = _Laptop(monkeypatch, home="", standby="inactive")  # 집컴이 안 받아도 끈다
+    oa.act("/server/stop-all", {})
+    assert oa.job_snapshot()["state"] == "ok"
+    assert oa.read_server_state() == "all-off"
+    order = _home_order(lap)
+    assert order == sorted(order)
+    assert not lap.has("laptop_heartbeat")
+
+
+def test_stop_all_works_when_laptop_already_off(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("off")
+    oa.act("/server/stop-all", {})
+    assert oa.read_server_state() == "all-off"
+    assert lap.has("ssh", oa.HOME_SWITCH, "off")
+
+
+def test_stop_all_refused_when_home_switch_missing(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.home_sudo_listing = ""
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop-all", {})
+    assert e.value.status == 409
+    assert not lap.has("disable")
+
+
+def test_stop_all_refused_when_home_unreachable(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = "ssh"
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop-all", {})
+    assert e.value.status == 409
+    assert not lap.has("disable")
+
+
+def test_stop_all_refused_during_deploy(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    monkeypatch.setattr(oa, "runner_busy", lambda: True)
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/stop-all", {})
+    assert not lap.has("disable")
+
+
+def test_stop_all_restores_when_home_services_wont_stop(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = "--user disable --now lora-server"
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/stop-all", {})
+    assert oa.read_server_state() == "on"
+    assert lap.has("enable", "actions-runner", "serve-agent")
+    assert lap.has("ssh", "enable --now", "standby-agent")
+    assert not lap.switched("off")
+
+
+def test_stop_all_abort_keeps_laptop_off_if_it_was_off(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("off")
+    lap.fail = "--user disable --now lora-server"
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/stop-all", {})
+    assert oa.read_server_state() == "off"
+    assert not lap.has("--user", "enable", "serve-agent")
+
+
+def test_stop_all_still_stops_home_when_laptop_switch_fails(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = f"{oa.SERVER_SWITCH} off"
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/stop-all", {})
+    assert lap.has("ssh", oa.HOME_SWITCH, "off")
+
+
+def test_stop_all_retry_passes_when_home_kubectl_is_already_down(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("all-off")
+    lap.fail = "scale deploy/cloudflared"
+    oa.act("/server/stop-all", {})
+    assert oa.job_snapshot()["state"] == "ok"
+    assert lap.has("ssh", oa.HOME_SWITCH, "off")
+
+
+def test_start_after_all_off_brings_home_up_first(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("all-off")
+    oa.act("/server/start", {})
+    assert oa.job_snapshot()["state"] == "ok"
+    assert oa.read_server_state() == "on"
+    order = [
+        lap.index("ssh", oa.HOME_SWITCH, "on"),
+        lap.index("ssh", "enable --now", "standby-agent"),
+        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "on"]),
+    ]
+    assert order == sorted(order)
+
+
+def test_start_leaves_laptop_off_when_home_will_not_start(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("all-off")
+    lap.fail = f"{oa.HOME_SWITCH} on"
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/start", {})
+    assert oa.read_server_state() == "all-off"  # 그대로 다시 실행할 수 있다
+    assert not lap.switched("on")
+
+
+def test_start_does_not_touch_home_after_laptop_only_off(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("off")
+    oa.act("/server/start", {})
+    assert not lap.has("ssh", oa.HOME_SWITCH)
+
+
+def test_other_actions_refused_while_all_off():
+    oa.write_server_state("all-off")
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/arda/start", {})
+    assert e.value.status == 409
+
+
+def test_shortcut_reads_token_from_env_file():
+    assert server_on.read_token("A=1\nOPS_AGENT_TOKEN=abc\n") == "abc"
+    assert server_on.read_token("A=1\n") == ""

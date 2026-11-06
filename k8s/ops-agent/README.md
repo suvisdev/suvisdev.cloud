@@ -11,6 +11,7 @@ systemd 유저 서비스로 돈다. 1단계는 노트북(Arda 온프레미스 + 
 |---|---|
 | `GET /status` | 노트북 서버 켜짐·꺼짐, Arda 컨테이너 상태, GPU(VRAM·사용률), Ollama 올라간 모델·설치된 모델 |
 | `POST /server/stop` · `/server/start` | 노트북 서버 전체 끄기·켜기(아래 "서버 켜기·끄기") |
+| `POST /server/stop-all` | 노트북·집컴 전부 끄기(아래 "전체 끄기") |
 | `POST /arda/start` · `/arda/stop` | `docker compose -f infra/onprem/docker-compose.yml up -d` · `stop` (Arda 저장소) |
 | `POST /arda/ai-mode` `{"mode": "gpu"|"cpu"}` | 거짓말 탐지만 GPU 덮어쓰기(infra/onprem/docker-compose.gpu.yml) 포함·제외로 다시 띄움. 모드는 `~/.config/ops-agent/arda_ai_mode` 에 남아 다음 켜기에도 씀 |
 | `POST /ollama/load` · `/ollama/unload` `{"model": ...}` | keep_alive -1 / 0. 임베딩 모델은 `/api/embed` 로 |
@@ -47,11 +48,30 @@ DB·Redis 는 집컴에 있으므로 사이트와 어드민은 집컴이 계속 
 
 한계: 측정기도 같은 노트북에서 돌았고 평소에도 Cloudflare LA 경유로 시간 초과가 난다. 막바지 시간 초과가 집컴 탓인지 노트북 쪽 영향인지는 가리지 못했다. 실제 재부팅은 해 보지 않았다(자동 시작 disabled 만 확인).
 
+### 전체 끄기 (2026-11-06)
+
+어드민 빨간 버튼 "전체 끄기(집컴까지)". 위의 끄기와 달리 집컴이 이어받지 않는다. 사이트 API·앱·로그인·DB·Arda 가 어디서도 돌지 않고
+재부팅해도 꺼진 채 남는다. Vercel 의 화면만 열리고 API 는 실패한다. 남는 건 두 기기의 SSH·Tailscale 과 노트북 에이전트다.
+
+| 순서 | 끄기 | 켜기(노트북 바탕화면 `서버 켜기.cmd`, `server_on.py`) |
+|---|---|---|
+| 1 | **거절 검사**(409): 배포 중 · 노트북 또는 집컴 스위치 미설치 · 집컴에 안 닿음 | 집컴 `home-server-switch on` — 도커·DB·Redis·Ollama·k3s |
+| 2 | 노트북 러너·`serve-agent`, 집컴 `standby-agent`·`lora-server`·`ollama-warm` 끄기. **실패하면 되돌리고 끝낸다** | 집컴 유저 서비스 켜기. 예비 판단기가 터널을 올린다 |
+| 3 | 집컴 터널 닫기, 노트북 전체 끄기(위 표 4~6번) | 노트북 켜기(위 표). 노트북 서빙까지 기다린다 |
+| 4 | 집컴 `home-server-switch off` — k3s·Ollama·DB·Redis(정상 종료 최대 60초)·도커. **DB 를 맨 나중에** | |
+
+- 어드민으로는 다시 켤 수 없다. 켜기는 백엔드를 거치는데 백엔드가 없다. **노트북이 꺼져 있으면 켤 수 없다.** WSL 은 양쪽 다 유휴 종료를 꺼 둬 SSH·Tailscale 이 남는다(집컴 `suvisdev-wsl-autostart`, `.wslconfig`).
+- 끄기·켜기는 다시 실행해도 된다. 3번 뒤 실패의 결과는 `journalctl --user -u ops-agent` 와 에이전트 `/status` 의 job 에 남는다. 꺼진 뒤에는 어드민에서 볼 수 없다.
+- 집컴 윈도우는 끄지 않는다. 전원까지 끄면 집에 가서 눌러야 하고 그 전에는 사이트를 살릴 수 없다.
+
 **처음 한 번 직접 설치**(루트 권한이라 사용자가 실행):
 
 ```bash
 sudo bash k8s/ops-agent/install-server-switch.sh   # /usr/local/sbin/laptop-server-switch + sudo 규칙(on·off 만 허용)
-bash k8s/ops-agent/install.sh                      # 에이전트 코드 갱신
+bash k8s/ops-agent/install.sh                      # 에이전트 코드 갱신 + 바탕화면 `서버 켜기.cmd`
+
+# 전체 끄기를 쓰려면 집컴에도 한 번(같은 폴더에 두 파일을 복사한 뒤 집컴 터미널에서)
+sudo bash ~/serve/install-server-switch.sh home    # /usr/local/sbin/home-server-switch + sudo 규칙(on·off 만)
 ```
 
 ## 지키는 것
@@ -59,7 +79,7 @@ bash k8s/ops-agent/install.sh                      # 에이전트 코드 갱신
 - 헤더 `X-Ops-Token` = `~/.config/ops-agent/env` 의 `OPS_AGENT_TOKEN` (백엔드 .env 에 같은 값)
 - 출발지 제한: 127.0.0.0/8 · k3s 파드망 10.42.0.0/16 · Tailscale 100.64.0.0/10. 공유기 LAN 은 거절
 - 셸 없음, 명령은 고정 인자 목록, 모델은 설치된 이름만, 동작은 한 번에 하나(겹치면 409)
-- 루트 권한은 `laptop-server-switch`(루트 소유, 에이전트가 고칠 수 없음)의 `on`·`off` 만
+- 루트 권한은 `laptop-server-switch`·`home-server-switch`(루트 소유, 에이전트가 고칠 수 없음)의 `on`·`off` 만
 
 ## 설치 · 갱신 (노트북 WSL)
 

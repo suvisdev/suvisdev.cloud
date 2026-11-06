@@ -101,6 +101,7 @@ journalctl --user -u standby-agent -n 5 --no-pager -o cat; cat ~/serve/laptop_he
 ```
 
 - 노트북 서버를 통째로 끄고 켜기: 어드민 "노트북 서버 전체" 버튼(`../ops-agent/README.md` "서버 켜기·끄기"). 집컴이 뜬 걸 확인한 뒤에 내린다. 11-06.
+- 어디서도 안 돌게 끄기: 어드민 "전체 끄기(집컴까지)", 켜기는 노트북 바탕화면 `서버 켜기`(`../ops-agent/README.md` "전체 끄기"). 11-06.
 - 노트북만 빼기(점검 등): 노트북 `systemctl --user stop serve-agent && kubectl -n suvisdev scale deploy/cloudflared --replicas=0`
   → 15초 뒤 집컴이 받는다. 되돌리기는 `systemctl --user start serve-agent`.
 - 집컴 판단기를 멈추면 자동 전환도 멈춘다 — 그 상태로 노트북을 끄면 사이트가 내려간다.
