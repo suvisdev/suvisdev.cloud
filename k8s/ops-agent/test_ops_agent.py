@@ -261,6 +261,10 @@ class _Laptop:
             return self.laptop_tunnel
         return ""
 
+    def switched(self, arg: str) -> bool:
+        """사전 검사(sudo -n -l)가 아니라 실제로 켜기·끄기를 불렀는가."""
+        return ["sudo", "-n", oa.SERVER_SWITCH, arg] in self.calls
+
     def has(self, *words: str) -> bool:
         return any(all(w in " ".join(c) for w in words) for c in self.calls)
 
@@ -307,11 +311,11 @@ def test_stop_order_keeps_site_up_until_home_takes_over(monkeypatch):
         lap.index("laptop_heartbeat"),  # 집컴에 바로 알림
         lap.index("scale", "--replicas=0"),  # 집컴이 뜬 뒤에야 노트북 터널을 닫는다
         lap.index("compose", "stop"),  # Arda
-        lap.index("sudo", "off"),  # k3s·Ollama·도커
+        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "off"]),  # k3s·Ollama·도커
         lap.index("disable", "actions-runner"),
     ]
     assert order == sorted(order)
-    assert lap.has("sudo", "-n", oa.SERVER_SWITCH, "off")
+    assert lap.switched("off")
 
 
 def test_stop_refused_when_home_not_ready(monkeypatch):
@@ -362,7 +366,7 @@ def test_stop_aborts_and_restores_when_home_tunnel_never_comes_up(monkeypatch):
     assert "이어받지 못해" in oa.job_snapshot()["error"]
     assert oa.read_server_state() == "on"
     assert lap.has("enable", "serve-agent")  # 노트북이 계속 서빙한다
-    assert not lap.has("sudo") and not lap.has("scale")
+    assert not lap.switched("off") and not lap.has("scale")
 
 
 def test_stop_continues_when_arda_fails_so_nothing_is_left_half_off(monkeypatch):
@@ -370,7 +374,7 @@ def test_stop_continues_when_arda_fails_so_nothing_is_left_half_off(monkeypatch)
     lap.fail = "compose"
     oa.act("/server/stop", {})
     assert oa.job_snapshot()["state"] == "ok"
-    assert lap.has("sudo", "off") and lap.has("disable", "actions-runner")
+    assert lap.switched("off") and lap.has("disable", "actions-runner")
 
 
 def test_start_restores_everything_and_waits_for_serving(monkeypatch):
@@ -379,7 +383,7 @@ def test_start_restores_everything_and_waits_for_serving(monkeypatch):
     oa.act("/server/start", {})
     assert oa.job_snapshot()["state"] == "ok" and oa.read_server_state() == "on"
     order = [
-        lap.index("sudo", "on"),
+        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "on"]),
         lap.index("enable", "serve-agent"),
         lap.index("compose", "up"),
     ]
