@@ -1,0 +1,5 @@
+#!/bin/sh
+# Claude Code가 실행한 푸시에만 main 직접 푸시 차단을 건다.
+if [ -n "${CLAUDECODE:-}" ]; then
+  exec python3 "$(git rev-parse --show-toplevel)/.claude/scripts/codex_gate.py" pre-push
+fi

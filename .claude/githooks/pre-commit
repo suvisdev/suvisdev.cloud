@@ -1,0 +1,9 @@
+#!/bin/sh
+# Claude Code가 실행한 커밋에만 Codex 관문을 건다. 사용자 커밋은 기존 훅만 돈다.
+if [ -n "${CLAUDECODE:-}" ]; then
+  python3 "$(git rev-parse --show-toplevel)/.claude/scripts/codex_gate.py" pre-commit || exit 1
+fi
+legacy="$(git rev-parse --git-common-dir)/hooks/pre-commit"
+if [ -x "$legacy" ]; then
+  exec "$legacy" "$@"
+fi

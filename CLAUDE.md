@@ -235,14 +235,21 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 
 - `main` — 기본 브랜치(PR 대상). `suvisdev` — 주 작업 브랜치. `suvis` — 프론트 작업용.
 - **`develop` 브랜치는 없다.** 머지 방향은 `suvisdev` → `main`이다.
-- 커밋·푸시는 사용자가 요청할 때만 한다.
-- **커밋 전에 Codex 리뷰를 받고 Codex가 OK해야 커밋·푸시한다(2026-10-20 사용자 결정).** Claude가 수정하고 Codex(WSL `codex exec -s read-only`)가
-  리뷰한다. 지적이 나오면 고친 뒤 다시 리뷰받아 "문제 없음"이 나와야 넘긴다.
-- **PR 머지는 Claude가 CI 확인 후 한다(2026-10-20 사용자 결정).** 사용자 요청으로 PR을 만들면
-  `gh pr checks <번호> --watch`로 CI 통과를 확인한 뒤 머지한다(CI가 경로 필터라 문서만 바뀐 PR은 검사가 없다 → 바로 머지).
-  main 머지 = 운영 자동 배포(backend-deploy)이므로 **머지 전에 사용자 작업이 필요한 PR은 머지하지 않고 알린다** —
-  새 환경 변수(`.env`·Secret), DB 마이그레이션, 그 밖에 수동 선행 단계가 있는 경우. CI 실패 시 고친 뒤 다시 확인한다.
+- **자동 마무리(2026-11-06 사용자 결정, 10-20 "요청 시에만 커밋" 규칙을 대체).** 코드·설정을 바꾼 작업은 사용자에게 PR 여부를
+  묻지 않고 머지까지 끝낸다. 메인 폴더의 브랜치는 바꾸지 않고 `origin/main`에서 만든 worktree에서 진행한다. 질문·조사만 한 작업이나
+  사용자가 커밋을 원하지 않은 작업은 제외한다.
+  1. `verification-before-completion`으로 실제 검증한다. 실패하면 고친다.
+  2. 워크로그 등 문서를 갱신하고 `git add` 후 `python3 .claude/scripts/codex_gate.py review`를 실행한다(오래 걸리므로 백그라운드).
+  3. 지적은 코드로 확인해 고치고 다시 리뷰받는다. 사용자에게 묻지 않고 OK까지 반복한다(11-06 사용자 지시). **보고는 Codex가 답이 없을 때와 변경 완료 때만 한다.**
+  4. 커밋·푸시·`gh pr create` 후 `gh pr checks <번호> --watch`. CI 실패도 고쳐서 2번부터 다시 한다.
+  5. `gh pr merge <번호> --merge --match-head-commit <SHA>`로 머지하고(다른 명령과 잇지 않는다) 끝에 결과만 짧게 보고한다.
+- **머지 보류.** main 머지 = 운영 자동 배포(backend-deploy)이므로 **사용자 작업이 먼저 필요한 PR은 머지하지 않고 알린다** — 새 환경 변수(`.env`·Secret),
+  DB 마이그레이션, 그 밖에 수동 선행 단계. 문서만 바뀐 PR은 리뷰가 면제되고 경로 필터로 CI도 없으니 바로 머지한다.
   GitHub 자동 머지(auto-merge)·main 보호 규칙은 쓰지 않는다(꺼져 있음).
+- **`.claude/scripts/codex_gate.py`가 강제한다.** 커밋과 main 푸시는 git 훅(`.claude/githooks`, `core.hooksPath`로 연결, SessionStart가 설정)이 실제 내용을 보고 막고,
+  `gh pr merge`는 PreToolUse 훅이 Codex 승인·CI·선행 작업(`alembic/versions`·`.env.example`)으로 막는다. Claude Code 실행(`CLAUDECODE=1`)에만 걸리고 사용자 커밋은 기존 훅만 돈다.
+  승인은 코드 변경 내용의 해시에 묶여 코드가 바뀌면 무효가 된다. 선행 작업 PR은 사용자가 완료를 확인해 준 뒤에만 `codex_gate.py confirm-prereq <번호>`로 푼다.
+  세션이 미완료 변경을 남기고 끝나려 하면 Stop 훅이 이 절차로 돌려보낸다.
 
 ## 주의사항
 
@@ -268,6 +275,7 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 ```text
 .claude/
 ├── settings.json          # 훅 설정 (커밋됨, 팀 공용)
+├── skill-routes.json      # 작업 구간→스킬 규칙. 판정은 scripts/skill_router.py(훅), 테스트는 scripts/test_skill_router.py
 ├── settings.local.json    # 개인 권한 허용 목록
 ├── rules/                 # 경로별 코딩 규칙 — 해당 파일을 다룰 때 자동 로드
 │   ├── typescript.md      #   **/*.ts, **/*.tsx
@@ -303,6 +311,11 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 같은 내용을 양쪽에 두지 않는다. 갈라지면 어느 쪽이 맞는지 알 수 없다.
 
 ### 훅
+
+`scripts/skill_router.py`는 프롬프트·수정 파일·명령·검사 실패를 코드로 판정해 맞는 스킬(프로젝트·pstack·기본 제공)을
+알린다. 파일 수정과 커밋·PR은 해당 스킬의 첫 호출을 한 번 거부해 먼저 읽게 한다. 규칙은 `skill-routes.json`만 고치면 되고,
+서브에이전트를 띄우는 스킬은 명시 요청 표현에만 연결한다. pstack의 세션 강제 진입은 `~/.claude/pstack-models.md`의
+`session hook: off`로 끈다. 커밋·머지 관문은 "브랜치 전략"의 `scripts/codex_gate.py`.
 
 `settings.json`의 `UserPromptSubmit` 훅이 프롬프트에 "commit·커밋"이 들어오면
 **영역별 `_docs/WORK_LOG_*.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저
