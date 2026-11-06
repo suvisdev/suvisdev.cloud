@@ -6,18 +6,21 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_db, get_session_factory
+from news.adapter.outbound.http.hot_sources import HackerNewsSource, HuggingFacePapersSource
 from news.adapter.outbound.http.naver_news_search import NaverNewsSearchClient
 from news.adapter.outbound.http.rss_feed_reader import RssFeedReader, load_latest_feeds
 from news.adapter.outbound.llm.ollama_ko_summarizer import OllamaKoSummarizer
 from news.adapter.outbound.pg.news_pg_repository import NewsPgRepository
-from news.app.dtos.news_dtos import CollectReport, SummaryReport
+from news.app.dtos.news_dtos import CollectReport, HotReport, SummaryReport
 from news.app.ports.input.news_use_cases import (
     NewsCollectUseCase,
+    NewsHotUseCase,
     NewsReadUseCase,
     NewsSummarizeUseCase,
     NewsTopicAdminUseCase,
 )
 from news.app.use_cases.news_collect_interactor import NewsCollectInteractor
+from news.app.use_cases.news_hot_interactor import NewsHotInteractor
 from news.app.use_cases.news_read_interactor import NewsReadInteractor
 from news.app.use_cases.news_summarize_interactor import NewsSummarizeInteractor
 from news.app.use_cases.news_topic_admin_interactor import NewsTopicAdminInteractor
@@ -49,6 +52,20 @@ async def run_collect_once() -> CollectReport:
     factory = get_session_factory()
     async with factory() as session:
         return await build_collect_use_case(session).collect_once()
+
+
+def build_hot_use_case(session: AsyncSession) -> NewsHotUseCase:
+    return NewsHotInteractor(
+        repository=NewsPgRepository(session=session),
+        sources=[HuggingFacePapersSource(), HackerNewsSource()],
+    )
+
+
+async def run_hot_once() -> HotReport:
+    """스케줄러용 — 화제 수치 갱신."""
+    factory = get_session_factory()
+    async with factory() as session:
+        return await build_hot_use_case(session).refresh()
 
 
 def build_summarize_use_case(session: AsyncSession) -> NewsSummarizeUseCase:

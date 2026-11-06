@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from news.adapter.inbound.api.schemas.news_schema import (
     ArticleSchema,
+    HotSchema,
     SectionCode,
     SectionSchema,
     TopicSchema,
@@ -36,6 +37,18 @@ async def list_sections(
     use_case: NewsReadUseCase = Depends(get_news_read_use_case),
 ) -> list[SectionSchema]:
     return [SectionSchema.model_validate(asdict(s)) for s in await use_case.list_sections()]
+
+
+@news_router.get("/hot", response_model=HotSchema)
+async def get_hot(
+    limit: int = Query(default=3, ge=1, le=20),
+    use_case: NewsReadUseCase = Depends(get_news_read_use_case),
+) -> HotSchema:
+    hot = await use_case.hot(limit)
+    return HotSchema(
+        papers=[_article(a) for a in hot.papers],
+        community=[_article(a) for a in hot.community],
+    )
 
 
 @news_router.get("/topics", response_model=list[TopicSchema])

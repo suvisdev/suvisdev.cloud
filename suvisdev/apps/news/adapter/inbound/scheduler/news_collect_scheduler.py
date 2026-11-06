@@ -10,7 +10,7 @@ import asyncio
 import logging
 import os
 
-from news.dependencies.news_provider import run_collect_once, run_summarize_once
+from news.dependencies.news_provider import run_collect_once, run_hot_once, run_summarize_once
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,15 @@ async def run_news_collect_scheduler() -> None:
             raise
         except Exception:
             logger.exception("[news] 수집 주기 실패 — 다음 주기에 다시 시도")
+        try:
+            hot = await run_hot_once()  # 요약보다 먼저 — 새 화제 글이 이번 주기에 요약되게
+            logger.info("[news] 화제 수치 | %s · 오류 %d", hot.fetched, len(hot.errors))
+            for err in hot.errors:
+                logger.warning("[news] %s", err)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("[news] 화제 수치 갱신 실패 — 다음 주기에 다시 시도")
         if NEWS_SUMMARY_BATCH:
             try:
                 summary = await run_summarize_once(NEWS_SUMMARY_BATCH)

@@ -1,5 +1,6 @@
 """라우터 — 공개 읽기는 로그인 없이, 운영자 API 는 관리자만. 응답에 본문이 없는지도 본다."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
@@ -7,7 +8,7 @@ from fastapi.testclient import TestClient
 from shared.security.require_admin import AdminPrincipal, require_admin
 
 from news.adapter.inbound.api import news_router_root
-from news.app.dtos.news_dtos import ArticleDto, GroupDto, SectionDto, TopicDto
+from news.app.dtos.news_dtos import ArticleDto, GroupDto, HotDto, SectionDto, TopicDto
 from news.app.errors import NewsQueryError, TopicNotFoundError
 from news.app.ports.input.news_use_cases import NewsReadUseCase
 from news.dependencies.news_provider import get_news_read_use_case
@@ -34,6 +35,10 @@ class _Read(NewsReadUseCase):
 
     async def list_sections(self):
         return [SectionDto("ai", "AI 기술", [GroupDto("lab", "연구소·기업 블로그", ["OpenAI"])])]
+
+    async def hot(self, limit):
+        self.calls.append(("hot", limit))
+        return HotDto(papers=[replace(_ROW, hot_label="추천 83")], community=[])
 
     async def list_public_topics(self, section=None):
         self.calls.append(("topics", section))
@@ -97,6 +102,16 @@ def test_sections_latest_filters_and_search():
     assert rows[0]["id"] == 7 and ("search", "금리 인하", "economy") in read.calls
     assert c.get("/api/v1/news/search").status_code == 422  # q 필수
     assert c.get("/api/v1/news/search", params={"q": "x" * 51}).status_code == 422
+
+
+def test_hot_is_public_and_split_by_source():
+    read = _Read()
+    c = _client(read)
+    body = c.get("/api/v1/news/hot").json()
+    assert ("hot", 3) in read.calls  # 기본은 출처별 3개
+    assert body["community"] == []
+    assert body["papers"][0]["hot_label"] == "추천 83" and "body" not in body["papers"][0]
+    assert c.get("/api/v1/news/hot?limit=500").status_code == 422
 
 
 def test_admin_endpoints_require_admin_token():

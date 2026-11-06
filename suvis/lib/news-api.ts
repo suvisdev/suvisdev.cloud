@@ -38,7 +38,12 @@ export type NewsArticle = {
   summary_ko: string | null
   /** 글에 나오는 전문 용어와 뜻(백엔드 고정 사전). 백엔드 배포가 Vercel 보다 늦는 동안에는 없을 수 있다 */
   terms?: NewsTerm[]
+  /** 화제 수치 — "추천 83", "1,267점 · 댓글 741". 백엔드 배포가 Vercel 보다 늦는 동안에는 없을 수 있다 */
+  hot_label?: string | null
 }
+
+/** 오늘의 핫한 소식 — 단위가 달라 출처별로 따로 순위를 매긴다 */
+export type NewsHot = { papers: NewsArticle[]; community: NewsArticle[] }
 
 export type NewsResult<T> = { ok: true; data: T } | { ok: false; message: string }
 
@@ -62,6 +67,10 @@ export function getNewsSections(): Promise<NewsResult<NewsSectionInfo[]>> {
 
 export function getNewsTopics(section: NewsSection): Promise<NewsResult<NewsTopic[]>> {
   return newsFetch<NewsTopic[]>(`/topics?section=${section}`, 300)
+}
+
+export function getNewsHot(): Promise<NewsResult<NewsHot>> {
+  return newsFetch<NewsHot>("/hot?limit=3", 300)
 }
 
 export type ArticleQuery = {

@@ -6,6 +6,8 @@ from datetime import datetime
 from news.app.dtos.news_dtos import (
     ArticleDto,
     CollectReport,
+    HotDto,
+    HotReport,
     SectionDto,
     SummaryReport,
     TopicCreateCommand,
@@ -20,6 +22,12 @@ class NewsCollectUseCase(ABC):
         """RSS(섹션별) + 검색어 탭을 한 번 모으고, 판정 범위 기사만 규칙 판정까지 한다."""
 
 
+class NewsHotUseCase(ABC):
+    @abstractmethod
+    async def refresh(self) -> HotReport:
+        """화제 출처의 반응 수치를 받아 기사에 적는다."""
+
+
 class NewsSummarizeUseCase(ABC):
     @abstractmethod
     async def summarize_pending(self, limit: int) -> SummaryReport:
@@ -30,6 +38,10 @@ class NewsReadUseCase(ABC):
     @abstractmethod
     async def list_sections(self) -> list[SectionDto]:
         """섹션(ai 메인·economy 부록)과 그 안의 출처 묶음·피드 이름."""
+
+    @abstractmethod
+    async def hot(self, limit: int) -> HotDto:
+        """오늘의 핫한 소식 — 출처별로 반응 수치가 높은 글."""
 
     @abstractmethod
     async def list_public_topics(self, section: str | None = None) -> list[TopicDto]: ...

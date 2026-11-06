@@ -2,12 +2,14 @@ import type { Metadata } from "next"
 
 import {
   getNewsArticles,
+  getNewsHot,
   getNewsSections,
   getNewsTopics,
   type NewsArticle,
   type NewsSection,
 } from "@/lib/news-api"
 import { ArticleItem } from "./_components/article-item"
+import { HotSection } from "./_components/hot-section"
 import { newsHref, type NewsView } from "./_components/news-href"
 import { GroupTabs, SearchForm, SectionSwitch, TopicTabs } from "./_components/news-nav"
 
@@ -58,9 +60,14 @@ export async function generateMetadata({
   return { title: `${INTRO[section].title} — Suvisdev News` }
 }
 
+/** 핫한 소식은 AI 섹션 첫 화면에만 — 검색·탭·묶음을 고르면 그 목록에 집중한다. */
+function isFrontPage(view: NewsView): boolean {
+  return view.section === "ai" && !view.q && view.topic === undefined && !view.group && !view.before
+}
+
 export default async function NewsPage({ searchParams }: { searchParams: SearchParams }) {
   const view = parseView(await searchParams)
-  const [sections, topics, articles] = await Promise.all([
+  const [sections, topics, articles, hot] = await Promise.all([
     getNewsSections(),
     getNewsTopics(view.section),
     getNewsArticles({
@@ -71,6 +78,7 @@ export default async function NewsPage({ searchParams }: { searchParams: SearchP
       before: view.before,
       limit: PAGE_SIZE,
     }),
+    isFrontPage(view) ? getNewsHot() : null,
   ])
   const groups = sections.ok
     ? (sections.data.find((s) => s.code === view.section)?.groups ?? [])
@@ -99,6 +107,9 @@ export default async function NewsPage({ searchParams }: { searchParams: SearchP
           {topics.ok && <TopicTabs view={view} topics={topics.data} />}
         </div>
       </div>
+
+      {/* 실패하면 조용히 뺀다 — 아래 최신 목록이 본 화면이다 */}
+      {hot?.ok && <HotSection hot={hot.data} groupLabels={groupLabels} />}
 
       <ArticleSection view={view} result={articles} groupLabels={groupLabels} />
 
@@ -144,8 +155,10 @@ function ArticleSection({
   const shown = view.hideAi ? rows.filter((a) => a.badge === "none") : rows
   return (
     <section className="mt-6" aria-label="글 목록">
-      <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
+      {/* 양 끝으로 벌리면 넓은 화면에서 링크가 용어 칸 위에 혼자 뜬다 — 왼쪽에 붙여 둔다 */}
+      <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
         <ListCaption view={view} />
+        <span aria-hidden>·</span>
         <a
           href={newsHref({ ...view, before: undefined, hideAi: !view.hideAi })}
           className="underline-offset-2 hover:underline"

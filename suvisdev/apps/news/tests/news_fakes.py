@@ -10,6 +10,7 @@ from news.app.dtos.news_dtos import (
     ArticleDto,
     FeedSource,
     FetchedArticle,
+    HotUpdate,
     StoredArticle,
     SummaryTarget,
     TopicCreateCommand,
@@ -35,8 +36,16 @@ class FakeRepo(NewsRepositoryPort):
         self.verdicts: dict[tuple[int, str], VerdictCommand] = {}
         self.last_query: tuple[object, ...] = ()
         self.summary_queue: list[SummaryTarget] = []
+        self.hot: list[HotUpdate] = []
         self.summaries: dict[int, tuple[KoSummary, str]] = {}
         self.summary_failures: dict[int, int] = {}
+
+    async def set_hot(self, updates: Sequence[HotUpdate]) -> None:
+        self.hot.extend(updates)
+
+    async def list_hot(self, source: str, *, limit: int, since: datetime) -> list[ArticleDto]:
+        self.last_query = ("hot", source, limit)
+        return []
 
     async def pending_summaries(self, *, limit: int, max_tries: int) -> list[SummaryTarget]:
         return [

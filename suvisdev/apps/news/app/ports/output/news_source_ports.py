@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from news.app.dtos.news_dtos import FeedSource, FetchedArticle
+from news.app.dtos.news_dtos import FeedSource, FetchedArticle, HotItem
 
 
 class NewsSearchPort(ABC):
@@ -22,3 +22,14 @@ class FeedReaderPort(ABC):
 
     @abstractmethod
     async def read(self, feed: FeedSource) -> list[FetchedArticle]: ...
+
+
+class HotSourcePort(ABC):
+    """사람들의 반응 수치를 주는 화제 출처 (Hugging Face Daily Papers, Hacker News)."""
+
+    @property
+    @abstractmethod
+    def name(self) -> str: ...
+
+    @abstractmethod
+    async def fetch(self) -> list[HotItem]: ...

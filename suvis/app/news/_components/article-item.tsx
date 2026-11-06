@@ -81,7 +81,16 @@ function Terms({ terms }: { terms: NewsTerm[] }) {
   )
 }
 
-export function ArticleItem({ article, groupLabel }: { article: NewsArticle; groupLabel: string }) {
+export function ArticleItem({
+  article,
+  groupLabel,
+  showHot = false,
+}: {
+  article: NewsArticle
+  groupLabel: string
+  /** 핫한 소식 칸에서만 반응 수치를 보여 준다 — 일반 목록의 수치는 오래됐을 수 있다 */
+  showHot?: boolean
+}) {
   const date = formatDate(article.published_at)
   const title = article.title_ko || article.title
   const translated = title !== article.title
@@ -107,6 +116,10 @@ export function ArticleItem({ article, groupLabel }: { article: NewsArticle; gro
           {groupLabel && <span>{groupLabel}</span>}
           {date && <span aria-hidden>·</span>}
           {date && <time dateTime={article.published_at ?? undefined}>{date}</time>}
+          {showHot && article.hot_label && <span aria-hidden>·</span>}
+          {showHot && article.hot_label && (
+            <span className="text-foreground font-medium">{article.hot_label}</span>
+          )}
         </p>
         <Summary article={article} />
         <AiBadge article={article} />

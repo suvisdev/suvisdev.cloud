@@ -18,6 +18,7 @@
   {"name": "Latent Space", "url": "https://www.latent.space/feed", "group": "commentary"},
   {"name": "Interconnects", "url": "https://www.interconnects.ai/feed", "group": "commentary"},
   {"name": "Import AI", "url": "https://jack-clark.net/feed/", "group": "commentary"},
+  {"name": "TLDR AI", "url": "https://tldr.tech/api/rss/ai", "group": "commentary"},
   {"name": "Lilian Weng", "url": "https://lilianweng.github.io/index.xml", "group": "commentary"},
 
   {"name": "GeekNews", "url": "https://news.hada.io/rss/news", "group": "community"},

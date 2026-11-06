@@ -33,6 +33,23 @@ def is_korean(text: str) -> bool:
     return sum(1 for ch in letters if _HANGUL.match(ch)) / len(letters) >= 0.3
 
 
+def parse_title_only(raw: str, original_title: str) -> KoSummary | None:
+    """내용 없는 글의 제목 번역 응답. 요약은 비워 둔다(빈 문자열 = '요약할 내용 없음', 다시 시도하지 않는다)."""
+    match = _JSON_OBJECT.search(raw or "")
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    title = data.get("title_ko") if isinstance(data, dict) else None
+    if not isinstance(title, str) or not title.strip():
+        return None
+    # 한글이 없으면 원제를 둔다 — 이름뿐인 제목('Kimi K3')은 옮길 게 없고, 다른 영어로 바꿔 쓴 답은 믿을 수 없다
+    kept = title if _HANGUL.search(title) else original_title
+    return KoSummary(title_ko=" ".join(kept.split())[:MAX_TITLE], summary_ko="")
+
+
 def parse_ko_summary(raw: str, original_title: str) -> KoSummary | None:
     """모델 출력(JSON) → KoSummary. 형식이 틀리거나 요약에 한글이 없으면 None."""
     match = _JSON_OBJECT.search(raw or "")

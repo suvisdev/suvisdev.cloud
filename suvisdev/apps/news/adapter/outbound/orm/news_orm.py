@@ -48,6 +48,7 @@ class NewsArticleOrm(NewsBase):
     __table_args__ = (
         Index("ix_news_articles_origin_sort_at", "origin", "sort_at"),
         Index("ix_news_articles_section_sort_at", "section", "sort_at"),
+        Index("ix_news_articles_hot", "hot_source", "hot_score"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -71,6 +72,11 @@ class NewsArticleOrm(NewsBase):
     ko_model: Mapped[str | None] = mapped_column(String(40))
     ko_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ko_tries: Mapped[int] = mapped_column(Integer, server_default="0")
+    # 오늘의 핫한 소식(20261105_0004): 출처(hf·hn), 그 출처의 반응 수치, 화면 표시, 수치를 갱신한 시각
+    hot_source: Mapped[str | None] = mapped_column(String(8))
+    hot_score: Mapped[int | None] = mapped_column(Integer)
+    hot_label: Mapped[str | None] = mapped_column(String(60))
+    hot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class NewsTopicArticleOrm(NewsBase):

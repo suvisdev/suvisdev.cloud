@@ -6,13 +6,21 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
-from news.app.dtos.news_dtos import ArticleDto, FeedSource, GroupDto, SectionDto, TopicDto
+from news.app.dtos.news_dtos import (
+    ArticleDto,
+    FeedSource,
+    GroupDto,
+    HotDto,
+    SectionDto,
+    TopicDto,
+)
 from news.app.errors import NewsQueryError, TopicNotFoundError
 from news.app.ports.input.news_use_cases import NewsReadUseCase
 from news.app.ports.output.news_repository import NewsRepositoryPort
 from news.domain.glossary import find_terms
+from news.domain.hot import HOT_COMMUNITY, HOT_PAPERS, HOT_WINDOW_HOURS
 from news.domain.sections import GROUPS, SECTIONS, is_section
 
 MAX_LIMIT = 100
@@ -39,6 +47,16 @@ class NewsReadInteractor(NewsReadUseCase):
             ]
             out.append(SectionDto(code=code, label=label, groups=groups))
         return out
+
+    async def hot(self, limit: int) -> HotDto:
+        since = datetime.now(UTC) - timedelta(hours=HOT_WINDOW_HOURS)
+        n = _clamp(limit)
+        return HotDto(
+            papers=_with_terms(await self._repository.list_hot(HOT_PAPERS, limit=n, since=since)),
+            community=_with_terms(
+                await self._repository.list_hot(HOT_COMMUNITY, limit=n, since=since)
+            ),
+        )
 
     async def list_public_topics(self, section: str | None = None) -> list[TopicDto]:
         if section is not None:
