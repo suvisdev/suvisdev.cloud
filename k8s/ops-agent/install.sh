@@ -23,3 +23,4 @@ systemctl --user restart ops-agent   # enable --now 는 이미 돌던 서비스�
 sleep 2
 systemctl --user --no-pager status ops-agent | sed -n 1,5p
 echo "토큰 위치: $CONF/env (백엔드 OPS_AGENT_TOKEN 에 같은 값)"
+[ -x /usr/local/sbin/laptop-server-switch ] || echo "서버 켜기·끄기를 쓰려면 한 번 실행: sudo bash $HERE/install-server-switch.sh"

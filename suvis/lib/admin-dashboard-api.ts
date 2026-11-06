@@ -44,7 +44,9 @@ export async function getServingServer(): Promise<ServingServer> {
   const res = await fetch("/api/backend/viewer/admin/server")
   const data = (await res.json()) as ServingServer & { detail?: unknown }
   if (!res.ok) {
-    throw new Error(safeApiErrorMessage(data.detail, "서버 정보를 불러오지 못했습니다.", res.status))
+    throw new Error(
+      safeApiErrorMessage(data.detail, "서버 정보를 불러오지 못했습니다.", res.status)
+    )
   }
   return data
 }
@@ -62,6 +64,8 @@ export type OpsJob = {
 export type OpsStatus = {
   reachable: boolean
   detail?: string
+  /** 노트북 서버 전체 켜짐·꺼짐. 에이전트를 아직 갱신하지 않았으면 없다 */
+  server?: { state: "on" | "off" }
   arda?: {
     available: boolean
     error?: string
@@ -69,7 +73,12 @@ export type OpsStatus = {
     ai_mode?: "gpu" | "cpu"
     ai_device?: string | null
   }
-  gpu?: { name: string; memory_used_mib: number; memory_total_mib: number; utilization_pct: number }[]
+  gpu?: {
+    name: string
+    memory_used_mib: number
+    memory_total_mib: number
+    utilization_pct: number
+  }[]
   ollama?: {
     available: boolean
     error?: string
@@ -81,9 +90,12 @@ export type OpsStatus = {
 
 export async function getOps(): Promise<OpsStatus> {
   const res = await fetch("/api/backend/viewer/admin/ops", { cache: "no-store" })
-  const data = (await res.json()) as OpsStatus & { detail?: unknown }
+  // 서버 전환 중에는 JSON 이 아닌 오류 화면(530 등)이 잠깐 올 수 있다
+  const data = (await res.json().catch(() => ({}))) as OpsStatus & { detail?: unknown }
   if (!res.ok) {
-    throw new Error(safeApiErrorMessage(data.detail, "운영 상태를 불러오지 못했습니다.", res.status))
+    throw new Error(
+      safeApiErrorMessage(data.detail, "운영 상태를 불러오지 못했습니다.", res.status)
+    )
   }
   return data
 }
@@ -108,7 +120,9 @@ export async function getMaintenanceState(): Promise<MaintenanceState> {
   const res = await fetch("/api/backend/viewer/maintenance", { cache: "no-store" })
   const data = (await res.json()) as MaintenanceState & { detail?: unknown }
   if (!res.ok) {
-    throw new Error(safeApiErrorMessage(data.detail, "점검 상태를 불러오지 못했습니다.", res.status))
+    throw new Error(
+      safeApiErrorMessage(data.detail, "점검 상태를 불러오지 못했습니다.", res.status)
+    )
   }
   return data
 }
