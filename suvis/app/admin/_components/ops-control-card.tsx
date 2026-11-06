@@ -18,6 +18,8 @@ const MAINTENANCE_SERVICES: { key: keyof MaintenanceState; label: string }[] = [
 
 // 버튼이 보내는 동작 → 화면에 보일 이름
 const ACTION_LABEL: Record<string, string> = {
+  "/server/start": "노트북 서버 켜기",
+  "/server/stop": "노트북 서버 끄기",
   "/arda/start": "Arda 켜기",
   "/arda/stop": "Arda 끄기",
   "/arda/ai-mode": "Arda AI 전환",
@@ -28,11 +30,24 @@ const ACTION_LABEL: Record<string, string> = {
 const FAST_POLL_MS = 3_000 // 동작이 도는 동안
 const SLOW_POLL_MS = 30_000 // 평소
 
+/** 동작이 도는 동안과 읽기에 실패했을 때(서버 전환 중 잠깐 생긴다)는 짧게, 평소엔 길게 다시 읽는다. */
+function pollDelay(next: OpsStatus | null) {
+  return !next || next.job?.state === "running" ? FAST_POLL_MS : SLOW_POLL_MS
+}
+
 function gib(mib: number) {
   return `${(mib / 1024).toFixed(1)}GB`
 }
 
-/** 운영 제어 — 노트북 Arda 켜기·끄기, Arda AI GPU·CPU, Ollama 모델 GPU 올리기·내리기.
+const SERVER_STOP_CONFIRM =
+  "이 노트북의 서버를 모두 끕니다.\n\n" +
+  "· 백엔드·Arda·Ollama·도커·배포 러너가 멈추고, 재부팅해도 꺼져 있습니다.\n" +
+  "· 사이트는 집컴이 이어받습니다. 집컴이 준비된 걸 확인한 뒤에 끕니다.\n" +
+  "· 끄는 동안 뉴스 수집·요약이 멈추고 AI 채팅은 Gemini 로 넘어갑니다.\n" +
+  "· Arda(seuk.suvisdev.cloud)는 접속되지 않습니다.\n\n" +
+  "계속할까요?"
+
+/** 운영 제어 — 노트북 서버 전체 켜기·끄기, Arda 켜기·끄기, Arda AI GPU·CPU, Ollama 모델 GPU 올리기·내리기.
  *  동작은 접수만 하고 바로 돌아오므로(1~3분 걸리는 일도 있음) job 상태를 짧은 간격으로 다시 읽는다. */
 export function OpsControlCard() {
   const [ops, setOps] = useState<OpsStatus | null>(null)
@@ -83,8 +98,7 @@ export function OpsControlCard() {
     const loop = async () => {
       const next = await refresh()
       if (!alive) return
-      const running = next?.job?.state === "running"
-      timer.current = setTimeout(loop, running ? FAST_POLL_MS : SLOW_POLL_MS)
+      timer.current = setTimeout(loop, pollDelay(next))
     }
     loop()
     return () => {
@@ -108,14 +122,13 @@ export function OpsControlCard() {
     if (timer.current) clearTimeout(timer.current)
     const next = await refresh()
     const again = async () => {
-      const s = await refresh()
-      if (s?.job?.state === "running") timer.current = setTimeout(again, FAST_POLL_MS)
-      else timer.current = setTimeout(again, SLOW_POLL_MS)
+      timer.current = setTimeout(again, pollDelay(await refresh()))
     }
-    timer.current = setTimeout(again, next?.job?.state === "running" ? FAST_POLL_MS : SLOW_POLL_MS)
+    timer.current = setTimeout(again, pollDelay(next))
   }
 
   const job = ops?.job
+  const serverOff = ops?.server?.state === "off"
   const busy = sending || job?.state === "running"
   const services = ops?.arda?.services ?? []
   const runningCount = services.filter((s) => s.state === "running").length
@@ -176,7 +189,45 @@ export function OpsControlCard() {
         </p>
       )}
 
-      {ops?.reachable && (
+      {/* 노트북 서버 전체 — 끄면 아래 Arda·GPU 칸은 쓸 수 없어 숨긴다 */}
+      {ops?.reachable && ops.server && (
+        <div className="mb-3 rounded-xl bg-slate-50 px-4 py-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-slate-800">노트북 서버 전체</p>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                serverOff ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {serverOff ? "꺼짐 · 집컴이 서빙 중" : "켜짐"}
+            </span>
+          </div>
+          <p className="mb-2.5 text-xs leading-relaxed [word-break:keep-all] text-slate-500">
+            끄면 이 노트북에서 백엔드·Arda·Ollama·도커·배포 러너가 모두 멈추고, 재부팅해도 꺼져
+            있습니다. 사이트는 집컴이 이어받습니다.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy || !serverOff}
+              onClick={() => run("/server/start")}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              <Power className="h-3.5 w-3.5" /> 켜기
+            </button>
+            <button
+              type="button"
+              disabled={busy || serverOff}
+              onClick={() => run("/server/stop", undefined, SERVER_STOP_CONFIRM)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+            >
+              <Power className="h-3.5 w-3.5" /> 끄기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {ops?.reachable && !serverOff && (
         <div className="grid gap-3 lg:grid-cols-2">
           {/* Arda */}
           <div className="rounded-xl bg-slate-50 px-4 py-3">

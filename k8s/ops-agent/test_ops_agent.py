@@ -11,6 +11,9 @@ import pytest
 def _inline_jobs(monkeypatch, tmp_path):
     # 이 PC 의 실제 모드 파일(~/.config/ops-agent/arda_ai_mode)에 기대지 않는다
     monkeypatch.setattr(oa, "AI_MODE_FILE", str(tmp_path / "arda_ai_mode"))
+    monkeypatch.setattr(oa, "SERVER_STATE_FILE", str(tmp_path / "server_state"))
+    monkeypatch.setattr(oa, "POLL_SECONDS", 0)
+    monkeypatch.setattr(oa, "HOME_SETTLE_SECONDS", 0)
     # 시험에서는 뒤에서 돌리지 않고 그 자리에서 끝낸다(결과를 바로 확인하려고)
     monkeypatch.setattr(oa, "RUN_IN_BACKGROUND", False)
 
@@ -218,3 +221,212 @@ def test_failed_job_records_error_and_releases_lock(monkeypatch):
     )
     assert oa._action_lock.acquire(blocking=False)
     oa._action_lock.release()
+
+
+# ── 노트북 서버 켜기·끄기 ──────────────────────────────────────
+
+
+class _Laptop:
+    """명령을 순서대로 기록하고, 집컴·노트북 상태를 흉내 낸다."""
+
+    def __init__(
+        self,
+        monkeypatch,
+        *,
+        home="backend=1\nauth=1\ncloudflared=1\n",
+        standby="active",
+    ):
+        self.calls: list[list[str]] = []
+        self.home = home
+        self.standby = standby
+        self.fail: str | None = None  # 이 문자열이 든 명령은 실패한다
+        self.laptop_tunnel = "1"
+        monkeypatch.setattr(oa, "_run", self.run)
+        monkeypatch.setattr(oa, "runner_busy", lambda: False)
+
+    def run(self, args, timeout):
+        joined = " ".join(args)
+        self.calls.append(args)
+        if self.fail and self.fail in joined:
+            raise oa.OpsError(502, f"실패: {self.fail}")
+        if args[0] == "ssh":
+            if "is-active standby-agent" in joined:
+                return self.standby + "\n"
+            if "get deploy" in joined:
+                return self.home
+            return ""
+        if "scale" in args:
+            self.laptop_tunnel = ""
+        if "get" in args and "cloudflared" in args:
+            return self.laptop_tunnel
+        return ""
+
+    def switched(self, arg: str) -> bool:
+        """사전 검사(sudo -n -l)가 아니라 실제로 켜기·끄기를 불렀는가."""
+        return ["sudo", "-n", oa.SERVER_SWITCH, arg] in self.calls
+
+    def has(self, *words: str) -> bool:
+        return any(all(w in " ".join(c) for w in words) for c in self.calls)
+
+    def index(self, *words: str) -> int:
+        return next(
+            i for i, c in enumerate(self.calls) if all(w in " ".join(c) for w in words)
+        )
+
+
+def test_server_state_defaults_to_on(tmp_path):
+    assert oa.read_server_state() == "on"
+    oa.write_server_state("off")
+    assert oa.read_server_state() == "off"
+    with open(oa.SERVER_STATE_FILE, "w", encoding="utf-8") as f:
+        f.write("garbage")
+    assert oa.read_server_state() == "on"
+
+
+def test_status_reports_server_state(monkeypatch):
+    monkeypatch.setattr(oa, "arda_status", dict)
+    monkeypatch.setattr(oa, "gpu_status", list)
+    monkeypatch.setattr(oa, "ollama_status", dict)
+    oa.write_server_state("off")
+    assert oa.status()["server"] == {"state": "off"}
+
+
+def test_parse_ready():
+    assert oa.parse_ready("backend=1\nauth=2\ncloudflared=\n\ngarbage\n") == {
+        "backend": 1,
+        "auth": 2,
+        "cloudflared": 0,
+    }
+
+
+def test_stop_order_keeps_site_up_until_home_takes_over(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.act("/server/stop", {})
+    assert oa.job_snapshot()["state"] == "ok"
+    assert oa.read_server_state() == "off"
+    order = [
+        lap.index(
+            "disable", "serve-agent"
+        ),  # 판단기 먼저 — 안 그러면 터널을 다시 올린다
+        lap.index("laptop_heartbeat"),  # 집컴에 바로 알림
+        lap.index("scale", "--replicas=0"),  # 집컴이 뜬 뒤에야 노트북 터널을 닫는다
+        lap.index("compose", "stop"),  # Arda
+        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "off"]),  # k3s·Ollama·도커
+        lap.index("disable", "actions-runner"),
+    ]
+    assert order == sorted(order)
+    assert lap.switched("off")
+
+
+def test_stop_refused_when_home_not_ready(monkeypatch):
+    lap = _Laptop(monkeypatch, home="backend=\nauth=1\n")
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop", {})
+    assert e.value.status == 409 and "backend" in str(e.value)
+    assert not lap.has("disable") and oa.read_server_state() == "on"
+
+
+def test_stop_refused_when_standby_agent_down(monkeypatch):
+    lap = _Laptop(monkeypatch, standby="inactive")
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop", {})
+    assert e.value.status == 409 and not lap.has("disable")
+
+
+def test_stop_refused_when_home_unreachable(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = "is-active"
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop", {})
+    assert e.value.status == 409 and not lap.has("disable")
+
+
+def test_stop_refused_when_switch_not_installed(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = "sudo -n -l"
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop", {})
+    assert e.value.status == 409 and "install-server-switch" in str(e.value)
+    assert not lap.has("disable") and oa.read_server_state() == "on"
+
+
+def test_stop_refused_during_deploy(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    monkeypatch.setattr(oa, "runner_busy", lambda: True)
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop", {})
+    assert e.value.status == 409 and "배포" in str(e.value) and lap.calls == []
+
+
+def test_stop_aborts_and_restores_when_home_tunnel_never_comes_up(monkeypatch):
+    lap = _Laptop(monkeypatch, home="backend=1\nauth=1\ncloudflared=\n")
+    monkeypatch.setattr(oa, "HANDOVER_TIMEOUT", 0)
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/stop", {})
+    assert "이어받지 못해" in oa.job_snapshot()["error"]
+    assert oa.read_server_state() == "on"
+    assert lap.has("enable", "serve-agent")  # 노트북이 계속 서빙한다
+    assert not lap.switched("off") and not lap.has("scale")
+
+
+def test_stop_continues_when_arda_fails_so_nothing_is_left_half_off(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = "compose"
+    oa.act("/server/stop", {})
+    assert oa.job_snapshot()["state"] == "ok"
+    assert lap.switched("off") and lap.has("disable", "actions-runner")
+
+
+def test_start_restores_everything_and_waits_for_serving(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    oa.write_server_state("off")
+    oa.act("/server/start", {})
+    assert oa.job_snapshot()["state"] == "ok" and oa.read_server_state() == "on"
+    order = [
+        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "on"]),
+        lap.index("enable", "serve-agent"),
+        lap.index("compose", "up"),
+    ]
+    assert order == sorted(order)
+    assert lap.has("enable", "actions-runner", "ollama-tunnel", "desktop-link")
+
+
+def test_start_reports_arda_failure_but_stays_on(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.fail = "compose"
+    oa.write_server_state("off")
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/start", {})
+    assert "Arda" in oa.job_snapshot()["error"] and oa.read_server_state() == "on"
+
+
+def test_start_times_out_when_laptop_never_serves(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.laptop_tunnel = ""
+    monkeypatch.setattr(oa, "SERVE_TIMEOUT", 0)
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/start", {})
+    assert "서빙" in oa.job_snapshot()["error"]
+
+
+@pytest.mark.parametrize(
+    "path,body",
+    [
+        ("/arda/start", {}),
+        ("/arda/stop", {}),
+        ("/arda/ai-mode", {"mode": "gpu"}),
+        ("/ollama/load", {"model": "x"}),
+    ],
+)
+def test_other_actions_refused_while_server_off(path, body):
+    oa.write_server_state("off")
+    with pytest.raises(oa.OpsError) as e:
+        oa.act(path, body)
+    assert e.value.status == 409
+
+
+def test_unknown_action_is_still_404_while_off():
+    oa.write_server_state("off")
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/rm-rf", {})
+    assert e.value.status == 404

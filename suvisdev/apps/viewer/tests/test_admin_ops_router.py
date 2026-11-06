@@ -56,6 +56,8 @@ def test_requires_admin() -> None:
     c = _client(admin=False)
     assert c.get("/admin/ops").status_code == 401
     assert c.post("/admin/ops/arda/start").status_code == 401
+    assert c.post("/admin/ops/server/stop").status_code == 401
+    assert c.post("/admin/ops/server/start").status_code == 401
 
 
 def test_status_passes_through_and_marks_reachable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -76,6 +78,8 @@ def test_status_unreachable_is_not_an_error(monkeypatch: pytest.MonkeyPatch) -> 
 @pytest.mark.parametrize(
     ("url", "body", "expected"),
     [
+        ("/admin/ops/server/stop", None, ("POST", "/server/stop", None)),
+        ("/admin/ops/server/start", None, ("POST", "/server/start", None)),
         ("/admin/ops/arda/start", None, ("POST", "/arda/start", None)),
         ("/admin/ops/arda/stop", None, ("POST", "/arda/stop", None)),
         ("/admin/ops/arda/ai-mode", {"mode": "gpu"}, ("POST", "/arda/ai-mode", {"mode": "gpu"})),
@@ -104,6 +108,7 @@ def test_actions_forward_fixed_paths(
     ("url", "body"),
     [
         ("/admin/ops/arda/restart", None),  # 없는 동작
+        ("/admin/ops/server/restart", None),
         ("/admin/ops/arda/ai-mode", {"mode": "tpu"}),
         ("/admin/ops/ollama/delete", {"model": "x"}),
         ("/admin/ops/ollama/load", {"model": ""}),

@@ -15,7 +15,8 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
-- `[P]` 11-06 **news 오늘의 핫한 소식 + 지어낸 요약 없애기**: HF Daily Papers 추천 수·HN 점수로 순위(모델 판단 없음), AI 첫 화면에 출처별 3건. 내용 없는 링크 글은 요약 없이 제목만 옮김. alembic `0004` 운영 적용 필요.
+- `[P]` 11-06 **어드민 노트북 서버 켜기·끄기**: 끄면 k3s·Arda·Ollama·도커·러너가 모두 멈추고 재부팅해도 꺼져 있음, 사이트는 집컴이 이어받음(DB 는 집컴 유지). 사용자 sudo 설치 필요. 바깥 응답이 느린 원인은 Cloudflare LA 경유(서버 위치 무관, 미해결).
+- `[P]` 11-06 **news 오늘의 핫한 소식 + 지어낸 요약 없애기**: HF Daily Papers 추천 수·HN 점수로 순위(모델 판단 없음), AI 첫 화면에 출처별 3건. 내용 없는 링크 글은 요약 없이 제목만 옮김. alembic `0004` 11-06 운영 적용 완료(#232).
 - `[P]` 11-05 **news 2단계 화면**: `suvis/app/news`(서버 컴포넌트 — 섹션 전환·검색·묶음 탭·주제 탭·배지 이유·AI 배지 글 숨기기·더 보기), `news.suvisdev.cloud` 의 `/` → `/news` rewrite, 허브 타일 `AI 소식`. 백엔드: 기사에 `sort_at`(다음 쪽 기준), 날짜 없는 한겨레 경제 피드 제외(경제 13곳), 두 번 인코딩된 제목 개체 풀기. **남은 것**: 운영 DB `alembic upgrade head`, Vercel 도메인·Cloudflare CNAME(사용자), 노트북 `.env` 스케줄러.
 - `[P]` 11-05 **news 섹션 개편 — 메인 AI 기술 · 부록 경제**: 목적이 "새 AI 기술·아키텍처 공부"로 확정돼 피드를 AI 22곳(연구소 블로그·arXiv·GitHub 릴리스·해설·커뮤니티·국내 AI 매체) + 경제 14곳으로 교체, `/sections`·`/latest?section=&group=`·`/search`, 검색어 탭 섹션별 RSS 매칭, AI 배지 판정은 국내 뉴스 기사 묶음만, alembic `20261105_0002`. **남은 것**: 운영 DB `alembic upgrade head`(0001·0002 둘 다 아직), 노트북 `.env` 스케줄러, 2단계 화면.
 - `[P]` 11-05 **news.suvisdev.cloud 1단계(수집 뼈대)**: `apps/news` — 검색어 탭(네이버 뉴스 검색 API)·최신 뉴스(언론사 RSS 13곳) 수집, 관련성 필터, AI 기사 규칙 판정(배지, 숨기지 않음), 공개 읽기 API·운영자 검색어 API, 스케줄러(노트북만, 기본 꺼짐), alembic `20261105_0001`. **남은 것**: 운영 DB `alembic upgrade head`·네이버 키·노트북 `.env` 는 사용자, 2~6단계(화면·방문자 검색·올라마 2차 판정·아침 메일·정답셋)는 newsdesk `docs/구현가이드.md` §7.
