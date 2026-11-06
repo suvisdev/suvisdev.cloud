@@ -226,6 +226,13 @@ def test_failed_job_records_error_and_releases_lock(monkeypatch):
 # ── 노트북 서버 켜기·끄기 ──────────────────────────────────────
 
 
+SUDO_LISTING = """User suteagy may run the following commands on teagy:
+    (ALL : ALL) ALL
+    (ALL) NOPASSWD: /usr/local/bin/k3s
+    (root) NOPASSWD: {switch} on, {switch} off
+"""
+
+
 class _Laptop:
     """명령을 순서대로 기록하고, 집컴·노트북 상태를 흉내 낸다."""
 
@@ -241,14 +248,20 @@ class _Laptop:
         self.standby = standby
         self.fail: str | None = None  # 이 문자열이 든 명령은 실패한다
         self.laptop_tunnel = "1"
+        self.sudo_listing = SUDO_LISTING.format(switch=oa.SERVER_SWITCH)
+        self.runner_alive = False
         monkeypatch.setattr(oa, "_run", self.run)
         monkeypatch.setattr(oa, "runner_busy", lambda: False)
+        monkeypatch.setattr(oa, "_pkill", lambda p: self.calls.append(["pkill", p]))
+        monkeypatch.setattr(oa, "_runner_alive", lambda: self.runner_alive)
 
     def run(self, args, timeout):
         joined = " ".join(args)
         self.calls.append(args)
         if self.fail and self.fail in joined:
             raise oa.OpsError(502, f"실패: {self.fail}")
+        if args[:3] == ["sudo", "-n", "-l"]:
+            return self.sudo_listing
         if args[0] == "ssh":
             if "is-active standby-agent" in joined:
                 return self.standby + "\n"
@@ -305,6 +318,9 @@ def test_stop_order_keeps_site_up_until_home_takes_over(monkeypatch):
     assert oa.job_snapshot()["state"] == "ok"
     assert oa.read_server_state() == "off"
     order = [
+        lap.index("disable", "actions-runner"),  # 새 배포를 받지 않게 러너부터
+        lap.calls.index(["pkill", "actions-runner/run-helper.sh"]),
+        lap.calls.index(["pkill", "actions-runner/bin/Runner.Listener"]),
         lap.index(
             "disable", "serve-agent"
         ),  # 판단기 먼저 — 안 그러면 터널을 다시 올린다
@@ -312,7 +328,7 @@ def test_stop_order_keeps_site_up_until_home_takes_over(monkeypatch):
         lap.index("scale", "--replicas=0"),  # 집컴이 뜬 뒤에야 노트북 터널을 닫는다
         lap.index("compose", "stop"),  # Arda
         lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "off"]),  # k3s·Ollama·도커
-        lap.index("disable", "actions-runner"),
+        lap.index("disable", "ollama-tunnel", "desktop-link"),
     ]
     assert order == sorted(order)
     assert lap.switched("off")
@@ -350,6 +366,36 @@ def test_stop_refused_when_switch_not_installed(monkeypatch):
     assert not lap.has("disable") and oa.read_server_state() == "on"
 
 
+def test_sudo_rule_needs_passwordless_on_and_off():
+    s = oa.SERVER_SWITCH
+    assert oa.sudo_rule_ok(SUDO_LISTING.format(switch=s), s)
+    # 관리자 일반 권한만 있으면 비밀번호가 필요하다 — 11-06 실측: 이때 sudo -n -l 명령 은 허용이라 답한다
+    assert not oa.sudo_rule_ok("    (ALL : ALL) ALL\n", s)
+    assert not oa.sudo_rule_ok(f"    (ALL : ALL) ALL {s} on, {s} off\n", s)
+    assert not oa.sudo_rule_ok(f"    (root) NOPASSWD: {s} on\n", s)
+    assert not oa.sudo_rule_ok("", s)
+
+
+def test_stop_refused_with_only_general_sudo(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.sudo_listing = "    (ALL : ALL) ALL\n"
+    with pytest.raises(oa.OpsError) as e:
+        oa.act("/server/stop", {})
+    assert e.value.status == 409 and "install-server-switch" in str(e.value)
+    assert not lap.has("disable")
+
+
+def test_stop_aborts_and_restores_when_runner_will_not_die(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.runner_alive = True
+    monkeypatch.setattr(oa, "RUNNER_STOP_TIMEOUT", 0)
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/stop", {})
+    assert "러너" in oa.job_snapshot()["error"] and oa.read_server_state() == "on"
+    assert lap.has("enable", "actions-runner", "serve-agent")
+    assert not lap.has("disable", "serve-agent") and not lap.switched("off")
+
+
 def test_stop_refused_during_deploy(monkeypatch):
     lap = _Laptop(monkeypatch)
     monkeypatch.setattr(oa, "runner_busy", lambda: True)
@@ -365,7 +411,7 @@ def test_stop_aborts_and_restores_when_home_tunnel_never_comes_up(monkeypatch):
         oa.act("/server/stop", {})
     assert "이어받지 못해" in oa.job_snapshot()["error"]
     assert oa.read_server_state() == "on"
-    assert lap.has("enable", "serve-agent")  # 노트북이 계속 서빙한다
+    assert lap.has("enable", "actions-runner", "serve-agent")  # 노트북이 계속 서빙한다
     assert not lap.switched("off") and not lap.has("scale")
 
 

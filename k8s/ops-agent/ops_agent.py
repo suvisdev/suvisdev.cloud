@@ -11,7 +11,7 @@
   POST /ollama/load     {"model": "..."}  모델을 GPU 에 올려 둔다(keep_alive -1)
   POST /ollama/unload   {"model": "..."}  모델을 내린다(keep_alive 0)
   POST /server/stop     이 노트북의 서버 전체를 끈다(k3s·Arda·Ollama·도커·배포 러너). 재부팅해도 꺼진 채 남는다.
-                        집컴이 이어받은 걸 확인한 뒤에 내리므로 사이트는 끊기지 않는다. 집컴이 준비 안 됐으면 409
+                        집컴이 이어받은 걸 확인한 뒤에 내리므로 사이트가 내려가지 않는다. 집컴이 준비 안 됐으면 409
   POST /server/start    다시 켠다. 노트북이 서빙을 시작할 때까지 기다린다
 
 지키는 것:
@@ -69,7 +69,14 @@ HOME_KEY = os.path.expanduser("~/.ssh/home_desktop")
 HOME_KNOWN_HOSTS = os.path.expanduser("~/.ssh/known_hosts_ollama_tunnel")
 # 서빙 판단기는 맨 먼저 멈추고 맨 나중에 켜야 해서 따로 다룬다
 SERVE_AGENT = "serve-agent"
-USER_SERVICES = ("actions-runner", "ollama-tunnel", "desktop-link")
+RUNNER = "actions-runner"
+USER_SERVICES = ("ollama-tunnel", "desktop-link")
+# 도우미를 먼저 멈춘다 — Listener 가 먼저 죽으면 도우미가 다시 띄울 수 있다
+RUNNER_PROCESSES = (
+    "actions-runner/run-helper.sh",
+    "actions-runner/bin/Runner.Listener",
+)
+RUNNER_STOP_TIMEOUT = 20
 # 집컴 터널은 보통 30초 안에 뜨지만, 11-06 노트북 재부팅 때 집컴 부하가 높아 11분 걸린 적이 있다
 HANDOVER_TIMEOUT = 900
 HOME_SETTLE_SECONDS = 10  # 파드가 Ready 여도 Cloudflare 에 등록되기까지 잠깐 걸린다
@@ -147,6 +154,19 @@ def parse_nvidia_smi(stdout: str) -> list[dict]:
             }
         )
     return gpus
+
+
+def sudo_rule_ok(listing: str, switch: str) -> bool:
+    """`sudo -n -l` 출력에 비밀번호 없는 on·off 규칙이 있는가.
+
+    `sudo -n -l 명령 인자` 로 묻지 않는다 — 관리자 일반 권한((ALL : ALL) ALL)이 있으면 비밀번호가 필요한
+    명령도 허용으로 답한다(11-06 실측: 규칙에 없는 status 도 통과).
+    """
+    for line in listing.splitlines():
+        rule = line.partition("NOPASSWD:")[2]
+        if f"{switch} on" in rule and f"{switch} off" in rule:
+            return True
+    return False
 
 
 def parse_ready(stdout: str) -> dict[str, int]:
@@ -383,18 +403,31 @@ def runner_busy() -> bool:
     return done.returncode == 0
 
 
+def _pkill(pattern: str) -> None:
+    subprocess.run(["pkill", "-TERM", "-f", pattern], capture_output=True, check=False)
+
+
+def _runner_alive() -> bool:
+    done = subprocess.run(
+        ["pgrep", "-f", RUNNER_PROCESSES[-1]], capture_output=True, check=False
+    )
+    return done.returncode == 0
+
+
 def check_can_stop() -> None:
     """끄면 집컴이 받아야 한다. 집컴이 못 받으면 사이트가 내려가므로 아예 시작하지 않는다."""
     if runner_busy():
         raise OpsError(409, "배포가 진행 중이다 — 끝난 뒤 다시 누른다")
+    # 이게 없으면 터널과 Arda 만 끄고 멈춰 절반만 꺼진다 — 아무것도 건드리기 전에 확인한다
     try:
-        # 이게 없으면 터널과 Arda 만 끄고 멈춰 절반만 꺼진다 — 아무것도 건드리기 전에 확인한다
-        _run(["sudo", "-n", "-l", SERVER_SWITCH, "off"], 10)
-    except OpsError as e:
+        listing = _run(["sudo", "-n", "-l"], 10)
+    except OpsError:
+        listing = ""
+    if not sudo_rule_ok(listing, SERVER_SWITCH):
         raise OpsError(
             409,
             "켜기·끄기 스크립트가 설치되지 않았다(k8s/ops-agent/install-server-switch.sh)",
-        ) from e
+        )
     try:
         active = _home("systemctl --user is-active standby-agent").strip()
         ready = _home_ready()
@@ -419,12 +452,24 @@ def _wait(what: str, done, timeout: int) -> bool:
     return False
 
 
+def _stop_runner() -> None:
+    """러너 유닛은 KillMode=process 라 서비스만 멈추면 Listener 가 남는다. GitHub 에 online 으로 남아
+    꺼진 노트북이 배포 잡을 받게 되므로(11-06 실제 끄기에서 발견) 프로세스까지 직접 멈춘다."""
+    _user_services("disable", RUNNER)
+    for pattern in RUNNER_PROCESSES:
+        _pkill(pattern)
+    if not _wait("러너 멈춤", lambda: not _runner_alive(), RUNNER_STOP_TIMEOUT):
+        raise OpsError(504, "배포 러너가 멈추지 않아 끄지 않았다")
+
+
 def server_stop() -> None:
-    # 1. 판단기를 멈추고 집컴에 바로 알린다(그냥 두면 심장박동이 끊긴 걸 15초 뒤에 안다)
-    _user_services("disable", SERVE_AGENT)
     try:
+        # 1. 러너를 먼저 멈춰 새 배포를 받지 않게 한다
+        _stop_runner()
+        # 2. 판단기를 멈추고 집컴에 바로 알린다(그냥 두면 심장박동이 끊긴 걸 15초 뒤에 안다)
+        _user_services("disable", SERVE_AGENT)
         _home('echo "$(date +%s) not-serving off" > ~/serve/laptop_heartbeat')
-        # 2. 집컴 터널이 뜰 때까지 노트북은 그대로 서빙한다. 둘이 겹쳐도 DB 가 하나라 안전하다
+        # 3. 집컴 터널이 뜰 때까지 노트북은 그대로 서빙한다. 둘이 겹쳐도 DB 가 하나라 안전하다
         if not _wait(
             "집컴 터널",
             lambda: _home_ready().get("cloudflared", 0) >= 1,
@@ -432,11 +477,11 @@ def server_stop() -> None:
         ):
             raise OpsError(504, "집컴이 이어받지 못해 끄지 않았다")
     except OpsError:
-        _user_services("enable", SERVE_AGENT)  # 노트북이 계속 서빙한다
+        _user_services("enable", RUNNER, SERVE_AGENT)  # 노트북이 계속 서빙한다
         raise
     time.sleep(HOME_SETTLE_SECONDS)
     write_server_state("off")
-    # 3. 노트북 터널을 먼저 닫아 받던 요청을 끝내고, 그다음 나머지를 끈다.
+    # 4. 노트북 터널을 먼저 닫아 받던 요청을 끝내고, 그다음 나머지를 끈다.
     #    여기부터는 일부가 실패해도 계속 간다 — 멈추면 절반만 꺼진 채 남는다. 같은 버튼으로 다시 시도할 수 있다
     with contextlib.suppress(OpsError):
         _run(
@@ -465,7 +510,7 @@ def server_stop() -> None:
 
 def server_start() -> None:
     _run(["sudo", "-n", SERVER_SWITCH, "on"], 300)
-    _user_services("enable", *USER_SERVICES, SERVE_AGENT)
+    _user_services("enable", *USER_SERVICES, RUNNER, SERVE_AGENT)
     write_server_state("on")
     arda_error = None
     try:
