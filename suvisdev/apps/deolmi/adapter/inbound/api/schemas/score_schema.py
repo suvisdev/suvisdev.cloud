@@ -72,6 +72,10 @@ class VerifyRequestSchema(_PublicRequest):
     token: str = Field(..., max_length=4096, description="/score가 내려준 토큰")
 
 
+class DemoVerifyRequestSchema(_PublicRequest):
+    token: str = Field(..., max_length=4096, description="데모 페이지의 /score 토큰")
+
+
 class ScoreResultSchema(BaseModel):
     score: float
     verdict: Literal["allow", "challenge", "block"]

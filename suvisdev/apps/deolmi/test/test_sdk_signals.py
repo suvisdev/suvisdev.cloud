@@ -131,3 +131,11 @@ async def test_scripted_typing_without_clicks_still_hits_key_rhythm_rule():
     s = _validated(SCRIPTED_TYPING)
     assert no_mouse_input(s)
     assert await _verdict(s) == ("block", None)
+
+
+def test_stop_releases_listeners():
+    # 측정을 새로 시작하거나 화면을 떠난 뒤의 입력은 이전 세션에 쌓이지 않는다(SPA 리스너 누수 방지).
+    before = _typing(0, 5)
+    after = [{"t": 5000 + i * 100, "type": "keydown"} for i in range(30)]
+    f = _sdk_features([*before, {"t": 4000, "type": "stop"}, *after])
+    assert f["key_count"] == 5

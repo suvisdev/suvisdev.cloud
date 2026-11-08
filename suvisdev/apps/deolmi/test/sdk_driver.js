@@ -9,7 +9,10 @@ let clock = 0;
 
 globalThis.window = globalThis;
 globalThis.document = {
-  addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+  // 브라우저처럼 { signal }이 abort되면 그 리스너는 더 불리지 않는다(SDK stop()).
+  addEventListener(type, fn, opts) {
+    (listeners[type] = listeners[type] || []).push((ev) => { if (!opts?.signal?.aborted) fn(ev); });
+  },
 };
 Object.defineProperty(globalThis, "performance", { value: { now: () => clock }, configurable: true });
 
@@ -18,6 +21,7 @@ const dm = globalThis.Deolmi.init({ endpoint: "http://x", siteKey: "pk_test" });
 
 for (const ev of JSON.parse(eventsJson)) {
   clock = ev.t;
+  if (ev.type === "stop") { dm.stop(); continue; }   // 시나리오 안에서 dm.stop() 호출
   for (const fn of listeners[ev.type] || []) fn(ev);   // 리스너가 없는 이벤트(mousemove 등)는 무시된다
 }
 clock = Number(endMs);

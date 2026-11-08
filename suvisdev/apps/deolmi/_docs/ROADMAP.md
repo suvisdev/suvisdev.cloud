@@ -20,13 +20,10 @@
 
 | # | 할 일 | 누가 | 비고 |
 |---|-------|------|------|
-| 1 | `suvisdev/.env`에 `DEOLMI_TOKEN_SECRET` 추가 | 사용자 | **머지 전에 먼저.** 없으면 score/verify가 503. 새 env는 이것 하나(Redis는 기존 `REDIS_URL`) |
-| 2 | CI 통과 확인 후 PR 머지 | Claude | 10-20 브랜치 `feat/deolmi-app`(PR #207) |
-| 3 | `./k8s/deploy.sh --external-db` (Secret 갱신) | 사용자 | `.env`의 새 키를 파드 Secret에 넣는다 |
-| 4 | 운영 DB `alembic upgrade head` | 사용자 | 배포가 마이그레이션을 자동 적용하지 않는다. 그 전까지 score는 테이블이 없어 실패(고객 없음) |
-| 5 | 어드민 토큰으로 데모용 키 발급(`POST /api/deolmi/admin/sites`) | 사용자 | 비밀 키는 응답에서 한 번만 보인다 |
-| 6 | 데모 화면 위치 결정 → 구현 | 사용자 결정 → Claude | suvis 페이지 vs 백엔드 정적 파일. 사업계획서 §7 "데모로 매크로를 잡는 모습을 보여준다" |
-| 7 | 운영 URL로 SDK→score→verify 한 바퀴 확인 | Claude | 데모 페이지로 실제 브라우저에서(휴대폰 터치 포함) |
+| 1~4 | 열쇠·머지·Secret·`alembic upgrade head` | — | ✅ 11-08 완료(#207) |
+| 5 | 데모 사이트 키 발급 → `DEOLMI_DEMO_SECRET` | 사용자 | 11-08. 공개 키는 `suvis/lib/deolmi-api.ts`에 넣는다 |
+| 6 | 데모 화면 | Claude | ✅ 11-08 suvis `/deolmi`(사용자 결정) + 백엔드 `/demo/verify` |
+| 7 | 운영 URL로 SDK→score→verify 한 바퀴 확인 | Claude | 로컬(임시 DB·실제 브라우저)은 11-08 확인, 운영은 머지 후 |
 
 ---
 
@@ -44,8 +41,8 @@ SDK → 채점 → 데모 한 바퀴. 실측: 자동 키 입력 block 0.996, 직
 - [x] 고객용 연동 문서([INTEGRATION.md](INTEGRATION.md))
 - [x] 리뷰 반영(10-20): 터치·키보드 사람 오탐 수정, jti·속도 Redis 이전(서빙 전환·재시작에도 재사용 차단),
   로그는 응답 뒤 기록, 속도만으로는 차단 안 함(challenge 상한), 무한대·거대 신호 422, 신뢰 경계 문서화
-- [ ] 운영 반영(위 "지금 해야 할 것" 1~5)
-- [ ] 데모 화면
+- [x] 운영 반영(11-08)
+- [x] 데모 화면(11-08 suvis `/deolmi`)
 - [ ] **첫 테스트 예매처 1곳 연동** — MVP 완료 기준: 외부 고객 한 곳이 문서만 보고 붙여 점수를 받는다
 
 ## 단계 1.5. 판매 준비 (MVP와 함께, 가격표 2026-10-19 확정)

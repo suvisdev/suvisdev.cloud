@@ -63,6 +63,15 @@ def _tokens() -> JwtScoreTokenAdapter:
     return _tokens_for(secret)
 
 
+def get_demo_secret() -> str:
+    # 데모 페이지(suvis /deolmi)는 브라우저라 비밀 키를 둘 수 없다 — 고객 서버 역할을 여기서 대신한다.
+    # 이 키는 데모 사이트 하나의 것이라 남의 사이트 토큰은 확인하지 못한다.
+    secret = os.getenv("DEOLMI_DEMO_SECRET", "")
+    if not secret:
+        raise HTTPException(status_code=503, detail="deolmi demo not configured")
+    return secret
+
+
 def get_score_use_case() -> ScoreUseCase:
     # 요청 세션(get_db)을 쓰지 않는다 — 요청 세션은 응답 뒤 로그 기록이 끝날 때까지 연결을 쥐고,
     # 그 로그가 같은 풀에서 연결을 또 기다려 동시 요청이 풀을 채우면 서로 막힌다.
