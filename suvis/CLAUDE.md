@@ -172,6 +172,7 @@ suvis/
 | `/vision`, `/vision/object-detection` | 비전 업로드·객체 검출 | `apps/ontology` vision |
 | `/mova/**` | Mova(영화 추천) 전체 — `main`/`movies`/`collections`/`rankings`/`title`/`mypage`/`login` | `apps/mova` 전체(`lib/mova-api.ts`) |
 | `/mypage` | 마이페이지 | `viewer/profile` |
+| `/news` (= `news.suvisdev.cloud` 의 `/`) | AI 기술 소식(메인)·경제(부록) — 서버 컴포넌트, 필터는 쿼리 링크, 로그인 없음(2026-11-05). 호스트 연결은 `next.config.mjs` rewrites | `apps/news` 공개 API(`lib/news-api.ts`) |
 | `/admin/**` | 어드민 대시보드(홈/사용자/앱관리/통계/캘린더/설정/dispatch/harvester) | `require_admin` 가드, `lib/admin-*-api.ts` |
 | `/test-auth-login` | 인증 플로우 수동 테스트 페이지 | `apps/auth` |
 

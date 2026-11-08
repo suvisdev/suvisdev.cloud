@@ -280,6 +280,54 @@ class DispatchTests(unittest.IsolatedAsyncioTestCase):
         await interactor.chat(MovaChatRequest(message="옵세션 어때?"))
         self.assertEqual(interactor._evaluation.evaluate.await_args.kwargs["entities"], ["옵세션"])
 
+    def _evaluate_slots(self, title: str) -> VerifiedSlots:
+        return VerifiedSlots(
+            intent="evaluate",
+            title_text=title,
+            movie=None,
+            region=None,
+            time=None,
+            chain=None,
+            followup=False,
+        )
+
+    async def _route(self, message: str, title: str, fuzzy: list[MovaSearchItemSchema]) -> str:
+        """카탈로그에 없는 제목의 evaluate 슬롯이 어느 트랙으로 가는가."""
+        interactor, _, _ = self._interactor(self._evaluate_slots(title))
+        from mova.app.use_cases.market_chat_evaluation_interactor import EvaluationResult
+
+        interactor._evaluation.evaluate.return_value = EvaluationResult(
+            status="not_found", reply="평가", card=None, evaluation=None
+        )
+        interactor._repo.search_movies_by_title.return_value = []
+        interactor._repo.fuzzy_search_movies_by_title.return_value = fuzzy
+        recommend = AsyncMock(return_value="추천 응답")
+        interactor._reply_recommend = recommend  # type: ignore[method-assign]
+        await interactor.chat(MovaChatRequest(message=message))
+        if recommend.await_count:
+            return "recommend"
+        return "evaluate" if interactor._evaluation.evaluate.await_count else "other"
+
+    async def test_condition_query_misread_as_title_goes_to_recommend(self) -> None:
+        # 11-08 하네스: 이해 모델이 조건 질의를 통째로 제목으로 보고 evaluate → 0건.
+        # 제목 검색이 후보를 여럿 잡아도(낱말 "뉴욕"·"유럽") 조건 근거가 있으면 추천이다.
+        many = [_item(1, "뉴욕의 가을"), _item(2, "유로파")]
+        self.assertEqual(await self._route("뉴욕 배경 영화", "뉴욕 배경 영화", many), "recommend")
+        self.assertEqual(await self._route("유럽 배경 로맨스", "유럽 로맨스", many), "recommend")
+        self.assertEqual(await self._route("밀실 탈출 스릴러", "밀실의 비밀", []), "recommend")
+
+    async def test_bare_title_without_condition_stays_evaluate(self) -> None:
+        # 오타·축약 제목은 평가 트랙이 되묻는다(후보 여럿이어도)
+        self.assertEqual(await self._route("인셉숀", "인셉숀", [_item(1, "인셉션")]), "evaluate")
+        many = [_item(1, "어벤져스: 엔드게임"), _item(2, "어벤져스: 인피니티 워")]
+        self.assertEqual(await self._route("어벤져스 영화", "어벤져스", many), "evaluate")
+        # 제목 안에 붙은 장르 낱말은 조건이 아니다
+        self.assertEqual(await self._route("범죄도시", "범죄도시 5", []), "evaluate")
+
+    async def test_evaluation_wording_keeps_evaluate_even_with_condition(self) -> None:
+        self.assertEqual(await self._route("없는 로맨스 어때?", "없는 로맨스", []), "evaluate")
+        self.assertEqual(await self._route("그 스릴러 줄거리 알려줘", "그 스릴러", []), "evaluate")
+
 
 if __name__ == "__main__":
     unittest.main()

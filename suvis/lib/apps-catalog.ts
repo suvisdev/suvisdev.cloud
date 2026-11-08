@@ -46,6 +46,20 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     tileImage: "/gildle-icon.svg",
     kind: "개인 프로젝트",
   },
+  {
+    // news.suvisdev.cloud — 새 AI 기술 소식(메인) + 경제(부록), 2026-11-05.
+    // 도메인 연결(Vercel·Cloudflare) 전에도 열리게 같은 사이트 경로로 둔다. 연결 뒤 https://news.suvisdev.cloud 로 바꿔도 된다.
+    id: "news",
+    titleKo: "AI 소식",
+    titleEn: "AI Tech News",
+    href: "/news",
+    available: true,
+    imageFirst: false,
+    gradient: "from-slate-900 via-blue-950 to-slate-800",
+    icon: "📰",
+    tileImage: "/news-icon.svg",
+    kind: "개인 프로젝트",
+  },
 ]
 
 export const TEAM_PROJECTS: AppCatalogItem[] = [

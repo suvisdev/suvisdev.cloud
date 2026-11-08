@@ -6,8 +6,7 @@
 #   ./k8s/deploy.sh --build         # 이미지 재빌드 후 배포(backend/auth 재시작 포함)
 #   ./k8s/deploy.sh --external-db   # 노트북 1단계: db·redis는 기존 도커 컨테이너를 그대로 쓰고
 #                                   #   (external-db-redis.yaml) nginx-alias.yaml·ingress.yaml까지 apply
-#   ./k8s/deploy.sh --external-db --no-tunnel   # cloudflared만 빼고 apply — 노트북이 집 밖일 때 CD가 쓴다
-#                                   #   (터널 켜기·끄기는 serve-agent 몫, .github/workflows/backend-deploy.yml)
+#   ./k8s/deploy.sh --external-db --no-tunnel   # cloudflared만 빼고 apply
 #   플래그는 조합 가능: ./k8s/deploy.sh --external-db --build
 #
 # 전제: k3s 설치돼 있을 것(README.md 설치 절 참고).

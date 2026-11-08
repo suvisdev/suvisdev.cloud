@@ -4,7 +4,7 @@ deolmi_sites: 고객별 공개 키 + 비밀 키 해시·허용 도메인.
 deolmi_events: /score 한 번에 한 줄(행동 수치·판정) — 모델 재학습 원천.
 
 Revision ID: 20261020_0001
-Revises: 20261007_0001
+Revises: 20261105_0004 (11-08 main 머지로 이어 붙임, 원래 20261007_0001)
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20261020_0001"
-down_revision: str | None = "20261007_0001"
+down_revision: str | None = "20261105_0004"
 branch_labels: str | None = None
 depends_on: str | None = None
 

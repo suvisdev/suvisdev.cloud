@@ -1,0 +1,23 @@
+{
+  "harness_version": "0.1.1",
+  "_note": "값을 바꾸면 rubric.md 표도 같이 고치고 evaluate.py 를 다시 돌려 실측을 남긴다.",
+  "head_chars": 150,
+  "tail_chars": 300,
+  "min_body_chars_for_evidence": 250,
+  "min_body_chars_for_style": 200,
+  "polite_ratio": 0.6,
+  "polite_min_sentences": 5,
+  "cliche_min_hits": 3,
+  "bullet_min": 4,
+  "title_overlap_min": 0.3,
+  "cluster_title_jaccard": 0.3,
+  "rewrite_body_jaccard": 0.35,
+  "ai_trace_points": {
+    "MARKDOWN": 2,
+    "REWRITE_SUSPECT": 2,
+    "NO_BYLINE": 1,
+    "POLITE_REGISTER": 1,
+    "AI_CLICHE": 1
+  },
+  "ai_trace_fail_at": 2
+}

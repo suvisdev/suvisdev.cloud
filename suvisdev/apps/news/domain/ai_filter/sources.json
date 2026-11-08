@@ -1,0 +1,12 @@
+{
+  "_note": "known 은 '통과 보증'이 아니라 출처 축(②)만 통과시킨다. blocked 는 사용자가 직접 확인한 도메인만 넣는다. 도메인은 www. / m. 을 뺀 형태, 하위 도메인까지 맞는다.",
+  "known": [
+    "yna.co.kr", "newsis.com", "news1.kr",
+    "kbs.co.kr", "imbc.com", "sbs.co.kr", "ytn.co.kr", "jtbc.co.kr", "mbn.co.kr", "ichannela.com", "tvchosun.com",
+    "chosun.com", "joongang.co.kr", "donga.com", "hani.co.kr", "khan.co.kr", "hankookilbo.com", "kmib.co.kr", "seoul.co.kr", "segye.com", "munhwa.com",
+    "mk.co.kr", "hankyung.com", "sedaily.com", "mt.co.kr", "edaily.co.kr", "fnnews.com", "asiae.co.kr", "heraldcorp.com",
+    "etnews.com", "zdnet.co.kr", "bloter.net", "ddaily.co.kr", "dt.co.kr", "inews24.com",
+    "ohmynews.com", "pressian.com", "nocutnews.co.kr", "kyunghyang.com"
+  ],
+  "blocked": []
+}

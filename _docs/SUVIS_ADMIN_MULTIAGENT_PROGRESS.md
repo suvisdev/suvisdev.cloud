@@ -13,8 +13,20 @@
 
 ## 완료됨 (워크로그 날짜 인덱스 — 상세는 재기록 안 함)
 
+- 스킬 자동 적용·Codex 관문·자동 머지 하네스: `WORK_LOG_MAINPAGE.md` 2026-11-06 (4)
+
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 11-08 **하네스 점검**: 드리프트 감지 훅, 도메인 순수성·유스케이스→outbound 계약, 로컬 의도 판단 제거. ADR-0009, WORK_LOG_MAINPAGE 11-08 (3).
+- `[P]` 11-08 **mova 조건 질의 오분류 수정**: 평가 어휘·확정 제목 없고 장르·배경 근거 있는 evaluate → 추천. WORK_LOG_MOVA 11-08.
+- `[P]` 11-08 **노트북 단독 서빙 전환**: 집컴 DB 크래시 3회 → 앱·DB·Redis·lora·임베딩 전부 노트북, 집컴 완전히 내림(볼륨·덤프 보존). 끄기·켜기는 노트북 기준, failover·sync-standby 삭제. ADR-0008, WORK_LOG_MAINPAGE 11-08 (2).
+- `[P]` 11-08 **Codex 관문 충돌 머지 결함 수정**: 머지 중이면 `MERGE_HEAD`까지 넣어 기준점을 구함. WORK_LOG_MAINPAGE 11-08.
+- `[P]` 11-06 **어드민 노트북 서버 켜기·끄기**: 끄면 k3s·Arda·Ollama·도커·러너가 모두 멈추고 재부팅해도 꺼져 있음, 사이트는 집컴이 이어받음(DB 는 집컴 유지). 사용자 sudo 설치 필요. 바깥 응답이 느린 원인은 Cloudflare LA 경유(서버 위치 무관, 미해결).
+- `[P]` 11-06 **서버 전체 끄기**: 어드민 빨간 버튼으로 노트북·집컴(DB 포함) 전부 끔, 켜기는 노트북 바탕화면 `서버 켜기`. 남은 일: 집컴 `install-server-switch.sh home`(사용자 sudo 1회), 실제 끄기·켜기 시험(사용자 허락). WORK_LOG_MAINPAGE 11-06 (7).
+- `[P]` 11-06 **news 오늘의 핫한 소식 + 지어낸 요약 없애기**: HF Daily Papers 추천 수·HN 점수로 순위(모델 판단 없음), AI 첫 화면에 출처별 3건. 내용 없는 링크 글은 요약 없이 제목만 옮김. alembic `0004` 11-06 운영 적용 완료(#232).
+- `[P]` 11-05 **news 2단계 화면**: `suvis/app/news`(서버 컴포넌트 — 섹션 전환·검색·묶음 탭·주제 탭·배지 이유·AI 배지 글 숨기기·더 보기), `news.suvisdev.cloud` 의 `/` → `/news` rewrite, 허브 타일 `AI 소식`. 백엔드: 기사에 `sort_at`(다음 쪽 기준), 날짜 없는 한겨레 경제 피드 제외(경제 13곳), 두 번 인코딩된 제목 개체 풀기. **남은 것**: 운영 DB `alembic upgrade head`, Vercel 도메인·Cloudflare CNAME(사용자), 노트북 `.env` 스케줄러.
+- `[P]` 11-05 **news 섹션 개편 — 메인 AI 기술 · 부록 경제**: 목적이 "새 AI 기술·아키텍처 공부"로 확정돼 피드를 AI 22곳(연구소 블로그·arXiv·GitHub 릴리스·해설·커뮤니티·국내 AI 매체) + 경제 14곳으로 교체, `/sections`·`/latest?section=&group=`·`/search`, 검색어 탭 섹션별 RSS 매칭, AI 배지 판정은 국내 뉴스 기사 묶음만, alembic `20261105_0002`. **남은 것**: 운영 DB `alembic upgrade head`(0001·0002 둘 다 아직), 노트북 `.env` 스케줄러, 2단계 화면.
+- `[P]` 11-05 **news.suvisdev.cloud 1단계(수집 뼈대)**: `apps/news` — 검색어 탭(네이버 뉴스 검색 API)·최신 뉴스(언론사 RSS 13곳) 수집, 관련성 필터, AI 기사 규칙 판정(배지, 숨기지 않음), 공개 읽기 API·운영자 검색어 API, 스케줄러(노트북만, 기본 꺼짐), alembic `20261105_0001`. **남은 것**: 운영 DB `alembic upgrade head`·네이버 키·노트북 `.env` 는 사용자, 2~6단계(화면·방문자 검색·올라마 2차 판정·아침 메일·정답셋)는 newsdesk `docs/구현가이드.md` §7.
 - `[P]` 10-20 **Codex 전체 리뷰 → 6개 영역 수정(PR #209~#213 머지, 배포 성공)** · 디스코드 커밋 알림 웹훅 · Claude 수정/Codex 리뷰 분담(Codex OK 후 커밋). 덜미 #207은 머지 보류. 남은 사용자 작업은 아래 "10-20 리뷰 수정 후속".
 - `[P]` 10-20 **덜미(deolmi) 매크로 탐지 앱 신설(브랜치 `feat/deolmi-app` PR)**: 바탕화면 `매크로/botguard`를 `suvisdev/apps/deolmi` 스포크로 이식 — `/api/deolmi/score·verify·sdk.js·admin/*`, 테이블 2개(마이그레이션 `20261020_0001`), 테스트 45개·임시 DB E2E 통과. 남은 것은 아래 백로그 "덜미".
 - `[P]` 10-14 **/resume 를 PDF 이력서 v18 에 맞춤 · 홈 ARDA "본선 TOP 20"**: Experience 섹션(원티드 AI Championship 2026 본선 TOP 20, 투표 1위 10.05 기준) ·
@@ -112,6 +124,11 @@
 
 ## 다음 / 남은 작업 (백로그)
 
+- **(11-08) PR #238**: `sync-standby.sh`가 없어져 그 부분은 필요 없다. Dockerfile digest 고정만 남겨 다시 올리거나 닫는다.
+- **(11-08) 하네스 보류 과제**(메인 폴더는 main 전환 완료, 덜미는 `~/projects/wt-deolmi`): `fastapi`·`sqlalchemy` 금지 계약, 새 환경 변수 누락 검사, app→outbound 예외 9쌍 축소.
+- **(11-08) 실제 서버 끄기·켜기 1회 시험**: 새 순서(DB 정상 종료 포함)를 실제로 돌려 보지 않았다(사용자 허락 필요).
+- **(11-06) 터널 2분 8초·503 2건 측정**: 추정만 있음.
+
 ### 우선순위 방향 (2026-09-02, 사용자 결정)
 **당분간 신규 기능보다 mova 채팅 품질 향상에 주력한다** — 실사용 오답·
 오분류·무관 추천 감소가 우선, 새 트랙·새 기능은 보류. 로그 추적 → 근본
@@ -121,7 +138,7 @@ history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `
 http://127.0.0.1:31386`.
 
 ### 10-20 리뷰 수정 후속 (사용자 작업, `[P]` 10-20 (3))
-1. **덜미 #207**: `.env`에 `DEOLMI_TOKEN_SECRET` → Claude가 CI·Codex 확인 후 머지 → `./k8s/deploy.sh --external-db` → 운영 `alembic upgrade head` → 키 발급.
+1. **덜미 #207**(11-08 main 머지·마이그레이션 헤드 정리 완료, `~/projects/wt-deolmi`): `.env`에 `DEOLMI_TOKEN_SECRET` → Claude가 CI·Codex 확인 후 머지 → `./k8s/deploy.sh --external-db` → 운영 `alembic upgrade head` → 키 발급.
 2. **로그인 확인**: 운영 `.env` `*_REDIRECT_URI` 호스트가 `api.suvisdev.cloud`인지(OAuth state 쿠키 결합 — 다르면 콜백 400), 실제 브라우저로 Google·Kakao 로그인 1회, 관리자 계정 재로그인.
 3. **노트북 serve-agent 설치**: `cp k8s/failover/serve_agent.sh ~/serve/serve_agent.sh && systemctl --user restart serve-agent`.
 4. **올라마 설정 대조**: 집컴 `diff ~/ollama-proxy/haproxy.cfg ~/projects/suvisdev/k8s/ollama-proxy/haproxy.cfg`, 노트북 `ollama-tunnel.service` — 설정 줄이 다르면 운영 값이 정답, 저장소를 고침.

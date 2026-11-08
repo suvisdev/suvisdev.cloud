@@ -44,7 +44,101 @@ export async function getServingServer(): Promise<ServingServer> {
   const res = await fetch("/api/backend/viewer/admin/server")
   const data = (await res.json()) as ServingServer & { detail?: unknown }
   if (!res.ok) {
-    throw new Error(safeApiErrorMessage(data.detail, "서버 정보를 불러오지 못했습니다.", res.status))
+    throw new Error(
+      safeApiErrorMessage(data.detail, "서버 정보를 불러오지 못했습니다.", res.status)
+    )
+  }
+  return data
+}
+
+// ── 운영 제어(2026-10-28) — /viewer/admin/ops → 노트북 ops-agent ─────────────────
+export type OpsJob = {
+  action: string | null
+  target: string
+  state: "idle" | "running" | "ok" | "failed"
+  error: string | null
+  started_at: string | null
+  finished_at: string | null
+}
+
+export type OpsStatus = {
+  reachable: boolean
+  detail?: string
+  /** 노트북 서버 전체 켜짐·꺼짐. 에이전트를 아직 갱신하지 않았으면 없다 */
+  server?: { state: "on" | "off" }
+  arda?: {
+    available: boolean
+    error?: string
+    services?: { service: string; state: string; status: string }[]
+    ai_mode?: "gpu" | "cpu"
+    ai_device?: string | null
+  }
+  gpu?: {
+    name: string
+    memory_used_mib: number
+    memory_total_mib: number
+    utilization_pct: number
+  }[]
+  ollama?: {
+    available: boolean
+    error?: string
+    loaded?: { name: string; size_vram: number | null; expires_at: string | null }[]
+    installed?: string[]
+  }
+  job?: OpsJob
+}
+
+export async function getOps(): Promise<OpsStatus> {
+  const res = await fetch("/api/backend/viewer/admin/ops", { cache: "no-store" })
+  // 서버 전환 중에는 JSON 이 아닌 오류 화면(530 등)이 잠깐 올 수 있다
+  const data = (await res.json().catch(() => ({}))) as OpsStatus & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(
+      safeApiErrorMessage(data.detail, "운영 상태를 불러오지 못했습니다.", res.status)
+    )
+  }
+  return data
+}
+
+/** 동작은 접수만 하고 바로 돌아온다 — 진행·결과는 getOps() 의 job 으로 본다. */
+export async function postOps(path: string, body?: Record<string, string>): Promise<void> {
+  const res = await fetch(`/api/backend/viewer/admin/ops${path}`, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { detail?: unknown }
+    throw new Error(safeApiErrorMessage(data.detail, "요청을 처리하지 못했습니다.", res.status))
+  }
+}
+
+export type MaintenanceState = { mova: boolean; gildle: boolean }
+
+/** 점검 모드 — 노트북 에이전트와 무관하게 백엔드 DB 에 있다(노트북이 꺼져도 켜고 끌 수 있다). */
+export async function getMaintenanceState(): Promise<MaintenanceState> {
+  const res = await fetch("/api/backend/viewer/maintenance", { cache: "no-store" })
+  const data = (await res.json()) as MaintenanceState & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(
+      safeApiErrorMessage(data.detail, "점검 상태를 불러오지 못했습니다.", res.status)
+    )
+  }
+  return data
+}
+
+export async function setMaintenance(
+  service: keyof MaintenanceState,
+  on: boolean
+): Promise<MaintenanceState> {
+  const res = await fetch(`/api/backend/viewer/admin/ops/maintenance/${service}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ on }),
+  })
+  const data = (await res.json().catch(() => ({}))) as MaintenanceState & { detail?: unknown }
+  if (!res.ok) {
+    throw new Error(safeApiErrorMessage(data.detail, "점검 상태를 바꾸지 못했습니다.", res.status))
   }
   return data
 }

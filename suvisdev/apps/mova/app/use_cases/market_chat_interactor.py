@@ -42,7 +42,11 @@ from mova.app.use_cases.market_chat_booking_interactor import (
 )
 from mova.app.use_cases.market_chat_evaluation_interactor import MovieEvaluationService
 from mova.app.use_cases.market_chat_ordinal import resolve_ordinal_reference
-from mova.domain.value_objects.genre_exclusion import excluded_genres, has_excluded_genre
+from mova.domain.value_objects.genre_exclusion import (
+    excluded_genres,
+    has_excluded_genre,
+    mentions_condition,
+)
 from mova.domain.value_objects.movie_title import MovieTitle, series_key
 from ontology.app.agent.agent_loop import AgentDecision
 from ontology.app.dtos.mycroft_dto import MycroftAskCommand
@@ -1453,7 +1457,13 @@ class ChatInteractor(ChatUseCase):
                 )
             return await self._finish_booking(request, trace_id, result, [title] if title else [])
         if slots.intent == "evaluate" and self._evaluation is not None:
-            return await self._reply_evaluation(request, trace_id, [title] if title else [])
+            if not self._condition_misread_as_title(request.message, slots):
+                return await self._reply_evaluation(request, trace_id, [title] if title else [])
+            logger.info(
+                "[ChatInteractor] trace=%s 조건 질의를 제목으로 오인 → 추천 title=%r",
+                trace_id,
+                title,
+            )
         if slots.intent == "general":
             return await self._reply_general(request, trace_id)
         # "인터스텔라 같은 영화"는 그 작품과 가까운 영화로(자기 자신 제외). 에이전트 경로에만 이어져 있어
@@ -1462,6 +1472,18 @@ class ChatInteractor(ChatUseCase):
         if mode == "similar":
             return await self._reply_personal_recommend(request, trace_id, seed_title=seed)
         return await self._reply_recommend(request, trace_id)
+
+    @staticmethod
+    def _condition_misread_as_title(message: str, slots: VerifiedSlots) -> bool:
+        """이해 모델이 조건 질의("뉴욕 배경 영화")를 통째로 제목으로 보고 evaluate로 보낸다
+        (2026-11-08 하네스 3건, 재실행해도 같음). 카탈로그에 확정된 제목이 없고, 평가·줄거리 어휘가 없고,
+        장르·배경 같은 조건 근거가 있을 때만 추천으로 본다. 제목만 쓴 발화("어벤져스")는 평가 트랙의
+        되묻기에 남는다."""
+        if slots.movie is not None or slots.followup:
+            return False
+        if _EVAL_TRIGGER_WORDS.search(message) or _SYNOPSIS_WORDS.search(message):
+            return False
+        return mentions_condition(message)
 
     async def _reply_evaluation(
         self, request: MovaChatRequest, trace_id: str, entities: list[str]

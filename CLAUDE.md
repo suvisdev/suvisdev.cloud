@@ -56,14 +56,17 @@ Karpathy가 지적한 전형적인 문제는 다음과 같다.
 2. [단계] → 검증: [확인 사항]
 ```
 
-## 5. 작업 기본 프롬프트 (2026-10-02, 사용자 지시로 상시 적용)
+## 5. 작업 기본 프롬프트 (2026-10-02, 11-08 개정, 사용자 지시로 상시 적용)
 
-- **LLM이 들어간 기능은 트리거와 처리를 나눈다.** "언제 실행되나"가 모델 판단에만 걸려 있으면, 코드로 확실히
-  판정되는 경우는 코드로 먼저 잡는다. 모델이 다른 걸 골랐을 때의 동작을 테스트로 보인다.
+- **모델의 판단 실수는 파인튜닝으로 고친다(2026-11-08 사용자 결정, 10-02 "코드 먼저"를 대체).** 의도 분류·도구 선택·
+  슬롯 추출처럼 모델이 정해야 할 것을 새 코드 규칙(정규식·키워드 가드)으로 덮지 않는다. 실패 문장과 같은 유형을
+  학습 데이터에 넣어 다음 학습에서 모델이 배우게 하고, 하네스로 효과를 잰다. 코드 분류는 최소한만 남긴다 —
+  보안·권한, 낱말로 딱 정해져 모델이 틀릴 여지가 없는 것. **11-08 이전에 들어간 코드 규칙은 그대로 둔다**
+  (예: 조건 질의 오인 → 추천, PR #245). 모델이 배운 게 하네스로 확인되면 그때 지울지 사용자와 정한다.
 - **실사용 오류는 원인부터**(`systematic-debugging`). 그 문장만 고치지 말고 같은 유형 전체가 고쳐지는지 테스트로 보인다.
 - **완료는 실제로 돌려 본 결과로만 말한다**(`verification-before-completion`). 못 돌려 본 것은 따로 적는다.
-- **재학습·사용자 작업(코랩 실행, 집컴 조작 등)은 해결책으로 바로 내밀지 않는다.** 코드·설정으로 되는지 먼저 보고,
-  꼭 필요하면 기대 효과·근거·사용자 수고를 먼저 밝혀 사용자가 고르게 한다.
+- **모델 판단 밖의 문제(인프라·설정·데이터 연결 등)는 코드·설정으로 먼저 본다.** 사용자 작업(코랩 실행 등)이
+  필요하면 기대 효과·근거·수고를 밝힌다. 학습 데이터·노트북은 코랩에서 GGUF까지 끝나게 준비한다.
 
 ---
 
@@ -92,6 +95,7 @@ cloud.suvisdev/
 | 문서 성격 | 위치 |
 |-----------|------|
 | 공통·인프라·워크스페이스 설정 (Obsidian, 심볼릭 링크 등) | `_docs/` |
+| 결정 기록(ADR): 왜 그렇게 정했고 무엇을 버렸는지 | `_docs/decisions/` |
 | 백엔드 아키텍처·API·ERD·FastAPI 규칙 | `suvisdev/_docs/` |
 | 앱별 ERD·도메인 설계 | `suvisdev/apps/<app>/_docs/` |
 | 프론트엔드 화면 설계·컴포넌트·Next.js 규칙 | `suvis/_docs/` |
@@ -130,6 +134,9 @@ cloud.suvisdev/
 작업으로 학습·면접 대비용 인터뷰 질문 5~10개를 추가한다(최신 날짜가 맨 위,
 답은 `<details>`로 접기, "무엇을"보다 "왜 그렇게"를 묻기). 사용자가 변경
 내용을 스스로 설명할 수 있게 하는 장치다.
+
+**결정이 있었으면 `_docs/decisions/`에 ADR을 쓴다(2026-11-06 신설)** — 되돌리기 어렵거나 대안을 버린 결정, 사용자가 정한 운영 방침이 대상이다.
+형식과 번호 규칙은 그 폴더의 `README.md`. 작업 내역은 워크로그, 실패와 극복은 LESSONS에 쓰고 ADR에는 결정과 이유만 남긴다.
 
 **`_docs/LESSONS.md`도 함께 갱신한다(2026-09-29 신설)** — 그날 **잘못됐던 것을
 어떻게 극복했는지**를 한 줄씩 적는 압축 층이다(증상 → 원인 → 극복 · 상태 · 근거
@@ -172,18 +179,17 @@ flutter run
 ./k8s/deploy.sh --build    # 이미지 재빌드 + rollout restart 포함
 kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 # CI/CD(2026-10-01): PR·main push마다 GitHub Actions가 3스택 검사. main에 백엔드가 머지되고
-# backend-ci가 통과하면 노트북의 셀프호스티드 러너(유일)가 deploy.sh --external-db --build로 빌드·배포하고
-# sync-standby.sh(Tailscale)로 집컴에 반영한다 — 수동 배포는 Secret(.env)만 바꿀 때. 노트북이 집 밖이면
-# 노트북은 빌드·적재만(k8s/failover/README.md "배포"). 상세: k8s/README.md "CI/CD"
+# backend-ci가 통과하면 노트북의 셀프호스티드 러너(유일)가 deploy.sh --external-db --build로 빌드·배포한다
+# — 수동 배포는 Secret(.env)만 바꿀 때. 상세: k8s/README.md "CI/CD"
 ```
 
 **구 `docker-compose.yaml`은 삭제됐다(2026-09-07)** — 데스크톱은 k8s가 대체.
 `suvisdev/.env`는 deploy.sh가 매번 Secret으로 변환해 주입하므로 compose 시절
 `--env-file` 누락 사고(빈 자격증명 502, 2026-07-30·08-04)는 구조적으로 재발
-불가(.env 없으면 스크립트가 즉시 실패). **운영 구성(2026-10-05~06)은 아래 "주의사항 · 개인 배포 환경"** —
-두 기기 모두 k3s(backend·auth·cloudflared 파드), DB·Redis는 집컴 도커 한 곳. 배포는
-`./k8s/deploy.sh --external-db [--build]`. 노트북의 untracked `docker-compose.yaml`은 예전 롤백용 — 손대지 않는다.
-절차는 `k8s/README.md`·`k8s/failover/README.md`.
+불가(.env 없으면 스크립트가 즉시 실패). **운영 구성(2026-11-08~)은 아래 "주의사항 · 개인 배포 환경"** —
+노트북 한 대: k3s(backend·auth·cloudflared 파드) + 도커 DB·Redis. 배포는 `./k8s/deploy.sh --external-db [--build]`.
+노트북의 untracked `docker-compose.yaml`(프로젝트 `suvisdev`)이 운영 DB·Redis(`suvisdev-db-1`·`suvisdev-redis-1`)를 띄운다 —
+`docker compose down -v`처럼 볼륨을 지우는 명령은 쓰지 않는다. 절차는 `k8s/README.md`, 결정은 ADR-0008.
 
 ## 테스트
 
@@ -215,8 +221,8 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   버킷은 **비공개**라 객체 공개 URL은 403이다. 표시에는
   `Tank.generate_presigned_url()`(기본 1시간)을 쓴다.
 - **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: 운영은 기본 `lora`를 쓴다 —
-  `LORA_SERVER_URL=http://host.docker.internal:8200`. lora-server는 **집컴**(GPU, `:8200`)에 있고, 노트북 앱은
-  `desktop-link`(ssh -L 8200)로 같은 서버에 닿는다(k3s hostAliases가 `host.docker.internal`→`10.42.0.1`). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
+  `LORA_SERVER_URL=http://host.docker.internal:8200`. lora-server는 **노트북** 유저 서비스(GPU, `:8200`, 2026-11-08)다
+  (k3s hostAliases가 `host.docker.internal`→`10.42.0.1`). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
   받친다. 수동 전환이 필요하면 `suvisdev/.env`에서
   `RECOMMENDATION_BACKEND=gemini`로 바꾸고 `./k8s/deploy.sh --external-db`
   (Secret 갱신) + `kubectl -n suvisdev rollout restart deploy/backend`.
@@ -235,44 +241,53 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 
 - `main` — 기본 브랜치(PR 대상). `suvisdev` — 주 작업 브랜치. `suvis` — 프론트 작업용.
 - **`develop` 브랜치는 없다.** 머지 방향은 `suvisdev` → `main`이다.
-- 커밋·푸시는 사용자가 요청할 때만 한다.
-- **커밋 전에 Codex 리뷰를 받고 Codex가 OK해야 커밋·푸시한다(2026-10-20 사용자 결정).** Claude가 수정하고 Codex(WSL `codex exec -s read-only`)가
-  리뷰한다. 지적이 나오면 고친 뒤 다시 리뷰받아 "문제 없음"이 나와야 넘긴다.
-- **PR 머지는 Claude가 CI 확인 후 한다(2026-10-20 사용자 결정).** 사용자 요청으로 PR을 만들면
-  `gh pr checks <번호> --watch`로 CI 통과를 확인한 뒤 머지한다(CI가 경로 필터라 문서만 바뀐 PR은 검사가 없다 → 바로 머지).
-  main 머지 = 운영 자동 배포(backend-deploy)이므로 **머지 전에 사용자 작업이 필요한 PR은 머지하지 않고 알린다** —
-  새 환경 변수(`.env`·Secret), DB 마이그레이션, 그 밖에 수동 선행 단계가 있는 경우. CI 실패 시 고친 뒤 다시 확인한다.
+- **자동 마무리(2026-11-06 사용자 결정, 10-20 "요청 시에만 커밋" 규칙을 대체).** 코드·설정을 바꾼 작업은 사용자에게 PR 여부를
+  묻지 않고 머지까지 끝낸다. 메인 폴더(`~/projects/suvisdev`)는 **main에 고정**하고(11-08) `origin/main`에서 만든 worktree에서 진행한다(덜미 `feat/deolmi-app`은 `~/projects/wt-deolmi`). 질문·조사만 한 작업이나
+  사용자가 커밋을 원하지 않은 작업은 제외한다.
+  1. `verification-before-completion`으로 실제 검증한다. 실패하면 고친다.
+  2. 워크로그와 결정이 있으면 ADR을 갱신하고 `git add` 후 `python3 .claude/scripts/codex_gate.py review`를 실행한다(오래 걸리므로 백그라운드).
+  3. 지적은 코드로 확인해 고치고 다시 리뷰받는다. 사용자에게 묻지 않고 OK까지 반복한다(11-06 사용자 지시). **보고는 Codex가 답이 없을 때와 변경 완료 때만 한다.**
+  4. 커밋·푸시·`gh pr create` 후 `gh pr checks <번호> --watch`. CI 실패도 고쳐서 2번부터 다시 한다.
+  5. `gh pr merge <번호> --merge --match-head-commit <SHA>`로 머지하고(다른 명령과 잇지 않는다) 끝에 결과만 짧게 보고한다.
+- **머지 보류.** main 머지 = 운영 자동 배포(backend-deploy)이므로 **사용자 작업이 먼저 필요한 PR은 머지하지 않고 알린다** — 새 환경 변수(`.env`·Secret),
+  DB 마이그레이션, 그 밖에 수동 선행 단계. 문서만 바뀐 PR은 리뷰가 면제되고 경로 필터로 CI도 없으니 바로 머지한다.
   GitHub 자동 머지(auto-merge)·main 보호 규칙은 쓰지 않는다(꺼져 있음).
+- **`.claude/scripts/codex_gate.py`가 강제한다.** 커밋과 main 푸시는 git 훅(`.claude/githooks`, `core.hooksPath`로 연결, SessionStart가 설정)이 실제 내용을 보고 막고,
+  `gh pr merge`는 PreToolUse 훅이 Codex 승인·CI·선행 작업(`alembic/versions`·`.env.example`)으로 막는다. Claude Code 실행(`CLAUDECODE=1`)에만 걸리고 사용자 커밋은 기존 훅만 돈다.
+  승인은 코드 변경 내용의 해시에 묶여 코드가 바뀌면 무효가 된다. 선행 작업 PR은 사용자가 완료를 확인해 준 뒤에만 `codex_gate.py confirm-prereq <번호>`로 푼다.
+  세션이 미완료 변경을 남기고 끝나려 하면 Stop 훅이 이 절차로 돌려보낸다.
 
 ## 주의사항
 
-- **VRAM**: `lora-server`(EXAONE-3.5-2.4B, llama.cpp GGUF Q5_K_M —
-  2026-09-02 전환, 구 fp16 hf `serve.py`는 롤백용)가 데스크톱
-  DESKTOP-IOAQ7L7의 systemd 유저 서비스로 기동된다(2026-09-01 노트북→
-  데스크톱 이전). 모델 학습 전 `systemctl --user stop lora-server`, 학습 후
-  `start` + `:8200/health` 확인. 재학습 후엔 `export_mova_gguf.py`로 GGUF
-  변환 필수. `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
-- 개인 배포 환경(2026-10-05~06, 인수인계 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`):
-  - **집컴 `DESKTOP-T89E5ID`**(GTX 1650 SUPER 4GB, 상시 가동): **Postgres·Redis(도커, 유일)**·lora-server(GPU :8200)·
-    Ollama(CPU)·HAProxy `ollama-proxy`(:11435 노트북 GPU 우선/집컴 CPU 예비, :11436 노트북 전용)·로컬 레지스트리.
-    **이미지를 빌드하지 않는다**(메모리 부족으로 DB 크래시 2회, 10-05).
-  - **노트북 `teagy`**(RTX 4060, 들고 다님): Ollama GPU · CD 러너(유일) · 이미지 빌드. 집 LAN이면 노트북이
-    우선 서빙(`desktop-link`로 집컴 DB 사용), **집 밖이면 앱 서빙은 집컴, 노트북은 GPU만**(Tailscale `ollama-tunnel`).
-  - 누가 서빙할지는 노트북 `serve-agent`·집컴 `standby-agent`가 cloudflared replicas로 자동 전환(`k8s/failover/README.md`).
-  - Tailscale: 노트북 100.118.78.100, 집컴 100.91.129.31(내부 IP 172.30.1.21은 집에서만). 집컴 SSH:
-    `ssh -i ~/.ssh/home_desktop -o UserKnownHostsFile=~/.ssh/known_hosts_ollama_tunnel suvisdev@100.91.129.31`
-  - 구 개인 EC2는 중지 보관(Arda는 별도 `arda-api`). mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끈다(집컴 `.env`만).
+- **VRAM**: 노트북 RTX 4060(8GB)에 Ollama `exaone3.5:7.8b`·`2.4b`와 `lora-server`(EXAONE-3.5-2.4B, llama.cpp GGUF
+  Q5_K_M, `~/llama.cpp` sm_89 빌드, 모델 경로 `~/lora_adapters/LATEST_GGUF`)가 함께 올라가 거의 꽉 찬다(11-08 실측 약 7.9/8.2GB).
+  임베딩은 그래서 CPU 변형 `bge-m3-cpu`(`num_gpu 0`, `OLLAMA_EMBED_MODEL`)다. 모델 학습 전 `systemctl --user stop lora-server`,
+  학습 후 `start` + `:8200/health` 확인. 재학습 후엔 `export_mova_gguf.py`로 GGUF 변환 필수.
+  `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
+- 개인 배포 환경(2026-11-08~, ADR-0008, `_docs/NOTEBOOK_ONLY_PLAN.md`):
+  - **노트북 `teagy` 한 대가 전부 맡는다** — k3s 앱 · 도커 DB·Redis · lora-server · Ollama · CD 러너 · 이미지 빌드.
+    **노트북이 꺼지거나 덮이거나 집 밖이면 사이트 전체가 꺼진다**(예비 서버 없음).
+  - 끄기는 어드민 "서버 끄기", 켜기는 노트북 바탕화면 `서버 켜기`(`k8s/ops-agent/server_on.py`).
+  - 집컴 `DESKTOP-T89E5ID`는 완전히 내렸다(k3s·도커·WSL 자동 시작 해제). 11-08 Postgres 크래시 3회·HDD 복구 지연이 이유.
+    DB 볼륨 `suvisdev_db_data`와 덤프 `~/backups/suvisdev_20261108_final.dump`는 보존. 다시 쓰려면 WSL을 켜고
+    `docker start suvisdev-db-1`. 집컴에서 SSH로 `journalctl`·`systemctl --user status`는 멈춘다(저널 3.4GB) — 원격 timeout 필수.
+  - Tailscale: 노트북 100.118.78.100, 집컴 100.91.129.31.
+  - 구 개인 EC2는 중지 보관(Arda는 별도 `arda-api`).
 
 ## 하네스 설정 (`.claude/`)
 
 ```text
 .claude/
 ├── settings.json          # 훅 설정 (커밋됨, 팀 공용)
+├── skill-routes.json      # 작업 구간→스킬 규칙. 판정은 scripts/skill_router.py(훅), 테스트는 scripts/test_skill_router.py
 ├── settings.local.json    # 개인 권한 허용 목록
 ├── rules/                 # 경로별 코딩 규칙 — 해당 파일을 다룰 때 자동 로드
 │   ├── typescript.md      #   **/*.ts, **/*.tsx
 │   ├── api-standards.md   #   suvis/lib/*-api.ts, suvis/app/api/**/route.ts
 │   ├── testing.md         #   suvisdev/**/test(s)/**/*.py
+│   ├── backend-architecture.md # suvisdev/apps·core·shared — 헥사고날·스타 토폴로지 중 import-linter로 강제되는 것
+│   ├── mova-chat.md       #   mova 채팅 인터랙터·LLM 어댑터
+│   ├── orm-columns.md     #   ORM·alembic 마이그레이션
 │   ├── security/auth.md   #   라우터·프록시·세션 — require_admin, 토큰 3계층 전달
 │   └── security/pci.md    #   결제 코드가 생기면 발동 (현재 대상 파일 없음)
 └── projects/-home-a-projects-suvis/memory/   # 주제별 메모 — 자동 로드 아님
@@ -295,18 +310,24 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 | 위치 | 자동 로드 | 커밋 | 용도 |
 |------|-----------|------|------|
 | 저장소 안 `.claude/projects/-home-a-projects-suvis/memory/` | ✗ | ✓ | 팀·다른 에이전트와 공유하는 주제별 메모 |
-| 홈 `~/.claude/projects/-home-a-projects-suvis/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
+| 홈 `~/.claude/projects/-home-suteagy-projects-suvisdev/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
 
-**두 경로는 `~/`(홈)이냐 저장소 루트냐만 다르고 나머지가 같다.** 헷갈리면
-자동 로드되는 쪽은 항상 홈이다.
+홈 쪽 폴더 이름은 세션을 시작한 폴더 경로에서 나온다(메인 폴더 기준). 헷갈리면 자동 로드되는 쪽은 항상 홈이다.
 
 같은 내용을 양쪽에 두지 않는다. 갈라지면 어느 쪽이 맞는지 알 수 없다.
 
 ### 훅
 
-`settings.json`의 `UserPromptSubmit` 훅이 프롬프트에 "commit·커밋"이 들어오면
-**영역별 `_docs/WORK_LOG_*.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저
-갱신하라**는 지시를 주입한다. 위 "작업 일지" 규칙을 커밋 시점에 강제하는 장치다.
+`scripts/skill_router.py`는 프롬프트·수정 파일·명령·검사 실패를 코드로 판정해 맞는 스킬(프로젝트·pstack·기본 제공)을
+알린다. 규칙에 안 걸린 요청은 판단하지 않는다(11-08, 로컬 7.8B 의도 판단을 뺐다 — ADR-0009).
+파일 수정과 커밋·PR은 해당 스킬의 첫 호출을 한 번 거부해 먼저 읽게 한다. 규칙은 `skill-routes.json`만 고치면 되고,
+서브에이전트를 띄우는 스킬은 명시 요청 표현에만 연결한다. pstack의 세션 강제 진입은 `~/.claude/pstack-models.md`의
+`session hook: off`로 끈다. 커밋·머지 관문은 "브랜치 전략"의 `scripts/codex_gate.py`.
+
+`SessionStart` 훅은 git 훅 경로를 연결하고, `scripts/harness_drift.py`로 이 폴더의 하네스 파일(`CLAUDE.md`·
+`suvisdev/CLAUDE.md`·`.claude/`)이 `origin/main`과 다른지 본다. 메인 폴더가 기능 브랜치에 머물면 세션이 옛 규칙을
+읽기 때문이다(11-08 점검: 57커밋 뒤). 다르면 `origin/main` 판을 따르라고 알리고, 파일은 덮어쓰지 않는다.
+워크로그 갱신은 "자동 마무리" 2단계가 맡는다(옛 "커밋" 단어 훅은 11-08 삭제).
 
 ## 커밋 메시지 규칙
 

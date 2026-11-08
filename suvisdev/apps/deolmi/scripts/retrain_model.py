@@ -15,7 +15,7 @@ import time
 import joblib
 import numpy as np
 
-from core.matrix.grid_oracle_database_manager import get_db
+from core.matrix.grid_oracle_database_manager import get_db, reload_env
 from deolmi.adapter.outbound.ml.isolation_forest_model_adapter import fit, model_path
 from deolmi.adapter.outbound.repositories.event_pg_repository import EventPgRepository
 from deolmi.domain.services.scoring_policy import to_features
@@ -29,6 +29,7 @@ def _complete(s: dict[str, float]) -> bool:
 
 
 async def main() -> None:
+    reload_env()  # get_db()가 URL을 정하기 전에 suvisdev/.env를 읽는다(서버 밖 단독 실행)
     async for session in get_db():
         rows = await EventPgRepository(session).signals_by_verdict("allow", limit=100_000)
     vecs = [to_features(s) for s in rows if _complete(s)]

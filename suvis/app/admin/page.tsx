@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Activity, Bot, Loader2, Radar, Server, Users } from "lucide-react"
 import { AdminMenuButton } from "./_components/admin-menu-button"
+import { OpsControlCard } from "./_components/ops-control-card"
 import { listAgents, type AgentSummary } from "@/lib/admin-api"
 import {
   getActiveUserCount,
@@ -90,6 +91,8 @@ export default function AdminHomePage() {
             </div>
           </section>
         )}
+
+        <OpsControlCard />
 
         {!data ? (
           <div className="flex items-center justify-center py-20 text-sm text-slate-400">
