@@ -58,18 +58,25 @@ def git(repo, *args) -> str:
     return subprocess.run(["git", "-C", str(repo), *args], text=True, capture_output=True, check=True).stdout.strip()
 
 
-def change_diff(repo, treeish: str, head: str) -> str:
-    """대상의 코드 변경(문서 제외). 내용이 같으면 main이 움직이거나 커밋을 나눠도 결과가 같다."""
-    base = git(repo, "merge-base", "origin/main", head)
+def change_diff(repo, treeish: str, *heads: str) -> str:
+    """대상의 코드 변경(문서 제외). 내용이 같으면 main이 움직이거나 커밋을 나눠도 결과가 같다.
+    heads가 여럿이면 그 머지 커밋을 기준으로 삼는다. 충돌을 푼 머지에서 main 변경이 섞이지 않는다."""
+    base = git(repo, "merge-base", "origin/main", *heads)
     return git(repo, "diff", "--binary", base, treeish, "--", *CODE_PATHS)
+
+
+def commit_parents(repo) -> list[str]:
+    """곧 만들 커밋의 부모. 머지 중이면 MERGE_HEAD도 포함한다."""
+    merging = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"))
+    return ["HEAD", *(merging.read_text().split() if merging.exists() else [])]
 
 
 def diff_key(diff: str) -> str:
     return hashlib.sha256(diff.encode()).hexdigest()
 
 
-def change_key(repo, treeish: str, head: str) -> str | None:
-    diff = change_diff(repo, treeish, head)
+def change_key(repo, treeish: str, *heads: str) -> str | None:
+    diff = change_diff(repo, treeish, *heads)
     return diff_key(diff) if diff else None
 
 
@@ -89,7 +96,7 @@ def record(repo, name: str, key: str) -> None:
 
 def pre_commit() -> int:
     """git이 넘긴 인덱스가 곧 커밋될 내용이다(`-a`·파일 지정 커밋 포함)."""
-    key = change_key(".", git(".", "write-tree"), "HEAD")
+    key = change_key(".", git(".", "write-tree"), *commit_parents("."))
     if key is None or key in recorded(".", "codex-approved"):
         return 0
     print("[Codex 관문] 승인이 없는 변경이다. 스테이지 후 `python3 .claude/scripts/codex_gate.py review`로 리뷰받는다.", file=sys.stderr)
@@ -268,7 +275,7 @@ def handle_hook(event: dict) -> dict | None:
 def review() -> int:
     repo = git(".", "rev-parse", "--show-toplevel")
     # 승인 키와 리뷰 대상을 같은 스냅샷에서 만든다.
-    reviewed = change_diff(repo, git(repo, "write-tree"), "HEAD")
+    reviewed = change_diff(repo, git(repo, "write-tree"), *commit_parents(repo))
     if not reviewed:
         print("리뷰할 코드 변경이 없다(스테이지 확인, 문서만 바뀌면 리뷰 면제).")
         return 0
