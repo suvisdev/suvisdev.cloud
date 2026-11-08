@@ -13,6 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from deolmi.adapter.inbound.api.schemas.score_schema import (
+    DemoVerifyRequestSchema,
     ScoreRequestSchema,
     ScoreResponseSchema,
     ScoreResultSchema,
@@ -29,7 +30,7 @@ from deolmi.app.errors import (
     UnknownSiteError,
 )
 from deolmi.app.ports.input.score_use_case import ScoreUseCase
-from deolmi.dependencies.deolmi_provider import get_score_use_case
+from deolmi.dependencies.deolmi_provider import get_demo_secret, get_score_use_case
 
 score_router = APIRouter(tags=["deolmi"])
 
@@ -90,8 +91,22 @@ async def verify(
     req: VerifyRequestSchema,
     use_case: ScoreUseCase = Depends(get_score_use_case),
 ) -> ScoreResultSchema:
+    return await _verify(use_case, VerifyCommand.from_schema(req))
+
+
+@score_router.post("/demo/verify", response_model=ScoreResultSchema)
+async def demo_verify(
+    req: DemoVerifyRequestSchema,
+    use_case: ScoreUseCase = Depends(get_score_use_case),
+    secret: str = Depends(get_demo_secret),
+) -> ScoreResultSchema:
+    """데모 페이지용 — 서버에 둔 데모 비밀 키로 /verify를 대신 불러 판정 이유까지 보여 준다."""
+    return await _verify(use_case, VerifyCommand(secret=secret, token=req.token))
+
+
+async def _verify(use_case: ScoreUseCase, command: VerifyCommand) -> ScoreResultSchema:
     try:
-        return (await use_case.verify(VerifyCommand.from_schema(req))).to_schema()
+        return (await use_case.verify(command)).to_schema()
     except (
         BadSecretError,
         TokenExpiredError,

@@ -7,6 +7,7 @@
  *     // 폼 제출 직전:
  *     const { token, verdict } = await dm.score();
  *     // token을 폼에 담아 보내면, 고객 서버가 /api/deolmi/verify로 점수를 확인한다.
+ *     // 화면을 떠나거나(SPA) 측정을 새로 시작할 때는 dm.stop()으로 이벤트 수집을 멈춘다.
  *   </script>
  *
  * 수집하는 것은 '어떻게 움직였나'(리듬·궤적·터치 횟수)이지 '무엇을 입력했나'가 아니다.
@@ -39,6 +40,8 @@
     let kbdClickCount = 0;
     const clickTimes = [];
     const keyTimes = [];
+    const stopper = new AbortController();
+    const on = { passive: true, signal: stopper.signal };
 
     // 궤적은 마우스·펜만 본다. 터치는 손가락이 띄엄띄엄 찍혀(스와이프·탭 사이 점프) 직선처럼 보이므로
     // 횟수만 따로 센다(좌표는 안 쓴다). mousemove 대신 pointermove — 모바일 탭이 흉내 내는 마우스 이벤트를 피한다.
@@ -50,17 +53,17 @@
       last = p;
       if (prev) pathPx += Math.hypot(p.x - prev.x, p.y - prev.y);
       prev = p;
-    }, { passive: true });
-    document.addEventListener("touchstart", () => touchCount++, { passive: true });
-    document.addEventListener("touchmove", () => touchCount++, { passive: true });
+    }, on);
+    document.addEventListener("touchstart", () => touchCount++, on);
+    document.addEventListener("touchmove", () => touchCount++, on);
     document.addEventListener("click", (e) => {
       clickTimes.push(performance.now());
       // Enter·Space로 누른 버튼/폼 제출은 브라우저가 detail 0인 진짜(isTrusted) 클릭을 만든다.
       // 스크립트의 el.click()은 isTrusted가 false라 여기 들지 않는다.
       if (e.isTrusted && e.detail === 0) kbdClickCount++;
-    }, { passive: true });
+    }, on);
     // e.key는 보지 않는다(타이밍만)
-    document.addEventListener("keydown", () => keyTimes.push(performance.now()), { passive: true });
+    document.addEventListener("keydown", () => keyTimes.push(performance.now()), on);
 
     function features() {
       // 직선성: 시작~끝 직선거리 / 실제 경로. 1에 가까우면 '자로 그은' 직선.
@@ -95,7 +98,8 @@
       return res.json();   // { token, verdict }
     }
 
-    return { score, features };   // features는 디버깅용으로 노출
+    // stop: 이 세션의 이벤트 수집을 멈춘다(리스너 해제). features는 디버깅용으로 노출
+    return { score, features, stop: () => stopper.abort() };
   }
 
   global.Deolmi = { init };

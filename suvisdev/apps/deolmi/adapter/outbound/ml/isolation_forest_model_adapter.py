@@ -39,15 +39,37 @@ def bootstrap_samples(n: int = 2000, seed: int = 42) -> np.ndarray:
     열 순서는 scoring_policy.FEATURE_ORDER와 같아야 한다.
     """
     rng = np.random.default_rng(seed)
+
+    # 간격 통계는 횟수가 적으면 0이다(SDK: 간격 1개면 표준편차 0, 클릭 1번이면 평균도 0). 입력칸 하나·버튼 하나인
+    # 폼의 사람은 대부분 클릭 1~2번이고, 좌석만 고르는 예매처럼 타이핑이 없을 수도 있다. 이 세션을 표본에 넣지 않으면
+    # 모델이 0을 '이상'으로 본다(11-08 실측: 클릭 2번인 사람 세션 0.92 → 차단). 기계적 간격은 규칙이 횟수를 보고 잡는다.
+    # 횟수·거리·시간은 사람마다 몇 배씩 차이 나는 긴 꼬리 분포라 로그정규로 뽑는다(정규분포로 좁게 잡으면
+    # 마우스를 많이 움직이거나 천천히 입력한 사람을 이상치로 본다). 클릭 2번이면 간격이 타이핑 시간을 통째로 담는다.
+    def lognormal(median: float, sigma: float, low: float) -> np.ndarray:
+        return np.clip(rng.lognormal(np.log(median), sigma, n), low, None)
+
+    clicks = rng.choice([1, 2, 3], size=n, p=[0.3, 0.3, 0.4])  # 3 = 세 번 이상
+    click_iv_mean = np.where(
+        clicks == 1,
+        0.0,
+        np.where(
+            clicks == 2,
+            lognormal(3000, 0.6, 150),
+            lognormal(800, 0.5, 120),
+        ),
+    )
+    click_iv_std = np.where(clicks == 3, np.clip(rng.normal(250, 100, n), 40, None), 0.0)
+    typed = rng.random(n) < 0.75
+    key_iv_std = np.where(typed, np.clip(rng.normal(90, 40, n), 20, None), 0.0)
     return np.column_stack(
         [
-            np.clip(rng.normal(120, 40, n), 5, None),  # move_count
-            np.clip(rng.normal(2500, 800, n), 200, None),  # path_px
+            lognormal(120, 0.6, 5),  # move_count
+            lognormal(2200, 0.6, 200),  # path_px
             rng.uniform(0.30, 0.80, n),  # straightness (사람은 꽤 굽음)
-            np.clip(rng.normal(800, 300, n), 120, None),  # click_iv_mean
-            np.clip(rng.normal(250, 100, n), 40, None),  # click_iv_std (변동 큼)
-            np.clip(rng.normal(90, 40, n), 20, None),  # key_iv_std
-            np.clip(rng.normal(6000, 2500, n), 900, None),  # dwell_ms
+            click_iv_mean,
+            click_iv_std,
+            key_iv_std,
+            lognormal(6000, 0.6, 900),  # dwell_ms
         ]
     )
 

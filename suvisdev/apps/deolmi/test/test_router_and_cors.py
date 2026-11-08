@@ -24,7 +24,7 @@ from deolmi.adapter.inbound.api.public_cors import DeolmiPublicCorsMiddleware
 from deolmi.adapter.outbound.security.jwt_score_token_adapter import JwtScoreTokenAdapter
 from deolmi.app.use_cases.score_interactor import ScoreInteractor
 from deolmi.dependencies import deolmi_provider
-from deolmi.dependencies.deolmi_provider import get_score_use_case
+from deolmi.dependencies.deolmi_provider import get_demo_secret, get_score_use_case
 
 FOREIGN = "https://ticket.example.com"
 
@@ -92,6 +92,33 @@ def test_score_then_verify_over_http(client):
         "/api/deolmi/verify", json={"secret": "sk_test", "token": r.json()["token"]}
     )
     assert again.status_code == 400
+
+
+def _score(client, site_key="pk_test", signals=BOT):
+    return client.post("/api/deolmi/score", json={"site_key": site_key, "signals": signals}).json()
+
+
+def test_demo_verify_returns_reasons_with_server_held_secret(client):
+    client.app.dependency_overrides[get_demo_secret] = lambda: "sk_test"
+    token = _score(client)["token"]
+    r = client.post("/api/deolmi/demo/verify", json={"token": token})
+    assert r.status_code == 200 and r.json()["verdict"] == "block" and r.json()["reasons"]
+    assert client.post("/api/deolmi/demo/verify", json={"token": token}).status_code == 400
+
+
+def test_demo_verify_rejects_other_sites_tokens(client):
+    # 데모 비밀 키는 데모 사이트 것 — 남의 사이트 토큰은 확인해 주지 않는다(토큰도 소모하지 않음).
+    client.app.dependency_overrides[get_demo_secret] = lambda: "sk_other"
+    token = _score(client)["token"]
+    assert client.post("/api/deolmi/demo/verify", json={"token": token}).status_code == 401
+    v = client.post("/api/deolmi/verify", json={"secret": "sk_test", "token": token})
+    assert v.status_code == 200
+
+
+def test_demo_verify_closed_without_demo_secret(client, monkeypatch):
+    monkeypatch.delenv("DEOLMI_DEMO_SECRET", raising=False)
+    token = _score(client)["token"]
+    assert client.post("/api/deolmi/demo/verify", json={"token": token}).status_code == 503
 
 
 @pytest.mark.parametrize(

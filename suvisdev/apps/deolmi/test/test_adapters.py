@@ -155,3 +155,18 @@ async def test_site_lookup_returns_its_connection_right_after_the_query():
 
     assert await SitePgLookup(factory).get_active("pk_x") is None  # type: ignore[arg-type]
     assert len(sessions) == 1 and sessions[0].closed
+
+
+@pytest.mark.parametrize(
+    "few",
+    [
+        # 11-08 데모 실측: 입력칸 클릭 → 타이핑 → 버튼 클릭. 간격이 하나라 표준편차 0.
+        {"click_count": 2, "click_iv_mean": 3692, "click_iv_std": 0},
+        {"click_count": 1, "click_iv_mean": 0, "click_iv_std": 0},
+        # 좌석만 고르고 타이핑 없음
+        {"key_count": 0, "key_iv_std": 0},
+    ],
+)
+def test_bootstrap_model_allows_humans_with_few_clicks_or_no_typing(tmp_path, few):
+    model = IsolationForestModelAdapter(path=tmp_path / "absent.joblib")
+    assert model.score(to_features({**HUMAN, **few})) < 0.55  # CHALLENGE_THRESHOLD 미만

@@ -24,6 +24,7 @@
 | `POST /api/deolmi/verify` | 비밀 키 | 토큰 검증. 틀린 키면 토큰을 소모하지 않는다 |
 | `POST/GET /api/deolmi/admin/sites` | `require_admin` | 키 발급(비밀 키는 응답에서 한 번만)·목록 |
 | `GET /api/deolmi/admin/stats` | `require_admin` | 이벤트 수·모델 상태·최근 20건 |
+| `POST /api/deolmi/demo/verify` | 없음(데모 사이트 토큰만) | 데모 페이지(suvis `/deolmi`)용. 서버의 `DEOLMI_DEMO_SECRET`으로 `/verify`를 대신 불러 사유까지 돌려준다 |
 
 오류: 모르는 키 401 · 남의 도메인 403 · 틀린 비밀 키/위조 토큰 401 · 만료/재사용 400 · `DEOLMI_TOKEN_SECRET` 미설정 503 ·
 `/verify` 때 Redis 불통 503(재사용을 못 막으니 통과시키지 않는다) · 범위 밖·무한대 신호 422.
@@ -34,7 +35,8 @@
    너무 빠른 제출, 같은 사이트·IP 속도(10초 창 20회 0.60·60회 0.75). **속도만으로는 차단하지 않는다**(challenge 상한) —
    PC방·회사·통신사 NAT는 사람 여럿이 IP 하나를 쓴다. 사유(reasons)에는 남는다.
 2. **모델**(`adapter/outbound/ml/isolation_forest_model_adapter.py`) — IsolationForest. 모델 파일이 없으면 **가짜 사람 표본**으로
-   부트스트랩(현재 상태). 규칙만으로 차단 수준이면 모델을 건너뛴다(cheap_first, 폭주 대응). 최종 = max(규칙, 모델).
+   부트스트랩(현재 상태). 가짜 표본에는 클릭 1~2번(간격 통계 0)·타이핑 없음 세션과 긴 꼬리(로그정규) 분포가 들어 있다 —
+   빠지면 평범한 폼의 사람이 0.92로 차단된다(11-08 데모 실측). 규칙만으로 차단 수준이면 모델을 건너뛴다(cheap_first, 폭주 대응). 최종 = max(규칙, 모델).
    **마우스 없이 터치·키보드로 쓴 세션(`no_mouse_input`)도 모델을 건너뛴다** — 모델은 마우스 세션으로만 학습해
    (재학습도 `move_count > 0`만) 마우스 특징이 0이면 사람이어도 0.99로 나온다(10-20 실측). 이때 `model_score`는 `null`.
    키보드 사용자는 두 경우를 다 인정한다: 버튼을 Enter로 누름(`kbd_click_count > 0`), 제출 버튼 없는 폼에서 Enter로 바로
@@ -83,6 +85,7 @@
 | 키 | 필수 | 설명 |
 |----|------|------|
 | `DEOLMI_TOKEN_SECRET` | ✓ | 점수 토큰 서명(HS256). 사용자 세션 `JWT_SECRET`과 분리. 비면 score/verify 503 |
+| `DEOLMI_DEMO_SECRET` | | 데모 사이트(`덜미 데모`, 도메인 suvisdev.cloud·localhost) 비밀 키. 비면 `/demo/verify`만 503 |
 | `DEOLMI_MODEL_PATH` | | 재학습 모델 파일. 기본 `apps/deolmi/runs/model.joblib`(gitignore) |
 | `REDIS_URL` | (기존) | jti·속도. 새 키 아님 — k8s `backend.yaml`이 `redis://redis:6379/0`(집컴 Redis)로 넣는다 |
 
