@@ -2,7 +2,7 @@
 # 노트북 서버의 시스템 서비스를 끄고 켠다. ops-agent 가 sudo 로 부른다(2026-11-06).
 #   /usr/local/sbin/laptop-server-switch off|on
 # 루트 소유로 설치해 에이전트 사용자가 고칠 수 없게 하고, sudo 규칙은 이 두 인자만 허용한다(install-server-switch.sh).
-# disable 까지 하므로 노트북을 재부팅해도 꺼진 채 남는다. Tailscale 은 끄지 않는다 — 집컴 백엔드가 켜기 요청을 보내는 길이다.
+# disable 까지 하므로 노트북을 재부팅해도 꺼진 채 남는다. Tailscale 은 끄지 않는다(원격 SSH 길).
 set -uo pipefail
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 

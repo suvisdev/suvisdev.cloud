@@ -464,7 +464,7 @@ async def logout() -> RedirectResponse:
 
 @app.get("/healthz", include_in_schema=False)
 async def healthz() -> JSONResponse:
-    """서빙 판단기(k8s/failover/serve_agent.sh)·배포 확인용 — 앱이 떠 있고 DB 에 닿는지만 본다.
+    """배포 확인용(backend-deploy 외부 응답 확인) — 앱이 떠 있고 DB 에 닿는지만 본다.
 
     점검 모드(maintenance_gate)와 무관해야 한다. 10-29 판단기가 /mova/search 를 보다가 Mova 점검
     503 을 장애로 읽고 터널을 내려 사이트 전체가 4분 내려갔다.

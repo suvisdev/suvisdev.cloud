@@ -5,13 +5,13 @@
   POST /admin/ops/arda/ai-mode         {"mode": "gpu"|"cpu"} 거짓말 탐지(음성 인식·표정) GPU·CPU
   POST /admin/ops/ollama/{load|unload} {"model": "..."} 노트북 GPU 에 모델 올리기·내리기
   POST /admin/ops/maintenance/{mova|gildle} {"on": bool} 점검 모드(에이전트 아님, DB)
-  POST /admin/ops/server/{start|stop}  노트북 서버 전체 켜기·끄기. 끄면 집컴이 이어받고, 켜기는 집컴 백엔드가 전달한다
-  POST /admin/ops/server/stop-all      노트북·집컴 전부 끄기. 다시 켜기는 어드민으로 못 한다(노트북 바로가기)
+  POST /admin/ops/server/stop          서버 전체 끄기(2026-11-08부터 노트북 한 대뿐). 사이트가 내려가고,
+                                       다시 켜기는 노트북 바탕화면 '서버 켜기'로 한다
+  POST /admin/ops/server/start         켜기(서버가 켜져 있을 때만 닿으므로 다시 시도용)
 
 - 브라우저는 에이전트를 직접 부르지 않는다. 관리자 JWT(require_admin)를 여기서 확인하고, 에이전트 토큰
   (OPS_AGENT_TOKEN)은 서버 안에만 있다.
-- 주소(OPS_AGENT_URL)는 노트북 Tailscale IP 하나 — 노트북 파드든 집컴 파드든 같은 값으로 닿는다
-  (2026-10-28 실측: 두 경로 모두 401 = 닿고 토큰 확인).
+- 주소(OPS_AGENT_URL)는 노트북 Tailscale IP(2026-10-28 실측: 파드에서 401 = 닿고 토큰 확인).
 - 누가 무엇을 눌렀는지 로그에 남긴다(관리자 id·이름·동작·결과).
 - 에이전트가 거절한 이유(409 동작 중, 404 없는 모델 등)는 상태 코드 그대로 돌려준다.
 - 동작은 접수만 하고 바로 돌아온다(accepted + job). 진행·결과는 GET 의 job 으로 본다.
@@ -139,7 +139,7 @@ async def ollama_action(
 
 @admin_ops_router.post("/server/{action}")
 async def server_action(
-    action: Literal["start", "stop", "stop-all"], admin: AdminPrincipal = Depends(require_admin)
+    action: Literal["start", "stop"], admin: AdminPrincipal = Depends(require_admin)
 ) -> dict[str, Any]:
     return await _act(admin, f"/server/{action}")
 

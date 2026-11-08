@@ -18,9 +18,7 @@ const MAINTENANCE_SERVICES: { key: keyof MaintenanceState; label: string }[] = [
 
 // 버튼이 보내는 동작 → 화면에 보일 이름
 const ACTION_LABEL: Record<string, string> = {
-  "/server/start": "노트북 서버 켜기",
-  "/server/stop": "노트북 서버 끄기",
-  "/server/stop-all": "서버 전체 끄기",
+  "/server/stop": "서버 끄기",
   "/arda/start": "Arda 켜기",
   "/arda/stop": "Arda 끄기",
   "/arda/ai-mode": "Arda AI 전환",
@@ -41,18 +39,10 @@ function gib(mib: number) {
 }
 
 const SERVER_STOP_CONFIRM =
-  "이 노트북의 서버를 모두 끕니다.\n\n" +
-  "· 백엔드·Arda·Ollama·도커·배포 러너가 멈추고, 재부팅해도 꺼져 있습니다.\n" +
-  "· 사이트는 집컴이 이어받습니다. 집컴이 준비된 걸 확인한 뒤에 끕니다.\n" +
-  "· 끄는 동안 뉴스 수집·요약이 멈추고 AI 채팅은 Gemini 로 넘어갑니다.\n" +
-  "· Arda(seuk.suvisdev.cloud)는 화면이 열려도 로그인이 안 됩니다.\n\n" +
-  "계속할까요?"
-
-const SERVER_STOP_ALL_CONFIRM =
-  "노트북과 집컴의 서버를 모두 끕니다. 어디서도 돌지 않습니다.\n\n" +
+  "서버를 모두 끕니다. 서버는 이 노트북 한 대뿐이라 사이트가 내려갑니다.\n\n" +
   "· 사이트·앱·로그인·DB·Arda 가 전부 멈추고, 재부팅해도 꺼져 있습니다.\n" +
   "· 이 어드민도 쓸 수 없습니다.\n" +
-  "· 다시 켜려면 노트북 바탕화면의 '서버 켜기'를 실행해야 합니다. 노트북이 꺼져 있으면 켤 수 없습니다.\n\n" +
+  "· 다시 켜려면 노트북 바탕화면의 '서버 켜기'를 실행해야 합니다.\n\n" +
   "정말 끌까요?"
 
 /** 운영 제어 — 노트북 서버 전체 켜기·끄기, Arda 켜기·끄기, Arda AI GPU·CPU, Ollama 모델 GPU 올리기·내리기.
@@ -137,7 +127,7 @@ export function OpsControlCard() {
 
   const job = ops?.job
   const serverState = ops?.server?.state
-  const serverOff = serverState === "off" || serverState === "all-off"
+  const serverOff = serverState === "off"
   const busy = sending || job?.state === "running"
   const services = ops?.arda?.services ?? []
   const runningCount = services.filter((s) => s.state === "running").length
@@ -202,47 +192,27 @@ export function OpsControlCard() {
       {ops?.reachable && ops.server && (
         <div className="mb-3 rounded-xl bg-slate-50 px-4 py-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-slate-800">노트북 서버 전체</p>
+            <p className="text-xs font-semibold text-slate-800">서버 전체</p>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                 serverOff ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-700"
               }`}
             >
-              {serverState === "all-off"
-                ? "전체 꺼짐"
-                : serverOff
-                  ? "꺼짐 · 집컴이 서빙 중"
-                  : "켜짐"}
+              {serverOff ? "꺼짐" : "켜짐"}
             </span>
           </div>
           <p className="mb-2.5 text-xs leading-relaxed [word-break:keep-all] text-slate-500">
-            끄면 이 노트북에서 백엔드·Arda·Ollama·도커·배포 러너가 모두 멈추고, 재부팅해도 꺼져
-            있습니다. 사이트는 집컴이 이어받습니다.
+            서버는 이 노트북 한 대뿐입니다. 끄면 사이트·DB·Arda 가 모두 멈추고 재부팅해도 꺼져
+            있습니다. 다시 켜기는 노트북 바탕화면의 &apos;서버 켜기&apos;로 합니다.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={busy || !serverOff}
-              onClick={() => run("/server/start")}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-            >
-              <Power className="h-3.5 w-3.5" /> 켜기
-            </button>
-            <button
-              type="button"
               disabled={busy || serverOff}
               onClick={() => run("/server/stop", undefined, SERVER_STOP_CONFIRM)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
-            >
-              <Power className="h-3.5 w-3.5" /> 끄기
-            </button>
-            <button
-              type="button"
-              disabled={busy || serverState === "all-off"}
-              onClick={() => run("/server/stop-all", undefined, SERVER_STOP_ALL_CONFIRM)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
             >
-              <Power className="h-3.5 w-3.5" /> 전체 끄기(집컴까지)
+              <Power className="h-3.5 w-3.5" /> 서버 끄기
             </button>
           </div>
         </div>

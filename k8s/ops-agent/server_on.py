@@ -33,7 +33,7 @@ def main() -> int:
     with open(ENV_FILE, encoding="utf-8") as f:
         token = read_token(f.read())
     try:
-        print("켜는 중입니다. 집컴 → 노트북 순서라 몇 분 걸릴 수 있습니다.")
+        print("켜는 중입니다. 몇 분 걸릴 수 있습니다.")
         call("/server/start", token, post=True)
         while True:
             time.sleep(5)

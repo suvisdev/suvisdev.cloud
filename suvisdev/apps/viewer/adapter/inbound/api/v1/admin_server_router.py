@@ -1,14 +1,12 @@
-"""관리자 전용 — 지금 이 요청을 받은 서버(노트북/집컴)와 챗봇별 LLM 경로 확인.
+"""관리자 전용 — 지금 이 요청을 받은 서버와 챗봇별 LLM 경로 확인.
 
-노트북·집컴 둘 다 k3s 로 같은 앱을 띄우고, Cloudflare 터널이 켜진 쪽으로 보낸다
-(k8s/failover/README.md). 이 요청을 처리한 backend 파드의 노드 이름을 k8s
-downward API(`NODE_NAME`, k8s/backend.yaml)로 받아 돌려준다.
+2026-11-08부터 노트북 한 대만 서빙한다(예전엔 노트북·집컴이 같은 앱을 띄우고 터널이 켜진 쪽으로 보냈다).
+이 요청을 처리한 backend 파드의 노드 이름을 k8s downward API(`NODE_NAME`, k8s/backend.yaml)로 받아 돌려준다.
 
-챗봇 LLM 은 서빙 서버와 따로 움직인다(2026-10-06 운영 구성):
-- `PORTFOLIO_LLM_OLLAMA_URL` 은 두 기기 모두 "노트북 GPU 올라마만" 가리킨다
-  (노트북 :11434 직접, 집컴 :11436 = HAProxy 노트북 전용 입구). 여기 닿으면 노트북 GPU 가 살아 있다.
-- `OLLAMA_BASE_URL`(:11435 HAProxy)은 노트북 GPU 우선, 안 되면 집컴 CPU 예비.
-- lora-server 는 집컴 GPU 에만 있다(노트북은 desktop-link 로 같은 서버에 닿는다).
+챗봇 LLM 경로:
+- `PORTFOLIO_LLM_OLLAMA_URL` 은 노트북 GPU 올라마(:11434)를 가리킨다.
+- `OLLAMA_BASE_URL`(:11435 HAProxy)은 노트북 올라마로 간다.
+- lora-server 는 노트북 :8200 유저 서비스다.
 """
 
 from __future__ import annotations
