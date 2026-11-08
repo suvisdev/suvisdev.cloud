@@ -7,6 +7,7 @@ root_packages =
     execsuite
     dispatch
     gildle
+    deolmi
     contents
     sample
     analytics
@@ -29,6 +30,7 @@ forbidden_modules =
     execsuite
     dispatch
     gildle
+    deolmi
     contents
     sample
     analytics
@@ -55,6 +57,7 @@ modules =
     execsuite
     dispatch
     gildle
+    deolmi
     contents
     sample
     analytics
@@ -142,6 +145,7 @@ source_modules =
     contents
     dispatch
     gildle
+    deolmi
     mova
     ontology
     sample
@@ -165,6 +169,7 @@ forbidden_modules =
     contents
     dispatch
     gildle
+    deolmi
     mova
     ontology
     sample

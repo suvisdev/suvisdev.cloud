@@ -28,6 +28,7 @@
 - `[P]` 11-05 **news 섹션 개편 — 메인 AI 기술 · 부록 경제**: 목적이 "새 AI 기술·아키텍처 공부"로 확정돼 피드를 AI 22곳(연구소 블로그·arXiv·GitHub 릴리스·해설·커뮤니티·국내 AI 매체) + 경제 14곳으로 교체, `/sections`·`/latest?section=&group=`·`/search`, 검색어 탭 섹션별 RSS 매칭, AI 배지 판정은 국내 뉴스 기사 묶음만, alembic `20261105_0002`. **남은 것**: 운영 DB `alembic upgrade head`(0001·0002 둘 다 아직), 노트북 `.env` 스케줄러, 2단계 화면.
 - `[P]` 11-05 **news.suvisdev.cloud 1단계(수집 뼈대)**: `apps/news` — 검색어 탭(네이버 뉴스 검색 API)·최신 뉴스(언론사 RSS 13곳) 수집, 관련성 필터, AI 기사 규칙 판정(배지, 숨기지 않음), 공개 읽기 API·운영자 검색어 API, 스케줄러(노트북만, 기본 꺼짐), alembic `20261105_0001`. **남은 것**: 운영 DB `alembic upgrade head`·네이버 키·노트북 `.env` 는 사용자, 2~6단계(화면·방문자 검색·올라마 2차 판정·아침 메일·정답셋)는 newsdesk `docs/구현가이드.md` §7.
 - `[P]` 10-20 **Codex 전체 리뷰 → 6개 영역 수정(PR #209~#213 머지, 배포 성공)** · 디스코드 커밋 알림 웹훅 · Claude 수정/Codex 리뷰 분담(Codex OK 후 커밋). 덜미 #207은 머지 보류. 남은 사용자 작업은 아래 "10-20 리뷰 수정 후속".
+- `[P]` 10-20 **덜미(deolmi) 매크로 탐지 앱 신설(브랜치 `feat/deolmi-app` PR)**: 바탕화면 `매크로/botguard`를 `suvisdev/apps/deolmi` 스포크로 이식 — `/api/deolmi/score·verify·sdk.js·admin/*`, 테이블 2개(마이그레이션 `20261020_0001`), 테스트 45개·임시 DB E2E 통과. 남은 것은 아래 백로그 "덜미".
 - `[P]` 10-14 **/resume 를 PDF 이력서 v18 에 맞춤 · 홈 ARDA "본선 TOP 20"**: Experience 섹션(원티드 AI Championship 2026 본선 TOP 20, 투표 1위 10.05 기준) ·
   Arda 카드 추가 · 교육·학력 정정 · 확인 안 된 숫자 제거 · 휴대폰 레이아웃 수정 · 전화 가짜 링크 제거 · `profile.md` 같은 사실로 갱신(**홈 채팅 재색인은 남음**, 아래 홈 채팅 잔여 ①).
 - `[P]` 10-07 **어드민 서빙 서버·챗봇 경로 / mova 채팅 속도·버그 / mova 랭킹(전부 배포)**: 어드민 홈 "서빙 서버" 배지(NODE_NAME)·챗봇 LLM 경로 카드(#196) ·
@@ -137,7 +138,7 @@ history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `
 http://127.0.0.1:31386`.
 
 ### 10-20 리뷰 수정 후속 (사용자 작업, `[P]` 10-20 (3))
-1. **덜미 #207**: `.env`에 `DEOLMI_TOKEN_SECRET` → Claude가 CI·Codex 확인 후 머지 → `./k8s/deploy.sh --external-db` → 운영 `alembic upgrade head` → 키 발급.
+1. **덜미 #207**(11-08 main 머지·마이그레이션 헤드 정리 완료, `~/projects/wt-deolmi`): `.env`에 `DEOLMI_TOKEN_SECRET` → Claude가 CI·Codex 확인 후 머지 → `./k8s/deploy.sh --external-db` → 운영 `alembic upgrade head` → 키 발급.
 2. **로그인 확인**: 운영 `.env` `*_REDIRECT_URI` 호스트가 `api.suvisdev.cloud`인지(OAuth state 쿠키 결합 — 다르면 콜백 400), 실제 브라우저로 Google·Kakao 로그인 1회, 관리자 계정 재로그인.
 3. **노트북 serve-agent 설치**: `cp k8s/failover/serve_agent.sh ~/serve/serve_agent.sh && systemctl --user restart serve-agent`.
 4. **올라마 설정 대조**: 집컴 `diff ~/ollama-proxy/haproxy.cfg ~/projects/suvisdev/k8s/ollama-proxy/haproxy.cfg`, 노트북 `ollama-tunnel.service` — 설정 줄이 다르면 운영 값이 정답, 저장소를 고침.
@@ -145,6 +146,11 @@ http://127.0.0.1:31386`.
 6. (선택) mova 임베딩 백필 3종 `--dry-run` 먼저.
 7. 남은 개선(미착수): refresh 동시 갱신 응답 경합(구조 개선 미결 — 해결안은 브라우저엔 고정 세션 ID, 회전 토큰은 BFF 서버 쪽 관리: 인증 구조 변경이라 사용자 결정), main.py 전역 422 처리기(inf 입력 500), `@google/generative-ai` 미사용 의존성 정리, viewer 죽은 `login_pg_repository.py`.
 8. Codex 확인 리뷰 새 지적 5건(10-20 (5), 미착수): 관리자 계정의 사용자 기능 호환성 보완, OAuth 로그인 시 이전 세션 정리 호출의 시간 제한, 모바일 세션 갱신 경합, 길들 산책 저장 응답 유실 후 중복 저장, mova 임베딩 작업 중 리뷰 수정 시 옛 벡터 저장.
+
+### 덜미(deolmi) 매크로 탐지 (2026-10-20, `[P]` 10-20, 설명 `suvisdev/apps/deolmi/_docs/CLAUDE.md`)
+1. 운영 반영(사용자): 커밋·머지 → `.env`에 `DEOLMI_TOKEN_SECRET` 추가 + `./k8s/deploy.sh --external-db`(Secret) → 운영 DB `alembic upgrade head` → 어드민으로 키 발급.
+2. 데모 화면 없음(botguard `demo/index.html` 상당) — 만들 위치(suvis 페이지 vs 백엔드 정적) 미정.
+3. 단계2 잔여: 특징 추가(스크롤·포커스·입력 교정), 신고 기반 정답·지도학습, 오탐/탐지율 지표, 이벤트 보관 기간·파기. 파드 늘리면 jti·속도 창 Redis로.
 
 ### 노트북·집컴 이중화 후속 (2026-10-06, 인수인계 `HANDOFF_suvisdev_2026-10-06.md`)
 1. **노트북이 집 밖이면 CD 실패 → 집컴 미반영** — 10-06 수정(브랜치 `fix/cd-away-from-home`: DB 안 닿으면 노트북은 빌드·적재만 + sync-standby Tailscale). 집 밖 실 CD 검증 완료(run 37404372412, 1분 29초, 집컴 이미지 일치), PR #176 머지(`5e798c3`).

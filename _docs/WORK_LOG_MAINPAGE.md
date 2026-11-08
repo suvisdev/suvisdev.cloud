@@ -28,6 +28,29 @@
 
 ---
 
+## 2026-11-08 (4) — 덜미 PR #207 마무리 준비(main 머지·마이그레이션 잇기)
+
+### 작업 내용
+- 사용자가 덜미 #207 마무리를 요청했다. 브랜치가 10-20 이후 main보다 크게 뒤처져 있어 origin/main을 머지했다.
+
+### 수정/구현
+- 충돌 4개(`.env.example`·`suvisdev/CLAUDE.md` 앱 표·`main.py` 라우터·`pytest.ini`)는 모두 양쪽이 같은 자리에 줄을 더한 것이다. 둘 다 살렸다.
+- `.importlinter`: 덜미 전용 도메인 계약을 지웠다. 11-08 `domain-purity`(`*.domain`)가 이미 덮는다. 덜미는 새 계약(유스케이스→outbound 금지)도 예외 없이 통과했다.
+- 마이그레이션 `20261020_0001`이 10-07 리비전에 달려 있어 main 쪽(`20261105_0004`)과 헤드가 둘로 갈렸다. `down_revision`을 `20261105_0004`로 옮겨 헤드를 하나로 만들었다.
+
+### 오류·막힌 점
+- Codex 지적: `deolmi/scripts/retrain_model.py`가 `.env`를 읽지 않아 서버 밖 단독 실행 때 DB 주소가 비어 실패한다 → `get_db()` 전에 `reload_env()`. 임시 DB를 가리키는 임시 `.env`만 두고(환경 변수 없이) 실행해 DB 조회까지 도는 것을 확인했다.
+- 머지 전 확인: 운영 DB를 직접 읽지 않으려고 마이그레이션은 임시 pgvector 컨테이너에서만 시험했다.
+
+### 데이터
+- 임시 DB: 빈 DB → `upgrade head`(덜미 테이블 2개) → `downgrade -1` → `upgrade head` 왕복 성공.
+- 백엔드 전체 시험 1305 통과(11 skip), mypy 0건, ruff check 통과, import-linter 6계약 KEPT.
+
+### 산출물
+- PR #207 갱신. 머지는 선행 작업(운영 `.env`의 `DEOLMI_TOKEN_SECRET`, 운영 `alembic upgrade head`) 확인 뒤.
+
+---
+
 ## 2026-11-08 (3) — 하네스 점검: 드리프트 감지·아키텍처 계약 확대·로컬 의도 판단 제거
 
 ### 작업 내용
@@ -612,6 +635,36 @@
 ### 산출물
 - 이 항목 자체가 웹훅 테스트 커밋(브랜치 `docs/1020-discord-webhook`).
 - 같은 날 결정: PR 머지는 Claude가 CI 통과 확인 후 직접 한다(선행 작업이 필요한 PR은 보류하고 알림) — 루트 `CLAUDE.md` "브랜치 전략"에 규칙 추가. GitHub auto-merge는 쓰지 않음.
+## 2026-10-20 — 덜미(deolmi) 매크로 탐지 앱 신설
+
+### 작업 내용
+- 바탕화면 `매크로/`의 사업 문서와 `botguard` 프로토타입(SQLite 단일 서버, 커밋 5개)을 바탕으로, 사용자가 만들어 둔
+  `suvisdev/apps/deolmi` 뼈대(sample 복사본)에 헥사고날 스포크로 옮김. 이름은 덜미(deolmi).
+
+### 수정/구현
+- 도메인(`domain/services/`): 규칙 채점·판정 구간(`scoring_policy`), 허용 도메인 검증(`origin_policy`), 키 생성·비밀 키 해시 대조(`site_keys`).
+- 앱: `ScoreInteractor`(채점·검증, 규칙만으로 차단 수준이면 모델 생략, 모델 추론은 `asyncio.to_thread`),
+  `SiteAdminInteractor`(키 발급·목록·통계). 포트 5개(사이트·이벤트 저장소, 이상 탐지 모델, 점수 토큰, 속도).
+- 어댑터: PG 저장소 2개(`repositories/`), IsolationForest(모델 파일 없으면 가짜 표본 부트스트랩), HS256 토큰(jti 재사용 차단),
+  10초 슬라이딩 창 속도, `/api/deolmi/score`만 모든 출처에 여는 CORS 미들웨어, SDK(`sdk/deolmi.js`) 서빙.
+- botguard 대비 바꾼 것: 비밀 키 **해시 저장**, **틀린 비밀 키로는 토큰을 소모하지 않음**, 관리 API는 `ADMIN_TOKEN` 대신 `require_admin`,
+  서명 키는 `DEOLMI_TOKEN_SECRET`(기본값 없음, 미설정 503), 신호를 `SignalsSchema`로 고정(모르는 키 버림·범위 검증),
+  IP는 mova·ontology와 같은 `CF-Connecting-IP` 규칙, 키 발급 CLI는 관리 API로 대체.
+- 연결: `main.py`(라우터·미들웨어), `alembic/env.py`·마이그레이션 `20261020_0001`(`deolmi_sites`·`deolmi_events`),
+  `.importlinter`(스포크 등록 + 도메인 순수성 계약), `pytest.ini`, `.env.example`, `suvisdev/CLAUDE.md` 앱 표.
+- 문서: `apps/deolmi/_docs/CLAUDE.md`(개발), `INTEGRATION.md`(고객용 연동), `ROADMAP.md`(지금 할 일·단계별 계획·결정 필요 항목 — 사용자 요청으로 마감 때 추가).
+
+### 오류·막힌 점
+- 전역 CORS가 suvisdev 프론트만 허용해 고객 사이트의 `/score` preflight가 400이 되는 구조 → 경로 한정 미들웨어를 가장 바깥에 둬 해결(테스트로 다른 경로는 그대로 400 확인).
+- mypy: pydantic `Field(0, ...)` 위치 인자 기본값을 인식 못 함 → `default=0`으로. verdict는 도메인 `Verdict` Literal로 통일.
+
+### 데이터
+- 운영 DB 변경 없음. 검증은 임시 `pgvector/pgvector:pg16` 컨테이너(실제 `.env`는 빈 파일로 가림)에서만.
+
+### 산출물
+- 검증: deolmi 테스트 45개 통과, ruff·import-linter(8계약)·mypy(1084파일 0건) 통과, 임시 DB에서 `alembic upgrade head`/downgrade/재적용,
+  실제 `main.app`으로 preflight·score·verify·재사용 400·남의 도메인 403·admin 401 확인, ORM↔스키마 차이 0.
+- 브랜치 `feat/deolmi-app`로 PR(공개 저장소 — 지금 공개로 올리기로 결정, ROADMAP "결정"). 운영 반영 전 사용자 작업: `.env`에 `DEOLMI_TOKEN_SECRET`, 배포 후 `alembic upgrade head`.
 
 ---
 
