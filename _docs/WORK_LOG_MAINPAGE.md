@@ -47,7 +47,8 @@
 - 백엔드 전체 시험 1305 통과(11 skip), mypy 0건, ruff check 통과, import-linter 6계약 KEPT.
 
 ### 산출물
-- PR #207 갱신. 머지는 선행 작업(운영 `.env`의 `DEOLMI_TOKEN_SECRET`, 운영 `alembic upgrade head`) 확인 뒤.
+- PR #207 머지(`2895394`), 배포 성공. 사용자 승인 뒤 선행 작업: 운영 `.env`에 `DEOLMI_TOKEN_SECRET`(64자, 백업 `.env.bak-20261108-deolmi`) → 운영 `alembic upgrade head`(`20261105_0004`→`20261020_0001`) → 머지. 머지 관문이 PR 전체 diff 리뷰를 요구해 전체를 다시 Codex 리뷰(OK).
+- 배포 후: 파드에 열쇠 주입 확인, `/api/deolmi/sdk.js` 200, 빈 `/score` 422, 비로그인 `admin/stats` 401, healthz·JWKS 200.
 
 ---
 
