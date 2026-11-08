@@ -318,7 +318,7 @@ export function OpsControlCard() {
                         {name}
                         {m && (
                           <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
-                            GPU{m.size_vram ? ` ${gib(m.size_vram / 1024 / 1024)}` : ""}
+                            {m.size_vram ? `GPU ${gib(m.size_vram / 1024 / 1024)}` : "CPU"}
                           </span>
                         )}
                       </span>
