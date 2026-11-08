@@ -45,6 +45,8 @@
 - `.importlinter` 수정 중 news를 shared 계약의 source에 잘못 넣어 core 경유 간접 의존이 걸렸다 → forbidden에만 넣도록 바로잡았다.
 - 오늘 스킬 라우터 오탐 3건(머지→충돌 해결, 하네스 점검→보안 리뷰, 학습 방향→tdd·blast-radius)은 모두 모델 판단에서 나왔다.
 
+- 후속: 사용자 요청("하네스를 기반으로 돌아갈 수 있게 정리")으로 메인 폴더를 main으로 바꾸고 덜미 브랜치를 `~/projects/wt-deolmi` worktree로 옮겼다. 전환을 막던 하네스 사본은 main 판과 같은지 확인한 뒤 `~/harness-backup-switch-1922`로 옮겼고, 소스 없이 `.pyc`만 남은 `apps/deolmi`도 그리로 옮겼다(10-20 같은 혼란 방지). 전환 뒤 드리프트 0, 하네스 시험 59, healthz·JWKS·lora 200.
+
 ### 데이터
 - import-linter: 6계약 KEPT. 탐침(viewer.domain→outbound, dispatch.app→outbound)은 BROKEN, app→inbound는 통과.
 
