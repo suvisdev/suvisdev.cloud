@@ -242,7 +242,7 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 - `main` — 기본 브랜치(PR 대상). `suvisdev` — 주 작업 브랜치. `suvis` — 프론트 작업용.
 - **`develop` 브랜치는 없다.** 머지 방향은 `suvisdev` → `main`이다.
 - **자동 마무리(2026-11-06 사용자 결정, 10-20 "요청 시에만 커밋" 규칙을 대체).** 코드·설정을 바꾼 작업은 사용자에게 PR 여부를
-  묻지 않고 머지까지 끝낸다. 메인 폴더의 브랜치는 바꾸지 않고 `origin/main`에서 만든 worktree에서 진행한다. 질문·조사만 한 작업이나
+  묻지 않고 머지까지 끝낸다. 메인 폴더(`~/projects/suvisdev`)는 **main에 고정**하고(11-08) `origin/main`에서 만든 worktree에서 진행한다(덜미 `feat/deolmi-app`은 `~/projects/wt-deolmi`). 질문·조사만 한 작업이나
   사용자가 커밋을 원하지 않은 작업은 제외한다.
   1. `verification-before-completion`으로 실제 검증한다. 실패하면 고친다.
   2. 워크로그와 결정이 있으면 ADR을 갱신하고 `git add` 후 `python3 .claude/scripts/codex_gate.py review`를 실행한다(오래 걸리므로 백그라운드).
