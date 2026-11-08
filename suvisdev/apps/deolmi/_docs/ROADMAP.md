@@ -21,9 +21,9 @@
 | # | 할 일 | 누가 | 비고 |
 |---|-------|------|------|
 | 1~4 | 열쇠·머지·Secret·`alembic upgrade head` | — | ✅ 11-08 완료(#207) |
-| 5 | 데모 사이트 키 발급 → `DEOLMI_DEMO_SECRET` | 사용자 | 11-08. 공개 키는 `suvis/lib/deolmi-api.ts`에 넣는다 |
+| 5 | 데모 사이트 키 발급 → `DEOLMI_DEMO_SECRET` | 사용자 | ✅ 11-08. 공개 키는 `suvis/lib/deolmi-api.ts` |
 | 6 | 데모 화면 | Claude | ✅ 11-08 suvis `/deolmi`(사용자 결정) + 백엔드 `/demo/verify` |
-| 7 | 운영 URL로 SDK→score→verify 한 바퀴 확인 | Claude | 로컬(임시 DB·실제 브라우저)은 11-08 확인, 운영은 머지 후 |
+| 7 | 운영 URL로 SDK→score→verify 한 바퀴 확인 | Claude | ✅ 11-08 운영 `/deolmi`에서 실제 브라우저로(사람 통과·매크로 차단·휴대폰) |
 
 ---
 
