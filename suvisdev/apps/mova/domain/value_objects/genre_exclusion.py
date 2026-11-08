@@ -53,6 +53,15 @@ _NEGATED = re.compile(
 )
 
 
+# 조건 질의의 근거 — 장르 낱말이 따로 쓰였거나("유럽 배경 로맨스") 배경·소재를 말한다(2026-11-08).
+# "범죄도시"처럼 제목 안에 붙은 장르 낱말은 따로 쓰인 게 아니라 걸리지 않는다.
+_CONDITION = re.compile(rf"(?:^|\s)(?:(?:{_WORDS})(?:물|영화)?(?=\s|$)|배경|소재)", re.IGNORECASE)
+
+
+def mentions_condition(message: str) -> bool:
+    return bool(_CONDITION.search(message))
+
+
 def excluded_genres(message: str) -> tuple[frozenset[str], str]:
     """(뺄 장르 라벨들, 부정 구절을 지운 검색어). 부정이 없으면 (빈 집합, 원문)."""
     found = {

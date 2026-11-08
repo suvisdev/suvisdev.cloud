@@ -515,7 +515,7 @@ CPU에서도 텍스트 1건당 수백 ms대가 보통이지만, 이건 **일반�
 
 ```python
 cond = or_(*[MovaTag.label.ilike(f"%{kw}%") for kw in keywords[:6]])
-... .order_by(MovaMovie.rating.desc()).limit(limit)  # limit=12
+....order_by(MovaMovie.rating.desc()).limit(limit)  # limit=12
 ```
 
 Gemini가 응답에 실을 수 있는 `movie_id`는 이 함수가 만든 후보
