@@ -50,7 +50,8 @@
 - 로컬 E2E(임시 Postgres·Redis·백엔드·next dev·실제 크로미움): 데스크톱 사람 통과 3/3, 매크로 차단 3/3, 휴대폰 폭 390px 터치 통과·가로 스크롤 없음.
 
 ### 산출물
-- PR(덜미 데모). 머지 전 사용자 작업: 데모 사이트 등록 + `.env`의 `DEOLMI_DEMO_SECRET`.
+- PR #250 머지(`9714113`)·배포 성공. 선행 작업은 사용자가 직접 실행(데모 사이트 등록, 공개 키 `pk_be48…`, 도메인 suvisdev.cloud·localhost, `.env` 백업 `.env.bak-20261108-deolmi-demo`).
+- 운영 확인: 파드에 `DEOLMI_DEMO_SECRET` 주입, `suvisdev.cloud/deolmi` 200, 실제 크로미움으로 사람 통과(0.32·0.37)·연속 두 번째 사람 통과·매크로 차단 0.95·휴대폰 390px 통과.
 
 ---
 

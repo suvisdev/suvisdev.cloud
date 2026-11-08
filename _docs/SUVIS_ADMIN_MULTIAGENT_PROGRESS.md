@@ -138,7 +138,7 @@ history 포함 — 09-22 밤 신설, 실대화 로그 기반). 노트북에선 `
 http://127.0.0.1:31386`.
 
 ### 10-20 리뷰 수정 후속 (사용자 작업, `[P]` 10-20 (3))
-1. **덜미**: 11-08 #207 머지·운영 반영 완료. 11-08 데모 화면 suvis `/deolmi` + 부트스트랩 모델 사람 오차단 수정(PR, `~/projects/wt-deolmi-demo`) — 머지 전 사용자가 데모 사이트 등록·`DEOLMI_DEMO_SECRET`. 다음: 첫 테스트 예매처 연동(ROADMAP 단계 1).
+1. **덜미**: 11-08 #207 머지·운영 반영 완료. 11-08 데모 화면 suvis `/deolmi` + 부트스트랩 모델 사람 오차단 수정(#250 머지·운영 확인). 다음: 첫 테스트 예매처 연동(ROADMAP 단계 1).
 2. **로그인 확인**: 운영 `.env` `*_REDIRECT_URI` 호스트가 `api.suvisdev.cloud`인지(OAuth state 쿠키 결합 — 다르면 콜백 400), 실제 브라우저로 Google·Kakao 로그인 1회, 관리자 계정 재로그인.
 3. **노트북 serve-agent 설치**: `cp k8s/failover/serve_agent.sh ~/serve/serve_agent.sh && systemctl --user restart serve-agent`.
 4. **올라마 설정 대조**: 집컴 `diff ~/ollama-proxy/haproxy.cfg ~/projects/suvisdev/k8s/ollama-proxy/haproxy.cfg`, 노트북 `ollama-tunnel.service` — 설정 줄이 다르면 운영 값이 정답, 저장소를 고침.
