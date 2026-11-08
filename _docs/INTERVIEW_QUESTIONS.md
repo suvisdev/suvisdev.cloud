@@ -7,6 +7,43 @@
 
 ---
 
+## 2026-11-08 (Codex 관문 충돌 머지)
+
+### S1. 충돌을 푼 머지 커밋을 리뷰할 때 왜 main 변경이 섞였나?
+
+<details><summary>답 확인</summary>
+
+리뷰 diff의 기준점을 `git merge-base origin/main HEAD`로 구했다. 머지 커밋을 만들기 전에는 HEAD가 아직 옛 브랜치 끝이라 기준점이 옛 main이고, 인덱스에는 새 main 내용이 들어 있으니 그 차이가 전부 브랜치 변경처럼 보였다.
+</details>
+
+### S2. 왜 `git merge-base`에 커밋을 세 개 넘기나?
+
+<details><summary>답 확인</summary>
+
+세 개 이상이면 첫 번째와 "나머지를 가상으로 머지한 커밋" 사이의 기준점을 준다. HEAD와 MERGE_HEAD를 넘기면 곧 만들 머지 커밋을 기준으로 계산되므로, 커밋 뒤 PR 머지 판정이 쓰는 기준점과 같아진다.
+</details>
+
+### S3. 승인 키가 머지 판정 키와 같아야 하는 이유는?
+
+<details><summary>답 확인</summary>
+
+승인은 diff의 해시로 기록된다. 커밋 때 리뷰한 diff와 `gh pr merge` 때 계산한 diff가 다르면 같은 코드인데도 승인이 없다고 막힌다. 두 곳이 같은 기준점을 쓰게 만들어야 한 번의 리뷰가 끝까지 유효하다.
+</details>
+
+### S4. 충돌 없는 머지는 왜 이 관문을 안 거치나? 문제가 아닌가?
+
+<details><summary>답 확인</summary>
+
+충돌 없는 `git merge`는 `pre-commit`이 아니라 `pre-merge-commit` 훅을 부른다. 다만 PR 머지 판정이 PR head의 diff 승인을 다시 보므로, 승인 안 된 코드가 main에 들어가지는 않는다. main이 같은 파일 근처를 건드리지 않았으면 브랜치 diff가 그대로라 기존 승인이 이어지고, 달라졌으면 다시 리뷰받는다.
+</details>
+
+### S5. 테스트를 고치기 전 코드로 먼저 돌린 이유는?
+
+<details><summary>답 확인</summary>
+
+새 시험이 실제로 이 결함을 잡는지 확인하려고. 고치기 전에 실패하고(`main_only.py`가 diff에 들어감) 고친 뒤 통과해야 결함을 겨냥한 시험이라고 말할 수 있다.
+</details>
+
 ## 2026-11-06 (서버 전체 끄기)
 
 ### S1. 전체 끄기 뒤 켜기 버튼을 왜 어드민에 두지 않았나?

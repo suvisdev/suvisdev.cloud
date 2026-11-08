@@ -16,6 +16,8 @@ GITHOOKS = SCRIPTS.parent / "githooks"
 
 FAKE_CODEX = """#!/bin/sh
 [ -n "$FAKE_CODEX_FAIL" ] && exit 3
+for last; do :; done
+[ -n "$FAKE_DIFF_LOG" ] && cat "$(echo "$last" | grep -o '/[^ ]*change.diff')" >> "$FAKE_DIFF_LOG"
 while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done
 printf '{"verdict":"%s","findings":[]}' "${FAKE_VERDICT:-OK}" > "$out"
 """
@@ -199,6 +201,28 @@ class GateTest(unittest.TestCase):
         self.git("commit", "-qm", "y", "--no-verify")
         self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
         self.assertIn("승인", self.bash("gh pr merge 7 --merge"))
+
+    def test_conflict_merge_reviews_only_the_branch_change(self):
+        self.committed_pr()
+        user = {"CLAUDECODE": ""}
+        self.git("checkout", "-q", "main", env=user)
+        self.write("a.py", "main\n")
+        self.write("main_only.py", "x\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "main", env=user)
+        self.git("push", "-q", "origin", "main", env=user)
+        self.git("checkout", "-q", "feat")
+        self.git("fetch", "-q", "origin")
+        self.assertNotEqual(self.try_git("merge", "-q", "origin/main").returncode, 0)
+        self.stage_change("both\n")
+        self.assertEqual(self.try_git("commit", "-qm", "merge").returncode, 1)
+        log = self.root / "diff.log"
+        self.assertEqual(self.review(FAKE_DIFF_LOG=str(log)), 0)
+        self.assertIn("a.py", log.read_text())
+        self.assertNotIn("main_only.py", log.read_text())
+        self.assertEqual(self.try_git("commit", "-qm", "merge").returncode, 0)
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7 --merge"))
 
     def test_merge_is_found_however_it_is_written(self):
         self.stage_change()
