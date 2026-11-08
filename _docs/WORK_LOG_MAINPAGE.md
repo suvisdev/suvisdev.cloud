@@ -41,6 +41,7 @@
 - 삭제: `k8s/failover/`(serve-agent·standby-agent·desktop-link), `k8s/sync-standby.sh`, `home-server-switch.sh`. CD는 `deploy.sh --external-db --build` 하나로, 길들 데이터 동기화의 집컴 반영 단계도 뺐다. 어드민은 "서버 끄기" 버튼 하나만 남겼다.
 - 문서: 루트 `CLAUDE.md` 운영 구성, `k8s/README.md`, `k8s/ops-agent/README.md`, ADR-0008(0007은 대체됨).
 - Codex 리뷰 지적 1건: 켜기 완료를 터널 Ready로만 판정하면 앱이 503이어도 성공 처리된다(파드 준비 확인이 포트만 봄). Traefik을 거쳐 `/healthz`·JWKS 200까지 확인하게 고쳤고, 실제 운영에서 `_app_healthy()`가 True인 것도 확인했다. 재리뷰 OK.
+- 후속: 사용자가 어드민 화면을 캡처해 확인했다(버튼 하나·문구 정상). `bge-m3-cpu`가 VRAM 0인데도 "GPU"로 표시돼서, VRAM이 0이면 "CPU"로 나오게 고쳤다(`ops-control-card.tsx`).
 - 검증: ops-agent 시험 43, 하네스 시험 84, 어드민 라우터 시험 28(운영 이미지), ruff, tsc·eslint·prettier. **어드민 화면 캡처와 실제 끄기·켜기는 하지 않았다.**
 
 ### 오류·막힌 점
