@@ -409,7 +409,7 @@ python scripts/verify_db_tables.py
 
 | 도구 | 파일 | 역할 |
 |------|------|------|
-| `import-linter` | `suvisdev/.importlinter` | Spoke 간 직접 import / Hub→Spoke import 차단 |
+| `import-linter` | `suvisdev/.importlinter` | Spoke 간 직접 import / Hub→Spoke import 차단, 도메인 순수성·유스케이스→outbound 금지(11-08, 계약 목록은 `.claude/rules/backend-architecture.md`) |
 | `ruff` | `suvisdev/pyproject.toml` | 코드 스타일·포맷·lint |
 | `mypy` | `suvisdev/pyproject.toml` | 정적 타입 검사 (strict) |
 | `pre-commit` | `.pre-commit-config.yaml` (**저장소 루트** — 08-26 이동) | 커밋 시점 자동 검사 |
@@ -442,7 +442,8 @@ dispatch 발송). DTO + 인터랙터로 충분하며, "레이어가 비어 보�
   `app/ports/output/*_errors.py`)를 던지고 라우터가 상태 코드로 바꾼다(§K). 09-27에
   gildle 2곳을 이 방식으로 고쳤고, mova `games_interactor`(7곳)가 남은 위반이다.
 - 정규화·비교 같은 "같은 것인가" 판정은 어댑터마다 다시 쓰지 말고 도메인 값 객체를 import한다.
-- 도메인 패키지는 `fastapi`·`sqlalchemy`·`adapter`·`app`을 import하지 않는다(감사 시 0건 유지).
+- 도메인 패키지는 `fastapi`·`sqlalchemy`·`adapter`·`app`을 import하지 않는다. `adapter`·`app`은 import-linter `domain-purity`로
+  강제한다(11-08, 모든 앱). `fastapi`·`sqlalchemy`는 감사로 0건 유지.
 
 ---
 

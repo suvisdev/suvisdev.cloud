@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
 """작업 구간에 맞는 스킬을 코드로 판정해 훅 컨텍스트로 알린다. 규칙은 .claude/skill-routes.json."""
 import json
-import os
 import re
 import sys
 import tempfile
-import urllib.request
 from pathlib import Path
 
 ROUTES = Path(__file__).resolve().parent.parent / "skill-routes.json"
-INTENT = ROUTES.with_name("skill-intent.json")
-OLLAMA_URL = os.environ.get("SKILL_ROUTER_OLLAMA_URL", "http://127.0.0.1:11434")
 MAX_SKILLS = 3
-INTENT_TIMEOUT_SECONDS = 5
-MAX_PROMPT_CHARS = 2000
 
 
 def target(event: dict) -> tuple[str, str]:
@@ -45,38 +39,6 @@ def select(rules: list[dict], text: str, seen: set[str]) -> list[tuple[str, str]
     return list(picked.items())[:MAX_SKILLS]
 
 
-def intent_system_prompt(intent: dict) -> str:
-    lines = [f"{example} => {json.dumps({'skills': [skill]}, ensure_ascii=False)}"
-             for skill, examples in intent["examples"].items() for example in examples]
-    lines += [f'{example} => {{"skills": []}}' for example in intent["no_skill_examples"]]
-    return ("사용자 요청의 의도에 맞는 스킬을 아래 이름 중에서만 최대 2개 고른다. 고장·이상 증상 호소는 systematic-debugging, "
-            "기능을 만들거나 넣어 달라는 요청은 ponytail이다. 코드 작업 요청이 아닌 단순 질문·인사는 빈 목록이다. "
-            "JSON으로만 답한다.\n이름: " + ", ".join(intent["examples"]) + "\n예시:\n" + "\n".join(lines))
-
-
-def intent_skills(prompt: str, seen: set[str]) -> list[tuple[str, str]]:
-    """규칙에 안 걸린 요청만 무료 로컬 모델이 판단한다. 모델이 없거나 늦으면 판단 없이 진행한다."""
-    intent = json.loads(INTENT.read_text(encoding="utf-8"))
-    body = {
-        "model": intent["model"], "stream": False, "format": "json",
-        "options": {"temperature": 0, "num_predict": 60},
-        "messages": [{"role": "system", "content": intent_system_prompt(intent)},
-                     {"role": "user", "content": prompt[:MAX_PROMPT_CHARS]}],
-    }
-    request = urllib.request.Request(f"{OLLAMA_URL}/api/chat", json.dumps(body).encode(),
-                                     {"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=INTENT_TIMEOUT_SECONDS) as response:
-            picks = json.loads(json.load(response)["message"]["content"]).get("skills", [])
-    except (OSError, ValueError, KeyError, AttributeError):
-        return []
-    if not isinstance(picks, list):
-        return []
-    # 모델이 지어낸 이름과 서브에이전트 스킬은 예시 목록에 없으므로 여기서 걸러진다.
-    allowed = [p for p in picks if isinstance(p, str) and p in intent["examples"] and p not in seen]
-    return [(skill, "요청 의도 판단") for skill in dict.fromkeys(allowed)][:MAX_SKILLS]
-
-
 def main() -> None:
     event = json.load(sys.stdin)
     group, text = target(event)
@@ -89,8 +51,6 @@ def main() -> None:
 
     rules = json.loads(ROUTES.read_text(encoding="utf-8"))[group]
     picked = select(rules, text, seen)
-    if group == "prompt" and not any(re.search(rule["match"], text, re.IGNORECASE) for rule in rules):
-        picked = intent_skills(text, seen)
     if not picked:
         return
 

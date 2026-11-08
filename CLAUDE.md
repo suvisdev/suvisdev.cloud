@@ -280,12 +280,14 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 .claude/
 ├── settings.json          # 훅 설정 (커밋됨, 팀 공용)
 ├── skill-routes.json      # 작업 구간→스킬 규칙. 판정은 scripts/skill_router.py(훅), 테스트는 scripts/test_skill_router.py
-├── skill-intent.json      # 규칙에 안 걸린 요청의 의도 판단 예시(무료 로컬 모델)
 ├── settings.local.json    # 개인 권한 허용 목록
 ├── rules/                 # 경로별 코딩 규칙 — 해당 파일을 다룰 때 자동 로드
 │   ├── typescript.md      #   **/*.ts, **/*.tsx
 │   ├── api-standards.md   #   suvis/lib/*-api.ts, suvis/app/api/**/route.ts
 │   ├── testing.md         #   suvisdev/**/test(s)/**/*.py
+│   ├── backend-architecture.md # suvisdev/apps·core·shared — 헥사고날·스타 토폴로지 중 import-linter로 강제되는 것
+│   ├── mova-chat.md       #   mova 채팅 인터랙터·LLM 어댑터
+│   ├── orm-columns.md     #   ORM·alembic 마이그레이션
 │   ├── security/auth.md   #   라우터·프록시·세션 — require_admin, 토큰 3계층 전달
 │   └── security/pci.md    #   결제 코드가 생기면 발동 (현재 대상 파일 없음)
 └── projects/-home-a-projects-suvis/memory/   # 주제별 메모 — 자동 로드 아님
@@ -308,24 +310,24 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 | 위치 | 자동 로드 | 커밋 | 용도 |
 |------|-----------|------|------|
 | 저장소 안 `.claude/projects/-home-a-projects-suvis/memory/` | ✗ | ✓ | 팀·다른 에이전트와 공유하는 주제별 메모 |
-| 홈 `~/.claude/projects/-home-a-projects-suvis/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
+| 홈 `~/.claude/projects/-home-suteagy-projects-suvisdev/memory/` | ✓ | ✗ | 세션 간 개인 메모리(사실 하나당 파일 하나) |
 
-**두 경로는 `~/`(홈)이냐 저장소 루트냐만 다르고 나머지가 같다.** 헷갈리면
-자동 로드되는 쪽은 항상 홈이다.
+홈 쪽 폴더 이름은 세션을 시작한 폴더 경로에서 나온다(메인 폴더 기준). 헷갈리면 자동 로드되는 쪽은 항상 홈이다.
 
 같은 내용을 양쪽에 두지 않는다. 갈라지면 어느 쪽이 맞는지 알 수 없다.
 
 ### 훅
 
 `scripts/skill_router.py`는 프롬프트·수정 파일·명령·검사 실패를 코드로 판정해 맞는 스킬(프로젝트·pstack·기본 제공)을
-알린다. 규칙에 안 걸린 요청은 무료 로컬 모델(`skill-intent.json`, Ollama EXAONE 7.8B)이 의도로 판단하고, 모델이 없거나 5초를 넘기면 판단 없이 진행한다.
+알린다. 규칙에 안 걸린 요청은 판단하지 않는다(11-08, 로컬 7.8B 의도 판단을 뺐다 — ADR-0009).
 파일 수정과 커밋·PR은 해당 스킬의 첫 호출을 한 번 거부해 먼저 읽게 한다. 규칙은 `skill-routes.json`만 고치면 되고,
 서브에이전트를 띄우는 스킬은 명시 요청 표현에만 연결한다. pstack의 세션 강제 진입은 `~/.claude/pstack-models.md`의
 `session hook: off`로 끈다. 커밋·머지 관문은 "브랜치 전략"의 `scripts/codex_gate.py`.
 
-`settings.json`의 `UserPromptSubmit` 훅이 프롬프트에 "commit·커밋"이 들어오면
-**영역별 `_docs/WORK_LOG_*.md`와 `_docs/SUVIS_ADMIN_MULTIAGENT_PROGRESS.md`를 먼저
-갱신하라**는 지시를 주입한다. 위 "작업 일지" 규칙을 커밋 시점에 강제하는 장치다.
+`SessionStart` 훅은 git 훅 경로를 연결하고, `scripts/harness_drift.py`로 이 폴더의 하네스 파일(`CLAUDE.md`·
+`suvisdev/CLAUDE.md`·`.claude/`)이 `origin/main`과 다른지 본다. 메인 폴더가 기능 브랜치에 머물면 세션이 옛 규칙을
+읽기 때문이다(11-08 점검: 57커밋 뒤). 다르면 `origin/main` 판을 따르라고 알리고, 파일은 덮어쓰지 않는다.
+워크로그 갱신은 "자동 마무리" 2단계가 맡는다(옛 "커밋" 단어 훅은 11-08 삭제).
 
 ## 커밋 메시지 규칙
 
