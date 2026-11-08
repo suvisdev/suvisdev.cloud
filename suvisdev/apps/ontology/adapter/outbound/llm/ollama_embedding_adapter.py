@@ -10,7 +10,7 @@ from ontology.app.ports.output.knowledge_embedding_port import EmbeddingPort
 
 # 임베딩은 집컴 올라마(CPU)에 고정한다(2026-10-07): 질문 한 줄 임베딩은 집컴 직접 약 0.1초, 노트북 GPU를
 # 중계기·Tailscale로 거치면 약 0.35초 — 네트워크 왕복이 GPU 이득보다 크다. 집컴 .env 는 자기 올라마(:11434),
-# 노트북 .env 는 desktop-link 의 :21435(집컴 올라마). 비우면 OLLAMA_BASE_URL(중계기)을 쓴다.
+# 노트북 .env 는 :11434 + OLLAMA_EMBED_MODEL=bge-m3-cpu(GPU 가 꽉 차 CPU 로, 2026-11-08). 비우면 OLLAMA_BASE_URL(중계기)을 쓴다.
 _OLLAMA_BASE: str = (
     os.getenv("OLLAMA_EMBED_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
 )

@@ -28,6 +28,37 @@
 
 ---
 
+## 2026-11-08 (2) — 집컴 DB 크래시 3회 → 노트북 단독 서빙 전환
+
+### 작업 내용
+- 15:32에 노트북 서버를 다시 켰다(`server_on.py`, 59초). 15:35에 집컴 Postgres가 크래시해 사이트가 530이 됐다(15:35~15:46). 15:54에 두 번째 크래시가 났다(~16:05). 사용자 결정으로 집컴 서빙을 멈추고 DB까지 노트북으로 옮기기로 했다. 끄기·켜기는 지금처럼 유지한다.
+- 계획은 `_docs/NOTEBOOK_ONLY_PLAN.md`, 결정은 ADR-0008. 16:34에 세 번째 크래시가 나서 리허설을 빼고 바로 전환했다(사용자 승인).
+- 집컴 Claude(Windows 앱)와는 사용자가 붙여 넣는 방식으로 주고받았다. Remote Control로 직접 연결하려 했지만 노트북 세션 목록에 집컴 세션이 나타나지 않았다.
+
+### 수정/구현
+- 운영(기기): 노트북에 `~/.venv-exaone`, `~/llama.cpp`(커밋 `869034b`, sm_89), GGUF 복사(sha256 일치), `bge-m3-cpu`(num_gpu 0)를 갖췄다. 집컴 덤프를 노트북 도커 `suvisdev-db-1`에 복원했다. `desktop-link`·`ollama-tunnel`은 disable, `lora-server`는 enable. `.env`는 `OLLAMA_EMBED_URL=…:11434`·`OLLAMA_EMBED_MODEL=bge-m3-cpu` 두 줄만 바꿨다(백업 `.env.bak-20261108`).
+- 코드(PR): `k8s/ops-agent/ops_agent.py`의 끄기를 러너 → 앱 0 → Arda → DB·Redis `docker stop -t 60` → 스위치 off → lora로, 켜기를 스위치 on → DB start → lora·러너 → 앱 1(k3s가 받을 때까지 재시도) → Arda → 터널 Ready로 바꿨다. `/server/stop-all`과 집컴 코드는 삭제했다. `_wait`는 기한이 0이어도 한 번은 확인한다.
+- 삭제: `k8s/failover/`(serve-agent·standby-agent·desktop-link), `k8s/sync-standby.sh`, `home-server-switch.sh`. CD는 `deploy.sh --external-db --build` 하나로, 길들 데이터 동기화의 집컴 반영 단계도 뺐다. 어드민은 "서버 끄기" 버튼 하나만 남겼다.
+- 문서: 루트 `CLAUDE.md` 운영 구성, `k8s/README.md`, `k8s/ops-agent/README.md`, ADR-0008(0007은 대체됨).
+- Codex 리뷰 지적 1건: 켜기 완료를 터널 Ready로만 판정하면 앱이 503이어도 성공 처리된다(파드 준비 확인이 포트만 봄). Traefik을 거쳐 `/healthz`·JWKS 200까지 확인하게 고쳤고, 실제 운영에서 `_app_healthy()`가 True인 것도 확인했다. 재리뷰 OK.
+- 검증: ops-agent 시험 43, 하네스 시험 84, 어드민 라우터 시험 28(운영 이미지), ruff, tsc·eslint·prettier. **어드민 화면 캡처와 실제 끄기·켜기는 하지 않았다.**
+
+### 오류·막힌 점
+- 크래시 원인: 집컴 Postgres 백엔드가 `exit code 2`로 끝났고, 복구 fsync가 10초에 파일 몇 개씩밖에 진행되지 않았다(388버퍼 체크포인트 73초). 배경은 집컴 HDD와 윈도우 쪽 CPU 경합(관리자 python 평균 3코어·게임 3개, 여유 RAM 1GB)으로 보지만 **확정은 아니다**.
+- 내 실수: 집컴에 SSH로 `systemctl --user status`·`journalctl`을 불렀다가 저널 3.4GB 때문에 멈췄고, 15:42부터 CPU 96%로 부하를 보탰다(크래시 뒤라 원인은 아님). 집컴 Claude가 종료했다. 내가 처음 낸 "15:39 lora 재시작" 가설도 틀렸다(PID 1579가 1일 19시간째 그대로였다).
+- 내 실수: 노트북에서 `pkill -f`·`pgrep -f` 패턴이 명령을 실행하던 셸 자신에 걸려 명령이 두 번 중간에 끊겼다(exit 144).
+- 집컴 lora(:8200)는 전환 전에 두 번 다 120초 무응답이었다. 그동안 mova 추천은 Gemini 폴백이었을 가능성이 크다(사용자는 "집컴에서 lora를 돌린 적이 없다"고 함).
+- 덤프 직후 집컴 Claude가 DB·Redis를 멈춰서 실시간 행 수 대조 대신 덤프 안 행 수와 대조했다. Redis 2키는 옮기지 못했다(로그인 세션이면 재로그인 필요).
+- mova 28질의 하네스 25/28: 실패 3건은 이해 모델 2.4B가 "밀실 탈출 스릴러" 같은 장르 질문을 제목 평가(`evaluate`)로 오분류한 것으로, 재실행해도 같다. 이미지·모델·프롬프트·데이터가 같아 전환 탓은 아닌 것으로 판단하지만 **전환 전 측정이 없어 미확정**이다. 고친다면 코드로 막는 쪽이다(질의 전체가 제목이고 카탈로그에 없으면 추천으로).
+
+### 데이터
+- 덤프 49MB(테이블 데이터 69개). 복원 16초, 행 수 69/69 일치. 다운 16:49~16:58.
+
+### 산출물
+- PR(이 기록과 같은 PR). 집컴 예비본: 집컴 `~/backups/suvisdev_20261108_final.dump`·OneDrive `집컴이관/db_dump`.
+
+---
+
 ## 2026-11-08 — Codex 관문: 충돌 해결 머지 커밋 결함 수정
 
 ### 작업 내용

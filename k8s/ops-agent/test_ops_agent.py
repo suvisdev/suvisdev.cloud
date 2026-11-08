@@ -14,7 +14,6 @@ def _inline_jobs(monkeypatch, tmp_path):
     monkeypatch.setattr(oa, "AI_MODE_FILE", str(tmp_path / "arda_ai_mode"))
     monkeypatch.setattr(oa, "SERVER_STATE_FILE", str(tmp_path / "server_state"))
     monkeypatch.setattr(oa, "POLL_SECONDS", 0)
-    monkeypatch.setattr(oa, "HOME_SETTLE_SECONDS", 0)
     # 시험에서는 뒤에서 돌리지 않고 그 자리에서 끝낸다(결과를 바로 확인하려고)
     monkeypatch.setattr(oa, "RUN_IN_BACKGROUND", False)
 
@@ -24,7 +23,7 @@ def _inline_jobs(monkeypatch, tmp_path):
     [
         ("127.0.0.1", True),
         ("10.42.0.15", True),  # k3s 파드
-        ("100.91.129.31", True),  # Tailscale(집컴)
+        ("100.91.129.31", True),  # Tailscale
         ("::ffff:10.42.0.9", True),
         ("172.30.1.21", False),  # 공유기 LAN — 토큰이 맞아도 거절
         ("172.24.60.1", False),  # WSL NAT 게이트웨이(윈도우 쪽)
@@ -235,27 +234,21 @@ SUDO_LISTING = """User suteagy may run the following commands on teagy:
 
 
 class _Laptop:
-    """명령을 순서대로 기록하고, 집컴·노트북 상태를 흉내 낸다."""
+    """명령을 순서대로 기록하고, 노트북 상태(터널 Ready 수)를 흉내 낸다."""
 
-    def __init__(
-        self,
-        monkeypatch,
-        *,
-        home="backend=1\nauth=1\ncloudflared=1\n",
-        standby="active",
-    ):
+    def __init__(self, monkeypatch):
         self.calls: list[list[str]] = []
-        self.home = home
-        self.standby = standby
         self.fail: str | None = None  # 이 문자열이 든 명령은 실패한다
         self.laptop_tunnel = "1"
+        self.serves_after_scale = True  # 앱을 1로 올리면 터널이 Ready 가 되는가
+        self.healthy = True  # 사이트(backend /healthz·auth JWKS)가 200 인가
         self.sudo_listing = SUDO_LISTING.format(switch=oa.SERVER_SWITCH)
-        self.home_sudo_listing = SUDO_LISTING.format(switch=oa.HOME_SWITCH)
         self.runner_alive = False
         monkeypatch.setattr(oa, "_run", self.run)
         monkeypatch.setattr(oa, "runner_busy", lambda: False)
         monkeypatch.setattr(oa, "_pkill", lambda p: self.calls.append(["pkill", p]))
         monkeypatch.setattr(oa, "_runner_alive", lambda: self.runner_alive)
+        monkeypatch.setattr(oa, "_app_healthy", lambda: self.healthy)
 
     def run(self, args, timeout):
         joined = " ".join(args)
@@ -264,16 +257,9 @@ class _Laptop:
             raise oa.OpsError(502, f"실패: {self.fail}")
         if args[:3] == ["sudo", "-n", "-l"]:
             return self.sudo_listing
-        if args[0] == "ssh":
-            if "sudo -n -l" in joined:
-                return self.home_sudo_listing
-            if "is-active standby-agent" in joined:
-                return self.standby + "\n"
-            if "get deploy" in joined:
-                return self.home
-            return ""
         if "scale" in args:
-            self.laptop_tunnel = ""
+            up = "--replicas=1" in args and self.serves_after_scale
+            self.laptop_tunnel = "1" if up else ""
         if "get" in args and "cloudflared" in args:
             return self.laptop_tunnel
         return ""
@@ -308,57 +294,21 @@ def test_status_reports_server_state(monkeypatch):
     assert oa.status()["server"] == {"state": "off"}
 
 
-def test_parse_ready():
-    assert oa.parse_ready("backend=1\nauth=2\ncloudflared=\n\ngarbage\n") == {
-        "backend": 1,
-        "auth": 2,
-        "cloudflared": 0,
-    }
-
-
-def test_stop_order_keeps_site_up_until_home_takes_over(monkeypatch):
+def test_stop_shuts_apps_before_db_and_db_before_docker(monkeypatch):
     lap = _Laptop(monkeypatch)
     oa.act("/server/stop", {})
     assert oa.job_snapshot()["state"] == "ok"
     assert oa.read_server_state() == "off"
     order = [
         lap.index("disable", "actions-runner"),  # 새 배포를 받지 않게 러너부터
-        lap.calls.index(["pkill", "actions-runner/run-helper.sh"]),
         lap.calls.index(["pkill", "actions-runner/bin/Runner.Listener"]),
-        lap.index(
-            "disable", "serve-agent"
-        ),  # 판단기 먼저 — 안 그러면 터널을 다시 올린다
-        lap.index("laptop_heartbeat"),  # 집컴에 바로 알림
-        lap.index("scale", "--replicas=0"),  # 집컴이 뜬 뒤에야 노트북 터널을 닫는다
+        lap.index("scale", "deploy/cloudflared", "deploy/backend", "--replicas=0"),
         lap.index("compose", "stop"),  # Arda
+        lap.index("docker", "stop", "-t", "60", "suvisdev-db-1", "suvisdev-redis-1"),
         lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "off"]),  # k3s·Ollama·도커
-        lap.index("disable", "ollama-tunnel", "desktop-link"),
+        lap.index("disable", "lora-server"),
     ]
     assert order == sorted(order)
-    assert lap.switched("off")
-
-
-def test_stop_refused_when_home_not_ready(monkeypatch):
-    lap = _Laptop(monkeypatch, home="backend=\nauth=1\n")
-    with pytest.raises(oa.OpsError) as e:
-        oa.act("/server/stop", {})
-    assert e.value.status == 409 and "backend" in str(e.value)
-    assert not lap.has("disable") and oa.read_server_state() == "on"
-
-
-def test_stop_refused_when_standby_agent_down(monkeypatch):
-    lap = _Laptop(monkeypatch, standby="inactive")
-    with pytest.raises(oa.OpsError) as e:
-        oa.act("/server/stop", {})
-    assert e.value.status == 409 and not lap.has("disable")
-
-
-def test_stop_refused_when_home_unreachable(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    lap.fail = "is-active"
-    with pytest.raises(oa.OpsError) as e:
-        oa.act("/server/stop", {})
-    assert e.value.status == 409 and not lap.has("disable")
 
 
 def test_stop_refused_when_switch_not_installed(monkeypatch):
@@ -396,8 +346,8 @@ def test_stop_aborts_and_restores_when_runner_will_not_die(monkeypatch):
     with pytest.raises(oa.OpsError):
         oa.act("/server/stop", {})
     assert "러너" in oa.job_snapshot()["error"] and oa.read_server_state() == "on"
-    assert lap.has("enable", "actions-runner", "serve-agent")
-    assert not lap.has("disable", "serve-agent") and not lap.switched("off")
+    assert lap.has("enable", "actions-runner")
+    assert not lap.has("scale") and not lap.switched("off")
 
 
 def test_stop_refused_during_deploy(monkeypatch):
@@ -408,37 +358,53 @@ def test_stop_refused_during_deploy(monkeypatch):
     assert e.value.status == 409 and "배포" in str(e.value) and lap.calls == []
 
 
-def test_stop_aborts_and_restores_when_home_tunnel_never_comes_up(monkeypatch):
-    lap = _Laptop(monkeypatch, home="backend=1\nauth=1\ncloudflared=\n")
-    monkeypatch.setattr(oa, "HANDOVER_TIMEOUT", 0)
-    with pytest.raises(oa.OpsError):
-        oa.act("/server/stop", {})
-    assert "이어받지 못해" in oa.job_snapshot()["error"]
-    assert oa.read_server_state() == "on"
-    assert lap.has("enable", "actions-runner", "serve-agent")  # 노트북이 계속 서빙한다
-    assert not lap.switched("off") and not lap.has("scale")
-
-
 def test_stop_continues_when_arda_fails_so_nothing_is_left_half_off(monkeypatch):
     lap = _Laptop(monkeypatch)
     lap.fail = "compose"
     oa.act("/server/stop", {})
     assert oa.job_snapshot()["state"] == "ok"
-    assert lap.switched("off") and lap.has("disable", "actions-runner")
+    assert lap.has("docker", "stop") and lap.switched("off")
 
 
-def test_start_restores_everything_and_waits_for_serving(monkeypatch):
+def test_stop_still_switches_off_when_db_stop_fails(monkeypatch):
     lap = _Laptop(monkeypatch)
+    lap.fail = "docker stop"
+    oa.act("/server/stop", {})
+    assert lap.switched("off") and oa.read_server_state() == "off"
+
+
+def test_start_brings_db_up_before_apps(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.laptop_tunnel = ""
     oa.write_server_state("off")
     oa.act("/server/start", {})
     assert oa.job_snapshot()["state"] == "ok" and oa.read_server_state() == "on"
     order = [
         lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "on"]),
-        lap.index("enable", "serve-agent"),
+        lap.index("docker", "start", "suvisdev-db-1", "suvisdev-redis-1"),
+        lap.index("enable", "lora-server", "actions-runner"),
+        lap.index("scale", "deploy/cloudflared", "--replicas=1"),
         lap.index("compose", "up"),
     ]
     assert order == sorted(order)
-    assert lap.has("enable", "actions-runner", "ollama-tunnel", "desktop-link")
+
+
+def test_start_retries_scale_until_k3s_answers(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.laptop_tunnel = ""
+    real = lap.run
+    tries = {"n": 0}
+
+    def flaky(args, timeout):
+        if "scale" in args and tries["n"] < 2:
+            tries["n"] += 1
+            lap.calls.append(args)
+            raise oa.OpsError(502, "k3s 아직")
+        return real(args, timeout)
+
+    monkeypatch.setattr(oa, "_run", flaky)
+    oa.act("/server/start", {})
+    assert oa.job_snapshot()["state"] == "ok" and tries["n"] == 2
 
 
 def test_start_reports_arda_failure_but_stays_on(monkeypatch):
@@ -453,10 +419,20 @@ def test_start_reports_arda_failure_but_stays_on(monkeypatch):
 def test_start_times_out_when_laptop_never_serves(monkeypatch):
     lap = _Laptop(monkeypatch)
     lap.laptop_tunnel = ""
+    lap.serves_after_scale = False
     monkeypatch.setattr(oa, "SERVE_TIMEOUT", 0)
     with pytest.raises(oa.OpsError):
         oa.act("/server/start", {})
-    assert "서빙" in oa.job_snapshot()["error"]
+    assert "정상 응답" in oa.job_snapshot()["error"]
+
+
+def test_start_fails_while_site_is_unhealthy_even_if_tunnel_is_ready(monkeypatch):
+    lap = _Laptop(monkeypatch)
+    lap.healthy = False  # 예: DB 복구가 늦어 backend 가 503
+    monkeypatch.setattr(oa, "SERVE_TIMEOUT", 0)
+    with pytest.raises(oa.OpsError):
+        oa.act("/server/start", {})
+    assert "정상 응답" in oa.job_snapshot()["error"]
 
 
 @pytest.mark.parametrize(
@@ -482,136 +458,10 @@ def test_unknown_action_is_still_404_while_off():
     assert e.value.status == 404
 
 
-def _home_order(lap):
-    return [
-        lap.index("disable", "actions-runner"),
-        lap.index("disable", "serve-agent"),
-        # 예비 판단기를 먼저 꺼야 노트북이 내려가도 집컴 터널이 다시 뜨지 않는다
-        lap.index("ssh", "disable --now", "standby-agent"),
-        lap.index("ssh", "scale", "--replicas=0"),
-        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "off"]),
-        lap.index("ssh", oa.HOME_SWITCH, "off"),  # DB 는 맨 나중
-    ]
-
-
-def test_stop_all_stops_home_last_and_does_not_wait_for_handover(monkeypatch):
-    lap = _Laptop(monkeypatch, home="", standby="inactive")  # 집컴이 안 받아도 끈다
-    oa.act("/server/stop-all", {})
-    assert oa.job_snapshot()["state"] == "ok"
-    assert oa.read_server_state() == "all-off"
-    order = _home_order(lap)
-    assert order == sorted(order)
-    assert not lap.has("laptop_heartbeat")
-
-
-def test_stop_all_works_when_laptop_already_off(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    oa.write_server_state("off")
-    oa.act("/server/stop-all", {})
-    assert oa.read_server_state() == "all-off"
-    assert lap.has("ssh", oa.HOME_SWITCH, "off")
-
-
-def test_stop_all_refused_when_home_switch_missing(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    lap.home_sudo_listing = ""
+def test_stop_all_is_gone():
     with pytest.raises(oa.OpsError) as e:
         oa.act("/server/stop-all", {})
-    assert e.value.status == 409
-    assert not lap.has("disable")
-
-
-def test_stop_all_refused_when_home_unreachable(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    lap.fail = "ssh"
-    with pytest.raises(oa.OpsError) as e:
-        oa.act("/server/stop-all", {})
-    assert e.value.status == 409
-    assert not lap.has("disable")
-
-
-def test_stop_all_refused_during_deploy(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    monkeypatch.setattr(oa, "runner_busy", lambda: True)
-    with pytest.raises(oa.OpsError):
-        oa.act("/server/stop-all", {})
-    assert not lap.has("disable")
-
-
-def test_stop_all_restores_when_home_services_wont_stop(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    lap.fail = "--user disable --now lora-server"
-    with pytest.raises(oa.OpsError):
-        oa.act("/server/stop-all", {})
-    assert oa.read_server_state() == "on"
-    assert lap.has("enable", "actions-runner", "serve-agent")
-    assert lap.has("ssh", "enable --now", "standby-agent")
-    assert not lap.switched("off")
-
-
-def test_stop_all_abort_keeps_laptop_off_if_it_was_off(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    oa.write_server_state("off")
-    lap.fail = "--user disable --now lora-server"
-    with pytest.raises(oa.OpsError):
-        oa.act("/server/stop-all", {})
-    assert oa.read_server_state() == "off"
-    assert not lap.has("--user", "enable", "serve-agent")
-
-
-def test_stop_all_still_stops_home_when_laptop_switch_fails(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    lap.fail = f"{oa.SERVER_SWITCH} off"
-    with pytest.raises(oa.OpsError):
-        oa.act("/server/stop-all", {})
-    assert lap.has("ssh", oa.HOME_SWITCH, "off")
-
-
-def test_stop_all_retry_passes_when_home_kubectl_is_already_down(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    oa.write_server_state("all-off")
-    lap.fail = "scale deploy/cloudflared"
-    oa.act("/server/stop-all", {})
-    assert oa.job_snapshot()["state"] == "ok"
-    assert lap.has("ssh", oa.HOME_SWITCH, "off")
-
-
-def test_start_after_all_off_brings_home_up_first(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    oa.write_server_state("all-off")
-    oa.act("/server/start", {})
-    assert oa.job_snapshot()["state"] == "ok"
-    assert oa.read_server_state() == "on"
-    order = [
-        lap.index("ssh", oa.HOME_SWITCH, "on"),
-        lap.index("ssh", "enable --now", "standby-agent"),
-        lap.calls.index(["sudo", "-n", oa.SERVER_SWITCH, "on"]),
-    ]
-    assert order == sorted(order)
-
-
-def test_start_leaves_laptop_off_when_home_will_not_start(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    oa.write_server_state("all-off")
-    lap.fail = f"{oa.HOME_SWITCH} on"
-    with pytest.raises(oa.OpsError):
-        oa.act("/server/start", {})
-    assert oa.read_server_state() == "all-off"  # 그대로 다시 실행할 수 있다
-    assert not lap.switched("on")
-
-
-def test_start_does_not_touch_home_after_laptop_only_off(monkeypatch):
-    lap = _Laptop(monkeypatch)
-    oa.write_server_state("off")
-    oa.act("/server/start", {})
-    assert not lap.has("ssh", oa.HOME_SWITCH)
-
-
-def test_other_actions_refused_while_all_off():
-    oa.write_server_state("all-off")
-    with pytest.raises(oa.OpsError) as e:
-        oa.act("/arda/start", {})
-    assert e.value.status == 409
+    assert e.value.status == 404
 
 
 def test_shortcut_reads_token_from_env_file():

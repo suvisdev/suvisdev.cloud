@@ -176,18 +176,17 @@ flutter run
 ./k8s/deploy.sh --build    # 이미지 재빌드 + rollout restart 포함
 kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 # CI/CD(2026-10-01): PR·main push마다 GitHub Actions가 3스택 검사. main에 백엔드가 머지되고
-# backend-ci가 통과하면 노트북의 셀프호스티드 러너(유일)가 deploy.sh --external-db --build로 빌드·배포하고
-# sync-standby.sh(Tailscale)로 집컴에 반영한다 — 수동 배포는 Secret(.env)만 바꿀 때. 노트북이 집 밖이면
-# 노트북은 빌드·적재만(k8s/failover/README.md "배포"). 상세: k8s/README.md "CI/CD"
+# backend-ci가 통과하면 노트북의 셀프호스티드 러너(유일)가 deploy.sh --external-db --build로 빌드·배포한다
+# — 수동 배포는 Secret(.env)만 바꿀 때. 상세: k8s/README.md "CI/CD"
 ```
 
 **구 `docker-compose.yaml`은 삭제됐다(2026-09-07)** — 데스크톱은 k8s가 대체.
 `suvisdev/.env`는 deploy.sh가 매번 Secret으로 변환해 주입하므로 compose 시절
 `--env-file` 누락 사고(빈 자격증명 502, 2026-07-30·08-04)는 구조적으로 재발
-불가(.env 없으면 스크립트가 즉시 실패). **운영 구성(2026-10-05~06)은 아래 "주의사항 · 개인 배포 환경"** —
-두 기기 모두 k3s(backend·auth·cloudflared 파드), DB·Redis는 집컴 도커 한 곳. 배포는
-`./k8s/deploy.sh --external-db [--build]`. 노트북의 untracked `docker-compose.yaml`은 예전 롤백용 — 손대지 않는다.
-절차는 `k8s/README.md`·`k8s/failover/README.md`.
+불가(.env 없으면 스크립트가 즉시 실패). **운영 구성(2026-11-08~)은 아래 "주의사항 · 개인 배포 환경"** —
+노트북 한 대: k3s(backend·auth·cloudflared 파드) + 도커 DB·Redis. 배포는 `./k8s/deploy.sh --external-db [--build]`.
+노트북의 untracked `docker-compose.yaml`(프로젝트 `suvisdev`)이 운영 DB·Redis(`suvisdev-db-1`·`suvisdev-redis-1`)를 띄운다 —
+`docker compose down -v`처럼 볼륨을 지우는 명령은 쓰지 않는다. 절차는 `k8s/README.md`, 결정은 ADR-0008.
 
 ## 테스트
 
@@ -219,8 +218,8 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
   버킷은 **비공개**라 객체 공개 URL은 403이다. 표시에는
   `Tank.generate_presigned_url()`(기본 1시간)을 쓴다.
 - **`RECOMMENDATION_BACKEND`(mova 추천, 기본값 `lora`)**: 운영은 기본 `lora`를 쓴다 —
-  `LORA_SERVER_URL=http://host.docker.internal:8200`. lora-server는 **집컴**(GPU, `:8200`)에 있고, 노트북 앱은
-  `desktop-link`(ssh -L 8200)로 같은 서버에 닿는다(k3s hostAliases가 `host.docker.internal`→`10.42.0.1`). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
+  `LORA_SERVER_URL=http://host.docker.internal:8200`. lora-server는 **노트북** 유저 서비스(GPU, `:8200`, 2026-11-08)다
+  (k3s hostAliases가 `host.docker.internal`→`10.42.0.1`). lora 호출 실패 시 Gemini 자동 폴백 DI(2026-08-26 배선)가
   받친다. 수동 전환이 필요하면 `suvisdev/.env`에서
   `RECOMMENDATION_BACKEND=gemini`로 바꾸고 `./k8s/deploy.sh --external-db`
   (Secret 갱신) + `kubectl -n suvisdev rollout restart deploy/backend`.
@@ -257,22 +256,20 @@ kubectl -n suvisdev get pods   # 상태 확인. 상세: k8s/README.md
 
 ## 주의사항
 
-- **VRAM**: `lora-server`(EXAONE-3.5-2.4B, llama.cpp GGUF Q5_K_M —
-  2026-09-02 전환, 구 fp16 hf `serve.py`는 롤백용)가 데스크톱
-  DESKTOP-IOAQ7L7의 systemd 유저 서비스로 기동된다(2026-09-01 노트북→
-  데스크톱 이전). 모델 학습 전 `systemctl --user stop lora-server`, 학습 후
-  `start` + `:8200/health` 확인. 재학습 후엔 `export_mova_gguf.py`로 GGUF
-  변환 필수. `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
-- 개인 배포 환경(2026-10-05~06, 인수인계 바탕화면 `HANDOFF_suvisdev_2026-10-06.md`):
-  - **집컴 `DESKTOP-T89E5ID`**(GTX 1650 SUPER 4GB, 상시 가동): **Postgres·Redis(도커, 유일)**·lora-server(GPU :8200)·
-    Ollama(CPU)·HAProxy `ollama-proxy`(:11435 노트북 GPU 우선/집컴 CPU 예비, :11436 노트북 전용)·로컬 레지스트리.
-    **이미지를 빌드하지 않는다**(메모리 부족으로 DB 크래시 2회, 10-05).
-  - **노트북 `teagy`**(RTX 4060, 들고 다님): Ollama GPU · CD 러너(유일) · 이미지 빌드. 집 LAN이면 노트북이
-    우선 서빙(`desktop-link`로 집컴 DB 사용), **집 밖이면 앱 서빙은 집컴, 노트북은 GPU만**(Tailscale `ollama-tunnel`).
-  - 누가 서빙할지는 노트북 `serve-agent`·집컴 `standby-agent`가 cloudflared replicas로 자동 전환(`k8s/failover/README.md`).
-  - Tailscale: 노트북 100.118.78.100, 집컴 100.91.129.31(내부 IP 172.30.1.21은 집에서만). 집컴 SSH:
-    `ssh -i ~/.ssh/home_desktop -o UserKnownHostsFile=~/.ssh/known_hosts_ollama_tunnel suvisdev@100.91.129.31`
-  - 구 개인 EC2는 중지 보관(Arda는 별도 `arda-api`). mova 부팅 작업은 `ENABLE_MOVA_STARTUP=false`로 끈다(집컴 `.env`만).
+- **VRAM**: 노트북 RTX 4060(8GB)에 Ollama `exaone3.5:7.8b`·`2.4b`와 `lora-server`(EXAONE-3.5-2.4B, llama.cpp GGUF
+  Q5_K_M, `~/llama.cpp` sm_89 빌드, 모델 경로 `~/lora_adapters/LATEST_GGUF`)가 함께 올라가 거의 꽉 찬다(11-08 실측 약 7.9/8.2GB).
+  임베딩은 그래서 CPU 변형 `bge-m3-cpu`(`num_gpu 0`, `OLLAMA_EMBED_MODEL`)다. 모델 학습 전 `systemctl --user stop lora-server`,
+  학습 후 `start` + `:8200/health` 확인. 재학습 후엔 `export_mova_gguf.py`로 GGUF 변환 필수.
+  `nvidia-smi`의 free 수치는 WSL2에서 불안정하니 그것만 믿지 말 것.
+- 개인 배포 환경(2026-11-08~, ADR-0008, `_docs/NOTEBOOK_ONLY_PLAN.md`):
+  - **노트북 `teagy` 한 대가 전부 맡는다** — k3s 앱 · 도커 DB·Redis · lora-server · Ollama · CD 러너 · 이미지 빌드.
+    **노트북이 꺼지거나 덮이거나 집 밖이면 사이트 전체가 꺼진다**(예비 서버 없음).
+  - 끄기는 어드민 "서버 끄기", 켜기는 노트북 바탕화면 `서버 켜기`(`k8s/ops-agent/server_on.py`).
+  - 집컴 `DESKTOP-T89E5ID`는 완전히 내렸다(k3s·도커·WSL 자동 시작 해제). 11-08 Postgres 크래시 3회·HDD 복구 지연이 이유.
+    DB 볼륨 `suvisdev_db_data`와 덤프 `~/backups/suvisdev_20261108_final.dump`는 보존. 다시 쓰려면 WSL을 켜고
+    `docker start suvisdev-db-1`. 집컴에서 SSH로 `journalctl`·`systemctl --user status`는 멈춘다(저널 3.4GB) — 원격 timeout 필수.
+  - Tailscale: 노트북 100.118.78.100, 집컴 100.91.129.31.
+  - 구 개인 EC2는 중지 보관(Arda는 별도 `arda-api`).
 
 ## 하네스 설정 (`.claude/`)
 
