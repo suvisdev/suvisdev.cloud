@@ -17,6 +17,7 @@
 
 날짜 앞 표기: `[M]` = WORK_LOG_MOVA, `[P]` = WORK_LOG_MAINPAGE, `[G]` = WORK_LOG_GILDLE.
 
+- `[P]` 11-08 **하네스 점검**: 드리프트 감지 훅, 도메인 순수성·유스케이스→outbound 계약, 로컬 의도 판단 제거. ADR-0009, WORK_LOG_MAINPAGE 11-08 (3).
 - `[P]` 11-08 **mova 조건 질의 오분류 수정**: 평가 어휘·확정 제목 없고 장르·배경 근거 있는 evaluate → 추천. WORK_LOG_MOVA 11-08.
 - `[P]` 11-08 **노트북 단독 서빙 전환**: 집컴 DB 크래시 3회 → 앱·DB·Redis·lora·임베딩 전부 노트북, 집컴 완전히 내림(볼륨·덤프 보존). 끄기·켜기는 노트북 기준, failover·sync-standby 삭제. ADR-0008, WORK_LOG_MAINPAGE 11-08 (2).
 - `[P]` 11-08 **Codex 관문 충돌 머지 결함 수정**: 머지 중이면 `MERGE_HEAD`까지 넣어 기준점을 구함. WORK_LOG_MAINPAGE 11-08.
@@ -123,6 +124,7 @@
 ## 다음 / 남은 작업 (백로그)
 
 - **(11-08) PR #238**: `sync-standby.sh`가 없어져 그 부분은 필요 없다. Dockerfile digest 고정만 남겨 다시 올리거나 닫는다.
+- **(11-08) 메인 폴더 브랜치 정리**: `feat/deolmi-app`(PR #207)에 머물러 하네스가 main보다 뒤처짐. #207 머지 또는 메인 폴더 main 전환은 사용자 결정. 보류 과제: `fastapi`·`sqlalchemy` 금지 계약, 새 환경 변수 누락 검사, app→outbound 예외 9쌍 축소.
 - **(11-08) 실제 서버 끄기·켜기 1회 시험**: 새 순서(DB 정상 종료 포함)를 실제로 돌려 보지 않았다(사용자 허락 필요).
 - **(11-06) 터널 2분 8초·503 2건 측정**: 추정만 있음.
 

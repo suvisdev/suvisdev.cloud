@@ -28,6 +28,31 @@
 
 ---
 
+## 2026-11-08 (3) — 하네스 점검: 드리프트 감지·아키텍처 계약 확대·로컬 의도 판단 제거
+
+### 작업 내용
+- 사용자 요청으로 하네스 전체를 점검하고 Codex(`codex exec -s read-only`)와 방향을 상의했다. 결정은 ADR-0009.
+- 헥사고날·클린·스타 토폴로지를 하네스로 정의해 달라는 요청에 따라, SSOT(`suvisdev/CLAUDE.md` §C·§O·§P)는 두고 "검사로 강제되는 것"을 넓혔다.
+
+### 수정/구현
+- `.claude/scripts/harness_drift.py`(+시험 4): SessionStart에서 하네스 파일을 origin/main과 비교해 다르면 알린다. 옛 `git pull --ff-only` 대체.
+- `suvisdev/.importlinter`: `domain-purity`(`*.domain`→`*.app`·`*.adapter` 금지, 모든 앱), `app-no-outbound`(`*.app`→`*.adapter.outbound` 직접 import 금지, 기존 9쌍은 줄이기만 하는 예외), auth·shared 계약에 news 추가. `.claude/rules/backend-architecture.md` 신설.
+- 스킬 라우터에서 로컬 7.8B 의도 판단과 `skill-intent.json`·관련 시험 삭제. `protect-files.sh`와 "커밋" 단어 훅 삭제.
+- 루트 `CLAUDE.md` 하네스 절: 규칙 목록(누락 2개+신규 1개), 홈 메모리 경로, 훅 설명 정정.
+
+### 오류·막힌 점
+- 메인 폴더가 `feat/deolmi-app`(57커밋 뒤)에 있어 이 세션도 옛 `CLAUDE.md`를 읽었다(자동 마무리 절 없음). origin/main을 머지하면 5개 파일이 충돌하고(열린 PR #207), 브랜치 전환은 10-20 결정과 충돌해 감지·안내로 정했다. 근본 해결(브랜치 정리)은 사용자 결정으로 남긴다.
+- `.importlinter` 수정 중 news를 shared 계약의 source에 잘못 넣어 core 경유 간접 의존이 걸렸다 → forbidden에만 넣도록 바로잡았다.
+- 오늘 스킬 라우터 오탐 3건(머지→충돌 해결, 하네스 점검→보안 리뷰, 학습 방향→tdd·blast-radius)은 모두 모델 판단에서 나왔다.
+
+### 데이터
+- import-linter: 6계약 KEPT. 탐침(viewer.domain→outbound, dispatch.app→outbound)은 BROKEN, app→inbound는 통과.
+
+### 산출물
+- PR(이 기록과 같은 PR), ADR-0009
+
+---
+
 ## 2026-11-08 (2) — 집컴 DB 크래시 3회 → 노트북 단독 서빙 전환
 
 ### 작업 내용
