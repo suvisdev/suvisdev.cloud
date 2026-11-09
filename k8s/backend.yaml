@@ -15,6 +15,8 @@ metadata:
   namespace: suvisdev
 spec:
   replicas: 1
+  # 기본 600초로는 집컴(WSL 디스크가 HDD)에서 새 파드가 Ready 되기 전에 기한이 지났다(11-05, 10분 48초).
+  progressDeadlineSeconds: 1200
   selector:
     matchLabels:
       app: backend

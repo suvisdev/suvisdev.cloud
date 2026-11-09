@@ -66,6 +66,11 @@ class RouteWeightCalculator:
 
         return base
 
+    def winter_factor(self, edge: RouteEdge, hazards: list[HazardZone]) -> float:
+        """겨울 결빙 배율만(위험구역 20m 안 ×6, 그 밖 ×1) — 산책 선호 가중치에 곱해 그늘·푸른·편한
+        길 후보도 결빙을 피하게 한다(2026-10-20). 배율 ≥ 1이라 선호의 하한을 바꾸지 않는다."""
+        return 1.0 + _WINTER_PENALTY_RATE if self._near_hazard(edge, hazards) else 1.0
+
     @staticmethod
     def min_multiplier(mode: SeasonMode) -> float:
         """모드별 `가중치 / 거리`의 하한 — A* 휴리스틱(직선거리 × 배율)이 이 값 이하여야

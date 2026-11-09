@@ -3,8 +3,9 @@
 일회성 수동 실행 전용. `embedding IS NULL`인 영화 전부(TMDB·KOFIC 무관 — TMDB
 재조회가 필요 없어 origin_country류와 달리 `slug LIKE 'tmdb-%'` 제한이 없다)가
 대상. `GeminiEmbeddingAdapter`(ontology Hub 소속, mova는 Spoke→Hub 임포트라
-`suvisdev/CLAUDE.md` O.4 기준 허용)를 그대로 재사용한다 — hub_knowledge와 같은
-임베딩 백엔드/차원(768)을 쓰지만 **완전히 다른 컬럼(movies.embedding)**이라
+`suvisdev/CLAUDE.md` O.4 기준 허용)를 그대로 재사용한다 — 어댑터 기본 차원은
+hub_knowledge 기준(1024)이라 `MOVA_EMBEDDING_DIM`(768)을 명시해서 만든다.
+**완전히 다른 컬럼(movies.embedding)**이라
 hub_knowledge 재임베딩 이슈(PROGRESS.md 1순위, 프로덕션 데이터 삭제 보류 중)와
 무관하다. 이 컬럼은 지금까지 한 번도 채워진 적이 없어(전량 NULL) 초기 백필일
 뿐 재임베딩이 아니다.
@@ -90,6 +91,7 @@ async def _backfill_one(movies_repo, embedder, movie_id: int, slug: str, *, dry_
 async def _run(args: argparse.Namespace) -> None:
     from core.matrix.grid_oracle_database_manager import get_mova_session_factory
     from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+    from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM
     from mova.adapter.outbound.pg.movies_pg_repository import MoviesPgRepository
     from ontology.adapter.outbound.llm.gemini_embedding_adapter import GeminiEmbeddingAdapter
 
@@ -108,9 +110,9 @@ async def _run(args: argparse.Namespace) -> None:
         backfill_client = genai.Client(api_key=backfill_key)
     factory = get_mova_session_factory()
     embedder = (
-        GeminiEmbeddingAdapter(client=backfill_client)
+        GeminiEmbeddingAdapter(client=backfill_client, dimensions=MOVA_EMBEDDING_DIM)
         if backfill_client
-        else GeminiEmbeddingAdapter()
+        else GeminiEmbeddingAdapter(dimensions=MOVA_EMBEDDING_DIM)
     )
 
     stats = {"succeeded": 0, "failed": 0, "skipped": 0}

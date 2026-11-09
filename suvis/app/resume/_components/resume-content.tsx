@@ -24,7 +24,7 @@ function glue(text: string) {
 const ROLE = "AI Engineer"
 const HEADLINE = "LLM 에이전트와 AI 서비스를 직접 개발하고 운영하는 AI 엔지니어"
 
-// 문구와 수치는 PDF 이력서 v23(2026-10-20, AI 엔지니어판)과 같게 둔다. 한쪽만 고치면 서로 어긋난다.
+// 문구와 수치는 PDF 이력서 v23(2026-10-20, AI 엔지니어판)을 따른다. 서버 구성만 11-08 노트북 단독 전환(ADR-0008)을 반영해 PDF보다 앞선다.
 const STRENGTHS = [
   {
     label: "LLM 에이전트",
@@ -36,7 +36,7 @@ const STRENGTHS = [
   },
   {
     label: "서빙과 운영",
-    text: "개인 서비스를 k3s 서버 2대로 이중화해 노트북이 꺼지면 약 31초 뒤 자택 서버가 API를 이어받게 하고, GPU 추론을 두 서버에 나눠 AWS 서버 없이 운영",
+    text: "개인 서비스를 k3s 서버 2대로 이중화해 노트북이 꺼지면 약 31초 뒤 자택 서버가 API를 이어받게 운영(2026.10~11)한 뒤, 자택 서버 DB 장애를 겪고 노트북 1대로 단순화해 AWS 서버 없이 운영",
   },
   {
     label: "팀 프로젝트 리딩",
@@ -63,7 +63,7 @@ const TECH_STACK = [
   { category: "RAG와 체인", items: ["pgvector", "bge-m3"], usage: "시맨틱 검색, 3단 프롬프트 체인(요약, 평가, 추천)" },
   { category: "서빙", items: ["Ollama", "llama.cpp", "HAProxy"], usage: "GGUF 로컬 서빙, GPU 추론 중계, 비전 모델 MCP 서버" },
   { category: "백엔드", items: ["Python", "FastAPI", "PostgreSQL"], usage: "채용 시스템 API, 1인 모듈러 모놀리식 백엔드" },
-  { category: "인프라", items: ["Docker", "k3s", "AWS", "GitHub Actions"], usage: "자동 배포, 서버 2대 자동 전환, PC 3대 온프레미스" },
+  { category: "인프라", items: ["Docker", "k3s", "AWS", "GitHub Actions"], usage: "자동 배포, 서버 2대 자동 전환 운영 경험, PC 3대 온프레미스" },
   { category: "프론트와 앱", items: ["React", "Next.js", "Flutter"], usage: "웹 화면, Android 앱(Google Play 내부 테스트)" },
 ]
 
@@ -106,17 +106,17 @@ const PROJECTS = [
     results: [
       { label: "도구 선택 정확도 83% → 94%", text: "EXAONE 3.5 2.4B 파인튜닝 전후, 평가 66건(프롬프트만 쓴 7.8B는 89%)" },
       { label: "영화 검색 적중률 39% → 86%", text: "임베딩 모델을 바꿔, 질문 60개에서 찾는 영화가 검색 결과 상위 8개 안에 드는 비율(Recall@8)을 높임" },
-      { label: "AWS EC2 사용액 월 약 70달러 절감", text: "백엔드를 노트북과 자택 서버로 옮겨 GPU 추론까지 직접 운영" },
+      { label: "AWS EC2 사용액 월 약 70달러 절감", text: "백엔드를 자체 서버로 옮겨 GPU 추론까지 직접 운영" },
       {
-        label: "서버 2대 이중화",
-        text: "노트북이 꺼져도 약 31초 뒤 자택 서버가 API를 이어받고 판단 모델은 CPU로, 채팅은 Gemini로 넘김(노트북을 끄는 시험으로 확인)",
+        label: "서버 2대 이중화와 1대 단순화",
+        text: "2026.10~11에 노트북이 꺼져도 약 31초 뒤 자택 서버가 API를 이어받게 운영(노트북을 끄는 시험으로 확인). 자택 서버 DB가 세 번 크래시한 뒤 노트북 1대로 단순화",
       },
     ],
     points: [
       "EXAONE 3.5 2.4B를 LoRA로 파인튜닝해 영화 채팅에서 다음에 쓸 도구 하나만 고르게 하고, 출연진, 상영 시간표 같은 사실은 코드가 조회해 답하게 나눔",
       "임베딩 모델 3종을 영화 205편, 질문 60개로 직접 비교해 가장 잘 찾는 bge-m3로 바꾸고 검색 데이터를 다시 만듦(2,965건)",
       "서울 보행로 약 23만 구간에 건물 약 80만 동의 그림자를 달마다, 시간대마다 미리 계산해 그늘진 산책 길을 찾아 줌",
-      "노트북(GPU)과 자택 서버 두 대를 Cloudflare Tunnel로 묶어 노트북이 꺼지면 자택 서버가 넘겨받게 하고, Ollama 추론은 노트북 GPU로 먼저 보냄",
+      "노트북(GPU)과 자택 서버 두 대를 Cloudflare Tunnel로 묶어 자동 전환을 운영했고, 지금은 앱·DB·추론을 노트북 한 대에 모아 Cloudflare Tunnel로 서비스함",
     ],
     tech: ["FastAPI", "PostgreSQL(pgvector)", "Redis", "EXAONE 3.5(LoRA)", "Gemini", "Ollama", "llama.cpp", "Next.js", "Flutter", "k3s"],
     links: [
@@ -247,7 +247,7 @@ export function ResumeContent() {
             <StatCard label="원티드 AI Championship 2026 공개 투표 최종 1위" value="인기상" featured />
             <StatCard label="본선 진출(참가 1,300여 팀 중)" value="TOP 20" />
             <StatCard label="도구 선택 정확도(평가 66건)" value="83% → 94%" />
-            <StatCard label="노트북이 꺼질 때 자동 전환" value="약 31초" />
+            <StatCard label="서버 2대 운영 때 자동 전환" value="약 31초" />
           </div>
         </section>
 

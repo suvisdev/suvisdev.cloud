@@ -6,10 +6,8 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from mova.adapter.outbound.orm.base_orm import MovaModel
+from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM, MovaModel
 from viewer.adapter.outbound.orm.user_orm import User
-
-_EMBEDDING_DIM = 768
 
 
 class MovaUserTasteVector(MovaModel):
@@ -32,7 +30,7 @@ class MovaUserTasteVector(MovaModel):
         comment="Viewer users.id (동일 DB FK)",
     )
     vector: Mapped[list[float] | None] = mapped_column(
-        Vector(_EMBEDDING_DIM),
+        Vector(MOVA_EMBEDDING_DIM),
         nullable=True,
         comment="본인 리뷰 임베딩의 별점 가중 평균. 리뷰 0건이면 NULL",
     )

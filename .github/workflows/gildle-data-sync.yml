@@ -41,6 +41,7 @@ jobs:
           GILDLE_DATA_DIR="$SUVISDEV_DATA_ROOT/suvisdev/apps/gildle/data" \
             ./suvisdev/scripts/gildle_data_release.sh pull "$TAG"
 
+      # 서빙이 응답하는지만 본다 — 데이터 내용은 pull의 체크섬이 확인한다.
       - name: 경로 응답 확인
         run: |
           curl -fsS -o /dev/null -w 'routes/options %{http_code}\n' --retry 5 --retry-delay 6 --retry-all-errors \

@@ -15,7 +15,9 @@ export const REFRESH_COOKIE = "sv_refresh"
 const REFRESH_MAX_AGE = 60 * 60 * 24 * 14 // 14일 — 백엔드 RefreshTokenStore TTL과 일치
 
 export type TokenPair = { access_token: string; refresh_token: string; expires_in: number }
-export type UserInfo = { id: number; username: string }
+// role은 표시용(어드민 메뉴·AdminAuthGate) — 실제 접근 통제는 백엔드 require_admin이 JWT로 한다.
+export type UserInfo = { id: number; username: string; role: "admin" | "user" }
+type CookieJar = Pick<NextResponse["cookies"], "set">
 
 function cookieOptions(maxAge: number) {
   return {
@@ -27,30 +29,46 @@ function cookieOptions(maxAge: number) {
   }
 }
 
+export function writeTokens(jar: CookieJar, tokens: TokenPair): void {
+  jar.set(ACCESS_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
+  jar.set(REFRESH_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_MAX_AGE))
+}
+
+export function clearTokens(jar: CookieJar): void {
+  // maxAge 0 = 즉시 만료. path를 맞춰 지워야 브라우저가 실제로 제거한다.
+  jar.set(ACCESS_COOKIE, "", cookieOptions(0))
+  jar.set(REFRESH_COOKIE, "", cookieOptions(0))
+}
+
 export function setAuthCookies(res: NextResponse, tokens: TokenPair): void {
-  res.cookies.set(ACCESS_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
-  res.cookies.set(REFRESH_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_MAX_AGE))
+  writeTokens(res.cookies, tokens)
 }
 
 export function clearAuthCookies(res: NextResponse): void {
-  // maxAge 0 = 즉시 만료. path를 맞춰 지워야 브라우저가 실제로 제거한다.
-  res.cookies.set(ACCESS_COOKIE, "", cookieOptions(0))
-  res.cookies.set(REFRESH_COOKIE, "", cookieOptions(0))
+  clearTokens(res.cookies)
 }
 
 const ACCESS_MAX_AGE = 60 * 60 * 24 * 7 // 7일 — access 토큰 TTL과 일치
 
-// OAuth 교환은 access 토큰만 준다(refresh 없음) — access 쿠키만 심는다.
-export function setAccessCookie(res: NextResponse, token: string): void {
+// OAuth 교환은 access 토큰만 준다(refresh 없음). 이전 로그인(비밀번호)의 refresh 쿠키가 남아 있으면
+// 새 access가 만료될 때 그 refresh로 갱신돼 **이전 계정으로** 요청이 나간다 — 게이트웨이에서 폐기하고 쿠키도 지운다.
+export async function setAccessCookie(res: NextResponse, token: string): Promise<void> {
+  const oldRefresh = (await cookies()).get(REFRESH_COOKIE)?.value
+  if (oldRefresh) {
+    // 폐기 실패(게이트웨이 장애)여도 쿠키는 지운다 — 남은 refresh는 TTL로 만료된다.
+    await gatewayPost("/auth/logout", { refresh_token: oldRefresh }).catch(() => undefined)
+  }
   res.cookies.set(ACCESS_COOKIE, token, cookieOptions(ACCESS_MAX_AGE))
+  res.cookies.set(REFRESH_COOKIE, "", cookieOptions(0))
 }
 
 // auth 게이트웨이 POST 대행(로그인·회원가입·리프레시·로그아웃 공용).
-export function gatewayPost(path: string, body: unknown): Promise<Response> {
+export function gatewayPost(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   return fetch(`${AUTH_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   })
 }
 
@@ -60,8 +78,12 @@ export async function fetchUserInfo(accessToken: string): Promise<UserInfo> {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!res.ok) throw new Error("사용자 정보를 불러오지 못했습니다.")
-  const who = (await res.json()) as { sub: string; username?: string }
-  return { id: Number(who.sub), username: who.username || `user-${who.sub}` }
+  const who = (await res.json()) as { sub: string; username?: string; roles?: string[] }
+  return {
+    id: Number(who.sub),
+    username: who.username || `user-${who.sub}`,
+    role: who.roles?.includes("admin") ? "admin" : "user",
+  }
 }
 
 // 토큰쌍 응답을 파싱해 유효하면 반환, 아니면 null(에러 본문은 raw로 넘겨 호출부가 처리).
@@ -78,11 +100,97 @@ export function parseTokenPair(data: unknown): TokenPair | null {
   return null
 }
 
+export type RefreshResult =
+  | { kind: "ok"; tokens: TokenPair }
+  | { kind: "invalid" } // 게이트웨이가 401/403 — 만료·재사용 탐지. 쿠키를 지운다.
+  | { kind: "unavailable" } // 5xx·네트워크 오류 — 세션은 살아 있을 수 있으니 쿠키를 두고 재시도하게 한다.
+  // 409 refresh_superseded — 이 refresh는 다른 요청이 방금 회전했다(백엔드 10초 유예). 세션은 살아 있고
+  // 브라우저엔 곧 새 쿠키가 심긴다. 쿠키를 지우지 않고 409로 돌려 클라가 다시 시도하게 한다.
+  | { kind: "superseded" }
+
+export const AUTH_UNAVAILABLE = "인증 서버에 잠시 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."
+
+// 쿠키를 그대로 두고 재시도하게 하는 갱신 결과(장애 503·회전 경합 409)를 응답으로 바꾼다. 그 외엔 null.
+export function retryLaterResponse(r: RefreshResult | null): NextResponse | null {
+  if (r?.kind === "unavailable") return NextResponse.json({ detail: AUTH_UNAVAILABLE }, { status: 503 })
+  if (r?.kind === "superseded") {
+    return NextResponse.json({ detail: "로그인 정보가 방금 갱신됐습니다. 다시 시도해 주세요." }, { status: 409 })
+  }
+  return null
+}
+
+async function rotateRefresh(refresh: string): Promise<RefreshResult> {
+  try {
+    // 응답 없는 인증 서버에 플랫폼 타임아웃까지 매달리지 않게 5초에서 끊고 장애(503)로 처리한다.
+    const r = await gatewayPost("/auth/refresh", { refresh_token: refresh }, AbortSignal.timeout(5_000))
+    if (r.status === 409) return { kind: "superseded" }
+    if (r.status === 401 || r.status === 403) return { kind: "invalid" }
+    const tokens = r.ok ? parseTokenPair(await r.json().catch(() => ({}))) : null
+    return tokens ? { kind: "ok", tokens } : { kind: "unavailable" }
+  } catch {
+    return { kind: "unavailable" }
+  }
+}
+
+// 같은 refresh로 **동시에 진행 중인** 갱신만 하나로 합친다(인스턴스 안 호출 수 절약). 끝난 결과는 남기지
+// 않는다 — 남기면 B→C 회전 뒤 늦게 온 옛 A가 백엔드를 거치지 않고 이미 쓴 B를 받아 현재 C 쿠키를 덮어쓰고,
+// B 유예가 지나 계열이 폐기된다(2026-10-20 Codex 리뷰 재현). 늦은 중복·다중 인스턴스 경쟁은 백엔드 auth의
+// refresh 유예가 판정한다: 10초 안 옛 refresh는 후속이 미사용이면 같은 결과, 이미 회전됐으면 409 superseded.
+const refreshing = new Map<string, Promise<RefreshResult>>()
+
+export function refreshOnce(refresh: string): Promise<RefreshResult> {
+  const pending = refreshing.get(refresh)
+  if (pending) return pending
+  const p = rotateRefresh(refresh)
+  refreshing.set(refresh, p)
+  void p.finally(() => refreshing.delete(refresh))
+  return p
+}
+
+// refresh 쿠키로 회전하고 결과를 이 요청의 응답 쿠키에 반영한다(성공=새 쿠키, 무효=삭제, 장애=그대로).
+// refresh 쿠키가 없으면 null. cookies().set은 라우트 핸들러에서만 되므로 라우트 핸들러에서만 부른다.
+export async function refreshFromCookie(): Promise<RefreshResult | null> {
+  const store = await cookies()
+  const refresh = store.get(REFRESH_COOKIE)?.value
+  if (!refresh) return null
+  const result = await refreshOnce(refresh)
+  if (result.kind === "ok") writeTokens(store, result.tokens)
+  else if (result.kind === "invalid") clearTokens(store)
+  return result
+}
+
+// JWT exp만 본다(서명 검증은 백엔드 몫). 못 읽으면 만료 아님으로 두고 백엔드 판정(401)에 맡긴다.
+export function isExpired(jwt: string): boolean {
+  try {
+    const payload = JSON.parse(
+      Buffer.from(jwt.split(".")[1] ?? "", "base64url").toString(),
+    ) as { exp?: unknown }
+    return typeof payload.exp === "number" && payload.exp * 1000 < Date.now() + 30_000
+  } catch {
+    return false
+  }
+}
+
 // 프록시 pass-through 교체용 — 구 `request.headers.get("authorization")`(문자열 or null)과 같은 모양을
 // 쿠키에서 만든다. 기존 `auth ? { Authorization: auth } : {}` 코드를 그대로 두고 이 값만 바꿔 끼운다.
+// access 만료·부재 시 갱신은 라우트보다 앞의 `proxy.ts`가 인증 라우트(matcher 목록)에 대해 끝내 둔다 —
+// 여기 도착한 access는 이미 새것이고, 인증 서버 장애면 proxy가 503으로 끊어 라우트(익명 강등)까지 오지 않는다.
 export async function cookieBearer(): Promise<string | undefined> {
   const access = (await cookies()).get(ACCESS_COOKIE)?.value
   return access ? `Bearer ${access}` : undefined
+}
+
+// proxy.ts를 거치지 않는 multipart 업로드 라우트용(Vercel 미들웨어 본문 한도 4MB를 피하려고 matcher에서 뺐다).
+// 여기서 직접 갱신하고, 인증 서버 장애·회전 경합이면 그대로 돌려줄 503/409 응답을 준다.
+export async function cookieBearerOr503(): Promise<string | undefined | NextResponse> {
+  const access = (await cookies()).get(ACCESS_COOKIE)?.value
+  if (access && !isExpired(access)) return `Bearer ${access}`
+  const r = await refreshFromCookie()
+  const retry = retryLaterResponse(r)
+  if (retry) return retry
+  if (r?.kind === "ok") return `Bearer ${r.tokens.access_token}`
+  if (r?.kind === "invalid" || !access) return undefined
+  return `Bearer ${access}`
 }
 
 const BODYLESS = new Set(["GET", "HEAD"])
@@ -104,34 +212,38 @@ export async function forwardToBackend(
     if (v) baseHeaders[h] = v
   }
 
-  const store = await cookies()
-  const access = store.get(ACCESS_COOKIE)?.value
-  const refresh = store.get(REFRESH_COOKIE)?.value
-
-  const call = (token: string | undefined): Promise<Response> =>
+  const call = (bearer: string | undefined): Promise<Response> =>
     fetch(backendUrl, {
       method,
-      headers: token ? { ...baseHeaders, authorization: `Bearer ${token}` } : baseHeaders,
+      headers: bearer ? { ...baseHeaders, authorization: bearer } : baseHeaders,
       body,
       redirect: "manual",
     })
 
-  let backendRes = await call(access)
-  let rotated: TokenPair | null = null
-  if (backendRes.status === 401 && refresh) {
-    const r = await gatewayPost("/auth/refresh", { refresh_token: refresh })
-    rotated = r.ok ? parseTokenPair(await r.json().catch(() => ({}))) : null
-    if (rotated) backendRes = await call(rotated.access_token)
+  // catch-all은 공개 API도 지나가므로 proxy.ts에 넣지 않았다. 대신 여기서 만료 전 갱신을 하되, 인증 서버
+  // 장애면 기존 쿠키 그대로 진행한다 — 공개 API는 영향이 없고, 인증이 필요한 API만 401→아래에서 503이 된다.
+  // 쿠키 갱신·삭제는 refreshFromCookie가 cookies()에 기록한다 — 아래에서 만드는 응답에 함께 실린다.
+  let bearer = await cookieBearer()
+  const access = bearer?.slice("Bearer ".length)
+  if (!access || isExpired(access)) {
+    const r = await refreshFromCookie()
+    if (r?.kind === "ok") bearer = `Bearer ${r.tokens.access_token}`
+    else if (r?.kind === "invalid") bearer = undefined
+  }
+  let backendRes = await call(bearer)
+  if (backendRes.status === 401) {
+    const r = await refreshFromCookie()
+    if (r?.kind === "ok") backendRes = await call(`Bearer ${r.tokens.access_token}`)
+    // 장애·회전 경합을 401로 돌려주면 클라가 로그아웃 처리한다 — 재시도 가능한 503/409로 구분한다.
+    const retry = retryLaterResponse(r)
+    if (retry) return retry
   }
 
   // 본문이 없어야 하는 상태(삭제 성공 204 등)에 빈 버퍼라도 실으면 Response 생성이 던진다.
   const bodyless = [204, 205, 304].includes(backendRes.status)
   const buf = bodyless ? null : await backendRes.arrayBuffer()
-  const response = new NextResponse(buf, {
+  return new NextResponse(buf, {
     status: backendRes.status,
     headers: { "content-type": backendRes.headers.get("content-type") ?? "application/json" },
   })
-  if (rotated) setAuthCookies(response, rotated)
-  else if (backendRes.status === 401 && refresh) clearAuthCookies(response)
-  return response
 }

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     }
     const { token, ...user } = data as { token?: string } & Record<string, unknown>
     const response = NextResponse.json(user, { status: res.status })
-    if (typeof token === "string") setAccessCookie(response, token)
+    if (typeof token === "string") await setAccessCookie(response, token)
     return response
   } catch {
     return NextResponse.json({ detail: BACKEND_DOWN }, { status: 502 })

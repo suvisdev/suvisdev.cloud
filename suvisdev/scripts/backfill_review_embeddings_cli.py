@@ -51,6 +51,7 @@ async def _run(args: argparse.Namespace) -> None:
 
     get_keymaker()
 
+    from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM
     from mova.app.use_cases.review_embedding_backfill_interactor import (
         ReviewEmbeddingBackfillInteractor,
     )
@@ -64,9 +65,9 @@ async def _run(args: argparse.Namespace) -> None:
         backfill_client = genai.Client(api_key=backfill_key)
 
     embedder = (
-        GeminiEmbeddingAdapter(client=backfill_client)
+        GeminiEmbeddingAdapter(client=backfill_client, dimensions=MOVA_EMBEDDING_DIM)
         if backfill_client
-        else GeminiEmbeddingAdapter()
+        else GeminiEmbeddingAdapter(dimensions=MOVA_EMBEDDING_DIM)
     )
     use_case = ReviewEmbeddingBackfillInteractor(
         session_factory=get_mova_session_factory(),

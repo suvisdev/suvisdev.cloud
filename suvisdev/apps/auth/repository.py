@@ -21,6 +21,7 @@ from typing import Any
 import bcrypt
 from sqlalchemy import ForeignKey, String, delete, select
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from auth.rbac import Role
@@ -101,6 +102,34 @@ class EmailAlreadyExists(Exception):
     """signup 시 동일 email의 users row가 이미 존재함(409)."""
 
 
+class UsernameAlreadyExists(Exception):
+    """signup 시 같은 username이 users 또는 admins에 이미 있음(409)."""
+
+
+def admin_subject_id(admin_id: int) -> int:
+    """admins 행으로 로그인한 주체의 JWT sub — **음수**로 발급한다(2026-10-20 리뷰).
+
+    admins.id와 users.id는 서로 다른 시퀀스라 값이 겹친다. 구 버전은 admins.id를 그대로
+    sub로 내보냈고, require_user 등은 sub를 users.id로 읽으므로 admins.id=1 관리자가
+    별개의 users.id=1 계정으로 프로필 조회·탈퇴까지 할 수 있었다. users.id는 양수
+    시퀀스라 음수는 어떤 users 행과도 겹치지 않고, int(sub)를 쓰는 기존 가드
+    (require_admin·require_user)도 그대로 통과한다 — 관리자 화면은 계속 쓰고, 사용자
+    전용 API에서는 "없는 사용자"로 취급된다(조회는 빈 결과, users FK 쓰기는 실패).
+    admins 로그인 경로 자체는 유지한다(VIEWER_ADMIN_PASSWORD 시드 관리자가 쓴다)."""
+    return -admin_id
+
+
+async def _username_taken(session: Any, username: str) -> bool:
+    """users·admins 어느 쪽이든 같은 username이 있으면 True(두 테이블은 로그인 아이디를 공유)."""
+    for model in (UserMirror, AdminMirror):
+        found = (
+            await session.execute(select(model.id).where(model.username == username).limit(1))
+        ).scalar_one_or_none()
+        if found is not None:
+            return True
+    return False
+
+
 def _hash_password(raw_password: str) -> str:
     """auth 자체 신규 계정(signup) 전용 — bcrypt."""
     return bcrypt.hashpw(raw_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -139,6 +168,9 @@ async def _rehash_if_legacy(session: Any, account: Any, raw_password: str) -> No
 
 class UserRepository:
     async def find_by_credentials(self, username: str, password: str) -> User | None:
+        """users → admins 순으로 본다. users에 같은 username이 있어도 비밀번호가 틀리면
+        admins까지 확인한다 — 구 버전은 users 행이 있으면 바로 None을 돌려줘서, 관리자와
+        같은 아이디로 일반 가입만 해도 관리자 로그인이 막혔다(2026-10-20 리뷰)."""
         factory = get_viewer_session_factory()
         async with factory() as session:
             row = (
@@ -153,7 +185,6 @@ class UserRepository:
                 if _verify_password(password, user.password_hash):
                     await _rehash_if_legacy(session, user, password)
                     return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
-                return None
 
             admin_row = (
                 await session.execute(
@@ -166,8 +197,42 @@ class UserRepository:
                 admin, group_code = admin_row
                 if _verify_password(password, admin.password_hash):
                     await _rehash_if_legacy(session, admin, password)
-                    return User(user_id=admin.id, username=admin.username, roles=[Role(group_code)])
+                    return User(
+                        user_id=admin_subject_id(admin.id),
+                        username=admin.username,
+                        roles=[Role(group_code)],
+                    )
             return None
+
+    async def find_by_subject(self, sub: str) -> User | None:
+        """refresh 시 계정 재확인 — JWT sub로 현재 계정·현재 역할을 다시 읽는다.
+        음수 sub는 admins 행이다(admin_subject_id 참고). 없으면 None(탈퇴·삭제)."""
+        subject_id = int(sub)
+        factory = get_viewer_session_factory()
+        async with factory() as session:
+            if subject_id < 0:
+                admin_row = (
+                    await session.execute(
+                        select(AdminMirror, GroupMirror.code)
+                        .join(GroupMirror, AdminMirror.group_id == GroupMirror.id)
+                        .where(AdminMirror.id == -subject_id)
+                    )
+                ).one_or_none()
+                if admin_row is None:
+                    return None
+                admin, group_code = admin_row
+                return User(user_id=subject_id, username=admin.username, roles=[Role(group_code)])
+            row = (
+                await session.execute(
+                    select(UserMirror, GroupMirror.code)
+                    .join(GroupMirror, UserMirror.group_id == GroupMirror.id)
+                    .where(UserMirror.id == subject_id)
+                )
+            ).one_or_none()
+            if row is None:
+                return None
+            user, group_code = row
+            return User(user_id=user.id, username=user.username, roles=[Role(group_code)])
 
     async def find_by_oauth_identity(self, provider: str, provider_user_id: str) -> User | None:
         factory = get_viewer_session_factory()
@@ -205,6 +270,8 @@ class UserRepository:
             ).scalar_one_or_none()
             if existing is not None:
                 raise EmailAlreadyExists(f"이미 가입된 이메일입니다: {email}")
+            if await _username_taken(session, username):
+                raise UsernameAlreadyExists("이미 사용 중인 아이디입니다.")
 
             group_id = (
                 await session.execute(select(GroupMirror.id).where(GroupMirror.code == "user"))
@@ -270,18 +337,35 @@ class UserRepository:
             # 테이블 NOT NULL 제약을 만족시키기 위한 폴백. password_hash는 OAuth 전용
             # 계정이라 실제로 쓰이지 않으므로 무작위 값을 해시해 채운다.
             resolved_nickname = nickname or f"kakao_{provider_user_id}"
-            new_user = UserMirror(
-                group_id=group_id,
-                username=resolved_nickname,
-                password_hash=_hash_password(secrets.token_urlsafe(32)),
-                email=email or f"kakao_{provider_user_id}@kakao.local",
-                nickname=resolved_nickname,
-                gender=_DEFAULT_GENDER,
-                preferred_genres=[],
-                bio="",
-            )
-            session.add(new_user)
-            await session.flush()
+            # username은 UNIQUE라 닉네임이 겹치면 INSERT가 깨졌다(2026-10-20 리뷰) —
+            # 비어 있으면 닉네임 그대로, 겹치면 짧은 난수를 붙인다. 표시용은 nickname 컬럼.
+            username = resolved_nickname[:50]
+            while await _username_taken(session, username):
+                username = f"{resolved_nickname[:40]}_{secrets.token_hex(3)}"
+            password_hash = _hash_password(secrets.token_urlsafe(32))
+            # 확인과 INSERT 사이에 같은 닉네임 가입이 끼어들면(동시 가입) UNIQUE 위반이 난다 —
+            # 롤백하고 접미사 username으로 한 번만 다시 시도한다(2026-10-20 2차 리뷰).
+            for attempt in range(2):
+                if attempt:
+                    username = f"{resolved_nickname[:40]}_{secrets.token_hex(3)}"
+                new_user = UserMirror(
+                    group_id=group_id,
+                    username=username,
+                    password_hash=password_hash,
+                    email=email or f"kakao_{provider_user_id}@kakao.local",
+                    nickname=resolved_nickname,
+                    gender=_DEFAULT_GENDER,
+                    preferred_genres=[],
+                    bio="",
+                )
+                session.add(new_user)
+                try:
+                    await session.flush()
+                    break
+                except IntegrityError:
+                    await session.rollback()
+                    if attempt:
+                        raise
 
             session.add(
                 UserIdentityMirror(

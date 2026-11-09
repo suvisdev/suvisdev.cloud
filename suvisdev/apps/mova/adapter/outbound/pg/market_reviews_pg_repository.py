@@ -178,10 +178,13 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
             row.rating = max(0.5, min(5.0, float(rating)))
         if body is not None:
             row.body = body
-            # body가 바뀌면 이전 스포일러 스팬·감정분석은 무효 — 백그라운드 재감지 전까지 초기화.
+            # body가 바뀌면 이전 스포일러 스팬·감정분석·임베딩은 무효 — 백그라운드 재감지 전까지
+            # 초기화. 임베딩을 비워야 BG 재임베딩이 실패해도 옛 벡터가 취향에 쓰이지 않고
+            # 크론 백필(`embedding IS NULL`)이 다시 잡는다.
             row.spoiler_spans = []
             row.sentiment_label = None
             row.sentiment_score = None
+            row.embedding = None
         await self._session.commit()
         await self._update_movie_rating(row.movie_id)
         return ReviewDto(

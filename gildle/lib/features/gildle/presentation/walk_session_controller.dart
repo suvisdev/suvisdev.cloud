@@ -122,7 +122,13 @@ class WalkSessionController extends StateNotifier<WalkSessionState> {
   final _spoken = <String>{}; // 이미 말한 음성 안내(nextCue의 key)
 
   Future<void> start({PlannedRoute? planned}) async {
-    if (state.status == WalkStatus.tracking) return;
+    // 저장하지 못한 산책(stopped·saving)이 있으면 새로 시작하지 않는다 — 덮어쓰면 그 기록이 사라진다.
+    // 산책 화면이 그 기록을 다시 보여 주고 '다시 저장'·'버리기'를 고르게 한다(2026-10-20).
+    if (state.status == WalkStatus.tracking ||
+        state.status == WalkStatus.stopped ||
+        state.status == WalkStatus.saving) {
+      return;
+    }
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();

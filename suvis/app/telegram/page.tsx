@@ -83,16 +83,10 @@ export default function TelegramPage() {
               1. 데이터 수집
             </Link>
             <Link
-              href="/titanic/passengers"
-              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
-            >
-              2. 승객목록
-            </Link>
-            <Link
               href="/titanic/smith-captain"
               className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
             >
-              3. 스미스 선장과 대화
+              2. 스미스 선장과 대화
             </Link>
           </div>
           <p className="mt-6 text-xs font-semibold tracking-wide text-neutral-500">VISION</p>

@@ -116,14 +116,13 @@ def make_combined_weight(
     "편한 길 + 그늘 많은 길"이면 경사 페널티와 햇빛 페널티가 둘 다 걸린다. 하한도 각 하한의 곱이라
     A* 휴리스틱이 그대로 안전하다(각 배율 ≥ 자기 하한 → 곱 ≥ 하한의 곱).
     """
-    parts = [
-        _preference_weight(p, shade_lookup=shade_lookup, elevation=elevation)
-        for p in normalize_preferences(preferences)
-    ]
-    if not parts:
-        return make_weight("fast", shade_lookup=shade_lookup, elevation=elevation)
-    if len(parts) == 1:
-        return parts[0]
+    prefs = normalize_preferences(preferences)
+    if len(prefs) <= 1:
+        # 하나뿐이면 make_weight로 — _preference_weight를 그대로 돌려주면 차도 페널티가 빠졌다(10-20).
+        return make_weight(
+            prefs[0] if prefs else "fast", shade_lookup=shade_lookup, elevation=elevation
+        )
+    parts = [_preference_weight(p, shade_lookup=shade_lookup, elevation=elevation) for p in prefs]
     fns = [fn for fn, _ in parts]
     floor = 1.0
     for _, f in parts:

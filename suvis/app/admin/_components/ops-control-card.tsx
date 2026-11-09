@@ -1,0 +1,376 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Cpu, Loader2, Power, Server, Zap } from "lucide-react"
+import {
+  getMaintenanceState,
+  getOps,
+  postOps,
+  setMaintenance,
+  type MaintenanceState,
+  type OpsStatus,
+} from "@/lib/admin-dashboard-api"
+
+const MAINTENANCE_SERVICES: { key: keyof MaintenanceState; label: string }[] = [
+  { key: "mova", label: "Mova" },
+  { key: "gildle", label: "길들" },
+]
+
+// 버튼이 보내는 동작 → 화면에 보일 이름
+const ACTION_LABEL: Record<string, string> = {
+  "/server/stop": "서버 끄기",
+  "/arda/start": "Arda 켜기",
+  "/arda/stop": "Arda 끄기",
+  "/arda/ai-mode": "Arda AI 전환",
+  "/ollama/load": "모델 올리기",
+  "/ollama/unload": "모델 내리기",
+}
+
+const FAST_POLL_MS = 3_000 // 동작이 도는 동안
+const SLOW_POLL_MS = 30_000 // 평소
+
+/** 동작이 도는 동안과 읽기에 실패했을 때(서버 전환 중 잠깐 생긴다)는 짧게, 평소엔 길게 다시 읽는다. */
+function pollDelay(next: OpsStatus | null) {
+  return !next || next.job?.state === "running" ? FAST_POLL_MS : SLOW_POLL_MS
+}
+
+function gib(mib: number) {
+  return `${(mib / 1024).toFixed(1)}GB`
+}
+
+const SERVER_STOP_CONFIRM =
+  "서버를 모두 끕니다. 서버는 이 노트북 한 대뿐이라 사이트가 내려갑니다.\n\n" +
+  "· 사이트·앱·로그인·DB·Arda 가 전부 멈추고, 재부팅해도 꺼져 있습니다.\n" +
+  "· 이 어드민도 쓸 수 없습니다.\n" +
+  "· 다시 켜려면 노트북 바탕화면의 '서버 켜기'를 실행해야 합니다.\n\n" +
+  "정말 끌까요?"
+
+/** 운영 제어 — 노트북 서버 전체 켜기·끄기, Arda 켜기·끄기, Arda AI GPU·CPU, Ollama 모델 GPU 올리기·내리기.
+ *  동작은 접수만 하고 바로 돌아오므로(1~3분 걸리는 일도 있음) job 상태를 짧은 간격으로 다시 읽는다. */
+export function OpsControlCard() {
+  const [ops, setOps] = useState<OpsStatus | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [maintenance, setMaintenanceState] = useState<MaintenanceState | null>(null)
+  const [toggling, setToggling] = useState<keyof MaintenanceState | null>(null)
+
+  const toggleMaintenance = async (service: keyof MaintenanceState, label: string) => {
+    if (!maintenance) return
+    const on = !maintenance[service]
+    if (
+      on &&
+      !window.confirm(`${label} 점검 모드를 켭니다. 사용자는 점검 안내만 보게 됩니다. 계속할까요?`)
+    )
+      return
+    setToggling(service)
+    try {
+      setMaintenanceState(await setMaintenance(service, on))
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setToggling(null)
+    }
+  }
+
+  const refresh = useCallback(async () => {
+    // 점검 모드는 노트북과 무관하게 백엔드에 있다 — 에이전트 상태와 따로 읽는다
+    getMaintenanceState()
+      .then(setMaintenanceState)
+      .catch(() => setMaintenanceState(null))
+    try {
+      const next = await getOps()
+      setOps(next)
+      setError(null)
+      return next
+    } catch (e) {
+      setError((e as Error).message)
+      return null
+    }
+  }, [])
+
+  // job 이 도는 동안엔 3초, 평소엔 30초마다
+  useEffect(() => {
+    let alive = true
+    const loop = async () => {
+      const next = await refresh()
+      if (!alive) return
+      timer.current = setTimeout(loop, pollDelay(next))
+    }
+    loop()
+    return () => {
+      alive = false
+      if (timer.current) clearTimeout(timer.current)
+    }
+  }, [refresh])
+
+  const run = async (path: string, body?: Record<string, string>, confirmText?: string) => {
+    if (confirmText && !window.confirm(confirmText)) return
+    setSending(true)
+    try {
+      await postOps(path, body)
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSending(false)
+    }
+    // 바로 한 번 읽고, 이후엔 위 루프가 3초 간격으로 따라간다
+    if (timer.current) clearTimeout(timer.current)
+    const next = await refresh()
+    const again = async () => {
+      timer.current = setTimeout(again, pollDelay(await refresh()))
+    }
+    timer.current = setTimeout(again, pollDelay(next))
+  }
+
+  const job = ops?.job
+  const serverState = ops?.server?.state
+  const serverOff = serverState === "off"
+  const busy = sending || job?.state === "running"
+  const services = ops?.arda?.services ?? []
+  const runningCount = services.filter((s) => s.state === "running").length
+  const ardaOn = runningCount > 0
+  const aiMode = ops?.arda?.ai_mode ?? "cpu"
+  const aiDevice = ops?.arda?.ai_device
+  const gpu = ops?.gpu?.[0]
+  const loaded = new Map((ops?.ollama?.loaded ?? []).map((m) => [m.name, m]))
+  const installed = ops?.ollama?.installed ?? []
+
+  return (
+    <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+          <Server className="h-4 w-4 text-slate-400" />
+          운영 제어 · 노트북
+        </h2>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+            !ops
+              ? "bg-slate-100 text-slate-500"
+              : ops.reachable
+                ? "bg-emerald-100 text-emerald-700"
+                : "bg-red-100 text-red-600"
+          }`}
+        >
+          {!ops ? "확인 중" : ops.reachable ? "연결됨" : "노트북 연결 안 됨"}
+        </span>
+      </div>
+
+      {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+      {ops && !ops.reachable && (
+        <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          노트북 제어 에이전트에 닿지 않습니다. 노트북이 꺼져 있거나 에이전트가 멈췄을 수 있어요.
+        </p>
+      )}
+
+      {job && job.state !== "idle" && (
+        <p
+          className={`mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${
+            job.state === "running"
+              ? "bg-amber-50 text-amber-700"
+              : job.state === "ok"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-600"
+          }`}
+        >
+          {job.state === "running" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          <span className="font-semibold">{ACTION_LABEL[job.action ?? ""] ?? job.action}</span>
+          {job.target && <span className="text-slate-500">{job.target}</span>}
+          <span>
+            {job.state === "running"
+              ? "진행 중… (최대 몇 분)"
+              : job.state === "ok"
+                ? "완료"
+                : `실패: ${job.error ?? ""}`}
+          </span>
+        </p>
+      )}
+
+      {/* 노트북 서버 전체 — 끄면 아래 Arda·GPU 칸은 쓸 수 없어 숨긴다 */}
+      {ops?.reachable && ops.server && (
+        <div className="mb-3 rounded-xl bg-slate-50 px-4 py-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-slate-800">서버 전체</p>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                serverOff ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-700"
+              }`}
+            >
+              {serverOff ? "꺼짐" : "켜짐"}
+            </span>
+          </div>
+          <p className="mb-2.5 text-xs leading-relaxed [word-break:keep-all] text-slate-500">
+            서버는 이 노트북 한 대뿐입니다. 끄면 사이트·DB·Arda 가 모두 멈추고 재부팅해도 꺼져
+            있습니다. 다시 켜기는 노트북 바탕화면의 &apos;서버 켜기&apos;로 합니다.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy || serverOff}
+              onClick={() => run("/server/stop", undefined, SERVER_STOP_CONFIRM)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              <Power className="h-3.5 w-3.5" /> 서버 끄기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {ops?.reachable && !serverOff && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {/* Arda */}
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-slate-800">Arda (팀 프로젝트)</p>
+              <span className="text-xs text-slate-500">
+                {ops.arda?.available
+                  ? `컨테이너 ${runningCount}/${services.length} 동작`
+                  : "상태 확인 실패"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy || ardaOn}
+                onClick={() => run("/arda/start")}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+              >
+                <Power className="h-3.5 w-3.5" /> 켜기
+              </button>
+              <button
+                type="button"
+                disabled={busy || !ardaOn}
+                onClick={() =>
+                  run(
+                    "/arda/stop",
+                    undefined,
+                    "Arda 를 끕니다. seuk.suvisdev.cloud 에서 로그인이 안 됩니다. 계속할까요?"
+                  )
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40"
+              >
+                <Power className="h-3.5 w-3.5" /> 끄기
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">AI 면접(음성 인식·표정)</span>
+              <div className="inline-flex overflow-hidden rounded-lg border border-slate-300 text-xs font-semibold">
+                {(["cpu", "gpu"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={busy || !ardaOn || aiMode === mode}
+                    onClick={() => run("/arda/ai-mode", { mode })}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 disabled:cursor-default ${
+                      aiMode === mode
+                        ? "bg-slate-800 text-white"
+                        : "bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                    }`}
+                  >
+                    {mode === "gpu" ? (
+                      <Zap className="h-3.5 w-3.5" />
+                    ) : (
+                      <Cpu className="h-3.5 w-3.5" />
+                    )}
+                    {mode.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              {aiDevice && aiDevice !== (aiMode === "gpu" ? "cuda" : "cpu") && (
+                <span className="text-[11px] text-amber-600">실제: {aiDevice}</span>
+              )}
+            </div>
+          </div>
+
+          {/* GPU · 모델 */}
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="truncate text-xs font-semibold text-slate-800">
+                {gpu ? gpu.name.replace("NVIDIA GeForce ", "") : "GPU"}
+              </p>
+              {gpu && (
+                <span className="shrink-0 text-xs text-slate-500">
+                  {gib(gpu.memory_used_mib)} / {gib(gpu.memory_total_mib)} · {gpu.utilization_pct}%
+                </span>
+              )}
+            </div>
+            {gpu && (
+              <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-violet-500"
+                  style={{
+                    width: `${Math.min(100, (gpu.memory_used_mib / gpu.memory_total_mib) * 100)}%`,
+                  }}
+                />
+              </div>
+            )}
+            {!ops.ollama?.available ? (
+              <p className="text-xs text-slate-400">Ollama 상태를 읽지 못했습니다.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {installed.map((name) => {
+                  const m = loaded.get(name)
+                  return (
+                    <li key={name} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="min-w-0 truncate text-slate-700">
+                        {name}
+                        {m && (
+                          <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                            {m.size_vram ? `GPU ${gib(m.size_vram / 1024 / 1024)}` : "CPU"}
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => run(m ? "/ollama/unload" : "/ollama/load", { model: name })}
+                        className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+                      >
+                        {m ? "내리기" : "올리기"}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* mova·길들 점검 모드 — 노트북 연결과 무관(백엔드 DB) */}
+      <div className="mt-3 rounded-xl bg-slate-50 px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-800">점검 모드</p>
+          <span className="text-[11px] text-slate-400">켜면 사용자에게 점검 안내, API 는 503</span>
+        </div>
+        {!maintenance ? (
+          <p className="text-xs text-slate-400">점검 상태를 읽지 못했습니다.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {MAINTENANCE_SERVICES.map(({ key, label }) => {
+              const on = maintenance[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={toggling !== null}
+                  onClick={() => toggleMaintenance(key, label)}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${
+                    on
+                      ? "bg-amber-500 text-white"
+                      : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {toggling === key && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {label} · {on ? "점검 중 (끄기)" : "운영 중 (점검 켜기)"}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

@@ -13,9 +13,11 @@ def __getattr__(name: str) -> APIRouter:
         from fastapi import APIRouter
 
         from viewer.adapter.inbound.api.v1.admin_agents_router import admin_agents_router
+        from viewer.adapter.inbound.api.v1.admin_ops_router import admin_ops_router
         from viewer.adapter.inbound.api.v1.admin_server_router import admin_server_router
         from viewer.adapter.inbound.api.v1.admin_users_router import admin_users_router
         from viewer.adapter.inbound.api.v1.avatar_router import avatar_router
+        from viewer.adapter.inbound.api.v1.maintenance_router import maintenance_router
         from viewer.adapter.inbound.api.v1.oauth_router import oauth_router
         from viewer.adapter.inbound.api.v1.profile_router import profile_router
 
@@ -30,5 +32,7 @@ def __getattr__(name: str) -> APIRouter:
         router.include_router(admin_agents_router)
         router.include_router(admin_users_router)
         router.include_router(admin_server_router)
+        router.include_router(admin_ops_router)
+        router.include_router(maintenance_router)
         return router
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

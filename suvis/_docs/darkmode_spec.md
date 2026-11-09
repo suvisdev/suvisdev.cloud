@@ -1,241 +1,33 @@
-# Suvisdev — 다크모드 구현 지시어
+# Suvisdev — 테마(라이트/다크) 명세
+
+> 2026-09-28 사용자 결정으로 **경로 고정 테마**가 됐다. 이전 판의 "사용자 토글·OS 설정 감지" 지시는
+> 폐기됐다(2026-10-20 이 문서 갱신). 토글·테마 저장 기능을 다시 만들지 않는다.
 
 ## 기본 방침
 
-- **기본값: 화이트 모드**
-- **다크 모드: 사용자 토글 제공** (OS 설정 감지 후 오버라이드 가능)
-- Tailwind CSS `dark:` 클래스 방식 사용 (Next.js App Router 기준)
+| 경로 | 테마 |
+|------|------|
+| `/mova/**` | 다크 |
+| 그 외 전부(메인·gildle·admin·lesson 등) | 라이트 |
 
----
+- 사용자가 바꾸는 수단은 없다 — `ThemeToggle`·`useTheme().setTheme` 호출 코드는 저장소에서 삭제됐다.
+- OS 다크모드 설정도 보지 않는다(`enableSystem={false}`).
 
-## 1. next-themes 설정
+## 구현 (현행 코드)
 
-```bash
-npm install next-themes
-```
+- `app/layout.tsx` — `<ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>`
+- `components/theme-provider.tsx` — `usePathname()`으로 `forcedTheme`를 `/mova`로 시작하면 `"dark"`,
+  아니면 `"light"`로 항상 넘긴다. `forcedTheme`는 localStorage를 읽지도 쓰지도 않아서, 예전 방식
+  (진입 시 `setTheme`)에서 탭 간 storage 동기화로 mova 탭이 라이트로 뒤집히던 문제가 생기지 않는다.
+- Tailwind v4 — `tailwind.config.js`는 없다. `app/globals.css`의
+  `@custom-variant dark (&:is(.dark *));`와 `.dark { … }` 토큰 블록이 `dark:` 변형을 정의한다.
 
-```tsx
-// app/layout.tsx
-import { ThemeProvider } from 'next-themes'
+## 새 서브앱을 다크로 두어야 할 때
 
-export default function RootLayout({ children }) {
-  return (
-    <html lang="ko" suppressHydrationWarning>
-      <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"       // 기본값 화이트
-          enableSystem={true}        // OS 다크모드 감지
-          disableTransitionOnChange  // 전환 시 깜빡임 방지
-        >
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
-  )
-}
-```
+`components/theme-provider.tsx`의 경로 조건에 그 경로를 추가한다. 페이지 안에서 `setTheme`을 부르거나
+`.dark` 클래스를 직접 붙이지 않는다.
 
----
+## 색상
 
-## 2. Tailwind 다크모드 설정
-
-```js
-// tailwind.config.js
-module.exports = {
-  darkMode: 'class',  // 'media' 아닌 'class' — 토글 제어 가능하게
-  // ...
-}
-```
-
----
-
-## 3. 테마 토글 버튼 컴포넌트
-
-상단 Topbar 우측에 배치. 해/달 아이콘 토글.
-
-```tsx
-// components/ThemeToggle.tsx
-'use client'
-import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
-
-export function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
-  if (!mounted) return null  // hydration 불일치 방지
-
-  return (
-    <button
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-      aria-label="테마 전환"
-      className="p-2 rounded-md text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-    >
-      {theme === 'dark' ? (
-        <SunIcon className="w-4 h-4" />
-      ) : (
-        <MoonIcon className="w-4 h-4" />
-      )}
-    </button>
-  )
-}
-```
-
----
-
-## 4. CSS 변수 기반 색상 체계
-
-Tailwind `dark:` 클래스와 병행해서 CSS 변수로 시맨틱 토큰 관리.
-
-```css
-/* app/globals.css */
-:root {
-  --bg-primary:    #ffffff;
-  --bg-secondary:  #f9fafb;
-  --bg-surface:    #f3f4f6;
-
-  --text-primary:  #111827;
-  --text-secondary:#6b7280;
-  --text-muted:    #9ca3af;
-
-  --border:        #e5e7eb;
-  --border-strong: #d1d5db;
-
-  --accent:        #2563eb;   /* RAGWATSON 브랜드 블루 */
-  --accent-hover:  #1d4ed8;
-}
-
-[class~="dark"] {
-  --bg-primary:    #0a0a0a;
-  --bg-secondary:  #111111;
-  --bg-surface:    #1a1a1a;
-
-  --text-primary:  #ededed;
-  --text-secondary:#a1a1aa;
-  --text-muted:    #71717a;
-
-  --border:        #27272a;
-  --border-strong: #3f3f46;
-
-  --accent:        #3b82f6;
-  --accent-hover:  #60a5fa;
-}
-```
-
----
-
-## 5. 컴포넌트 적용 패턴
-
-```tsx
-// 모든 컴포넌트에서 이 패턴으로 통일
-
-// 배경
-<div className="bg-white dark:bg-[#0a0a0a]">
-<div className="bg-gray-50 dark:bg-[#111111]">  {/* 사이드바, 패널 */}
-
-// 텍스트
-<p className="text-gray-900 dark:text-gray-100">         {/* 주요 텍스트 */}
-<p className="text-gray-500 dark:text-gray-400">         {/* 보조 텍스트 */}
-<p className="text-gray-400 dark:text-gray-500">         {/* 힌트 텍스트 */}
-
-// 보더
-<div className="border border-gray-200 dark:border-gray-800">
-<div className="border-b border-gray-100 dark:border-gray-900">  {/* 얇은 구분선 */}
-
-// 코드 블록 (다크모드에서 더 진하게)
-<pre className="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
-
-// accent (브랜드 컬러)
-<a className="text-blue-600 dark:text-blue-400">
-<button className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400">
-```
-
----
-
-## 6. 우측 패널 다크모드
-
-```tsx
-// components/RightPanel.tsx
-<aside className="
-  w-[200px] shrink-0
-  border-l border-gray-100 dark:border-gray-800
-  bg-gray-50 dark:bg-[#111111]
-  px-4 py-6
-  hidden lg:block
-">
-  {/* TOC or FilterPanel or RelatedPanel */}
-</aside>
-```
-
----
-
-## 7. 좌측 사이드바 다크모드
-
-```tsx
-// components/LeftSidebar.tsx
-<nav className="
-  w-[160px] shrink-0
-  border-r border-gray-100 dark:border-gray-800
-  bg-gray-50 dark:bg-[#111111]
-  px-3 py-4
-  hidden md:block
-">
-  {/* active 항목 */}
-  <span className="text-blue-600 dark:text-blue-400 font-medium">
-    데이터 수집
-  </span>
-  {/* 일반 항목 */}
-  <span className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
-    탐승자 목록
-  </span>
-</nav>
-```
-
----
-
-## 8. Topbar에 토글 배치
-
-```tsx
-// components/Topbar.tsx
-<header className="
-  border-b border-gray-100 dark:border-gray-800
-  bg-white dark:bg-[#0a0a0a]
-  sticky top-0 z-50
-">
-  <div className="flex items-center px-6 h-12">
-    <Logo />
-    <NavLinks />
-    <div className="ml-auto flex items-center gap-4">
-      <ThemeToggle />   {/* 해/달 아이콘 */}
-      <AuthButton />    {/* 로그인 */}
-    </div>
-  </div>
-</header>
-```
-
----
-
-## 9. 이미지 처리
-
-다크모드에서 밝은 이미지가 너무 튀는 경우 처리.
-
-```tsx
-// 로고, 다이어그램 이미지 등
-<img
-  className="dark:opacity-80 dark:brightness-90"
-  src="/diagram.png"
-/>
-
-// 완전히 다른 이미지 사용 시
-<img
-  src={theme === 'dark' ? '/logo-dark.svg' : '/logo-light.svg'}
-/>
-```
-
----
-
-## 10. 요약 — 한 줄 지시
-
-> "next-themes로 `defaultTheme='light'`, `attribute='class'` 설정. Tailwind `darkMode: 'class'`. Topbar 우측에 ThemeToggle 컴포넌트 배치. 모든 색상은 `bg-white dark:bg-[#0a0a0a]` 패턴으로 적용. 사이드바·우측패널·본문·코드블록 전부 dark: 클래스 대응."
+색상 토큰·`dark:` 사용 규칙은 `_docs/DESIGN.md`가 기준이다(shadcn 토큰, mova는 `bg-mova-*` 명명 유틸리티).
+라이트 고정 경로의 기존 `dark:` 클래스는 지금은 적용되지 않지만, 지우는 정리는 별도 작업으로 한다.

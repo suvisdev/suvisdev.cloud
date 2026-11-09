@@ -29,16 +29,10 @@ export default function TitanicHomePage() {
               1. 데이터 수집
             </Link>
             <Link
-              href="/titanic/passengers"
-              className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
-            >
-              2. 승객목록
-            </Link>
-            <Link
               href="/titanic/smith-captain"
               className="block rounded-md px-3 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#252b3b]"
             >
-              3. 스미스 선장과 대화
+              2. 스미스 선장과 대화
             </Link>
           </div>
           <p className="mt-6 text-xs font-semibold tracking-wide text-neutral-500">VISION</p>
@@ -132,21 +126,6 @@ export default function TitanicHomePage() {
               </div>
             </aside>
           </div>
-
-          <article className="mt-6 rounded-xl border border-neutral-200 bg-neutral-50 p-5 dark:border-[#252b3b] dark:bg-[#1a1f2d]">
-            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-              2. 승객목록
-            </h2>
-            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-              업로드된 승객 데이터를 페이지당 50명 단위로 조회합니다.
-            </p>
-            <Link
-              href="/titanic/passengers"
-              className="mt-4 inline-block rounded-md bg-white px-4 py-2 text-sm font-medium text-neutral-800 ring-1 ring-neutral-200 transition-colors hover:bg-neutral-100 dark:bg-[#252b3b] dark:text-neutral-200 dark:ring-[#2d3447] dark:hover:bg-[#2d3447]"
-            >
-              승객목록 페이지로 이동
-            </Link>
-          </article>
         </section>
       </main>
     </div>

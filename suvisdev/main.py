@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response as StarletteResponse
 
@@ -32,9 +33,12 @@ from contents.adapter.inbound.api import contents_router
 from core.matrix.grid_oracle_database_manager import (
     create_tables,
     dispose_engine,
+    get_mova_session_factory,
     verify_connection,
 )
 from core.matrix.vauly_keymaker_secret_manager import get_keymaker
+from deolmi.adapter.inbound.api import deolmi_router
+from deolmi.adapter.inbound.api.public_cors import DeolmiPublicCorsMiddleware
 from dispatch.adapter.inbound.api import dispatch_router
 from execsuite.adapter.inbound.api import execsuite_router
 from gildle.adapter.inbound.api import gildle_router
@@ -42,6 +46,7 @@ from media.router import media_router
 from mova.adapter.inbound.api import mova_router
 from mova.adapter.outbound.llm.gemini_client import gemini_reply
 from mova.app.ports.output.llm_errors import LLMError
+from news.adapter.inbound.api import news_router_root
 from ontology.adapter.inbound.api import (
     nlp_router,
     ontology_router,
@@ -51,6 +56,10 @@ from ontology.adapter.inbound.api import (
 from titanic.adapter.inbound.api import titanic_router
 from viewer.adapter.inbound.api import viewer_router
 from viewer.adapter.outbound.orm.user_orm import seed_viewer_if_empty
+from viewer.adapter.outbound.pg.maintenance_pg_repository import (
+    load_maintenance,
+    maintenance_service_for,
+)
 
 keymaker = get_keymaker()
 
@@ -156,6 +165,17 @@ async def lifespan(app: FastAPI):
                         "[main] ENABLE_MOVA_STARTUP=false — mova 부팅 작업"
                         "(TMDB 시드·랭킹/KOFIC 스케줄러) 비활성화됨"
                     )
+                # news 수집은 mova 와 따로 켠다 — 노트북에서만 ENABLE_NEWS_SCHEDULER=true (기본 꺼짐)
+                from news.adapter.inbound.scheduler.news_collect_scheduler import (
+                    news_scheduler_enabled,
+                    run_news_collect_scheduler,
+                )
+
+                if news_scheduler_enabled():
+                    app.state.news_scheduler = asyncio.create_task(run_news_collect_scheduler())
+                    logger.info(
+                        "[main] 뉴스 수집 스케줄러 시작 (NEWS_COLLECT_INTERVAL_SECONDS 주기)"
+                    )
             except Exception as e:
                 logger.error(
                     "DB ???/?? ??? ?? ? DB ?? API? 503 ??: %s",
@@ -198,6 +218,13 @@ async def lifespan(app: FastAPI):
             editor_reviews_task.cancel()
             try:
                 await editor_reviews_task
+            except asyncio.CancelledError:
+                pass
+        news_task = getattr(app.state, "news_scheduler", None)
+        if news_task is not None:
+            news_task.cancel()
+            try:
+                await news_task
             except asyncio.CancelledError:
                 pass
         await dispose_engine()
@@ -343,6 +370,22 @@ class _ApiAuthMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="Suvisdev Main Page", lifespan=lifespan)
 
+
+# mova·길들 점검 모드(관리자 운영 제어 4단계) — 켜진 서비스의 API 를 503 으로 막는다. CORS 보다 먼저
+# 등록해 CORS 가 바깥에 오게 한다(503 에도 CORS 헤더가 붙는다). 상태는 10초 캐시, 못 읽으면 막지 않는다.
+@app.middleware("http")
+async def maintenance_gate(request: Request, call_next):
+    service = maintenance_service_for(request.url.path)
+    if service is None or request.method == "OPTIONS":
+        return await call_next(request)
+    if (await load_maintenance()).get(service):
+        return JSONResponse(
+            {"detail": "점검 중입니다. 잠시 후 다시 이용해 주세요.", "maintenance": service},
+            status_code=503,
+        )
+    return await call_next(request)
+
+
 # allow_origins=["*"] + allow_credentials=True는 오구성이다(모든 출처에 자격증명
 # 허용). 프론트 실제 origin만 화이트리스트로 둔다(auth_main.py와 동일 방식).
 app.add_middleware(
@@ -371,6 +414,10 @@ async def request_path_logger(request: Request, call_next):
     return response
 
 
+# 가장 바깥(마지막 add) — 고객 사이트의 /api/deolmi/score preflight를 전역 CORS보다 먼저 받는다.
+app.add_middleware(DeolmiPublicCorsMiddleware)
+
+
 app.include_router(mova_router)
 app.include_router(titanic_router, prefix="/api")
 app.include_router(gildle_router, prefix="/api")
@@ -384,6 +431,8 @@ app.include_router(portfolio_router)  # /portfolio/chat — 홈 AI 채팅(공개
 app.include_router(nlp_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(media_router, prefix="/api")
+app.include_router(deolmi_router, prefix="/api")  # /api/deolmi/* — 매크로 탐지(고객 사이트용)
+app.include_router(news_router_root, prefix="/api/v1")  # /api/v1/news — news.suvisdev.cloud
 
 
 @app.get("/api-login", response_class=HTMLResponse, include_in_schema=False)
@@ -418,6 +467,22 @@ async def logout() -> RedirectResponse:
     resp = RedirectResponse(url="/api-login", status_code=303)
     resp.delete_cookie("api_auth", path="/")
     return resp
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz() -> JSONResponse:
+    """배포 확인용(backend-deploy 외부 응답 확인) — 앱이 떠 있고 DB 에 닿는지만 본다.
+
+    점검 모드(maintenance_gate)와 무관해야 한다. 10-29 판단기가 /mova/search 를 보다가 Mova 점검
+    503 을 장애로 읽고 터널을 내려 사이트 전체가 4분 내려갔다.
+    """
+    try:
+        async with get_mova_session_factory()() as session:
+            await asyncio.wait_for(session.execute(text("SELECT 1")), timeout=5)
+    except Exception as e:
+        logger.warning("[healthz] DB 확인 실패: %s", e)
+        return JSONResponse({"ok": False}, status_code=503)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/")

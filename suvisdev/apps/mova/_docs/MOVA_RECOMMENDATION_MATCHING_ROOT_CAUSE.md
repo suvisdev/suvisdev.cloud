@@ -19,9 +19,9 @@ GeminiRecommendationAdapter.generate_recommendation()   (gemini_recommendation_a
 ```python
 canonical = resolve_canonical_slug(rec.id, title=rec.title)
 movie = (
-    await repo.get_by_slug(canonical)      # 1단계: 수동 큐레이션 맵(12개 고정 항목)
-    or await repo.get_by_slug(rec.id)      # 2단계: slugify_movie(title) 결과로 재조회
-    or await repo.find_by_title(rec.title) # 3단계: title 완전일치, LIMIT 1, ORDER BY 없음
+    await repo.get_by_slug(canonical)  # 1단계: 수동 큐레이션 맵(12개 고정 항목)
+    or await repo.get_by_slug(rec.id)  # 2단계: slugify_movie(title) 결과로 재조회
+    or await repo.find_by_title(rec.title)  # 3단계: title 완전일치, LIMIT 1, ORDER BY 없음
 )
 ```
 - 1단계 `resolve_canonical_slug`(`studio_movies_vo.py:25-35`): `TITLE_TO_CANONICAL_SLUG` 12개

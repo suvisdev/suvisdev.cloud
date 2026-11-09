@@ -6,6 +6,7 @@ import '../data/models/walk.dart';
 import 'format.dart';
 import 'map_controller.dart';
 import 'walk_session_controller.dart';
+import 'walks_screen.dart';
 
 final walkDetailProvider = FutureProvider.autoDispose.family<WalkDetail, int>(
   (ref, id) => ref.watch(walksApiProvider).detail(id),
@@ -81,6 +82,7 @@ class WalkDetailScreen extends ConsumerWidget {
     if (ok != true) return;
     try {
       await ref.read(walksApiProvider).delete(id);
+      refreshWalkLists(ref);
       if (context.mounted) Navigator.of(context).pop();
     } catch (e) {
       if (context.mounted) {

@@ -83,7 +83,10 @@ class RouteOptionsRequestSchema(BaseModel):
     end_lng: float
     mode: str = Field(
         "spring_autumn",
-        description="추천 표시 기준: summer_shade→그늘, spring_autumn→푸른, winter_safety→빠른",
+        description=(
+            "추천 표시 기준: summer_shade→그늘, spring_autumn→푸른,"
+            " winter_safety→빠른(결빙 위험구역 회피)"
+        ),
     )
     departure_time: str | None = Field(
         None, description='출발 "HH:MM"(KST). 그늘 계산용, 미지정 시 현재'

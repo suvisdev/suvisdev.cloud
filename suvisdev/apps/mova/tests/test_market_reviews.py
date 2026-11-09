@@ -4,7 +4,8 @@ import sys
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -16,7 +17,11 @@ if str(APPS) not in sys.path:
 
 from shared.security.require_user import UserPrincipal, require_user  # noqa: E402
 
-from mova.adapter.inbound.api.v1.market_reviews_router import market_reviews_router  # noqa: E402
+from mova.adapter.inbound.api.v1.market_reviews_router import (  # noqa: E402
+    _embed_review_then_recompute_taste,
+    market_reviews_router,
+)
+from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository  # noqa: E402
 from mova.app.dtos.market_reviews_dto import (  # noqa: E402
     MovieRatingSummaryDto,
     ReviewActivityDto,
@@ -453,6 +458,61 @@ class ReviewsInteractorWatchedGateTests(unittest.IsolatedAsyncioTestCase):
 
         repo.has_watched.assert_awaited_once_with(1, 10)
         self.assertEqual(result.body, "재밌어요")
+
+
+def _review_row(**overrides: object) -> SimpleNamespace:
+    row = {
+        "id": 7,
+        "user_id": 1,
+        "movie_id": 10,
+        "rating": 4.0,
+        "body": "좋아요",
+        "created_at": _NOW,
+        "spoiler_spans": [{"start": 0, "end": 1}],
+        "sentiment_label": "positive",
+        "sentiment_score": 0.9,
+        "embedding": [0.1] * 768,
+    }
+    row.update(overrides)
+    return SimpleNamespace(**row)
+
+
+class ReviewsPgRepositoryUpdateEmbeddingTests(unittest.IsolatedAsyncioTestCase):
+    """본문이 바뀌면 옛 임베딩을 비워 `embedding IS NULL` 백필이 다시 잡게 한다."""
+
+    async def _update(self, row: SimpleNamespace, rating: float | None, body: str | None) -> None:
+        session = MagicMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = row
+        session.execute = AsyncMock(return_value=result)
+        session.commit = AsyncMock()
+        repo = ReviewsPgRepository(session=session)
+        with patch.object(repo, "_update_movie_rating", AsyncMock()):
+            await repo.update_review(row.id, rating, body)
+
+    async def test_body_change_clears_embedding(self) -> None:
+        row = _review_row()
+        await self._update(row, None, "별로였어요")
+        self.assertIsNone(row.embedding)
+        self.assertIsNone(row.sentiment_label)
+
+    async def test_rating_only_keeps_embedding(self) -> None:
+        row = _review_row()
+        await self._update(row, 2.0, None)
+        self.assertEqual(row.embedding, [0.1] * 768)
+
+
+class EmbedThenRecomputeTasteTests(unittest.IsolatedAsyncioTestCase):
+    async def test_recomputes_taste_even_when_embedding_fails(self) -> None:
+        """재임베딩이 실패해도 취향 벡터를 다시 계산해 비워진 옛 벡터 기여분을 뺀다."""
+        embedding = AsyncMock()
+        embedding.embed_one.return_value = "failed"
+        taste = AsyncMock()
+
+        await _embed_review_then_recompute_taste(embedding, taste, 7, 1)
+
+        embedding.embed_one.assert_awaited_once_with(7)
+        taste.recompute_for_user.assert_awaited_once_with(1)
 
 
 if __name__ == "__main__":

@@ -60,13 +60,12 @@ suvis/types/            # 전역 TypeScript 타입
 | 라우트 | 역할 | 백엔드 API |
 |--------|------|-----------|
 | `/` | 메인 | — |
-| `/login` | 로그인 | `POST /viewer/login/login` |
+| `/login` | 로그인 | `/api/auth/login` BFF → auth 게이트웨이 `POST /auth/login` |
 | `/signup` | 회원가입 | `POST /viewer/signup/signup` |
 | `/contact` | 연락처 | — |
 | `/lesson` | 레슨 | — |
 | `/titanic` | Titanic 메인 | — |
 | `/titanic/data-collection` | CSV 업로드 | `POST /titanic/james/...` |
-| `/titanic/passengers` | 승객 조회 | `GET /titanic/walter/...` |
 | `/titanic/smith-captain` | 선장 채팅 | `POST /titanic/smith/chat` |
 | `/mova` | Mova 메인 | — |
 | `/mova/login` | Mova 로그인 | — |

@@ -28,6 +28,9 @@ class RedisPendingIdentityRepository(PendingIdentityRepository):
                 "provider_user_id": identity.provider_user_id,
                 "email": identity.email,
                 "name": identity.name,
+                # 빠뜨리면 복원 시 기본값 False가 되어 검증된 이메일도 기존 계정 연결·
+                # ADMIN_EMAILS 판정에서 제외됐다(2026-10-20 리뷰).
+                "email_verified": identity.email_verified,
             }
         )
         self._client.set(
@@ -47,4 +50,5 @@ class RedisPendingIdentityRepository(PendingIdentityRepository):
             provider_user_id=data["provider_user_id"],
             email=data["email"],
             name=data["name"],
+            email_verified=bool(data.get("email_verified", False)),  # 필드 도입 전 값은 False
         )

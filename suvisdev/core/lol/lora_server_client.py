@@ -26,7 +26,7 @@ _LORA_SERVER_BASE = os.getenv("LORA_SERVER_URL", "http://localhost:8200")
 _LORA_SERVER_TOKEN = os.getenv("LORA_SERVER_TOKEN", "")
 
 _DEFAULT_TIMEOUT = httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)
-_RETRY_ATTEMPTS = 2  # 최초 시도 + 1회 재시도
+_RETRY_ATTEMPTS = 2  # 최초 시도 + 1회 재시도 — 연결 단계 실패에만(아래 _post_with_retry)
 _RETRY_BACKOFF_SECONDS = 0.5
 
 # 서킷 브레이커 — 인스턴스가 요청마다 새로 만들어지므로(DI) 상태는 모듈 레벨 공유.
@@ -132,15 +132,17 @@ class LoraServerClient:
         return text
 
     def _post_with_retry(self, headers: dict[str, str], payload: dict[str, str]) -> httpx.Response:
-        """네트워크 레벨 실패(타임아웃·연결 끊김)만 1회 재시도한다. HTTP 응답이
-        오긴 왔으나 상태코드가 4xx/5xx인 경우는 재시도 대상이 아니다(호출자가
-        즉시 처리)."""
+        """연결 단계 실패(ConnectError·ConnectTimeout — 요청이 서버에 닿지 않음)만 1회
+        재시도한다. 읽기 타임아웃 등 연결 뒤 실패는 재시도하지 않는다 — 응답 없는 서버에
+        read 60s를 두 번 기다리면 Gemini 폴백까지 120s+가 걸렸다(2026-10-20 리뷰).
+        connect 5s라 재시도 포함 최악은 connect 5+0.5+5s 또는 read 60s 한 번이다.
+        HTTP 응답이 오긴 왔으나 상태코드가 4xx/5xx인 경우도 재시도 대상이 아니다."""
         last_error: Exception | None = None
         for attempt in range(_RETRY_ATTEMPTS):
             try:
                 with httpx.Client(timeout=self._timeout) as client:
                     return client.post(f"{self._base_url}/generate", json=payload, headers=headers)
-            except (httpx.TimeoutException, httpx.TransportError) as e:
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
                 last_error = e
                 if attempt < _RETRY_ATTEMPTS - 1:
                     logger.warning(

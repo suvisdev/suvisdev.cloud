@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth.dart';
 import '../../../core/theme/gildle_theme.dart';
 import '../domain/geo_point.dart';
 import '../domain/route_guidance.dart';
 import 'format.dart';
 import 'walk_detail_screen.dart';
 import 'walk_session_controller.dart';
+import 'walks_screen.dart';
 
 /// 산책 중 — 현재 위치를 따라가며 걸은 길을 그리고, 종료하면 `POST /walks`에 저장한다.
 class WalkScreen extends ConsumerStatefulWidget {
@@ -45,9 +47,12 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     });
 
     return PopScope(
-      canPop: state.status != WalkStatus.tracking,
+      // 걷는 중·저장 전(실패 포함)·저장 중에는 그냥 나가지 않는다 — 나가면 기록을 잃는다.
+      canPop: state.status == WalkStatus.idle || state.status == WalkStatus.saved,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _confirmStop();
+        if (didPop) return;
+        if (state.status == WalkStatus.tracking) _confirmStop();
+        if (state.status == WalkStatus.stopped) _confirmDiscard();
       },
       child: Scaffold(
         appBar: AppBar(title: const Text('산책 중')),
@@ -80,7 +85,12 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                   onToggleVoice: ref.read(walkSessionProvider.notifier).toggleVoice,
                 ),
               ),
-            Positioned(left: 12, right: 12, bottom: 12, child: _StatsCard(state: state, onStop: _confirmStop)),
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: _StatsCard(state: state, onStop: _confirmStop, onSave: _save, onDiscard: _discard),
+            ),
           ],
         ),
       ),
@@ -165,15 +175,47 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
         return;
       }
     }
-    final saved = await notifier.save();
-    if (!mounted) return;
-    if (saved) {
-      final detail = ref.read(walkSessionProvider).saved!;
-      notifier.discard();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => WalkDetailScreen(id: detail.id, initial: detail)),
-      );
+    await _save();
+  }
+
+  /// 저장(처음·다시 저장 공통). 실패하면 stopped로 남아 카드에 '다시 저장'이 보인다.
+  /// 세션이 만료돼 로그아웃 처리됐으면 로그인 화면을 띄우고 돌아오면 한 번 더 — 기록은 그대로 남아 있다.
+  Future<void> _save() async {
+    final notifier = ref.read(walkSessionProvider.notifier);
+    if (!await ensureLoggedIn(context, ref) || !mounted) return;
+    var saved = await notifier.save();
+    if (!saved && mounted && !ref.read(loggedInProvider)) {
+      if (!await ensureLoggedIn(context, ref) || !mounted) return;
+      saved = await notifier.save();
     }
+    if (!saved || !mounted) return;
+    refreshWalkLists(ref); // 기록·내 정보 탭은 IndexedStack에 살아 있어 직접 갱신해야 한다
+    final detail = ref.read(walkSessionProvider).saved!;
+    notifier.discard();
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => WalkDetailScreen(id: detail.id, initial: detail)),
+    );
+  }
+
+  void _discard() {
+    ref.read(walkSessionProvider.notifier).discard();
+    Navigator.of(context).pop();
+  }
+
+  /// 저장하지 못한 채 나가려 할 때 — 버리고 나가거나 남아서 다시 저장한다.
+  Future<void> _confirmDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('저장하지 못한 산책이 있어요'),
+        content: const Text('나가면 이 기록이 사라집니다. 버리고 나갈까요?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('버리기')),
+        ],
+      ),
+    );
+    if (discard == true && mounted) _discard();
   }
 }
 
@@ -246,10 +288,12 @@ class _GuidanceCard extends StatelessWidget {
 }
 
 class _StatsCard extends StatelessWidget {
-  const _StatsCard({required this.state, required this.onStop});
+  const _StatsCard({required this.state, required this.onStop, required this.onSave, required this.onDiscard});
 
   final WalkSessionState state;
   final VoidCallback onStop;
+  final VoidCallback onSave;
+  final VoidCallback onDiscard;
 
   @override
   Widget build(BuildContext context) {
@@ -269,16 +313,36 @@ class _StatsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: state.status == WalkStatus.tracking ? onStop : null,
-                icon: state.status == WalkStatus.saving
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.stop),
-                label: Text(state.status == WalkStatus.saving ? '저장 중…' : '산책 끝내기'),
+            // 저장 실패(또는 위치 없음) 뒤 — 웹과 같은 문구·버튼
+            if (state.status == WalkStatus.stopped)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      state.points.length < 2
+                          ? '걸은 길이 없어 저장할 내용이 없습니다. 기록을 버릴까요?'
+                          : '저장하지 못한 산책이 있어요. 다시 저장할까요?',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onSave,
+                    child: Text(state.points.length < 2 ? '그래도 저장' : '다시 저장'),
+                  ),
+                  FilledButton(onPressed: onDiscard, child: const Text('버리기')),
+                ],
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: state.status == WalkStatus.tracking ? onStop : null,
+                  icon: state.status == WalkStatus.saving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.stop),
+                  label: Text(state.status == WalkStatus.saving ? '저장 중…' : '산책 끝내기'),
+                ),
               ),
-            ),
           ],
         ),
       ),
