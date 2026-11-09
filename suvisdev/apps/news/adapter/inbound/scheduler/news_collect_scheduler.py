@@ -10,7 +10,12 @@ import asyncio
 import logging
 import os
 
-from news.dependencies.news_provider import run_collect_once, run_hot_once, run_summarize_once
+from news.dependencies.news_provider import (
+    run_collect_once,
+    run_digest_once,
+    run_hot_once,
+    run_summarize_once,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,4 +73,18 @@ async def run_news_collect_scheduler() -> None:
                 raise
             except Exception:
                 logger.exception("[news] 요약 주기 실패 — 다음 주기에 다시 시도")
+        try:  # 요약 뒤라 GPU 가 겹치지 않고, 노트북이 7시에 꺼져 있었으면 켜진 뒤 첫 주기에 보낸다
+            digest = await run_digest_once()
+            if digest is not None and digest.status not in ("not_due", "skipped"):
+                logger.info(
+                    "[news] 아침 메일 | %s · 후보 %d · 기술 %d · 보냄 %d",
+                    digest.status,
+                    digest.candidates,
+                    digest.tech,
+                    digest.sent,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("[news] 아침 메일 실패 — 다음 주기에 다시 시도")
         await asyncio.sleep(NEWS_COLLECT_INTERVAL_SECONDS)

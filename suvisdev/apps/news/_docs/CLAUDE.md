@@ -57,6 +57,8 @@
 스케줄러만, 수집 뒤
  → NewsHotInteractor: HF Daily Papers·Hacker News 반응 수치 → 새 글 저장 + hot_* 칸 갱신
  → NewsSummarizeInteractor: 핫한 글 먼저, 그다음 AI 섹션, 경제 순으로 NEWS_SUMMARY_BATCH 건
+수집·요약 뒤 (NEWS_DIGEST_* 세 값이 있을 때, 한국 시각 7시 이후 하루 1통)
+ → NewsDigestInteractor: 어제 AI 글(논문은 화제 수치 있는 것만) → 7.8B 분류·학습 가치 → tech 를 가치 순으로 10건 이내 → Gmail SMTP
 GET /sections · /hot · /topics · /topics/{id}/articles · /latest · /search → 배지 = llm 판정이 있으면 llm, 없으면 rules
 ```
 
