@@ -49,8 +49,10 @@ curl -X POST https://api.suvisdev.cloud/api/deolmi/verify \
 ```
 
 ```python
-r = requests.post("https://api.suvisdev.cloud/api/deolmi/verify",
-                  json={"secret": os.environ["DEOLMI_SECRET"], "token": token})
+r = requests.post(
+    "https://api.suvisdev.cloud/api/deolmi/verify",
+    json={"secret": os.environ["DEOLMI_SECRET"], "token": token},
+)
 if r.json()["verdict"] == "block":
     reject()
 ```
