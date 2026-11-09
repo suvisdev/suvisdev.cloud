@@ -142,6 +142,8 @@ http://127.0.0.1:31386`.
 7. 남은 개선(미착수): refresh 동시 갱신 응답 경합(구조 개선 미결 — 해결안은 브라우저엔 고정 세션 ID, 회전 토큰은 BFF 서버 쪽 관리: 인증 구조 변경이라 사용자 결정), main.py 전역 422 처리기(inf 입력 500), `@google/generative-ai` 미사용 의존성 정리, viewer 죽은 `login_pg_repository.py`.
 8. Codex 확인 리뷰 새 지적 5건(10-20 (5), 미착수): 관리자 계정의 사용자 기능 호환성 보완, OAuth 로그인 시 이전 세션 정리 호출의 시간 제한, 모바일 세션 갱신 경합, 길들 산책 저장 응답 유실 후 중복 저장, mova 임베딩 작업 중 리뷰 수정 시 옛 벡터 저장.
 
+- **(11-09, 사용자) 덜미 사람 대조군**: 공격 시험 결과는 `suvisdev/apps/deolmi/_docs/ATTACK_EVAL.md`. 사람 차단율을 재야 다음 판단이 가능하다.
+
 ### 덜미(deolmi) 매크로 탐지 (2026-10-20, `[P]` 10-20, 설명 `suvisdev/apps/deolmi/_docs/CLAUDE.md`)
 1. 운영 반영(사용자): 커밋·머지 → `.env`에 `DEOLMI_TOKEN_SECRET` 추가 + `./k8s/deploy.sh --external-db`(Secret) → 운영 DB `alembic upgrade head` → 어드민으로 키 발급.
 2. 데모 화면 없음(botguard `demo/index.html` 상당) — 만들 위치(suvis 페이지 vs 백엔드 정적) 미정.
