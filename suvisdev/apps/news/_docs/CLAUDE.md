@@ -20,6 +20,7 @@
   기준을 바꾸면 rubric → `thresholds.json` → `signals.py` 순서로 고치고 `harness_version` 을 올린다. 버전이 바뀌면 다음 수집 주기에 그 주기 기사부터 다시 판정된다.
 - **수집 스케줄러는 노트북에서만** (`ENABLE_NEWS_SCHEDULER=true`, 기본 꺼짐). 꺼져 있어도 `POST /api/v1/news/admin/collect` 로 한 주기를 돌릴 수 있다.
 - **방문자 검색은 모아 둔 기사에서만** 찾는다(`/search`). 외부 검색 API 를 부르지 않아 할당량을 쓰지 않는다.
+  캐시·IP 한도는 두지 않는다(11-09). 화면이 서버 컴포넌트라 요청이 모두 Vercel IP로 오고, Next가 같은 검색을 60초 캐시한다.
 
 ## 섹션·묶음 (`domain/sections.py`, 피드 목록 `adapter/outbound/http/latest_feeds.json`)
 
