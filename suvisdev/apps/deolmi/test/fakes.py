@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from typing import Any
 
@@ -69,7 +70,8 @@ class _FakeSiteRepository(SiteRepositoryPort):
         self.sites = {s.site_key: s for s in sites}
 
     async def get_active(self, site_key: str) -> SiteDto | None:
-        return self.sites.get(site_key)
+        site = self.sites.get(site_key)
+        return site if site and site.active else None
 
     async def create(self, command: SiteCreateCommand, site_key: str, secret_hash: str) -> SiteDto:
         site = SiteDto(
@@ -87,6 +89,19 @@ class _FakeSiteRepository(SiteRepositoryPort):
 
     async def list_all(self) -> list[SiteDto]:
         return list(self.sites.values())
+
+    async def set_active(self, site_key: str, active: bool) -> SiteDto | None:
+        return self._update(site_key, active=active)
+
+    async def set_secret_hash(self, site_key: str, secret_hash: str) -> SiteDto | None:
+        return self._update(site_key, secret_hash=secret_hash)
+
+    def _update(self, site_key: str, **values: Any) -> SiteDto | None:
+        site = self.sites.get(site_key)
+        if site is None:
+            return None
+        self.sites[site_key] = replace(site, **values)
+        return self.sites[site_key]
 
 
 class _FakeEventRepository(EventRepositoryPort):

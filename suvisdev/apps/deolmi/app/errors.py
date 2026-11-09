@@ -5,7 +5,7 @@ from __future__ import annotations
 
 
 class UnknownSiteError(LookupError):
-    """없거나 비활성인 공개 키 → 401."""
+    """없거나 비활성인 공개 키 → 401(어드민 키 관리에서는 없는 키 → 404)."""
 
 
 class OriginNotAllowedError(PermissionError):

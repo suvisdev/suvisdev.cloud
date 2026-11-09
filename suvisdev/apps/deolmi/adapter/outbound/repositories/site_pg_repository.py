@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from deolmi.adapter.outbound.orm.site_orm import DeolmiSiteOrm
@@ -58,3 +58,22 @@ class SitePgRepository(SiteRepositoryPort):
             await self._session.execute(select(DeolmiSiteOrm).order_by(DeolmiSiteOrm.id))
         ).scalars()
         return [SiteDto.from_orm(r) for r in rows]
+
+    async def set_active(self, site_key: str, active: bool) -> SiteDto | None:
+        return await self._update(site_key, active=active)
+
+    async def set_secret_hash(self, site_key: str, secret_hash: str) -> SiteDto | None:
+        return await self._update(site_key, secret_hash=secret_hash)
+
+    async def _update(self, site_key: str, **values: object) -> SiteDto | None:
+        row = (
+            await self._session.execute(
+                update(DeolmiSiteOrm)
+                .where(DeolmiSiteOrm.site_key == site_key)
+                .values(**values)
+                .returning(DeolmiSiteOrm)
+            )
+        ).scalar_one_or_none()
+        site = SiteDto.from_orm(row) if row else None
+        await self._session.commit()
+        return site
