@@ -22,3 +22,9 @@ class SiteRepositoryPort(SiteLookupPort):
 
     @abstractmethod
     async def list_all(self) -> list[SiteDto]: ...
+
+    @abstractmethod
+    async def set_active(self, site_key: str, active: bool) -> SiteDto | None: ...
+
+    @abstractmethod
+    async def set_secret_hash(self, site_key: str, secret_hash: str) -> SiteDto | None: ...

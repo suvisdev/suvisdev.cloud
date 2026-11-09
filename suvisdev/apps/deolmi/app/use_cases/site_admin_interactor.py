@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from deolmi.app.dtos.site_dto import IssuedSiteDto, SiteCreateCommand, SiteDto, StatsDto
+from deolmi.app.errors import UnknownSiteError
 from deolmi.app.ports.input.site_admin_use_case import SiteAdminUseCase
 from deolmi.app.ports.output.anomaly_model_port import AnomalyModelPort
 from deolmi.app.ports.output.event_repository import EventRepositoryPort
@@ -9,7 +10,7 @@ from deolmi.domain.services.site_keys import hash_secret, new_secret_key, new_si
 
 
 class SiteAdminInteractor(SiteAdminUseCase):
-    """운영자용 — 고객 키 발급·목록·통계."""
+    """운영자용 — 고객 키 발급·목록·비활성화·재발급·통계."""
 
     def __init__(
         self,
@@ -28,6 +29,19 @@ class SiteAdminInteractor(SiteAdminUseCase):
 
     async def list_sites(self) -> list[SiteDto]:
         return await self._sites.list_all()
+
+    async def set_site_active(self, site_key: str, active: bool) -> SiteDto:
+        site = await self._sites.set_active(site_key, active)
+        if site is None:
+            raise UnknownSiteError(site_key)
+        return site
+
+    async def rotate_secret(self, site_key: str) -> IssuedSiteDto:
+        secret_key = new_secret_key()
+        site = await self._sites.set_secret_hash(site_key, hash_secret(secret_key))
+        if site is None:
+            raise UnknownSiteError(site_key)
+        return IssuedSiteDto(site=site, secret_key=secret_key)
 
     async def stats(self) -> StatsDto:
         return StatsDto(

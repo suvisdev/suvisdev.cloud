@@ -23,6 +23,8 @@
 | `POST /api/deolmi/score` | 공개 키 + 사이트별 허용 도메인 | 채점. **모든 출처에 CORS 개방**(아래) |
 | `POST /api/deolmi/verify` | 비밀 키 | 토큰 검증. 틀린 키면 토큰을 소모하지 않는다 |
 | `POST/GET /api/deolmi/admin/sites` | `require_admin` | 키 발급(비밀 키는 응답에서 한 번만)·목록 |
+| `POST /api/deolmi/admin/sites/{site_key}/deactivate`·`activate` | `require_admin` | 사이트 끄기·켜기. 꺼지면 `/score`·`/verify` 모두 401. 없는 키 404 |
+| `POST /api/deolmi/admin/sites/{site_key}/rotate-secret` | `require_admin` | 비밀 키 재발급(새 키는 응답에서 한 번만). **옛 키는 즉시 무효**, 공개 키·켜짐 상태는 그대로. 없는 키 404 |
 | `GET /api/deolmi/admin/stats` | `require_admin` | 이벤트 수·모델 상태·최근 20건 |
 | `POST /api/deolmi/demo/verify` | 없음(데모 사이트 토큰만) | 데모 페이지(suvis `/deolmi`)용. 서버의 `DEOLMI_DEMO_SECRET`으로 `/verify`를 대신 불러 사유까지 돌려준다 |
 
@@ -98,6 +100,8 @@ PYTHONPATH="$PWD:$PWD/apps" python -m deolmi.scripts.retrain_model   # allow 로
 ```
 
 키 발급은 어드민 토큰으로 `POST /api/deolmi/admin/sites {"name","plan","domains":[...]}`.
+
+유출 대응은 `deactivate` → `rotate-secret` → 고객 서버에 새 키 반영 → `activate` 순서다. 데모 사이트를 재발급하면 `.env` `DEOLMI_DEMO_SECRET`도 바꿔야 `/demo/verify`가 다시 돈다.
 
 ## 테스트
 
