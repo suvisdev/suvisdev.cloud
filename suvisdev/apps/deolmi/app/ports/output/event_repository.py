@@ -26,4 +26,7 @@ class EventRepositoryPort(EventLogPort):
     async def recent(self, n: int) -> list[EventSummaryDto]: ...
 
     @abstractmethod
-    async def signals_by_verdict(self, verdict: str, limit: int) -> list[dict[str, Any]]: ...
+    async def signals_by_verdict(
+        self, verdict: str, limit: int, *, per_ip: int
+    ) -> list[dict[str, Any]]:
+        """재학습 표본. 한 IP가 per_ip 건을 넘게 넣지 못한다(위조 신호로 모델을 끌고 가지 못하게)."""

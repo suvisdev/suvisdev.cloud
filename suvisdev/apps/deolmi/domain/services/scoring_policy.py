@@ -15,6 +15,9 @@ Verdict = Literal["allow", "challenge", "block"]
 
 BLOCK_THRESHOLD = 0.80
 CHALLENGE_THRESHOLD = 0.55
+# 실데이터로 학습하기 전 모델(부트스트랩)은 지어낸 표본만 안다 — 혼자서는 차단하지 못하고 확인까지만.
+# 진짜 팬 차단이 가장 비싼 실수다(ROADMAP 단계 2). 규칙은 그대로 차단한다.
+UNTRAINED_MODEL_CAP = 0.79
 
 # 같은 사이트·같은 IP가 창(10초) 안에 이만큼 넘게 때리면 의심 — 예매 폭주 대응.
 # 속도만으로는 차단하지 않는다(challenge 상한): PC방·회사·통신사 NAT처럼 사람 여럿이 IP 하나를 쓴다.
@@ -66,7 +69,14 @@ def rule_score(s: Mapping[str, float], velocity_count: int) -> RuleResult:
         score = max(score, value)
         reasons.append(reason)
 
-    if s.get("key_count", 0) >= 4 and s.get("key_iv_std", 999) < 4:
+    # 사람은 제출하려면 마우스·키·터치 중 하나는 쓴다. 전부 0이면 SDK 없이 API를 직접 부른 것이다.
+    if not any(s.get(k, 0) for k in ("move_count", "click_count", "key_count", "touch_count")):
+        hit(0.90, "입력 흔적이 전혀 없음(SDK 없이 직접 호출 의심)")
+    if s.get("webdriver", 0):
+        hit(0.95, "자동화 브라우저 표시(navigator.webdriver)")
+    # 사람의 키 간격 편차는 수십 ms다. 자동 입력 도구의 고정 지연은 브라우저 지터를 타도 4~6ms(11-10 실측).
+    # 간격이 3개는 남아야 편차를 믿는다 — 천천히 띄엄띄엄 친 사람은 멈춤을 빼면 남는 간격이 없다.
+    if s.get("key_rhythm_count", 0) >= 3 and s.get("key_iv_std", 999) < 10:
         hit(0.95, "키 입력 간격이 거의 일정함(자동 입력/붙여넣기 의심)")
     if s.get("click_count", 0) >= 3 and s.get("click_iv_std", 999) < 8:
         hit(0.90, "클릭 간격이 비정상적으로 규칙적")

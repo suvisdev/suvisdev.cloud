@@ -90,6 +90,10 @@ class NewsRepositoryPort(ABC):
     async def mark_summary_failed(self, article_id: int) -> None: ...
 
     @abstractmethod
+    async def list_digest_candidates(self, *, since: datetime, until: datetime) -> list[ArticleDto]:
+        """아침 메일 후보 — 기간 안의 AI 섹션 RSS 글. 논문은 화제 수치가 있는 것만."""
+
+    @abstractmethod
     async def search_articles(
         self, tokens: Sequence[str], *, section: str, limit: int, before: datetime | None
     ) -> list[ArticleDto]:

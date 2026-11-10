@@ -99,7 +99,8 @@ def test_bootstrap_model_separates_human_from_scripted(tmp_path):
             }
         )
     )
-    assert human < 0.55 < 0.80 < scripted
+    # 부트스트랩 모델은 혼자 차단하지 못하므로(UNTRAINED_MODEL_CAP) 확인 구간까지 가르면 된다.
+    assert human < 0.55 < 0.75 < scripted
 
 
 class _FakeSession:

@@ -85,14 +85,6 @@ class LoraServerClient:
         self._timeout = timeout
         self._token = token
 
-    def is_ready(self) -> bool:
-        try:
-            with httpx.Client(timeout=5.0) as client:
-                r = client.get(f"{self._base_url}/health")
-                return r.status_code == 200
-        except httpx.TransportError:
-            return False
-
     def generate(self, prompt: str, *, system: str | None = None) -> str:
         payload: dict[str, str] = {"prompt": prompt}
         if system:

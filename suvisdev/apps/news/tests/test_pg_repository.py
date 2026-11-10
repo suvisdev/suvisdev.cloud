@@ -13,6 +13,7 @@ from news.adapter.outbound.orm.base import NewsBase  # noqa: E402
 from news.adapter.outbound.pg.news_pg_repository import NewsPgRepository  # noqa: E402
 from news.app.dtos.news_dtos import (  # noqa: E402
     FetchedArticle,
+    HotUpdate,
     TopicCreateCommand,
     TopicUpdateCommand,
     VerdictCommand,
@@ -152,3 +153,22 @@ async def test_topic_crud(repo):
     assert u is not None and u.label == "환율 소식" and u.is_public
     assert await repo.delete_topic(t.id) is True
     assert await repo.delete_topic(t.id) is False
+
+
+@pytest.mark.asyncio
+async def test_digest_candidates_keep_window_and_only_hot_papers(repo):
+    saved = await repo.save_articles(
+        [
+            _a(1, group="community"),
+            _a(2, group="paper"),
+            _a(3, group="paper"),
+            _a(4, group="lab", minutes=24 * 60),  # 기간 밖
+            _a(5, group="outlet", section="economy"),
+            _a(6, origin="search", group="community"),
+        ]
+    )
+    await repo.set_hot([HotUpdate(article_id=saved[2].id, source="hf", score=9, label="추천 9")])
+    rows = await repo.list_digest_candidates(
+        since=datetime(2026, 11, 5, 0, tzinfo=UTC), until=datetime(2026, 11, 6, 0, tzinfo=UTC)
+    )
+    assert {r.url for r in rows} == {"https://a.example/1", "https://a.example/3"}

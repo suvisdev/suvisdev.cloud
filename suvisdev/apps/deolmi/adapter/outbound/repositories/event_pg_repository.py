@@ -77,11 +77,24 @@ class EventPgRepository(EventRepositoryPort):
             for e, site_key in rows.all()
         ]
 
-    async def signals_by_verdict(self, verdict: str, limit: int) -> list[dict[str, Any]]:
-        rows = await self._session.execute(
-            select(DeolmiEventOrm.signals)
+    async def signals_by_verdict(
+        self, verdict: str, limit: int, *, per_ip: int
+    ) -> list[dict[str, Any]]:
+        ranked = (
+            select(
+                DeolmiEventOrm.id,
+                DeolmiEventOrm.signals,
+                func.row_number()
+                .over(partition_by=DeolmiEventOrm.ip, order_by=DeolmiEventOrm.id.desc())
+                .label("rn"),
+            )
             .where(DeolmiEventOrm.verdict == verdict)
-            .order_by(DeolmiEventOrm.id.desc())
+            .subquery()
+        )
+        rows = await self._session.execute(
+            select(ranked.c.signals)
+            .where(ranked.c.rn <= per_ip)
+            .order_by(ranked.c.id.desc())
             .limit(limit)
         )
         return list(rows.scalars())

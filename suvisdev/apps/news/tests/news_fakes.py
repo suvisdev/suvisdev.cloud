@@ -30,6 +30,7 @@ from news.domain.url import canonical_url
 
 class FakeRepo(NewsRepositoryPort):
     def __init__(self) -> None:
+        self.digest_candidates: list[ArticleDto] = []
         self.topics: dict[int, TopicDto] = {}
         self.articles: dict[str, StoredArticle] = {}
         self.links: dict[int, dict[int, float]] = {}
@@ -156,6 +157,9 @@ class FakeRepo(NewsRepositoryPort):
     ) -> list[ArticleDto]:
         self.last_query = ("latest", section, group, limit)
         return []
+
+    async def list_digest_candidates(self, *, since: datetime, until: datetime) -> list[ArticleDto]:
+        return list(self.digest_candidates)
 
     async def search_articles(
         self, tokens: Sequence[str], *, section: str, limit: int, before: datetime | None

@@ -20,6 +20,7 @@ from deolmi.app.ports.output.velocity_port import VelocityPort
 from deolmi.domain.services.origin_policy import origin_allowed
 from deolmi.domain.services.scoring_policy import (
     BLOCK_THRESHOLD,
+    UNTRAINED_MODEL_CAP,
     no_mouse_input,
     rule_score,
     to_features,
@@ -95,8 +96,10 @@ class ScoreInteractor(ScoreUseCase):
             # IsolationForest 추론은 CPU 연산 — 이벤트 루프를 막지 않게 스레드로 넘긴다.
             raw = await asyncio.to_thread(self._model.score, to_features(signals))
             model_score = round(raw, 3)
-            final = max(rule.score, model_score)
-            decided_by = "rule" if rule.score >= model_score else "model"
+            if self._model.source == "bootstrap":
+                raw = min(raw, UNTRAINED_MODEL_CAP)
+            final = max(rule.score, raw)
+            decided_by = "rule" if rule.score >= raw else "model"
         return ScoreResultDto(
             score=round(final, 3),
             verdict=verdict_of(final),

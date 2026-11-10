@@ -408,22 +408,6 @@ export async function fetchMovaRankings(
   }
 }
 
-export async function refreshMovaRankings(source = "chat_trend"): Promise<void> {
-  // 백엔드 재집계는 admin 전용(2026-09-11) — 토큰이 있으면 3계층 전달한다.
-  const res = await fetch(`/api/mova/rankings/refresh?source=${encodeURIComponent(source)}`, {
-    method: "POST",
-    headers: {},
-  })
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}))
-    const detail =
-      typeof data === "object" && data && "detail" in data
-        ? (data as { detail: unknown }).detail
-        : undefined
-    throw new Error(safeApiErrorMessage(detail, `랭킹 새로고침 실패 (${res.status})`, res.status))
-  }
-}
-
 function staticRankingFallback(): MovaHotRankingItem[] {
   return MOVA_RANKING.map((m) => ({
     id: m.id,

@@ -8,6 +8,3 @@ class LoginSchema(BaseModel):
 
     username: str = Field(..., min_length=1, max_length=50)
     password: str = Field(..., min_length=1, max_length=128)
-
-    def log_summary(self) -> dict[str, str]:
-        return {"username": self.username}

@@ -63,14 +63,6 @@ class KoficAdapter:
         box_office_result = data.get("boxOfficeResult") or {}
         return list(box_office_result.get("weeklyBoxOfficeList") or [])
 
-    async def fetch_movie_info(self, movie_cd: str) -> dict[str, Any]:
-        data = await self._get(
-            "/movie/searchMovieInfo.json",
-            params={"movieCd": movie_cd},
-        )
-        movie_info_result = data.get("movieInfoResult") or {}
-        return dict(movie_info_result.get("movieInfo") or {})
-
     async def fetch_movie_list(
         self,
         *,
@@ -78,7 +70,7 @@ class KoficAdapter:
         item_per_page: int = 100,
         rep_nation_cd: str | None = None,
     ) -> list[dict[str, Any]]:
-        """KOFIC 영화 목록 — movieNm/directors/prdtYear/genreAlt 등 기본 필드만 준다(상세는 fetch_movie_info).
+        """KOFIC 영화 목록 — movieNm/directors/prdtYear/genreAlt 등 기본 필드만 준다.
 
         rep_nation_cd: "K"(한국영화)/"F"(외국영화). None이면 국적 필터 없이 전체.
         """

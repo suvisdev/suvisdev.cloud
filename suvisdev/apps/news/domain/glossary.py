@@ -92,7 +92,3 @@ def find_terms(
             found.append((match.start(), -(match.end() - match.start()), entry))
     found.sort(key=lambda f: (f[0], f[1]))
     return tuple(GlossaryTerm(term=e.term, desc=e.desc) for _, _, e in found[:limit])
-
-
-def glossary_size() -> int:
-    return len(_entries())

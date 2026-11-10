@@ -196,6 +196,9 @@ def main() -> None:
     parser.add_argument("-n", type=int, default=15)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--save", default=None)
+    parser.add_argument(
+        "--hide-webdriver", action="store_true", help="navigator.webdriver를 숨긴 공격자로 시험"
+    )
     args = parser.parse_args()
     if urlparse(args.base).hostname != "localhost":
         raise SystemExit("이 도구는 localhost 임시 서버만 시험한다")
@@ -225,6 +228,10 @@ def main() -> None:
             rows = []
             for _ in range(args.n):
                 page = browser.new_page(viewport={"width": 1280, "height": 900})
+                if args.hide_webdriver:
+                    page.add_init_script(
+                        "Object.defineProperty(navigator, 'webdriver', { get: () => false })"
+                    )
                 page.goto(args.base + "/page")
                 attack(page)
                 page.wait_for_function("window.__result !== undefined", timeout=20000)

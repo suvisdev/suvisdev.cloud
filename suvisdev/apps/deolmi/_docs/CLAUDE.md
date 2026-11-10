@@ -49,6 +49,14 @@
 `isTrusted && detail === 0`(`kbd_click_count`, 스크립트의 `el.click()`은 isTrusted가 false)로 센다. 두 값은 모델 특징
 (`FEATURE_ORDER`)이 아니라 규칙·모델 생략 판정에만 쓴다 — 기존 모델 파일·부트스트랩은 그대로.
 
+11-10 보완(공격 시험 [ATTACK_EVAL.md](ATTACK_EVAL.md) 뒤):
+- SDK는 `isTrusted`가 false인 마우스·키·터치 이벤트(스크립트의 `dispatchEvent`)를 세지 않는다. 클릭은 그대로 센다(움직임 없는 클릭 규칙이 잡는다).
+- 키 간격 편차(`key_iv_std`)는 1초를 넘는 멈춤을 빼고 잰다. 입력칸 이동이 리듬에 섞이면 두 칸을 채운 사람도 이상치가 됐다.
+  남은 간격 수는 `key_rhythm_count`로 보내고, 일정 간격 규칙은 이 값이 3 이상일 때만 본다(천천히 띄엄띄엄 친 사람은 0).
+- 규칙 두 개 추가: `webdriver`(자동화 브라우저 표시) 0.95, 마우스·클릭·키·터치가 모두 0인 세션 0.90.
+- **부트스트랩 모델은 혼자서 차단하지 못한다**(`UNTRAINED_MODEL_CAP` 0.79, 확인까지만). 학습한 모델과 규칙은 차단할 수 있다.
+- 재학습은 IP 하나당 20건까지만 쓴다(`MAX_PER_IP`). 위조 신호도 allow를 받기 때문이다. IP를 여럿 쓰면 못 막는다.
+
 ## 구조 메모
 
 - 레이어: router → `ScoreUseCase`/`SiteAdminUseCase` → interactor → 포트(사이트·이벤트 저장소, 모델, 토큰, 속도) → 어댑터.

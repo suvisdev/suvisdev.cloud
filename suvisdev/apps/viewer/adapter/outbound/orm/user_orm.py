@@ -56,13 +56,6 @@ class User(ViewerModel):
     )
 
 
-async def viewer_user_exists(user_id: int) -> bool:
-    factory = get_viewer_session_factory()
-    async with factory() as session:
-        result = await session.execute(select(User.id).where(User.id == user_id))
-        return result.scalar_one_or_none() is not None
-
-
 async def get_viewer_user_nicknames(user_ids: set[int]) -> dict[int, str]:
     if not user_ids:
         return {}
