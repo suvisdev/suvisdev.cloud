@@ -24,7 +24,7 @@ function glue(text: string) {
 const ROLE = "AI Engineer"
 const HEADLINE = "LLM 에이전트와 AI 서비스를 직접 개발하고 운영하는 AI 엔지니어"
 
-// 문구와 수치는 PDF 이력서 v23(2026-10-20, AI 엔지니어판)을 따른다. 서버 구성만 11-08 노트북 단독 전환(ADR-0008)을 반영해 PDF보다 앞선다.
+// 문구와 수치는 PDF 이력서 v25(2026-11-09, AI 엔지니어판)를 따른다. 서버 구성은 11-08 노트북 단독 전환(ADR-0008)까지 반영돼 있다.
 const STRENGTHS = [
   {
     label: "LLM 에이전트",
@@ -36,7 +36,7 @@ const STRENGTHS = [
   },
   {
     label: "서빙과 운영",
-    text: "개인 서비스를 k3s 서버 2대로 이중화해 노트북이 꺼지면 약 31초 뒤 자택 서버가 API를 이어받게 운영(2026.10~11)한 뒤, 자택 서버 DB 장애를 겪고 노트북 1대로 단순화해 AWS 서버 없이 운영",
+    text: "개인 서비스를 AWS 없이 GPU 노트북의 k3s로 운영하고, 서버 2대 자동 전환(약 31초)을 구축해 시험한 뒤 DB 장애를 겪고 한 대로 재편(중단 약 9분)",
   },
   {
     label: "팀 프로젝트 리딩",
@@ -63,7 +63,7 @@ const TECH_STACK = [
   { category: "RAG와 체인", items: ["pgvector", "bge-m3"], usage: "시맨틱 검색, 3단 프롬프트 체인(요약, 평가, 추천)" },
   { category: "서빙", items: ["Ollama", "llama.cpp", "HAProxy"], usage: "GGUF 로컬 서빙, GPU 추론 중계, 비전 모델 MCP 서버" },
   { category: "백엔드", items: ["Python", "FastAPI", "PostgreSQL"], usage: "채용 시스템 API, 1인 모듈러 모놀리식 백엔드" },
-  { category: "인프라", items: ["Docker", "k3s", "AWS", "GitHub Actions"], usage: "자동 배포, 서버 2대 자동 전환 운영 경험, PC 3대 온프레미스" },
+  { category: "인프라", items: ["Docker", "k3s", "AWS", "GitHub Actions"], usage: "자동 배포, 서버 2대 자동 전환, PC 3대 온프레미스" },
   { category: "프론트와 앱", items: ["React", "Next.js", "Flutter"], usage: "웹 화면, Android 앱(Google Play 내부 테스트)" },
 ]
 
@@ -88,7 +88,7 @@ const PROJECTS = [
       "파인튜닝한 Qwen을 GGUF로 바꿔 Ollama로 띄우고, 컴퓨터 3대에 API와 DB, 면접 분석, LLM을 나눠 Cloudflare Tunnel 도메인으로 연결함",
       "지원서를 요약, 평가, 추천 체인으로 읽어 공고 기준 100점으로 채점하고 서류 단계를 자동 판정함(단계 이동은 자동, 최종 합격과 불합격 메일은 담당자)",
       "클린 아키텍처 중 필요한 부분만 골라 헥사고날 구조로 재편해, 모델 파일 하나를 71개 파일이 불러 쓰던 백엔드를 업무 단위 4개로 나누고 고칠 범위를 좁힘(PR 20개)",
-      "팀장을 맡은 뒤 전임 팀장 계정의 AWS를 본인 계정으로 옮기고 권한을 역할별로 나눔",
+      "전임 팀장 계정의 AWS를 본인 계정으로 옮겨 권한을 역할별로 나눴고, 과정 종료 뒤 AWS를 닫고 데모를 노트북으로 옮김",
     ],
     tech: ["Python", "FastAPI", "PostgreSQL(pgvector)", "Claude API", "Qwen3-8B(QLoRA)", "Ollama", "Docker", "AWS", "React", "Flutter"],
     links: [
@@ -99,30 +99,33 @@ const PROJECTS = [
   },
   {
     name: "suvisdev.cloud",
-    desc: "AI 영화 추천(Mova)과 반려견 산책 경로(Gildle) 통합 플랫폼",
+    desc: "AI 영화 추천(Mova), 산책 경로(Gildle), 매크로 탐지(덜미), AI 소식 통합 플랫폼",
     meta: ["개인 프로젝트(1인)", "2026.07 ~ 현재", "풀스택 개발, ML 파이프라인, 인프라, 데이터 수집"],
     overview:
       "좋아하는 영화와 반려견 산책에 AI를 붙여, 대화로 영화를 찾고 그늘진 산책 길을 추천받는 서비스를 기획부터 운영까지 혼자 만든 플랫폼(현재 개인 운영과 내부 테스트 단계)",
     results: [
       { label: "도구 선택 정확도 83% → 94%", text: "EXAONE 3.5 2.4B 파인튜닝 전후, 평가 66건(프롬프트만 쓴 7.8B는 89%)" },
       { label: "영화 검색 적중률 39% → 86%", text: "임베딩 모델을 바꿔, 질문 60개에서 찾는 영화가 검색 결과 상위 8개 안에 드는 비율(Recall@8)을 높임" },
-      { label: "AWS EC2 사용액 월 약 70달러 절감", text: "백엔드를 자체 서버로 옮겨 GPU 추론까지 직접 운영" },
+      { label: "AWS EC2 사용액 월 약 70달러 절감", text: "백엔드를 GPU 노트북으로 옮겨 GPU 추론까지 직접 운영" },
       {
-        label: "서버 2대 이중화와 1대 단순화",
-        text: "2026.10~11에 노트북이 꺼져도 약 31초 뒤 자택 서버가 API를 이어받게 운영(노트북을 끄는 시험으로 확인). 자택 서버 DB가 세 번 크래시한 뒤 노트북 1대로 단순화",
+        label: "서버 2대 자동 전환과 한 대 재편",
+        text: "노트북을 끄는 시험에서 약 31초 뒤 자택 서버가 API를 이어받음을 확인했고, 자택 서버 DB가 하루 세 번 멈추자 노트북 한 대로 옮김(중단 약 9분, 표 69개 행 수 일치)",
       },
     ],
     points: [
       "EXAONE 3.5 2.4B를 LoRA로 파인튜닝해 영화 채팅에서 다음에 쓸 도구 하나만 고르게 하고, 출연진, 상영 시간표 같은 사실은 코드가 조회해 답하게 나눔",
       "임베딩 모델 3종을 영화 205편, 질문 60개로 직접 비교해 가장 잘 찾는 bge-m3로 바꾸고 검색 데이터를 다시 만듦(2,965건)",
       "서울 보행로 약 23만 구간에 건물 약 80만 동의 그림자를 달마다, 시간대마다 미리 계산해 그늘진 산책 길을 찾아 줌",
-      "노트북(GPU)과 자택 서버 두 대를 Cloudflare Tunnel로 묶어 자동 전환을 운영했고, 지금은 앱·DB·추론을 노트북 한 대에 모아 Cloudflare Tunnel로 서비스함",
+      "Cloudflare Tunnel로 공개한 노트북 k3s에 앱, DB, 모델을 모으고, GPU 8GB를 모델별로 나눠 씀",
+      "매크로 탐지 덜미(규칙과 IsolationForest 채점, 1회용 서명 토큰)와 AI 소식(피드 36곳, EXAONE 3.5 7.8B로 한국어 요약)을 같은 백엔드에 추가함",
     ],
     tech: ["FastAPI", "PostgreSQL(pgvector)", "Redis", "EXAONE 3.5(LoRA)", "Gemini", "Ollama", "llama.cpp", "Next.js", "Flutter", "k3s"],
     links: [
       { label: "서비스", href: "https://suvisdev.cloud" },
       { label: "Mova", href: "https://suvisdev.cloud/mova" },
       { label: "Gildle", href: "https://suvisdev.cloud/gildle" },
+      { label: "덜미", href: "https://suvisdev.cloud/deolmi" },
+      { label: "AI 소식", href: "https://suvisdev.cloud/news" },
       { label: "GitHub", href: "https://github.com/suvisdev/suvisdev.cloud" },
       { label: "기술 문서", href: "https://jk.suvisdev.cloud" },
     ],
@@ -132,8 +135,8 @@ const PROJECTS = [
 const EDUCATION = [
   {
     period: "2026.04 ~ 2026.10",
-    title: "IBM x Red Hat AI Transformation AX Academy (대한상공회의소, 하이미디어)",
-    desc: "팀 Seuk 팀장, 2026.10.27 수료 예정. 과정 내 실습 Red Hat OpenShift Administration I (DO180), 2026.08",
+    title: "IBM x Red Hat AI Transformation AX Academy (대한상공회의소)",
+    desc: "팀 Seuk 팀장, 2026.10.27 수료. 과정 내 실습 Red Hat OpenShift Administration I (DO180), 2026.08",
   },
   { period: "2020.06 ~ 2021.08", title: "모션랩학원 모션그래픽 과정", desc: "" },
   { period: "2009.03 ~ 2014.05", title: "경상대학교 건축공학과 중퇴", desc: "" },
