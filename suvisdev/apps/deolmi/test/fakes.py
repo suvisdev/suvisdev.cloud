@@ -24,6 +24,7 @@ HUMAN = {
     "click_iv_mean": 850,
     "click_iv_std": 260,
     "key_count": 12,
+    "key_rhythm_count": 11,
     "key_iv_std": 95,
     "dwell_ms": 6500,
 }
@@ -122,18 +123,27 @@ class _FakeEventRepository(EventRepositoryPort):
     async def recent(self, n: int) -> list[EventSummaryDto]:
         return []
 
-    async def signals_by_verdict(self, verdict: str, limit: int) -> list[dict[str, Any]]:
-        return [r[2] for r in self.rows if r[3].verdict == verdict][:limit]
+    async def signals_by_verdict(
+        self, verdict: str, limit: int, *, per_ip: int
+    ) -> list[dict[str, Any]]:
+        seen: dict[str | None, int] = {}
+        out = []
+        for _site, ip, signals, result in reversed(self.rows):
+            if result.verdict == verdict and seen.get(ip, 0) < per_ip:
+                seen[ip] = seen.get(ip, 0) + 1
+                out.append(signals)
+        return out[:limit]
 
 
 class _FakeModel(AnomalyModelPort):
-    def __init__(self, value: float = 0.2) -> None:
+    def __init__(self, value: float = 0.2, source: str = "fake") -> None:
         self.value = value
+        self._source = source
         self.calls = 0
 
     @property
     def source(self) -> str:
-        return "fake"
+        return self._source
 
     def score(self, features: list[float]) -> float:
         self.calls += 1

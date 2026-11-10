@@ -46,8 +46,10 @@ class SignalsSchema(BaseModel):
     click_iv_std: float = Field(default=0, ge=0, le=_MAX_MS)
     key_count: int = Field(default=0, ge=0, le=_MAX_COUNT)
     key_iv_std: float = Field(default=0, ge=0, le=_MAX_MS)
+    key_rhythm_count: int = Field(default=0, ge=0, le=_MAX_COUNT)  # 1초 넘는 멈춤을 뺀 키 간격 수
     dwell_ms: float = Field(default=0, ge=0, le=_MAX_MS)
     touch_count: int = Field(default=0, ge=0, le=_MAX_COUNT)  # touchstart·touchmove 수
+    webdriver: int = Field(default=0, ge=0, le=1)  # navigator.webdriver(자동화 브라우저 표시)
     kbd_click_count: int = Field(default=0, ge=0, le=_MAX_COUNT)  # 키보드가 만든 클릭 수
 
     @model_validator(mode="after")

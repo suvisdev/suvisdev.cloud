@@ -36,9 +36,16 @@ _END_MS = 8000
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node 필요")
 
 
-def _sdk_features(events: list[dict]) -> dict:
+def _sdk_features(events: list[dict], *, webdriver: bool = False) -> dict:
     out = subprocess.run(
-        ["node", str(_HERE / "sdk_driver.js"), str(_SDK), json.dumps(events), str(_END_MS)],
+        [
+            "node",
+            str(_HERE / "sdk_driver.js"),
+            str(_SDK),
+            json.dumps(events),
+            str(_END_MS),
+            "1" if webdriver else "0",
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -139,3 +146,68 @@ def test_stop_releases_listeners():
     after = [{"t": 5000 + i * 100, "type": "keydown"} for i in range(30)]
     f = _sdk_features([*before, {"t": 4000, "type": "stop"}, *after])
     assert f["key_count"] == 5
+
+
+def _moves(start: int, n: int, *, trusted: bool = True) -> list[dict]:
+    return [
+        {
+            "t": start + i * 16,
+            "type": "pointermove",
+            "pointerType": "mouse",
+            "clientX": 100 + i * 7,
+            "clientY": 100 + (i % 5) * 9,
+            "isTrusted": trusted,
+        }
+        for i in range(n)
+    ]
+
+
+def test_script_dispatched_events_do_not_count_as_human_input():
+    # dispatchEvent로 만든 마우스·키·터치(isTrusted false)로 궤적·리듬을 부풀리지 못한다
+    fake = [
+        *_moves(100, 40, trusted=False),
+        *[{"t": 2000 + i * 137, "type": "keydown", "isTrusted": False} for i in range(10)],
+        {"t": 4000, "type": "touchstart", "isTrusted": False},
+    ]
+    f = _sdk_features([*fake, *_moves(5000, 3)])
+    assert (f["move_count"], f["key_count"], f["touch_count"]) == (3, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_webdriver_browser_is_blocked_by_rule():
+    human_like = [
+        *_moves(100, 60),
+        *_typing(2000, 12),
+        _trusted_click(6000, detail=1, pointer_type="mouse"),
+    ]
+    assert _sdk_features(human_like)["webdriver"] == 0
+    s = _validated_wd(human_like)
+    assert s["webdriver"] == 1
+    assert await _verdict(s) == ("block", None)  # 규칙만으로 차단 — 모델을 부르지 않는다
+
+
+def _validated_wd(events: list[dict]) -> dict:
+    return SignalsSchema.model_validate(_sdk_features(events, webdriver=True)).model_dump()
+
+
+def test_key_rhythm_ignores_pauses_between_fields():
+    # 두 칸을 채우는 사람: 칸 사이 2초 멈춤이 리듬 편차를 부풀리지 않는다
+    one_field = _typing(1000, 12)
+    two_fields = [*one_field, *[{**e, "t": e["t"] + 2000} for e in _typing(one_field[-1]["t"], 11)]]
+    f1, f2 = _sdk_features(one_field), _sdk_features(two_fields)
+    assert f2["key_count"] == 23 and f2["key_iv_std"] <= f1["key_iv_std"] * 1.5
+
+
+def test_constant_typing_with_pauses_still_hits_key_rhythm_rule():
+    # 칸마다 멈추는 일정 간격 자동 입력: 멈춤을 빼면 편차가 0에 가깝다
+    bot = [*_typing(100, 8, jitter=False), *_typing(3000, 8, jitter=False)]
+    assert _sdk_features(bot)["key_iv_std"] < 10
+
+
+@pytest.mark.asyncio
+async def test_slow_irregular_typist_is_not_mistaken_for_constant_typing():
+    # 1초 넘는 간격만 있으면 리듬 간격이 남지 않는다 — 편차 0을 '일정한 입력'으로 보지 않는다(Codex 지적)
+    slow = [{"t": t, "type": "keydown"} for t in (100, 1400, 3100, 5500)]
+    s = _validated(slow)
+    assert (s["key_count"], s["key_rhythm_count"], s["key_iv_std"]) == (4, 0, 0)
+    assert await _verdict(s) == ("allow", None)
