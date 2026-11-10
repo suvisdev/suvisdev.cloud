@@ -426,19 +426,6 @@ class ReviewsPgRepository(ReviewsRepositoryPort):
         ).scalar_one()
         return int(result or 0)
 
-    async def has_voted(self, review_id: int, user_id: int) -> bool:
-        row = (
-            await self._session.execute(
-                select(MovaReviewVote.id)
-                .where(
-                    MovaReviewVote.review_id == review_id,
-                    MovaReviewVote.user_id == user_id,
-                )
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        return row is not None
-
     async def _update_movie_rating(self, movie_id: int) -> None:
         """reviews upsert 후 movies.rating 갱신."""
         result = (

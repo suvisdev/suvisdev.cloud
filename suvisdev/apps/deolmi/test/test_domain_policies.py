@@ -5,6 +5,7 @@ from fakes import BOT, ENTER_SUBMIT_HUMAN, HUMAN, KEYBOARD_HUMAN, TOUCH_HUMAN
 
 from deolmi.domain.services.origin_policy import host_of, origin_allowed
 from deolmi.domain.services.scoring_policy import (
+    BLOCK_THRESHOLD,
     FEATURE_ORDER,
     VELOCITY_BURST,
     VELOCITY_SUSPECT,
@@ -114,3 +115,19 @@ def test_site_keys():
     assert pk.startswith("pk_") and sk.startswith("sk_") and pk != new_site_key()
     assert secret_matches(sk, hash_secret(sk))
     assert not secret_matches(sk + "x", hash_secret(sk))
+
+
+def test_no_input_at_all_is_blocked_by_rule():
+    r = rule_score({"dwell_ms": 5000}, velocity_count=0)
+    assert r.score >= BLOCK_THRESHOLD and "입력 흔적" in r.reasons[0]
+    # 마우스·키·터치 중 하나라도 있으면 이 규칙은 아니다
+    assert rule_score({"key_count": 3, "key_iv_std": 80, "dwell_ms": 5000}, 0).score == 0
+
+
+def test_fixed_delay_typing_with_browser_jitter_hits_key_rhythm_rule():
+    # Playwright keyboard.type(delay=60): 61~66ms에 칸 이동 한 번 — 편차 4~6ms(11-10 실측)
+    r = rule_score({**HUMAN, "key_rhythm_count": 22, "key_iv_std": 6}, velocity_count=0)
+    assert r.score >= BLOCK_THRESHOLD
+    assert (
+        rule_score({**HUMAN, "key_rhythm_count": 22, "key_iv_std": 25}, 0).score < BLOCK_THRESHOLD
+    )

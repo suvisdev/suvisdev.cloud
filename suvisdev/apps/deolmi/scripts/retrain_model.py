@@ -21,6 +21,9 @@ from deolmi.adapter.outbound.repositories.event_pg_repository import EventPgRepo
 from deolmi.domain.services.scoring_policy import to_features
 
 MIN_SAMPLES = 200
+# 신호는 위조할 수 있고 위조 신호는 allow를 받는다(11-09 공격 시험). 한 IP의 몫을 묶어 둔다.
+# ponytail: IP 여러 개를 쓰는 공격은 못 막는다. 재학습 모델은 운영에 올리기 전에 사람이 확인한다.
+MAX_PER_IP = 20
 
 
 def _complete(s: dict[str, float]) -> bool:
@@ -31,7 +34,9 @@ def _complete(s: dict[str, float]) -> bool:
 async def main() -> None:
     reload_env()  # get_db()가 URL을 정하기 전에 suvisdev/.env를 읽는다(서버 밖 단독 실행)
     async for session in get_db():
-        rows = await EventPgRepository(session).signals_by_verdict("allow", limit=100_000)
+        rows = await EventPgRepository(session).signals_by_verdict(
+            "allow", limit=100_000, per_ip=MAX_PER_IP
+        )
     vecs = [to_features(s) for s in rows if _complete(s)]
     print(f"allow 로그 {len(rows)}건 중 학습 가능한 완전 세션 {len(vecs)}건")
     if len(vecs) < MIN_SAMPLES:

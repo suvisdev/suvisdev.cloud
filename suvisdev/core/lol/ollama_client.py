@@ -43,15 +43,6 @@ class OllamaClient:
         self._timeout = timeout
         self._keep_alive = keep_alive
 
-    def is_ready(self) -> bool:
-        """Ollama 서버가 응답하는지 확인한다."""
-        try:
-            with httpx.Client(timeout=5.0) as client:
-                r = client.get(f"{self._base_url}/api/tags")
-                return r.status_code == 200
-        except httpx.TransportError:
-            return False
-
     def _build_body(
         self,
         prompt: str,

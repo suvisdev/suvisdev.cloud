@@ -58,7 +58,9 @@ def bootstrap_samples(n: int = 2000, seed: int = 42) -> np.ndarray:
             lognormal(800, 0.5, 120),
         ),
     )
-    click_iv_std = np.where(clicks == 3, np.clip(rng.normal(250, 100, n), 40, None), 0.0)
+    # 클릭 사이에는 타이핑·입력칸 이동이 끼어 간격 편차가 크다(11-09 공격 시험: 두 칸 채우면
+    # 500~1000). 예전 정규(250, 100)는 이를 이상치로 봤다. 키 간격은 SDK가 1초 넘는 멈춤을 뺀다.
+    click_iv_std = np.where(clicks == 3, lognormal(450, 0.8, 40), 0.0)
     typed = rng.random(n) < 0.75
     key_iv_std = np.where(typed, np.clip(rng.normal(90, 40, n), 20, None), 0.0)
     return np.column_stack(

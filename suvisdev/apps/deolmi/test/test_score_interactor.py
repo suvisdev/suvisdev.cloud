@@ -155,3 +155,33 @@ async def test_create_site_returns_secret_once_and_stores_only_hash():
     assert secret_matches(issued.secret_key, stored.secret_hash)
     assert "secret" not in issued.site.to_schema().model_dump()
     assert issued.to_schema().secret_key == issued.secret_key
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source", "verdict"), [("bootstrap", "challenge"), ("trained(n=500)", "block")]
+)
+async def test_untrained_model_alone_cannot_block(source, verdict):
+    # 지어낸 표본만 아는 부트스트랩 모델은 확인까지만 — 학습한 모델은 차단할 수 있다
+    it = _interactor(model=_FakeModel(0.97, source=source))
+    result = (await it.score(_cmd(HUMAN))).event.result
+    assert result.verdict == verdict and result.model_score == 0.97 and result.decided_by == "model"
+
+
+@pytest.mark.asyncio
+async def test_rules_still_block_with_untrained_model():
+    signals = {**HUMAN, "webdriver": 1}
+    result = (
+        await _interactor(model=_FakeModel(0.1, source="bootstrap")).score(_cmd(signals))
+    ).event.result
+    assert result.verdict == "block" and result.model_score is None
+
+
+@pytest.mark.asyncio
+async def test_retrain_samples_are_capped_per_ip():
+    events = _FakeEventRepository()
+    it = _interactor(events=events)
+    for ip in ["6.6.6.6"] * 30 + ["1.1.1.1", "2.2.2.2"]:
+        issued = await it.score(ScoreCommand("pk_test", HUMAN, None, ip))
+        await it.record_event(issued.event)
+    assert len(await events.signals_by_verdict("allow", 1000, per_ip=5)) == 7
