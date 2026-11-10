@@ -79,10 +79,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _build_embedding(backend: str):
-    return GeminiEmbeddingAdapter() if backend == "gemini" else OllamaEmbeddingAdapter()
-
-
 async def _director_names(session, movie_id: int) -> list[str]:
     rows = await session.execute(
         select(MovaActor.name)

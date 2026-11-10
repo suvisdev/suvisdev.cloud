@@ -65,6 +65,3 @@ class SignupSchema(BaseModel):
         )
         object.__setattr__(self, "user", merged)
         return self
-
-    def log_summary(self) -> dict[str, str]:
-        return {"username": self.user.username}

@@ -178,6 +178,3 @@ class ChatPromptBuilder:
         parts.append(f"사용자: {fence_user_text(message)}")
         parts.append("JSON:")
         return "\n".join(parts)
-
-    def parse_structured_reply(self, raw: str) -> tuple[str, list[Any]]:
-        return self.reply_service.parse_gemini_reply(raw)

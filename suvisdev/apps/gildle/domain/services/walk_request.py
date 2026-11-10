@@ -114,11 +114,6 @@ def _preferences(text: str) -> tuple[str, ...]:
     return normalize_preferences(p for _, p in sorted(found))
 
 
-def _preference(text: str) -> str | None:
-    prefs = _preferences(text)
-    return prefs[0] if prefs else None
-
-
 def _stops(text: str) -> tuple[str, ...]:
     return tuple(cat for cat, words in _STOP_WORDS if any(w in text for w in words))
 

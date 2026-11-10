@@ -28,6 +28,28 @@
 
 ---
 
+## 2026-11-10 (2) — Codex와 안 쓰는 코드 정리
+
+### 작업 내용
+- 사용자 요청: Codex와 소통해 코드와 안 쓰는 파일을 정리한다.
+
+### 수정/구현
+- Claude와 Codex가 따로 후보를 찾고(Claude: import 그래프·vulture·프론트 import 스캔, Codex: 저장소 전체 검색) 목록을 맞춘 뒤 합의한 것만 지웠다.
+- 지운 것: 호출처 없는 함수·메서드·클래스 16개(mova·gildle·news·viewer·core·scripts), 프론트 `refreshMovaRankings`, 구 `nginx/conf.d/app.conf`(k8s ingress가 대체). 지운 파일을 가리키던 Flutter 주석·KOFIC 독스트링을 고쳤다.
+
+### 오류·막힌 점
+- Codex의 '중간' 후보 두 개는 운영에서 쓰고 있었다. `db/init`은 미추적 운영 compose가 마운트하고, `k8s/ollama-proxy`는 backend의 `OLLAMA_BASE_URL`(:11435)을 노트북 HAProxy 컨테이너가 받는다. 저장소 검색만으로는 보이지 않아 실제 포트·compose로 확인해 뺐다.
+- Codex는 titanic을 보존하기로 해 놓고 그 안의 지역 함수를 지우는 모순을 짚었다. 뺐다.
+
+### 데이터
+- 백엔드 시험 1326 통과(ontology 제외 실행) + ontology 135 통과, ruff·import-linter 6계약 통과, 프론트 tsc·eslint 0.
+- 일부러 남긴 것: titanic 전체(agent.md 삭제 금지), viewer 구 로그인 경로, ontology `_docs`의 `_tmp` 검증 스크립트(문서 인용), contents ORM(alembic 등록), datasets 빌드 스크립트.
+
+### 산출물
+- 프론트 미사용 파일은 0건이었다.
+
+---
+
 ## 2026-11-10 — 덜미 보완(공격 시험 후속)
 
 ### 작업 내용
