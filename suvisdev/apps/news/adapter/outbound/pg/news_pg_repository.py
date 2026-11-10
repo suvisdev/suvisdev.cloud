@@ -259,6 +259,20 @@ class NewsPgRepository(NewsRepositoryPort):
         stmt = stmt.order_by(NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc()).limit(limit)
         return await self._with_badges(list((await self._session.execute(stmt)).scalars()))
 
+    async def list_digest_candidates(self, *, since: datetime, until: datetime) -> list[ArticleDto]:
+        stmt = (
+            select(NewsArticleOrm)
+            .where(
+                NewsArticleOrm.origin == "feed",
+                NewsArticleOrm.section == "ai",
+                NewsArticleOrm.sort_at >= since,
+                NewsArticleOrm.sort_at < until,
+                or_(NewsArticleOrm.feed_group != "paper", NewsArticleOrm.hot_source.is_not(None)),
+            )
+            .order_by(NewsArticleOrm.sort_at.desc(), NewsArticleOrm.id.desc())
+        )
+        return await self._with_badges(list((await self._session.execute(stmt)).scalars()))
+
     async def search_articles(
         self, tokens: Sequence[str], *, section: str, limit: int, before: datetime | None
     ) -> list[ArticleDto]:
