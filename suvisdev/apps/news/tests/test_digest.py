@@ -295,11 +295,15 @@ def test_smtp_mailer_logs_in_and_sends_html(monkeypatch):
         def __enter__(self):
             return self
 
+        def ehlo(self):
+            self.esmtp_features = {"auth": "LOGIN PLAIN XOAUTH2"}
+
         def __exit__(self, *_):
             return False
 
         def login(self, user, password):
             calls["login"] = (user, password)
+            calls["auth"] = self.esmtp_features["auth"]
 
         def send_message(self, message):
             calls["message"] = message
@@ -309,6 +313,7 @@ def test_smtp_mailer_logs_in_and_sends_html(monkeypatch):
         subject="제목", text="본문", html="<p>본문</p>"
     )
     assert calls["addr"] == ("smtp.gmail.com", 465) and calls["login"] == ("me@x", "pw")
+    assert calls["auth"] == "PLAIN"
     assert calls["context"].verify_mode == ssl.CERT_REQUIRED and calls["context"].check_hostname
     message = calls["message"]
     assert message["To"] == "you@x" and message["Subject"] == "제목"
