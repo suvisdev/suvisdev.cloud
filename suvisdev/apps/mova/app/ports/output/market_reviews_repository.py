@@ -119,7 +119,3 @@ class ReviewsRepositoryPort(ABC):
     @abstractmethod
     async def get_vote_count(self, review_id: int) -> int:
         """리뷰의 투표 수."""
-
-    @abstractmethod
-    async def has_voted(self, review_id: int, user_id: int) -> bool:
-        """사용자가 해당 리뷰에 투표했는지."""

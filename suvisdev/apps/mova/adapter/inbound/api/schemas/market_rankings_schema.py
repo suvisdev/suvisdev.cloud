@@ -7,14 +7,6 @@ from datetime import date
 from pydantic import BaseModel
 
 
-class RankingItemSchema(BaseModel):
-    rank: int
-    movie_id: int
-    chat_id: int | None = None
-    score: int | None = None
-    badge: str | None = None
-
-
 class HotRankingDisplaySchema(BaseModel):
     id: int
     rank: int

@@ -7,6 +7,36 @@
 
 ---
 
+## 2026-11-10 (코드 정리)
+
+### N1. 안 쓰는 코드를 왜 두 도구로 따로 찾았나요?
+<details><summary>답</summary>
+
+정적 검사는 프레임워크 등록·문자열 import를 놓치고, 검색 기반 판단은 근거가 흐릴 수 있습니다. 따로 찾은 뒤 겹치는 것만 지우면 한쪽의 오탐을 다른 쪽이 걸러 줍니다.
+
+</details>
+
+### N2. git grep에 참조가 0건이어도 지우면 안 되는 경우는?
+<details><summary>답</summary>
+
+저장소 밖 설정이 파일을 쓰는 경우입니다. 미추적 compose가 마운트하는 db/init, 실행 중인 HAProxy가 받는 포트가 그랬습니다. 운영 상태를 직접 봐야 합니다.
+
+</details>
+
+### N3. vulture 결과를 그대로 쓰지 않은 이유는?
+<details><summary>답</summary>
+
+FastAPI 라우트·pydantic 검증기·CLI 명령·globals()로 등록되는 함수는 호출이 안 보여 미사용으로 나옵니다. 데코레이터를 제외하고 남은 것도 한 건씩 grep으로 확인했습니다.
+
+</details>
+
+### N4. 미사용인데 남긴 titanic 코드는 왜 그대로 두나요?
+<details><summary>답</summary>
+
+agent.md가 학습용 모듈의 경로를 삭제 금지로 안내합니다. 저장소 규칙이 정리 기준보다 우선합니다.
+
+</details>
+
 ## 2026-11-10 (덜미 보완)
 
 ### N1. 표본 범위를 넓히는 대신 SDK를 고친 이유는?

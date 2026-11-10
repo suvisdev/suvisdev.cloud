@@ -19,7 +19,3 @@ class UserPreferenceDto:
     def empty(cls) -> UserPreferenceDto:
         """사용자 미존재·비로그인 — 신호 없음."""
         return cls(nickname=None, preferred_genres=[])
-
-    def has_genre_signal(self) -> bool:
-        """선언된 선호 장르가 있어 콜드스타트 개인화가 가능한지."""
-        return bool(self.preferred_genres)
