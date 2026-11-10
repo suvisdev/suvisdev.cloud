@@ -52,6 +52,7 @@ async def _run(args: argparse.Namespace) -> None:
     get_keymaker()
 
     from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM
+    from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
     from mova.app.use_cases.review_embedding_backfill_interactor import (
         ReviewEmbeddingBackfillInteractor,
     )
@@ -71,12 +72,11 @@ async def _run(args: argparse.Namespace) -> None:
     )
     use_case = ReviewEmbeddingBackfillInteractor(
         session_factory=get_mova_session_factory(),
+        reviews_repository=ReviewsPgRepository,
         embedder=embedder,
     )
 
     if args.dry_run:
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         factory = use_case._session_factory  # noqa: SLF001 — CLI 전용 진입점
         async with factory() as session:
             targets = await ReviewsPgRepository(session=session).list_missing_embedding(

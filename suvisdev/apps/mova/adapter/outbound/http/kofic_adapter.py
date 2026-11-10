@@ -8,12 +8,14 @@ from typing import Any
 
 import httpx
 
+from mova.app.ports.output.box_office_port import BoxOfficeError
+
 logger = logging.getLogger(__name__)
 
 KOFIC_BASE = "http://www.kobis.or.kr/kobisopenapi/webservice/rest"
 
 
-class KoficAdapterError(Exception):
+class KoficAdapterError(BoxOfficeError):
     def __init__(self, message: str, *, status_code: int = 502) -> None:
         super().__init__(message)
         self.status_code = status_code

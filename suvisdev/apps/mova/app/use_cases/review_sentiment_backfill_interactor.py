@@ -12,18 +12,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from contextlib import AbstractAsyncContextManager
+from typing import Any
 
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from ontology.adapter.outbound.resource_adapters.echo_sentiment.echo_sentiment_adapter import (
-        EchoSentimentAdapter,
-    )
+from mova.app.ports.output.market_reviews_repository import ReviewsRepositoryPort
+from ontology.app.ports.output.sentiment_analysis_port import SentimentAnalysisPort
 
 logger = logging.getLogger(__name__)
 
-SessionFactory = Callable[[], "AsyncSession"]
+SessionFactory = Callable[[], AbstractAsyncContextManager[Any]]
 
 
 def _gpu_available() -> bool:
@@ -40,20 +37,6 @@ def _gpu_available() -> bool:
     return bool(torch.cuda.is_available())
 
 
-def _make_echo_adapter() -> EchoSentimentAdapter:
-    # ontology 어댑터는 lazy import — torch 로드가 무거워 GPU 경로에서만 당긴다.
-    from pathlib import Path
-
-    from ontology.adapter.outbound.resource_adapters.echo_sentiment.echo_sentiment_adapter import (
-        EchoSentimentAdapter,
-    )
-
-    adapter_dir = (
-        Path(__file__).resolve().parents[3] / "ontology" / "runs" / "echo_sentiment" / "adapter"
-    )
-    return EchoSentimentAdapter(adapter_dir=adapter_dir)
-
-
 def sentiment_to_rating(label: str, score: float) -> float:
     """감정 라벨+신뢰도 → 0.5~5.0 별점 변환."""
     if label == "긍정":
@@ -64,8 +47,17 @@ def sentiment_to_rating(label: str, score: float) -> float:
 
 
 class ReviewSentimentBackfillInteractor:
-    def __init__(self, *, session_factory: SessionFactory) -> None:
+    def __init__(
+        self,
+        *,
+        session_factory: SessionFactory,
+        reviews_repository: Callable[[Any], ReviewsRepositoryPort],
+        make_analyzer: Callable[[], SentimentAnalysisPort],
+    ) -> None:
+        """make_analyzer는 GPU가 있을 때만 부른다 — 모델 로드가 무겁다."""
         self._session_factory = session_factory
+        self._reviews_repository = reviews_repository
+        self._make_analyzer = make_analyzer
 
     async def analyze_one(self, review_id: int) -> str:
         """리뷰 하나 처리. 반환: 'succeeded' | 'skipped' | 'failed'.
@@ -75,19 +67,17 @@ class ReviewSentimentBackfillInteractor:
         """
         import asyncio
 
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         if not _gpu_available():
             return "failed"
 
         async with self._session_factory() as session:
-            repo = ReviewsPgRepository(session=session)
+            repo = self._reviews_repository(session)
             body = await repo.get_body_for_embedding(review_id)
             if body is None:
                 return "skipped"
             try:
-                adapter = _make_echo_adapter()
-                result = await asyncio.to_thread(adapter.analyze, body)
+                analyzer = self._make_analyzer()
+                result = await asyncio.to_thread(analyzer.analyze, body)
             except Exception as e:
                 logger.info("[sentiment_backfill] 분석 실패 review_id=%s err=%s", review_id, e)
                 return "failed"
@@ -113,28 +103,26 @@ class ReviewSentimentBackfillInteractor:
         """
         import asyncio
 
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         stats = {"succeeded": 0, "failed": 0, "skipped": 0}
         if not _gpu_available():
             logger.info("[sentiment_backfill] GPU 없음 — 모델을 올리지 않고 건너뜀")
             return stats
         async with self._session_factory() as session:
-            repo = ReviewsPgRepository(session=session)
+            repo = self._reviews_repository(session)
             targets = await repo.list_missing_sentiment(limit=limit)
         if not targets:
             return stats
 
         try:
-            adapter = _make_echo_adapter()
-            results = await asyncio.to_thread(adapter.analyze_batch, [body for _, body in targets])
+            analyzer = self._make_analyzer()
+            results = await asyncio.to_thread(analyzer.analyze_batch, [body for _, body in targets])
         except Exception as e:
             logger.info("[sentiment_backfill] 배치 분석 실패(모델 로드 등) err=%s", e)
             stats["failed"] = len(targets)
             return stats
 
         async with self._session_factory() as session:
-            repo = ReviewsPgRepository(session=session)
+            repo = self._reviews_repository(session)
             for (review_id, _body), result in zip(targets, results, strict=True):
                 if result is None:
                     stats["failed"] += 1

@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[3]
 APPS = ROOT / "apps"
@@ -37,7 +37,7 @@ class _FakeRepo:
     targets: list[tuple[int, str]] = []
     sentiments: list[tuple[int, str, float]] = []
 
-    def __init__(self, *, session: object) -> None:
+    def __init__(self, session: object) -> None:
         pass
 
     async def list_missing_sentiment(self, limit: int | None) -> list[tuple[int, str]]:
@@ -62,26 +62,24 @@ class _FakeAdapter:
         ][: len(texts)]
 
 
+def _interactor(make_analyzer: MagicMock) -> ReviewSentimentBackfillInteractor:
+    return ReviewSentimentBackfillInteractor(
+        session_factory=_FakeSession, reviews_repository=_FakeRepo, make_analyzer=make_analyzer
+    )
+
+
 class AnalyzeMissingBatchTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         _FakeRepo.targets = [(1, "인생 영화"), (2, "음"), (3, "돈 아깝다")]
         _FakeRepo.sentiments = []
         _FakeAdapter.batch_calls = []
-        self.interactor = ReviewSentimentBackfillInteractor(session_factory=_FakeSession)
         # 이 묶음은 GPU가 있는 머신의 배치 동작을 고정한다 — GPU 판정은 아래 별도 묶음에서.
         gpu = patch.object(module, "_gpu_available", return_value=True)
         gpu.start()
         self.addCleanup(gpu.stop)
 
     async def _run(self) -> dict[str, int]:
-        with (
-            patch.object(module, "_make_echo_adapter", return_value=_FakeAdapter()),
-            patch(
-                "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-                _FakeRepo,
-            ),
-        ):
-            return await self.interactor.analyze_missing(limit=None)
+        return await _interactor(MagicMock(return_value=_FakeAdapter())).analyze_missing(limit=None)
 
     async def test_single_batch_call_with_all_bodies(self) -> None:
         await self._run()
@@ -93,14 +91,8 @@ class AnalyzeMissingBatchTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(_FakeRepo.sentiments, [(1, "긍정", 0.9), (3, "부정", 0.8)])
 
     async def test_load_failure_marks_all_failed(self) -> None:
-        with (
-            patch.object(module, "_make_echo_adapter", side_effect=RuntimeError("CUDA 없음")),
-            patch(
-                "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-                _FakeRepo,
-            ),
-        ):
-            stats = await self.interactor.analyze_missing(limit=None)
+        make = MagicMock(side_effect=RuntimeError("CUDA 없음"))
+        stats = await _interactor(make).analyze_missing(limit=None)
         self.assertEqual(stats, {"succeeded": 0, "failed": 3, "skipped": 0})
 
     async def test_no_targets_short_circuits(self) -> None:
@@ -116,28 +108,19 @@ class NoGpuSkipsModelLoadTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         _FakeRepo.targets = [(1, "인생 영화")]
         _FakeRepo.sentiments = []
-        self.interactor = ReviewSentimentBackfillInteractor(session_factory=_FakeSession)
 
     async def test_batch_returns_without_loading(self) -> None:
-        with (
-            patch.object(module, "_gpu_available", return_value=False),
-            patch.object(module, "_make_echo_adapter") as make,
-            patch(
-                "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-                _FakeRepo,
-            ),
-        ):
-            stats = await self.interactor.analyze_missing(limit=None)
+        make = MagicMock()
+        with patch.object(module, "_gpu_available", return_value=False):
+            stats = await _interactor(make).analyze_missing(limit=None)
         make.assert_not_called()
         self.assertEqual(stats, {"succeeded": 0, "failed": 0, "skipped": 0})
         self.assertEqual(_FakeRepo.sentiments, [])
 
     async def test_single_review_returns_failed_without_loading(self) -> None:
-        with (
-            patch.object(module, "_gpu_available", return_value=False),
-            patch.object(module, "_make_echo_adapter") as make,
-        ):
-            result = await self.interactor.analyze_one(1)
+        make = MagicMock()
+        with patch.object(module, "_gpu_available", return_value=False):
+            result = await _interactor(make).analyze_one(1)
         make.assert_not_called()
         self.assertEqual(result, "failed")
 

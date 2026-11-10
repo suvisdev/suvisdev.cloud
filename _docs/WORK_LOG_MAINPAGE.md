@@ -28,6 +28,38 @@
 
 ---
 
+## 2026-11-10 (3) — 하네스 보류 과제 3건, #257 머지
+
+### 작업 내용
+- 사용자 요청: #257(웹 이력서 v25) 머지와 11-08 하네스 보류 과제 진행.
+- #257은 main과 문서 3개가 충돌해 양쪽을 살려 합치고 Codex OK·CI 통과 뒤 머지했다. profile.md 재색인(운영 DB 쓰기)은 자동 모드가 막아 사용자 실행으로 넘겼다.
+
+### 수정/구현
+- `app-no-outbound` 예외 9쌍 전부 제거:
+  - 백필·취향 벡터 인터랙터 4개: 세션 팩토리와 함께 "세션 → 저장소 포트" 함수(`reviews_repository`·`taste_repository`)를 주입받는다. 조립(`dependencies/*_provider.py`)·CLI 2개가 `ReviewsPgRepository` 등 클래스를 넘긴다.
+  - 스포일러 감지 함수(`detect_spans`)와 감성 분석기(`make_analyzer`)도 주입. Echo 어댑터 생성은 provider로 옮기고 `SentimentAnalysisPort`에 `analyze_batch`를 추가했다. 스케줄러는 provider를 쓴다.
+  - 예매 인터랙터: 포트에 `BoxOfficeError`를 두고 `KoficAdapterError`가 상속한다.
+  - 채팅 에이전트: 프롬프트·최대 단계를 생성자로 받는다. `agent_prompt.py`는 학습 스크립트가 파일 경로로 읽어 옮기지 않았다.
+- 새 계약 `core-no-frameworks`: `domain`·`app`은 `fastapi`·`starlette`·`sqlalchemy` 금지(`include_external_packages = True`). 위 수정으로 app의 `sqlalchemy` 타입 힌트 4곳이 사라져 바로 통과.
+- `scripts/check_env_drift.py --code`: 코드가 읽는 키가 `.env.example`에 있는지. 기존 누락 39개는 명단(줄이기만), backend-ci 단계 추가.
+- `.claude/rules/backend-architecture.md` 갱신.
+
+### 오류·막힌 점
+- 새 환경 변수 검사를 PREREQ(머지 선행 판정)에 섞지 않았다(11-08 Codex 지적). 문서 누락은 CI 실패로, 운영 선행은 관문으로 분리.
+- 39개를 지금 문서화하면 `.env.example` 변경으로 머지가 선행 확인에 걸려 명단 방식으로 했다.
+- 조립 확인을 처음엔 이미지에 없는 `asyncpg` 주소로 돌려 실패했다. `psycopg` 주소로 다시 돌려 통과.
+- PROGRESS에 profile.md 재색인을 "했다"고 미리 적었는데 실행이 막혔다. 이 PR에서 바로잡았다.
+
+### 데이터
+- import-linter 7계약 KEPT. 탐침(`news.domain`→fastapi, `gildle.app`→sqlalchemy, `mova.app`→kofic_adapter) 3건 모두 BROKEN, 탐침 제거.
+- `--code`: 통과(코드 키 104·기존 누락 39), 탐침(새 키 → 실패, 명단 키 문서화 → 실패).
+- mypy 1150파일 0, pytest 1347 통과(ontology 제외) + ontology 135 통과, ruff 통과. provider 3개 생성·`import main` 확인.
+
+### 산출물
+- 브랜치 `chore/harness-contracts`.
+
+---
+
 ## 2026-11-10 (2) — Codex와 안 쓰는 코드 정리
 
 ### 작업 내용

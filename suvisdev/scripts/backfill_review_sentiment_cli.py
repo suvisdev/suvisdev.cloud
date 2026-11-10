@@ -49,18 +49,12 @@ async def _run(args: argparse.Namespace) -> None:
         )
         return
 
-    from core.matrix.grid_oracle_database_manager import get_mova_session_factory
-    from mova.app.use_cases.review_sentiment_backfill_interactor import (
-        ReviewSentimentBackfillInteractor,
-    )
+    from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
+    from mova.dependencies.review_sentiment_provider import get_review_sentiment_backfill_use_case
 
-    use_case = ReviewSentimentBackfillInteractor(
-        session_factory=get_mova_session_factory(),
-    )
+    use_case = get_review_sentiment_backfill_use_case()
 
     if args.dry_run:
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         factory = use_case._session_factory  # noqa: SLF001 — CLI 전용 진입점
         async with factory() as session:
             targets = await ReviewsPgRepository(session=session).list_missing_sentiment(

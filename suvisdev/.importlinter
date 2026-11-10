@@ -1,4 +1,5 @@
 [importlinter]
+include_external_packages = True
 root_packages =
     ontology
     titanic
@@ -115,7 +116,7 @@ forbidden_modules =
 
 # Rule 4: 유스케이스(app)는 outbound 어댑터(DB·LLM·HTTP 구현)를 직접 import 하지 않는다 — 출력 포트(ABC)를 거친다
 # (§C.3). inbound 스키마는 §C.2 설계("Schema in")라 허용. 직접 import 만 본다(allow_indirect_imports).
-# 아래 예외는 11-08 실측 기존 위반이다. **줄이기만 한다** — 새 항목 추가는 사용자 확인 사항이고, 고치면 지운다.
+# 11-08에 있던 기존 예외 9쌍은 11-10에 모두 포트·주입으로 바꿔 지웠다. 예외를 다시 두지 않는다.
 [importlinter:contract:app-no-outbound]
 name = Use cases must not import outbound adapters directly
 type = forbidden
@@ -124,16 +125,20 @@ source_modules =
 forbidden_modules =
     *.adapter.outbound
 allow_indirect_imports = true
-ignore_imports =
-    mova.app.use_cases.review_spoiler_backfill_interactor -> mova.adapter.outbound.llm.spoiler_detection
-    mova.app.use_cases.review_spoiler_backfill_interactor -> mova.adapter.outbound.pg.market_reviews_pg_repository
-    mova.app.use_cases.review_sentiment_backfill_interactor -> ontology.adapter.outbound.resource_adapters.echo_sentiment.echo_sentiment_adapter
-    mova.app.use_cases.review_sentiment_backfill_interactor -> mova.adapter.outbound.pg.market_reviews_pg_repository
-    mova.app.use_cases.chat_agent -> mova.adapter.outbound.llm.agent_prompt
-    mova.app.use_cases.market_chat_booking_interactor -> mova.adapter.outbound.http.kofic_adapter
-    mova.app.use_cases.platform_user_taste_vector_interactor -> mova.adapter.outbound.pg.market_reviews_pg_repository
-    mova.app.use_cases.platform_user_taste_vector_interactor -> mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository
-    mova.app.use_cases.review_embedding_backfill_interactor -> mova.adapter.outbound.pg.market_reviews_pg_repository
+
+# Rule 4b: 도메인·유스케이스는 웹·DB 프레임워크를 모른다(§C.1·§C.3) — HTTP 오류는 라우터가, 세션·쿼리는 어댑터가 맡는다.
+# 외부 패키지를 그래프에 넣어야 해서 include_external_packages 를 켰다(11-10). 직접 import 만 본다.
+[importlinter:contract:core-no-frameworks]
+name = Domain and use cases must not import fastapi, starlette or sqlalchemy
+type = forbidden
+source_modules =
+    *.domain
+    *.app
+forbidden_modules =
+    fastapi
+    starlette
+    sqlalchemy
+allow_indirect_imports = true
 
 # Rule 5: auth is a parallel-build gateway (see suvisdev/apps/auth/_docs/) not yet
 # wired to real traffic. No existing app may depend on it this round — the reverse

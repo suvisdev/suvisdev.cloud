@@ -21,7 +21,6 @@ import re
 from typing import Any
 
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
-from mova.adapter.outbound.llm.agent_prompt import MAX_STEPS, SYSTEM_PROMPT
 from mova.app.ports.output.box_office_port import BoxOfficePort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
@@ -70,6 +69,8 @@ class MovaChatAgent:
         movies: MoviesRepositoryPort,
         reviews: ReviewAggregationPort,
         box_office: BoxOfficePort,
+        system_prompt: str,
+        max_steps: int,
     ) -> None:
         self._repo = repository
         self._movies = movies
@@ -91,7 +92,7 @@ class MovaChatAgent:
             Tool("mark_watched", ("title", "rating"), None, grounded=("title",)),
         ]
         self._loop = AgentLoop(
-            judge=judge, system_prompt=SYSTEM_PROMPT, tools=tools, max_steps=MAX_STEPS
+            judge=judge, system_prompt=system_prompt, tools=tools, max_steps=max_steps
         )
 
     async def decide(

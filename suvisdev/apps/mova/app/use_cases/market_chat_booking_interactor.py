@@ -14,7 +14,6 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 from mova.adapter.inbound.api.schemas.studio_search_schema import MovaSearchItemSchema
-from mova.adapter.outbound.http.kofic_adapter import KoficAdapterError
 from mova.app.dtos.market_box_office_dto import BoxOfficeEntryDto
 from mova.app.dtos.market_chat_dto import (
     ChatBookingDto,
@@ -24,7 +23,7 @@ from mova.app.dtos.market_chat_dto import (
     CinemaShowtimeDto,
 )
 from mova.app.dtos.studio_movies_dto import MovieDetailDto
-from mova.app.ports.output.box_office_port import BoxOfficePort
+from mova.app.ports.output.box_office_port import BoxOfficeError, BoxOfficePort
 from mova.app.ports.output.market_chat_repository import ChatRepositoryPort
 from mova.app.ports.output.movies_repository import MoviesRepositoryPort
 from mova.app.ports.output.showtime_port import ShowtimePort
@@ -551,7 +550,7 @@ class BookingAssistService:
         유도한다. 정직성 규칙: 출처(박스오피스 근사)를 명시한다."""
         try:
             entries = await self._box_office.fetch_box_office(self._last_completed_week_date(), "0")
-        except KoficAdapterError as e:
+        except BoxOfficeError as e:
             logger.warning(
                 "[BookingAssistService] trace=%s 상영작 목록 조회 실패 — %s", trace_id, e
             )
@@ -810,7 +809,7 @@ class BookingAssistService:
     async def _box_office_entries(self) -> list[BoxOfficeEntryDto]:
         try:
             return await self._box_office.fetch_box_office(self._last_completed_week_date(), "0")
-        except KoficAdapterError as e:
+        except BoxOfficeError as e:
             logger.warning("[BookingAssistService] 박스오피스 조회 실패 — %s", e)
             return []
 

@@ -11,3 +11,7 @@ class SentimentAnalysisPort(ABC):
     @abstractmethod
     def analyze(self, text: str) -> SentimentResult:
         """텍스트의 감정 극성·신뢰도·(생성형)근거를 반환한다."""
+
+    @abstractmethod
+    def analyze_batch(self, texts: list[str]) -> list[SentimentResult | None]:
+        """여러 텍스트를 한 번에 분석한다. 실패한 항목은 None."""

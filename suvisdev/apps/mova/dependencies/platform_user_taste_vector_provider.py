@@ -8,6 +8,10 @@ embedder를 받지 않는다.
 from __future__ import annotations
 
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory
+from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
+from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
+    UserTasteVectorsPgRepository,
+)
 from mova.app.use_cases.platform_user_taste_vector_interactor import (
     UserTasteVectorRecomputeInteractor,
 )
@@ -16,4 +20,6 @@ from mova.app.use_cases.platform_user_taste_vector_interactor import (
 def get_user_taste_vector_recompute_use_case() -> UserTasteVectorRecomputeInteractor:
     return UserTasteVectorRecomputeInteractor(
         session_factory=get_mova_session_factory(),
+        reviews_repository=ReviewsPgRepository,
+        taste_repository=UserTasteVectorsPgRepository,
     )
