@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from mova.adapter.outbound.llm.agent_prompt import MAX_STEPS, SYSTEM_PROMPT
 from mova.app.use_cases.chat_agent import (
     MovaChatAgent,
     compose_facts,
@@ -98,6 +99,8 @@ def _agent(outputs: list[str]) -> MovaChatAgent:
         movies=_Movies(),
         reviews=_Reviews(),
         box_office=_BoxOffice(),  # type: ignore[arg-type]
+        system_prompt=SYSTEM_PROMPT,
+        max_steps=MAX_STEPS,
     )
 
 

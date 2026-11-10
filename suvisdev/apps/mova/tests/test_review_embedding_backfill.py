@@ -1,6 +1,6 @@
 """ReviewEmbeddingBackfillInteractor 단위 테스트.
 
-세션 팩토리·embedder·ReviewsPgRepository를 전부 mock으로 대체해서 인터랙터의
+세션 팩토리·embedder·리뷰 저장소를 전부 mock으로 주입해서 인터랙터의
 분기 로직(body 없음 → skipped / embed 실패 → failed / 성공 → succeeded)만
 격리 검증한다.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 ROOT = Path(__file__).resolve().parents[3]
 APPS = ROOT / "apps"
@@ -43,12 +43,10 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(return_value=None)
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
-        with patch(
-            "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-            return_value=repo,
-        ):
-            outcome = await interactor.embed_one(42)
+        interactor = ReviewEmbeddingBackfillInteractor(
+            session_factory=factory, reviews_repository=lambda _s: repo, embedder=embedder
+        )
+        outcome = await interactor.embed_one(42)
 
         self.assertEqual(outcome, "skipped")
         embedder.embed.assert_not_awaited()
@@ -63,12 +61,10 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(return_value="정말 재밌었어요")
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
-        with patch(
-            "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-            return_value=repo,
-        ):
-            outcome = await interactor.embed_one(7)
+        interactor = ReviewEmbeddingBackfillInteractor(
+            session_factory=factory, reviews_repository=lambda _s: repo, embedder=embedder
+        )
+        outcome = await interactor.embed_one(7)
 
         self.assertEqual(outcome, "succeeded")
         embedder.embed.assert_awaited_once_with("정말 재밌었어요")
@@ -83,12 +79,10 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(return_value="본문")
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
-        with patch(
-            "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-            return_value=repo,
-        ):
-            outcome = await interactor.embed_one(1)
+        interactor = ReviewEmbeddingBackfillInteractor(
+            session_factory=factory, reviews_repository=lambda _s: repo, embedder=embedder
+        )
+        outcome = await interactor.embed_one(1)
 
         self.assertEqual(outcome, "failed")
         repo.update_embedding.assert_not_awaited()
@@ -113,12 +107,10 @@ class ReviewEmbeddingBackfillInteractorTests(unittest.IsolatedAsyncioTestCase):
         repo.get_body_for_embedding = AsyncMock(side_effect=["본문 A", None, "본문 C"])
         repo.update_embedding = AsyncMock()
 
-        interactor = ReviewEmbeddingBackfillInteractor(session_factory=factory, embedder=embedder)
-        with patch(
-            "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository",
-            return_value=repo,
-        ):
-            stats = await interactor.embed_missing(limit=None)
+        interactor = ReviewEmbeddingBackfillInteractor(
+            session_factory=factory, reviews_repository=lambda _s: repo, embedder=embedder
+        )
+        stats = await interactor.embed_missing(limit=None)
 
         self.assertEqual(stats, {"succeeded": 1, "skipped": 1, "failed": 1})
         # 성공한 건만 update_embedding 호출

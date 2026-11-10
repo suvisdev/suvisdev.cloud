@@ -16,18 +16,18 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from contextlib import AbstractAsyncContextManager
+from typing import Any
 
+from mova.app.ports.output.market_reviews_repository import ReviewsRepositoryPort
 from ontology.app.ports.output.hub_rag_errors import HubRagError
 from ontology.app.ports.output.knowledge_embedding_port import EmbeddingPort
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 # BackgroundTasks 진입점에서는 factory가 async context manager를 만드는 콜러블이다.
-SessionFactory = Callable[[], "AsyncSession"]
+SessionFactory = Callable[[], AbstractAsyncContextManager[Any]]
+ReviewsRepositoryFactory = Callable[[Any], ReviewsRepositoryPort]
 
 
 class ReviewEmbeddingBackfillInteractor:
@@ -35,9 +35,11 @@ class ReviewEmbeddingBackfillInteractor:
         self,
         *,
         session_factory: SessionFactory,
+        reviews_repository: ReviewsRepositoryFactory,
         embedder: EmbeddingPort,
     ) -> None:
         self._session_factory = session_factory
+        self._reviews_repository = reviews_repository
         self._embedder = embedder
 
     async def embed_one(self, review_id: int) -> str:
@@ -46,11 +48,8 @@ class ReviewEmbeddingBackfillInteractor:
         - skipped: body가 없거나 리뷰가 존재하지 않음(→ 정상, 재시도 불필요)
         - failed: Gemini 호출 실패(→ crontab 백필이 나중에 재시도)
         """
-        # lazy import — mova/app 레이어에서 outbound adapter 직접 참조를 피한다.
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         async with self._session_factory() as session:
-            repo = ReviewsPgRepository(session=session)
+            repo = self._reviews_repository(session)
             body = await repo.get_body_for_embedding(review_id)
             if body is None:
                 return "skipped"
@@ -68,11 +67,9 @@ class ReviewEmbeddingBackfillInteractor:
 
     async def embed_missing(self, limit: int | None) -> dict[str, int]:
         """embedding IS NULL 잔여 순회 — CLI 백필용. dict 카운트 반환."""
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         stats = {"succeeded": 0, "failed": 0, "skipped": 0}
         async with self._session_factory() as session:
-            repo = ReviewsPgRepository(session=session)
+            repo = self._reviews_repository(session)
             targets = await repo.list_missing_embedding(limit=limit)
 
         for review_id, _body in targets:

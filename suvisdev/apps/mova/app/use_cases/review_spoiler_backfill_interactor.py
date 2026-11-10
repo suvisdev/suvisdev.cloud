@@ -10,19 +10,29 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from contextlib import AbstractAsyncContextManager
+from typing import Any
 
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+from mova.app.ports.output.market_reviews_repository import ReviewsRepositoryPort
 
 logger = logging.getLogger(__name__)
 
-SessionFactory = Callable[[], "AsyncSession"]
+SessionFactory = Callable[[], AbstractAsyncContextManager[Any]]
+ReviewsRepositoryFactory = Callable[[Any], ReviewsRepositoryPort]
+SpoilerDetector = Callable[[str], list[dict[str, Any]]]
 
 
 class ReviewSpoilerBackfillInteractor:
-    def __init__(self, *, session_factory: SessionFactory) -> None:
+    def __init__(
+        self,
+        *,
+        session_factory: SessionFactory,
+        reviews_repository: ReviewsRepositoryFactory,
+        detect_spans: SpoilerDetector,
+    ) -> None:
         self._session_factory = session_factory
+        self._reviews_repository = reviews_repository
+        self._detect_spans = detect_spans
 
     async def detect_one(self, review_id: int) -> str:
         """리뷰 하나 처리. 반환: 'succeeded' | 'skipped' | 'failed'.
@@ -31,17 +41,14 @@ class ReviewSpoilerBackfillInteractor:
         - failed: Gemini 호출 실패(쿼터·네트워크) — 그냥 스팬 비운 채 남김
         - succeeded: 감지 결과(빈 배열 포함)를 저장
         """
-        from mova.adapter.outbound.llm.spoiler_detection import detect_spoiler_spans
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-
         async with self._session_factory() as session:
-            repo = ReviewsPgRepository(session=session)
+            repo = self._reviews_repository(session)
             row = await repo.get_by_id(review_id)
             if row is None or not row.body or not row.body.strip():
                 return "skipped"
             # 동기 SDK — 스레드 위임(이벤트 루프 블로킹 방지)
             try:
-                spans = await asyncio.to_thread(detect_spoiler_spans, row.body)
+                spans = await asyncio.to_thread(self._detect_spans, row.body)
             except Exception as e:
                 logger.info("[spoiler_backfill] 감지 실패 review_id=%s err=%s", review_id, e)
                 return "failed"

@@ -7,6 +7,10 @@ from abc import ABC, abstractmethod
 from mova.app.dtos.market_box_office_dto import BoxOfficeEntryDto
 
 
+class BoxOfficeError(Exception):
+    """박스오피스 조회 실패 — 구현체의 오류는 이 예외를 상속한다."""
+
+
 class BoxOfficePort(ABC):
     @abstractmethod
     async def fetch_box_office(

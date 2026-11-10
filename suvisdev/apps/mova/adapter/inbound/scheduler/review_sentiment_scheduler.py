@@ -23,14 +23,9 @@ _BATCH_LIMIT = int(os.getenv("SENTIMENT_BATCH_LIMIT", "50"))
 
 async def run_sentiment_once(limit: int = _BATCH_LIMIT) -> dict[str, int]:
     """미처리 리뷰 감정분석 1회 실행. 수동 스크립트와 공유 가능."""
-    from core.matrix.grid_oracle_database_manager import get_mova_session_factory
-    from mova.app.use_cases.review_sentiment_backfill_interactor import (
-        ReviewSentimentBackfillInteractor,
-    )
+    from mova.dependencies.review_sentiment_provider import get_review_sentiment_backfill_use_case
 
-    factory = get_mova_session_factory()
-    interactor = ReviewSentimentBackfillInteractor(session_factory=factory)
-    return await interactor.analyze_missing(limit=limit)
+    return await get_review_sentiment_backfill_use_case().analyze_missing(limit=limit)
 
 
 async def run_sentiment_scheduler() -> None:

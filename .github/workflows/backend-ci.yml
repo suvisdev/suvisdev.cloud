@@ -63,5 +63,9 @@ jobs:
       - name: import-linter (스타 토폴로지)
         run: PYTHONPATH="$PWD:$PWD/apps" lint-imports
 
+      # 코드가 새로 읽는 환경 변수가 .env.example에 문서화됐는지(기존 누락 명단은 줄이기만, 11-10)
+      - name: 환경 변수 문서화
+        run: python scripts/check_env_drift.py --code
+
       - name: pytest
         run: PYTHONPATH="$PWD:$PWD/apps" python -m pytest -m "not gpu and not ollama" -q -p no:cacheprovider

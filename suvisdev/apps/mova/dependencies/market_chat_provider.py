@@ -18,6 +18,7 @@ from mova.adapter.outbound.http.kakao_local_adapter import KakaoLocalTheaterAdap
 from mova.adapter.outbound.http.kofic_box_office_adapter import KoficBoxOfficeAdapter
 from mova.adapter.outbound.http.tmdb_adapter import TmdbAdapter
 from mova.adapter.outbound.http.tmdb_review_adapter import TmdbReviewAdapter
+from mova.adapter.outbound.llm.agent_prompt import MAX_STEPS, SYSTEM_PROMPT
 from mova.adapter.outbound.llm.exaone_chat_understanding_adapter import (
     ExaoneChatUnderstandingAdapter,
 )
@@ -211,6 +212,8 @@ def get_chat_agent(
         movies=MoviesPgRepository(session=db),
         reviews=ReviewAggregationPgRepository(session=db),
         box_office=KoficBoxOfficeAdapter(keymaker.kofic_api_key),
+        system_prompt=SYSTEM_PROMPT,
+        max_steps=MAX_STEPS,
     )
 
 

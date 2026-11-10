@@ -1,7 +1,7 @@
 """UserTasteVectorRecomputeInteractor 단위 테스트.
 
-세션 팩토리·ReviewsPgRepository·UserTasteVectorsPgRepository를 전부 mock으로
-대체해서 인터랙터의 분기 로직(리뷰 0건/가중합 0 → cleared, 별점 가중 평균 계산,
+세션 팩토리·리뷰 저장소·취향 벡터 저장소를 전부 mock으로
+주입해서 인터랙터의 분기 로직(리뷰 0건/가중합 0 → cleared, 별점 가중 평균 계산,
 recompute_missing 집계, get_for_user 통과)만 격리 검증한다.
 """
 
@@ -25,12 +25,6 @@ from mova.app.use_cases.platform_user_taste_vector_interactor import (  # noqa: 
     UserTasteVectorRecomputeInteractor,
 )
 
-_REVIEWS_REPO_PATH = "mova.adapter.outbound.pg.market_reviews_pg_repository.ReviewsPgRepository"
-_TASTE_REPO_PATH = (
-    "mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository."
-    "UserTasteVectorsPgRepository"
-)
-
 
 def _make_session_factory() -> MagicMock:
     """`async with factory() as session:` 을 흉내내는 팩토리 mock."""
@@ -43,6 +37,16 @@ def _make_session_factory() -> MagicMock:
     return factory
 
 
+def _interactor(
+    factory: MagicMock, reviews_repo: MagicMock | None = None, taste_repo: MagicMock | None = None
+) -> UserTasteVectorRecomputeInteractor:
+    return UserTasteVectorRecomputeInteractor(
+        session_factory=factory,
+        reviews_repository=lambda _s: reviews_repo or MagicMock(),
+        taste_repository=lambda _s: taste_repo or MagicMock(),
+    )
+
+
 class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
     async def test_recompute_for_user_cleared_when_no_reviews(self) -> None:
         factory = _make_session_factory()
@@ -51,12 +55,8 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         taste_repo = MagicMock()
         taste_repo.upsert = AsyncMock()
 
-        interactor = UserTasteVectorRecomputeInteractor(session_factory=factory)
-        with (
-            patch(_REVIEWS_REPO_PATH, return_value=reviews_repo),
-            patch(_TASTE_REPO_PATH, return_value=taste_repo),
-        ):
-            outcome = await interactor.recompute_for_user(1)
+        interactor = _interactor(factory, reviews_repo, taste_repo)
+        outcome = await interactor.recompute_for_user(1)
 
         self.assertEqual(outcome, "cleared")
         taste_repo.upsert.assert_awaited_once_with(1, None, 0)
@@ -71,12 +71,8 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         taste_repo = MagicMock()
         taste_repo.upsert = AsyncMock()
 
-        interactor = UserTasteVectorRecomputeInteractor(session_factory=factory)
-        with (
-            patch(_REVIEWS_REPO_PATH, return_value=reviews_repo),
-            patch(_TASTE_REPO_PATH, return_value=taste_repo),
-        ):
-            outcome = await interactor.recompute_for_user(2)
+        interactor = _interactor(factory, reviews_repo, taste_repo)
+        outcome = await interactor.recompute_for_user(2)
 
         self.assertEqual(outcome, "cleared")
         taste_repo.upsert.assert_awaited_once_with(2, None, 0)
@@ -90,12 +86,8 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         taste_repo = MagicMock()
         taste_repo.upsert = AsyncMock()
 
-        interactor = UserTasteVectorRecomputeInteractor(session_factory=factory)
-        with (
-            patch(_REVIEWS_REPO_PATH, return_value=reviews_repo),
-            patch(_TASTE_REPO_PATH, return_value=taste_repo),
-        ):
-            outcome = await interactor.recompute_for_user(3)
+        interactor = _interactor(factory, reviews_repo, taste_repo)
+        outcome = await interactor.recompute_for_user(3)
 
         self.assertEqual(outcome, "updated")
         # sum(rating*embedding) / sum(rating) = [(4*1+2*3)/6, (4*2+2*4)/6] = [10/6, 16/6]
@@ -106,15 +98,12 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         taste_repo = MagicMock()
         taste_repo.list_user_ids_with_rated_reviews = AsyncMock(return_value=[1, 2])
 
-        interactor = UserTasteVectorRecomputeInteractor(session_factory=factory)
-        with (
-            patch(_TASTE_REPO_PATH, return_value=taste_repo),
-            patch.object(
-                interactor,
-                "recompute_for_user",
-                AsyncMock(side_effect=["updated", "cleared"]),
-            ) as recompute_mock,
-        ):
+        interactor = _interactor(factory, taste_repo=taste_repo)
+        with patch.object(
+            interactor,
+            "recompute_for_user",
+            AsyncMock(side_effect=["updated", "cleared"]),
+        ) as recompute_mock:
             stats = await interactor.recompute_missing(limit=None)
 
         self.assertEqual(stats, {"updated": 1, "cleared": 1})
@@ -127,9 +116,8 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         taste_repo = MagicMock()
         taste_repo.get_by_user_id = AsyncMock(return_value=None)
 
-        interactor = UserTasteVectorRecomputeInteractor(session_factory=factory)
-        with patch(_TASTE_REPO_PATH, return_value=taste_repo):
-            result = await interactor.get_for_user(99)
+        interactor = _interactor(factory, taste_repo=taste_repo)
+        result = await interactor.get_for_user(99)
 
         self.assertIsNone(result)
 
@@ -141,9 +129,8 @@ class UserTasteVectorRecomputeInteractorTests(unittest.IsolatedAsyncioTestCase):
         taste_repo = MagicMock()
         taste_repo.get_by_user_id = AsyncMock(return_value=dto)
 
-        interactor = UserTasteVectorRecomputeInteractor(session_factory=factory)
-        with patch(_TASTE_REPO_PATH, return_value=taste_repo):
-            result = await interactor.get_for_user(1)
+        interactor = _interactor(factory, taste_repo=taste_repo)
+        result = await interactor.get_for_user(1)
 
         self.assertIs(result, dto)
 

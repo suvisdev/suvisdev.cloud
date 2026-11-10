@@ -22,16 +22,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from contextlib import AbstractAsyncContextManager
+from typing import TYPE_CHECKING, Any
+
+from mova.app.ports.output.market_reviews_repository import ReviewsRepositoryPort
+from mova.app.ports.output.platform_user_taste_vector_repository import (
+    UserTasteVectorRepositoryPort,
+)
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from mova.app.dtos.platform_user_taste_vector_dto import UserTasteVectorDto
 
 logger = logging.getLogger(__name__)
 
-SessionFactory = Callable[[], "AsyncSession"]
+SessionFactory = Callable[[], AbstractAsyncContextManager[Any]]
 
 _SENTIMENT_ALPHA = 0.3
 
@@ -52,8 +56,16 @@ def _effective_rating(
 
 
 class UserTasteVectorRecomputeInteractor:
-    def __init__(self, *, session_factory: SessionFactory) -> None:
+    def __init__(
+        self,
+        *,
+        session_factory: SessionFactory,
+        reviews_repository: Callable[[Any], ReviewsRepositoryPort],
+        taste_repository: Callable[[Any], UserTasteVectorRepositoryPort],
+    ) -> None:
         self._session_factory = session_factory
+        self._reviews_repository = reviews_repository
+        self._taste_repository = taste_repository
 
     async def recompute_for_user(self, user_id: int) -> str:
         """유저 하나 재계산. 반환값: 'updated' | 'cleared'.
@@ -61,15 +73,10 @@ class UserTasteVectorRecomputeInteractor:
         - updated: 리뷰가 1건 이상 있어 벡터 갱신
         - cleared: 리뷰 0건(또는 유효 rating 합계 0) → vector=NULL로 명시 저장
         """
-        from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
-        from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
-            UserTasteVectorsPgRepository,
-        )
-
         async with self._session_factory() as session:
-            reviews_repo = ReviewsPgRepository(session=session)
+            reviews_repo = self._reviews_repository(session)
             reviews = await reviews_repo.list_embedded_reviews_by_user(user_id)
-            taste_repo = UserTasteVectorsPgRepository(session=session)
+            taste_repo = self._taste_repository(session)
 
             eff_ratings = [
                 _effective_rating(rating, s_label, s_score)
@@ -92,22 +99,14 @@ class UserTasteVectorRecomputeInteractor:
 
     async def get_for_user(self, user_id: int) -> UserTasteVectorDto | None:
         """유저 취향 벡터 조회 — 행이 없으면(리뷰를 한 번도 안 남긴 유저) None."""
-        from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
-            UserTasteVectorsPgRepository,
-        )
-
         async with self._session_factory() as session:
-            repo = UserTasteVectorsPgRepository(session=session)
+            repo = self._taste_repository(session)
             return await repo.get_by_user_id(user_id)
 
     async def recompute_missing(self, limit: int | None) -> dict[str, int]:
         """embedding+rating 있는 유저 전원 재계산 — CLI 백필용."""
-        from mova.adapter.outbound.pg.platform_user_taste_vectors_pg_repository import (
-            UserTasteVectorsPgRepository,
-        )
-
         async with self._session_factory() as session:
-            repo = UserTasteVectorsPgRepository(session=session)
+            repo = self._taste_repository(session)
             user_ids = await repo.list_user_ids_with_rated_reviews(limit=limit)
 
         stats = {"updated": 0, "cleared": 0}

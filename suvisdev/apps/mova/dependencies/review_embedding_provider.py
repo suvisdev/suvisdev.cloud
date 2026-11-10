@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from core.matrix.grid_oracle_database_manager import get_mova_session_factory
 from mova.adapter.outbound.orm.base_orm import MOVA_EMBEDDING_DIM
+from mova.adapter.outbound.pg.market_reviews_pg_repository import ReviewsPgRepository
 from mova.app.use_cases.review_embedding_backfill_interactor import (
     ReviewEmbeddingBackfillInteractor,
 )
@@ -19,5 +20,6 @@ from ontology.adapter.outbound.llm.gemini_embedding_adapter import GeminiEmbeddi
 def get_review_embedding_backfill_use_case() -> ReviewEmbeddingBackfillInteractor:
     return ReviewEmbeddingBackfillInteractor(
         session_factory=get_mova_session_factory(),
+        reviews_repository=ReviewsPgRepository,
         embedder=GeminiEmbeddingAdapter(dimensions=MOVA_EMBEDDING_DIM),
     )
