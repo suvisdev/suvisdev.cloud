@@ -121,7 +121,7 @@
 
 - **(11-09 결정) `MOVA_CHAT_AGENT`**: 0 유지(ADR-0010).
 - **(11-10 완료) news 아침 메일**: #255 운영 첫 발송(기술 10건). 다음 후보는 메일의 "필요 없음" 표시(정답셋).
-- **(11-10 완료) 이력서 v25**: 바탕화면 PDF·docx(v25)와 웹 `/resume`·홈 채팅 profile.md를 맞췄다(#257). **profile.md 재색인은 사용자 실행 대기**(운영 DB 쓰기라 자동 모드가 막음): `kubectl -n suvisdev exec deploy/backend -c backend -- python scripts/ingest_portfolio_docs.py datasets/portfolio_corpus`(절 수 6개 그대로라 리셋 불필요).
+- **(11-10 완료) 이력서 v25**: 바탕화면 PDF·docx(v25)와 웹 `/resume`·홈 채팅 profile.md를 맞췄다(#257). profile.md 재색인도 11-10 사용자 실행으로 끝났다(6청크 성공·실패 0, 리셋 없음).
 - **(11-10 완료) 하네스 보류 과제**: `core-no-frameworks` 계약, `check_env_drift.py --code`(기존 누락 39개 명단), app→outbound 예외 9쌍 0(WORK_LOG 11-10 (3)). 남은 것: 명단 39개 문서화(`.env.example` 변경이라 선행 확인).
 - **(11-08) 실제 서버 끄기·켜기 1회 시험**: 새 순서(DB 정상 종료 포함)를 실제로 돌려 보지 않았다(사용자 허락 필요).
 - **(11-06) 터널 2분 8초·503 2건 측정**: 추정만 있음.
