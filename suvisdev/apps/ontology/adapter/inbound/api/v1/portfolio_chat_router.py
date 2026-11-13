@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.concurrency_limit import ConcurrencyLimit
 from shared.security.rate_limit import RateLimit
 
 from ontology.adapter.inbound.api.schemas.portfolio_chat_schema import (
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 GENERIC_ERROR_DETAIL = "AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."
 
 chat_rate_limit = RateLimit("portfolio_chat")
+chat_concurrency = ConcurrencyLimit()
 
 portfolio_chat_router = APIRouter(prefix="/chat", tags=["portfolio-chat"])
 
@@ -31,6 +33,7 @@ async def chat(
     req: PortfolioChatRequest,
     use_case: PortfolioChatUseCase = Depends(get_portfolio_chat_use_case),
     _rate: None = Depends(chat_rate_limit),
+    _busy: None = Depends(chat_concurrency),
 ) -> PortfolioChatResponseSchema:
     try:
         dto = await use_case.chat(PortfolioChatCommand.from_schema(req))
