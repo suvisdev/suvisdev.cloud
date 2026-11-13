@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from shared.security.concurrency_limit import ConcurrencyLimit
 from shared.security.rate_limit import RateLimit
 from shared.security.require_user import UserPrincipal, optional_user
 
@@ -20,6 +21,7 @@ from mova.app.ports.output.market_conversations_errors import (
 from mova.dependencies.market_chat_provider import get_chat_use_case
 
 chat_rate_limit = RateLimit("mova_chat")
+chat_concurrency = ConcurrencyLimit()
 
 market_chat_router = APIRouter(prefix="/chat", tags=["mova-chat"])
 
@@ -40,6 +42,7 @@ async def chat(
     principal: UserPrincipal | None = Depends(optional_user),
     use_case: ChatUseCase = Depends(get_chat_use_case),
     _rate: None = Depends(chat_rate_limit),
+    _busy: None = Depends(chat_concurrency),
 ) -> MovaChatResponseSchema:
     """사용자 메시지 → 의도 추출 → Gemini 추천 → picks 저장.
 

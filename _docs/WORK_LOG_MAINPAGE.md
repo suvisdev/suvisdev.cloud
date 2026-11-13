@@ -50,6 +50,12 @@
 ### 산출물
 - 브랜치 `feat/digest-priority`, ADR-0011. 요청 제한: `feat/shared-rate-limit`, ADR-0012.
 
+### (추가) LLM 동시 처리 상한
+- 실측(노트북 올라마 7.8B, 근거 ~2,000토큰·200토큰 생성): 단독 4.9~5.2초, 동시 3개 5.3/7.6/9.9초, 동시 6개 4.6~16.2초 — 요청을 하나씩 처리해 2.3초씩 줄을 선다. 홈 채팅 올라마 제한 40초를 넘긴 요청은 Gemini로 넘어간다.
+- `shared/security/concurrency_limit.py` `ConcurrencyLimit`(yield 의존성, asyncio 세마포어): 채팅마다 동시 3개, 자리 없으면 10초 기다리고 503 + Retry-After 10. 라우터 2곳에 RateLimit 뒤로 붙임(429 요청이 자리를 안 잡게).
+- 검증: 테스트 3건(꽉 차면 503·끝나면 반환, 기다리다 자리 받음, 실패해도 반환), 변형 2개(반환 제거 3건 실패, 대기 제거 1건 실패) 잡음. 실제 라우터+uvicorn+3초 가짜 LLM에 동시 15개 → 200 12개(3.0~12.0초), 503 3개(10.0초). 전체 1356 통과.
+- **발견(미결)**: 사이트 경유 요청은 요청 제한이 사용자 IP가 아니라 Vercel 서버 IP(`44.208.21.156`)로 센다 — Next 프록시(`suvis/app/api/{portfolio,mova}/chat/route.ts`)가 원 IP를 넘기지 않음. 빈 메시지(422, LLM 미호출)로 사이트·API 직접 각각 보내 Redis 키로 확인. 09-27부터 있던 문제, "IP당 20회"가 사실상 방문자 전체 공유였다. 고치는 방법은 사용자 결정 대기.
+
 ### (추가) 요청 제한 구조 조사 — Claude·Codex 비교, 임시 컨테이너 실험
 - 계기: "게이트웨이가 필요한가" → 요청 제한을 어디에 둘지. 코드 변경 없음, 운영 무접촉(임시 Traefik·whoami·Redis 컨테이너, 끝나고 삭제).
 - 현행(`ontology`·`mova` `rate_limit.py` 복사본): 실제는 최근 60초 슬라이딩 로그(주석의 "고정 윈도우"는 틀림, Codex 지적). 동시 100요청×5회 모두 정확히 20 통과 — 경쟁 상태 재현 안 됨. 재배포 때 초기화.
@@ -61,6 +67,7 @@
 - `shared/security/rate_limit.py` `RateLimit(scope)`: 최근 60초 IP당 20회, Redis ZSET 슬라이딩 로그를 Lua로 원자 처리, Retry-After. Redis 무응답(0.5초)이면 그 엔드포인트만 503. 홈 채팅(`portfolio_chat`)과 mova 채팅(`mova_chat`)은 따로 센다(기존과 같음).
 - 지움: `ontology`·`mova`의 `adapter/inbound/api/rate_limit.py` 복사본. 라우터 2곳은 모듈 상수 `chat_rate_limit = RateLimit(...)`.
 - 테스트 `shared/tests/test_rate_limit.py`: 20회 뒤 429, IP·scope 분리, 재시작 뒤 이어 셈, 창이 미끄러짐, Redis 다운 503. 실제 Redis가 필요해 CI(backend-ci)에 `redis:7-alpine` 서비스와 `RATE_LIMIT_TEST_REDIS_URL`(db 15)을 붙였다 — 기본 REDIS_URL은 테스트가 쓰지 않는다(운영 Redis 보호).
+- (머지 #265, 운영 파드에서 운영 Redis로 20회 통과·21번째 429·TTL 61 확인)
 - 검증: 임시 Redis 7.4(운영과 같은 판)로 16 통과, 변형 2개(`>=`→`>`, 만료 삭제 제거)를 각각 3·1건 실패로 잡음, 전체 1356 통과, mypy·import-linter 통과.
 
 ---
