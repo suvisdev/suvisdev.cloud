@@ -21,9 +21,10 @@ from news.app.ports.output.news_digest_ports import (
 
 DEFAULT_MODEL = "exaone3.5:7.8b"
 LABELS = ("tech", "industry", "other")
+FOCUSES = ("new_tech", "bigtech", "korea_global", "none")
 
 SYSTEM_PROMPT = """너는 AI 엔지니어의 아침 소식을 고르는 편집자다. 독자의 목적은 새 AI 기술과 아키텍처를 공부하는 것이다.
-글 하나를 분류하고 학습 가치를 매겨 JSON으로만 답한다. {"label":"...","value":1}
+글 하나를 분류하고 우선 주제와 학습 가치를 매겨 JSON으로만 답한다. {"label":"...","focus":"...","value":1}
 - tech: 새 모델 공개, 논문, 아키텍처, 학습·추론·에이전트 기법, 오픈소스 도구·릴리스, 벤치마크, 구현 경험과 분석
 - industry: AI 관련이지만 투자, 인수, 인사, 시장, 정책, 행사, 제품 홍보 중심
 - other: AI와 무관한 글, 어떤 모델이 좋은지 묻는 질문, 추천 요청, 하드웨어 구매 상담, 잡담
@@ -31,7 +32,12 @@ SYSTEM_PROMPT = """너는 AI 엔지니어의 아침 소식을 고르는 편집�
 value는 이 글을 읽어 새 기술을 얼마나 배울 수 있는지다.
 - 5: 구체적인 기법, 아키텍처 설명, 실험 수치가 있다
 - 3: 새 모델이나 도구를 소개하지만 기술 내용은 적다
-- 1: 소개나 의견 중심이라 배울 내용이 거의 없다"""
+- 1: 소개나 의견 중심이라 배울 내용이 거의 없다
+focus는 독자가 먼저 받고 싶은 주제다. 해당하는 것 하나만 고른다.
+- new_tech: 새로 나온 모델, 기법, 도구, 아키텍처를 처음 공개하거나 설명한다
+- bigtech: 삼성, 구글, 네이버, 카카오, 마이크로소프트, 메타, 애플, 아마존, LG, SK 같은 대기업이 이미 자사 제품이나 업무에 도입해 쓰고 있는 AI 기술 사례다. 대기업이 새 모델을 처음 공개한 글은 new_tech다
+- korea_global: 같은 AI 기술이나 규제, 서비스, 도입 방식이 한국과 해외에서 어떻게 다른지 비교한다. 한국 기업의 해외 협력, 진출, 수출 소식은 비교가 없으면 none이다
+- none: 위 셋에 해당하지 않는다"""
 
 
 def build_user_prompt(article: ArticleDto) -> str:
@@ -80,6 +86,9 @@ class OllamaArticleClassifier(ArticleClassifierPort):
         try:
             parsed = json.loads(res.json()["message"]["content"])
             label, value = parsed["label"], int(parsed["value"])
-        except (ValueError, KeyError, TypeError):
+            focus = parsed.get("focus", "none")
+        except (ValueError, KeyError, TypeError, AttributeError):
             return None
-        return ArticleJudgement(label, min(5, max(1, value))) if label in LABELS else None
+        if label not in LABELS:
+            return None
+        return ArticleJudgement(label, min(5, max(1, value)), focus if focus in FOCUSES else "none")

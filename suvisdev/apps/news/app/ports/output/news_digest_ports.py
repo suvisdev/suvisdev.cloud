@@ -15,6 +15,7 @@ class ClassifierUnavailableError(Exception):
 class ArticleJudgement:
     label: str  # tech·industry·other
     value: int  # 학습 가치 1~5
+    focus: str = "none"  # new_tech·bigtech·korea_global·none — 메일 우선순위(11-13 사용자 지시)
 
 
 class ArticleClassifierPort(ABC):
