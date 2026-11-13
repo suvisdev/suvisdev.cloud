@@ -7,6 +7,52 @@
 
 ---
 
+## 2026-11-13 (요청 제한을 Redis로)
+
+### R1. 요청 제한 카운터를 프로세스 메모리에서 Redis로 옮긴 가장 큰 이유는?
+<details><summary>답</summary>
+
+main 머지마다 CD가 backend를 다시 띄워 메모리 카운터가 0이 됐습니다. Redis는 별도 프로세스라 재배포와 무관하고, 이미 auth·news 등이 쓰고 있어 새 인프라·비용이 없습니다.
+
+</details>
+
+### R2. 고정 창(INCR+EXPIRE) 대신 ZSET 슬라이딩 로그를 쓴 이유는?
+<details><summary>답</summary>
+
+고정 창은 창이 바뀌는 순간 카운트가 0이 돼, 59초와 61초에 20회씩 2초 사이 40회가 통과합니다(실험으로 확인). 기존 메모리 구현도 최근 60초를 셌으니 의미를 지키려면 슬라이딩이어야 합니다.
+
+</details>
+
+### R3. 왜 Lua 스크립트로 묶었나요?
+<details><summary>답</summary>
+
+"오래된 기록 지우기 → 개수 세기 → 추가"를 따로 보내면 동시에 온 두 요청이 둘 다 19를 보고 통과할 수 있습니다. Lua는 Redis 안에서 한 번에 실행돼 원자적입니다. 두 프로세스 50+50 동시 요청이 합계 20으로 막혔습니다.
+
+</details>
+
+### R4. Redis가 죽으면 왜 통과시키지 않고 503인가요?
+<details><summary>답</summary>
+
+이 제한의 목적이 LLM 비용·GPU 방어라 열어 두면 막을 수단이 사라집니다. 메모리 폴백은 카운터가 둘로 갈려 복잡해집니다. 503은 두 채팅에만 걸리고 다른 API는 영향이 없습니다.
+
+</details>
+
+### R5. Traefik 미들웨어를 기본값으로 쓰면 어떤 사고가 나나요?
+<details><summary>답</summary>
+
+cloudflared 뒤라 Traefik이 보는 접속 IP가 전부 같아, 한 사람이 20회를 쓰면 모든 방문자가 429를 받습니다. `CF-Connecting-IP` 헤더 기준으로 바꿔야 합니다(실험으로 확인).
+
+</details>
+
+### R6. 테스트가 운영 Redis를 건드리지 않게 어떻게 했나요?
+<details><summary>답</summary>
+
+기본 `REDIS_URL`을 쓰지 않고 `RATE_LIMIT_TEST_REDIS_URL`이 있을 때만 Redis 시험을 돌립니다. CI는 일회용 Redis 서비스의 db 15를 주고, 키도 시험마다 새 scope를 씁니다.
+
+</details>
+
+---
+
 ## 2026-11-13 (아침 메일 우선순위)
 
 ### D1. "대기업 소식 우선"을 키워드 목록(삼성·구글…)으로 거르지 않고 모델이 focus를 답하게 한 이유는?

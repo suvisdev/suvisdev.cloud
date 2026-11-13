@@ -1,4 +1,7 @@
-"""POST /portfolio/chat 라우터 — 스키마 변환·검증 422·업스트림 오류 일반 문구·IP 레이트리밋 429."""
+"""POST /portfolio/chat 라우터 — 스키마 변환·검증 422·업스트림 오류 일반 문구.
+
+요청 제한 자체는 shared/tests/test_rate_limit.py(실제 Redis)에서 본다.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from ontology.adapter.inbound.api.v1.portfolio_chat_router import (  # noqa: E402
     GENERIC_ERROR_DETAIL,
+    chat_rate_limit,
     portfolio_chat_router,
 )
 from ontology.app.dtos.portfolio_chat_dto import (  # noqa: E402
@@ -45,6 +49,7 @@ def _client(use_case: PortfolioChatUseCase) -> TestClient:
     app = FastAPI()
     app.include_router(portfolio_chat_router, prefix="/portfolio")
     app.dependency_overrides[get_portfolio_chat_use_case] = lambda: use_case
+    app.dependency_overrides[chat_rate_limit] = lambda: None
     return TestClient(app)
 
 
@@ -86,18 +91,6 @@ class PortfolioChatRouterTests(unittest.TestCase):
         self.assertEqual(res.status_code, 503)
         self.assertEqual(res.json()["detail"], GENERIC_ERROR_DETAIL)
         self.assertNotIn("stack trace", res.text)
-
-    def test_rate_limit_after_twenty_calls(self) -> None:
-        client = _client(_FakeUseCase())
-        headers = {"cf-connecting-ip": "10.0.0.5"}
-        for _ in range(20):
-            self.assertEqual(
-                client.post("/portfolio/chat", json={"message": "q"}, headers=headers).status_code,
-                200,
-            )
-        res = client.post("/portfolio/chat", json={"message": "q"}, headers=headers)
-        self.assertEqual(res.status_code, 429)
-        self.assertIn("Retry-After", res.headers)
 
 
 if __name__ == "__main__":

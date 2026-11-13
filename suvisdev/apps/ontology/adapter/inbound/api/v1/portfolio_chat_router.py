@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from shared.security.rate_limit import RateLimit
 
-from ontology.adapter.inbound.api.rate_limit import chat_rate_limit
 from ontology.adapter.inbound.api.schemas.portfolio_chat_schema import (
     PortfolioChatRequest,
     PortfolioChatResponseSchema,
@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 # 업스트림(ollama·Gemini) 오류 원문은 로그에만 남긴다 — 09-11 보안 리뷰(502 detail 일반 문구화)와 동일.
 GENERIC_ERROR_DETAIL = "AI 응답 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."
+
+chat_rate_limit = RateLimit("portfolio_chat")
 
 portfolio_chat_router = APIRouter(prefix="/chat", tags=["portfolio-chat"])
 
