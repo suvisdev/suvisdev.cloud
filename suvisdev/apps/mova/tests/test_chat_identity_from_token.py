@@ -22,8 +22,10 @@ if str(APPS) not in sys.path:
 
 from shared.security.require_user import UserPrincipal, optional_user  # noqa: E402
 
-from mova.adapter.inbound.api.rate_limit import chat_rate_limit  # noqa: E402
-from mova.adapter.inbound.api.v1.market_chat_router import market_chat_router  # noqa: E402
+from mova.adapter.inbound.api.v1.market_chat_router import (  # noqa: E402
+    chat_rate_limit,
+    market_chat_router,
+)
 from mova.app.dtos.market_chat_dto import ChatResponseDto  # noqa: E402
 from mova.dependencies.market_chat_provider import get_chat_use_case  # noqa: E402
 

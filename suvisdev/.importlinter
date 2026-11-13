@@ -163,7 +163,7 @@ source_modules =
 forbidden_modules =
     auth
 
-# Rule 6: shared (cross-app token verification only) must stay a leaf dependency —
+# Rule 6: shared (cross-app token verification·요청 제한) must stay a leaf dependency —
 # every app may import it, it may not import anything back.
 [importlinter:contract:shared-independence]
 name = shared must not depend on any spoke or auth
