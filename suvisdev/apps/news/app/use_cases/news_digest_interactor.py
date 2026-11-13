@@ -10,6 +10,7 @@ from datetime import datetime
 from news.app.dtos.news_dtos import ArticleDto
 from news.app.ports.output.news_digest_ports import (
     ArticleClassifierPort,
+    ArticleJudgement,
     ClassifierUnavailableError,
     DigestLedgerPort,
     DigestMailerPort,
@@ -35,7 +36,11 @@ class DigestReport:
     sent: int = 0
 
 
-def _item(article: ArticleDto, value: int = 1) -> DigestItem:
+# 대기업 적용·한국·해외 차이 글은 모델이 industry로 봐도 받는다(11-13 사용자 지시)
+_ALWAYS_SEND_FOCUS = ("bigtech", "korea_global")
+
+
+def _item(article: ArticleDto, judgement: ArticleJudgement) -> DigestItem:
     return DigestItem(
         title=article.title_ko or article.title,
         url=article.url,
@@ -44,7 +49,8 @@ def _item(article: ArticleDto, value: int = 1) -> DigestItem:
         summary=article.summary_ko or "",
         hot_label=article.hot_label,
         sort_at=article.sort_at,
-        value=value,
+        value=judgement.value,
+        focus=judgement.focus,
     )
 
 
@@ -74,8 +80,10 @@ class NewsDigestInteractor:
         try:
             for article in candidates:
                 judgement = await self._classifier.classify(article)
-                if judgement is not None and judgement.label == "tech":
-                    tech.append(_item(article, judgement.value))
+                if judgement is not None and (
+                    judgement.label == "tech" or judgement.focus in _ALWAYS_SEND_FOCUS
+                ):
+                    tech.append(_item(article, judgement))
         except ClassifierUnavailableError as e:
             logger.warning("[news] 메일 분류 모델 응답 없음 — 다음 주기에 다시: %s", e)
             return DigestReport("model_unavailable", len(candidates))

@@ -51,14 +51,23 @@ def _article(n: int, title: str = "글", group: str = "lab") -> ArticleDto:
 
 
 class _Classifier(ArticleClassifierPort):
-    def __init__(self, labels: dict[int, str | None] | None = None, down: bool = False) -> None:
-        self.labels, self.down = labels or {}, down
+    def __init__(
+        self,
+        labels: dict[int, str | None] | None = None,
+        down: bool = False,
+        focus: dict[int, str] | None = None,
+    ) -> None:
+        self.labels, self.down, self.focus = labels or {}, down, focus or {}
 
     async def classify(self, article: ArticleDto) -> ArticleJudgement | None:
         if self.down:
             raise ClassifierUnavailableError("꺼짐")
         label = self.labels.get(article.id, "tech")
-        return None if label is None else ArticleJudgement(label, 3)
+        return (
+            None
+            if label is None
+            else ArticleJudgement(label, 3, self.focus.get(article.id, "none"))
+        )
 
 
 class _Mailer(DigestMailerPort):
@@ -109,10 +118,35 @@ def test_due_from_seven_korean_time():
     assert is_due(datetime(2026, 11, 8, 22, 0, tzinfo=UTC))
 
 
-def _item(n: int, group: str, hot: str | None = None, value: int = 1) -> DigestItem:
+def _item(
+    n: int, group: str, hot: str | None = None, value: int = 1, focus: str = "none"
+) -> DigestItem:
     return DigestItem(
-        title=f"글{n}", url=f"https://a/{n}", group=group, source="s", hot_label=hot, value=value
+        title=f"글{n}",
+        url=f"https://a/{n}",
+        group=group,
+        source="s",
+        hot_label=hot,
+        value=value,
+        focus=focus,
     )
+
+
+def test_select_orders_by_user_focus_before_value():
+    picked = select_items(
+        [
+            _item(1, "lab", value=5),
+            _item(2, "ko_media", value=1, focus="korea_global"),
+            _item(3, "community", value=1, focus="bigtech"),
+            _item(4, "paper", value=1, focus="new_tech"),
+        ]
+    )
+    assert [i.title for i in picked] == ["글4", "글3", "글2", "글1"]
+
+
+def test_render_shows_focus_tag():
+    _, text, html = render_digest(date(2026, 11, 8), [_item(1, "lab", focus="bigtech")])
+    assert "대기업 적용 · s" in text and "대기업 적용 · s" in html
 
 
 def test_select_prefers_study_value_over_source_and_hot():
@@ -162,6 +196,16 @@ async def test_sends_only_tech_and_records():
     assert (report.status, report.candidates, report.tech, report.sent) == ("sent", 3, 1, 1)
     assert "기술 글" in mailer.sent[0][1] and "투자 글" not in mailer.sent[0][1]
     assert ledger.finished == [date(2026, 11, 8)]
+
+
+@pytest.mark.asyncio
+async def test_sends_industry_when_bigtech_or_korea_global():
+    arts = [_article(1, "삼성 적용"), _article(2, "국내외 차이"), _article(3, "인수")]
+    labels = {1: "industry", 2: "industry", 3: "industry"}
+    focus = {1: "bigtech", 2: "korea_global"}
+    use_case, mailer, _ = _interactor(arts, _Classifier(labels, focus=focus))
+    report = await use_case.send_if_due(NOW)
+    assert report.sent == 2 and "인수" not in mailer.sent[0][1]
 
 
 @pytest.mark.asyncio
@@ -252,6 +296,9 @@ def _classifier(handler) -> OllamaArticleClassifier:
     ("content", "expected"),
     [
         ('{"label":"tech","value":5}', ArticleJudgement("tech", 5)),
+        ('{"label":"tech","focus":"bigtech","value":4}', ArticleJudgement("tech", 4, "bigtech")),
+        ('{"label":"tech","focus":"모름","value":4}', ArticleJudgement("tech", 4)),
+        ("[1]", None),
         ('{"label":"tech","value":9}', ArticleJudgement("tech", 5)),
         ('{"label":"tech"}', None),
         ('{"label":"뉴스","value":3}', None),

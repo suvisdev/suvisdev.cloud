@@ -1,7 +1,8 @@
 """아침 메일 — 어제(한국 시각) 범위, 고르는 순서, 본문 만들기. 외부 의존 없음.
 
 글이 기술 소식인지와 학습 가치는 모델이 정하고(adapter/outbound/llm/ollama_article_classifier.py),
-여기서는 그 결과를 학습 가치·화제 수치·출처 순으로 줄 세운다.
+여기서는 그 결과를 우선 주제(11-13 사용자 지시: 새 기술 → 대기업이 쓰는 기술 → 한국·해외 차이)·
+학습 가치·화제 수치·출처 순으로 줄 세운다.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ MAX_ITEMS = 10
 MAX_PER_GROUP = 4  # 커뮤니티 글이 많아도 메일을 다 차지하지 않게
 # 같은 학습 가치면 1차 출처를 앞에 둔다. 논문은 하루 수백 건이라 화제 수치가 있는 것만 후보다(저장소 쿼리).
 _GROUP_ORDER = ("lab", "release", "paper", "commentary", "ko_media", "community")
+FOCUS_LABELS = {"new_tech": "새 기술", "bigtech": "대기업 적용", "korea_global": "한국·해외 차이"}
+_FOCUS_ORDER = tuple(FOCUS_LABELS)
 
 
 @dataclass(frozen=True)
@@ -30,6 +33,7 @@ class DigestItem:
     hot_label: str | None = None
     sort_at: datetime | None = None
     value: int = 1  # 모델이 매긴 학습 가치 1~5
+    focus: str = "none"  # 모델이 고른 우선 주제(FOCUS_LABELS 키 또는 none)
 
 
 def digest_day(now: datetime) -> date:
@@ -45,10 +49,11 @@ def is_due(now: datetime) -> bool:
     return now.astimezone(KST).hour >= SEND_HOUR_KST
 
 
-def _rank(item: DigestItem) -> tuple[int, int, int, float]:
+def _rank(item: DigestItem) -> tuple[int, int, int, int, float]:
+    focus = _FOCUS_ORDER.index(item.focus) if item.focus in _FOCUS_ORDER else len(_FOCUS_ORDER)
     group = _GROUP_ORDER.index(item.group) if item.group in _GROUP_ORDER else len(_GROUP_ORDER)
     newest = -item.sort_at.timestamp() if item.sort_at else 0.0
-    return (-item.value, 0 if item.hot_label else 1, group, newest)
+    return (focus, -item.value, 0 if item.hot_label else 1, group, newest)
 
 
 def select_items(items: Sequence[DigestItem]) -> list[DigestItem]:
@@ -80,7 +85,8 @@ def render_digest(day: date, items: Sequence[DigestItem]) -> tuple[str, str, str
         f'<h2 style="font-size:20px">{escape(heading)}</h2>',
     ]
     for n, item in enumerate(items, 1):
-        meta = " · ".join(x for x in (item.source, item.hot_label) if x)
+        tag = FOCUS_LABELS.get(item.focus)
+        meta = " · ".join(x for x in (tag, item.source, item.hot_label) if x)
         text_parts += [f"{n}. {item.title}", f"   {meta}"]
         if item.summary:
             text_parts.append(f"   {item.summary}")
