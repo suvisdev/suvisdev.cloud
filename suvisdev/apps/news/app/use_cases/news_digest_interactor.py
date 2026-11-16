@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from news.app.dtos.news_dtos import ArticleDto
 from news.app.ports.output.news_digest_ports import (
     ArticleClassifierPort,
+    ArticleExplainerPort,
     ArticleJudgement,
+    ArticlePageReaderPort,
     ClassifierUnavailableError,
     DigestLedgerPort,
     DigestMailerPort,
@@ -24,6 +26,7 @@ from news.domain.digest import (
     render_digest,
     select_items,
 )
+from news.domain.glossary import find_terms
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +54,10 @@ def _item(article: ArticleDto, judgement: ArticleJudgement) -> DigestItem:
         sort_at=article.sort_at,
         value=judgement.value,
         focus=judgement.focus,
+        terms=find_terms(
+            f"{article.title_ko or ''} {article.title} {article.summary_ko or ''} {article.summary}",
+            article.section,
+        ),
     )
 
 
@@ -61,11 +68,15 @@ class NewsDigestInteractor:
         classifier: ArticleClassifierPort,
         mailer: DigestMailerPort,
         ledger: DigestLedgerPort,
+        page_reader: ArticlePageReaderPort | None = None,
+        explainer: ArticleExplainerPort | None = None,
     ) -> None:
         self._repository = repository
         self._classifier = classifier
         self._mailer = mailer
         self._ledger = ledger
+        self._page_reader = page_reader
+        self._explainer = explainer
 
     async def send_if_due(self, now: datetime) -> DigestReport:
         if not is_due(now):
@@ -93,7 +104,8 @@ class NewsDigestInteractor:
             await asyncio.to_thread(self._ledger.finish, day)
             return DigestReport("no_items", len(candidates))
 
-        subject, text, html = render_digest(day, items)
+        items, trend = await self._explain(items)
+        subject, text, html = render_digest(day, items, trend)
         try:
             await asyncio.to_thread(self._mailer.send, subject=subject, text=text, html=html)
         except OSError as e:  # smtplib 예외는 OSError 계열
@@ -102,3 +114,17 @@ class NewsDigestInteractor:
             return DigestReport("mail_failed", len(candidates), len(tech))
         await asyncio.to_thread(self._ledger.finish, day)
         return DigestReport("sent", len(candidates), len(tech), len(items))
+
+    async def _explain(self, items: list[DigestItem]) -> tuple[list[DigestItem], list[str]]:
+        """기사별 풀이·분석과 오늘의 흐름(11-16). 풀이가 없어도 메일은 보낸다 — 모델이 멈추면 남은 것만 건너뛴다."""
+        if self._explainer is None:
+            return items, []
+        out = list(items)
+        try:
+            for i, item in enumerate(items):
+                page = await self._page_reader.read(item.url) if self._page_reader else ""
+                out[i] = replace(item, explanation=await self._explainer.explain(item, page))
+            return out, await self._explainer.trend(out)
+        except ClassifierUnavailableError as e:
+            logger.warning("[news] 풀이 모델 응답 없음 — 풀이 없이 보냄: %s", e)
+            return out, []
