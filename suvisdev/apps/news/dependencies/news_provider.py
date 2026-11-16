@@ -10,11 +10,13 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.matrix.grid_oracle_database_manager import get_db, get_session_factory
+from news.adapter.outbound.http.article_page_reader import HttpArticlePageReader
 from news.adapter.outbound.http.hot_sources import HackerNewsSource, HuggingFacePapersSource
 from news.adapter.outbound.http.naver_news_search import NaverNewsSearchClient
 from news.adapter.outbound.http.rss_feed_reader import RssFeedReader, load_latest_feeds
 from news.adapter.outbound.kvstore.redis_digest_ledger import RedisDigestLedger
 from news.adapter.outbound.llm.ollama_article_classifier import OllamaArticleClassifier
+from news.adapter.outbound.llm.ollama_article_explainer import OllamaArticleExplainer
 from news.adapter.outbound.llm.ollama_ko_summarizer import OllamaKoSummarizer
 from news.adapter.outbound.mail.smtp_digest_mailer import SmtpDigestMailer
 from news.adapter.outbound.pg.news_pg_repository import NewsPgRepository
@@ -94,6 +96,8 @@ def build_digest_use_case(session: AsyncSession) -> NewsDigestInteractor | None:
         classifier=OllamaArticleClassifier(),
         mailer=SmtpDigestMailer(user=user, password=password, to=to),
         ledger=RedisDigestLedger(client),
+        page_reader=HttpArticlePageReader(),
+        explainer=OllamaArticleExplainer(),
     )
 
 

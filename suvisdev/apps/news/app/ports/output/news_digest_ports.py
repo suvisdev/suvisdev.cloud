@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
 from news.app.dtos.news_dtos import ArticleDto
+from news.domain.digest import DigestItem, Explanation
 
 
 class ClassifierUnavailableError(Exception):
-    """분류 모델 서버가 꺼졌거나 응답이 너무 느림 — 이번 메일을 보내지 않고 다음 주기에 다시 한다."""
+    """분류·풀이 모델 서버가 꺼졌거나 응답이 너무 느림. 분류에서 나면 이번 메일을 보내지 않고 다음 주기에 다시 한다,
+    풀이에서 나면 남은 풀이를 건너뛰고 보낸다."""
 
 
 @dataclass(frozen=True)
@@ -22,6 +25,22 @@ class ArticleClassifierPort(ABC):
     @abstractmethod
     async def classify(self, article: ArticleDto) -> ArticleJudgement | None:
         """모델 출력이 형식에 안 맞으면 None, 서버 문제면 예외."""
+
+
+class ArticlePageReaderPort(ABC):
+    @abstractmethod
+    async def read(self, url: str) -> str:
+        """원문 본문 텍스트. 막히거나 실패하면 빈 문자열(예외 없음)."""
+
+
+class ArticleExplainerPort(ABC):
+    @abstractmethod
+    async def explain(self, item: DigestItem, page_text: str) -> Explanation | None:
+        """쉬운 풀이·이점·단점. 모델 출력이 형식에 안 맞으면 None, 서버 문제면 ClassifierUnavailableError."""
+
+    @abstractmethod
+    async def trend(self, items: Sequence[DigestItem]) -> list[str]:
+        """메일 전체를 묶은 오늘의 흐름 몇 줄. 형식이 틀리면 빈 목록, 서버 문제면 ClassifierUnavailableError."""
 
 
 class DigestMailerPort(ABC):
