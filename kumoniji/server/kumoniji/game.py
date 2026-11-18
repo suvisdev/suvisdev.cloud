@@ -34,6 +34,8 @@ class Game:
     pot: int = 0
     doubles: int = 0
     winner: int | None = None
+    # 이번 바퀴에서 바닥 패 이전에 나온 수(자리, 패) — 화면에 직전 두 수를 보여 주는 용도, 규칙엔 안 쓰임
+    history: list[tuple[int, list[Tile]]] = field(default_factory=list)
 
     @classmethod
     def deal(cls, rng: random.Random) -> "Game":
@@ -54,6 +56,7 @@ class Game:
                 self.petals[self.last].append(max(self.table, key=value)[0])
                 self.bonus[self.last] += self.pot + small_today(self.table, self.today)
                 self.table, self.passes, self.pot = [], 0, 0
+                self.history = []
         else:
             if any(t not in self.hands[seat] for t in move) or not beats(
                 self.table, move
@@ -63,6 +66,8 @@ class Game:
                 self.hands[seat].remove(t)
             self.pot += special_steps(move, self.today, finish=not self.hands[seat])
             self.doubles += len(move) == 5 and all(s == self.today for s, _ in move)
+            if self.table:
+                self.history.append((self.last, self.table))
             self.table, self.last, self.passes = list(move), seat, 0
             if not self.hands[seat]:
                 self.bonus[seat] += self.pot + small_today(move, self.today)

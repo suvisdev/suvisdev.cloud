@@ -12,7 +12,7 @@ from collections import Counter
 from itertools import combinations
 from pathlib import Path
 
-SHAPES = ["산", "벚", "잎", "솜"]  # 약 → 강
+SHAPES = ["솜", "잎", "벚", "산"]  # 약 → 강 (11-18 사용자: 산 > 벚꽃 > 잎사귀 > 솜사탕)
 COLOR = {"벚": "분홍", "솜": "분홍", "잎": "초록", "산": "초록"}
 NUM_RANK = {n: n - 1 for n in range(1, 14)}  # 1이 가장 약하고 13이 가장 셈 (11-17 v2)
 KINDS5 = [
@@ -29,7 +29,7 @@ BOMBS = {"포카드", "스트레이트플러시", "같은모양홀짝"}  # 특�
 STRAIGHTS = [frozenset(range(s, s + 5)) for s in range(1, 10)]  # 1-5 … 9-13, 순환 없음
 ODD_EVEN = sorted((frozenset(range(s, s + 10, 2)) for s in range(1, 6)), key=max)
 DECK = [(s, n) for s in SHAPES for n in range(1, 14)]
-START = ("산", 1)  # 가장 약한 타일 = 선
+START = ("솜", 1)  # 가장 약한 타일 = 선
 BONUS, TODAY_MULT = (
     2,
     5,
@@ -109,7 +109,7 @@ def beats(prev, new):
 
 
 def first_player(hands):
-    """산1(가장 약한 타일)을 가진 사람이 선."""
+    """솜1(가장 약한 타일)을 가진 사람이 선."""
     return next(i for i, h in enumerate(hands) if START in h)
 
 

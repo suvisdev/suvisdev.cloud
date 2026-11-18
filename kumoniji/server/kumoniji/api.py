@@ -11,9 +11,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .bots import pick
+from .bots import pick, plays
 from .game import Game, IllegalMove
-from .rules import value
+from .rules import SHAPES, beats, classify, value
 
 SUIT = {"산": "m", "벚": "s", "잎": "l", "솜": "c"}
 CODE = {v: k for k, v in SUIT.items()}
@@ -55,6 +55,28 @@ def run_bots(g: Game, rng: random.Random, events: list):
         events.append({"seat": seat, "tiles": [enc(t) for t in m] if m else None})
 
 
+def legal_moves(g: Game) -> list[list[str]]:
+    """사람 차례일 때 지금 낼 수 있는 조합 전부(앱은 고른 패가 이 중 하나와 같을 때만 '내기'를 켠다). 판정은 서버 규칙 그대로."""
+    if g.winner is not None or g.turn != HUMAN:
+        return []
+    return [[enc(t) for t in p] for p in plays(g.hands[HUMAN]) if beats(g.table, p)]
+
+
+def reason(g: Game, tiles: list) -> str:
+    """낼 수 없는 이유(앱이 언어별 문구로 바꿈)."""
+    if not tiles:
+        return "lead_pass"
+    if any(t not in g.hands[HUMAN] for t in tiles):
+        return "not_in_hand"
+    if classify(tiles) is None:
+        return "not_combo"
+    if g.table and len(tiles) != len(g.table):
+        return "count"
+    if len(tiles) <= 3 and g.table and tiles[0][1] == g.table[0][1]:
+        return "suit"
+    return "weaker"
+
+
 def view(gid: str, g: Game, events: list) -> dict:
     return {
         "id": gid,
@@ -64,12 +86,18 @@ def view(gid: str, g: Game, events: list) -> dict:
         "counts": [len(h) for h in g.hands],
         "table": [enc(t) for t in g.table],
         "last": g.last,
+        "recent": [
+            {"seat": seat, "tiles": [enc(t) for t in m]} for seat, m in g.history[-2:]
+        ],
         "petals": [len(p) for p in g.petals],
         "bonus": g.bonus,
         "doubles": g.doubles,
         "winner": g.winner,
         "settlement": g.settlement(),
         "events": events,
+        "moves": (moves := legal_moves(g)),
+        "playable": sorted({t for m in moves for t in m}, key=lambda c: value(dec(c))),
+        "suits": [SUIT[x] for x in reversed(SHAPES)],  # 센 것 → 약한 것
     }
 
 
@@ -127,8 +155,8 @@ def move(gid: str, body: Move):
             raise HTTPException(409, "차례가 아님")
         try:
             g.play(HUMAN, tiles or None)
-        except IllegalMove as e:
-            raise HTTPException(422, str(e)) from None
+        except IllegalMove:
+            raise HTTPException(422, {"code": reason(g, tiles)}) from None
         events = [{"seat": HUMAN, "tiles": [enc(t) for t in tiles] or None}]
         run_bots(g, rng, events)
         return view(gid, g, events)

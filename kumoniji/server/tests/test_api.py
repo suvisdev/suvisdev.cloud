@@ -56,6 +56,10 @@ def test_hidden_hands():
         "winner",
         "settlement",
         "events",
+        "playable",
+        "moves",
+        "recent",
+        "suits",
     }
 
 
@@ -122,3 +126,55 @@ def test_create_rate_limit_per_ip(monkeypatch):
         c.post("/api/games", headers={"cf-connecting-ip": "203.0.113.10"}).status_code
         == 200
     )
+
+
+def test_suit_order_and_playable_and_reason():
+    from kumoniji import api
+    from kumoniji.game import Game
+
+    g = Game(
+        hands=[
+            [("벚", 7), ("산", 2), ("솜", 3)],
+            [("잎", 9)],
+            [("솜", 9)],
+            [("산", 9)],
+        ],
+        today="잎",
+        turn=0,
+        table=[("잎", 7)],
+        last=3,
+    )
+    api.GAMES["fixed"] = (g, random.Random(0))
+    v = c.get("/api/games/fixed").json()
+    assert v["suits"] == ["m", "s", "l", "c"]  # 산 > 벚꽃 > 잎사귀 > 솜사탕 (11-18)
+    assert v["playable"] == ["s7"]  # 벚7만 잎7을 이긴다
+    assert v["moves"] == [["s7"]]
+    r = c.post("/api/games/fixed/moves", json={"tiles": ["m2"]})
+    assert r.status_code == 422 and r.json()["detail"]["code"] == "weaker"
+    g.table = [("산", 7)]
+    r = c.post("/api/games/fixed/moves", json={"tiles": ["s7"]})
+    assert r.json()["detail"]["code"] == "suit"  # 같은 숫자인데 무늬가 약함
+    assert c.get("/api/games/fixed").json()["playable"] == []
+    r = c.post("/api/games/fixed/moves", json={"tiles": ["s7", "m2"]})
+    assert r.json()["detail"]["code"] == "not_combo"
+
+
+def test_recent_shows_two_plays_before_table_and_clears_on_new_round():
+    from kumoniji.game import Game
+
+    g = Game(
+        hands=[
+            [("솜", 2), ("솜", 9)],
+            [("솜", 3), ("솜", 10)],
+            [("솜", 4), ("솜", 11)],
+            [("솜", 5), ("솜", 12)],
+        ],
+        today="잎",
+        turn=0,
+    )
+    for seat, t in enumerate([("솜", 2), ("솜", 3), ("솜", 4), ("솜", 5)]):
+        g.play(seat, [t])
+    assert g.history[-2:] == [(1, [("솜", 3)]), (2, [("솜", 4)])]
+    for seat in (0, 1, 2):
+        g.play(seat, None)  # 셋 패스 → 3번이 바퀴를 가져감
+    assert g.history == [] and g.table == []
