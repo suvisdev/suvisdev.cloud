@@ -77,6 +77,14 @@ def reason(g: Game, tiles: list) -> str:
     return "weaker"
 
 
+def seat_plays(g: Game) -> list[list[str] | None]:
+    """이번 바퀴에 자리마다 마지막으로 낸 패(안 냈으면 None). 앱이 각 자리 앞에 놓는다."""
+    out: list[list[str] | None] = [None] * 4
+    for seat, m in [*g.history, *([(g.last, g.table)] if g.table else [])]:
+        out[seat] = [enc(t) for t in m]
+    return out
+
+
 def view(gid: str, g: Game, events: list) -> dict:
     return {
         "id": gid,
@@ -86,9 +94,11 @@ def view(gid: str, g: Game, events: list) -> dict:
         "counts": [len(h) for h in g.hands],
         "table": [enc(t) for t in g.table],
         "last": g.last,
-        "recent": [
-            {"seat": seat, "tiles": [enc(t) for t in m]} for seat, m in g.history[-2:]
-        ],
+        # 마지막으로 낸 사람 뒤로 이어서 패스한 자리(바퀴가 넘어가면 비어 있음)
+        "passed": []
+        if g.last is None
+        else [(g.last + k) % 4 for k in range(1, g.passes + 1)],
+        "plays": seat_plays(g),
         "petals": [len(p) for p in g.petals],
         "bonus": g.bonus,
         "doubles": g.doubles,

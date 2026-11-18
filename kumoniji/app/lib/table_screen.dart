@@ -12,6 +12,7 @@ import 'tile.dart';
 const _ink = Color(0xFF42384C);
 const _gold = Color(0xFFC9A24A);
 const _felt = Color(0xFFE6F0DC);
+const _sideW = 76.0; // 양옆 봇 자리 폭
 
 /// 게임 화면. 사람은 0번 자리(아래), 봇은 시계 방향으로 1번 왼쪽 · 2번 맞은편 · 3번 오른쪽.
 /// 판정은 서버가 하고 여기서는 그리기만 한다.
@@ -31,6 +32,9 @@ class _TableScreenState extends State<TableScreen> {
   GameState? s;
   Play? flash; // 방금 누가 무엇을 냈는지 잠깐 보여 줌
   final picked = <String>{};
+  Set<int> passed = {}; // 지금 바퀴에서 패스한 자리(봇 장면을 넘기는 동안에도 갱신)
+  List<List<String>?> plays = List.filled(4, null); // 자리마다 이번 바퀴에 낸 패
+  int? lead; // 지금 바닥에서 가장 센 패를 낸 자리
   bool busy = false;
 
   @override
@@ -55,13 +59,30 @@ class _TableScreenState extends State<TableScreen> {
     setState(() => busy = true);
     try {
       final next = await call;
-      for (final e in next.events.where((e) => e.seat != 0)) {
+      for (final e in next.events) {
         if (!mounted) return;
-        setState(() => flash = e);
-        await Future.delayed(const Duration(milliseconds: 700));
+        setState(() {
+          if (e.tiles == null) {
+            passed.add(e.seat);
+          } else {
+            passed.clear();
+            plays[e.seat] = e.tiles;
+            lead = e.seat;
+          }
+          if (e.seat != 0) flash = e;
+        });
+        // 봇 한 수마다 잠깐 멈춰 누가 무엇을 했는지 보이게
+        if (e.seat != 0) await Future.delayed(Duration(milliseconds: e.tiles == null ? 1000 : 1200));
+        // 셋이 패스하면 바퀴가 끝난다 → 판을 비운다
+        if (passed.length == 3) {
+          if (e.seat == 0) await Future.delayed(const Duration(milliseconds: 600));
+          if (!mounted) return;
+          setState(() => _clearRound());
+        }
       }
       if (!mounted) return;
       setState(() {
+        _sync(next);
         s = next;
         picked.clear();
         flash = null;
@@ -103,6 +124,7 @@ class _TableScreenState extends State<TableScreen> {
       final now = await api.get(g.id);
       if (!mounted) return;
       setState(() {
+        _sync(now);
         s = now;
         picked.clear();
         flash = null;
@@ -129,6 +151,18 @@ class _TableScreenState extends State<TableScreen> {
       if (ok != true) return;
     }
     _apply(api.newGame());
+  }
+
+  void _sync(GameState g) {
+    passed = g.passed.toSet();
+    plays = [...g.plays];
+    lead = g.table.isEmpty ? null : g.last;
+  }
+
+  void _clearRound() {
+    passed.clear();
+    plays = List.filled(4, null);
+    lead = null;
   }
 
   String _name(AppLocalizations t, int seat) => seat == 0 ? t.you : t.bot(seat);
@@ -215,36 +249,77 @@ class _TableScreenState extends State<TableScreen> {
                       children: [
                         _SuitOrder(suits: g.suits, label: t.suitOrder),
                         const SizedBox(height: 6),
-                        _Seat(name: t.bot(2), g: g, seat: 2, active: active == 2, turnLabel: t.turn),
+                        _Seat(
+                          name: t.bot(2),
+                          g: g,
+                          seat: 2,
+                          active: active == 2,
+                          turnLabel: t.turn,
+                          fan: Axis.horizontal,
+                          passed: passed.contains(2),
+                          passLabel: t.pass,
+                        ),
                         const SizedBox(height: 6),
                         Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _Seat(name: t.bot(1), g: g, seat: 1, active: active == 1, turnLabel: t.turn),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: _felt,
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
+                          // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
+                          child: LayoutBuilder(
+                            builder: (context, mid) {
+                              final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _Seat(
+                                    name: t.bot(1),
+                                    g: g,
+                                    seat: 1,
+                                    passed: passed.contains(1),
+                                    passLabel: t.pass,
+                                    active: active == 1,
+                                    turnLabel: t.turn,
+                                    fan: Axis.vertical,
+                                    room: mid.maxHeight,
                                   ),
-                                  child: Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(6),
-                                      child: FittedBox(fit: BoxFit.scaleDown, child: _center(t, g, tileW)),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: side,
+                                    height: side,
+                                    decoration: BoxDecoration(
+                                      color: _felt,
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
+                                    ),
+                                    child: Center(
+                                      child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g, side)),
                                     ),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              _Seat(name: t.bot(3), g: g, seat: 3, active: active == 3, turnLabel: t.turn),
-                            ],
+                                  const SizedBox(width: 6),
+                                  _Seat(
+                                    name: t.bot(3),
+                                    g: g,
+                                    seat: 3,
+                                    passed: passed.contains(3),
+                                    passLabel: t.pass,
+                                    active: active == 3,
+                                    turnLabel: t.turn,
+                                    fan: Axis.vertical,
+                                    room: mid.maxHeight,
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _Seat(name: t.you, g: g, seat: 0, active: active == 0, turnLabel: t.turn, compact: true),
+                        _Seat(
+                          name: t.you,
+                          g: g,
+                          seat: 0,
+                          active: active == 0,
+                          turnLabel: t.turn,
+                          compact: true,
+                          passed: passed.contains(0),
+                          passLabel: t.pass,
+                        ),
                         const SizedBox(height: 8),
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
@@ -314,61 +389,60 @@ class _TableScreenState extends State<TableScreen> {
     );
   }
 
-  Widget _center(AppLocalizations t, GameState g, double tileW) {
-    final f = flash;
-    final who = f?.seat ?? g.last;
-    final tiles = f == null ? g.table : f.tiles;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (who != null && (f != null || g.table.isNotEmpty))
-          Text(
-            _name(t, who),
-            style: const TextStyle(color: _ink, fontWeight: FontWeight.bold),
-          ),
-        const SizedBox(height: 8),
-        // 직전 두 수: 흐리게, 작게, 이름과 함께
-        if (f == null && g.recent.isNotEmpty) ...[
-          for (final r in g.recent)
-            Opacity(
-              opacity: .55,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                // 좁은 화면에서 5장 조합이 넘치지 않게 폭에 맞춰 줄인다
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
+  /// 정사각형 판: 자리마다 자기 앞(판 가장자리)에 이번 바퀴에 낸 패를 놓는다. 지금 가장 센 패만 진하게.
+  Widget _felt4(AppLocalizations t, GameState g, double side) {
+    Widget area(int seat, double w, double h, int perRow) {
+      final m = plays[seat];
+      if (m == null) return SizedBox(width: w, height: h);
+      final top = seat == lead;
+      final rows = [for (var i = 0; i < m.length; i += perRow) m.sublist(i, min(i + perRow, m.length))];
+      return SizedBox(
+        width: w,
+        height: h,
+        child: Opacity(
+          opacity: top ? 1 : .45,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              key: ValueKey('play-$seat'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final r in rows)
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_name(t, r.seat), style: const TextStyle(color: _ink, fontSize: 11)),
-                      const SizedBox(width: 6),
-                      for (final c in r.tiles ?? const <String>[])
+                      for (final c in r)
                         Padding(
-                          padding: const EdgeInsets.only(right: 2),
-                          child: TileView(code: c, width: tileW * .55),
+                          padding: const EdgeInsets.all(2),
+                          child: TileView(code: c, width: 44),
                         ),
                     ],
                   ),
-                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final myTurn = flash == null && !g.finished && g.turn == 0;
+    return Padding(
+      padding: const EdgeInsets.all(6),
+      child: Stack(
+        children: [
+          Align(alignment: Alignment.topCenter, child: area(2, side * .8, side * .26, 5)),
+          Align(alignment: Alignment.centerLeft, child: area(1, side * .3, side * .42, 3)),
+          Align(alignment: Alignment.centerRight, child: area(3, side * .3, side * .42, 3)),
+          Align(alignment: Alignment.bottomCenter, child: area(0, side * .8, side * .26, 5)),
+          if (myTurn)
+            Center(
+              child: Text(
+                t.yourTurn,
+                style: const TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
-          const SizedBox(height: 4),
         ],
-        if (f != null && f.tiles == null)
-          Text(t.passed, style: const TextStyle(fontSize: 20, color: _ink))
-        else
-          Wrap(
-            spacing: 4,
-            children: [for (final c in tiles ?? const <String>[]) TileView(code: c, width: tileW)],
-          ),
-        if (f == null && !g.finished && g.turn == 0) ...[
-          const SizedBox(height: 12),
-          Text(
-            t.yourTurn,
-            style: const TextStyle(color: _ink, fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
@@ -379,7 +453,19 @@ class _Seat extends StatelessWidget {
   final GameState g;
   final int seat;
   final bool active, compact;
+
+  /// 남은 패 뒷면을 겹쳐 펼치는 방향(봇만). 세로면 [room] 높이 안에 맞춘다.
+  final Axis? fan;
+  final double room;
+
+  /// 이번 바퀴에 패스했으면 이름 옆에 "패스" 표시
+  final bool passed;
+  final String passLabel;
   const _Seat({
+    this.passed = false,
+    this.passLabel = '',
+    this.fan,
+    this.room = 400,
     required this.name,
     required this.g,
     required this.seat,
@@ -411,7 +497,7 @@ class _Seat extends StatelessWidget {
       ],
     );
     final stats = Text('🌸${g.petals[seat]}  ✦${g.bonus[seat]}', style: const TextStyle(fontSize: 12, color: _ink));
-    return AnimatedContainer(
+    final box = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
       decoration: BoxDecoration(
@@ -420,25 +506,125 @@ class _Seat extends StatelessWidget {
         border: Border.all(color: active ? _gold : const Color(0xFFE9DFD1), width: active ? 3 : 1),
         boxShadow: active ? [BoxShadow(color: _gold.withValues(alpha: .35), blurRadius: 10)] : null,
       ),
+      width: fan == Axis.vertical ? _sideW : null,
       child: compact
           ? Row(mainAxisSize: MainAxisSize.min, children: [label, const SizedBox(width: 12), stats])
           : Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                label,
+                // 좁은 옆자리에서도 이름·차례 배지가 넘치지 않게
+                FittedBox(fit: BoxFit.scaleDown, child: label),
                 const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const TileView(code: 'back', width: 22),
-                    const SizedBox(width: 4),
-                    Text('×${g.counts[seat]}', style: const TextStyle(color: _ink)),
-                  ],
+                _Backs(
+                  count: g.counts[seat],
+                  axis: fan ?? Axis.horizontal,
+                  // 세로: 이름·장수·점수 줄과 여백(약 110)을 뺀 높이에 13장이 들어가게
+                  length: fan == Axis.vertical ? max(48.0, room - 110) : 170,
                 ),
+                Text('×${g.counts[seat]}', style: const TextStyle(color: _ink, fontSize: 12)),
                 const SizedBox(height: 2),
                 stats,
               ],
             ),
+    );
+    // 패스하면 그 자리가 말하듯 말풍선을 띄워 둔다(누가 새로 내거나 바퀴가 넘어가면 사라짐)
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        box,
+        if (passed)
+          Positioned(
+            top: -24,
+            right: -10,
+            child: _Bubble(key: ValueKey('passed-$seat'), text: passLabel),
+          ),
+      ],
+    );
+  }
+}
+
+/// 말풍선: 둥근 상자 + 왼쪽 아래 꼬리.
+class _Bubble extends StatelessWidget {
+  final String text;
+  const _Bubble({super.key, required this.text});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _ink, width: 1.5),
+          boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 4, offset: Offset(0, 2))],
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(color: _ink, fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: 10),
+        child: CustomPaint(size: const Size(10, 7), painter: _Tail()),
+      ),
+    ],
+  );
+}
+
+class _Tail extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 상자 테두리와 겹쳐 이어지도록 위로 2px 올려 그린다
+    final path = Path()
+      ..moveTo(0, -2)
+      ..lineTo(size.width, -2)
+      ..lineTo(1, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(
+      Path()
+        ..moveTo(0, -1)
+        ..lineTo(1, size.height)
+        ..lineTo(size.width, -1),
+      Paint()
+        ..color = _ink
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_Tail old) => false;
+}
+
+/// 남은 패 뒷면을 한 장씩 겹쳐 펼친다. [length] 안에 다 들어가게 겹침 간격을 정한다(최대 반 장).
+class _Backs extends StatelessWidget {
+  final int count;
+  final Axis axis;
+  final double length;
+  const _Backs({required this.count, required this.axis, required this.length});
+
+  @override
+  Widget build(BuildContext context) {
+    const w = 24.0, h = w * 4 / 3;
+    final along = axis == Axis.horizontal ? w : h;
+    final step = count < 2 ? 0.0 : min(along / 2, (length - along) / (count - 1));
+    final total = count == 0 ? 0.0 : along + step * (count - 1);
+    return SizedBox(
+      width: axis == Axis.horizontal ? total : w,
+      height: axis == Axis.horizontal ? h : total,
+      child: Stack(
+        children: [
+          for (var i = 0; i < count; i++)
+            Positioned(
+              left: axis == Axis.horizontal ? step * i : 0,
+              top: axis == Axis.horizontal ? 0 : step * i,
+              child: const TileView(code: 'back', width: w),
+            ),
+        ],
+      ),
     );
   }
 }
