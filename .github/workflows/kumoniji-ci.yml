@@ -1,0 +1,51 @@
+# 쿠모니지 CI — 서버 pytest(규칙 하네스 포함) + 앱 analyze·test. 배포는 노트북에서 kumoniji/deploy.sh(수동).
+name: kumoniji-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "kumoniji/**"
+      - ".github/workflows/kumoniji-ci.yml"
+  pull_request:
+    paths:
+      - "kumoniji/**"
+      - ".github/workflows/kumoniji-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: kumoniji-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: kumoniji/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt pytest httpx
+      - run: pytest -q
+
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: kumoniji/app
+    steps:
+      - uses: actions/checkout@v4
+      # 로컬(~/.cache/gildle-build/flutter)과 같은 버전
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

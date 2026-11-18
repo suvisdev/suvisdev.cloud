@@ -1,0 +1,17 @@
+{
+  "@@locale": "ja",
+  "title": "クモニジ",
+  "newGame": "新しいゲーム",
+  "play": "出す",
+  "pass": "パス",
+  "today": "今日の柄",
+  "illegal": "その組み合わせは出せません",
+  "yourTurn": "あなたの番",
+  "passed": "パス",
+  "you": "あなた",
+  "bot": "ボット{n}",
+  "points": "{n}点",
+  "winner": "{name}が上がりました！",
+  "result": "結果",
+  "serverError": "サーバーに接続できません。もう一度お試しください。"
+}

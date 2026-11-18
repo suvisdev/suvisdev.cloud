@@ -82,9 +82,12 @@ cloud.suvisdev/
 ├── suvis/                 ← 프론트엔드 (Next.js)
 │   ├── CLAUDE.md          ← 프론트 SSOT(디렉터리·컴포넌트 규칙)
 │   └── _docs/             ← 프론트 문서 (React 세부 규칙·디자인 정책)
-└── gildle/                ← 모바일 (Flutter)
-    ├── CLAUDE.md          ← 아직 비어 있음 — 당분간 _docs/ 하네스 문서가 대신함
-    └── _docs/             ← Flutter 문서 (카카오 OAuth·Android/iOS 하네스)
+├── gildle/                ← 모바일 (Flutter)
+│   ├── CLAUDE.md          ← 아직 비어 있음 — 당분간 _docs/ 하네스 문서가 대신함
+│   └── _docs/             ← Flutter 문서 (카카오 OAuth·Android/iOS 하네스)
+└── kumoniji/              ← 4인 타일 게임 (FastAPI 서버 + Flutter 앱, 2026-11-18)
+    ├── CLAUDE.md          ← 규칙은 cases.json부터, 서버 권위, 실행 명령
+    └── _docs/             ← 구현 계획
 ```
 
 > `_claude/` 라는 이름의 하위 폴더는 어디에도 없다 — 각 스택의 규칙은

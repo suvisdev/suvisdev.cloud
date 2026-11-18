@@ -1,0 +1,17 @@
+{
+  "@@locale": "ko",
+  "title": "쿠모니지",
+  "newGame": "새 게임",
+  "play": "내기",
+  "pass": "패스",
+  "today": "오늘의 무늬",
+  "illegal": "낼 수 없는 패예요",
+  "yourTurn": "내 차례",
+  "passed": "패스",
+  "you": "나",
+  "bot": "봇 {n}",
+  "points": "{n}점",
+  "winner": "{name} 1등!",
+  "result": "결과",
+  "serverError": "서버에 연결하지 못했어요. 다시 시도해 주세요."
+}
