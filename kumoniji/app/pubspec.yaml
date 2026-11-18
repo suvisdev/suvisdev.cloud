@@ -1,0 +1,27 @@
+name: kumoniji
+description: "Kumoniji — 4-player tile game"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_svg: ^2.4.0
+  http: ^1.6.0
+  intl: ^0.20.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/tiles/

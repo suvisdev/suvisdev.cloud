@@ -1,0 +1,66 @@
+# 쿠모니지(4인 타일 게임) 1단계 — 서버(FastAPI)가 웹 앱 정적 파일까지 낸다. 배포: kumoniji/deploy.sh
+# 판은 메모리에만 있으므로 replicas는 1로 고정(늘리면 판이 다른 파드로 가서 404). 계정 단계에서 DB로 옮기면 풀린다.
+# 터널: Cloudflare 대시보드 suvisdev.cloud 터널에 kumoniji.suvisdev.cloud → http://nginx:80 (nginx-alias.yaml → Traefik)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kumoniji
+  namespace: suvisdev
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kumoniji
+  template:
+    metadata:
+      labels:
+        app: kumoniji
+    spec:
+      containers:
+        - name: kumoniji
+          image: kumoniji:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          readinessProbe:
+            httpGet: { path: /, port: 8000 }
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kumoniji
+  namespace: suvisdev
+spec:
+  selector:
+    app: kumoniji
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kumoniji
+  namespace: suvisdev
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: kumoniji.suvisdev.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kumoniji
+                port:
+                  number: 8000

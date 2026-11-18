@@ -1,0 +1,5 @@
+*
+!server/requirements.txt
+!server/kumoniji/
+!app/build/web/
+server/kumoniji/__pycache__

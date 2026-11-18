@@ -28,6 +28,31 @@
 
 ---
 
+## 2026-11-18
+
+### 작업 내용
+- 쿠모니지(4인 타일 게임) 규칙 v4 확정(사용자) → 제작 1단계 시작: 봇 3명과 혼자 치기, 웹, `kumoniji.suvisdev.cloud`.
+- 계획 `kumoniji/_docs/plans/2026-11-18-phase1-solo-web.md`(사용자 승인), 결정 ADR-0014.
+
+### 수정/구현
+- `kumoniji/server/`: 기획 폴더 `제안_v4/rules.py`·`cases.json`을 바이트 그대로 엔진으로 옮김. `game.py`(한 수씩 진행), `bots.py`(시뮬레이션 smart/aim), `api.py`(`POST /api/games`, `GET/POST /api/games/{id}[/moves]`, 메모리 최대 2,000판, 웹 정적 파일).
+- 테스트: 규칙 사례 88 + 전수 분류, Game이 `rules.simulate`와 같은지(사례 전부 + 봇 500판), API로 한 판 끝까지·오류 코드(404/409/422).
+- `kumoniji/app/`: Flutter(web·android·ios), 영·일·한 문구, 게임 화면(봇 3명 자리·바닥·손패·내기/패스·결과 창), 패 그림 53장.
+- `app/tool/flatten_svg.py`: Codex SVG를 flutter_svg가 그릴 수 있게 폄. `tool/sheet_main.dart`: 앱 엔진으로 53장을 늘어놓는 확인 화면.
+- `kumoniji/Dockerfile`·`deploy.sh`, `k8s/kumoniji.yaml`(Deployment·Service·Ingress, replicas 1), `.github/workflows/kumoniji-ci.yml`.
+- 사용자: Cloudflare 터널 `suvisdev.cloud`에 `kumoniji.suvisdev.cloud → http://nginx:80` 추가.
+
+### 오류·막힌 점
+- 앱에서 패 그림이 깨짐(캐릭터 없음·특별패 빈칸): flutter_svg가 `<symbol>`+`<use>` viewBox 배치, `<clipPath>` 안 `<g>`, 중첩 `<svg>`, `feBlend`를 못 그림 → 변환 스크립트로 `<g transform>`·도형으로 펴고 clipPath는 맨 위 defs로. 크롬 렌더 원본 대비 패당 차이 수십 픽셀(볼터치 필터 제거분)만 남음.
+- 헤드리스 크롬 390px 캡처가 실제로는 약 500px로 그려짐(크롬 최소 창 폭) → 같은 주소의 390px iframe으로 감싸 캡처.
+- 공개 Flutter 도커 이미지에 3.47 태그가 없음 → 웹은 노트북에서 빌드하고 이미지는 결과물만 복사.
+- `pkill -f "http.server 8301"`이 자기 셸 명령 문자열까지 맞아 셸이 죽음(exit 144) → 포트로 확인.
+- Codex 리뷰 1차: 휴대폰 앱 API 주소 비어 있음(→ 웹이 아니면 운영 주소 기본값), 첫 요청 실패 시 로딩에 갇힘(→ 새 게임 버튼·상단 새로고침), 응답 유실 시 화면 어긋남(→ 실패하면 `GET /api/games/{id}`로 다시 맞춤). 앱 테스트 6개.
+- Codex 리뷰 2차: 안드로이드 릴리스 매니페스트에 INTERNET 권한 없음(→ 추가), 같은 판 동시 요청이 잠금 없이 상태를 바꿈(→ 전역 잠금으로 판 읽기·쓰기 직렬화). 동시 요청 테스트는 판정 중간에 20ms 지연을 넣어 잠금이 없으면 실패(500)하는 것을 확인. 서버 테스트 118개.
+
+### 산출물
+- 브랜치 `feat/kumoniji-phase1`, 바탕화면 `타일게임_기획/기획문서_하네스/RULES.md` v4(v1은 `이전버전/규칙_v1/`).
+
 ## 2026-11-16 — 아침 메일 풀이·분석 · 비밀값 노출 점검
 
 ### 작업 내용

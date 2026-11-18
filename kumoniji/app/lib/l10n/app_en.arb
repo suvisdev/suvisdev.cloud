@@ -1,0 +1,20 @@
+{
+  "@@locale": "en",
+  "title": "Kumoniji",
+  "newGame": "New game",
+  "play": "Play",
+  "pass": "Pass",
+  "today": "Today's suit",
+  "illegal": "That play isn't allowed",
+  "yourTurn": "Your turn",
+  "passed": "Pass",
+  "you": "You",
+  "bot": "Bot {n}",
+  "@bot": {"placeholders": {"n": {"type": "int"}}},
+  "points": "{n} pts",
+  "@points": {"placeholders": {"n": {"type": "int"}}},
+  "winner": "{name} went out!",
+  "@winner": {"placeholders": {"name": {"type": "String"}}},
+  "result": "Result",
+  "serverError": "Couldn't reach the server. Try again."
+}
