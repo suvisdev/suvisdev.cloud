@@ -154,30 +154,53 @@ void legalTests() {
 }
 
 void recentTests() {
-  testWidgets('5-tile previous play fits a 320px-wide phone without overflow', (t) async {
+  testWidgets('each seat shows its own play and pass bubble; fits a 320px phone', (t) async {
     t.view.physicalSize = const Size(320, 700);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
     final v = {
       ...view(),
-      'turn': 1,
+      'turn': 0,
       'table': ['m2', 'm3', 'm4', 'm5', 's6'],
       'last': 3,
-      'recent': [
-        {
-          'seat': 1,
-          'tiles': ['c1', 'c2', 'c3', 'c4', 'l5'],
-        },
-        {
-          'seat': 2,
-          'tiles': ['c2', 'c3', 'c4', 'c5', 'l6'],
-        },
+      'plays': [
+        null,
+        ['c1', 'c2', 'c3', 'c4', 'l5'],
+        ['c2', 'c3', 'c4', 'c5', 'l6'],
+        ['m2', 'm3', 'm4', 'm5', 's6'],
       ],
+      'passed': <int>[],
     };
     final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
     await t.pumpWidget(_app(api));
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
-    expect(find.text('Bot 1'), findsWidgets);
+    for (final seat in [1, 2, 3]) {
+      expect(find.byKey(ValueKey('play-$seat')), findsOneWidget);
+    }
+    expect(find.byKey(const ValueKey('play-0')), findsNothing);
+    expect(find.byKey(const ValueKey('passed-1')), findsNothing);
+  });
+
+  testWidgets('bot passes leave a bubble on that seat', (t) async {
+    final v = {
+      ...view(),
+      'table': ['m9'],
+      'last': 0,
+      'plays': [
+        ['m9'],
+        null,
+        null,
+        null,
+      ],
+      'passed': [1, 2],
+      'turn': 3,
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('passed-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('passed-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('passed-3')), findsNothing);
   });
 }

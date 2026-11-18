@@ -58,7 +58,8 @@ def test_hidden_hands():
         "events",
         "playable",
         "moves",
-        "recent",
+        "plays",
+        "passed",
         "suits",
     }
 
@@ -159,7 +160,7 @@ def test_suit_order_and_playable_and_reason():
     assert r.json()["detail"]["code"] == "not_combo"
 
 
-def test_recent_shows_two_plays_before_table_and_clears_on_new_round():
+def test_seat_plays_and_passed_follow_the_round():
     from kumoniji.game import Game
 
     g = Game(
@@ -174,7 +175,14 @@ def test_recent_shows_two_plays_before_table_and_clears_on_new_round():
     )
     for seat, t in enumerate([("솜", 2), ("솜", 3), ("솜", 4), ("솜", 5)]):
         g.play(seat, [t])
-    assert g.history[-2:] == [(1, [("솜", 3)]), (2, [("솜", 4)])]
-    for seat in (0, 1, 2):
-        g.play(seat, None)  # 셋 패스 → 3번이 바퀴를 가져감
+    from kumoniji import api
+
+    assert api.view("x", g, [])["plays"] == [["c2"], ["c3"], ["c4"], ["c5"]]
+
+    g.play(0, None)
+    g.play(1, None)
+    assert api.view("x", g, [])["passed"] == [0, 1]  # 3번이 낸 뒤 0·1번이 패스
+    g.play(2, None)  # 셋 패스 → 3번이 바퀴를 가져감
+    assert api.view("x", g, [])["passed"] == []
+    assert api.view("x", g, [])["plays"] == [None] * 4
     assert g.history == [] and g.table == []

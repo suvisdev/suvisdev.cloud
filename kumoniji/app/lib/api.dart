@@ -17,13 +17,16 @@ class GameState {
   final int? last, winner;
   final List<String> hand, table, playable, suits;
   final List<int> counts, petals, bonus;
+
+  /// 마지막으로 낸 사람 뒤로 이어서 패스한 자리
+  final List<int> passed;
   final List<int>? settlement;
 
   /// 지금 낼 수 있는 조합 전부(사람 차례일 때만, 서버가 계산)
   final List<List<String>> moves;
 
-  /// 이번 바퀴에서 바닥 패 바로 전 두 수(오래된 것 먼저)
-  final List<Play> recent;
+  /// 이번 바퀴에 자리마다 마지막으로 낸 패(안 냈으면 null)
+  final List<List<String>?> plays;
   final List<Play> events;
 
   GameState.fromJson(Map<String, dynamic> j)
@@ -37,9 +40,9 @@ class GameState {
       table = List<String>.from(j['table']),
       playable = List<String>.from(j['playable'] ?? const []),
       moves = [for (final m in j['moves'] ?? const []) List<String>.from(m)],
-      recent = [
-        for (final e in j['recent'] ?? const [])
-          Play(e['seat'], e['tiles'] == null ? null : List<String>.from(e['tiles'])),
+      passed = List<int>.from(j['passed'] ?? const []),
+      plays = [
+        for (final m in j['plays'] ?? const [null, null, null, null]) m == null ? null : List<String>.from(m),
       ],
       suits = List<String>.from(j['suits'] ?? const ['m', 's', 'l', 'c']),
       counts = List<int>.from(j['counts']),

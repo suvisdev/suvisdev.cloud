@@ -34,7 +34,7 @@ class Game:
     pot: int = 0
     doubles: int = 0
     winner: int | None = None
-    # 이번 바퀴에서 바닥 패 이전에 나온 수(자리, 패) — 화면에 직전 두 수를 보여 주는 용도, 규칙엔 안 쓰임
+    # 이번 바퀴에서 바닥 패 이전에 나온 수(자리, 패) — 화면에서 자리마다 낸 패를 보여 주는 용도, 규칙엔 안 쓰임
     history: list[tuple[int, list[Tile]]] = field(default_factory=list)
 
     @classmethod
