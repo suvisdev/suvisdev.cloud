@@ -19,6 +19,13 @@ Map<String, dynamic> view({List<Map<String, dynamic>> events = const []}) => {
   'winner': null,
   'settlement': null,
   'events': events,
+  'playable': ['m1', 's3'],
+  'moves': [
+    ['m1'],
+    ['s3'],
+  ],
+  'suits': ['m', 's', 'l', 'c'],
+  'recent': <Map<String, dynamic>>[],
 };
 
 void main() {

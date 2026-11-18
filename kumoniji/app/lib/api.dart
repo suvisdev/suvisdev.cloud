@@ -15,9 +15,15 @@ class GameState {
   final String id, today;
   final int turn, doubles;
   final int? last, winner;
-  final List<String> hand, table;
+  final List<String> hand, table, playable, suits;
   final List<int> counts, petals, bonus;
   final List<int>? settlement;
+
+  /// 지금 낼 수 있는 조합 전부(사람 차례일 때만, 서버가 계산)
+  final List<List<String>> moves;
+
+  /// 이번 바퀴에서 바닥 패 바로 전 두 수(오래된 것 먼저)
+  final List<Play> recent;
   final List<Play> events;
 
   GameState.fromJson(Map<String, dynamic> j)
@@ -29,6 +35,13 @@ class GameState {
       winner = j['winner'],
       hand = List<String>.from(j['hand']),
       table = List<String>.from(j['table']),
+      playable = List<String>.from(j['playable'] ?? const []),
+      moves = [for (final m in j['moves'] ?? const []) List<String>.from(m)],
+      recent = [
+        for (final e in j['recent'] ?? const [])
+          Play(e['seat'], e['tiles'] == null ? null : List<String>.from(e['tiles'])),
+      ],
+      suits = List<String>.from(j['suits'] ?? const ['m', 's', 'l', 'c']),
       counts = List<int>.from(j['counts']),
       petals = List<int>.from(j['petals']),
       bonus = List<int>.from(j['bonus']),
@@ -38,11 +51,17 @@ class GameState {
       ];
 
   bool get finished => winner != null;
+
+  /// 고른 패가 낼 수 있는 조합 중 하나와 정확히 같은가
+  bool isLegal(Set<String> picked) => moves.any((m) => m.length == picked.length && m.every(picked.contains));
 }
 
 class ApiError implements Exception {
   final int status;
-  const ApiError(this.status);
+
+  /// 422일 때 서버가 준 이유 코드(suit·weaker·count·not_combo·lead_pass·not_in_hand)
+  final String? code;
+  const ApiError(this.status, [this.code]);
 }
 
 class Api {
@@ -65,7 +84,14 @@ class Api {
 
   Future<GameState> _send(Future<http.Response> req) async {
     final r = await req;
-    if (r.statusCode != 200) throw ApiError(r.statusCode);
+    if (r.statusCode != 200) {
+      String? code;
+      try {
+        final d = jsonDecode(utf8.decode(r.bodyBytes))['detail'];
+        if (d is Map) code = d['code'] as String?;
+      } catch (_) {}
+      throw ApiError(r.statusCode, code);
+    }
     return GameState.fromJson(jsonDecode(utf8.decode(r.bodyBytes)));
   }
 }

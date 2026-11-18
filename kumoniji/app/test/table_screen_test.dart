@@ -13,6 +13,8 @@ import 'api_test.dart' show view;
 
 void main() {
   moreTests();
+  legalTests();
+  recentTests();
   testWidgets('pick a tile and play sends it', (t) async {
     final paths = <String>[];
     final bodies = <Object?>[];
@@ -33,7 +35,7 @@ void main() {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
-        home: TableScreen(api: api),
+        home: TableScreen(api: api, showHelpOnFirstVisit: false),
       ),
     );
     await t.pumpAndSettle();
@@ -60,7 +62,7 @@ Widget _app(Api api) => MaterialApp(
     GlobalCupertinoLocalizations.delegate,
   ],
   supportedLocales: AppLocalizations.supportedLocales,
-  home: TableScreen(api: api),
+  home: TableScreen(api: api, showHelpOnFirstVisit: false),
 );
 
 void moreTests() {
@@ -104,5 +106,78 @@ void moreTests() {
     expect(paths, ['POST /api/games', 'POST /api/games/a/moves', 'GET /api/games/a']);
     expect(find.byKey(const ValueKey('hand-m1')), findsNothing);
     expect(find.byKey(const ValueKey('hand-s3')), findsOneWidget);
+  });
+}
+
+void legalTests() {
+  testWidgets('Play stays disabled unless the pick is exactly a legal move', (t) async {
+    final api = Api(
+      MockClient(
+        (r) async => http.Response(
+          jsonEncode({
+            ...view(),
+            'moves': [
+              ['m1'],
+            ],
+            'playable': ['m1'],
+          }),
+          200,
+        ),
+      ),
+    );
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    FilledButton play() => t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Play'));
+    expect(play().onPressed, isNull);
+    await t.tap(find.byKey(const ValueKey('hand-s3'))); // 낼 수 없는 패 — 눌리지 않음
+    await t.pump();
+    expect(play().onPressed, isNull);
+    await t.tap(find.byKey(const ValueKey('hand-m1')));
+    await t.pump();
+    expect(play().onPressed, isNotNull);
+  });
+
+  testWidgets('result lists players from highest score', (t) async {
+    final done = {
+      ...view(),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(done), 200)));
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    final names = t.widgetList<ListTile>(find.byType(ListTile)).map((e) => (e.title as Text).data).toList();
+    expect(names, ['Bot 3', 'Bot 2', 'You', 'Bot 1']);
+  });
+}
+
+void recentTests() {
+  testWidgets('5-tile previous play fits a 320px-wide phone without overflow', (t) async {
+    t.view.physicalSize = const Size(320, 700);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final v = {
+      ...view(),
+      'turn': 1,
+      'table': ['m2', 'm3', 'm4', 'm5', 's6'],
+      'last': 3,
+      'recent': [
+        {
+          'seat': 1,
+          'tiles': ['c1', 'c2', 'c3', 'c4', 'l5'],
+        },
+        {
+          'seat': 2,
+          'tiles': ['c2', 'c3', 'c4', 'c5', 'l6'],
+        },
+      ],
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    expect(find.text('Bot 1'), findsWidgets);
   });
 }

@@ -10,11 +10,60 @@
   "passed": "Pass",
   "you": "You",
   "bot": "Bot {n}",
-  "@bot": {"placeholders": {"n": {"type": "int"}}},
+  "@bot": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "points": "{n} pts",
-  "@points": {"placeholders": {"n": {"type": "int"}}},
+  "@points": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "winner": "{name} went out!",
-  "@winner": {"placeholders": {"name": {"type": "String"}}},
+  "@winner": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "result": "Result",
-  "serverError": "Couldn't reach the server. Try again."
+  "serverError": "Couldn't reach the server. Try again.",
+  "onlyPass": "Nothing beats it — pass",
+  "reasonSuit": "Same number: the suit must be stronger",
+  "reasonWeaker": "Play something stronger than the table",
+  "reasonCount": "Play the same number of tiles as the table",
+  "reasonNotCombo": "That's not a valid combination",
+  "reasonLeadPass": "The leader can't pass",
+  "rank": "#{n}",
+  "@rank": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "suitOrder": "Suit order",
+  "help": "How to play",
+  "helpNext": "Next",
+  "helpDone": "Let's play",
+  "help1t": "Goal",
+  "help1b": "Everyone gets 13 tiles. Be the first to play out your whole hand.",
+  "help2t": "Which tile is stronger",
+  "help2b": "Numbers go 1 (weakest) → 13 (strongest). 11, 12 and 13 show weather instead of numbers: cloud 11 · rainbow 12 · sun 13.\nOn the same number, the suit decides: mountain > blossom > leaf > cotton candy.",
+  "help3t": "Your turn",
+  "help3b": "Play the same number of tiles as the table, but stronger: a single, a pair, three of a kind, or a 5-tile combo. Can't (or don't want to)? Pass.\nIf the other three all pass, you win the round, collect a petal and lead anything you like. The weakest tile (cotton candy 1) leads first.",
+  "help4t": "5-tile combos (weak → strong)",
+  "help4b": "Straight (5 in a row) < Full house (3+2) < Odd/even (5 odds or 5 evens in a row) < One-colour straight < One-colour odd/even < Four of a kind < Straight flush (one suit) < One-suit odd/even.",
+  "help5t": "Scoring",
+  "help5b": "When someone goes out, the others pay penalty points for tiles left in hand (1–7: 1, 8–10: 2, cloud/rainbow: 4, sun: 5). Each petal you won takes off 1.\nEvery sun left doubles your penalty. A 5-tile combo all in today's suit makes the whole game ×5.\nBonus points go to whoever wins a round with special plays.",
+  "turn": "Turn",
+  "newGameConfirm": "Quit this game and start a new one?",
+  "cancel": "Cancel"
 }
