@@ -8,6 +8,6 @@ source ~/.cache/gildle-build/env.sh
 docker build -t kumoniji:latest .
 # k3s는 도커와 이미지 저장소를 공유하지 않는다(containerd) — 빌드 후 import 필수
 docker save kumoniji:latest | sudo k3s ctr images import -
-kubectl apply -f ../k8s/kumoniji.yaml
+kubectl apply -f k8s.yaml
 kubectl -n suvisdev rollout restart deploy/kumoniji
 kubectl -n suvisdev rollout status deploy/kumoniji --timeout=120s

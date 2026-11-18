@@ -47,7 +47,7 @@ kumoniji/
 │   └── test/{api_test,tile_test}.dart
 ├── Dockerfile                    # Flutter web 빌드 → python 이미지에 복사
 └── deploy.sh                     # 빌드 → k3s import → apply → rollout
-k8s/kumoniji.yaml                 # Deployment·Service·Ingress(host kumoniji.suvisdev.cloud)
+kumoniji/k8s.yaml                 # (백엔드 CI의 k8s/** 경로를 피하려고 kumoniji/ 안에 둠) Deployment·Service·Ingress(host kumoniji.suvisdev.cloud)
 .github/workflows/kumoniji-ci.yml # pytest + flutter analyze/test
 ```
 
@@ -602,7 +602,7 @@ ARB 키(세 언어 모두): `title`, `newGame`, `play`, `pass`, `today`, `illega
 ### Task 7: 컨테이너 · k3s · CI
 
 **Files:**
-- Create: `kumoniji/Dockerfile`, `kumoniji/deploy.sh`, `k8s/kumoniji.yaml`, `.github/workflows/kumoniji-ci.yml`
+- Create: `kumoniji/Dockerfile`, `kumoniji/deploy.sh`, `kumoniji/k8s.yaml`, `.github/workflows/kumoniji-ci.yml`
 
 - [ ] **Step 1: Dockerfile** — 두 단계. Flutter 이미지에서 `flutter build web --release` → `python:3.13-slim`에 `server/`와 `build/web`을 `/srv/web`으로 복사.
 
@@ -624,8 +624,8 @@ CMD ["uvicorn", "kumoniji.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
 `api.py`의 `WEB`은 `kumoniji/` 한 단계 위 `web/`이므로 `/srv/web`과 맞는다.
 
-- [ ] **Step 2: k8s/kumoniji.yaml** — Deployment(replicas 1, image `kumoniji:latest`, `imagePullPolicy: Never`, requests 50m/64Mi·limits 500m/256Mi, readinessProbe `GET /` 200), Service `kumoniji:8000`, Ingress host `kumoniji.suvisdev.cloud` → kumoniji:8000(traefik). 판이 메모리에 있으므로 replicas는 1로 고정(주석으로 이유).
-- [ ] **Step 3: deploy.sh** — `docker build -t kumoniji:latest kumoniji && docker save kumoniji:latest | sudo k3s ctr images import - && kubectl apply -f k8s/kumoniji.yaml && kubectl -n suvisdev rollout restart deploy/kumoniji && kubectl -n suvisdev rollout status deploy/kumoniji`(기존 deploy.sh와 같은 import 방식).
+- [ ] **Step 2: kumoniji/k8s.yaml** — Deployment(replicas 1, image `kumoniji:latest`, `imagePullPolicy: Never`, requests 50m/64Mi·limits 500m/256Mi, readinessProbe `GET /` 200), Service `kumoniji:8000`, Ingress host `kumoniji.suvisdev.cloud` → kumoniji:8000(traefik). 판이 메모리에 있으므로 replicas는 1로 고정(주석으로 이유).
+- [ ] **Step 3: deploy.sh** — `docker build -t kumoniji:latest kumoniji && docker save kumoniji:latest | sudo k3s ctr images import - && kubectl apply -f kumoniji/k8s.yaml && kubectl -n suvisdev rollout restart deploy/kumoniji && kubectl -n suvisdev rollout status deploy/kumoniji`(기존 deploy.sh와 같은 import 방식).
 - [ ] **Step 4: CI** — gildle-ci.yml과 같은 형식. paths `kumoniji/**`. job 둘: server(`pip install -r requirements.txt pytest httpx && pytest -q`), app(flutter 3.47.2 `pub get`·`analyze`·`test`).
 - [ ] **Step 5: 검증** — 로컬 `docker build` 성공 → `docker run -p 8300:8000 kumoniji:latest` → `curl -s localhost:8300/ | grep -c flutter` ≥ 1, `curl -X POST localhost:8300/api/games` 200. 그다음 deploy.sh로 k3s 배포 → `kubectl -n suvisdev get pods`에 kumoniji Running, `curl -H 'Host: kumoniji.suvisdev.cloud' localhost/` 200.
 - [ ] **Step 6: 사용자 작업 안내** — Cloudflare Zero Trust → 터널 → Public Hostname 추가: `kumoniji.suvisdev.cloud` → 기존 `api.suvisdev.cloud`와 같은 대상(Traefik). 추가 후 `curl -I https://kumoniji.suvisdev.cloud` 200 확인.

@@ -3,10 +3,11 @@
 import random
 import secrets
 import threading
-from collections import OrderedDict
+import time
+from collections import OrderedDict, defaultdict, deque
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -17,11 +18,13 @@ from .rules import value
 SUIT = {"산": "m", "벚": "s", "잎": "l", "솜": "c"}
 CODE = {v: k for k, v in SUIT.items()}
 HUMAN, MAX_GAMES = 0, 2000
+CREATE_PER_MIN = 30  # IP 하나가 1분에 만들 수 있는 판 — 판을 마구 만들어 남의 진행 중인 판을 밀어내지 못하게
 # ponytail: 메모리 보관·재시작 시 사라짐·replicas 1 고정. 계정 단계(3단계)에서 DB로 옮긴다.
 GAMES: OrderedDict[str, tuple[Game, random.Random]] = OrderedDict()
 # 동기 핸들러는 스레드에서 돌아 같은 판 요청이 겹칠 수 있다 → 판 상태를 읽고 바꾸는 구간 전체를 한 잠금으로 직렬화.
 # ponytail: 전역 잠금 하나(한 수 처리는 수 ms). 동시 접속이 늘어 대기가 보이면 판별 잠금으로.
 LOCK = threading.Lock()
+CREATES: defaultdict[str, deque[float]] = defaultdict(deque)
 app = FastAPI(title="kumoniji", docs_url=None, redoc_url=None, openapi_url=None)
 
 
@@ -73,11 +76,32 @@ def view(gid: str, g: Game, events: list) -> dict:
 def load(gid: str) -> tuple[Game, random.Random]:
     if gid not in GAMES:
         raise HTTPException(404, "없는 판")
+    # 최근에 쓴 판을 뒤로 → 꽉 차면 가장 오래 안 쓴 판부터 지운다
+    GAMES.move_to_end(gid)
     return GAMES[gid]
 
 
+def allow_create(ip: str) -> bool:
+    now, q = time.monotonic(), CREATES[ip]
+    while q and now - q[0] > 60:
+        q.popleft()
+    if len(q) >= CREATE_PER_MIN:
+        return False
+    q.append(now)
+    if len(CREATES) > 10 * MAX_GAMES:  # 오래된 IP 기록이 끝없이 쌓이지 않게
+        CREATES.clear()
+    return True
+
+
 @app.post("/api/games")
-def new_game():
+def new_game(request: Request):
+    # 터널(Cloudflare) 뒤라 실제 접속 IP는 CF-Connecting-IP. 서비스는 터널로만 들어온다.
+    ip = request.headers.get("cf-connecting-ip") or (
+        request.client.host if request.client else ""
+    )
+    with LOCK:
+        if not allow_create(ip):
+            raise HTTPException(429, "잠시 후 다시 시도")
     rng = random.Random(secrets.randbits(64))
     g, gid, events = Game.deal(rng), secrets.token_urlsafe(12), []
     run_bots(g, rng, events)

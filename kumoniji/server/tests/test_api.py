@@ -94,3 +94,31 @@ def test_concurrent_same_move_applies_once(monkeypatch):
         assert c.get(f"/api/games/{v['id']}").json()["counts"][0] == len(
             v["hand"]
         ) - len(body["tiles"])
+
+
+def test_full_store_evicts_least_recently_used(monkeypatch):
+    from kumoniji import api
+
+    monkeypatch.setattr(api, "MAX_GAMES", 3)
+    ids = [c.post("/api/games").json()["id"] for _ in range(3)]
+    c.get(f"/api/games/{ids[0]}")  # 첫 판을 다시 씀 → 가장 오래 안 쓴 판은 ids[1]
+    c.post("/api/games")
+    assert c.get(f"/api/games/{ids[0]}").status_code == 200
+    assert c.get(f"/api/games/{ids[1]}").status_code == 404
+
+
+def test_create_rate_limit_per_ip(monkeypatch):
+    from kumoniji import api
+
+    monkeypatch.setattr(api, "CREATE_PER_MIN", 2)
+    api.CREATES.clear()
+    h = {"cf-connecting-ip": "203.0.113.9"}
+    assert [c.post("/api/games", headers=h).status_code for _ in range(3)] == [
+        200,
+        200,
+        429,
+    ]
+    assert (
+        c.post("/api/games", headers={"cf-connecting-ip": "203.0.113.10"}).status_code
+        == 200
+    )

@@ -39,7 +39,7 @@
 - 테스트: 규칙 사례 88 + 전수 분류, Game이 `rules.simulate`와 같은지(사례 전부 + 봇 500판), API로 한 판 끝까지·오류 코드(404/409/422).
 - `kumoniji/app/`: Flutter(web·android·ios), 영·일·한 문구, 게임 화면(봇 3명 자리·바닥·손패·내기/패스·결과 창), 패 그림 53장.
 - `app/tool/flatten_svg.py`: Codex SVG를 flutter_svg가 그릴 수 있게 폄. `tool/sheet_main.dart`: 앱 엔진으로 53장을 늘어놓는 확인 화면.
-- `kumoniji/Dockerfile`·`deploy.sh`, `k8s/kumoniji.yaml`(Deployment·Service·Ingress, replicas 1), `.github/workflows/kumoniji-ci.yml`.
+- `kumoniji/Dockerfile`·`deploy.sh`, `kumoniji/k8s.yaml`(Deployment·Service·Ingress, replicas 1), `.github/workflows/kumoniji-ci.yml`.
 - 사용자: Cloudflare 터널 `suvisdev.cloud`에 `kumoniji.suvisdev.cloud → http://nginx:80` 추가.
 
 ### 오류·막힌 점
@@ -49,6 +49,8 @@
 - `pkill -f "http.server 8301"`이 자기 셸 명령 문자열까지 맞아 셸이 죽음(exit 144) → 포트로 확인.
 - Codex 리뷰 1차: 휴대폰 앱 API 주소 비어 있음(→ 웹이 아니면 운영 주소 기본값), 첫 요청 실패 시 로딩에 갇힘(→ 새 게임 버튼·상단 새로고침), 응답 유실 시 화면 어긋남(→ 실패하면 `GET /api/games/{id}`로 다시 맞춤). 앱 테스트 6개.
 - Codex 리뷰 2차: 안드로이드 릴리스 매니페스트에 INTERNET 권한 없음(→ 추가), 같은 판 동시 요청이 잠금 없이 상태를 바꿈(→ 전역 잠금으로 판 읽기·쓰기 직렬화). 동시 요청 테스트는 판정 중간에 20ms 지연을 넣어 잠금이 없으면 실패(500)하는 것을 확인. 서버 테스트 118개.
+- 매니페스트를 `k8s/`가 아니라 `kumoniji/k8s.yaml`에 둠: `k8s/**`는 backend-ci 경로라 main 머지 때 바뀐 것 없는 백엔드를 다시 빌드·재시작하게 된다.
+- Codex 리뷰 4차: 판을 만든 순서로 지워 진행 중인 판도 밀려남·익명 생성으로 남의 판을 밀어낼 수 있음 → 최근에 쓴 판을 남기는 LRU + IP당 1분 30판 제한(CF-Connecting-IP). LRU를 빼면 테스트가 실패하는 것 확인. 서버 테스트 120개.
 
 ### 산출물
 - 브랜치 `feat/kumoniji-phase1`, 바탕화면 `타일게임_기획/기획문서_하네스/RULES.md` v4(v1은 `이전버전/규칙_v1/`).
