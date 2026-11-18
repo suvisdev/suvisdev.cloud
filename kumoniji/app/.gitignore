@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# flutter gen-l10n 생성물(generate: true라 pub get·build 때마다 다시 만든다) — 커밋하면 포맷 차이로 작업 트리가 더러워진다
+/lib/l10n/app_localizations*.dart
