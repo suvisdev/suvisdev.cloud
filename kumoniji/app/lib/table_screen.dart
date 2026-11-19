@@ -70,7 +70,7 @@ class _TableScreenState extends State<TableScreen> {
             plays[e.seat] = e.tiles;
             lead = e.seat;
           }
-          // 패스는 내 것도 보여 준다 — 낼 패가 없으면 서버가 내 차례를 자동으로 패스하기 때문
+          // 패스는 내 것도 보여 준다 — 아무도 바닥을 이길 수 없으면 서버가 내 차례를 자동으로 패스하기 때문
           if (e.seat != 0 || e.tiles == null) flash = e;
         });
         // 봇 한 수·모든 패스마다 잠깐 멈춰 누가 무엇을 했는지 보이게
@@ -400,6 +400,12 @@ class _TableScreenState extends State<TableScreen> {
                             ),
                           ],
                         ),
+                        // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
+                        if (myTurn && g.table.isNotEmpty && g.playable.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
+                          ),
                         const SizedBox(height: 12),
                       ],
                     ),

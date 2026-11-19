@@ -14,7 +14,7 @@ def test_play_one_full_game():
     assert len(v["hand"]) == v["counts"][0] and sum(v["counts"]) == 52 - played
     rng = random.Random(1)
     while v["winner"] is None:
-        assert v["turn"] == 0 and (not v["table"] or v["moves"])  # 낼 패가 없으면 자동 패스
+        assert v["turn"] == 0
         hand, table = [dec(t) for t in v["hand"]], [dec(t) for t in v["table"]]
         m = pick("smart", hand, table, CODE[v["today"]], rng)
         body = {"tiles": [f"{SUIT[s]}{n}" for s, n in m] if m else []}
@@ -210,5 +210,47 @@ def test_human_auto_passes_when_nothing_beats_table():
     api.run_bots(g, random.Random(0), events)
     assert events[0] == {"seat": 0, "tiles": None}  # 사람 자동 패스로 바퀴가 끝남
     assert g.petals[3] == ["산"]  # 3번이 바퀴를 가져감
-    # 이어서 3번이 선으로 내고 봇이 돈 뒤, 사람 차례에서는 낼 패가 있어야만 멈춘다
-    assert g.winner is not None or (g.turn == 0 and (not g.table or api.legal_moves(g)))
+
+
+def test_no_auto_pass_when_someone_else_could_still_beat():
+    """사람은 못 이겨도 남의 손에 이길 패(산13)가 남아 있으면 자동 패스하지 않는다 — 자동 패스가 사람 손패를 드러내지 않게."""
+    from kumoniji import api
+    from kumoniji.game import Game
+
+    g = Game(
+        hands=[
+            [("솜", 2), ("벚", 5)],
+            [("산", 13), ("솜", 8)],
+            [("솜", 4), ("잎", 9)],
+            [("솜", 6), ("산", 10)],
+        ],
+        today="잎",
+        turn=0,
+        table=[("벚", 13)],
+        last=3,
+    )
+    events = []
+    api.run_bots(g, random.Random(0), events)
+    assert events == [] and g.turn == 0  # 사람이 직접 패스해야 함
+    assert api.view("x", g, [])["moves"] == []
+    g.hands[1].remove(("산", 13))  # 산13이 이미 나왔다면 아무도 못 이김 → 자동 패스
+    api.run_bots(g, random.Random(0), events)
+    assert events[0] == {"seat": 0, "tiles": None}
+
+
+def test_can_beat_by_size():
+    from kumoniji.api import can_beat
+
+    assert not can_beat([("산", 13)], [("벚", 13), ("산", 12)])
+    assert can_beat([("벚", 13)], [("산", 13)])
+    assert can_beat([("솜", 9), ("잎", 9)], [("벚", 10), ("솜", 10)])
+    assert not can_beat([("솜", 9), ("잎", 9)], [("벚", 10), ("솜", 11)])
+    straight = [("솜", 1), ("잎", 2), ("벚", 3), ("산", 4), ("솜", 5)]
+    assert can_beat(straight, [("솜", 2), ("잎", 3), ("벚", 4), ("산", 5), ("솜", 6)])
+    assert not can_beat(straight, [("솜", 2), ("잎", 3), ("벚", 4), ("산", 5)])
+
+
+def test_web_files_are_revalidated():
+    """웹 파일은 배포마다 이름이 같아 캐시되면 옛 앱이 남는다 → no-cache. API는 건드리지 않는다."""
+    assert c.get("/main.dart.js").headers["cache-control"] == "no-cache"
+    assert "cache-control" not in c.get("/api/games/nope").headers

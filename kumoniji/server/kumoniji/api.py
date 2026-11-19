@@ -5,6 +5,7 @@ import secrets
 import threading
 import time
 from collections import OrderedDict, defaultdict, deque
+from itertools import combinations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -47,12 +48,28 @@ class Move(BaseModel):
     tiles: list[str] = Field(max_length=5)
 
 
+def can_beat(table: list, tiles: list) -> bool:
+    """tiles로 table을 이기는 조합을 만들 수 있는가."""
+    if len(table) == 5:
+        return any(len(p) == 5 and beats(table, p) for p in plays(tiles))
+    by_num: defaultdict[int, list] = defaultdict(list)
+    for t in tiles:
+        by_num[t[1]].append(t)
+    return any(
+        beats(table, list(c))
+        for ts in by_num.values()
+        for c in combinations(ts, len(table))
+    )
+
+
 def run_bots(g: Game, rng: random.Random, events: list):
-    """사람 차례가 올 때까지 봇을 돌린다. 사람이 바닥을 이길 패가 하나도 없으면 사람도 자동으로 패스시킨다."""
+    """사람 차례가 올 때까지 봇을 돌린다.
+    아직 안 나온 패(모든 손패) 전체로도 바닥을 이길 수 없으면(예: 산13) 사람도 자동으로 패스시킨다.
+    사람 손패만 보고 넘기면 남들이 '저 사람은 이길 패가 없다'를 알게 되므로, 공개된 정보로만 판단한다."""
     while g.winner is None:
         seat = g.turn
         if seat == HUMAN:
-            if not g.table or legal_moves(g):
+            if not g.table or can_beat(g.table, [t for h in g.hands for t in h]):
                 return
             m = None
         else:
@@ -176,6 +193,16 @@ def move(gid: str, body: Move):
         events = [{"seat": HUMAN, "tiles": [enc(t) for t in tiles] or None}]
         run_bots(g, rng, events)
         return view(gid, g, events)
+
+
+@app.middleware("http")
+async def revalidate_web(request: Request, call_next):
+    """웹 파일(main.dart.js 등)은 이름이 배포마다 같다 → 캐시 규칙이 없으면 Cloudflare·브라우저가 옛 앱을
+    몇 시간씩 내준다(11-19 배포 후 실측). 매번 새 버전인지 확인하게 한다(바뀌지 않았으면 304라 가볍다)."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 WEB = Path(__file__).resolve().parent.parent / "web"
