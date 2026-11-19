@@ -48,9 +48,15 @@ class Move(BaseModel):
 
 
 def run_bots(g: Game, rng: random.Random, events: list):
-    while g.winner is None and g.turn != HUMAN:
+    """사람 차례가 올 때까지 봇을 돌린다. 사람이 바닥을 이길 패가 하나도 없으면 사람도 자동으로 패스시킨다."""
+    while g.winner is None:
         seat = g.turn
-        m = pick("aim", g.hands[seat], g.table, g.today, rng)
+        if seat == HUMAN:
+            if not g.table or legal_moves(g):
+                return
+            m = None
+        else:
+            m = pick("aim", g.hands[seat], g.table, g.today, rng)
         g.play(seat, m)
         events.append({"seat": seat, "tiles": [enc(t) for t in m] if m else None})
 
