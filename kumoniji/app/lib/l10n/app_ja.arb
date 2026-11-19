@@ -14,7 +14,6 @@
   "winner": "{name}が上がりました！",
   "result": "結果",
   "serverError": "サーバーに接続できません。もう一度お試しください。",
-  "onlyPass": "出せる牌がありません — パス",
   "reasonSuit": "同じ数字なら柄が強くないと出せません",
   "reasonWeaker": "場より強い組み合わせを出してください",
   "reasonCount": "場と同じ枚数で出してください",

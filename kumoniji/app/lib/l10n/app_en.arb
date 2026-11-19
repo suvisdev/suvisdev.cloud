@@ -35,7 +35,6 @@
   },
   "result": "Result",
   "serverError": "Couldn't reach the server. Try again.",
-  "onlyPass": "Nothing beats it — pass",
   "reasonSuit": "Same number: the suit must be stronger",
   "reasonWeaker": "Play something stronger than the table",
   "reasonCount": "Play the same number of tiles as the table",

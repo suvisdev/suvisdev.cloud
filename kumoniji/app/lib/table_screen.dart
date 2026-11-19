@@ -32,6 +32,7 @@ class _TableScreenState extends State<TableScreen> {
   GameState? s;
   Play? flash; // 방금 누가 무엇을 냈는지 잠깐 보여 줌
   final picked = <String>{};
+  final gone = <String>{}; // 방금 낸 패 — 봇 장면이 다 끝나기 전에도 손패에서 바로 뺀다
   Set<int> passed = {}; // 지금 바퀴에서 패스한 자리(봇 장면을 넘기는 동안에도 갱신)
   List<List<String>?> plays = List.filled(4, null); // 자리마다 이번 바퀴에 낸 패
   int? lead; // 지금 바닥에서 가장 센 패를 낸 자리
@@ -69,10 +70,13 @@ class _TableScreenState extends State<TableScreen> {
             plays[e.seat] = e.tiles;
             lead = e.seat;
           }
-          if (e.seat != 0) flash = e;
+          // 패스는 내 것도 보여 준다 — 낼 패가 없으면 서버가 내 차례를 자동으로 패스하기 때문
+          if (e.seat != 0 || e.tiles == null) flash = e;
         });
-        // 봇 한 수마다 잠깐 멈춰 누가 무엇을 했는지 보이게
-        if (e.seat != 0) await Future.delayed(Duration(milliseconds: e.tiles == null ? 1000 : 1200));
+        // 봇 한 수·모든 패스마다 잠깐 멈춰 누가 무엇을 했는지 보이게
+        if (e.seat != 0 || e.tiles == null) {
+          await Future.delayed(Duration(milliseconds: e.tiles == null ? 1000 : 1200));
+        }
         // 셋이 패스하면 바퀴가 끝난다 → 판을 비운다
         if (passed.length == 3) {
           if (e.seat == 0) await Future.delayed(const Duration(milliseconds: 600));
@@ -92,14 +96,26 @@ class _TableScreenState extends State<TableScreen> {
       if (!mounted) return;
       final t = AppLocalizations.of(context)!;
       _toast(e.status == 422 ? _reason(t, e.code) : t.serverError);
+      _rollback();
       if (e.status != 422) await _resync();
     } catch (_) {
       if (!mounted) return;
       _toast(AppLocalizations.of(context)!.serverError);
+      _rollback();
       await _resync();
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  /// 실패하면 미리 뺀 패를 마지막 서버 상태로 되돌린다(재조회가 실패해도 패가 사라진 채 남지 않게).
+  void _rollback() {
+    final g = s;
+    if (g == null) return;
+    setState(() {
+      _sync(g);
+      flash = null;
+    });
   }
 
   void _toast(String msg) => ScaffoldMessenger.of(context)
@@ -154,9 +170,27 @@ class _TableScreenState extends State<TableScreen> {
   }
 
   void _sync(GameState g) {
+    gone.clear();
     passed = g.passed.toSet();
     plays = [...g.plays];
     lead = g.table.isEmpty ? null : g.last;
+  }
+
+  /// 내기를 누르면 서버 응답·봇 장면을 기다리지 않고 바로 손에서 빼서 내 자리 앞에 놓는다.
+  void _play(GameState g) {
+    final tiles = [
+      for (final c in g.hand)
+        if (picked.contains(c)) c,
+    ];
+    setState(() {
+      gone.addAll(tiles);
+      picked.clear();
+      passed.clear();
+      plays[0] = tiles;
+      lead = 0;
+      flash = Play(0, tiles); // 응답이 올 때까지 내 차례 버튼을 잠근다
+    });
+    _apply(api.move(g.id, tiles));
   }
 
   void _clearRound() {
@@ -242,7 +276,6 @@ class _TableScreenState extends State<TableScreen> {
                 builder: (context, box) {
                   final tileW = min(56.0, (box.maxWidth - 32) / 7 - 4);
                   final myTurn = active == 0 && !busy;
-                  final canPlay = g.playable.isNotEmpty;
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Column(
@@ -333,7 +366,7 @@ class _TableScreenState extends State<TableScreen> {
                             spacing: 4,
                             runSpacing: 10,
                             children: [
-                              for (final code in g.hand)
+                              for (final code in g.hand.where((c) => !gone.contains(c)))
                                 Opacity(
                                   // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
                                   opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
@@ -362,23 +395,11 @@ class _TableScreenState extends State<TableScreen> {
                             ),
                             const SizedBox(width: 16),
                             FilledButton(
-                              onPressed: !myTurn || !g.isLegal(picked)
-                                  ? null
-                                  : () => _apply(
-                                      api.move(g.id, [
-                                        for (final c in g.hand)
-                                          if (picked.contains(c)) c,
-                                      ]),
-                                    ),
+                              onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
                               child: Text(t.play),
                             ),
                           ],
                         ),
-                        if (myTurn && !canPlay)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
-                          ),
                         const SizedBox(height: 12),
                       ],
                     ),

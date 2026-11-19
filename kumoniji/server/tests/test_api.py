@@ -14,7 +14,7 @@ def test_play_one_full_game():
     assert len(v["hand"]) == v["counts"][0] and sum(v["counts"]) == 52 - played
     rng = random.Random(1)
     while v["winner"] is None:
-        assert v["turn"] == 0
+        assert v["turn"] == 0 and (not v["table"] or v["moves"])  # 낼 패가 없으면 자동 패스
         hand, table = [dec(t) for t in v["hand"]], [dec(t) for t in v["table"]]
         m = pick("smart", hand, table, CODE[v["today"]], rng)
         body = {"tiles": [f"{SUIT[s]}{n}" for s, n in m] if m else []}
@@ -186,3 +186,29 @@ def test_seat_plays_and_passed_follow_the_round():
     assert api.view("x", g, [])["passed"] == []
     assert api.view("x", g, [])["plays"] == [None] * 4
     assert g.history == [] and g.table == []
+
+
+def test_human_auto_passes_when_nothing_beats_table():
+    """사람이 바닥(산13 = 가장 센 싱글)을 이길 패가 없으면 서버가 사람 차례를 자동 패스로 넘긴다."""
+    from kumoniji import api
+    from kumoniji.game import Game
+
+    g = Game(
+        hands=[
+            [("솜", 2), ("벚", 5)],
+            [("잎", 3), ("솜", 8)],
+            [("솜", 4), ("잎", 9)],
+            [("솜", 6), ("산", 10)],
+        ],
+        today="잎",
+        turn=3,
+    )
+    g.play(3, [("솜", 6)])
+    g.table, g.passes = [("산", 13)], 2  # 3번이 산13, 1·2번은 이미 패스 → 다음은 사람(0번)
+    g.turn = 0
+    events = []
+    api.run_bots(g, random.Random(0), events)
+    assert events[0] == {"seat": 0, "tiles": None}  # 사람 자동 패스로 바퀴가 끝남
+    assert g.petals[3] == ["산"]  # 3번이 바퀴를 가져감
+    # 이어서 3번이 선으로 내고 봇이 돈 뒤, 사람 차례에서는 낼 패가 있어야만 멈춘다
+    assert g.winner is not None or (g.turn == 0 and (not g.table or api.legal_moves(g)))

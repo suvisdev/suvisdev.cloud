@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -50,6 +51,54 @@ void main() {
     expect(bodies.last, {
       'tiles': ['m1'],
     });
+  });
+
+  testWidgets('played tile leaves the hand before the server answers', (t) async {
+    final reply = Completer<http.Response>();
+    var calls = 0;
+    final api = Api(MockClient((r) async => ++calls == 1 ? http.Response(jsonEncode(view()), 200) : reply.future));
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('hand-m1')));
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, 'Play'));
+    await t.pump();
+    expect(find.byKey(const ValueKey('hand-m1')), findsNothing); // 응답 전인데 이미 손에서 빠짐
+    // 서버가 거절하면 되돌린다
+    reply.complete(
+      http.Response(
+        jsonEncode({
+          'detail': {'code': 'weaker'},
+        }),
+        422,
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('hand-m1')), findsOneWidget);
+  });
+
+  testWidgets('network failure with failed resync still returns the played tile', (t) async {
+    final reply = Completer<http.Response>();
+    var calls = 0;
+    final api = Api(
+      MockClient((r) async {
+        calls++;
+        if (calls == 1) return http.Response(jsonEncode(view()), 200);
+        if (calls == 2) return reply.future;
+        throw Exception('offline'); // 재조회도 실패
+      }),
+    );
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('hand-m1')));
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, 'Play'));
+    await t.pump();
+    expect(find.byKey(const ValueKey('hand-m1')), findsNothing);
+    reply.completeError(Exception('offline'));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('hand-m1')), findsOneWidget);
+    expect(find.text('Your turn'), findsOneWidget);
   });
 }
 
