@@ -12,6 +12,8 @@
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ✅ | kumoniji | 11-19 | 배포 뒤에도 "낸 패가 바로 안 사라진다" — 바뀐 앱이 안 보임, 나도 반영됐다고 잘못 보고 | 웹 파일에 캐시 규칙이 없어 Cloudflare가 옛 main.dart.js를 서버마다 들고 브라우저에도 4시간 캐시를 줌. 내 확인은 압축된 JS에서 한글을 grep(이스케이프돼 안 걸림)한 것 | 쿼리 붙인 요청과 비교해 캐시로 확정, 웹 파일에 no-cache. 확인은 파일 해시로 · 근거 WORK_LOG_MAINPAGE 11-19 |
+| ✅ | kumoniji | 11-19 | 자동 패스를 "내 손패에 낼 패가 없으면"으로 만듦 → 바로 넘어가면 남들이 손패를 앎 | 사용자 의도(아무도 더 높은 조합을 낼 수 없을 때)를 확인하지 않고 내 손패 기준으로 해석 | 안 나온 패 전체(공개 정보)로 판단하게 바꾸고 직접 패스 안내 복원 · 근거 WORK_LOG_MAINPAGE 11-19 |
 | ✅ | kumoniji | 11-18 | Flutter 웹 화면 캡처가 그림·한글 없이 찍힘(크롬 `--screenshot`, `--virtual-time-budget`도 무효) | 가상 시간은 네트워크 로딩(SVG·글꼴)을 기다리지 않음 | Playwright로 실제 시간 대기 후 캡처, 빠진 `libasound.so.2`는 `apt-get download`로 스크래치에 풀어 `LD_LIBRARY_PATH` | 11-18 |
 | ✅ | kumoniji | 11-18 | Codex가 준 패 SVG가 크롬에선 멀쩡한데 Flutter 앱에서 캐릭터가 빠지고 특별패가 빈칸 | flutter_svg가 `<symbol>`/`<use>` 배치·clipPath 안 `<g>`·중첩 `<svg>`·필터를 못 그림 | 그림을 다시 그리지 않고 `app/tool/flatten_svg.py`로 펴서 크롬 렌더 픽셀 대조 + 앱 엔진 확인 화면(`tool/sheet_main.dart`)으로 검증 · 근거 WORK_LOG_MAINPAGE 11-18 |
 | ✅ | news | 11-16 | 메일 원문 읽기에서 Codex가 리뷰마다 새 실패 경로(잘못된 리다이렉트 주소 → 이상한 charset)를 찾아 메일 전체가 멈출 수 있었음 | 남의 사이트 응답을 받는 경계에서 예외를 종류별로만 막음 | 포트 계약(실패하면 빈 문자열)대로 경계에서 모든 예외를 받아 로그만 남김. SSRF·크기·시간 제한은 따로 테스트 · 근거 WORK_LOG_MAINPAGE 11-16 |

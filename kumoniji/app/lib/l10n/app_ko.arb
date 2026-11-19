@@ -14,6 +14,7 @@
   "winner": "{name} 1등!",
   "result": "결과",
   "serverError": "서버에 연결하지 못했어요. 다시 시도해 주세요.",
+  "onlyPass": "낼 수 있는 패가 없어요 — 패스",
   "reasonSuit": "같은 숫자는 무늬가 더 세야 해요",
   "reasonWeaker": "바닥보다 센 조합을 내야 해요",
   "reasonCount": "바닥과 같은 장수로 내야 해요",
