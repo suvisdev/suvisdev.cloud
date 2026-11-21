@@ -7,10 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'help.dart';
 import 'l10n/app_localizations.dart';
+import 'level.dart';
+import 'settings.dart';
 import 'tile.dart';
 
 const _ink = Color(0xFF42384C);
-const _gold = Color(0xFFC9A24A);
 const _felt = Color(0xFFE6F0DC);
 const _sideW = 76.0; // 양옆 봇 자리 폭
 
@@ -19,9 +20,12 @@ const _sideW = 76.0; // 양옆 봇 자리 폭
 class TableScreen extends StatefulWidget {
   final Api? api;
 
+  /// 봇 난이도(메인 화면에서 고름). 없으면 지난번에 고른 것
+  final String? level;
+
   /// 처음 들어온 사람에게 설명 카드를 띄울지(테스트에서는 끔)
   final bool showHelpOnFirstVisit;
-  const TableScreen({super.key, this.api, this.showHelpOnFirstVisit = true});
+  const TableScreen({super.key, this.api, this.level, this.showHelpOnFirstVisit = true});
 
   @override
   State<TableScreen> createState() => _TableScreenState();
@@ -46,11 +50,9 @@ class _TableScreenState extends State<TableScreen> {
     if (widget.showHelpOnFirstVisit) _helpOnce();
   }
 
-  /// 지난번에 고른 난이도로 바로 시작한다(처음이면 중급).
+  /// 메인 화면에서 고른 난이도로, 없으면 지난번에 고른 난이도로 바로 시작한다(처음이면 중급).
   Future<void> _startSaved() async {
-    try {
-      level = (await SharedPreferences.getInstance()).getString('level') ?? level;
-    } catch (_) {} // 저장소를 못 쓰면 중급
+    level = widget.level ?? await savedLevel();
     if (mounted) _apply(api.newGame(level));
   }
 
@@ -101,6 +103,8 @@ class _TableScreenState extends State<TableScreen> {
         flash = null;
       });
       if (next.finished) _showResult(next);
+      // 봇이 돌고 내 차례가 돌아왔으면 짧게 진동(옵션에서 끌 수 있음)
+      if (!next.finished && next.turn == 0 && next.events.any((e) => e.seat != 0)) Settings.buzz();
     } on ApiError catch (e) {
       if (!mounted) return;
       final t = AppLocalizations.of(context)!;
@@ -162,36 +166,26 @@ class _TableScreenState extends State<TableScreen> {
   Future<void> _newGame() async {
     final g = s;
     final t = AppLocalizations.of(context)!;
-    final choice = await showDialog<String>(
+    final choice = await pickLevel(context, current: level, title: g != null && !g.finished ? t.newGameConfirm : null);
+    if (choice == null) return;
+    level = choice;
+    _apply(api.newGame(choice));
+  }
+
+  /// 진행 중인 판에서 뒤로 가면 그만둘지 묻는다(실수로 판을 잃지 않게).
+  Future<void> _leave() async {
+    final t = AppLocalizations.of(context)!;
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (c) => SimpleDialog(
-        title: Text(g != null && !g.finished ? t.newGameConfirm : t.chooseLevel),
-        children: [
-          for (final (lv, name, desc) in [
-            ('easy', t.levelEasy, t.levelEasyDesc),
-            ('normal', t.levelNormal, t.levelNormalDesc),
-            ('hard', t.levelHard, t.levelHardDesc),
-          ])
-            ListTile(
-              key: ValueKey('level-$lv'),
-              title: Text(name, style: TextStyle(fontWeight: lv == level ? FontWeight.bold : null)),
-              subtitle: Text(desc),
-              trailing: lv == level ? const Icon(Icons.check, color: _gold) : null,
-              onTap: () => Navigator.pop(c, lv),
-            ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
-          ),
+      builder: (c) => AlertDialog(
+        content: Text(t.leaveConfirm),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t.cancel)),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t.leave)),
         ],
       ),
     );
-    if (choice == null) return;
-    level = choice;
-    try {
-      await (await SharedPreferences.getInstance()).setString('level', choice);
-    } catch (_) {}
-    _apply(api.newGame(choice));
+    if (ok == true && mounted) Navigator.pop(context);
   }
 
   void _sync(GameState g) {
@@ -224,12 +218,6 @@ class _TableScreenState extends State<TableScreen> {
     lead = null;
   }
 
-  String _levelName(AppLocalizations t, String lv) => switch (lv) {
-    'easy' => t.levelEasy,
-    'hard' => t.levelHard,
-    _ => t.levelNormal,
-  };
-
   String _name(AppLocalizations t, int seat) => seat == 0 ? t.you : t.bot(seat);
 
   void _showResult(GameState g) {
@@ -248,7 +236,7 @@ class _TableScreenState extends State<TableScreen> {
                 dense: true,
                 leading: Text(
                   t.rank(r + 1),
-                  style: TextStyle(fontWeight: FontWeight.bold, color: r == 0 ? _gold : _ink),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: r == 0 ? gold : _ink),
                 ),
                 title: Text(_name(t, order[r]), style: TextStyle(fontWeight: order[r] == 0 ? FontWeight.bold : null)),
                 trailing: Text(
@@ -280,170 +268,176 @@ class _TableScreenState extends State<TableScreen> {
     final g = s;
     // 봇이 내는 장면을 보여 주는 동안에는 그 봇이 차례다
     final active = flash?.seat ?? (g == null || g.finished ? null : g.turn);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(g == null ? t.title : '${t.title} · ${_levelName(t, g.level)}'),
-        backgroundColor: Colors.transparent,
-        actions: [
-          if (g != null)
-            _TodayBadge(
-              suit: g.today,
-              label: MediaQuery.sizeOf(context).width < 400 ? '' : t.today,
-              doubles: g.doubles,
-            ),
-          IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
-          TextButton(onPressed: busy ? null : _newGame, child: Text(t.newGame)),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: g == null
-          ? Center(
-              child: busy
-                  ? const CircularProgressIndicator()
-                  : FilledButton(onPressed: () => _apply(api.newGame(level)), child: Text(t.newGame)),
-            )
-          : SafeArea(
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  final tileW = min(56.0, (box.maxWidth - 32) / 7 - 4);
-                  final myTurn = active == 0 && !busy;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Column(
-                      children: [
-                        _SuitOrder(suits: g.suits, label: t.suitOrder),
-                        const SizedBox(height: 6),
-                        _Seat(
-                          name: t.bot(2),
-                          g: g,
-                          seat: 2,
-                          active: active == 2,
-                          turnLabel: t.turn,
-                          fan: Axis.horizontal,
-                          passed: passed.contains(2),
-                          passLabel: t.pass,
-                        ),
-                        const SizedBox(height: 6),
-                        Expanded(
-                          // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
-                          child: LayoutBuilder(
-                            builder: (context, mid) {
-                              final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
-                              return Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _Seat(
-                                    name: t.bot(1),
-                                    g: g,
-                                    seat: 1,
-                                    passed: passed.contains(1),
-                                    passLabel: t.pass,
-                                    active: active == 1,
-                                    turnLabel: t.turn,
-                                    fan: Axis.vertical,
-                                    room: mid.maxHeight,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    width: side,
-                                    height: side,
-                                    decoration: BoxDecoration(
-                                      color: _felt,
-                                      borderRadius: BorderRadius.circular(24),
-                                      border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
-                                    ),
-                                    child: Center(
-                                      child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g, side)),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _Seat(
-                                    name: t.bot(3),
-                                    g: g,
-                                    seat: 3,
-                                    passed: passed.contains(3),
-                                    passLabel: t.pass,
-                                    active: active == 3,
-                                    turnLabel: t.turn,
-                                    fan: Axis.vertical,
-                                    room: mid.maxHeight,
-                                  ),
-                                ],
-                              );
-                            },
+    return PopScope(
+      canPop: g == null || g.finished,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
+          backgroundColor: Colors.transparent,
+          actions: [
+            if (g != null)
+              _TodayBadge(
+                suit: g.today,
+                label: MediaQuery.sizeOf(context).width < 400 ? '' : t.today,
+                doubles: g.doubles,
+              ),
+            IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
+            TextButton(onPressed: busy ? null : _newGame, child: Text(t.newGame)),
+            const SizedBox(width: 4),
+          ],
+        ),
+        body: g == null
+            ? Center(
+                child: busy
+                    ? const CircularProgressIndicator()
+                    : FilledButton(onPressed: () => _apply(api.newGame(level)), child: Text(t.newGame)),
+              )
+            : SafeArea(
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    final tileW = min(56.0, (box.maxWidth - 32) / 7 - 4);
+                    final myTurn = active == 0 && !busy;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Column(
+                        children: [
+                          _SuitOrder(suits: g.suits, label: t.suitOrder),
+                          const SizedBox(height: 6),
+                          _Seat(
+                            name: t.bot(2),
+                            g: g,
+                            seat: 2,
+                            active: active == 2,
+                            turnLabel: t.turn,
+                            fan: Axis.horizontal,
+                            passed: passed.contains(2),
+                            passLabel: t.pass,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        _Seat(
-                          name: t.you,
-                          g: g,
-                          seat: 0,
-                          active: active == 0,
-                          turnLabel: t.turn,
-                          compact: true,
-                          passed: passed.contains(0),
-                          passLabel: t.pass,
-                        ),
-                        const SizedBox(height: 8),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
+                          const SizedBox(height: 6),
+                          Expanded(
+                            // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
+                            child: LayoutBuilder(
+                              builder: (context, mid) {
+                                final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
+                                return Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _Seat(
+                                      name: t.bot(1),
+                                      g: g,
+                                      seat: 1,
+                                      passed: passed.contains(1),
+                                      passLabel: t.pass,
+                                      active: active == 1,
+                                      turnLabel: t.turn,
+                                      fan: Axis.vertical,
+                                      room: mid.maxHeight,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      width: side,
+                                      height: side,
+                                      decoration: BoxDecoration(
+                                        color: _felt,
+                                        borderRadius: BorderRadius.circular(24),
+                                        border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
+                                      ),
+                                      child: Center(
+                                        child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g, side)),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _Seat(
+                                      name: t.bot(3),
+                                      g: g,
+                                      seat: 3,
+                                      passed: passed.contains(3),
+                                      passLabel: t.pass,
+                                      active: active == 3,
+                                      turnLabel: t.turn,
+                                      fan: Axis.vertical,
+                                      room: mid.maxHeight,
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
-                          child: Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 4,
-                            runSpacing: 10,
+                          const SizedBox(height: 8),
+                          _Seat(
+                            name: t.you,
+                            g: g,
+                            seat: 0,
+                            active: active == 0,
+                            turnLabel: t.turn,
+                            compact: true,
+                            passed: passed.contains(0),
+                            passLabel: t.pass,
+                          ),
+                          const SizedBox(height: 8),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
+                            ),
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 4,
+                              runSpacing: 10,
+                              children: [
+                                for (final code in g.hand.where((c) => !gone.contains(c)))
+                                  Opacity(
+                                    // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
+                                    opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
+                                    child: TileView(
+                                      key: ValueKey('hand-$code'),
+                                      code: code,
+                                      width: tileW,
+                                      selected: picked.contains(code),
+                                      onTap: !myTurn || !g.playable.contains(code)
+                                          ? null
+                                          : () => setState(
+                                              () => picked.contains(code) ? picked.remove(code) : picked.add(code),
+                                            ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              for (final code in g.hand.where((c) => !gone.contains(c)))
-                                Opacity(
-                                  // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
-                                  opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
-                                  child: TileView(
-                                    key: ValueKey('hand-$code'),
-                                    code: code,
-                                    width: tileW,
-                                    selected: picked.contains(code),
-                                    onTap: !myTurn || !g.playable.contains(code)
-                                        ? null
-                                        : () => setState(
-                                            () => picked.contains(code) ? picked.remove(code) : picked.add(code),
-                                          ),
-                                  ),
-                                ),
+                              OutlinedButton(
+                                onPressed: !myTurn || g.table.isEmpty ? null : () => _apply(api.move(g.id, [])),
+                                child: Text(t.pass),
+                              ),
+                              const SizedBox(width: 16),
+                              FilledButton(
+                                onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
+                                child: Text(t.play),
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            OutlinedButton(
-                              onPressed: !myTurn || g.table.isEmpty ? null : () => _apply(api.move(g.id, [])),
-                              child: Text(t.pass),
+                          // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
+                          if (myTurn && g.table.isNotEmpty && g.playable.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
                             ),
-                            const SizedBox(width: 16),
-                            FilledButton(
-                              onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
-                              child: Text(t.play),
-                            ),
-                          ],
-                        ),
-                        // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
-                        if (myTurn && g.table.isNotEmpty && g.playable.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
-                          ),
-                        const SizedBox(height: 12),
-                      ],
-                    ),
-                  );
-                },
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -545,7 +539,7 @@ class _Seat extends StatelessWidget {
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(color: _gold, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: gold, borderRadius: BorderRadius.circular(8)),
             child: Text(
               turnLabel,
               style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
@@ -561,8 +555,8 @@ class _Seat extends StatelessWidget {
       decoration: BoxDecoration(
         color: active ? const Color(0xFFFFF7E0) : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: active ? _gold : const Color(0xFFE9DFD1), width: active ? 3 : 1),
-        boxShadow: active ? [BoxShadow(color: _gold.withValues(alpha: .35), blurRadius: 10)] : null,
+        border: Border.all(color: active ? gold : const Color(0xFFE9DFD1), width: active ? 3 : 1),
+        boxShadow: active ? [BoxShadow(color: gold.withValues(alpha: .35), blurRadius: 10)] : null,
       ),
       width: fan == Axis.vertical ? _sideW : null,
       child: compact
@@ -732,7 +726,7 @@ class _TodayBadge extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           '×${pow(5, doubles)}',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: _gold),
+          style: const TextStyle(fontWeight: FontWeight.bold, color: gold),
         ),
       ],
     ],
