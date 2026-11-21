@@ -13,10 +13,10 @@
 - Apple 로그인·Apple 토큰 취소는 아이폰 출시 때(지금은 웹·안드로이드). 검증 기록에 Apple 항목은 "해당 없음".
 - 비밀번호: 15~128자, 조합 강제 없음, 이메일·닉네임과 같으면 거부, HIBP k-익명성(앞 5자리만). 조회 장애 → 로컬 유출 목록(`pwned_top.txt`, 상위 10만 개 SHA-1) → 그것도 없으면 가입·변경·재설정 보류(기존 로그인은 유지).
 - argon2id: m=65536(64MB)·t=3·p=1에서 시작, 노트북 실측 ~0.3초로 조정, 로그인 때 재해시. 동시 해시 작업 세마포어 2(파드 메모리 한도 → 512Mi로 올림).
-- 토큰 수명: 액세스 15분(JWT, HS256, `typ=access`), 리프레시 절대 90일·유휴 30일(불투명 32바이트, DB엔 SHA-256만), 가입 인증 24시간, 재설정 30분, 옛 주소 보호 링크 7일, 최근 인증 5분.
+- 토큰 수명: 액세스 15분(JWT, HS256, `typ=access`), 리프레시 유휴 30일·절대 만료 없음(ADR-0017, 불투명 32바이트, DB엔 SHA-256만), 가입 인증 24시간, 재설정 30분, 옛 주소 보호 링크 7일, 최근 인증 5분.
 - 매 보호 요청에서 Postgres의 세션 폐기 상태·계정 인증 버전을 확인(SECURITY 12). DB 확인 실패 → 거부.
 - 무료만. 새 비용 없음.
-- **싱글도 로그인 필수**(11-21 사용자 결정). 앱을 켜면 로그인 화면부터, 한 번 로그인하면 그 계정으로 **자동 로그인 유지** — 리프레시가 살아 있는 동안(유휴 30일·절대 90일 — 11-21 사용자 결정으로 SECURITY.md 시작값 7일·30일을 늘림) 앱을 다시 열어도 로그인 화면 없이 메인으로. 만료되면 로그인 화면.
+- **싱글도 로그인 필수**(11-21 사용자 결정). 앱을 켜면 로그인 화면부터, 한 번 로그인하면 그 계정으로 **자동 로그인 유지** — 리프레시가 살아 있는 동안(30일 동안 안 쓰면 만료, 절대 만료 없음 — ADR-0017) 앱을 다시 열어도 로그인 화면 없이 메인으로. 만료되면 로그인 화면.
 - 싱글 판도 계정에 묶는다: `Room`에 `account_id`, 판 조회·수 두기는 그 계정만(다른 계정은 404). IP당 판 생성 제한은 계정당으로 바꾼다.
 
 ## 사용자 선행 작업 (PR은 머지 보류하고 알림)
@@ -133,13 +133,13 @@ RETURNING t.account_id;
 ```sql
 UPDATE sessions SET prev_hash = refresh_hash, refresh_hash = $new, last_used_at = now()
 WHERE refresh_hash = $old AND revoked_at IS NULL
-  AND last_used_at > now() - interval '30 days' AND created_at > now() - interval '90 days'
+  AND last_used_at > now() - interval '30 days'
 RETURNING id, account_id;
 ```
   0행이고 `prev_hash = $old`인 세션이 있으면 재사용 → 그 계정 전 세션 폐기 + 알림 메일. `reauth_at`은 갱신으로 안 늘림.
 - `deps.current_user`: alg=HS256 고정·iss·aud·exp·typ 검사 → 세션 `revoked_at IS NULL`·`auth_version == ver`·`deleted_at IS NULL`·(필요 시) `mfa_passed`, DB 오류면 401.
 - 앱 갱신 직렬화: `Api`가 진행 중인 갱신 Future 하나를 공유.
-- 테스트: 같은 리프레시 두 번 → 두 번째에 전 세션 폐기, 리프레시를 액세스로 쓰면 401, alg none·다른 키·만료·iss/aud 변조 401, 로그아웃 직후 같은 액세스 401, 쿠키 속성 문자열.
+- 테스트: 29일 쉬었다 갱신 성공·31일이면 401, 만든 지 1년 된 세션도 매일 쓰면 갱신 성공, 같은 리프레시 두 번 → 두 번째에 전 세션 폐기, 리프레시를 액세스로 쓰면 401, alg none·다른 키·만료·iss/aud 변조 401, 로그아웃 직후 같은 액세스 401, 쿠키 속성 문자열.
 
 ### Task 7: CSRF·Origin·보안 머리글 (검증 26·27, 25 일부)
 - 쿠키 인증 상태 변경 요청은 `Origin == KUMONIJI_PUBLIC_ORIGIN` + 이중 제출 CSRF(`__Host-kcsrf` 쿠키 = `X-CSRF` 머리글). 로그인·로그아웃·연결 포함. 앱(Bearer)은 쿠키 없음 → 면제.
