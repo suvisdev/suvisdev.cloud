@@ -10,6 +10,7 @@ import 'package:kumoniji/home_screen.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/main.dart';
 import 'package:kumoniji/settings.dart';
+import 'package:kumoniji/tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_test.dart' show view;
@@ -30,6 +31,7 @@ Widget _home(Api api) => MaterialApp(
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    markTilesReady();
     Settings.locale.value = null;
     Settings.vibration.value = true;
   });
@@ -57,7 +59,9 @@ void main() {
     await t.tap(find.text('Single player'));
     await settle(t);
     await t.tap(find.byKey(const ValueKey('level-hard')));
-    await settle(t);
+    for (var i = 0; i < 50 && find.text('Your turn').evaluate().isEmpty; i++) {
+      await t.pump(const Duration(milliseconds: 100)); // 나눠 주기·시작 카드가 끝날 때까지
+    }
     expect(bodies, [
       {'level': 'hard'},
     ]);

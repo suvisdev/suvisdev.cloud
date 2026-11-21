@@ -9,12 +9,16 @@ import 'package:http/testing.dart';
 import 'package:kumoniji/api.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/table_screen.dart';
+import 'package:kumoniji/tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_test.dart' show view;
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    markTilesReady();
+  });
   moreTests();
   legalTests();
   recentTests();
@@ -143,11 +147,20 @@ void moreTests() {
       ),
     );
     await t.pumpWidget(_app(api));
+    await t.pump(); // 응답
+    await t.pump(const Duration(milliseconds: 80));
+    expect(find.byKey(const ValueKey('hand-m1')), findsOneWidget); // 나눠 주는 중: 한 장씩
+    expect(find.byKey(const ValueKey('hand-s3')), findsNothing);
+    expect(find.text('Your turn'), findsNothing); // 나눠 주는 동안엔 차례 표시 없음
+    for (var k = 0; k < 13; k++) {
+      await t.pump(const Duration(milliseconds: 70)); // 나눠 주기 한 바퀴씩
+    }
     await t.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('hand-s3')), findsOneWidget);
     expect(find.byKey(const ValueKey('start-card')), findsOneWidget); // 시작 카드
     expect(find.text('×13'), findsNWidgets(3)); // 봇이 내기 전 13장씩
     expect(find.byKey(const ValueKey('play-3')), findsNothing); // 아직 아무도 안 냄
-    await t.pump(const Duration(milliseconds: 1600));
+    await t.pump(const Duration(milliseconds: 1400));
     await t.pump(const Duration(milliseconds: 100));
     expect(find.byKey(const ValueKey('start-card')), findsNothing);
     expect(find.byKey(const ValueKey('play-3')), findsOneWidget); // 봇 3이 솜사탕 1을 내는 장면
@@ -338,8 +351,8 @@ void recentTests() {
   });
 }
 
-/// 새 판 시작 카드(1.6초)가 지나가게 시간을 흘린 뒤 화면이 멈출 때까지 기다린다.
+/// 새 판 나눠 주기·시작 카드(약 2.3초)가 지나가게 시간을 흘린 뒤 화면이 멈출 때까지 기다린다.
 Future<void> settle(WidgetTester t) async {
-  await t.pump(const Duration(seconds: 2));
+  await t.pump(const Duration(seconds: 3));
   await t.pumpAndSettle();
 }
