@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from kumoniji import rules
-from kumoniji.bots import pick
+from kumoniji.bots import pick, seen
 from kumoniji.game import Game, IllegalMove
 
 CASES = [
@@ -54,14 +54,21 @@ def test_leader_cannot_pass_and_wrong_seat():
         g.play(1, [("산", 2)])
 
 
-def test_bot_games_match_simulate_and_zero_sum():
+@pytest.mark.parametrize(
+    "levels,games",
+    [
+        (("easy", "normal", "easy", "normal"), 500),
+        (("hard", "normal", "easy", "hard"), 40),
+    ],
+)
+def test_bot_games_match_simulate_and_zero_sum(levels, games):
     rng = random.Random(20261118)
-    for _ in range(500):
+    for _ in range(games):
         g = Game.deal(rng)
         start = [list(h) for h in g.hands]
         moves = []
         while g.winner is None:
-            m = pick("aim", g.hands[g.turn], g.table, g.today, rng)
+            m = pick(levels[g.turn], seen(g, g.turn), rng)
             moves.append("패스" if m is None else m)
             g.play(g.turn, m)
         r = rules.simulate(start, moves, g.today)

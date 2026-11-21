@@ -13,6 +13,9 @@ class Play {
 /// 서버가 준 판 상태(사람은 항상 0번 자리). 규칙 판정은 서버가 한다.
 class GameState {
   final String id, today;
+
+  /// 봇 난이도(easy·normal·hard)
+  final String level;
   final int turn, doubles;
   final int? last, winner;
   final List<String> hand, table, playable, suits;
@@ -32,6 +35,7 @@ class GameState {
   GameState.fromJson(Map<String, dynamic> j)
     : id = j['id'],
       today = j['today'],
+      level = j['level'] ?? 'normal',
       turn = j['turn'],
       doubles = j['doubles'],
       last = j['last'],
@@ -73,7 +77,9 @@ class Api {
   final http.Client client;
   Api([http.Client? client]) : client = client ?? http.Client();
 
-  Future<GameState> newGame() => _send(client.post(_uri('/api/games')));
+  Future<GameState> newGame([String level = 'normal']) => _send(
+    client.post(_uri('/api/games'), headers: {'content-type': 'application/json'}, body: jsonEncode({'level': level})),
+  );
   Future<GameState> get(String id) => _send(client.get(_uri('/api/games/$id')));
   Future<GameState> move(String id, List<String> tiles) => _send(
     client.post(

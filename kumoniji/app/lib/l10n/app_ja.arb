@@ -53,5 +53,12 @@
   "comboFour": "フォーカード",
   "comboStraightFlush": "ストレートフラッシュ",
   "comboSuitOddEven": "同じ柄の奇偶",
-  "scoreExample": "1+2+4+5 = 12 → 花びら −1 = 11 → 太陽 ×2 = 22"
+  "scoreExample": "1+2+4+5 = 12 → 花びら −1 = 11 → 太陽 ×2 = 22",
+  "chooseLevel": "難易度",
+  "levelEasy": "初級",
+  "levelEasyDesc": "ボットは適当に出します",
+  "levelNormal": "中級",
+  "levelNormalDesc": "ボットは手札を計画して出します",
+  "levelHard": "上級",
+  "levelHardDesc": "ボットは終盤を計算します"
 }

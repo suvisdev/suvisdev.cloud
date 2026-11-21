@@ -53,5 +53,12 @@
   "comboFour": "포카드",
   "comboStraightFlush": "스트레이트 플러시",
   "comboSuitOddEven": "같은 무늬 홀짝",
-  "scoreExample": "1+2+4+5 = 12 → 꽃잎 −1 = 11 → 해 ×2 = 22"
+  "scoreExample": "1+2+4+5 = 12 → 꽃잎 −1 = 11 → 해 ×2 = 22",
+  "chooseLevel": "난이도",
+  "levelEasy": "초급",
+  "levelEasyDesc": "봇이 아무 패나 내요",
+  "levelNormal": "중급",
+  "levelNormalDesc": "봇이 손패를 계획해서 내요",
+  "levelHard": "고급",
+  "levelHardDesc": "봇이 끝판을 계산해요"
 }
