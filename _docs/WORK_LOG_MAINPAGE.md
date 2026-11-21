@@ -84,6 +84,11 @@
 - 남은 문제: 파드는 `main.dart.js`에 `Cache-Control: no-cache`를 보내는데 Cloudflare를 거치면 `max-age=14400`으로 바뀜(index.html은 no-cache 유지). 그래서 이미 접속했던 브라우저는 최대 4시간 옛 앱을 쓸 수 있다. Cloudflare 대시보드의 브라우저 캐시 TTL을 "기존 헤더 따르기"로 바꾸면 해결(사용자 작업) — 미결.
 - 해결: 사용자가 Browser Cache TTL을 Respect Existing Headers로 변경 → `main.dart.js`·`flutter_bootstrap.js`·패 그림 모두 `cache-control: no-cache`로 나감을 curl로 확인.
 
+### 추가: worktree가 안 지워지던 원인(브랜치 `fix/import-linter-root-cache`)
+- 증상: 머지 후 `git worktree remove`가 Permission denied, `!` 접두어 sudo는 터미널이 없어 실패.
+- 원인: pre-commit 구조 검사 훅이 도커 컨테이너(root)에서 `lint-imports`를 돌려 마운트된 `suvisdev/.import_linter_cache`를 root 소유로 만듦.
+- 고침: 훅에 `lint-imports --no-cache`. 같은 명령으로 실행해 7 kept·root 소유 파일 0 확인. 남은 폴더 6개는 같은 이미지로 `rm -rf`해 정리.
+
 ## 2026-11-19
 
 ### 작업 내용
