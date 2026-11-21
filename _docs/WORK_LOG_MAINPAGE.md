@@ -84,6 +84,11 @@
 - 남은 문제: 파드는 `main.dart.js`에 `Cache-Control: no-cache`를 보내는데 Cloudflare를 거치면 `max-age=14400`으로 바뀜(index.html은 no-cache 유지). 그래서 이미 접속했던 브라우저는 최대 4시간 옛 앱을 쓸 수 있다. Cloudflare 대시보드의 브라우저 캐시 TTL을 "기존 헤더 따르기"로 바꾸면 해결(사용자 작업) — 미결.
 - 해결: 사용자가 Browser Cache TTL을 Respect Existing Headers로 변경 → `main.dart.js`·`flutter_bootstrap.js`·패 그림 모두 `cache-control: no-cache`로 나감을 curl로 확인.
 
+### 추가: 메인 '약속(알약 식별)' 카드 내림(브랜치 `fix/remove-yaksok`)
+- 사용자: 전 팀장이 약속 서버를 내렸으니 메인에서 빼 달라.
+- `suvis/lib/apps-catalog.ts` TEAM_PROJECTS에서 yaksok 항목 삭제(메인·/apps 둘 다 이 목록을 씀), 안 쓰게 된 `public/apps-yaksok.jpg`·`yaksok-icon.svg` 삭제.
+- 확인: type-check·lint 통과, 로컬 next dev 메인 캡처에 카드 4개(Mova·Gildle·AI 뉴스·ARDA).
+
 ### 추가: worktree가 안 지워지던 원인(브랜치 `fix/import-linter-root-cache`)
 - 증상: 머지 후 `git worktree remove`가 Permission denied, `!` 접두어 sudo는 터미널이 없어 실패.
 - 원인: pre-commit 구조 검사 훅이 도커 컨테이너(root)에서 `lint-imports`를 돌려 마운트된 `suvisdev/.import_linter_cache`를 root 소유로 만듦.
