@@ -44,14 +44,16 @@ def test_matches_simulate_cases(case):
     assert {k: got[k] for k in case["expect"]} == case["expect"]
 
 
-def test_leader_cannot_pass_and_wrong_seat():
+def test_leader_pass_hands_the_lead_on_and_wrong_seat():
     g = Game(
         hands=[[("산", 1)], [("산", 2)], [("산", 3)], [("산", 4)]], today="벚", turn=0
     )
     with pytest.raises(IllegalMove):
-        g.play(0, None)
-    with pytest.raises(IllegalMove):
         g.play(1, [("산", 2)])
+    g.play(0, None)  # 선도 패스할 수 있다(11-21) — 바닥은 빈 채로 1번이 선
+    assert (g.turn, g.table, g.passes, g.last) == (1, [], 0, None)
+    g.play(1, [("산", 2)])
+    assert g.winner == 1
 
 
 @pytest.mark.parametrize(
@@ -69,6 +71,8 @@ def test_bot_games_match_simulate_and_zero_sum(levels, games):
         moves = []
         while g.winner is None:
             m = pick(levels[g.turn], seen(g, g.turn), rng)
+            if not g.table and rng.random() < 0.1:
+                m = None  # 사람이 선에서 패스하는 경우도 섞는다(봇은 선 패스를 안 함)
             moves.append("패스" if m is None else m)
             g.play(g.turn, m)
         r = rules.simulate(start, moves, g.today)

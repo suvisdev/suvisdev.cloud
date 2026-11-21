@@ -81,3 +81,15 @@ def test_hard_endgame_respects_time_budget(monkeypatch):
     legal = [[("솜", 2)], [("잎", 5)], [("벚", 9)]]
     bots.endgame(s, legal, random.Random(0))
     assert len(calls) == 4 * len(bots._candidates(s, legal))
+
+
+def test_bots_never_pass_as_leader():
+    # 선 패스는 사람만 쓰는 선택지(11-21 규칙 변경) — 봇이 선에서 패스하면 판이 공회전한다
+    rng = random.Random(7)
+    for level in ("easy", "normal", "hard"):
+        for _ in range(60 if level == "hard" else 300):
+            g = Game.deal(rng)
+            while g.winner is None:
+                m = pick(level, seen(g, g.turn), rng)
+                assert g.table or m, level
+                g.play(g.turn, m)

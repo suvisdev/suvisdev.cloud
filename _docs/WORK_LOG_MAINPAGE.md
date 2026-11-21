@@ -84,6 +84,15 @@
 - 남은 문제: 파드는 `main.dart.js`에 `Cache-Control: no-cache`를 보내는데 Cloudflare를 거치면 `max-age=14400`으로 바뀜(index.html은 no-cache 유지). 그래서 이미 접속했던 브라우저는 최대 4시간 옛 앱을 쓸 수 있다. Cloudflare 대시보드의 브라우저 캐시 TTL을 "기존 헤더 따르기"로 바꾸면 해결(사용자 작업) — 미결.
 - 해결: 사용자가 Browser Cache TTL을 Respect Existing Headers로 변경 → `main.dart.js`·`flutter_bootstrap.js`·패 그림 모두 `cache-control: no-cache`로 나감을 curl로 확인.
 
+### 추가: 쿠모니지 규칙 변경 — 선도 패스(계획 A, 브랜치 `feat/kumoniji-leader-pass`)
+- 사용자 결정: 멀티 20초 자동 패스를 선 차례에도 적용하려고 "선도 패스 허용". 싱글에도 같은 규칙.
+- 순서대로 고침: `cases.json`(사례 2개 기대값 반전 + "넷 다 선 패스해도 이어짐" 1개, 91개) → `rules.py`·`game.py`(선의 패스는 차례만 넘기고 바퀴 패스 수에 안 셈) → API `lead_pass` 이유 삭제 → 앱 패스 버튼을 선 차례에도 켬·문구 삭제.
+- 봇은 선 패스를 안 함(테스트로 고정 — 하면 판이 공회전).
+- 바탕화면 `RULES.md`(31·34행)·`cases.json`·`rules.py` 동기화, 사본 `cmp` 동일.
+- 테스트: 서버 139(새 테스트는 옛 엔진에서 실패 확인), 앱 18. 무작위 대조 500판에 사람의 선 패스 10% 섞음.
+- 막힌 점: `test_errors`가 가끔 실패 — 사람이 무작위로 선이 된 판에서만 "선 패스 422"를 검사하던 옛 단언. 삭제(새 테스트가 대신).
+- 사용자 질문 "메인페이지 진입 안 함": 운영엔 메인 화면이 정상(새 브라우저 캡처). Cloudflare 설정 전 받은 앱 파일이 브라우저에 4시간 보관 중 → 강력 새로고침 안내.
+
 ### 추가: 메인 '약속(알약 식별)' 카드 내림(브랜치 `fix/remove-yaksok`)
 - 사용자: 전 팀장이 약속 서버를 내렸으니 메인에서 빼 달라.
 - `suvis/lib/apps-catalog.ts` TEAM_PROJECTS에서 yaksok 항목 삭제(메인·/apps 둘 다 이 목록을 씀), 안 쓰게 된 `public/apps-yaksok.jpg`·`yaksok-icon.svg` 삭제.

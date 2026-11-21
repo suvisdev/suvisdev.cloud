@@ -29,10 +29,6 @@ def test_errors():
         c.post(f"/api/games/{v['id']}/moves", json={"tiles": ["s1"] * 6}).status_code
         == 422
     )
-    if not v["table"]:
-        assert (
-            c.post(f"/api/games/{v['id']}/moves", json={"tiles": []}).status_code == 422
-        )  # 선은 패스 불가
     assert c.get(f"/api/games/{v['id']}").json()["hand"] == v["hand"]
 
 
@@ -267,3 +263,15 @@ def test_busy_game_does_not_block_other_games():
     a, b = (c.post("/api/games").json()["id"] for _ in range(2))
     with api.GAMES[a].lock:
         assert c.get(f"/api/games/{b}").status_code == 200
+
+
+def test_human_can_pass_as_leader():
+    from kumoniji import api
+    from kumoniji.game import Game
+
+    g = Game(hands=[[("솜", 1), ("잎", 9)], [("잎", 4), ("잎", 2)], [("잎", 5)], [("잎", 6)]], today="잎", turn=0)
+    api.GAMES["lead"] = Room(g, random.Random(1))
+    r = c.post("/api/games/lead/moves", json={"tiles": []})
+    assert r.status_code == 200
+    assert r.json()["events"][0] == {"seat": 0, "tiles": None}
+    assert r.json()["events"][1]["seat"] == 1  # 1번이 선이 되어 낸다

@@ -146,7 +146,6 @@ class _TableScreenState extends State<TableScreen> {
     'weaker' => t.reasonWeaker,
     'count' => t.reasonCount,
     'not_combo' => t.reasonNotCombo,
-    'lead_pass' => t.reasonLeadPass,
     _ => t.illegal,
   };
 
@@ -465,7 +464,7 @@ class _TableScreenState extends State<TableScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   OutlinedButton(
-                                    onPressed: !myTurn || g.table.isEmpty ? null : () => _apply(api.move(g.id, [])),
+                                    onPressed: !myTurn ? null : () => _apply(api.move(g.id, [])),
                                     child: Text(t.pass),
                                   ),
                                   const SizedBox(width: 16),

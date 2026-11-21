@@ -13,6 +13,7 @@
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
 | ✅ | 하네스 | 11-21 | 머지 뒤 worktree가 Permission denied로 안 지워짐 | 커밋 훅의 도커(root) import-linter가 `.import_linter_cache`를 root 소유로 생성 | 훅에 `--no-cache`, 실행 후 root 파일 0 확인 · 근거 WORK_LOG_MAINPAGE 11-21 |
+| ✅ | kumoniji | 11-21 | 규칙 변경 뒤 `test_errors`가 3번에 1번꼴로 실패 | 사람이 무작위로 선이 된 판에서만 "선 패스 422"를 검사하던 옛 단언 — 고정 시드가 아니라 가끔만 걸림 | 단언 삭제·고정된 판으로 새 테스트, 3회 반복 통과 · 근거 WORK_LOG_MAINPAGE 11-21 |
 | ✅ | kumoniji | 11-21 | 배포 뒤에도 브라우저가 옛 앱을 씀 | 서버의 `no-cache`를 Cloudflare 브라우저 캐시 TTL(4시간)이 `max-age=14400`으로 덮음(index.html만 유지) | 대시보드에서 Respect Existing Headers로 변경, curl로 no-cache 확인 · 근거 WORK_LOG_MAINPAGE 11-21 |
 | ✅ | kumoniji | 11-21 | 봇이 낸 5장이 2장·3장 따로 뜨고, 가끔 3이 5로 바뀌어 보임 | 웹이 패 그림을 처음 그릴 때 서버에서 한 장씩 받아 옴(운영은 Cloudflare라 장마다 도착이 다름). 재생≠서버 가설은 1,458응답 대조로 기각 | 브라우저 요청 기록으로 확인 후 앱 시작 때 57장 미리 받기, 게임 중 요청 0건 확인 · 근거 WORK_LOG_MAINPAGE 11-21 |
 | ✅ | kumoniji | 11-21 | AI 판을 시작하면 시작 장면 없이 패가 이미 나가 있음 | 앱이 새 판 응답의 봇 수를 판 상태를 채우기 전에 재생 — 첫 판은 로딩 뒤에서, 새 게임은 이전 판 위에서 지나감 | 판 id가 바뀌면 시작 상태(13장·빈 바닥)와 시작 카드를 먼저 그린 뒤 재생, 회귀 테스트(옛 코드 실패 확인) · 근거 WORK_LOG_MAINPAGE 11-21 |

@@ -49,9 +49,8 @@ class Game:
             raise IllegalMove("차례가 아님")
         n = len(self.hands)
         if move is None:
-            if not self.table:
-                raise IllegalMove("선은 패스할 수 없음")
-            self.passes += 1
+            if self.table:  # 선의 패스는 차례만 넘긴다(11-21 규칙 변경)
+                self.passes += 1
             if self.passes == n - 1:
                 self.petals[self.last].append(max(self.table, key=value)[0])
                 self.bonus[self.last] += self.pot + small_today(self.table, self.today)

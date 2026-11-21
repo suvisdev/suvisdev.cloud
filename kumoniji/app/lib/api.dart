@@ -66,7 +66,7 @@ class GameState {
 class ApiError implements Exception {
   final int status;
 
-  /// 422일 때 서버가 준 이유 코드(suit·weaker·count·not_combo·lead_pass·not_in_hand)
+  /// 422일 때 서버가 준 이유 코드(suit·weaker·count·not_combo·not_in_hand)
   final String? code;
   const ApiError(this.status, [this.code]);
 }

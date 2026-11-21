@@ -90,8 +90,6 @@ def legal_moves(g: Game) -> list[list[str]]:
 
 def reason(g: Game, tiles: list) -> str:
     """낼 수 없는 이유(앱이 언어별 문구로 바꿈)."""
-    if not tiles:
-        return "lead_pass"
     if any(t not in g.hands[HUMAN] for t in tiles):
         return "not_in_hand"
     if classify(tiles) is None:
