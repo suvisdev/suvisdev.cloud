@@ -4,10 +4,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'home_screen.dart';
 import 'settings.dart';
+import 'tile.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Settings.load();
+  precacheTiles(); // 기다리지 않는다 — 첫 판을 시작할 때 끝나 있는지 확인
   runApp(const KumonijiApp());
 }
 

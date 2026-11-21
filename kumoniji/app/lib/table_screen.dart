@@ -41,9 +41,10 @@ class _TableScreenState extends State<TableScreen> {
   List<List<String>?> plays = List.filled(4, null); // 자리마다 이번 바퀴에 낸 패
   int? lead; // 지금 바닥에서 가장 센 패를 낸 자리
   String level = 'normal'; // 봇 난이도 — 마지막으로 고른 것을 기억
-  bool busy = false;
+  bool busy = true; // 첫 판 전(난이도 읽기·패 그림 받기)부터 잠근다 — 그 사이 새 게임을 누르면 판 요청이 두 번 나간다
   List<int> shown = List.filled(4, 13); // 자리마다 보여 주는 남은 장수(봇 장면을 넘기며 줄인다)
   int? intro; // 새 판 시작 카드를 보이는 동안 선(솜사탕 1을 가진 자리)
+  int? dealt; // 패를 나눠 주는 동안 내 손에 보인 장수(나눠 주기가 끝나면 null)
 
   @override
   void initState() {
@@ -55,6 +56,7 @@ class _TableScreenState extends State<TableScreen> {
   /// 메인 화면에서 고른 난이도로, 없으면 지난번에 고른 난이도로 바로 시작한다(처음이면 중급).
   Future<void> _startSaved() async {
     level = widget.level ?? await savedLevel();
+    await precacheTiles(); // 패 그림을 다 받아 둔 뒤 시작(봇 패가 끊겨 뜨지 않게)
     if (mounted) _apply(api.newGame(level));
   }
 
@@ -205,10 +207,23 @@ class _TableScreenState extends State<TableScreen> {
       picked.clear();
       flash = null;
       _clearRound();
-      shown = start;
+      shown = List.filled(4, 0);
+      dealt = 0;
+    });
+    // 나눠 주기: 네 자리에 한 장씩 13바퀴
+    for (var k = 1; k <= 13; k++) {
+      await Future.delayed(const Duration(milliseconds: 70));
+      if (!mounted) return;
+      setState(() {
+        shown = [for (final n in start) min(k, n)];
+        dealt = k;
+      });
+    }
+    setState(() {
+      dealt = null;
       intro = next.events.isEmpty ? next.turn : next.events.first.seat;
     });
-    await Future.delayed(const Duration(milliseconds: 1600));
+    await Future.delayed(const Duration(milliseconds: 1400));
     if (mounted) setState(() => intro = null);
   }
 
@@ -292,7 +307,8 @@ class _TableScreenState extends State<TableScreen> {
     final t = AppLocalizations.of(context)!;
     final g = s;
     // 봇이 내는 장면을 보여 주는 동안에는 그 봇이 차례다
-    final active = intro ?? flash?.seat ?? (g == null || g.finished ? null : g.turn);
+    // 나눠 주는 동안엔 아무도 차례가 아니고, 시작 카드 동안엔 선이 차례다
+    final active = dealt != null ? null : intro ?? flash?.seat ?? (g == null || g.finished ? null : g.turn);
     return PopScope(
       canPop: g == null || g.finished,
       onPopInvokedWithResult: (didPop, _) {
@@ -421,20 +437,24 @@ class _TableScreenState extends State<TableScreen> {
                                   spacing: 4,
                                   runSpacing: 10,
                                   children: [
-                                    for (final code in g.hand.where((c) => !gone.contains(c)))
+                                    for (final code in g.hand.where((c) => !gone.contains(c)).take(dealt ?? 13))
                                       Opacity(
                                         // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
                                         opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
-                                        child: TileView(
-                                          key: ValueKey('hand-$code'),
-                                          code: code,
-                                          width: tileW,
-                                          selected: picked.contains(code),
-                                          onTap: !myTurn || !g.playable.contains(code)
-                                              ? null
-                                              : () => setState(
-                                                  () => picked.contains(code) ? picked.remove(code) : picked.add(code),
-                                                ),
+                                        child: _DealIn(
+                                          key: ValueKey('deal-$code'),
+                                          child: TileView(
+                                            key: ValueKey('hand-$code'),
+                                            code: code,
+                                            width: tileW,
+                                            selected: picked.contains(code),
+                                            onTap: !myTurn || !g.playable.contains(code)
+                                                ? null
+                                                : () => setState(
+                                                    () =>
+                                                        picked.contains(code) ? picked.remove(code) : picked.add(code),
+                                                  ),
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -521,7 +541,7 @@ class _TableScreenState extends State<TableScreen> {
       );
     }
 
-    final myTurn = flash == null && !g.finished && g.turn == 0;
+    final myTurn = dealt == null && intro == null && flash == null && !g.finished && g.turn == 0;
     return Padding(
       padding: const EdgeInsets.all(6),
       child: Stack(
@@ -841,5 +861,23 @@ class _StartCard extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+/// 나눠 받은 패가 판 가운데 쪽에서 날아와 자리 잡는 모션(처음 그려질 때 한 번).
+class _DealIn extends StatelessWidget {
+  final Widget child;
+  const _DealIn({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 260),
+    curve: Curves.easeOut,
+    builder: (_, k, c) => Opacity(
+      opacity: k,
+      child: Transform.translate(offset: Offset(0, -60 * (1 - k)), child: c),
+    ),
+    child: child,
   );
 }
