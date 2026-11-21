@@ -145,9 +145,10 @@ def reason(g: Game, tiles: list) -> str:
 
 
 def seat_plays(g: Game) -> list[list[str] | None]:
-    """이번 바퀴에 자리마다 마지막으로 낸 패(안 냈으면 None). 앱이 각 자리 앞에 놓는다."""
+    """이번 바퀴의 최근 세 수만, 자리마다 마지막으로 낸 패(안 냈으면 None). 앱이 각 자리 앞에 놓는다.
+    네 번째 전 수(보통 내 차례에 보이던 내 첫 패)는 지운다(11-21 사용자 결정)."""
     out: list[list[str] | None] = [None] * 4
-    for seat, m in [*g.history, *([(g.last, g.table)] if g.table else [])]:
+    for seat, m in [*g.history, *([(g.last, g.table)] if g.table else [])][-3:]:
         out[seat] = [enc(t) for t in m]
     return out
 

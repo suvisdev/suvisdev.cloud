@@ -40,6 +40,7 @@ class _TableScreenState extends State<TableScreen> {
   Set<int> passed = {}; // 지금 바퀴에서 패스한 자리(봇 장면을 넘기는 동안에도 갱신)
   List<List<String>?> plays = List.filled(4, null); // 자리마다 이번 바퀴에 낸 패
   int? lead; // 지금 바닥에서 가장 센 패를 낸 자리
+  List<int> order = []; // 최근 세 수를 낸 자리(같은 자리가 두 번일 수 있음), 오래된 수 → 최근 수
   String level = 'normal'; // 봇 난이도 — 마지막으로 고른 것을 기억
   bool busy = true; // 첫 판 전(난이도 읽기·패 그림 받기)부터 잠근다 — 그 사이 새 게임을 누르면 판 요청이 두 번 나간다
   List<int> shown = List.filled(4, 13); // 자리마다 보여 주는 남은 장수(봇 장면을 넘기며 줄인다)
@@ -84,8 +85,7 @@ class _TableScreenState extends State<TableScreen> {
           } else {
             shown[e.seat] -= e.tiles!.length;
             passed.clear();
-            plays[e.seat] = e.tiles;
-            lead = e.seat;
+            _record(e.seat, e.tiles!);
           }
           // 패스는 내 것도 보여 준다 — 아무도 바닥을 이길 수 없으면 서버가 내 차례를 자동으로 패스하기 때문
           if (e.seat != 0 || e.tiles == null) flash = e;
@@ -232,6 +232,29 @@ class _TableScreenState extends State<TableScreen> {
     passed = g.passed.toSet();
     plays = [...g.plays];
     lead = g.table.isEmpty ? null : g.last;
+    // 차례는 자리 번호 순으로 돌므로, 최근 수를 낸 자리(lead)에서 거꾸로 세면 오래된 순서가 된다
+    order = lead == null
+        ? []
+        : [
+            for (var k = 3; k >= 0; k--)
+              if (plays[(lead! - k) % 4] != null) (lead! - k) % 4,
+          ];
+  }
+
+  /// 판에는 최근 세 수만 남긴다 — 네 번째 전 수는 지운다(보통 내 차례에 보이던 내 첫 패).
+  void _record(int seat, List<String> tiles) {
+    // 한 바퀴 안에서 같은 자리가 연달아 낼 수는 없다 → 같은 자리가 또 오면 같은 수(내가 낸 수를 바로 그린 뒤 서버 응답에 다시 옴)
+    if (order.isNotEmpty && order.last == seat) {
+      plays[seat] = tiles;
+      return;
+    }
+    order.add(seat);
+    plays[seat] = tiles;
+    lead = seat;
+    if (order.length > 3) {
+      final old = order.removeAt(0);
+      if (!order.contains(old)) plays[old] = null; // 그 자리가 최근 세 수 안에서 또 냈으면 남긴다
+    }
   }
 
   /// 내기를 누르면 서버 응답·봇 장면을 기다리지 않고 바로 손에서 빼서 내 자리 앞에 놓는다.
@@ -244,8 +267,7 @@ class _TableScreenState extends State<TableScreen> {
       gone.addAll(tiles);
       picked.clear();
       passed.clear();
-      plays[0] = tiles;
-      lead = 0;
+      _record(0, tiles);
       flash = Play(0, tiles); // 응답이 올 때까지 내 차례 버튼을 잠근다
     });
     _apply(api.move(g.id, tiles));
@@ -255,6 +277,7 @@ class _TableScreenState extends State<TableScreen> {
     passed.clear();
     plays = List.filled(4, null);
     lead = null;
+    order = [];
   }
 
   String _name(AppLocalizations t, int seat) => seat == 0 ? t.you : t.bot(seat);
