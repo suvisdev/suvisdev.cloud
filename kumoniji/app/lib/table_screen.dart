@@ -552,7 +552,12 @@ class _TableScreenState extends State<TableScreen> {
                       for (final c in r)
                         Padding(
                           padding: const EdgeInsets.all(2),
-                          child: TileView(code: c, width: 44),
+                          // 같은 수면 키가 같아 다시 그려도 모션이 반복되지 않는다
+                          child: _DropIn(
+                            key: ValueKey('drop-$seat-${m.join()}-$c'),
+                            index: m.indexOf(c),
+                            child: TileView(code: c, width: 44),
+                          ),
                         ),
                     ],
                   ),
@@ -884,6 +889,35 @@ class _StartCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// 낸 패가 한 장씩 차례로 "탕" 내려앉는 모션(처음 그려질 때 한 번). index번째 패는 그만큼 늦게 떨어진다.
+class _DropIn extends StatelessWidget {
+  static const gap = 90, fall = 200; // ms: 장 사이 간격, 한 장이 떨어지는 시간
+  final int index;
+  final Widget child;
+  const _DropIn({super.key, required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = fall + gap * index;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: total),
+      builder: (_, k, c) {
+        final t = ((k * total - gap * index) / fall).clamp(0.0, 1.0); // 이 패의 진행
+        final y = Curves.easeOutBack.transform(t); // 살짝 튀었다가 앉음
+        return Opacity(
+          opacity: (t * 4).clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, -40 * (1 - y)),
+            child: Transform.scale(scale: 1 + .3 * (1 - t), child: c),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
 }
 
 /// 나눠 받은 패가 판 가운데 쪽에서 날아와 자리 잡는 모션(처음 그려질 때 한 번).
