@@ -14,7 +14,7 @@ def test_case(case):
 
 
 def test_case_count():
-    assert len(CASES) == 91
+    assert len(CASES) == 92
 
 
 def test_full_count():

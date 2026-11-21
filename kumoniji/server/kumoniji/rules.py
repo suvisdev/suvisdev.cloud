@@ -181,24 +181,25 @@ def small_today(move, today):
 
 
 def settle(hands_left, petals, bonus, doubles):
-    """판 끝 정산 → 플레이어별 점수 증감(방 단가 곱하기 전). 상한 없음. 렉시오처럼 모든 두 사람이 서로 정산한다.
-    ① 각자 벌점 = max(0, 남은 타일 점수 − 자기 꽃잎 수) × 5^doubles × 2^(남은 13 장수). 1등(손패 0장)은 0.
-    ② 모든 두 사람 사이에서 벌점이 큰 쪽이 작은 쪽에게 차이만큼 준다.
-    ③ 보너스 1점마다 나머지 세 사람이 그 사람에게 1점씩 준다(합계 0)."""
-    mult = TODAY_MULT**doubles
+    """판 끝 정산 → 플레이어별 점수 증감(방 단가 곱하기 전). 상한 없음.
+    ① 각자 벌점 = max(0, 남은 타일 점수 − 자기 꽃잎 수). 1등(손패 0장)은 0.
+    ② 진 사람은 1등에게 벌점 × 5^doubles × 2^(남은 13 장수)를 준다 — 곱은 1등에게 줄 때만(11-21 사용자 결정).
+    ③ 진 사람끼리는 렉시오처럼 벌점 차이만큼 주고받는다(곱 없이).
+    ④ 보너스는 1등 것만: 1점마다 나머지 셋이 1점씩 준다. 진 사람이 모은 보너스는 무효(합계 0)."""
+    n = len(hands_left)
+    win = next(i for i, h in enumerate(hands_left) if not h)
     pen = [
-        max(0, sum(TILE_POINTS[t] for _, t in h) - len(petals[i]))
-        * mult
-        * 2 ** sum(t == 13 for _, t in h)
+        0 if i == win else max(0, sum(TILE_POINTS[t] for _, t in h) - len(petals[i]))
         for i, h in enumerate(hands_left)
     ]
-    n = len(hands_left)
-    delta = [sum(pen) - n * p for p in pen]
-    for i, b in enumerate(bonus):
-        for j in range(n):
-            if j != i:
-                delta[j] -= b
-                delta[i] += b
+    mult = [TODAY_MULT**doubles * 2 ** sum(t == 13 for _, t in h) for h in hands_left]
+    lose = [i for i in range(n) if i != win]
+    delta = [0] * n
+    for i in lose:
+        paid = pen[i] * mult[i] + bonus[win]
+        delta[i] -= paid
+        delta[win] += paid
+        delta[i] += sum(pen[j] - pen[i] for j in lose)  # 진 사람끼리 차이만큼
     return delta
 
 

@@ -284,12 +284,17 @@ class _TableScreenState extends State<TableScreen> {
 
   void _showResult(GameState g) {
     final t = AppLocalizations.of(context)!;
-    final order = [0, 1, 2, 3]..sort((a, b) => g.settlement![b].compareTo(g.settlement![a]));
+    final winner = g.winner!;
+    final order = [0, 1, 2, 3]..sort((a, b) {
+      final byScore = g.settlement![b].compareTo(g.settlement![a]);
+      if (byScore != 0) return byScore;
+      return (a == winner ? -1 : a).compareTo(b == winner ? -1 : b);
+    });
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (c) => AlertDialog(
-        title: Text(t.winner(_name(t, g.winner!))),
+        title: Text(t.winner(_name(t, winner))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -61,7 +61,7 @@
   "help4t": "5-tile combos (weak → strong)",
   "help4b": "Weak → strong.",
   "help5t": "Scoring",
-  "help5b": "When someone goes out, the others pay for tiles left: 1–7 = 1, 8–10 = 2, cloud/rainbow = 4, sun = 5. Each petal takes off 1, then every sun left doubles it. Everyone settles the difference with everyone. A 5-tile combo all in today's suit makes the whole game ×5. Winning a round with special plays earns bonus points.",
+  "help5b": "When someone goes out, score the tiles left: 1–7 = 1, 8–10 = 2, cloud/rainbow = 4, sun = 5. Subtract 1 per petal, down to zero. For payments to the winner, double the penalty for each sun left and multiply it by five for each five-tile combo played in today's suit only. Other players settle the difference between their base penalties. Each of them also pays the winner 1 point for each bonus point the winner earned.",
   "turn": "Turn",
   "newGameConfirm": "Quit this game and start a new one?",
   "cancel": "Cancel",
