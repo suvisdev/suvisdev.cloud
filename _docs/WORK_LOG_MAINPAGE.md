@@ -82,6 +82,7 @@
 ### 추가: 배포(#275~#278)
 - 사용자 지시로 `./kumoniji/deploy.sh` 실행 → rollout 성공, 파드 CPU 한도 1코어 반영, 운영 API `level: hard` 응답 확인, `main.dart.js` last-modified가 새 빌드 시각.
 - 남은 문제: 파드는 `main.dart.js`에 `Cache-Control: no-cache`를 보내는데 Cloudflare를 거치면 `max-age=14400`으로 바뀜(index.html은 no-cache 유지). 그래서 이미 접속했던 브라우저는 최대 4시간 옛 앱을 쓸 수 있다. Cloudflare 대시보드의 브라우저 캐시 TTL을 "기존 헤더 따르기"로 바꾸면 해결(사용자 작업) — 미결.
+- 해결: 사용자가 Browser Cache TTL을 Respect Existing Headers로 변경 → `main.dart.js`·`flutter_bootstrap.js`·패 그림 모두 `cache-control: no-cache`로 나감을 curl로 확인.
 
 ## 2026-11-19
 
