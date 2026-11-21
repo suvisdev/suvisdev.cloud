@@ -88,5 +88,17 @@
   "levelNormal": "Normal",
   "levelNormalDesc": "Bots plan their hands",
   "levelHard": "Hard",
-  "levelHardDesc": "Bots calculate the endgame"
+  "levelHardDesc": "Bots calculate the endgame",
+  "singleMode": "Single player",
+  "multiMode": "Multiplayer",
+  "comingSoon": "Coming soon",
+  "options": "Options",
+  "language": "Language",
+  "systemLanguage": "Device language",
+  "music": "Music",
+  "sfx": "Sound effects",
+  "vibration": "Vibration",
+  "vibrationDesc": "Vibrate when it's your turn",
+  "leaveConfirm": "Quit this game and leave?",
+  "leave": "Leave"
 }

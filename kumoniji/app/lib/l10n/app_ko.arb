@@ -60,5 +60,17 @@
   "levelNormal": "중급",
   "levelNormalDesc": "봇이 손패를 계획해서 내요",
   "levelHard": "고급",
-  "levelHardDesc": "봇이 끝판을 계산해요"
+  "levelHardDesc": "봇이 끝판을 계산해요",
+  "singleMode": "싱글 모드",
+  "multiMode": "멀티 모드",
+  "comingSoon": "준비 중",
+  "options": "옵션",
+  "language": "언어",
+  "systemLanguage": "기기 언어",
+  "music": "배경음악",
+  "sfx": "효과음",
+  "vibration": "진동",
+  "vibrationDesc": "내 차례가 오면 진동",
+  "leaveConfirm": "지금 판을 그만두고 나갈까요?",
+  "leave": "나가기"
 }
