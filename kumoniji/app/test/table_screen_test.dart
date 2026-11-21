@@ -328,6 +328,132 @@ void recentTests() {
     expect(find.byKey(const ValueKey('passed-1')), findsNothing);
   });
 
+  testWidgets('only the last three plays stay on the table — my first play goes when the fourth comes', (t) async {
+    final ev = [
+      for (final (seat, c) in [(0, 'c3'), (1, 'c5'), (2, 'c7'), (3, 'c8')])
+        {
+          'seat': seat,
+          'tiles': [c],
+        },
+    ];
+    final v = {
+      ...view(events: ev),
+      'table': ['c8'],
+      'last': 3,
+      'counts': [12, 12, 12, 12],
+      'plays': [
+        null,
+        ['c5'],
+        ['c7'],
+        ['c8'],
+      ],
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
+    await t.pumpWidget(_app(api));
+    await t.pump();
+    for (var k = 0; k < 14; k++) {
+      await t.pump(const Duration(milliseconds: 70));
+    }
+    await t.pump(const Duration(milliseconds: 1500)); // 시작 카드 → 내 수·봇1
+    await t.pump(const Duration(milliseconds: 1250)); // 봇2
+    expect(find.byKey(const ValueKey('play-0')), findsOneWidget); // 아직 세 수뿐: 내 3이 보임
+    await t.pump(const Duration(milliseconds: 1250)); // 봇3 — 네 번째 수
+    expect(find.byKey(const ValueKey('play-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('play-0')), findsNothing); // 내 3은 사라짐
+    expect(find.byKey(const ValueKey('play-1')), findsOneWidget); // 봇1의 5까지 보임
+    await settle(t);
+    expect(find.byKey(const ValueKey('play-0')), findsNothing); // 서버 상태로 맞춘 뒤에도
+  });
+
+  testWidgets('a seat that played twice in the last three keeps its tile; the older seat goes', (t) async {
+    // 0·1·2·(3 패스)·0·(1 패스)·2 → 최근 세 수는 2·0·2 → 1번 패는 사라져야 함
+    final ev = [
+      for (final (seat, c) in [(0, 'c3'), (1, 'c5'), (2, 'c7'), (3, null), (0, 'c9'), (1, null), (2, 'c10')])
+        {
+          'seat': seat,
+          'tiles': c == null ? null : [c],
+        },
+    ];
+    final v = {
+      ...view(events: ev),
+      'table': ['c10'],
+      'last': 2,
+      'counts': [11, 12, 11, 13],
+      'plays': [
+        ['c9'],
+        null,
+        ['c10'],
+        null,
+      ],
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
+    await t.pumpWidget(_app(api));
+    await t.pump();
+    for (var k = 0; k < 14; k++) {
+      await t.pump(const Duration(milliseconds: 70));
+    }
+    await t.pump(const Duration(milliseconds: 1500)); // 시작 카드
+    for (var k = 0; k < 45; k++) {
+      await t.pump(const Duration(milliseconds: 100)); // 봇 장면 끝까지(서버 동기화 전)
+    }
+    expect(find.byKey(const ValueKey('play-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('play-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('play-1')), findsNothing);
+    await settle(t);
+  });
+
+  testWidgets('my play drawn at once and echoed by the server counts once', (t) async {
+    // 봇 1·2·3이 낸 뒤 내가 내고 봇 1이 냄 → 최근 세 수는 3·0·1 → 봇 3 패는 남고 봇 2 패만 사라짐
+    final start = {
+      ...view(),
+      'table': ['c2'],
+      'last': 3,
+      'plays': [
+        null,
+        ['l1'],
+        ['s1'],
+        ['c2'],
+      ],
+    };
+    final after = {
+      ...view(
+        events: [
+          {
+            'seat': 0,
+            'tiles': ['m1'],
+          },
+          {
+            'seat': 1,
+            'tiles': ['l5'],
+          },
+        ],
+      ),
+      'hand': ['s3'],
+      'counts': [1, 12, 13, 13],
+      'table': ['l5'],
+      'last': 1,
+      'plays': [
+        ['m1'],
+        ['l5'],
+        null,
+        ['c2'],
+      ],
+    };
+    var calls = 0;
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(++calls == 1 ? start : after), 200)));
+    await t.pumpWidget(_app(api));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('hand-m1')));
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, 'Play'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100)); // 응답·봇 1 장면(동기화 전)
+    expect(find.byKey(const ValueKey('play-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('play-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('play-2')), findsNothing);
+    await settle(t);
+  });
+
   testWidgets('bot passes leave a bubble on that seat', (t) async {
     final v = {
       ...view(),

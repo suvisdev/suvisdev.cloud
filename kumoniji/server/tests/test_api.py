@@ -178,7 +178,8 @@ def test_seat_plays_and_passed_follow_the_round():
         g.play(seat, [t])
     from kumoniji import api
 
-    assert api.view("x", g, [])["plays"] == [["c2"], ["c3"], ["c4"], ["c5"]]
+    # 최근 세 수만 — 0번의 첫 수(솜2)는 4수 전이라 지운다
+    assert api.view("x", g, [])["plays"] == [None, ["c3"], ["c4"], ["c5"]]
 
     g.play(0, None)
     g.play(1, None)
