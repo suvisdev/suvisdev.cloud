@@ -1,0 +1,24 @@
+# 쿠모니지 전용 Postgres(계정·세션). suvisdev 운영 DB와 완전히 분리된 컨테이너·볼륨.
+# 실행: docker compose -p kumoniji --env-file kumoniji/.env -f kumoniji/db/docker-compose.yaml up -d  (저장소 루트에서)
+# 볼륨을 지우는 명령(down -v)은 쓰지 않는다 — 계정 데이터가 사라진다.
+# 5433은 arda-test-db가 쓰므로 5434. 파드는 host.docker.internal(10.42.0.1):5434로 붙는다.
+services:
+  db:
+    image: postgres:16.10-alpine
+    container_name: kumoniji-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kumoniji
+      POSTGRES_USER: kumoniji
+      POSTGRES_PASSWORD: ${KUMONIJI_DB_PASSWORD:?kumoniji/.env에 KUMONIJI_DB_PASSWORD가 필요}
+    ports:
+      - "5434:5432"
+    volumes:
+      - kumoniji_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kumoniji -d kumoniji"]
+      interval: 10s
+      retries: 5
+volumes:
+  kumoniji_db_data:
+    name: kumoniji_db_data

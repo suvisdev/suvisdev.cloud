@@ -103,6 +103,52 @@
 - 원인: pre-commit 구조 검사 훅이 도커 컨테이너(root)에서 `lint-imports`를 돌려 마운트된 `suvisdev/.import_linter_cache`를 root 소유로 만듦.
 - 고침: 훅에 `lint-imports --no-cache`. 같은 명령으로 실행해 7 kept·root 소유 파일 0 확인. 남은 폴더 6개는 같은 이미지로 `rm -rf`해 정리.
 
+### 추가: 쿠모니지 계정(로그인) 서버·앱 — 계획 B(브랜치 `feat/kumoniji-accounts`)
+- 사용자: 멀티 진행 전에 로그인부터, SECURITY.md 1·2절 전부. 싱글도 로그인 필수·자동 로그인 유지(ADR-0017), 별도 Postgres, 메일은 아침 메일 Gmail.
+- DB: `kumoniji/db/docker-compose.yaml`(postgres:16.10-alpine, `kumoniji-db`, :5434 — 5433은 arda-test-db, 볼륨 `kumoniji_db_data`, `down -v` 금지). `accounts/migrations/001_accounts.sql` 표 9개. CI는 postgres 서비스 컨테이너.
+- 서버 `server/kumoniji/accounts/`:
+  - `passwords`(argon2id m64MiB·t8 ≈0.28초, 동시 2, HIBP 패딩, 더미 해시로 시간 맞춤), `tokens`(해시만·원자 소비·버전 결속, 보호 링크만 버전 예외).
+  - `limits`(지연 2^(n-5)초·분당 예산·Turnstile), `sessions`(JWT 15분, 리프레시 회전·재사용 시 전부 폐기, 유휴 30일).
+  - `service`(가입·인증·선점 회수·로그인·재설정·변경·주소 변경·보호·탈퇴·재삭제), `google`(PKCE·state·nonce, 연결·해제·재인증 auth_time), `mfa`(TOTP Fernet 암호화·재사용 차단·복구 코드).
+  - `web`(쿠키·CSRF·Origin, 앱은 Bearer), `mail`(큐 스레드·Gmail).
+- `api.py`: 게임 API에 로그인 필수, 판은 만든 계정만(남은 404), 생성 제한 계정당. 1시간마다 미인증 24시간 정리·탈퇴 재적용·시도 기록 정리. 보안 머리글(CSP 차단 모드·frame-ancestors none·no-store), 메일 링크 4경로에서 앱 index.html.
+- 앱: `auth.dart`(모든 요청 공용 클라이언트 — 웹 CSRF, 401이면 리프레시 한 번 후 재시도), `auth_screens.dart`(시작 관문·로그인·가입·찾기·메일 링크·MFA), `account_screen.dart`(비밀번호·이메일·MFA·구글·로그아웃·삭제, 최근 인증 요구 시 비밀번호 재확인/구글 재인증), `web_nav*.dart`(웹 이동·주소 정리·Turnstile), 문구 영·일·한 65개.
+- 배포: `deploy.sh`가 `kumoniji/.env`→Secret `kumoniji-env`(시험용 키 제외), `--no-web-resources-cdn`. `k8s.yaml` envFrom·hostAliases(10.42.0.1)·메모리 512Mi·SA 토큰 미마운트.
+- `kumoniji/.env`에 아침 메일 SMTP 값 복사(값 비표시, Gmail 로그인만 확인 — 발송 없음).
+
+### 오류·막힌 점(계정)
+- 로그인 실패 6번째에도 지연이 안 걸림: 서비스 예외가 트랜잭션을 롤백해 실패 기록까지 사라짐 → 실패·지연 예외는 커밋 후 응답, 입력 오류는 롤백(토큰이 닳지 않게)으로 나눔.
+- 없는 계정 로그인이 0.016초(있는 계정 0.28초)로 갈림 — 테스트 순서에 따라: 앞 테스트가 빠른 해시 설정일 때 더미 해시가 만들어져 캐시에 남음 → 해시 설정이 바뀌면 더미도 다시 만들도록.
+- `@app.get("/{page}")`로 메일 링크를 받으면 `/main.dart.js`까지 가로챔 → 네 경로만 등록.
+- CSP 차단 모드 실브라우저 시험: `base-uri 'none'`이 Flutter `<base href="/">`를 막음 → `'self'`.
+- 메일 링크 화면에서 `history.replaceState(null, …)`가 Flutter 기록 관리와 충돌해 페이지 오류 → Flutter의 상태 객체를 그대로 두고 주소만 교체(첫 프레임 뒤), 오류 0·주소 `/` 확인.
+- `FastAPI Depends(session_of)`는 기본값 인자가 쿼리 파라미터가 되어 `?allow_pre_mfa=true`로 우회될 수 있음 → 의존성은 요청만 받는 `player()`만.
+- 헤드리스 셸 크롬이 libasound 없음 → `apt-get download` + `dpkg -x`로 풀어 `LD_LIBRARY_PATH`(sudo 없이).
+- Codex 리뷰 지적 2건(둘 다 수정 전 실패하는 회귀 테스트 추가)
+  - 리프레시 재사용을 탐지해도 예외를 트랜잭션 밖에서 잡아 전 세션 폐기가 롤백됨 → 안에서 잡아 커밋.
+  - 두 번째 탭이 `/csrf`로 쿠키를 새로 받으면 첫 탭이 403 → 쿠키가 있으면 같은 값을 돌려줌.
+- Codex 재리뷰 지적 3건
+  - 여러 탭이 동시에 같은 리프레시를 보내면 탈취로 오판해 전부 로그아웃 → 같은 세션이 30초 안에 방금 회전했으면 폐기 없이 409, 앱이 공유 쿠키로 다시 시도.
+  - Turnstile 위젯이 다시 그릴 때마다 새로 만들어져 확인이 반복 → 한 번만 만들고 실패 뒤에만 새로.
+  - 앱엔 Turnstile이 없어 공유 IP에서 막힘 → 앱은 사람 확인 대신 IP 지연만(출시 전 앱용 확인 필요).
+- Codex 세 번째 지적: 틀린 MFA 코드·재인증 비밀번호(401 credentials)도 갱신 후 다시 보내 실패가 두 번 쌓임 → `code: session`인 401만 갱신. 첫 테스트는 리프레시 토큰이 없어 수정 전에도 통과했음 → 로그인한 상태로 고쳐 실패 확인.
+- Codex 네 번째 지적: 409가 다른 탭의 새 쿠키보다 먼저 오면 재시도가 또 401 → 1초 기다린 뒤 재시도. Turnstile 스크립트가 아직 로딩 중일 때 위젯을 다시 만들면 render가 너무 일러 안 보임 → 스크립트 로딩 완료(Future)를 기다려 그림. Cloudflare 시험 키로 실브라우저에서 사람 확인 표시·통과·로그인까지 확인.
+- Codex 다섯 번째 지적: "이미 가입된 주소" 메일의 `/forgot` 링크가 404 → 서버 링크 경로에 추가, 앱은 그 경로로 열리면 비밀번호 찾기 화면.
+- Codex 여섯 번째 지적: 구글 연결 콜백이 시작한 세션을 다시 보지 않아, 탈취 세션으로 시작한 연결이 전체 로그아웃 뒤에도 완료됨 → 흐름에 세션 id를 넣고 콜백에서 폐기·최근 인증·MFA 확인(수정 전 실패 확인). 동시 첫 요청이 CSRF를 따로 받아 403 → 받는 Future 하나를 공유.
+- Codex 일곱 번째 지적: 같은 계정·목적 토큰을 동시에 발급하면 서로의 미커밋 토큰을 못 봐 둘 다 유효 → 발급 때 계정 행을 `FOR UPDATE`로 잠가 줄 세움(커밋 전 대기하는 결정적 동시성 테스트, 수정 전 실패 확인).
+- Codex 여덟 번째 지적: 첫 CSRF 요청이 실패하면 실패한 Future가 남아 새로고침 전까지 모든 변경 요청이 막힘 → 실패하면 비우고 다음에 다시 받음.
+- Codex 아홉 번째 지적: 재사용 감지가 직전 토큰(prev_hash) 하나만 봐서, 주인이 두 번 갱신한 뒤 탈취 토큰을 쓰면 감지 못 함 → `002_spent_refresh.sql`로 회전 이력 표(30일 보관, 1시간 정리 작업)를 만들고 prev_hash 열 삭제. 새 테스트의 수정 전 실패는 옛 스키마가 필요해 돌리지 않았다(옛 코드는 prev_hash가 두 번째 토큰으로 바뀌어 None을 돌려줌 — 코드로 확인).
+- Codex 열 번째 지적: 두 탭이 처음에 CSRF 값을 따로 받으면 덮인 쪽 탭의 POST가 계속 403 → 403 csrf면 기억한 값을 버리고 지금 쿠키 값을 다시 받아 한 번 재시도. 브라우저 테스트(`flutter test --platform chrome`, headless shell)가 첫 구현의 버그(끝난 요청 Future를 다시 씀)를 잡아 고침.
+- Codex 열한 번째 지적: 같은 구글 계정 첫 로그인이 동시에 오면 고유 제약 충돌로 500 → sub별 advisory 잠금, 이메일 충돌(동시 일반 가입)은 savepoint로 잡아 이메일 없이 생성(수정 전 실패 확인).
+- Codex 열두 번째 지적: 로그인 요청은 재시도 제외 목록이라 403 csrf 복구도 안 됨 → 제외 목록은 401 갱신에만 적용(CSRF 거절은 비밀번호 확인 전이라 실패가 안 쌓임).
+- 회귀 확인 중 `git stash -- <새 파일>` 뒤 실수로 `stash drop` → `web.py`가 빔. `git fsck --unreachable`로 버려진 stash 커밋을 찾아 복구. 이후 실패 확인은 파일 복사본으로만.
+- 실브라우저 첫 시험에서 가입은 통과·인증은 "유출된 비밀번호"로 갈림 — 빠른 입력에서 글자가 빠졌던 것. 고유 문구 + 느린 입력, 로그인 성공으로 정확히 들어간 것을 확인.
+
+### 산출물(계정)
+- 서버 테스트 213(실제 Postgres, 변이 확인: 동시 소비·보호 링크 버전 예외), 앱 28, 실브라우저(가입→메일 링크→비밀번호→로그인→새로고침 유지→싱글 판, CSP 위반 0).
+- `kumoniji/_docs/security-verification.md`, ADR-0019. **머지 보류**: Turnstile 키·마이그레이션(새 DB)·Secret 반영이 먼저.
+- 사용자 질문 답: 러시안룰렛은 같은 서버·계정, 이름·하위 도메인은 따로(쿠모니지 완성 뒤).
+
 ## 2026-11-19
 
 ### 작업 내용

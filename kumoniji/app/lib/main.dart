@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/app_localizations.dart';
-import 'home_screen.dart';
+import 'auth_screens.dart';
 import 'settings.dart';
 import 'tile.dart';
 
@@ -34,7 +34,7 @@ class KumonijiApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFF2A7C3)),
         scaffoldBackgroundColor: const Color(0xFFFFF9EC),
       ),
-      home: const HomeScreen(),
+      home: const AuthGate(),
     ),
   );
 }

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
+import 'auth.dart';
+
 /// 한 자리가 낸 패. tiles가 null이면 패스.
 class Play {
   final int seat;
@@ -75,7 +77,7 @@ class Api {
   /// 웹은 같은 주소(서버가 앱을 냄), 휴대폰 앱은 운영 서버. 개발 때는 --dart-define=API=http://localhost:8300
   static const base = String.fromEnvironment('API', defaultValue: kIsWeb ? '' : 'https://kumoniji.suvisdev.cloud');
   final http.Client client;
-  Api([http.Client? client]) : client = client ?? http.Client();
+  Api([http.Client? client]) : client = client ?? Auth.client;
 
   Future<GameState> newGame([String level = 'normal']) => _send(
     client.post(_uri('/api/games'), headers: {'content-type': 'application/json'}, body: jsonEncode({'level': level})),
@@ -93,6 +95,7 @@ class Api {
 
   Future<GameState> _send(Future<http.Response> req) async {
     final r = await req;
+    if (r.statusCode == 401) Auth.me.value = null; // 세션이 끝남(리프레시도 실패) → 로그인 화면으로
     if (r.statusCode != 200) {
       String? code;
       try {

@@ -1,0 +1,190 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:kumoniji/auth.dart';
+import 'package:kumoniji/auth_screens.dart';
+import 'package:kumoniji/l10n/app_localizations.dart';
+import 'package:kumoniji/tile.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'table_screen_test.dart' show settle;
+
+const me = {'id': 1, 'email': 'me@x.com', 'nickname': 'me', 'mfa_enabled': false, 'mfa_passed': true};
+
+Widget _app(Uri start) => MaterialApp(
+  locale: const Locale('en'),
+  localizationsDelegates: const [
+    AppLocalizations.delegate,
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ],
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: AuthGate(start: start),
+);
+
+/// 가짜 서버: 경로 → 응답. 받은 요청은 sent에 쌓는다.
+List<http.Request> fake(Map<String, http.Response Function(http.Request)> routes) {
+  final sent = <http.Request>[];
+  Auth.client = AuthClient(
+    MockClient((r) async {
+      sent.add(r);
+      return (routes[r.url.path] ?? (_) => http.Response('{"detail":{"code":"session"}}', 401))(r);
+    }),
+  );
+  return sent;
+}
+
+http.Response ok(Object body) => http.Response(jsonEncode(body), 200);
+http.Response err(int status, String code) => http.Response(
+  jsonEncode({
+    'detail': {'code': code},
+  }),
+  status,
+);
+
+void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    markTilesReady();
+    Auth.me.value = null;
+  });
+
+  testWidgets('not logged in → login screen; wrong password shows the reason', (t) async {
+    fake({
+      '/api/auth/config': (_) => ok({'google': false, 'turnstile_site': ''}),
+      '/api/auth/login': (_) => err(401, 'credentials'),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await settle(t);
+    expect(find.byKey(const ValueKey('login')), findsOneWidget);
+    await t.enterText(find.byKey(const ValueKey('email')), 'me@x.com');
+    await t.enterText(find.byKey(const ValueKey('password')), 'nope');
+    await t.tap(find.byKey(const ValueKey('login')));
+    await settle(t);
+    expect(find.text('Wrong email or password.'), findsOneWidget);
+  });
+
+  testWidgets('successful login goes to the home screen (stays logged in via /me)', (t) async {
+    var loggedIn = false;
+    fake({
+      '/api/auth/config': (_) => ok({'google': false}),
+      '/api/auth/login': (_) {
+        loggedIn = true;
+        return ok({'verified': true, 'mfa_required': false, 'access': 'a', 'refresh': 'r'});
+      },
+      '/api/auth/me': (_) => loggedIn ? ok(me) : err(401, 'session'),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await settle(t);
+    await t.enterText(find.byKey(const ValueKey('email')), 'me@x.com');
+    await t.enterText(find.byKey(const ValueKey('password')), 'correct horse battery');
+    await t.tap(find.byKey(const ValueKey('login')));
+    await settle(t);
+    expect(find.text('Single player'), findsOneWidget);
+  });
+
+  testWidgets('MFA-pending session shows the code screen first', (t) async {
+    fake({
+      '/api/auth/me': (_) => ok({...me, 'mfa_enabled': true, 'mfa_passed': false}),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await settle(t);
+    expect(find.byKey(const ValueKey('mfa-code')), findsOneWidget);
+    expect(find.text('Single player'), findsNothing);
+  });
+
+  testWidgets('verify link: opening it only checks; pressing confirm sends token + new password', (t) async {
+    final sent = fake({
+      '/api/auth/verify/check': (_) => ok({'valid': true}),
+      '/api/auth/verify': (_) => ok({'status': 'verified'}),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/verify?token=tok123')));
+    await settle(t);
+    expect(sent.every((r) => r.method == 'GET'), isTrue); // 여는 것만으로는 토큰을 쓰지 않는다
+    expect(sent.map((r) => r.url.path), contains('/api/auth/verify/check'));
+    await t.enterText(find.byKey(const ValueKey('link-pw')), 'correct horse battery');
+    await t.tap(find.byKey(const ValueKey('link-go')));
+    await settle(t);
+    final post = sent.firstWhere((r) => r.url.path == '/api/auth/verify');
+    expect(jsonDecode(post.body), {'token': 'tok123', 'password': 'correct horse battery'});
+    expect(find.text('Verified. Please log in.'), findsOneWidget);
+  });
+
+  testWidgets('the /forgot link from the "already registered" mail opens password reset', (t) async {
+    fake({
+      '/api/auth/config': (_) => ok({'google': false}),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/forgot')));
+    await settle(t);
+    expect(find.text('Forgot password?'), findsOneWidget); // 찾기 화면 제목
+    expect(find.byKey(const ValueKey('login')), findsNothing);
+  });
+
+  testWidgets('used or expired link says so', (t) async {
+    fake({
+      '/api/auth/reset/check': (_) => ok({'valid': false}),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/reset?token=old')));
+    await settle(t);
+    expect(find.text('This link has expired or was already used.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('link-go')), findsNothing);
+  });
+
+  test('401 refreshes once, then retries with the new access token', () async {
+    var refreshes = 0;
+    final sent = fake({
+      '/api/auth/login': (_) => ok({'verified': false, 'access': 'old', 'refresh': 'r1'}),
+      '/api/auth/refresh': (r) {
+        refreshes++;
+        expect(jsonDecode(r.body), {'refresh': 'r1'});
+        return ok({'access': 'new', 'refresh': 'r2'});
+      },
+      '/api/games': (r) => r.headers['authorization'] == 'Bearer new' ? ok({}) : err(401, 'session'),
+    });
+    await Auth.login('me@x.com', 'pw');
+    final r = await Auth.client.post(Uri.parse('/api/games'));
+    expect(r.statusCode, 200);
+    expect(refreshes, 1);
+    expect(sent.where((r) => r.url.path == '/api/games').length, 2);
+  });
+
+  test('another tab already refreshed (409) → retry with the shared cookie, no logout', () async {
+    var games = 0;
+    fake({
+      '/api/auth/login': (_) => ok({'verified': false, 'access': 'old', 'refresh': 'r1'}),
+      '/api/auth/refresh': (_) => http.Response('{"code":"rotated"}', 409),
+      '/api/games': (_) => ++games == 1 ? err(401, 'session') : ok({}),
+    });
+    Auth.client.raceWait = Duration.zero;
+    await Auth.login('me@x.com', 'pw');
+    expect((await Auth.client.post(Uri.parse('/api/games'))).statusCode, 200);
+    expect(games, 2);
+  });
+
+  test('wrong MFA code (401 credentials) is sent once — no refresh, no second failure', () async {
+    var refreshes = 0;
+    final sent = fake({
+      '/api/auth/refresh': (_) {
+        refreshes++;
+        return ok({'access': 'a', 'refresh': 'r'});
+      },
+      '/api/auth/mfa/verify': (_) => err(401, 'credentials'),
+      '/api/auth/login': (_) => ok({'verified': false, 'access': 'a0', 'refresh': 'r0'}),
+    });
+    await Auth.login('me@x.com', 'pw'); // 리프레시 토큰을 가진 상태
+    await expectLater(Auth.mfaVerify('000000'), throwsA(isA<AuthError>().having((e) => e.code, 'code', 'credentials')));
+    expect(sent.where((r) => r.url.path == '/api/auth/mfa/verify').length, 1);
+    expect(refreshes, 0);
+  });
+
+  test('failed refresh means logged out (no retry loop)', () async {
+    fake({'/api/auth/refresh': (_) => err(401, 'session')});
+    final r = await Auth.client.post(Uri.parse('/api/games'));
+    expect(r.statusCode, 401);
+  });
+}

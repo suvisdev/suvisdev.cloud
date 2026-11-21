@@ -1,5 +1,10 @@
 # 쿠모니지 계정 — SECURITY.md 1·2절 전부 (계획 B)
 
+> **상태(11-21):** 서버·웹 앱 구현 완료, 검증 기록은 `../security-verification.md`. 계획과 다른 점은 아래 3가지(`security-verification.md` 예외 표에 정리).
+> - 휴대폰 앱의 Keystore 보관·google_sign_in·MFA QR은 안드로이드 출시 전으로 미뤘다.
+> - 웹 구글 로그인은 서버 리디렉트 방식으로 했다.
+> - 기기 목록은 API만 만들었다.
+
 **Goal:** 이메일 가입·구글 로그인·세션·MFA·복구·주소 변경·새 기기 알림·탈퇴를 SECURITY.md 1·2절(검증 1~13)대로 만들고, **싱글·멀티 모두 로그인한(인증된) 사람만** 쓰게 한다.
 
 **Architecture:** 쿠모니지 서버(FastAPI) 안에 `accounts/` 패키지를 둔다(별도 서비스 X — 파드 하나 유지). 상태는 **새 Postgres 컨테이너**(`kumoniji-db`)에만 둔다. Redis는 쓰지 않는다(SECURITY 12: Redis를 유일한 폐기·시도 제한 저장소로 쓰지 말 것 → 시도 제한도 Postgres). SQL은 psycopg 3로 직접 쓰고, 마이그레이션은 번호 붙은 `.sql` 파일을 시작 때 적용한다(ORM·alembic 없음). 웹은 `__Host-` 쿠키, 앱은 보안 저장소의 리프레시 토큰.
