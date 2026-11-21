@@ -1,10 +1,20 @@
 import random
 
+import pytest
 from fastapi.testclient import TestClient
 
+from kumoniji.accounts.web import player
 from kumoniji.api import Room, app
 
 c = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _signed_in():
+    """게임 규칙 테스트는 로그인한 계정 0번으로 친다(인증 자체는 tests/accounts/test_web.py)."""
+    app.dependency_overrides[player] = lambda: {"account_id": 0}
+    yield
+    app.dependency_overrides.clear()
 
 
 def test_play_one_full_game():
@@ -103,21 +113,21 @@ def test_full_store_evicts_least_recently_used(monkeypatch):
     assert c.get(f"/api/games/{ids[1]}").status_code == 404
 
 
-def test_create_rate_limit_per_ip(monkeypatch):
+def test_create_rate_limit_per_account(monkeypatch):
     from kumoniji import api
 
     monkeypatch.setattr(api, "CREATE_PER_MIN", 2)
     api.CREATES.clear()
-    h = {"cf-connecting-ip": "203.0.113.9"}
-    assert [c.post("/api/games", headers=h).status_code for _ in range(3)] == [
-        200,
-        200,
-        429,
-    ]
-    assert (
-        c.post("/api/games", headers={"cf-connecting-ip": "203.0.113.10"}).status_code
-        == 200
-    )
+    assert [c.post("/api/games").status_code for _ in range(3)] == [200, 200, 429]
+    app.dependency_overrides[player] = lambda: {"account_id": 7}  # 다른 계정은 따로
+    assert c.post("/api/games").status_code == 200
+
+
+def test_other_account_cannot_see_or_play_my_game():
+    v = c.post("/api/games").json()
+    app.dependency_overrides[player] = lambda: {"account_id": 99}
+    assert c.get(f"/api/games/{v['id']}").status_code == 404
+    assert c.post(f"/api/games/{v['id']}/moves", json={"tiles": []}).status_code == 404
 
 
 def test_suit_order_and_playable_and_reason():
@@ -195,7 +205,10 @@ def test_human_auto_passes_when_nothing_beats_table():
         turn=3,
     )
     g.play(3, [("솜", 6)])
-    g.table, g.passes = [("산", 13)], 2  # 3번이 산13, 1·2번은 이미 패스 → 다음은 사람(0번)
+    g.table, g.passes = (
+        [("산", 13)],
+        2,
+    )  # 3번이 산13, 1·2번은 이미 패스 → 다음은 사람(0번)
     g.turn = 0
     events = []
     api.run_bots(g, random.Random(0), events)
@@ -241,10 +254,22 @@ def test_can_beat_by_size():
     assert not can_beat(straight, [("솜", 2), ("잎", 3), ("벚", 4), ("산", 5)])
 
 
-def test_web_files_are_revalidated():
-    """웹 파일은 배포마다 이름이 같아 캐시되면 옛 앱이 남는다 → no-cache. API는 건드리지 않는다."""
+def test_web_files_are_revalidated_and_api_is_never_stored():
+    """웹 파일은 배포마다 이름이 같아 캐시되면 옛 앱이 남는다 → no-cache.
+    API는 인증·개인정보 응답이라 브라우저·CDN 어디에도 남지 않게 no-store(SECURITY 검증 27)."""
     assert c.get("/main.dart.js").headers["cache-control"] == "no-cache"
-    assert "cache-control" not in c.get("/api/games/nope").headers
+    assert c.get("/api/games/nope").headers["cache-control"] == "no-store"
+
+
+def test_security_headers_on_every_response():
+    for path in ("/", "/api/games/nope"):
+        h = c.get(path).headers
+        assert "frame-ancestors 'none'" in h["content-security-policy"]
+        assert "object-src 'none'" in h["content-security-policy"]
+        assert (
+            h["x-frame-options"] == "DENY" and h["x-content-type-options"] == "nosniff"
+        )
+        assert h["referrer-policy"] == "no-referrer"
 
 
 def test_level_is_chosen_per_game():
@@ -269,9 +294,34 @@ def test_human_can_pass_as_leader():
     from kumoniji import api
     from kumoniji.game import Game
 
-    g = Game(hands=[[("솜", 1), ("잎", 9)], [("잎", 4), ("잎", 2)], [("잎", 5)], [("잎", 6)]], today="잎", turn=0)
+    g = Game(
+        hands=[
+            [("솜", 1), ("잎", 9)],
+            [("잎", 4), ("잎", 2)],
+            [("잎", 5)],
+            [("잎", 6)],
+        ],
+        today="잎",
+        turn=0,
+    )
     api.GAMES["lead"] = Room(g, random.Random(1))
     r = c.post("/api/games/lead/moves", json={"tiles": []})
     assert r.status_code == 200
     assert r.json()["events"][0] == {"seat": 0, "tiles": None}
     assert r.json()["events"][1]["seat"] == 1  # 1번이 선이 되어 낸다
+
+
+def test_mail_link_pages_serve_the_app_and_static_files_still_work(
+    tmp_path, monkeypatch
+):
+    from kumoniji import api
+
+    (tmp_path / "index.html").write_text("<html>app</html>")
+    monkeypatch.setattr(api, "WEB", tmp_path)
+    for page in ("verify", "reset", "email", "protect", "forgot"):
+        r = c.get(f"/{page}?token=abc")
+        assert r.status_code == 200 and "app" in r.text
+        assert (
+            r.headers["referrer-policy"] == "no-referrer"
+        )  # 토큰이 든 주소가 밖으로 새지 않게
+    assert c.get("/nothing-here").status_code == 404

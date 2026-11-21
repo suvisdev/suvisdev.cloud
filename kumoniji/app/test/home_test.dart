@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kumoniji/api.dart';
+import 'package:kumoniji/auth.dart';
 import 'package:kumoniji/home_screen.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/main.dart';
@@ -80,6 +81,14 @@ void main() {
   });
 
   testWidgets('options: language switches the whole app and is remembered; vibration and volume saved', (t) async {
+    // 로그인된 계정으로 시작(쿠키·토큰이 살아 있는 상태)
+    Auth.client = AuthClient(
+      MockClient(
+        (r) async => r.url.path == '/api/auth/me'
+            ? http.Response(jsonEncode({'id': 1, 'email': 'me@x.com', 'nickname': 'me'}), 200)
+            : http.Response('{}', 404),
+      ),
+    );
     await t.pumpWidget(const KumonijiApp());
     await settle(t);
     await t.tap(find.byIcon(Icons.settings));

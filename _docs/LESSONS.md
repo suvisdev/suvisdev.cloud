@@ -12,6 +12,10 @@
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ✅ | kumoniji | 11-21 | 탈취된 리프레시 재사용을 탐지해도 다른 세션이 살아 있음(Codex 지적) | 탐지 예외를 `db.tx()` 밖에서 잡아 폐기·버전 증가가 롤백 — 단위 테스트는 트랜잭션 안이라 못 봄 | 트랜잭션 안에서 잡아 커밋, HTTP 경로 회귀 테스트(수정 전 실패 확인) · 근거 WORK_LOG_MAINPAGE 11-21 |
+| ✅ | kumoniji | 11-21 | 로그인 6번째 실패에도 지연이 안 걸림 | 거절 예외가 트랜잭션을 롤백해 실패 기록까지 지움 | 실패·지연 예외는 커밋 후 응답, 입력 오류만 롤백 · 근거 WORK_LOG_MAINPAGE 11-21 |
+| ✅ | kumoniji | 11-21 | 없는 계정 로그인만 0.016초(있으면 0.28초)로 갈려 계정 유무가 드러남 | 더미 해시를 처음 한 번만 만들어 캐시 — 다른 해시 설정으로 만들어지면 계속 싼 비용 | 해시 설정이 바뀌면 더미도 다시 만듦, 시간 차 테스트 통과 · 근거 WORK_LOG_MAINPAGE 11-21 |
+| ✅ | kumoniji | 11-21 | 메일 링크 화면을 열면 페이지 오류 | `history.replaceState(null)`이 Flutter가 기록에 둔 상태 객체를 지움 | 상태 객체를 그대로 두고 주소만 교체(첫 프레임 뒤), 실브라우저로 오류 0 확인 · 근거 WORK_LOG_MAINPAGE 11-21 |
 | ✅ | 하네스 | 11-21 | 머지 뒤 worktree가 Permission denied로 안 지워짐 | 커밋 훅의 도커(root) import-linter가 `.import_linter_cache`를 root 소유로 생성 | 훅에 `--no-cache`, 실행 후 root 파일 0 확인 · 근거 WORK_LOG_MAINPAGE 11-21 |
 | ✅ | kumoniji | 11-21 | 규칙 변경 뒤 `test_errors`가 3번에 1번꼴로 실패 | 사람이 무작위로 선이 된 판에서만 "선 패스 422"를 검사하던 옛 단언 — 고정 시드가 아니라 가끔만 걸림 | 단언 삭제·고정된 판으로 새 테스트, 3회 반복 통과 · 근거 WORK_LOG_MAINPAGE 11-21 |
 | ✅ | kumoniji | 11-21 | 배포 뒤에도 브라우저가 옛 앱을 씀 | 서버의 `no-cache`를 Cloudflare 브라우저 캐시 TTL(4시간)이 `max-age=14400`으로 덮음(index.html만 유지) | 대시보드에서 Respect Existing Headers로 변경, curl로 no-cache 확인 · 근거 WORK_LOG_MAINPAGE 11-21 |

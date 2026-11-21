@@ -21,6 +21,19 @@ jobs:
   server:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # 계정 테스트는 실제 Postgres에 임시 DB를 만들었다 지운다(tests/accounts/conftest.py)
+    services:
+      postgres:
+        image: postgres:16.10-alpine
+        env:
+          POSTGRES_USER: kumoniji
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: kumoniji
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kumoniji" --health-interval 5s --health-retries 10
+    env:
+      KUMONIJI_TEST_DATABASE_URL: postgresql://kumoniji:ci@127.0.0.1:5432/postgres
     defaults:
       run:
         working-directory: kumoniji/server

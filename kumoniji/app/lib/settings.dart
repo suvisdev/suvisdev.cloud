@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'account_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'level.dart';
 
@@ -97,6 +98,13 @@ class OptionsScreen extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 480),
           child: ListView(
             children: [
+              ListTile(
+                key: const ValueKey('account'),
+                leading: const Icon(Icons.account_circle),
+                title: Text(t.account),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountScreen())),
+              ),
+              const Divider(),
               ListTile(
                 key: const ValueKey('language'),
                 leading: const Icon(Icons.language),
