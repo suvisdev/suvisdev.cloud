@@ -100,5 +100,8 @@
   "vibration": "Vibration",
   "vibrationDesc": "Vibrate when it's your turn",
   "leaveConfirm": "Quit this game and leave?",
-  "leave": "Leave"
+  "leave": "Leave",
+  "gameStart": "Game start!",
+  "goesFirst": "{name} goes first",
+  "@goesFirst": {"placeholders": {"name": {"type": "String"}}}
 }

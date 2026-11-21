@@ -41,14 +41,14 @@ void main() {
         home: TableScreen(api: api, showHelpOnFirstVisit: false),
       ),
     );
-    await t.pumpAndSettle();
+    await settle(t);
     expect(find.text('Your turn'), findsOneWidget);
     // 바닥이 비었으니 패스는 막혀 있다
     expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Pass')).onPressed, isNull);
     await t.tap(find.byKey(const ValueKey('hand-m1')));
     await t.pump();
     await t.tap(find.widgetWithText(FilledButton, 'Play'));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(paths, ['/api/games', '/api/games/a/moves']);
     expect(bodies.last, {
       'tiles': ['m1'],
@@ -60,7 +60,7 @@ void main() {
     var calls = 0;
     final api = Api(MockClient((r) async => ++calls == 1 ? http.Response(jsonEncode(view()), 200) : reply.future));
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     await t.tap(find.byKey(const ValueKey('hand-m1')));
     await t.pump();
     await t.tap(find.widgetWithText(FilledButton, 'Play'));
@@ -75,7 +75,7 @@ void main() {
         422,
       ),
     );
-    await t.pumpAndSettle();
+    await settle(t);
     expect(find.byKey(const ValueKey('hand-m1')), findsOneWidget);
   });
 
@@ -91,14 +91,14 @@ void main() {
       }),
     );
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     await t.tap(find.byKey(const ValueKey('hand-m1')));
     await t.pump();
     await t.tap(find.widgetWithText(FilledButton, 'Play'));
     await t.pump();
     expect(find.byKey(const ValueKey('hand-m1')), findsNothing);
     reply.completeError(Exception('offline'));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(find.byKey(const ValueKey('hand-m1')), findsOneWidget);
     expect(find.text('Your turn'), findsOneWidget);
   });
@@ -117,6 +117,44 @@ Widget _app(Api api) => MaterialApp(
 );
 
 void moreTests() {
+  testWidgets('new game shows the fresh board and a start card before the bots play', (t) async {
+    final api = Api(
+      MockClient(
+        (r) async => http.Response(
+          jsonEncode({
+            ...view(
+              events: [
+                {
+                  'seat': 3,
+                  'tiles': ['c1'],
+                },
+              ],
+            ),
+            'counts': [2, 13, 13, 12],
+            'plays': [
+              null,
+              null,
+              null,
+              ['c1'],
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    await t.pumpWidget(_app(api));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('start-card')), findsOneWidget); // 시작 카드
+    expect(find.text('×13'), findsNWidgets(3)); // 봇이 내기 전 13장씩
+    expect(find.byKey(const ValueKey('play-3')), findsNothing); // 아직 아무도 안 냄
+    await t.pump(const Duration(milliseconds: 1600));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('start-card')), findsNothing);
+    expect(find.byKey(const ValueKey('play-3')), findsOneWidget); // 봇 3이 솜사탕 1을 내는 장면
+    expect(find.text('×12'), findsOneWidget);
+    await settle(t);
+  });
+
   testWidgets('starts with the level chosen last time', (t) async {
     SharedPreferences.setMockInitialValues({'level': 'easy'});
     final bodies = <Object?>[];
@@ -127,7 +165,7 @@ void moreTests() {
       }),
     );
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(bodies, [
       {'level': 'easy'},
     ]);
@@ -142,21 +180,21 @@ void moreTests() {
       }),
     );
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(bodies, [
       {'level': 'normal'},
     ]); // 처음엔 중급
     expect(find.text('Kumoniji · Normal'), findsOneWidget);
     await t.tap(find.widgetWithText(TextButton, 'New game'));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(find.text('Quit this game and start a new one?'), findsOneWidget); // 진행 중이라 그만둘지 같이 묻는다
     await t.tap(find.text('Cancel'));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(bodies.length, 1);
     await t.tap(find.widgetWithText(TextButton, 'New game'));
-    await t.pumpAndSettle();
+    await settle(t);
     await t.tap(find.byKey(const ValueKey('level-hard')));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(bodies.last, {'level': 'hard'});
     expect(find.text('Kumoniji · Hard'), findsOneWidget);
   });
@@ -167,9 +205,9 @@ void moreTests() {
       MockClient((r) async => ++calls == 1 ? http.Response('', 503) : http.Response(jsonEncode(view()), 200)),
     );
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     await t.tap(find.widgetWithText(FilledButton, 'New game'));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(find.text('Your turn'), findsOneWidget);
   });
 
@@ -193,11 +231,11 @@ void moreTests() {
       }),
     );
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     await t.tap(find.byKey(const ValueKey('hand-m1')));
     await t.pump();
     await t.tap(find.widgetWithText(FilledButton, 'Play'));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(paths, ['POST /api/games', 'POST /api/games/a/moves', 'GET /api/games/a']);
     expect(find.byKey(const ValueKey('hand-m1')), findsNothing);
     expect(find.byKey(const ValueKey('hand-s3')), findsOneWidget);
@@ -221,7 +259,7 @@ void legalTests() {
       ),
     );
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     FilledButton play() => t.widget<FilledButton>(find.widgetWithText(FilledButton, 'Play'));
     expect(play().onPressed, isNull);
     await t.tap(find.byKey(const ValueKey('hand-s3'))); // 낼 수 없는 패 — 눌리지 않음
@@ -242,7 +280,7 @@ void legalTests() {
     };
     final api = Api(MockClient((r) async => http.Response(jsonEncode(done), 200)));
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     final names = t.widgetList<ListTile>(find.byType(ListTile)).map((e) => (e.title as Text).data).toList();
     expect(names, ['Bot 3', 'Bot 2', 'You', 'Bot 1']);
   });
@@ -268,7 +306,7 @@ void recentTests() {
     };
     final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(t.takeException(), isNull);
     for (final seat in [1, 2, 3]) {
       expect(find.byKey(ValueKey('play-$seat')), findsOneWidget);
@@ -293,9 +331,15 @@ void recentTests() {
     };
     final api = Api(MockClient((r) async => http.Response(jsonEncode(v), 200)));
     await t.pumpWidget(_app(api));
-    await t.pumpAndSettle();
+    await settle(t);
     expect(find.byKey(const ValueKey('passed-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('passed-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('passed-3')), findsNothing);
   });
+}
+
+/// 새 판 시작 카드(1.6초)가 지나가게 시간을 흘린 뒤 화면이 멈출 때까지 기다린다.
+Future<void> settle(WidgetTester t) async {
+  await t.pump(const Duration(seconds: 2));
+  await t.pumpAndSettle();
 }

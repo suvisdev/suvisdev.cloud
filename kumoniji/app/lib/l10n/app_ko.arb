@@ -72,5 +72,7 @@
   "vibration": "진동",
   "vibrationDesc": "내 차례가 오면 진동",
   "leaveConfirm": "지금 판을 그만두고 나갈까요?",
-  "leave": "나가기"
+  "leave": "나가기",
+  "gameStart": "게임 시작!",
+  "goesFirst": "{name} 먼저"
 }
