@@ -72,5 +72,7 @@
   "vibration": "バイブ",
   "vibrationDesc": "自分の番になったら振動",
   "leaveConfirm": "このゲームをやめて退出しますか？",
-  "leave": "退出"
+  "leave": "退出",
+  "gameStart": "ゲームスタート！",
+  "goesFirst": "{name}が先手"
 }

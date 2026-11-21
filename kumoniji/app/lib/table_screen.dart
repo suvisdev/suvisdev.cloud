@@ -42,6 +42,8 @@ class _TableScreenState extends State<TableScreen> {
   int? lead; // 지금 바닥에서 가장 센 패를 낸 자리
   String level = 'normal'; // 봇 난이도 — 마지막으로 고른 것을 기억
   bool busy = false;
+  List<int> shown = List.filled(4, 13); // 자리마다 보여 주는 남은 장수(봇 장면을 넘기며 줄인다)
+  int? intro; // 새 판 시작 카드를 보이는 동안 선(솜사탕 1을 가진 자리)
 
   @override
   void initState() {
@@ -71,12 +73,14 @@ class _TableScreenState extends State<TableScreen> {
     setState(() => busy = true);
     try {
       final next = await call;
+      if (s?.id != next.id) await _intro(next);
       for (final e in next.events) {
         if (!mounted) return;
         setState(() {
           if (e.tiles == null) {
             passed.add(e.seat);
           } else {
+            shown[e.seat] -= e.tiles!.length;
             passed.clear();
             plays[e.seat] = e.tiles;
             lead = e.seat;
@@ -188,7 +192,28 @@ class _TableScreenState extends State<TableScreen> {
     if (ok == true && mounted) Navigator.pop(context);
   }
 
+  /// 새 판: 서버는 사람 차례까지 봇 수를 미리 두고 보내므로, 그 수를 되돌린 시작 상태(13장씩·빈 바닥)를 먼저 그리고
+  /// "게임 시작" 카드를 보인 뒤 봇 수를 하나씩 보여 준다(이전엔 로딩 뒤나 이전 판 위에서 지나가 패가 미리 나가 있었다).
+  Future<void> _intro(GameState next) async {
+    final start = [...next.counts];
+    for (final e in next.events) {
+      start[e.seat] += e.tiles?.length ?? 0;
+    }
+    setState(() {
+      s = next;
+      gone.clear();
+      picked.clear();
+      flash = null;
+      _clearRound();
+      shown = start;
+      intro = next.events.isEmpty ? next.turn : next.events.first.seat;
+    });
+    await Future.delayed(const Duration(milliseconds: 1600));
+    if (mounted) setState(() => intro = null);
+  }
+
   void _sync(GameState g) {
+    shown = [...g.counts];
     gone.clear();
     passed = g.passed.toSet();
     plays = [...g.plays];
@@ -267,7 +292,7 @@ class _TableScreenState extends State<TableScreen> {
     final t = AppLocalizations.of(context)!;
     final g = s;
     // 봇이 내는 장면을 보여 주는 동안에는 그 봇이 차례다
-    final active = flash?.seat ?? (g == null || g.finished ? null : g.turn);
+    final active = intro ?? flash?.seat ?? (g == null || g.finished ? null : g.turn);
     return PopScope(
       canPop: g == null || g.finished,
       onPopInvokedWithResult: (didPop, _) {
@@ -295,147 +320,166 @@ class _TableScreenState extends State<TableScreen> {
                     ? const CircularProgressIndicator()
                     : FilledButton(onPressed: () => _apply(api.newGame(level)), child: Text(t.newGame)),
               )
-            : SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final tileW = min(56.0, (box.maxWidth - 32) / 7 - 4);
-                    final myTurn = active == 0 && !busy;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Column(
-                        children: [
-                          _SuitOrder(suits: g.suits, label: t.suitOrder),
-                          const SizedBox(height: 6),
-                          _Seat(
-                            name: t.bot(2),
-                            g: g,
-                            seat: 2,
-                            active: active == 2,
-                            turnLabel: t.turn,
-                            fan: Axis.horizontal,
-                            passed: passed.contains(2),
-                            passLabel: t.pass,
-                          ),
-                          const SizedBox(height: 6),
-                          Expanded(
-                            // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
-                            child: LayoutBuilder(
-                              builder: (context, mid) {
-                                final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
-                                return Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _Seat(
-                                      name: t.bot(1),
-                                      g: g,
-                                      seat: 1,
-                                      passed: passed.contains(1),
-                                      passLabel: t.pass,
-                                      active: active == 1,
-                                      turnLabel: t.turn,
-                                      fan: Axis.vertical,
-                                      room: mid.maxHeight,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      width: side,
-                                      height: side,
-                                      decoration: BoxDecoration(
-                                        color: _felt,
-                                        borderRadius: BorderRadius.circular(24),
-                                        border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
-                                      ),
-                                      child: Center(
-                                        child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g, side)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    _Seat(
-                                      name: t.bot(3),
-                                      g: g,
-                                      seat: 3,
-                                      passed: passed.contains(3),
-                                      passLabel: t.pass,
-                                      active: active == 3,
-                                      turnLabel: t.turn,
-                                      fan: Axis.vertical,
-                                      room: mid.maxHeight,
-                                    ),
-                                  ],
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          _Seat(
-                            name: t.you,
-                            g: g,
-                            seat: 0,
-                            active: active == 0,
-                            turnLabel: t.turn,
-                            compact: true,
-                            passed: passed.contains(0),
-                            passLabel: t.pass,
-                          ),
-                          const SizedBox(height: 8),
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
-                            ),
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 4,
-                              runSpacing: 10,
-                              children: [
-                                for (final code in g.hand.where((c) => !gone.contains(c)))
-                                  Opacity(
-                                    // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
-                                    opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
-                                    child: TileView(
-                                      key: ValueKey('hand-$code'),
-                                      code: code,
-                                      width: tileW,
-                                      selected: picked.contains(code),
-                                      onTap: !myTurn || !g.playable.contains(code)
-                                          ? null
-                                          : () => setState(
-                                              () => picked.contains(code) ? picked.remove(code) : picked.add(code),
-                                            ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+            : Stack(
+                children: [
+                  SafeArea(
+                    child: LayoutBuilder(
+                      builder: (context, box) {
+                        final tileW = min(56.0, (box.maxWidth - 32) / 7 - 4);
+                        final myTurn = active == 0 && !busy;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Column(
                             children: [
-                              OutlinedButton(
-                                onPressed: !myTurn || g.table.isEmpty ? null : () => _apply(api.move(g.id, [])),
-                                child: Text(t.pass),
+                              _SuitOrder(suits: g.suits, label: t.suitOrder),
+                              const SizedBox(height: 6),
+                              _Seat(
+                                name: t.bot(2),
+                                g: g,
+                                seat: 2,
+                                count: shown[2],
+                                active: active == 2,
+                                turnLabel: t.turn,
+                                fan: Axis.horizontal,
+                                passed: passed.contains(2),
+                                passLabel: t.pass,
                               ),
-                              const SizedBox(width: 16),
-                              FilledButton(
-                                onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
-                                child: Text(t.play),
+                              const SizedBox(height: 6),
+                              Expanded(
+                                // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
+                                child: LayoutBuilder(
+                                  builder: (context, mid) {
+                                    final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
+                                    return Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _Seat(
+                                          name: t.bot(1),
+                                          g: g,
+                                          seat: 1,
+                                          count: shown[1],
+                                          passed: passed.contains(1),
+                                          passLabel: t.pass,
+                                          active: active == 1,
+                                          turnLabel: t.turn,
+                                          fan: Axis.vertical,
+                                          room: mid.maxHeight,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          width: side,
+                                          height: side,
+                                          decoration: BoxDecoration(
+                                            color: _felt,
+                                            borderRadius: BorderRadius.circular(24),
+                                            border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
+                                          ),
+                                          child: Center(
+                                            child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g, side)),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        _Seat(
+                                          name: t.bot(3),
+                                          g: g,
+                                          seat: 3,
+                                          count: shown[3],
+                                          passed: passed.contains(3),
+                                          passLabel: t.pass,
+                                          active: active == 3,
+                                          turnLabel: t.turn,
+                                          fan: Axis.vertical,
+                                          room: mid.maxHeight,
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
                               ),
+                              const SizedBox(height: 8),
+                              _Seat(
+                                name: t.you,
+                                g: g,
+                                seat: 0,
+                                count: shown[0],
+                                active: active == 0,
+                                turnLabel: t.turn,
+                                compact: true,
+                                passed: passed.contains(0),
+                                passLabel: t.pass,
+                              ),
+                              const SizedBox(height: 8),
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
+                                ),
+                                child: Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: 4,
+                                  runSpacing: 10,
+                                  children: [
+                                    for (final code in g.hand.where((c) => !gone.contains(c)))
+                                      Opacity(
+                                        // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
+                                        opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
+                                        child: TileView(
+                                          key: ValueKey('hand-$code'),
+                                          code: code,
+                                          width: tileW,
+                                          selected: picked.contains(code),
+                                          onTap: !myTurn || !g.playable.contains(code)
+                                              ? null
+                                              : () => setState(
+                                                  () => picked.contains(code) ? picked.remove(code) : picked.add(code),
+                                                ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  OutlinedButton(
+                                    onPressed: !myTurn || g.table.isEmpty ? null : () => _apply(api.move(g.id, [])),
+                                    child: Text(t.pass),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  FilledButton(
+                                    onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
+                                    child: Text(t.play),
+                                  ),
+                                ],
+                              ),
+                              // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
+                              if (myTurn && g.table.isNotEmpty && g.playable.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
+                                ),
+                              const SizedBox(height: 12),
                             ],
                           ),
-                          // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
-                          if (myTurn && g.table.isNotEmpty && g.playable.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
-                            ),
-                          const SizedBox(height: 12),
-                        ],
+                        );
+                      },
+                    ),
+                  ),
+                  if (intro != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: _StartCard(
+                          title: t.gameStart,
+                          first: t.goesFirst(_name(t, intro!)),
+                          today: g.today,
+                          todayLabel: t.today,
+                        ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                ],
               ),
       ),
     );
@@ -504,6 +548,9 @@ class _Seat extends StatelessWidget {
   final String name, turnLabel;
   final GameState g;
   final int seat;
+
+  /// 보여 줄 남은 장수(봇 장면 중에는 서버 값보다 늦게 줄어든다)
+  final int count;
   final bool active, compact;
 
   /// 남은 패 뒷면을 겹쳐 펼치는 방향(봇만). 세로면 [room] 높이 안에 맞춘다.
@@ -521,6 +568,7 @@ class _Seat extends StatelessWidget {
     required this.name,
     required this.g,
     required this.seat,
+    required this.count,
     required this.active,
     required this.turnLabel,
     this.compact = false,
@@ -568,12 +616,12 @@ class _Seat extends StatelessWidget {
                 FittedBox(fit: BoxFit.scaleDown, child: label),
                 const SizedBox(height: 4),
                 _Backs(
-                  count: g.counts[seat],
+                  count: count,
                   axis: fan ?? Axis.horizontal,
                   // 세로: 이름·장수·점수 줄과 여백(약 110)을 뺀 높이에 13장이 들어가게
                   length: fan == Axis.vertical ? max(48.0, room - 110) : 170,
                 ),
-                Text('×${g.counts[seat]}', style: const TextStyle(color: _ink, fontSize: 12)),
+                Text('×$count', style: const TextStyle(color: _ink, fontSize: 12)),
                 const SizedBox(height: 2),
                 stats,
               ],
@@ -730,5 +778,68 @@ class _TodayBadge extends StatelessWidget {
         ),
       ],
     ],
+  );
+}
+
+/// 새 판 시작 카드: "게임 시작!" · 오늘의 무늬 · 솜사탕 1을 가진 선. 잠깐 커지며 나타난다.
+class _StartCard extends StatelessWidget {
+  final String title, first, today, todayLabel;
+  const _StartCard({required this.title, required this.first, required this.today, required this.todayLabel});
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: Colors.black26,
+    child: Center(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: .6, end: 1),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutBack,
+        builder: (_, k, child) => Transform.scale(
+          scale: k,
+          child: Opacity(opacity: k.clamp(0, 1), child: child),
+        ),
+        child: Card(
+          key: const ValueKey('start-card'),
+          color: const Color(0xFFFFF9EC),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: gold, width: 3),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: _ink),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(todayLabel, style: const TextStyle(color: _ink)),
+                    const SizedBox(width: 8),
+                    SvgPicture.asset('assets/icons/suit_$today.svg', width: 30, height: 30),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const TileView(code: 'c1', width: 30),
+                    const SizedBox(width: 8),
+                    Text(
+                      first,
+                      style: const TextStyle(color: _ink, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
