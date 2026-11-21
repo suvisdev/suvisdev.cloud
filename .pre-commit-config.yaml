@@ -42,7 +42,7 @@ repos:
     hooks:
       - id: import-linter
         name: "Architecture: Star-topology dependency check"
-        entry: bash -c 'cd suvisdev && docker run --rm -v "$PWD":/suvisdev -w /suvisdev suvisdev-app:latest sh -c "pip install -q --root-user-action=ignore import-linter==2.15 >/dev/null && PYTHONPATH=/suvisdev:/suvisdev/apps lint-imports"'
+        entry: bash -c 'cd suvisdev && docker run --rm -v "$PWD":/suvisdev -w /suvisdev suvisdev-app:latest sh -c "pip install -q --root-user-action=ignore import-linter==2.15 >/dev/null && PYTHONPATH=/suvisdev:/suvisdev/apps lint-imports --no-cache"'
         language: system
         pass_filenames: false
         always_run: true
