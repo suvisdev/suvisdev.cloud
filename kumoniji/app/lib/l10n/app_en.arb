@@ -40,7 +40,6 @@
   "reasonWeaker": "Play something stronger than the table",
   "reasonCount": "Play the same number of tiles as the table",
   "reasonNotCombo": "That's not a valid combination",
-  "reasonLeadPass": "The leader can't pass",
   "rank": "#{n}",
   "@rank": {
     "placeholders": {

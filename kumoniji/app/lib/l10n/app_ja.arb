@@ -19,7 +19,6 @@
   "reasonWeaker": "場より強い組み合わせを出してください",
   "reasonCount": "場と同じ枚数で出してください",
   "reasonNotCombo": "組み合わせになっていません",
-  "reasonLeadPass": "親はパスできません",
   "rank": "{n}位",
   "suitOrder": "柄の強さ",
   "help": "遊び方",

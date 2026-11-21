@@ -47,8 +47,8 @@ void main() {
     );
     await settle(t);
     expect(find.text('Your turn'), findsOneWidget);
-    // 바닥이 비었으니 패스는 막혀 있다
-    expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Pass')).onPressed, isNull);
+    // 바닥이 비어도(선) 패스할 수 있다(11-21 규칙 변경)
+    expect(t.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Pass')).onPressed, isNotNull);
     await t.tap(find.byKey(const ValueKey('hand-m1')));
     await t.pump();
     await t.tap(find.widgetWithText(FilledButton, 'Play'));

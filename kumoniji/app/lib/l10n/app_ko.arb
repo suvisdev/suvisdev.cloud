@@ -19,7 +19,6 @@
   "reasonWeaker": "바닥보다 센 조합을 내야 해요",
   "reasonCount": "바닥과 같은 장수로 내야 해요",
   "reasonNotCombo": "조합이 아니에요",
-  "reasonLeadPass": "선은 패스할 수 없어요",
   "rank": "{n}위",
   "suitOrder": "무늬 순서",
   "help": "게임 방법",

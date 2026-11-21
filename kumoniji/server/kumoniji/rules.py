@@ -138,9 +138,8 @@ def simulate(hands, moves, today):
         if last is not None and not hands[last]:
             return result(i)  # 판이 끝난 뒤의 행동
         if move == "패스":
-            if not table:
-                return result(i)  # 선은 패스 불가
-            passes += 1
+            if table:  # 선(바닥이 빔)의 패스는 차례만 넘긴다 — 바퀴 패스 수에 안 셈(11-21 규칙 변경)
+                passes += 1
             if passes == 3:  # 나머지 3명이 연달아 패스 → 선을 되찾고 꽃잎
                 petals[last].append(max(table, key=value)[0])
                 bonus[last] += pot + small_today(
