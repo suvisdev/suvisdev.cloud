@@ -36,13 +36,22 @@ class _TableScreenState extends State<TableScreen> {
   Set<int> passed = {}; // 지금 바퀴에서 패스한 자리(봇 장면을 넘기는 동안에도 갱신)
   List<List<String>?> plays = List.filled(4, null); // 자리마다 이번 바퀴에 낸 패
   int? lead; // 지금 바닥에서 가장 센 패를 낸 자리
+  String level = 'normal'; // 봇 난이도 — 마지막으로 고른 것을 기억
   bool busy = false;
 
   @override
   void initState() {
     super.initState();
-    _apply(api.newGame());
+    _startSaved();
     if (widget.showHelpOnFirstVisit) _helpOnce();
+  }
+
+  /// 지난번에 고른 난이도로 바로 시작한다(처음이면 중급).
+  Future<void> _startSaved() async {
+    try {
+      level = (await SharedPreferences.getInstance()).getString('level') ?? level;
+    } catch (_) {} // 저장소를 못 쓰면 중급
+    if (mounted) _apply(api.newGame(level));
   }
 
   Future<void> _helpOnce() async {
@@ -149,24 +158,40 @@ class _TableScreenState extends State<TableScreen> {
     } catch (_) {}
   }
 
-  /// 진행 중인 판이 있으면 한 번 묻고 새 판을 시작한다.
-  Future<void> _confirmNewGame() async {
+  /// 난이도를 골라 새 판을 시작한다. 진행 중인 판이 있으면 그만둘지도 같은 창에서 묻는다.
+  Future<void> _newGame() async {
     final g = s;
-    if (g != null && !g.finished) {
-      final t = AppLocalizations.of(context)!;
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          content: Text(t.newGameConfirm),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: Text(t.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: Text(t.newGame)),
-          ],
-        ),
-      );
-      if (ok != true) return;
-    }
-    _apply(api.newGame());
+    final t = AppLocalizations.of(context)!;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: Text(g != null && !g.finished ? t.newGameConfirm : t.chooseLevel),
+        children: [
+          for (final (lv, name, desc) in [
+            ('easy', t.levelEasy, t.levelEasyDesc),
+            ('normal', t.levelNormal, t.levelNormalDesc),
+            ('hard', t.levelHard, t.levelHardDesc),
+          ])
+            ListTile(
+              key: ValueKey('level-$lv'),
+              title: Text(name, style: TextStyle(fontWeight: lv == level ? FontWeight.bold : null)),
+              subtitle: Text(desc),
+              trailing: lv == level ? const Icon(Icons.check, color: _gold) : null,
+              onTap: () => Navigator.pop(c, lv),
+            ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(onPressed: () => Navigator.pop(c), child: Text(t.cancel)),
+          ),
+        ],
+      ),
+    );
+    if (choice == null) return;
+    level = choice;
+    try {
+      await (await SharedPreferences.getInstance()).setString('level', choice);
+    } catch (_) {}
+    _apply(api.newGame(choice));
   }
 
   void _sync(GameState g) {
@@ -198,6 +223,12 @@ class _TableScreenState extends State<TableScreen> {
     plays = List.filled(4, null);
     lead = null;
   }
+
+  String _levelName(AppLocalizations t, String lv) => switch (lv) {
+    'easy' => t.levelEasy,
+    'hard' => t.levelHard,
+    _ => t.levelNormal,
+  };
 
   String _name(AppLocalizations t, int seat) => seat == 0 ? t.you : t.bot(seat);
 
@@ -234,7 +265,7 @@ class _TableScreenState extends State<TableScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(c);
-              _apply(api.newGame());
+              _newGame();
             },
             child: Text(t.newGame),
           ),
@@ -251,7 +282,7 @@ class _TableScreenState extends State<TableScreen> {
     final active = flash?.seat ?? (g == null || g.finished ? null : g.turn);
     return Scaffold(
       appBar: AppBar(
-        title: Text(t.title),
+        title: Text(g == null ? t.title : '${t.title} · ${_levelName(t, g.level)}'),
         backgroundColor: Colors.transparent,
         actions: [
           if (g != null)
@@ -261,7 +292,7 @@ class _TableScreenState extends State<TableScreen> {
               doubles: g.doubles,
             ),
           IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
-          TextButton(onPressed: busy ? null : _confirmNewGame, child: Text(t.newGame)),
+          TextButton(onPressed: busy ? null : _newGame, child: Text(t.newGame)),
           const SizedBox(width: 4),
         ],
       ),
@@ -269,7 +300,7 @@ class _TableScreenState extends State<TableScreen> {
           ? Center(
               child: busy
                   ? const CircularProgressIndicator()
-                  : FilledButton(onPressed: () => _apply(api.newGame()), child: Text(t.newGame)),
+                  : FilledButton(onPressed: () => _apply(api.newGame(level)), child: Text(t.newGame)),
             )
           : SafeArea(
               child: LayoutBuilder(

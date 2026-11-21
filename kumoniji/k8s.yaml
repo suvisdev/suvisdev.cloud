@@ -26,7 +26,7 @@ spec:
             - containerPort: 8000
           resources:
             requests: { cpu: 50m, memory: 64Mi }
-            limits: { cpu: 500m, memory: 256Mi }
+            limits: { cpu: "1", memory: 256Mi } # hard 봇 끝판 계산 — 0.5코어에선 한 수 최대 0.75초(11-21 측정)
           readinessProbe:
             httpGet: { path: /, port: 8000 }
             periodSeconds: 10

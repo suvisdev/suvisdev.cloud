@@ -4,5 +4,6 @@
 - 판정은 서버가 한다(서버 권위). 앱(Flutter)은 서버가 준 상태만 그린다 — 앱에 규칙을 다시 짜지 않는다.
 - 그림은 Codex가 만든다(`app/assets/tiles/`).
 - 서버 테스트: `cd kumoniji/server && uv run --no-project --python 3.13 --with pytest --with httpx --with fastapi==0.136.3 pytest -q`
+- 봇 난이도(easy·normal·hard, `server/kumoniji/bots.py`)를 바꾸면 하네스로 잰다: `cd kumoniji/server && uv run --no-project --python 3.13 python -m kumoniji.bench` (기준은 바탕화면 PRODUCT.md §3, 1,000판). 봇은 `Seen`(공개 정보 + 자기 손패)만 받는다.
 - 앱: `source ~/.cache/gildle-build/env.sh && cd kumoniji/app && flutter analyze && flutter test`
 - 배포: `kumoniji/deploy.sh`(노트북 k3s, `kumoniji.suvisdev.cloud`). 판은 메모리에만 있어 replicas 1.

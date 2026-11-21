@@ -9,10 +9,12 @@ import 'package:http/testing.dart';
 import 'package:kumoniji/api.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/table_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_test.dart' show view;
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   moreTests();
   legalTests();
   recentTests();
@@ -115,6 +117,50 @@ Widget _app(Api api) => MaterialApp(
 );
 
 void moreTests() {
+  testWidgets('starts with the level chosen last time', (t) async {
+    SharedPreferences.setMockInitialValues({'level': 'easy'});
+    final bodies = <Object?>[];
+    final api = Api(
+      MockClient((r) async {
+        bodies.add(jsonDecode(r.body));
+        return http.Response(jsonEncode(view()), 200);
+      }),
+    );
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    expect(bodies, [
+      {'level': 'easy'},
+    ]);
+  });
+
+  testWidgets('new game asks the level and sends it; cancel keeps the game', (t) async {
+    final bodies = <Object?>[];
+    final api = Api(
+      MockClient((r) async {
+        bodies.add(r.body.isEmpty ? null : jsonDecode(r.body));
+        return http.Response(jsonEncode({...view(), 'level': (bodies.last as Map?)?['level'] ?? 'normal'}), 200);
+      }),
+    );
+    await t.pumpWidget(_app(api));
+    await t.pumpAndSettle();
+    expect(bodies, [
+      {'level': 'normal'},
+    ]); // 처음엔 중급
+    expect(find.text('Kumoniji · Normal'), findsOneWidget);
+    await t.tap(find.widgetWithText(TextButton, 'New game'));
+    await t.pumpAndSettle();
+    expect(find.text('Quit this game and start a new one?'), findsOneWidget); // 진행 중이라 그만둘지 같이 묻는다
+    await t.tap(find.text('Cancel'));
+    await t.pumpAndSettle();
+    expect(bodies.length, 1);
+    await t.tap(find.widgetWithText(TextButton, 'New game'));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('level-hard')));
+    await t.pumpAndSettle();
+    expect(bodies.last, {'level': 'hard'});
+    expect(find.text('Kumoniji · Hard'), findsOneWidget);
+  });
+
   testWidgets('first request fails → retry button starts a game', (t) async {
     var calls = 0;
     final api = Api(

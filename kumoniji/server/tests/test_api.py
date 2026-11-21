@@ -2,8 +2,7 @@ import random
 
 from fastapi.testclient import TestClient
 
-from kumoniji.api import CODE, SUIT, app, dec
-from kumoniji.bots import pick
+from kumoniji.api import Room, app
 
 c = TestClient(app)
 
@@ -12,12 +11,9 @@ def test_play_one_full_game():
     v = c.post("/api/games").json()
     played = sum(len(e["tiles"] or []) for e in v["events"])
     assert len(v["hand"]) == v["counts"][0] and sum(v["counts"]) == 52 - played
-    rng = random.Random(1)
     while v["winner"] is None:
         assert v["turn"] == 0
-        hand, table = [dec(t) for t in v["hand"]], [dec(t) for t in v["table"]]
-        m = pick("smart", hand, table, CODE[v["today"]], rng)
-        body = {"tiles": [f"{SUIT[s]}{n}" for s, n in m] if m else []}
+        body = {"tiles": v["moves"][0] if v["moves"] else []}
         v = c.post(f"/api/games/{v['id']}/moves", json=body).json()
     assert sum(v["settlement"]) == 0
     assert c.post(f"/api/games/{v['id']}/moves", json={"tiles": []}).status_code == 409
@@ -44,6 +40,7 @@ def test_hidden_hands():
     v = c.post("/api/games").json()
     assert set(v) == {
         "id",
+        "level",
         "today",
         "turn",
         "hand",
@@ -85,13 +82,11 @@ def test_concurrent_same_move_applies_once(monkeypatch):
 
     for _ in range(5):
         v = c.post("/api/games").json()
-        hand, table = [dec(t) for t in v["hand"]], [dec(t) for t in v["table"]]
-        m = pick("smart", hand, table, CODE[v["today"]], random.Random(0))
-        if (
-            m is None
-        ):  # 패스는 봇이 한 바퀴 돈 뒤 다시 낼 수 있어 '한 번만'을 확인할 수 없다
+        if not v[
+            "moves"
+        ]:  # 패스는 봇이 한 바퀴 돈 뒤 다시 낼 수 있어 '한 번만'을 확인할 수 없다
             continue
-        body = {"tiles": [f"{SUIT[s]}{n}" for s, n in m]}
+        body = {"tiles": v["moves"][0]}
         url = f"/api/games/{v['id']}/moves"
         with ThreadPoolExecutor(8) as ex:
             codes = list(ex.map(send, [url] * 8, [body] * 8))
@@ -145,7 +140,7 @@ def test_suit_order_and_playable_and_reason():
         table=[("잎", 7)],
         last=3,
     )
-    api.GAMES["fixed"] = (g, random.Random(0))
+    api.GAMES["fixed"] = Room(g, random.Random(0))
     v = c.get("/api/games/fixed").json()
     assert v["suits"] == ["m", "s", "l", "c"]  # 산 > 벚꽃 > 잎사귀 > 솜사탕 (11-18)
     assert v["playable"] == ["s7"]  # 벚7만 잎7을 이긴다
@@ -239,7 +234,7 @@ def test_no_auto_pass_when_someone_else_could_still_beat():
 
 
 def test_can_beat_by_size():
-    from kumoniji.api import can_beat
+    from kumoniji.bots import can_beat
 
     assert not can_beat([("산", 13)], [("벚", 13), ("산", 12)])
     assert can_beat([("벚", 13)], [("산", 13)])
@@ -254,3 +249,21 @@ def test_web_files_are_revalidated():
     """웹 파일은 배포마다 이름이 같아 캐시되면 옛 앱이 남는다 → no-cache. API는 건드리지 않는다."""
     assert c.get("/main.dart.js").headers["cache-control"] == "no-cache"
     assert "cache-control" not in c.get("/api/games/nope").headers
+
+
+def test_level_is_chosen_per_game():
+    for level in ("easy", "normal", "hard"):
+        v = c.post("/api/games", json={"level": level}).json()
+        assert v["level"] == level
+        assert c.get(f"/api/games/{v['id']}").json()["level"] == level
+    assert c.post("/api/games").json()["level"] == "normal"  # 몸통 없으면 기본
+    assert c.post("/api/games", json={"level": "god"}).status_code == 422
+
+
+def test_busy_game_does_not_block_other_games():
+    """한 판이 봇 계산 중(판 잠금을 쥔 상태)이어도 다른 판 요청은 바로 처리된다 — hard 봇은 한 수 최대 0.5초."""
+    from kumoniji import api
+
+    a, b = (c.post("/api/games").json()["id"] for _ in range(2))
+    with api.GAMES[a].lock:
+        assert c.get(f"/api/games/{b}").status_code == 200
