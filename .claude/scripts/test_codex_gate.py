@@ -172,7 +172,9 @@ class GateTest(unittest.TestCase):
                         """python3 -c "print('it's')" """]:
             self.assertIsNone(self.bash(command), command)
 
-    def committed_pr(self, name="a.py"):
+    def committed_pr(self, name="a.py", state=True):
+        if state:
+            self.write("_docs/STATE.md", "지금 상태\n")
         self.stage_change("2\n", name)
         self.review()
         self.git("commit", "-qm", "x")
@@ -296,6 +298,245 @@ class GateTest(unittest.TestCase):
         self.assertIn("선행 작업", self.bash("gh pr merge 7"))
         subprocess.run([sys.executable, str(GATE), "confirm-prereq", "7"], cwd=self.repo, env=self.env, check=True)
         self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_code_pr_must_update_state_file(self):
+        self.committed_pr(state=False)
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+        self.write("_docs/STATE.md", "지금 상태\n")
+        self.git("add", ".")
+        self.git("add", "-A")
+        self.review()
+        self.git("commit", "-qm", "state")
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_docs_only_pr_needs_no_state_update(self):
+        self.write("_docs/note.md", "x\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "docs")
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_deleting_state_file_does_not_count_as_update(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")  # STATE.md가 이미 main에 있는 상태
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", "_docs/STATE.md")
+        self.stage_change("3\n")
+        self.review()
+        self.git("commit", "-qm", "rm state")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_markdown_outside_docs_needs_no_state_update(self):
+        self.committed_pr("k8s/README.md", state=False)
+        self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_renaming_code_to_markdown_is_not_docs_only(self):
+        self.git("mv", "a.py", "a.md")
+        self.review()
+        self.git("commit", "-qm", "mv")
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_korean_markdown_path_counts_as_docs(self):
+        self.committed_pr("_docs/decisions/0001-한글.md", state=False)
+        self.write("k8s/README.md", "x\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "docs")
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_state_mode_change_is_not_an_update(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        (self.repo / "_docs/STATE.md").chmod(0o755)
+        self.stage_change("3\n")
+        self.review()
+        self.git("commit", "-qm", "chmod")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_non_markdown_under_docs_needs_state_update(self):
+        self.committed_pr("x/_docs/data.sql", state=False)
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_docs_only_pr_cannot_delete_state_file(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("mv", "_docs/STATE.md", "_docs/OLD_STATE.md")
+        self.git("add", "-A")
+        self.review()
+        self.git("commit", "-qm", "move state")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_state_path_turned_into_directory_is_rejected(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", "_docs/STATE.md")
+        self.write("_docs/STATE.md/README.md", "x\n")
+        self.git("add", ".")
+        self.git("add", "-A")
+        self.review()
+        self.git("commit", "-qm", "dir")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_state_symlink_and_spec_deletion_are_rejected(self):
+        self.write("_docs/SPEC.md", "목표\n")
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", "_docs/SPEC.md")
+        self.git("add", "-A")
+        self.review()
+        self.git("commit", "-qm", "rm spec")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("SPEC.md", self.pinned_merge("gh pr merge 7"))
+        self.git("reset", "-q", "--hard", "origin/main")
+        self.git("rm", "-q", "_docs/STATE.md")
+        os.symlink("nowhere", self.repo / "_docs/STATE.md")
+        self.stage_change("3\n")
+        self.review()
+        self.git("add", "-A")
+        self.review()
+        self.git("commit", "-qm", "link")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_emptied_state_file_is_not_an_update(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.write("_docs/STATE.md", " \u3000\n\x00\n")
+        self.stage_change("3\n")
+        self.review()
+        self.git("commit", "-qm", "empty")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_non_utf8_file_name_does_not_break_the_gate(self):
+        self.write("_docs/STATE.md", "지금 상태\n")
+        (self.repo / os.fsdecode(b"x\xff.py")).write_text("1\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "odd name")
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_copying_main_state_is_not_an_update(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.write("_docs/STATE.md", "main에서 새로 쓴 상태\n")
+        self.git("add", "-A")
+        self.review()
+        self.git("commit", "-qam", "main state")
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("reset", "-q", "--hard", "HEAD~1")
+        self.write("_docs/STATE.md", "main에서 새로 쓴 상태\n")
+        self.stage_change("3\n")
+        self.review()
+        self.git("commit", "-qm", "copy")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_non_utf8_state_file_is_rejected_without_crashing(self):
+        (self.repo / "_docs").mkdir(exist_ok=True)
+        (self.repo / "_docs/STATE.md").write_bytes(" \n".encode("utf-16"))
+        self.stage_change("2\n")
+        self.review()
+        self.git("commit", "-qm", "utf16")
+        self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_whitespace_only_state_edit_is_not_an_update(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.write("_docs/STATE.md", "지금 상태 \r\n\n")
+        self.stage_change("3\n")
+        self.review()
+        self.git("commit", "-qm", "ws")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("STATE.md", self.pinned_merge("gh pr merge 7"))
+
+    def test_state_and_spec_edits_need_review_like_code(self):
+        self.write("_docs/STATE.md", "지금 상태\n")
+        self.git("add", ".")
+        self.assertNotEqual(self.try_git("commit", "-qm", "state").returncode, 0)
+        self.review()
+        self.git("commit", "-qm", "state")
+        self.write("_docs/SPEC.md", "새 목표\n")
+        self.git("add", ".")
+        self.assertNotEqual(self.try_git("commit", "-qm", "spec").returncode, 0)
+
+    def test_non_markdown_under_docs_is_reviewed(self):
+        self.write("x/_docs/data.sql", "select 1;\n")
+        self.git("add", ".")
+        self.assertNotEqual(self.try_git("commit", "-qm", "sql").returncode, 0)
+
+    def test_review_input_keeps_state_diff_separate(self):
+        log = self.root / "diff.log"
+        self.write("_docs/STATE.md", "지금 상태\n")
+        self.stage_change("2\n")
+        self.review(FAKE_DIFF_LOG=str(log))
+        self.assertIn("\ndiff --git a/_docs/STATE.md", log.read_text())
+
+    def test_review_input_is_a_valid_patch(self):
+        log = self.root / "diff.log"
+        self.write("b.py", "1\n\n2\n")
+        self.git("add", ".")
+        self.git("commit", "-qm", "b", env={"CLAUDECODE": ""})
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.write("b.py", "0\n1\n\n2\n")
+        self.write("_docs/STATE.md", "지금 상태\n")
+        self.git("add", ".")
+        self.review(FAKE_DIFF_LOG=str(log))
+        check = subprocess.run(["git", "apply", "--stat", str(log)], cwd=self.repo, capture_output=True, text=True)
+        self.assertEqual(check.returncode, 0, check.stderr)
+
+    def test_invalid_utf8_in_reviewed_file_does_not_crash(self):
+        (self.repo / "_docs").mkdir(exist_ok=True)
+        (self.repo / "_docs/STATE.md").write_bytes(b"state \xff\n")
+        self.git("add", ".")
+        self.assertEqual(self.review(), 0)
+
+    def test_merge_refused_when_running_gate_is_older_than_main(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        newer = self.root / "newer"
+        subprocess.run(["git", "clone", "-q", self.root / "origin.git", newer], check=True, capture_output=True)
+        (newer / ".claude/scripts").mkdir(parents=True)
+        (newer / ".claude/scripts/codex_gate.py").write_text(GATE.read_text() + "# newer\n")
+        subprocess.run(["git", "-C", newer, "add", "-f", "."], check=True)
+        subprocess.run(["git", "-C", newer, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "gate"], check=True)
+        subprocess.run(["git", "-C", newer, "push", "-q", "origin", "HEAD:main"], check=True, capture_output=True)
+        self.assertIn("관문 스크립트", self.pinned_merge("gh pr merge 7"))
+
+    def test_pr_that_changes_the_gate_can_merge_with_its_own_gate(self):
+        self.committed_pr()
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("add", "-f", ".claude/scripts/codex_gate.py")
+        self.git("commit", "-qm", "gate", env={"CLAUDECODE": ""})
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        gate = self.repo / ".claude/scripts/codex_gate.py"
+        gate.write_text(gate.read_text() + "# 이 PR이 고친 관문\n")
+        self.write("_docs/STATE.md", "관문 수정 중\n")
+        self.git("add", "-f", ".")
+        self.review()
+        self.git("commit", "-qm", "change gate")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        head = self.git("rev-parse", "HEAD").strip()
+        event = {"session_id": "s", "cwd": str(self.repo), "hook_event_name": "PreToolUse", "tool_name": "Bash",
+                 "tool_input": {"command": f"gh pr merge 7 --match-head-commit {head}"}}
+        out = subprocess.run([sys.executable, str(gate)], input=json.dumps(event), text=True, capture_output=True,
+                             env=self.env, check=True).stdout  # 이 PR이 고친 관문(작업 트리 사본)으로 판정
+        self.assertEqual(out, "")
 
     def test_merge_held_for_new_env_key(self):
         self.committed_pr("suvisdev/.env.example")

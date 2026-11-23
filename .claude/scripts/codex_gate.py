@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """커밋·머지 관문과 자동 마무리 트리거. 절차는 루트 CLAUDE.md "자동 마무리".
 
-훅(인자 없음): `gh pr merge`를 Codex 승인·CI·선행 작업으로 막고, git 훅을 끄는 명령을 막으며, 세션이 미완료 변경을 남기고 끝나면 마무리로 돌려보낸다.
+훅(인자 없음): `gh pr merge`를 Codex 승인·STATE.md 갱신·CI·선행 작업으로 막고, git 훅을 끄는 명령을 막으며, 세션이 미완료 변경을 남기고 끝나면 마무리로 돌려보낸다.
 pre-commit·pre-push: .claude/githooks가 부른다. git이 넘긴 실제 내용을 판정하므로 명령 문자열을 해석하지 않는다.
 review: 스테이지된 변경을 Codex에 리뷰받아 OK면 승인을 기록한다. 종료 코드 0 OK, 1 지적, 2 실행 실패.
 confirm-prereq <PR>: 사용자가 선행 작업 완료를 확인해 준 뒤에만 실행한다.
@@ -11,6 +11,7 @@ confirm-prereq <PR>: 사용자가 선행 작업 완료를 확인해 준 뒤에�
 """
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -18,8 +19,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-# 승인 범위 밖 경로. 워크로그 등 문서는 리뷰 뒤에 고쳐도 승인이 유지된다.
-CODE_PATHS = [".", ":(exclude,glob)**/_docs/**"]
+# 승인 범위 밖 경로(_docs 아래 .md). 워크로그 등 문서는 리뷰 뒤에 고쳐도 승인이 유지된다.
+# 단 매 세션 자동으로 읽히는 LOADED_FILES(SPEC·STATE)는 CLAUDE.md처럼 승인 범위에 넣는다(change_diff).
+CODE_PATHS = [".", ":(exclude,glob)**/_docs/**/*.md"]
+# 코드를 바꾼 PR은 지금 상태 파일도 함께 고친다(CLAUDE.md "상태 파일", ADR-0021). 둘 다 CLAUDE.md가 @로 불러온다.
+STATE_FILE = "_docs/STATE.md"
+LOADED_FILES = ["_docs/SPEC.md", STATE_FILE]
 # 머지되면 바로 운영에 배포되므로 사용자 작업이 먼저 필요한 변경.
 PREREQ = re.compile(r"(^|/)alembic/versions/|(^|/)\.env\.example$")
 # .github/workflows 경로 필터와 맞춘다. 걸리는 변경이 있으면 그 워크플로가 등록되고 끝나야 한다.
@@ -62,7 +67,29 @@ def change_diff(repo, treeish: str, *heads: str) -> str:
     """대상의 코드 변경(문서 제외). 내용이 같으면 main이 움직이거나 커밋을 나눠도 결과가 같다.
     heads가 여럿이면 그 머지 커밋을 기준으로 삼는다. 충돌을 푼 머지에서 main 변경이 섞이지 않는다."""
     base = git(repo, "merge-base", "origin/main", *heads)
-    return git(repo, "diff", "--binary", base, treeish, "--", *CODE_PATHS)
+    # 잘못된 UTF-8이 있어도 멈추지 않게 바이트로 받아 대체 문자로 푼다. 끝 줄바꿈을 지우지 않아야 이어 붙여도 올바른 패치다.
+    return "".join(subprocess.run(["git", "-C", str(repo), "diff", "--binary", base, treeish, "--", *paths],
+                                  capture_output=True, check=True).stdout.decode(errors="replace")
+                   for paths in (CODE_PATHS, LOADED_FILES))
+
+
+def names(repo, *args: str) -> list[str]:
+    """바뀐 경로. -z라야 한글 경로가 따옴표·이스케이프 없이 나온다."""
+    out = subprocess.run(["git", "-C", str(repo), "diff", "--name-only", "-z", *args], capture_output=True, check=True).stdout
+    return [p for p in os.fsdecode(out).split("\0") if p]
+
+
+def blob(repo, rev: str, path: str = STATE_FILE) -> str | None:
+    """rev 시점 path의 본문 해시(공백·줄바꿈 정규화). 없거나, 일반 파일이 아니거나(디렉터리·링크), UTF-8 글자가 없으면 None."""
+    entry = git(repo, "ls-tree", rev, "--", path).split()
+    if entry[:2] not in (["100644", "blob"], ["100755", "blob"]):
+        return None
+    raw = subprocess.run(["git", "-C", str(repo), "cat-file", "blob", entry[2]], capture_output=True, check=True).stdout
+    try:
+        lines = [line.strip() for line in raw.decode("utf-8").replace("\0", "").splitlines() if line.strip()]
+    except UnicodeDecodeError:
+        return None
+    return diff_key("\n".join(lines)) if lines else None  # 공백·줄바꿈만 바꾼 것은 같은 본문
 
 
 def commit_parents(repo) -> list[str]:
@@ -145,13 +172,27 @@ def merge_block(repo: str, options: list[str]) -> str | None:
     pr = json.loads(view.stdout)
     head = pr["headRefOid"]
     git(repo, "fetch", "-q", "origin", "main", f"pull/{pr['number']}/head")
+    # 훅은 세션을 연 폴더의 스크립트로 돈다. main보다 옛 판이면 새 규칙을 빠뜨리고 판정한다.
+    # 관문을 고치는 PR은 그 PR의 판으로 판정해도 된다.
+    known = [subprocess.run(["git", "-C", str(repo), "show", f"{rev}:.claude/scripts/codex_gate.py"], capture_output=True)
+             for rev in ("origin/main", head)]
+    if known[0].returncode == 0 and Path(__file__).read_bytes() not in [k.stdout for k in known if k.returncode == 0]:
+        return (f"실행 중인 관문 스크립트({Path(__file__).resolve()})가 origin/main 판과 다르다. "
+                "그 폴더를 `git pull --ff-only`로 갱신한 뒤 머지한다.")
 
     key = change_key(repo, head, head)
     if key is not None and key not in recorded(repo, "codex-approved"):
         return f"PR #{pr['number']}의 현재 코드는 Codex 승인을 받지 않았다. 그 코드를 리뷰받은 뒤 머지한다."
 
     base = git(repo, "merge-base", "origin/main", head)
-    changed = git(repo, "diff", "--name-only", base, head).splitlines()
+    changed = names(repo, "--no-renames", base, head)
+    # 본문이 바뀌어야 갱신이다(지우기·권한만 바꾸기·main 판 복사는 아님). 문서(.md)만 바뀐 PR은 상태가 그대로일 수 있어 묻지 않는다.
+    state = [blob(repo, rev) for rev in (base, head, "origin/main")]
+    gone = [p for p in LOADED_FILES if blob(repo, base, p) and not blob(repo, head, p)]
+    if gone:
+        return f"{', '.join(gone)}을 지우거나 비우거나 옮기는 PR이다. CLAUDE.md가 매 세션 불러오는 파일이라 남겨 둔다."
+    if not all(p.endswith(".md") for p in changed) and state[1] in (None, state[0], state[2]):
+        return f"코드를 바꾼 PR인데 {STATE_FILE}을 고치지 않았다. 지금 상태로 덮어써 같은 PR에 넣은 뒤 머지한다."
     checks = subprocess.run(["gh", "pr", "checks", str(pr["number"]), "--json", "name,bucket,workflow"],
                             cwd=repo, text=True, capture_output=True)
     if checks.returncode and not checks.stdout.strip() and "no checks reported" not in checks.stderr:

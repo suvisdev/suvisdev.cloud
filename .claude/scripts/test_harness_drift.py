@@ -45,11 +45,96 @@ class DriftTest(unittest.TestCase):
         message = self.run_hook()
         self.assertIn("CLAUDE.md", message)
         self.assertIn(".claude/scripts/gate.py", message)
-        self.assertIn("git show origin/main:CLAUDE.md", message)
+        self.assertIn("git show origin/main:<파일>", message)
+        self.assertIn("이 폴더의 _docs/SPEC.md·STATE.md", message)  # 옛 CLAUDE.md면 @가 안 돌았을 수 있다
 
     def test_missing_harness_file_is_reported(self):
         (self.repo / ".claude/scripts/gate.py").unlink()
         self.assertIn(".claude/scripts/gate.py", self.run_hook())
+
+    def test_state_file_written_on_this_branch_is_not_reported(self):
+        (self.repo / "_docs").mkdir()
+        (self.repo / "_docs/STATE.md").write_text("base\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "state")
+        sh(self.repo, "git", "update-ref", "refs/remotes/origin/main", "HEAD")
+        (self.repo / "_docs/STATE.md").write_text("이 브랜치에서 갱신\n")
+        self.assertEqual(self.run_hook(), "")
+
+    def test_stale_state_file_is_reported(self):
+        (self.repo / "_docs").mkdir()
+        (self.repo / "_docs/STATE.md").write_text("old\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "state")
+        sh(self.repo, "git", "checkout", "-q", "-b", "main-ahead")
+        (self.repo / "_docs/STATE.md").write_text("new\n")
+        sh(self.repo, "git", "commit", "-qam", "newer")
+        sh(self.repo, "git", "update-ref", "refs/remotes/origin/main", "HEAD")
+        sh(self.repo, "git", "checkout", "-q", "work")
+        self.assertIn("_docs/STATE.md", self.run_hook())
+
+    def test_state_changed_on_both_sides_is_reported(self):
+        (self.repo / "_docs").mkdir()
+        (self.repo / "_docs/STATE.md").write_text("base\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "state")
+        sh(self.repo, "git", "checkout", "-q", "-b", "main-ahead")
+        (self.repo / "_docs/STATE.md").write_text("main에서 갱신\n")
+        sh(self.repo, "git", "commit", "-qam", "newer")
+        sh(self.repo, "git", "update-ref", "refs/remotes/origin/main", "HEAD")
+        sh(self.repo, "git", "checkout", "-q", "work")
+        (self.repo / "_docs/STATE.md").write_text("이 브랜치에서 갱신\n")
+        self.assertIn("_docs/STATE.md", self.run_hook())
+
+    def test_blank_state_file_is_reported(self):
+        (self.repo / "_docs").mkdir()
+        (self.repo / "_docs/STATE.md").write_text("base\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "state")
+        sh(self.repo, "git", "update-ref", "refs/remotes/origin/main", "HEAD")
+        (self.repo / "_docs/STATE.md").write_text("\n")
+        self.assertIn("_docs/STATE.md", self.run_hook())
+        (self.repo / "_docs/STATE.md").write_bytes(b"\xff\xfe broken\n")
+        self.assertIn("_docs/STATE.md", self.run_hook())
+
+    def test_state_symlink_is_reported(self):
+        (self.repo / "_docs").mkdir()
+        (self.repo / "_docs/STATE.md").write_text("base\n")
+        (self.repo / "_docs/OLD.md").write_text("old summary\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "state")
+        sh(self.repo, "git", "update-ref", "refs/remotes/origin/main", "HEAD")
+        (self.repo / "_docs/STATE.md").unlink()
+        (self.repo / "_docs/STATE.md").symlink_to("OLD.md")
+        self.assertIn("_docs/STATE.md", self.run_hook())
+        (self.repo / "_docs/OLD.md").write_text("base\n")  # 링크 대상 내용이 main과 같아도
+        self.assertIn("_docs/STATE.md", self.run_hook())
+
+    def test_unrelated_history_still_reports_old_claude_md(self):
+        sh(self.repo, "git", "checkout", "-q", "--orphan", "shallow")
+        (self.repo / "CLAUDE.md").write_text("old rules\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "no common base")
+        self.assertIn("CLAUDE.md", self.run_hook())
+
+    def test_stale_state_is_shown_even_with_many_drifted_files(self):
+        (self.repo / "_docs").mkdir()
+        (self.repo / "_docs/STATE.md").write_text("old\n")
+        for n in range(9):
+            (self.repo / f".claude/scripts/s{n}.py").write_text("v1\n")
+        sh(self.repo, "git", "add", "-A")
+        sh(self.repo, "git", "commit", "-qm", "old")
+        sh(self.repo, "git", "checkout", "-q", "-b", "main-ahead")
+        (self.repo / "_docs/STATE.md").write_text("new\n")
+        for n in range(9):
+            (self.repo / f".claude/scripts/s{n}.py").write_text("v2\n")
+        sh(self.repo, "git", "commit", "-qam", "newer")
+        sh(self.repo, "git", "update-ref", "refs/remotes/origin/main", "HEAD")
+        sh(self.repo, "git", "checkout", "-q", "work")
+        (self.repo / "CLAUDE.md").write_text("old rules\n")
+        message = self.run_hook()
+        self.assertIn("_docs/STATE.md", message)
+        self.assertIn("CLAUDE.md,", message)
 
     def test_no_origin_main_fails_quietly(self):
         sh(self.repo, "git", "update-ref", "-d", "refs/remotes/origin/main")
