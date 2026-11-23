@@ -28,6 +28,15 @@
 
 ---
 
+## 2026-11-23
+
+### 작업 내용
+- 토요일에 Codex에 맡긴 1등 정산 규칙(커밋 `ec9b723d`, worktree에만 있었음)을 확인: cases.json 정산 10건을 rules.py와 별개로 계산해 대조(전부 일치), 서버 규칙·API 테스트 152 통과(계정 테스트는 로컬 DB 없음 → CI 통과), 앱 analyze 0·테스트 31 통과, Codex OK → PR #291 머지.
+- 운영 배포(`kumoniji/deploy.sh`): 롤아웃 성공, 사이트 200, 운영 파드의 `settle`이 새 규칙인 것 확인.
+
+### 산출물
+- PR #291. 테스트 명령 메모: 서버 테스트는 `--with-requirements requirements.txt`가 필요(psycopg·argon2 추가 이후 CLAUDE.md 명령만으로는 수집 실패).
+
 ## 2026-11-21
 
 ### 작업 내용
