@@ -22,6 +22,7 @@ void main() {
   moreTests();
   legalTests();
   recentTests();
+  autoPassTests();
   testWidgets('pick a tile and play sends it', (t) async {
     final paths = <String>[];
     final bodies = <Object?>[];
@@ -474,6 +475,57 @@ void recentTests() {
     expect(find.byKey(const ValueKey('passed-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('passed-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('passed-3')), findsNothing);
+  });
+}
+
+void autoPassTests() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    markTilesReady();
+  });
+  testWidgets('auto pass shows the pass bubble on my seat', (t) async {
+    // 내가 m1을 냄 → 봇 1이 산13(아무도 못 이김), 봇 2·3 패스 → 서버가 내 차례를 자동 패스(seat 0, tiles null)
+    var calls = 0;
+    final api = Api(
+      MockClient((r) async {
+        calls++;
+        if (calls == 1) return http.Response(jsonEncode(view()), 200);
+        return http.Response(
+          jsonEncode({
+            ...view(
+              events: [
+                {
+                  'seat': 0,
+                  'tiles': ['m1'],
+                },
+                {
+                  'seat': 1,
+                  'tiles': ['m13'],
+                },
+                {'seat': 2, 'tiles': null},
+                {'seat': 3, 'tiles': null},
+                {'seat': 0, 'tiles': null},
+              ],
+            ),
+            'hand': ['s3'],
+            'turn': 1,
+          }),
+          200,
+        );
+      }),
+    );
+    await t.pumpWidget(_app(api));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('hand-m1')));
+    await t.pump();
+    await t.tap(find.widgetWithText(FilledButton, 'Play'));
+    var seen = false;
+    for (var i = 0; i < 80 && !seen; i++) {
+      await t.pump(const Duration(milliseconds: 100));
+      seen = find.byKey(const ValueKey('passed-0')).evaluate().isNotEmpty;
+    }
+    expect(seen, isTrue);
+    await t.pump(const Duration(seconds: 5)); // 남은 봇 장면 대기를 흘려보낸다
   });
 }
 
