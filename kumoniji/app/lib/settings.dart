@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +12,13 @@ import 'level.dart';
 /// ponytail: 배경음악·효과음은 값만 저장한다 — 소리 파일·재생기가 생기면 music/sfx를 음량으로 쓴다.
 class Settings {
   static final locale = ValueNotifier<Locale?>(null); // null = 기기 언어
+
+  /// 지금 화면 언어 코드 — 서버가 메일 언어로 쓴다. 고른 언어가 없으면 기기 언어.
+  static String get lang => langFor(PlatformDispatcher.instance.locales);
+
+  /// MaterialApp과 같은 방식으로 기기 선호 언어 목록에서 앱이 지원하는 첫 언어(프랑스어·중국어 순이면 중국어).
+  static String langFor(List<Locale> device) =>
+      (locale.value ?? basicLocaleListResolution(device, AppLocalizations.supportedLocales)).languageCode;
   static final music = ValueNotifier<double>(0.6);
   static final sfx = ValueNotifier<double>(0.8);
   static final vibration = ValueNotifier<bool>(true);
@@ -50,7 +59,7 @@ class OptionsScreen extends StatelessWidget {
         title: Text(t.language),
         children: [
           // 언어 이름은 그 언어로 쓴다(잘못 골라도 되돌아올 수 있게)
-          for (final (code, name) in [('', t.systemLanguage), ('en', 'English'), ('ja', '日本語'), ('ko', '한국어')])
+          for (final (code, name) in [('', t.systemLanguage), ('en', 'English'), ('ja', '日本語'), ('ko', '한국어'), ('zh', '简体中文')])
             ListTile(
               key: ValueKey('locale-$code'),
               title: Text(name, style: TextStyle(fontWeight: code == current ? FontWeight.bold : null)),
@@ -69,6 +78,7 @@ class OptionsScreen extends StatelessWidget {
     'en' => 'English',
     'ja' => '日本語',
     'ko' => '한국어',
+    'zh' => '简体中文',
     _ => t.systemLanguage,
   };
 

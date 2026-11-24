@@ -42,7 +42,7 @@ def _flow_key() -> bytes:
 
 
 def start(
-    origin: str, purpose: str = "login", account_id: int | None = None, sid: str | None = None
+    origin: str, purpose: str = "login", account_id: int | None = None, sid: str | None = None, lang: str = "en"
 ) -> tuple[str, str]:
     """(구글로 보낼 URL, 흐름 쿠키 값). purpose: login, link(로그인한 계정에 연결), reauth(구글로 다시 인증)."""
     if not client_id():
@@ -57,6 +57,7 @@ def start(
             "pu": purpose,
             "ac": account_id,
             "si": sid,
+            "la": lang,
             "exp": int(time.time()) + FLOW_TTL,
         },
         _flow_key(),

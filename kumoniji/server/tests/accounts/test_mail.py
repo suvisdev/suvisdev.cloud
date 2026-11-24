@@ -7,7 +7,7 @@ from kumoniji.accounts import mail
 
 def test_32_warning_and_fixed_origin(monkeypatch):
     monkeypatch.setenv("KUMONIJI_PUBLIC_ORIGIN", "https://kumoniji.suvisdev.cloud")
-    for lang in ("ko", "en", "ja"):
+    for lang in ("ko", "en", "ja", "zh"):
         m = mail.compose("u@x.com", "reset", "/reset?token=abc", lang)
         body = m.get_content()
         assert "https://kumoniji.suvisdev.cloud/reset?token=abc" in body

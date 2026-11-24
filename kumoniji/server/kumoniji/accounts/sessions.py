@@ -55,7 +55,7 @@ def create(c, account_id: int, *, mfa_passed: bool, device: str = "", ip: str = 
     return access_token(account_id, sid, v), raw
 
 
-def refresh(c, raw: str) -> tuple[str, str] | None:
+def refresh(c, raw: str, lang: str = "en") -> tuple[str, str] | None:
     """회전. 반환 (새 액세스, 새 리프레시) 또는 None(만료·폐기·모름). 재사용이면 Reused."""
     if not raw or len(raw) > 128:
         return None
@@ -81,7 +81,7 @@ def refresh(c, raw: str) -> tuple[str, str] | None:
         raise Raced
     if old:
         revoke_all(c, old["account_id"])
-        _notify(c, old["account_id"], "security")
+        _notify(c, old["account_id"], "security", lang)
         raise Reused
     return None
 
@@ -143,10 +143,10 @@ def listing(c, account_id: int) -> list[dict]:
     ).fetchall()
 
 
-def _notify(c, account_id: int, kind: str) -> None:
+def _notify(c, account_id: int, kind: str, lang: str = "en") -> None:
     r = c.execute("SELECT email FROM accounts WHERE id = %s", (account_id,)).fetchone()
     if r and r["email"]:
-        mail.send(r["email"], kind, protect_path(c, account_id))
+        mail.send(r["email"], kind, protect_path(c, account_id), lang)
 
 
 def sweep(c) -> None:

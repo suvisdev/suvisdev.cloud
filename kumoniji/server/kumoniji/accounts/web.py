@@ -35,9 +35,13 @@ def device_of(request: Request) -> str:
     return request.headers.get("x-kumoniji-device") or request.headers.get("user-agent", "")[:200]
 
 
-def lang_of(request: Request) -> str:
-    a = request.headers.get("accept-language", "en")[:2].lower()
-    return a if a in ("ko", "en", "ja") else "en"
+LANGS = ("ko", "en", "ja", "zh")
+
+
+def lang_of(request: Request, prefer: str = "") -> str:
+    """메일 언어: 앱이 정해 보낸 값(prefer) → Accept-Language → 영어."""
+    a = (prefer or request.headers.get("accept-language", "en"))[:2].lower()
+    return a if a in LANGS else "en"
 
 
 def is_app(request: Request) -> bool:
@@ -279,7 +283,7 @@ def refresh(request: Request, body: Refresh | None = None):
     raw = (body.refresh if body else None) if is_app(request) else request.cookies.get(REFRESH)
     with db.tx() as c:
         try:
-            out = sessions.refresh(c, raw or "")
+            out = sessions.refresh(c, raw or "", lang_of(request))
         except sessions.Reused:  # 전 세션 폐기를 커밋해야 하므로 트랜잭션 안에서 잡는다
             out = None
         except sessions.Raced:  # 다른 탭이 방금 갱신 — 공유 쿠키로 원래 요청을 다시 보내면 된다
@@ -385,7 +389,7 @@ GOOGLE_FLOW = "__Host-kgo"
 
 
 @router.get("/google/start")
-def google_start(request: Request, link: bool = False, reauth: bool = False):
+def google_start(request: Request, link: bool = False, reauth: bool = False, lang: str = ""):
     """웹: 구글로 보낸다. link=true면 로그인한 계정에 연결(최근 재인증·MFA 필요),
     reauth=true면 구글로 다시 인증(비밀번호 없는 계정의 탈퇴 등 민감 작업용)."""
     from fastapi.responses import RedirectResponse
@@ -402,7 +406,8 @@ def google_start(request: Request, link: bool = False, reauth: bool = False):
         s = session_of(request, allow_pre_mfa=True)
         account_id, sid, purpose = s["account_id"], s["sid"], "reauth"
     try:
-        url, flow = google.start(origin(), purpose, account_id, sid)
+        # 구글에 다녀오는 리다이렉트는 앱이 머리글을 못 단다 — 고른 언어를 흐름에 실어 콜백 메일에 쓴다
+        url, flow = google.start(origin(), purpose, account_id, sid, lang_of(request, lang))
     except google.Invalid:
         raise HTTPException(503, {"code": "google_not_configured"}) from None
     resp = RedirectResponse(url, status_code=302)
@@ -439,7 +444,7 @@ def google_callback(request: Request, code: str = "", state: str = ""):
                 ).fetchone()
                 if row is None:
                     return fail
-                out = service._open_session(c, row, device_of(request), client_ip(request), lang_of(request))
+                out = service._open_session(c, row, device_of(request), client_ip(request), lang_of(request, f.get("la", "")))
     except google.Invalid:
         return fail
     done = {"link": "/?linked=google", "reauth": "/?reauthed=google"}.get(f["pu"], "/")
