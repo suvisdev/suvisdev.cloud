@@ -23,6 +23,7 @@ Future<void> precacheTiles() async => _skipPrecache
       ]).then((_) {}, onError: (_) {});
 
 /// 패 한 장. code는 서버 표기(예: s3, c13) 또는 'back'.
+/// 2.5D: 두께는 그림(오른쪽 아래 테두리)에 있고, 여기서는 바닥 그림자만 깐다. 고르면 떠오르며 그림자가 퍼진다.
 class TileView extends StatelessWidget {
   final String code;
   final bool selected;
@@ -36,9 +37,20 @@ class TileView extends StatelessWidget {
     child: AnimatedSlide(
       offset: selected ? const Offset(0, -0.18) : Offset.zero,
       duration: const Duration(milliseconds: 120),
-      child: SizedBox(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
         width: width,
         height: width * 4 / 3,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(width * .16),
+          boxShadow: [
+            BoxShadow(
+              color: Color(selected ? 0x30000000 : 0x38000000),
+              blurRadius: width * (selected ? .3 : .1),
+              offset: Offset(width * .03, width * (selected ? .26 : .06)),
+            ),
+          ],
+        ),
         child: SvgPicture.asset('assets/tiles/$code.svg', fit: BoxFit.contain),
       ),
     ),
