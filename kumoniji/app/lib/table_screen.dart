@@ -285,11 +285,12 @@ class _TableScreenState extends State<TableScreen> {
   void _showResult(GameState g) {
     final t = AppLocalizations.of(context)!;
     final winner = g.winner!;
-    final order = [0, 1, 2, 3]..sort((a, b) {
-      final byScore = g.settlement![b].compareTo(g.settlement![a]);
-      if (byScore != 0) return byScore;
-      return (a == winner ? -1 : a).compareTo(b == winner ? -1 : b);
-    });
+    final order = [0, 1, 2, 3]
+      ..sort((a, b) {
+        final byScore = g.settlement![b].compareTo(g.settlement![a]);
+        if (byScore != 0) return byScore;
+        return (a == winner ? -1 : a).compareTo(b == winner ? -1 : b);
+      });
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -409,16 +410,40 @@ class _TableScreenState extends State<TableScreen> {
                                           room: mid.maxHeight,
                                         ),
                                         const SizedBox(width: 6),
-                                        Container(
-                                          width: side,
-                                          height: side,
-                                          decoration: BoxDecoration(
-                                            color: _felt,
-                                            borderRadius: BorderRadius.circular(24),
-                                            border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
-                                          ),
-                                          child: Center(
-                                            child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g, side)),
+                                        // 2.5D: 판을 뒤로 눕혀 원근을 주고, 아래에 판 두께와 그림자를 깐다.
+                                        // 원근을 판 크기에 비례시켜 폰·PC가 같은 모양, 앞 가장자리가 넓어지는 만큼(약 1.1배) 줄여 자리 안에 둔다
+                                        Transform(
+                                          alignment: Alignment.center,
+                                          transform: Matrix4.identity()
+                                            ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
+                                            ..rotateX(-.42) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
+                                            ..scaleByDouble(.9, .9, 1, 1),
+                                          child: Container(
+                                            width: side,
+                                            height: side,
+                                            decoration: BoxDecoration(
+                                              color: _felt,
+                                              borderRadius: BorderRadius.circular(24),
+                                              border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
+                                              // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: const Color(0xFFB7CA9F),
+                                                  offset: Offset(0, side * .022),
+                                                ),
+                                                BoxShadow(
+                                                  color: const Color(0x30000000),
+                                                  blurRadius: side * .036,
+                                                  offset: Offset(0, side * .04),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Center(
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(6),
+                                                child: _felt4(t, g, side),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(width: 6),
@@ -561,6 +586,7 @@ class _TableScreenState extends State<TableScreen> {
                           child: _DropIn(
                             key: ValueKey('drop-$seat-${m.join()}-$c'),
                             index: m.indexOf(c),
+                            from: _from[seat],
                             child: TileView(code: c, width: 44),
                           ),
                         ),
@@ -896,12 +922,17 @@ class _StartCard extends StatelessWidget {
   );
 }
 
-/// 낸 패가 한 장씩 차례로 "탕" 내려앉는 모션(처음 그려질 때 한 번). index번째 패는 그만큼 늦게 떨어진다.
+/// 패가 날아오는 방향(판 위에서 낸 사람 쪽): 0 아래 · 1 왼쪽 · 2 위 · 3 오른쪽
+const _from = [Offset(0, 90), Offset(-90, 0), Offset(0, -90), Offset(90, 0)];
+
+/// 낸 패가 한 장씩 차례로 낸 사람 쪽에서 날아와 뒤집히며 "탕" 내려앉는 모션(처음 그려질 때 한 번).
+/// 뒷면으로 떠올라 오다가 반쯤 돌면 앞면이 보인다. index번째 패는 그만큼 늦게 출발한다.
 class _DropIn extends StatelessWidget {
-  static const gap = 90, fall = 200; // ms: 장 사이 간격, 한 장이 떨어지는 시간
+  static const gap = 90, fall = 320; // ms: 장 사이 간격, 한 장이 날아와 앉는 시간
   final int index;
-  final Widget child;
-  const _DropIn({super.key, required this.index, required this.child});
+  final Offset from;
+  final TileView child;
+  const _DropIn({super.key, required this.index, required this.from, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -909,18 +940,28 @@ class _DropIn extends StatelessWidget {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: Duration(milliseconds: total),
-      builder: (_, k, c) {
+      builder: (_, k, _) {
         final t = ((k * total - gap * index) / fall).clamp(0.0, 1.0); // 이 패의 진행
-        final y = Curves.easeOutBack.transform(t); // 살짝 튀었다가 앉음
+        final fly = Curves.easeOutCubic.transform(t);
+        final land = Curves.easeOutBack.transform(t); // 살짝 튀었다가 앉음
+        final turn = pi * (1 - Curves.easeInOut.transform(t)); // 뒷면(π) → 앞면(0)
         return Opacity(
-          opacity: (t * 4).clamp(0.0, 1.0),
+          opacity: (t * 5).clamp(0.0, 1.0),
           child: Transform.translate(
-            offset: Offset(0, -40 * (1 - y)),
-            child: Transform.scale(scale: 1 + .3 * (1 - t), child: c),
+            offset: from * (1 - fly),
+            child: Transform.scale(
+              scale: 1 + .35 * (1 - land), // 떠 있을수록 크게 → 내려앉으며 제 크기
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, .002)
+                  ..rotateY(turn),
+                child: turn > pi / 2 ? TileView(code: 'back', width: child.width) : child,
+              ),
+            ),
           ),
         );
       },
-      child: child,
     );
   }
 }
