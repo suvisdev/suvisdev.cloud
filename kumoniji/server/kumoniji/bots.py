@@ -1,8 +1,10 @@
-"""봇 세 단계(PRODUCT.md §3). 봇은 Seen(공개 정보 + 자기 손패)만 받는다 — 남의 손패는 자리별로 모른다.
-easy  : 낼 수 있는 패 중 무작위(약한 쪽 가중), 따라갈 때 30% 패스
-normal: 손패를 가장 적은 횟수로 터는 계획을 세우고 계획을 깨지 않는 가장 약한 패(없으면 이기는 가장 약한 패)
-hard  : normal + 끝판(누가 거의 다 털었거나 남은 패가 적을 때)엔 안 나온 패를 무작위로 여러 번 나눠
-        normal끼리 끝까지 쳐 보고 내 결과(정산 점수 + 1등 가산)가 가장 좋은 수"""
+"""봇 세 단계(ADR-0022, 11-24 사용자 결정: 난이도는 "패를 가장 빨리 털고 잃는 점수를 줄이는 정도"로 나눈다).
+봇은 Seen(공개 정보 + 자기 손패)만 받는다 — 남의 손패는 자리별로 모른다.
+easy  : 이길 수 있는 가장 약한 패(계획 없음), 따라갈 때 30% 패스
+normal: 수마다 반반으로 easy 수 또는 털기 계획(plan) 수
+hard  : 털기 계획(plan) — 손패를 가장 적은 횟수로 터는 계획을 깨지 않는 가장 약한 패.
+        끝판(누가 거의 다 털었거나 남은 패가 적을 때)엔 안 나온 패를 무작위로 여러 번 나눠
+        plan끼리 끝까지 쳐 보고 내 정산 점수가 가장 좋은(잃는 점수가 가장 적은) 수"""
 
 import time
 from collections import defaultdict
@@ -26,7 +28,7 @@ LEVELS = ("easy", "normal", "hard")
 SAMPLES = 24  # hard 끝판 한 수에 나눠 보는 횟수
 BUDGET = 0.4  # 끝판 계산 시간 상한(초) — 넘으면 그때까지 나눠 본 것으로 정한다(최소 4번). 기준: 봇 한 수 0.5초 안
 ENDGAME = 36  # 남은 패가 모두 합쳐 이 장수 이하면 hard가 끝판 계산을 한다
-WIN = 100  # 끝판 계산 목표 = 정산 점수 + 1등이면 이만큼(점수만 보면 1등률이 낮았다, 11-21 하네스)
+MIX = 0.5  # normal이 털기 계획을 따르는 비율(나머지는 easy 수)
 
 
 def plays(hand):
@@ -147,20 +149,24 @@ def turns(hand: int) -> int:
 
 
 def easy(s: Seen, legal, rng):
+    # 패스 없이 가장 약한 패만 내면 털기 계획 봇과 거의 같은 세기였다(11-24 하네스: 계획 봇 1등 34.9%) → 30% 패스로 약하게
     if s.table and rng.random() < 0.3:
         return None
-    legal = sorted(legal, key=strength)
-    return rng.choices(legal, weights=range(len(legal), 0, -1))[0]
+    return min(legal, key=strength)
 
 
 def normal(s: Seen, legal, rng):
-    m = _normal(mask(s.hand), s.table)
+    return plan(s, legal, rng) if rng.random() < MIX else easy(s, legal, rng)
+
+
+def plan(s: Seen, legal, rng):
+    m = _plan(mask(s.hand), s.table)
     return list(m) if m else None
 
 
 @lru_cache(maxsize=1 << 17)
-def _normal(hand: int, table: tuple) -> tuple | None:
-    """normal은 (손패, 바닥)만 보고 정한다 → 통째로 캐시(hard 끝판 계산이 같은 장면을 수없이 다시 본다)."""
+def _plan(hand: int, table: tuple) -> tuple | None:
+    """털기 계획은 (손패, 바닥)만 보고 정한다 → 통째로 캐시(hard 끝판 계산이 같은 장면을 수없이 다시 본다)."""
     tiles = unmask(hand)
     every = plays(tiles)
     legal = [p for p in every if beats(list(table), p)]
@@ -186,11 +192,11 @@ def hard(s: Seen, legal, rng):
     others = [c for i, c in enumerate(s.counts) if i != s.seat]
     if min(others) <= 3 or len(s.hand) <= 4 or sum(s.counts) <= ENDGAME:
         return endgame(s, legal, rng)
-    return normal(s, legal, rng)
+    return plan(s, legal, rng)
 
 
 def endgame(s: Seen, legal, rng):
-    """후보 수마다 안 나온 패를 같은 방식으로 SAMPLES번 나눠 normal끼리 끝까지 친 결과 합이 가장 큰 수."""
+    """후보 수마다 안 나온 패를 같은 방식으로 SAMPLES번 나눠 plan끼리 끝까지 친 정산 점수 합이 가장 큰 수."""
     if len(s.hand) in map(len, legal):  # 한 번에 다 털 수 있으면 턴다
         return next(p for p in legal if len(p) == len(s.hand))
     cands = _candidates(s, legal)
@@ -248,15 +254,13 @@ def _rollout(s: Seen, hands, first) -> int:
     )
     g.play(s.seat, first)
     while g.winner is None:
-        m = _normal(mask(g.hands[g.turn]), tuple(g.table))
+        m = _plan(mask(g.hands[g.turn]), tuple(g.table))
         g.play(g.turn, list(m) if m else None)
-    return g.settlement()[s.seat] + WIN * (g.winner == s.seat)
+    return g.settlement()[s.seat]
 
 
 def pick(level: str, s: Seen, rng):
     """level 봇이 낼 패(None = 패스)."""
-    if level == "normal":
-        return normal(s, None, rng)
     legal = [p for p in plays(list(s.hand)) if beats(list(s.table), p)]
     if not legal:
         return None

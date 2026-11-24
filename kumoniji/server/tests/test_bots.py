@@ -1,6 +1,6 @@
 import random
 
-from kumoniji.bots import mask, pick, seen, turns
+from kumoniji.bots import mask, pick, plan, seen, turns
 from kumoniji.game import Game
 
 
@@ -10,8 +10,8 @@ def test_turns_counts_fewest_plays():
     assert turns(mask(straight | {("산", 9)})) == 2
 
 
-def test_normal_keeps_its_pair_when_following():
-    g = Game(
+def _follow_game():
+    return Game(
         hands=[
             [("솜", 5), ("잎", 5), ("벚", 6)],
             [("솜", 1)],
@@ -23,9 +23,26 @@ def test_normal_keeps_its_pair_when_following():
         table=[("산", 4)],
         last=3,
     )
-    assert pick("normal", seen(g, 0), random.Random(0)) == [
-        ("벚", 6)
-    ]  # 가장 약한 솜5는 페어를 깬다
+
+
+def test_plan_keeps_its_pair_when_following():
+    """고급의 털기 계획: 5 페어 + 6으로 두 번에 턴다 → 산4를 6으로 받는다."""
+    g = _follow_game()
+    legal = [[("솜", 5)], [("잎", 5)], [("벚", 6)]]
+    assert plan(seen(g, 0), legal, random.Random(0)) == [("벚", 6)]  # 가장 약한 솜5는 페어를 깬다
+
+
+def test_easy_plays_weakest_beating_tile_or_passes():
+    """초급: 계획 없이 이길 수 있는 가장 약한 패(페어를 깨더라도 솜5), 따라갈 때 가끔 패스."""
+    g = _follow_game()
+    moves = [pick("easy", seen(g, 0), random.Random(seed)) for seed in range(40)]
+    assert set(map(str, moves)) == {str([("솜", 5)]), "None"}
+
+
+def test_normal_mixes_easy_and_plan():
+    g = _follow_game()
+    moves = {str(pick("normal", seen(g, 0), random.Random(seed))) for seed in range(60)}
+    assert moves == {str([("솜", 5)]), str([("벚", 6)]), "None"}
 
 
 def test_bots_do_not_see_who_holds_which_tile(monkeypatch):

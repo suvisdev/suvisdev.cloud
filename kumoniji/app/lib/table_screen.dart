@@ -710,10 +710,27 @@ class _Seat extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         box,
-        if (passed)
+        // 봇 자리는 자리 안 위쪽(이름 줄)에 띄우고 자리보다 크면 줄인다 — 자리 밖에 두면 화면 폭·장수·글자 크기에 따라
+        // 화면 끝에서 잘리거나 무늬 순서 띠를 가렸다. 이름은 자리 위치로 알 수 있으니 덮고, 아래 남은 장수(×N)는
+        // 가리지 않는다(가운데에 두면 1장일 때 ×1을 덮었다). 꼬리는 뺀다.
+        // 내 자리(한 줄로 낮음)만 자리 위에.
+        if (passed && !compact)
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _Bubble(key: ValueKey('passed-$seat'), text: passLabel, tail: false),
+                ),
+              ),
+            ),
+          )
+        else if (passed)
           Positioned(
-            top: -24,
-            right: -10,
+            top: -40,
+            right: -12,
             child: _Bubble(key: ValueKey('passed-$seat'), text: passLabel),
           ),
       ],
@@ -721,33 +738,42 @@ class _Seat extends StatelessWidget {
   }
 }
 
-/// 말풍선: 둥근 상자 + 왼쪽 아래 꼬리.
+/// 말풍선: 둥근 상자 + 왼쪽 아래 꼬리(tail).
 class _Bubble extends StatelessWidget {
   final String text;
-  const _Bubble({super.key, required this.text});
+  final bool tail;
+  const _Bubble({super.key, required this.text, this.tail = true});
 
+  // 크게·굵게, 뜰 때 톡 튀어나온다(11-24 사용자: "패스가 더 크게 잘 보였으면")
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _ink, width: 1.5),
-          boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 4, offset: Offset(0, 2))],
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: const Duration(milliseconds: 260),
+    curve: Curves.easeOutBack,
+    builder: (_, k, c) => Transform.scale(scale: k, alignment: Alignment.bottomLeft, child: c),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _ink, width: 2.5),
+            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 6, offset: Offset(0, 3))],
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(color: _ink, fontSize: 18, fontWeight: FontWeight.w900),
+          ),
         ),
-        child: Text(
-          text,
-          style: const TextStyle(color: _ink, fontSize: 12, fontWeight: FontWeight.bold),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.only(left: 10),
-        child: CustomPaint(size: const Size(10, 7), painter: _Tail()),
-      ),
-    ],
+        if (tail)
+          Padding(
+            padding: const EdgeInsets.only(left: 14),
+            child: CustomPaint(size: const Size(14, 10), painter: _Tail()),
+          ),
+      ],
+    ),
   );
 }
 
@@ -769,7 +795,7 @@ class _Tail extends CustomPainter {
       Paint()
         ..color = _ink
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+        ..strokeWidth = 2.5,
     );
   }
 

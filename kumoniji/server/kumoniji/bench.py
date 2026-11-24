@@ -36,7 +36,7 @@ def match(top: str, rest: str, games: int, seed: int = 20261121) -> dict:
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
-    for top, rest in [("normal", "easy"), ("hard", "normal")]:
+    for top, rest in [("normal", "easy"), ("hard", "normal"), ("hard", "easy")]:
         t = time.perf_counter()
         r = match(top, rest, n)
         print(
