@@ -110,3 +110,28 @@ def test_bots_never_pass_as_leader():
                 m = pick(level, seen(g, g.turn), rng)
                 assert g.table or m, level
                 g.play(g.turn, m)
+
+
+def test_fast_five_check_matches_full_enumeration():
+    """5장 바닥 판정(종류별로 만들고 처음 찾으면 멈춤)이 전부 만들어 보는 방식과 같은 답 — 무작위 판 400개."""
+    import random as _r
+
+    from kumoniji.bots import can_beat, plays
+    from kumoniji.game import Game
+    from kumoniji.rules import beats
+
+    rng = _r.Random(7)
+    checked = {True: 0, False: 0}
+    for _ in range(400):
+        g = Game.deal(rng)
+        tiles = [t for h in g.hands for t in h]
+        rng.shuffle(tiles)
+        fives = [p for p in plays(tiles[:20]) if len(p) == 5]
+        if not fives:
+            continue
+        table = rng.choice(fives)
+        rest = [t for t in tiles[20:] + tiles[:20] if t not in table][: rng.randint(5, 47)]
+        want = any(len(p) == 5 and beats(table, p) for p in plays(rest))
+        assert can_beat(table, rest) == want, (table, rest)
+        checked[want] += 1
+    assert checked[True] > 50 and checked[False] > 50  # 두 답이 다 충분히 나왔다

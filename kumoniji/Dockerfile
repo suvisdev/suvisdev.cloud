@@ -6,4 +6,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server/kumoniji ./kumoniji
 COPY app/build/web ./web
 USER 10001
-CMD ["uvicorn", "kumoniji.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "kumoniji.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--ws-max-size", "4096"]

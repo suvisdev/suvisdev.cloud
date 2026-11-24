@@ -180,3 +180,11 @@ def test_gone_since_at_time_zero_is_kept():
         t.set_connected(a, False, 0.0)
     t.set_connected(ACC[0], False, 60.0)  # 중복 끊김 알림
     assert t.expired(GONE)
+
+
+def test_stale_ply_is_rejected():
+    t = table()
+    seat = t.game.turn
+    with pytest.raises(NotYourTurn):
+        t.move(ACC[seat], [], 1001, ply=t.ply + 1)
+    t.move(ACC[seat], [], 1001, ply=t.ply)  # 맞는 번호면 받는다

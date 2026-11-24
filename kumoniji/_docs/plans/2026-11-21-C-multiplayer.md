@@ -36,15 +36,18 @@ kumoniji/app/lib/
 ```text
 클라 → 서버
 {"t":"auth","token":"..."}                 # 앱만, 연결 직후 5초 안에
+                                            # 연결 중에도: 토큰을 갱신하면 새 토큰을 보내 이어 간다(같은 세션만). 웹(쿠키)은 갱신 뒤 다시 연결 — 자리는 유지.
+                                            # 서버가 만료 60초 전에 {"t":"renew"}를 보낸다. 끝까지 갱신하지 않으면 만료 때 대기열·방에서 빠지고 4401(탈취 토큰 차단).
 {"t":"queue"} / {"t":"unqueue"}            # 자동 매칭
 {"t":"room.create"} / {"t":"room.join","code":"K7Q2MX"} / {"t":"room.leave"} / {"t":"room.start"}  # 방장만 start, 4명일 때만
-{"t":"move","game":"<id>","tiles":["s3","s4"]}   # [] = 패스
+{"t":"move","game":"<id>","ply":12,"tiles":["s3","s4"]}   # [] = 패스. ply = 받은 state의 ply(다르면 늦게 온 옛 수로 거부)
 {"t":"ping"}
 
 서버 → 클라
-{"t":"queued","waiting":2} / {"t":"room","code":"K7Q2MX","members":[{"nick":"..","host":true},..]}
-{"t":"state", ...싱글 view와 같은 모양 + "seat":내 자리, "names":[4], "deadline":에포크 초, "connected":[4]}
-{"t":"error","code":"not_your_turn"|"illegal"|"room_full"|"no_room"|...}
+{"t":"queued","waiting":2} / {"t":"room","code":"K7Q2MX","members":[{"nick":"..","host":true},..],"me":0} / {"t":"lobby"} / {"t":"pong"}
+{"t":"state", ...싱글 view와 같은 모양 + "seat":내 자리, "names":[4], "deadline":에포크 초, "connected":[4], "ply":지금까지 처리한 수}
+{"t":"error","code":"not_your_turn"|"illegal"|"room_full"|"no_room"|...}   # illegal은 "reason"(not_in_hand·bad_tile·bad_ply 등)
+# 닫힘 코드: 4401 인증·세션, 4403 Origin, 4408 유휴, 4409 다른 연결로 대체, 1008 속도, 1009 크기, 1003 바이너리, 1011 보내기 밀림
 ```
 - `state.events`는 싱글처럼 직전 상태 이후의 수 목록 → 앱의 기존 장면 재생 코드를 그대로 쓴다.
 

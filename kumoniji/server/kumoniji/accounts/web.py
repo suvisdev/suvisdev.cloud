@@ -72,13 +72,43 @@ def session_of(request: Request, allow_pre_mfa: bool = False, require_verified: 
             s = sessions.current(c, _token(request))
     except Exception:
         raise HTTPException(401, {"code": "session"}) from None
-    if s is None:
-        raise HTTPException(401, {"code": "session"})
-    if not allow_pre_mfa and s["mfa_enabled"] and not s["mfa_passed"]:
-        raise HTTPException(403, {"code": "mfa"})
-    if require_verified and not s["verified"]:
-        raise HTTPException(403, {"code": "unverified"})
+    if problem := session_problem(s, allow_pre_mfa, require_verified):
+        raise HTTPException(401 if problem == "session" else 403, {"code": problem})
     return s
+
+
+def session_problem(s: dict | None, allow_pre_mfa: bool = False, require_verified: bool = True) -> str | None:
+    """세션이 쓸 수 없으면 이유 코드(HTTP·WebSocket 공용 — 검사가 갈라지지 않게 한 곳에)."""
+    if s is None:
+        return "session"
+    if not allow_pre_mfa and s["mfa_enabled"] and not s["mfa_passed"]:
+        return "mfa"
+    if require_verified and not s["verified"]:
+        return "unverified"
+    return None
+
+
+def socket_session(token: str | None) -> dict | None:
+    """WebSocket용: player()와 같은 검사(세션·auth_version·verified·MFA) + 닉네임. 쓸 수 없으면 None(장애 포함)."""
+    try:
+        with db.tx() as c:
+            s = sessions.current(c, token)
+            if session_problem(s):
+                return None
+            nick = c.execute("SELECT nickname FROM accounts WHERE id = %s", (s["account_id"],)).fetchone()
+    except Exception:
+        return None
+    return {**s, "nickname": nick["nickname"]}
+
+
+def socket_alive(s: dict) -> bool:
+    """연결 때 확인한 세션이 아직 쓸 수 있나 — 액세스 토큰(15분)이 만료돼도 세션이 살아 있으면 참.
+    로그아웃·세션 폐기·비밀번호 변경(auth_version)·MFA·인증 상태는 그대로 검사한다."""
+    try:
+        with db.tx() as c:
+            return session_problem(sessions.live(c, s["sid"], s["account_id"], s["ver"])) is None
+    except Exception:
+        return False
 
 
 def player(request: Request) -> dict:
