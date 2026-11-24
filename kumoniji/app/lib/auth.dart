@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
 import 'package:http/http.dart' as http;
 
 import 'api.dart' show Api;
+import 'settings.dart' show Settings;
 
 /// 로그인한 계정(서버 /api/auth/me).
 class Me {
@@ -88,6 +89,9 @@ class AuthClient extends http.BaseClient {
       r.headers['x-kumoniji-client'] = 'app';
       if (_access != null) r.headers['authorization'] = 'Bearer $_access';
     }
+    // 메일(인증·재설정) 언어는 서버가 Accept-Language로 정한다 — 화면 언어(고른 언어, 없으면 기기 언어).
+    // 휴대폰의 HTTP 클라이언트는 이 머리글을 스스로 붙이지 않는다.
+    r.headers['accept-language'] = Settings.lang;
     return inner.send(r);
   }
 
@@ -259,9 +263,9 @@ class Auth {
 
   /// 웹에서 구글로 보낼 주소(서버가 PKCE·state·nonce를 만든다).
   static String googleStart({bool link = false, bool reauth = false}) =>
-      '${Api.base}/api/auth/google/start${link
-          ? '?link=true'
+      '${Api.base}/api/auth/google/start?lang=${Settings.lang}${link
+          ? '&link=true'
           : reauth
-          ? '?reauth=true'
+          ? '&reauth=true'
           : ''}';
 }

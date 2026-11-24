@@ -117,3 +117,16 @@ def test_10_same_google_account_first_login_twice_at_once_makes_one_account(data
     for t in ts:
         t.join()
     assert len(out) == 2 and out[0] == out[1]
+
+
+def test_new_device_mail_after_google_uses_language_chosen_in_app(outbox, monkeypatch):
+    """구글 리다이렉트는 앱이 머리글을 못 단다 — start의 lang이 콜백의 새 기기 메일 언어가 된다(브라우저 언어보다 먼저)."""
+    from kumoniji.accounts import service
+
+    langs = []
+    monkeypatch.setattr(service.mail, "send", lambda to, kind, path, lang="en": langs.append((kind, lang)))
+    run_flow(browser(), monkeypatch)  # 첫 기기
+    second = browser()
+    second.headers.update({"user-agent": "Other/2.0", "accept-language": "en-US"})
+    run_flow(second, monkeypatch, path="/api/auth/google/start?lang=zh")
+    assert langs == [("new_device", "zh")]

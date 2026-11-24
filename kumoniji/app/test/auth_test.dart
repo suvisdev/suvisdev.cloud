@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:kumoniji/auth.dart';
 import 'package:kumoniji/auth_screens.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
+import 'package:kumoniji/settings.dart';
 import 'package:kumoniji/tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -186,5 +187,26 @@ void main() {
     fake({'/api/auth/refresh': (_) => err(401, 'session')});
     final r = await Auth.client.post(Uri.parse('/api/games'));
     expect(r.statusCode, 401);
+  });
+
+  test('화면 언어를 Accept-Language로 보낸다(메일 언어) — 고른 언어, 없으면 기기 언어', () async {
+    final seen = <String?>[];
+    final c = AuthClient(MockClient((r) async {
+      seen.add(r.headers['accept-language']);
+      return http.Response('{}', 200);
+    }));
+    await c.get(Uri.parse('http://x/api/auth/me'));
+    Settings.locale.value = const Locale('zh');
+    await c.get(Uri.parse('http://x/api/auth/me'));
+    Settings.locale.value = null;
+    expect(seen, [Settings.lang, 'zh']);
+    Settings.locale.value = const Locale('ja');
+    expect(Auth.googleStart(link: true), endsWith('/api/auth/google/start?lang=ja&link=true'));
+    Settings.locale.value = null;
+  });
+
+  test('기기 언어가 프랑스어·중국어 순이면 메일 언어도 화면처럼 중국어', () {
+    expect(Settings.langFor(const [Locale('fr'), Locale('zh')]), 'zh');
+    expect(Settings.langFor(const [Locale('fr')]), 'en'); // 지원 언어가 없으면 첫 지원 언어(en)
   });
 }

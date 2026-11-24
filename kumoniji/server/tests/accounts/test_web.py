@@ -200,3 +200,18 @@ def test_4_app_clients_are_not_asked_for_captcha_but_still_slowed(outbox, fast_h
     assert login(browser()).json()["detail"]["code"] == "captcha"  # 웹은 사람 확인
     app_client = TestClient(app, base_url=ORIGIN, headers={"x-kumoniji-client": "app"})
     assert login(app_client).status_code == 200  # 앱은 확인 없이(지연이 없으면) 로그인
+
+
+def test_reused_refresh_security_mail_uses_request_language(outbox, fast_hash, monkeypatch):
+    from kumoniji.accounts import sessions
+
+    signed_up(browser(), outbox)
+    app_client = TestClient(app, base_url=ORIGIN, headers={"x-kumoniji-client": "app", "accept-language": "zh"})
+    old = login(app_client).json()["refresh"]
+    assert app_client.post("/api/auth/refresh", json={"refresh": old}).status_code == 200
+    with db.tx() as c:  # 방금 회전은 다른 탭의 동시 갱신(409)으로 보므로 시간을 지나게
+        c.execute("UPDATE spent_refresh SET spent_at = now() - interval '1 minute'")
+    langs = []
+    monkeypatch.setattr(sessions.mail, "send", lambda to, kind, path, lang="en": langs.append((kind, lang)))
+    assert app_client.post("/api/auth/refresh", json={"refresh": old}).status_code == 401  # 재사용 → 전부 폐기
+    assert langs == [("security", "zh")]

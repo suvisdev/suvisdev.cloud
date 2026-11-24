@@ -110,4 +110,30 @@ void main() {
     await settle(t);
     expect(find.text('シングルモード'), findsOneWidget);
   });
+
+  testWidgets('옵션에서 중국어(간체)를 고르면 화면이 바로 중국어로', (t) async {
+    SharedPreferences.setMockInitialValues({});
+    await Settings.load();
+    Auth.client = AuthClient(
+      MockClient(
+        (r) async => r.url.path == '/api/auth/me'
+            ? http.Response(jsonEncode({'id': 1, 'email': 'me@x.com', 'nickname': 'me'}), 200)
+            : http.Response('{}', 404),
+      ),
+    );
+    await t.pumpWidget(const KumonijiApp());
+    await settle(t);
+    await t.tap(find.byIcon(Icons.settings));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('language')));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('locale-zh')));
+    await settle(t);
+    expect(find.text('设置'), findsOneWidget);
+    expect((await SharedPreferences.getInstance()).getString('locale'), 'zh');
+    await t.tap(find.byType(BackButton));
+    await settle(t);
+    expect(find.text('单人模式'), findsOneWidget);
+    Settings.locale.value = null;
+  });
 }
