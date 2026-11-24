@@ -28,6 +28,20 @@
 
 ---
 
+## 2026-11-24
+
+### 작업 내용
+- 11-16에 찾은 "공개 저장소 기록에 남은 약한 비밀값 1건" 교체를 마침(사용자 지시 "바로 진행").
+
+### 수정/구현
+- 운영 `.env`와 저장소 기록을 대조해 대상 값을 특정(값은 출력·기록하지 않음), 로컬 `suvisdev/.env`의 해당 값을 무작위 값으로 교체(키 구성 동일 확인).
+- 사용자가 `./k8s/deploy.sh --external-db`(Secret 갱신)·`kubectl -n suvisdev rollout restart deploy/backend` 실행.
+
+### 산출물
+- 확인: 새 backend 파드 Running·재시작 0, 시작 로그에 DB 엔진 초기화 성공, 파드 안에서 두 DB URL `select 1`·Redis ping 성공, 공개 API 200. 하네스에서는 Secret 갱신·재시작이 권한으로 막혀 사용자가 실행.
+
+---
+
 ## 2026-11-23 — 상태 파일(SPEC·STATE) 도입
 
 ### 작업 내용
