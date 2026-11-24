@@ -35,6 +35,9 @@ def test_errors():
     assert (
         c.post(f"/api/games/{v['id']}/moves", json={"tiles": ["x9"]}).status_code == 422
     )
+    assert (  # '²'는 isdigit()이지만 숫자가 아니다 — 500이 아니라 422
+        c.post(f"/api/games/{v['id']}/moves", json={"tiles": ["m²"]}).status_code == 422
+    )
     assert (
         c.post(f"/api/games/{v['id']}/moves", json={"tiles": ["s1"] * 6}).status_code
         == 422

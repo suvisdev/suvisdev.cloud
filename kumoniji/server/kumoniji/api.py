@@ -22,14 +22,12 @@ from pydantic import BaseModel, Field
 from .accounts import db, limits, service, sessions
 from .accounts.web import player
 from .accounts.web import router as auth_router
-from .bots import can_beat, pick, plays, seen
+from .bots import can_beat, pick, seen
 from .game import Game, IllegalMove
-from .rules import SHAPES, beats, classify, value
+from .view import dec, enc, reason, view
 
 Level = Literal["easy", "normal", "hard"]
 
-SUIT = {"산": "m", "벚": "s", "잎": "l", "솜": "c"}
-CODE = {v: k for k, v in SUIT.items()}
 HUMAN, MAX_GAMES = 0, 2000
 CREATE_PER_MIN = 30  # 계정 하나가 1분에 만들 수 있는 판 — 판을 마구 만들어 남의 진행 중인 판을 밀어내지 못하게
 # ponytail: 메모리 보관·재시작 시 사라짐·replicas 1 고정. 계정 단계(3단계)에서 DB로 옮긴다.
@@ -85,21 +83,6 @@ app = FastAPI(
 app.include_router(auth_router)
 
 
-def enc(t):
-    return f"{SUIT[t[0]]}{t[1]}"
-
-
-def dec(s: str):
-    if (
-        len(s) < 2
-        or s[0] not in CODE
-        or not s[1:].isdigit()
-        or not 1 <= int(s[1:]) <= 13
-    ):
-        raise HTTPException(422, "잘못된 타일 표기")
-    return (CODE[s[0]], int(s[1:]))
-
-
 class Move(BaseModel):
     tiles: list[str] = Field(max_length=5)
 
@@ -122,62 +105,6 @@ def run_bots(g: Game, rng: random.Random, events: list, level: str = "normal"):
             m = pick(level, seen(g, seat), rng)
         g.play(seat, m)
         events.append({"seat": seat, "tiles": [enc(t) for t in m] if m else None})
-
-
-def legal_moves(g: Game) -> list[list[str]]:
-    """사람 차례일 때 지금 낼 수 있는 조합 전부(앱은 고른 패가 이 중 하나와 같을 때만 '내기'를 켠다). 판정은 서버 규칙 그대로."""
-    if g.winner is not None or g.turn != HUMAN:
-        return []
-    return [[enc(t) for t in p] for p in plays(g.hands[HUMAN]) if beats(g.table, p)]
-
-
-def reason(g: Game, tiles: list) -> str:
-    """낼 수 없는 이유(앱이 언어별 문구로 바꿈)."""
-    if any(t not in g.hands[HUMAN] for t in tiles):
-        return "not_in_hand"
-    if classify(tiles) is None:
-        return "not_combo"
-    if g.table and len(tiles) != len(g.table):
-        return "count"
-    if len(tiles) <= 3 and g.table and tiles[0][1] == g.table[0][1]:
-        return "suit"
-    return "weaker"
-
-
-def seat_plays(g: Game) -> list[list[str] | None]:
-    """이번 바퀴의 최근 세 수만, 자리마다 마지막으로 낸 패(안 냈으면 None). 앱이 각 자리 앞에 놓는다.
-    네 번째 전 수(보통 내 차례에 보이던 내 첫 패)는 지운다(11-21 사용자 결정)."""
-    out: list[list[str] | None] = [None] * 4
-    for seat, m in [*g.history, *([(g.last, g.table)] if g.table else [])][-3:]:
-        out[seat] = [enc(t) for t in m]
-    return out
-
-
-def view(gid: str, g: Game, events: list, level: str = "normal") -> dict:
-    return {
-        "id": gid,
-        "level": level,
-        "today": SUIT[g.today],
-        "turn": g.turn,
-        "hand": [enc(t) for t in sorted(g.hands[HUMAN], key=value)],
-        "counts": [len(h) for h in g.hands],
-        "table": [enc(t) for t in g.table],
-        "last": g.last,
-        # 마지막으로 낸 사람 뒤로 이어서 패스한 자리(바퀴가 넘어가면 비어 있음)
-        "passed": []
-        if g.last is None
-        else [(g.last + k) % 4 for k in range(1, g.passes + 1)],
-        "plays": seat_plays(g),
-        "petals": [len(p) for p in g.petals],
-        "bonus": g.bonus,
-        "doubles": g.doubles,
-        "winner": g.winner,
-        "settlement": g.settlement(),
-        "events": events,
-        "moves": (moves := legal_moves(g)),
-        "playable": sorted({t for m in moves for t in m}, key=lambda c: value(dec(c))),
-        "suits": [SUIT[x] for x in reversed(SHAPES)],  # 센 것 → 약한 것
-    }
 
 
 def load(gid: str, account_id: int) -> Room:
