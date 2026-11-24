@@ -36,6 +36,7 @@ class MultiTable:
         self.gone_since: float | None = None  # 네 명 모두 끊긴 때
         self.finished_at: float | None = None
         self.deadline = now + TURN
+        self.ply = 0  # 지금까지 처리한 수(패스 포함) — 앱은 이 번호를 붙여 내고, 다르면 늦게 온 옛 수로 거부
         self._auto(now)
 
     def seat_of(self, account: int) -> int | None:
@@ -43,6 +44,7 @@ class MultiTable:
 
     def _record(self, seat: int, tiles: list | None, now: float) -> dict:
         self.game.play(seat, tiles)
+        self.ply += 1
         e = {"seat": seat, "tiles": [enc(t) for t in tiles] if tiles else None}
         if self.game.winner is not None:
             self.finished_at = now
@@ -54,13 +56,18 @@ class MultiTable:
         자기 손패가 아니라 공개 정보로만 판단해 '저 사람은 낼 패가 없다'가 드러나지 않는다."""
         out = []
         g = self.game
-        while g.winner is None and g.table and not can_beat(g.table, [t for h in g.hands for t in h]):
-            out.append(self._record(g.turn, None, now))
+        # 패스는 바닥·손패를 바꾸지 않으니 한 바퀴(바닥이 비기 전)엔 한 번만 판정한다(판정은 최악 1ms 안 — bots._can_beat5).
+        if g.winner is None and g.table and not can_beat(g.table, [t for h in g.hands for t in h]):
+            while g.winner is None and g.table:
+                out.append(self._record(g.turn, None, now))
         return out
 
-    def move(self, account: int, codes: list[str], now: float) -> list[dict]:
-        """account가 낸 패(빈 목록 = 패스). 그 자리 차례가 아니면 NotYourTurn, 낼 수 없으면 Illegal(code)."""
+    def move(self, account: int, codes: list[str], now: float, ply: int | None = None) -> list[dict]:
+        """account가 낸 패(빈 목록 = 패스). 그 자리 차례가 아니면 NotYourTurn, 낼 수 없으면 Illegal(code).
+        ply: 그 수를 낼 때 본 상태의 번호. 다르면(그새 자동 패스·다른 수가 지나감) 늦게 온 옛 수라 거부한다."""
         seat, g = self.seat_of(account), self.game
+        if ply is not None and ply != self.ply:
+            raise NotYourTurn
         # 마감이 지난 수는 받지 않는다 — 타이머(tick)보다 먼저 처리되면 자동 패스를 건너뛰게 된다
         if seat is None or self.void(now) or g.winner is not None or g.turn != seat or now >= self.deadline:
             raise NotYourTurn
@@ -108,5 +115,6 @@ class MultiTable:
             "seat": seat,
             "names": list(self.names),
             "deadline": None if self.game.winner is not None else self.deadline,
+            "ply": self.ply,
             "connected": list(self.connected),  # 복사 — 보내기 전에 연결이 바뀌어도 이 상태는 그대로
         }

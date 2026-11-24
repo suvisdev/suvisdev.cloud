@@ -24,6 +24,7 @@ from .accounts.web import player
 from .accounts.web import router as auth_router
 from .bots import can_beat, pick, seen
 from .game import Game, IllegalMove
+from .multi import ws as multi_ws
 from .view import dec, enc, reason, view
 
 Level = Literal["easy", "normal", "hard"]
@@ -50,15 +51,20 @@ CREATES: defaultdict[str, deque[float]] = defaultdict(deque)
 log = logging.getLogger("kumoniji")
 
 
+def _sweep_accounts() -> None:
+    with db.tx() as c:
+        service.purge_unverified(c)
+        service.purge_deleted(c)
+        limits.sweep(c)
+        sessions.sweep(c)
+
+
 async def _housekeeping():
-    """미인증 가입(24시간)·탈퇴 재적용·오래된 시도 기록 정리. 시작 때 한 번, 그 뒤 1시간마다."""
+    """미인증 가입(24시간)·탈퇴 재적용·오래된 시도 기록 정리. 시작 때 한 번, 그 뒤 1시간마다.
+    DB 작업은 스레드에서 — 이벤트 루프에서 기다리면 멀티의 소켓 수신·20초 타이머가 같이 멈춘다."""
     while True:
         try:
-            with db.tx() as c:
-                service.purge_unverified(c)
-                service.purge_deleted(c)
-                limits.sweep(c)
-                sessions.sweep(c)
+            await asyncio.to_thread(_sweep_accounts)
         except Exception:
             log.exception("계정 정리 작업 실패")
         await asyncio.sleep(3600)
@@ -71,7 +77,9 @@ async def lifespan(_app):
     if url:  # 테스트는 픽스처가 직접 db.init을 부른다
         db.init(url)
         task = asyncio.create_task(_housekeeping())
+    ticker = asyncio.create_task(multi_ws.tick_forever())
     yield
+    ticker.cancel()
     if task:
         task.cancel()
     db.close()
@@ -81,6 +89,7 @@ app = FastAPI(
     title="kumoniji", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
 )
 app.include_router(auth_router)
+app.include_router(multi_ws.router)
 
 
 class Move(BaseModel):

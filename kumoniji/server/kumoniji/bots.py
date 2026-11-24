@@ -14,6 +14,7 @@ from itertools import combinations, product
 
 from .game import Game, Tile
 from .rules import (
+    COLOR,
     DECK,
     KINDS5,
     ODD_EVEN,
@@ -68,7 +69,7 @@ def strength(p):
 def can_beat(table: list, tiles: list) -> bool:
     """tiles로 table을 이기는 조합을 만들 수 있는가."""
     if len(table) == 5:
-        return any(len(p) == 5 and beats(table, p) for p in plays(tiles))
+        return _can_beat5(table, tiles)
     by_num: defaultdict[int, list] = defaultdict(list)
     for t in tiles:
         by_num[t[1]].append(t)
@@ -77,6 +78,49 @@ def can_beat(table: list, tiles: list) -> bool:
         for ts in by_num.values()
         for c in combinations(ts, len(table))
     )
+
+
+def _can_beat5(table: list, tiles: list) -> bool:
+    """5장 바닥을 이길 5장이 있는가 — 바닥보다 셀 수 있는 종류만 만들고 처음 찾으면 멈춘다.
+    plays()로 전부 만들면 남은 패 47장에서 0.1초 넘게 걸려 멀티의 이벤트 루프를 붙잡았다(11-24).
+    빠짐이 없는 이유: 이기는 조합은 자기 종류를 만드는 생성기(묶음이 가장 좁은 것)에 반드시 들어 있다."""
+    tk = KINDS5.index(classify(table)[0])
+
+    def runs(group_of, seqs):  # 같은 묶음(아무거나·같은 색·같은 모양) 안에서 수열 5장
+        groups = defaultdict(lambda: defaultdict(list))
+        for t in tiles:
+            groups[group_of(t)][t[1]].append(t)
+        for by_num in groups.values():
+            for seq in seqs:
+                if all(n in by_num for n in seq):
+                    yield from product(*(by_num[n] for n in seq))
+
+    def full_houses():
+        by_num = defaultdict(list)
+        for t in tiles:
+            by_num[t[1]].append(t)
+        trips = [c for ts in by_num.values() for c in combinations(ts, 3)]
+        pairs = [c for ts in by_num.values() for c in combinations(ts, 2)]
+        return (a + b for a in trips for b in pairs if a[0][1] != b[0][1])
+
+    def quads():
+        by_num = defaultdict(list)
+        for t in tiles:
+            by_num[t[1]].append(t)
+        return ((*ts, k) for ts in by_num.values() if len(ts) == 4 for k in tiles if k not in ts)
+
+    anything, color, shape = (lambda t: 0), (lambda t: COLOR[t[0]]), (lambda t: t[0])
+    gens = [  # (이 생성기가 만들 수 있는 가장 센 종류, 후보)
+        ("스트레이트", lambda: runs(anything, STRAIGHTS)),
+        ("풀하우스", full_houses),
+        ("홀짝", lambda: runs(anything, ODD_EVEN)),
+        ("같은색스트레이트", lambda: runs(color, STRAIGHTS)),
+        ("같은색홀짝", lambda: runs(color, ODD_EVEN)),
+        ("포카드", quads),
+        ("스트레이트플러시", lambda: runs(shape, STRAIGHTS)),
+        ("같은모양홀짝", lambda: runs(shape, ODD_EVEN)),
+    ]
+    return any(beats(table, list(c)) for kind, gen in gens if KINDS5.index(kind) >= tk for c in gen())
 
 
 @dataclass(frozen=True)

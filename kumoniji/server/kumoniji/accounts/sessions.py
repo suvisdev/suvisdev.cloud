@@ -86,8 +86,8 @@ def refresh(c, raw: str) -> tuple[str, str] | None:
     return None
 
 
-def current(c, token: str | None) -> dict | None:
-    """액세스 토큰 → {"account_id", "sid", "mfa_passed", "reauth_age", "verified"} 또는 None."""
+def decode(token: str | None) -> dict | None:
+    """액세스 토큰의 서명·만료·발급자 확인(DB 없이). 쓸 수 없으면 None."""
     if not token or len(token) > 2048:
         return None
     try:
@@ -96,15 +96,27 @@ def current(c, token: str | None) -> dict | None:
         )
     except jwt.PyJWTError:
         return None
-    if claims.get("typ") != "access":
+    return claims if claims.get("typ") == "access" else None
+
+
+def current(c, token: str | None) -> dict | None:
+    """액세스 토큰 → {"account_id", "sid", "mfa_passed", "reauth_age", "verified"} 또는 None."""
+    if (claims := decode(token)) is None:
         return None
+    return live(c, claims["sid"], int(claims["sub"]), claims.get("ver"), idle_ok=True)
+
+
+def live(c, sid: str, account_id: int, ver, *, idle_ok: bool = False) -> dict | None:
+    """세션이 아직 살아 있나(폐기·비밀번호 변경·탈퇴·잠금 아님). 토큰 만료와 무관 — 오래 열린 소켓의 재확인용.
+    idle_ok=False면 리프레시처럼 30일 유휴 만료도 적용한다(HTTP 액세스 토큰은 15분이라 따로 볼 필요 없음)."""
+    idle = "" if idle_ok else f"AND s.last_used_at > now() - interval '{IDLE}'"
     return c.execute(
-        """SELECT a.id AS account_id, s.id::text AS sid, s.mfa_passed, a.verified_at IS NOT NULL AS verified,
-                  a.mfa_enabled, extract(epoch FROM now() - s.reauth_at) AS reauth_age
+        f"""SELECT a.id AS account_id, s.id::text AS sid, s.mfa_passed, a.verified_at IS NOT NULL AS verified,
+                  a.mfa_enabled, extract(epoch FROM now() - s.reauth_at) AS reauth_age, a.auth_version AS ver
            FROM sessions s JOIN accounts a ON a.id = s.account_id
            WHERE s.id = %s AND a.id = %s AND s.revoked_at IS NULL AND a.auth_version = %s
-             AND a.deleted_at IS NULL AND a.locked_at IS NULL""",
-        (claims["sid"], int(claims["sub"]), claims.get("ver")),
+             AND a.deleted_at IS NULL AND a.locked_at IS NULL {idle}""",
+        (sid, account_id, ver),
     ).fetchone()
 
 
