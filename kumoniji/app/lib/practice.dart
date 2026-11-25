@@ -1,6 +1,7 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import 'l10n/app_localizations.dart';
 import 'tile.dart';
@@ -38,42 +39,61 @@ Widget _title(String s) => Padding(
   ),
 );
 
-/// 조합표: 한 장·페어·트리플, 그리고 5장 조합 8가지(센 것이 위). 싱글·멀티 모두.
+/// 조합표: 5장 조합 8가지(센 것이 위)와 한 장·페어·트리플. 싱글·멀티 모두.
+/// 이름 아래에 패를 크게(11-25 사용자 "좀 더 크게, 보기 편하게"), 넓으면(시트) 두 칸으로.
 class ComboChart extends StatelessWidget {
   const ComboChart({super.key});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    Widget row(String name, List<String> codes) => Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(name, style: const TextStyle(fontSize: 11, color: _ink)),
+    return LayoutBuilder(
+      builder: (context, box) {
+        final cols = box.maxWidth >= 560 ? 2 : 1;
+        final colW = (box.maxWidth - 16 * (cols - 1)) / cols;
+        final tileW = min(36.0, (colW - 4) / 5 - 1);
+        Widget item(String name, List<String> codes) => SizedBox(
+          width: colW,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+                ),
+                const SizedBox(height: 3),
+                _tiles(codes, tileW),
+              ],
+            ),
           ),
-          _tiles(codes, 19),
-        ],
-      ),
-    );
-    return Column(
-      key: const ValueKey('combo-chart'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _title(t.comboChart),
-        for (final (name, codes) in fiveCombos(t).reversed) row(name, codes),
-        const Divider(height: 12),
-        row(t.comboTriple, ['c9', 'l9', 's9']),
-        row(t.comboPair, ['c5', 'l5']),
-        row(t.comboSingle, ['c7']),
-        Text(t.comboChartNote, style: const TextStyle(fontSize: 10, color: _ink)),
-      ],
+        );
+        return Column(
+          key: const ValueKey('combo-chart'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _title(t.comboChart),
+            Wrap(
+              spacing: 16,
+              children: [
+                for (final (name, codes) in fiveCombos(t).reversed) item(name, codes),
+                item(t.comboTriple, ['c9', 'l9', 's9']),
+                item(t.comboPair, ['c5', 'l5']),
+                item(t.comboSingle, ['c7']),
+              ],
+            ),
+            Text(t.comboChartNote, style: const TextStyle(fontSize: 12, color: _ink)),
+          ],
+        );
+      },
     );
   }
 }
 
-/// 나온 패(싱글 연습 전용): 무늬 넷 × 1~13, 이미 낸 패는 채워서. 멀티는 서버가 out을 주지 않아 안 보인다.
+/// 나온 패(싱글 연습 전용): 무늬마다 1~13을 실제 패 그림으로(11-25 사용자), 이미 나온 패는 또렷하게·아직은 흐리게.
+/// 폭이 되면 한 줄에 13장, 아니면 7장씩. 멀티는 서버가 out을 주지 않아 안 보인다.
 class OutTracker extends StatelessWidget {
   final List<String> out;
   final List<String> suits;
@@ -83,54 +103,46 @@ class OutTracker extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final gone = out.toSet();
-    return Column(
-      key: const ValueKey('out-tracker'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _title('${t.outTiles} ${out.length}/52'),
-        for (final s in suits.reversed) // 무늬 순서와 같이 약한 것부터
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              children: [
-                SvgPicture.asset('assets/icons/suit_$s.svg', width: 16, height: 16),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Wrap(
-                    spacing: 2,
-                    runSpacing: 2,
-                    children: [
-                      for (var n = 1; n <= 13; n++)
-                        Container(
+    return LayoutBuilder(
+      builder: (context, box) {
+        final per = box.maxWidth >= 13 * 30 ? 13 : 7;
+        final tileW = min(40.0, box.maxWidth / per - 3);
+        return Column(
+          key: const ValueKey('out-tracker'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _title('${t.outTiles} ${out.length}/52'),
+            for (final s in suits.reversed) // 무늬 순서와 같이 약한 것부터
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Wrap(
+                  spacing: 3,
+                  runSpacing: 6,
+                  children: [
+                    for (var n = 1; n <= 13; n++)
+                      Semantics(
+                        label: '$n', // 그림만이면 스크린 리더가 번호를 못 읽는다(전엔 숫자 칸, 리뷰 10차)
+                        excludeSemantics: true,
+                        child: Opacity(
                           key: ValueKey('out-$s$n'),
-                          width: 18,
-                          height: 18,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: gone.contains('$s$n') ? _ink : Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFE9DFD1)),
-                          ),
-                          child: Text(
-                            '$n',
-                            style: TextStyle(fontSize: 9, color: gone.contains('$s$n') ? Colors.white : _ink),
-                          ),
+                          opacity: gone.contains('$s$n') ? 1 : .22,
+                          child: TileView(code: '$s$n', width: tileW),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 }
 
 /// 넓은 화면: 왼쪽 나온 패(싱글만)·오른쪽 조합표를 판 옆에 늘 띄운다. 좁은 화면은 버튼으로 연다(PracticeButtons).
 class PracticeFrame extends StatelessWidget {
-  static const side = 240.0;
+  static const side = 280.0;
   final List<String>? out;
   final List<String> suits;
   final Widget child;

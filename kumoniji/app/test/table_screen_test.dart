@@ -405,11 +405,11 @@ void recentTests() {
       'out': ['c4'],
     };
     await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
-    Color? fill() => (t.widget<Container>(find.byKey(const ValueKey('out-c4'))).decoration as BoxDecoration).color;
+    double fill() => t.widget<Opacity>(find.byKey(const ValueKey('out-c4'))).opacity; // 나온 패는 또렷(1)
     await t.pump(const Duration(milliseconds: 1500)); // 나눠 주기·시작 카드 — 봇 수는 아직
-    expect(fill(), Colors.white);
+    expect(fill(), lessThan(1));
     await settle(t);
-    expect(fill(), isNot(Colors.white));
+    expect(fill(), 1);
   });
 
   testWidgets('a practice sheet opened during replay closes when the result shows', (t) async {
@@ -451,11 +451,11 @@ void recentTests() {
     );
     await t.tap(find.byKey(const ValueKey('open-out')));
     await t.pumpAndSettle();
-    Color? fill(String c) => (t.widget<Container>(find.byKey(ValueKey('out-$c'))).decoration as BoxDecoration).color;
-    expect(fill('l3'), Colors.white);
+    double fill(String c) => t.widget<Opacity>(find.byKey(ValueKey('out-$c'))).opacity;
+    expect(fill('l3'), lessThan(1));
     live.value = ['c1', 'l3']; // 봇 수 재생이 끝나 상태가 바뀜
     await t.pump();
-    expect(fill('l3'), isNot(Colors.white));
+    expect(fill('l3'), 1);
   });
 
   testWidgets('practice: phone opens played tiles and combos in a sheet; wide screen shows both beside the table', (
@@ -473,9 +473,10 @@ void recentTests() {
     expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
     await t.tap(find.byKey(const ValueKey('open-out')));
     await t.pumpAndSettle();
-    final cell = t.widget<Container>(find.byKey(const ValueKey('out-c1')));
-    expect((cell.decoration as BoxDecoration).color, isNot(Colors.white)); // 낸 패는 채움
-    expect((t.widget<Container>(find.byKey(const ValueKey('out-c2'))).decoration as BoxDecoration).color, Colors.white);
+    expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c1'))).opacity, 1); // 낸 패는 또렷하게
+    expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c2'))).opacity, lessThan(1));
+    expect(find.descendant(of: find.byKey(const ValueKey('out-c2')), matching: find.byType(TileView)), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('out-tracker')), matching: find.bySemanticsLabel('13')), findsWidgets);
     Navigator.of(t.element(find.byKey(const ValueKey('out-tracker')))).pop();
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('open-combos')));
@@ -576,14 +577,29 @@ void recentTests() {
   }
 
   for (final size in [const Size(1280, 510), const Size(844, 390)]) {
-    testWidgets('a short ${size.width.toInt()}x${size.height.toInt()} window keeps the old hand size', (t) async {
+    testWidgets('a short ${size.width.toInt()}x${size.height.toInt()} landscape window puts the hand in one row', (
+      t,
+    ) async {
       t.view.physicalSize = size;
       t.view.devicePixelRatio = 1;
       addTearDown(t.view.reset);
-      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(view()), 200)))));
+      final hand = ['m1', 'm4', 's3', 's5', 'l2', 'l7', 'c3', 'c6', 'm9', 's10', 'l11', 'c12', 'm13'];
+      final v = {
+        ...view(),
+        'hand': hand,
+        'counts': [13, 13, 13, 13],
+        'playable': hand,
+        'moves': [
+          for (final h in hand) [h],
+        ],
+      };
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
       await settle(t);
-      while (t.takeException() != null) {} // 낮은 가로 창의 옆자리 넘침은 이번 변경 전부터
-      expect(t.getSize(find.byKey(ValueKey('hand-${view()['hand'][0]}'))).width, 56); // 키우지 않는다(옆자리 몫)
+      expect(t.takeException(), isNull); // 앱 기본이 가로(11-25) — 넘침 없이
+      final tops = {for (final c in hand) t.getRect(find.byKey(ValueKey('hand-$c'))).top};
+      expect(tops.length, 1);
+      expect(t.getRect(find.widgetWithText(OutlinedButton, 'Pass')).bottom <= size.height, isTrue);
+      expect(find.byKey(const ValueKey('suit-order')), findsOneWidget); // 위 막대로 올라감
     });
   }
 
@@ -622,9 +638,9 @@ void recentTests() {
       for (final f in [find.byKey(const ValueKey('mute')), find.byKey(const ValueKey('new-game'))]) {
         expect(t.getRect(f).right <= size.width, isTrue, reason: '$f');
       }
-      // 예전 크기(최대 56)보다 작아지지 않는다 — 낮은 가로 화면은 한 줄로
+      // 낮은 가로 화면은 손패 한 줄(그래서 패는 작아진다)
       if (size.width > size.height) {
-        expect(t.getSize(find.byKey(const ValueKey('hand-m1'))).width, greaterThanOrEqualTo(50));
+        expect({for (final c in hand) t.getRect(find.byKey(ValueKey('hand-$c'))).top}.length, 1);
       }
       // 실제로는 홈에서 들어와 왼쪽에 뒤로 가기(56)가 있다 — 배지가 그 자리를 남긴다
       expect(t.getRect(find.byKey(const ValueKey('today'))).left >= 56 + 8, isTrue);

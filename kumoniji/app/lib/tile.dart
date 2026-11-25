@@ -43,12 +43,16 @@ class TileView extends StatelessWidget {
         height: width * 4 / 3,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(width * .16),
+          // 2.5D(11-25 사용자, 나중에 3D로): 앞면 아래로 패 두께(옆면)를 깔고, 그 밑에 바닥 그림자.
+          // 레이아웃 크기는 그대로 두고 그림자로만 그려 손패·판 배치는 바뀌지 않는다.
           boxShadow: [
             BoxShadow(
-              color: Color(selected ? 0x30000000 : 0x38000000),
-              blurRadius: width * (selected ? .3 : .1),
-              offset: Offset(width * .03, width * (selected ? .26 : .06)),
+              color: Color(selected ? 0x26000000 : 0x33000000),
+              blurRadius: width * (selected ? .34 : .14),
+              offset: Offset(width * .04, width * (selected ? .32 : .16)),
             ),
+            BoxShadow(color: const Color(0xFFC9B48C), offset: Offset(0, width * .11)), // 옆면 아래 가장자리
+            BoxShadow(color: const Color(0xFFE6D6B5), offset: Offset(0, width * .075)), // 옆면
           ],
         ),
         child: SvgPicture.asset('assets/tiles/$code.svg', fit: BoxFit.contain),

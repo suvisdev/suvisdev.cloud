@@ -191,10 +191,12 @@ void main() {
 
   test('화면 언어를 Accept-Language로 보낸다(메일 언어) — 고른 언어, 없으면 기기 언어', () async {
     final seen = <String?>[];
-    final c = AuthClient(MockClient((r) async {
-      seen.add(r.headers['accept-language']);
-      return http.Response('{}', 200);
-    }));
+    final c = AuthClient(
+      MockClient((r) async {
+        seen.add(r.headers['accept-language']);
+        return http.Response('{}', 200);
+      }),
+    );
     await c.get(Uri.parse('http://x/api/auth/me'));
     Settings.locale.value = const Locale('zh');
     await c.get(Uri.parse('http://x/api/auth/me'));
