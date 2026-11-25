@@ -152,13 +152,13 @@ void main() {
     await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
     await settle(t);
     expect(t.takeException(), isNull);
-    expect(t.getRect(find.byWidgetPredicate((w) => w is TileView && w.code == 'c13')).right <= 280, isTrue);
+    expect(t.getRect(find.byWidgetPredicate((w) => w is TileView && w.code == 'c11')).right <= 280, isTrue);
   });
 
   testWidgets('home shows one tile of each suit and one mute button silences music and effects', (t) async {
     await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
     await settle(t);
-    for (final c in ['m13', 's13', 'l12', 'c13']) {
+    for (final c in ['m13', 's13', 'l12', 'c11']) {
       expect(find.byWidgetPredicate((w) => w is TileView && w.code == c), findsOneWidget);
     }
     Settings.music.value = 0.6;

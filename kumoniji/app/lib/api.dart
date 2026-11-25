@@ -28,6 +28,9 @@ class GameState {
   final List<int> passed;
   final List<int>? settlement;
 
+  /// 이미 나온 패(싱글 연습만 — 멀티는 서버가 안 줘서 null)
+  final List<String>? out;
+
   /// 지금 낼 수 있는 조합 전부(사람 차례일 때만, 서버가 계산)
   final List<List<String>> moves;
 
@@ -56,6 +59,7 @@ class GameState {
       petals = List<int>.from(j['petals']),
       bonus = List<int>.from(j['bonus']),
       settlement = j['settlement'] == null ? null : List<int>.from(j['settlement']),
+      out = j['out'] == null ? null : List<String>.from(j['out']),
       events = [
         for (final e in j['events'])
           Play(e['seat'], e['tiles'] == null ? null : List<String>.from(e['tiles']), auto: e['auto'] == true),

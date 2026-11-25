@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'l10n/app_localizations.dart';
+import 'practice.dart';
 import 'tile.dart';
 
 const _ink = Color(0xFF42384C);
@@ -132,16 +133,7 @@ class _HelpCardsState extends State<_HelpCards> {
       t.help4t,
       Column(
         children: [
-          for (final (name, codes) in [
-            (t.comboStraight, ['c3', 'l4', 's5', 'm6', 'c7']),
-            (t.comboFullHouse, ['c9', 'l9', 's9', 'm4', 'c4']),
-            (t.comboOddEven, ['c1', 'l3', 's5', 'm7', 'c9']),
-            (t.comboColorStraight, ['s3', 'c4', 's5', 'c6', 's7']),
-            (t.comboColorOddEven, ['l2', 'm4', 'l6', 'm8', 'l10']),
-            (t.comboFour, ['c8', 'l8', 's8', 'm8', 'c2']),
-            (t.comboStraightFlush, ['s4', 's5', 's6', 's7', 's8']),
-            (t.comboSuitOddEven, ['m1', 'm3', 'm5', 'm7', 'm9']),
-          ])
+          for (final (name, codes) in fiveCombos(t))
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
