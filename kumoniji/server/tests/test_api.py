@@ -216,7 +216,7 @@ def test_human_auto_passes_when_nothing_beats_table():
     g.turn = 0
     events = []
     api.run_bots(g, random.Random(0), events)
-    assert events[0] == {"seat": 0, "tiles": None}  # 사람 자동 패스로 바퀴가 끝남
+    assert events[0] == {"seat": 0, "tiles": None, "auto": True}  # 사람 자동 패스로 바퀴가 끝남
     assert g.petals[3] == ["산"]  # 3번이 바퀴를 가져감
 
 
@@ -241,9 +241,10 @@ def test_no_auto_pass_when_someone_else_could_still_beat():
     api.run_bots(g, random.Random(0), events)
     assert events == [] and g.turn == 0  # 사람이 직접 패스해야 함
     assert api.view("x", g, [])["moves"] == []
-    g.hands[1].remove(("산", 13))  # 산13이 이미 나왔다면 아무도 못 이김 → 자동 패스
+    g.hands[1].remove(("산", 13))  # 산13이 이미 나왔다면 아무도 못 이김 → 남은 자리 모두 한 번에 자동 패스
     api.run_bots(g, random.Random(0), events)
-    assert events[0] == {"seat": 0, "tiles": None}
+    assert events[:3] == [{"seat": s, "tiles": None, "auto": True} for s in (0, 1, 2)]
+    assert g.petals[3] == ["벚"]  # 3번이 바퀴를 가져감
 
 
 def test_can_beat_by_size():
@@ -329,3 +330,21 @@ def test_mail_link_pages_serve_the_app_and_static_files_still_work(
             r.headers["referrer-policy"] == "no-referrer"
         )  # 토큰이 든 주소가 밖으로 새지 않게
     assert c.get("/nothing-here").status_code == 404
+
+
+def test_unbeatable_bot_play_passes_everyone_at_once():
+    """봇(1번)이 낸 산13을 아무도 못 이기면 봇 둘과 사람이 한꺼번에(auto) 넘어간다 — 한 명씩 차례를 돌지 않는다."""
+    from kumoniji import api
+    from kumoniji.game import Game
+
+    g = Game(
+        hands=[[("솜", 2), ("벚", 5)], [("솜", 8)], [("솜", 4), ("잎", 9)], [("솜", 6), ("산", 10)]],
+        today="잎",
+        turn=2,
+        table=[("산", 13)],
+        last=1,
+    )
+    events = []
+    api.run_bots(g, random.Random(0), events)
+    assert events[:3] == [{"seat": s, "tiles": None, "auto": True} for s in (2, 3, 0)]
+    assert g.petals[1] == ["산"]  # 1번이 바퀴를 가져가 다시 선

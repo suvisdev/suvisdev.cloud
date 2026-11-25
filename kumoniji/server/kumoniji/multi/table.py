@@ -42,10 +42,12 @@ class MultiTable:
     def seat_of(self, account: int) -> int | None:
         return self.accounts.index(account) if account in self.accounts else None
 
-    def _record(self, seat: int, tiles: list | None, now: float) -> dict:
+    def _record(self, seat: int, tiles: list | None, now: float, auto: bool = False) -> dict:
         self.game.play(seat, tiles)
         self.ply += 1
         e = {"seat": seat, "tiles": [enc(t) for t in tiles] if tiles else None}
+        if auto:  # 아무도 못 이겨 한꺼번에 넘긴 패스 — 앱이 묶어서 한 번에 보여 준다
+            e["auto"] = True
         if self.game.winner is not None:
             self.finished_at = now
         self.deadline = now + TURN
@@ -59,7 +61,7 @@ class MultiTable:
         # 패스는 바닥·손패를 바꾸지 않으니 한 바퀴(바닥이 비기 전)엔 한 번만 판정한다(판정은 최악 1ms 안 — bots._can_beat5).
         if g.winner is None and g.table and not can_beat(g.table, [t for h in g.hands for t in h]):
             while g.winner is None and g.table:
-                out.append(self._record(g.turn, None, now))
+                out.append(self._record(g.turn, None, now, auto=True))
         return out
 
     def move(self, account: int, codes: list[str], now: float, ply: int | None = None) -> list[dict]:

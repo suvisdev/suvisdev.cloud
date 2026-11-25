@@ -107,7 +107,7 @@ def test_nobody_can_beat_auto_passes_everyone():
         g.hands[seat].remove(swap)
         g.hands[seat].append(top)
     ev = t.move(ACC[seat], ["m13"], 1003)
-    assert ev == [{"seat": seat, "tiles": ["m13"]}] + [{"seat": (seat + k) % 4, "tiles": None} for k in (1, 2, 3)]
+    assert ev == [{"seat": seat, "tiles": ["m13"]}] + [{"seat": (seat + k) % 4, "tiles": None, "auto": True} for k in (1, 2, 3)]
     assert g.turn == seat and g.table == []
 
 

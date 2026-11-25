@@ -51,6 +51,7 @@
   "suitOrder": "Suit order",
   "help": "How to play",
   "helpNext": "Next",
+  "helpPrev": "Back",
   "helpDone": "Let's play",
   "help1t": "Goal",
   "help1b": "Everyone gets 13 tiles. Play out your whole hand first to win.",

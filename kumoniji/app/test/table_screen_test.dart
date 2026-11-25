@@ -483,8 +483,8 @@ void autoPassTests() {
     SharedPreferences.setMockInitialValues({});
     markTilesReady();
   });
-  testWidgets('auto pass shows the pass bubble on my seat', (t) async {
-    // 내가 m1을 냄 → 봇 1이 산13(아무도 못 이김), 봇 2·3 패스 → 서버가 내 차례를 자동 패스(seat 0, tiles null)
+  testWidgets('auto passes show on every seat at once, mine included', (t) async {
+    // 내가 m1을 냄 → 봇 1이 산13(아무도 못 이김) → 서버가 2·3·0번을 한꺼번에 자동 패스(auto) — 한 명씩 보이면 안 된다
     var calls = 0;
     final api = Api(
       MockClient((r) async {
@@ -502,9 +502,9 @@ void autoPassTests() {
                   'seat': 1,
                   'tiles': ['m13'],
                 },
-                {'seat': 2, 'tiles': null},
-                {'seat': 3, 'tiles': null},
-                {'seat': 0, 'tiles': null},
+                {'seat': 2, 'tiles': null, 'auto': true},
+                {'seat': 3, 'tiles': null, 'auto': true},
+                {'seat': 0, 'tiles': null, 'auto': true},
               ],
             ),
             'hand': ['s3'],
@@ -522,9 +522,12 @@ void autoPassTests() {
     var seen = false;
     for (var i = 0; i < 80 && !seen; i++) {
       await t.pump(const Duration(milliseconds: 100));
-      seen = find.byKey(const ValueKey('passed-0')).evaluate().isNotEmpty;
+      seen = find.byKey(const ValueKey('passed-2')).evaluate().isNotEmpty;
     }
     expect(seen, isTrue);
+    // 처음 보인 그 화면에 세 자리 패스가 함께 떠 있다
+    expect(find.byKey(const ValueKey('passed-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('passed-0')), findsOneWidget);
     await t.pump(const Duration(seconds: 5)); // 남은 봇 장면 대기를 흘려보낸다
   });
 }

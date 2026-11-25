@@ -102,16 +102,22 @@ class NewGame(BaseModel):
 
 def run_bots(g: Game, rng: random.Random, events: list, level: str = "normal"):
     """사람 차례가 올 때까지 봇을 돌린다.
-    아직 안 나온 패(모든 손패) 전체로도 바닥을 이길 수 없으면(예: 산13) 사람도 자동으로 패스시킨다.
-    사람 손패만 보고 넘기면 남들이 '저 사람은 이길 패가 없다'를 알게 되므로, 공개된 정보로만 판단한다."""
+    아직 안 나온 패(모든 손패) 전체로도 바닥을 이길 수 없으면(예: 산13) 남은 자리 모두를 한 번에 패스시킨다
+    (auto 표시 — 앱이 한 명씩이 아니라 한꺼번에 보여 준다, 11-25 사용자). 사람 손패만 보고 넘기면 남들이
+    '저 사람은 이길 패가 없다'를 알게 되므로 공개된 정보로만 판단한다. 패스는 바닥을 안 바꾸니 한 바퀴에 한 번만 본다."""
+    checked = None  # 이 바닥으로 이미 '누군가 이길 수 있음'을 확인했으면 다시 안 본다
     while g.winner is None:
+        if g.table and g.table is not checked:
+            if not can_beat(g.table, [t for h in g.hands for t in h]):
+                while g.table:  # 남은 자리 모두 패스 → 바퀴가 끝나 바닥이 빈다
+                    events.append({"seat": g.turn, "tiles": None, "auto": True})
+                    g.play(g.turn, None)
+                continue
+            checked = g.table
         seat = g.turn
         if seat == HUMAN:
-            if not g.table or can_beat(g.table, [t for h in g.hands for t in h]):
-                return
-            m = None
-        else:
-            m = pick(level, seen(g, seat), rng)
+            return
+        m = pick(level, seen(g, seat), rng)
         g.play(seat, m)
         events.append({"seat": seat, "tiles": [enc(t) for t in m] if m else None})
 
