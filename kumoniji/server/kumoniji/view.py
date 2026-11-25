@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from .bots import plays
 from .game import Game
-from .rules import SHAPES, beats, classify, value
+from .rules import DECK, SHAPES, beats, classify, value
 
 SUIT = {"산": "m", "벚": "s", "잎": "l", "솜": "c"}
 CODE = {v: k for k, v in SUIT.items()}
@@ -58,8 +58,9 @@ def seat_plays(g: Game) -> list[list[str] | None]:
     return out
 
 
-def view(gid: str, g: Game, events: list, level: str = "normal", seat: int = HUMAN) -> dict:
-    """seat 자리가 볼 수 있는 상태 — 손패·낼 수 있는 조합은 그 자리 것만, 남의 손패는 장수만(멀티도 같은 함수)."""
+def view(gid: str, g: Game, events: list, level: str = "normal", seat: int = HUMAN, practice: bool = False) -> dict:
+    """seat 자리가 볼 수 있는 상태 — 손패·낼 수 있는 조합은 그 자리 것만, 남의 손패는 장수만(멀티도 같은 함수).
+    practice(싱글)면 이미 나온 패 목록 out도 준다 — 연습용. 멀티는 조합표만, 나온 패는 안 보여 준다(11-25 사용자)."""
     return {
         "id": gid,
         "level": level,
@@ -83,6 +84,6 @@ def view(gid: str, g: Game, events: list, level: str = "normal", seat: int = HUM
         "moves": (moves := legal_moves(g, seat)),
         "playable": sorted({t for m in moves for t in m}, key=lambda c: value(dec(c))),
         "suits": [SUIT[x] for x in reversed(SHAPES)],  # 센 것 → 약한 것
-    }
+    } | ({"out": [enc(t) for t in DECK if not any(t in h for h in g.hands)]} if practice else {})
 
 

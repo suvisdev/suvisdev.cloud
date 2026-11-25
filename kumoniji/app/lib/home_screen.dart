@@ -51,8 +51,8 @@ class HomeScreen extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 무늬 넷 하나씩 — 산·벚꽃·솜사탕은 해(13), 잎사귀는 무지개(12)(11-25 사용자)
-                        for (final c in ['m13', 's13', 'l12', 'c13']) TileView(code: c, width: 64),
+                        // 무늬 넷 하나씩 — 산·벚꽃은 해(13), 잎사귀는 무지개(12), 솜사탕은 구름(11)(11-25 사용자)
+                        for (final c in ['m13', 's13', 'l12', 'c11']) TileView(code: c, width: 64),
                       ],
                     ),
                   ),

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kumoniji/api.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
+import 'package:kumoniji/practice.dart';
 import 'package:kumoniji/table_screen.dart';
 import 'package:kumoniji/tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -388,6 +389,171 @@ void legalTests() {
 }
 
 void recentTests() {
+  testWidgets('played-tiles panel shows a bot tile only once it is replayed', (t) async {
+    t.view.physicalSize = const Size(1280, 860);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final v = {
+      ...view(
+        events: [
+          {
+            'seat': 1,
+            'tiles': ['c4'],
+          },
+        ],
+      ),
+      'out': ['c4'],
+    };
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+    Color? fill() => (t.widget<Container>(find.byKey(const ValueKey('out-c4'))).decoration as BoxDecoration).color;
+    await t.pump(const Duration(milliseconds: 1500)); // 나눠 주기·시작 카드 — 봇 수는 아직
+    expect(fill(), Colors.white);
+    await settle(t);
+    expect(fill(), isNot(Colors.white));
+  });
+
+  testWidgets('a practice sheet opened during replay closes when the result shows', (t) async {
+    final done = {
+      ...view(
+        events: [
+          {
+            'seat': 3,
+            'tiles': ['c4'],
+          },
+        ],
+      ),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+      'out': ['c4'],
+    };
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(done), 200)))));
+    await t.pump(const Duration(milliseconds: 2600)); // 시작 카드가 끝나고 봇 수 재생 중
+    await t.tap(find.byKey(const ValueKey('open-combos')));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
+    await settle(t);
+    expect(find.byKey(const ValueKey('result-home')), findsOneWidget);
+    expect(find.byKey(const ValueKey('combo-chart')), findsNothing);
+  });
+
+  testWidgets('an open played-tiles sheet follows the new state', (t) async {
+    final live = ValueNotifier<List<String>?>(['c1']);
+    await t.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: PracticeButtons(out: const ['c1'], live: live, suits: const ['m', 's', 'l', 'c']),
+        ),
+      ),
+    );
+    await t.tap(find.byKey(const ValueKey('open-out')));
+    await t.pumpAndSettle();
+    Color? fill(String c) => (t.widget<Container>(find.byKey(ValueKey('out-$c'))).decoration as BoxDecoration).color;
+    expect(fill('l3'), Colors.white);
+    live.value = ['c1', 'l3']; // 봇 수 재생이 끝나 상태가 바뀜
+    await t.pump();
+    expect(fill('l3'), isNot(Colors.white));
+  });
+
+  testWidgets('practice: phone opens played tiles and combos in a sheet; wide screen shows both beside the table', (
+    t,
+  ) async {
+    final v = {
+      ...view(),
+      'out': ['c1', 'l3'],
+    };
+    t.view.physicalSize = const Size(390, 844);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+    await settle(t);
+    expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
+    await t.tap(find.byKey(const ValueKey('open-out')));
+    await t.pumpAndSettle();
+    final cell = t.widget<Container>(find.byKey(const ValueKey('out-c1')));
+    expect((cell.decoration as BoxDecoration).color, isNot(Colors.white)); // 낸 패는 채움
+    expect((t.widget<Container>(find.byKey(const ValueKey('out-c2'))).decoration as BoxDecoration).color, Colors.white);
+    Navigator.of(t.element(find.byKey(const ValueKey('out-tracker')))).pop();
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('open-combos')));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
+
+    t.view.physicalSize = const Size(1280, 900);
+    await t.pumpWidget(const SizedBox());
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+    await settle(t);
+    expect(find.byKey(const ValueKey('out-tracker')), findsOneWidget);
+    expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
+    expect(find.byKey(const ValueKey('open-out')), findsNothing);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('a wide but short window keeps the side panels off so pass and play stay visible', (t) async {
+    t.view.physicalSize = const Size(1000, 420);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      _app(
+        Api(
+          MockClient(
+            (r) async => http.Response(
+              jsonEncode({
+                ...view(),
+                'out': ['c1'],
+              }),
+              200,
+            ),
+          ),
+        ),
+      ),
+    );
+    await settle(t);
+    while (t.takeException() != null) {} // 낮은 가로 창의 옆자리 넘침은 이전부터
+    expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
+    expect(find.byKey(const ValueKey('open-combos')), findsOneWidget);
+  });
+
+  // 844×390은 이번 변경 전(main)부터 버튼이 9px 넘친다 — 앱 전용·화면 방향을 정한 뒤 다룬다
+  for (final size in [const Size(1000, 420), const Size(1280, 510)]) {
+    testWidgets('pass and play stay on screen with 13 tiles at ${size.width.toInt()}x${size.height.toInt()}', (
+      t,
+    ) async {
+      t.view.physicalSize = size;
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      final hand = ['m1', 'm4', 's3', 's5', 'l2', 'l7', 'c3', 'c6', 'm9', 's10', 'l11', 'c12', 'm13'];
+      final v = {
+        ...view(),
+        'hand': hand,
+        'counts': [13, 13, 13, 13],
+        'playable': hand,
+        'moves': [
+          for (final h in hand) [h],
+        ],
+        'out': <String>[],
+      };
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+      await settle(t);
+      while (t.takeException() != null) {}
+      final pass = t.getRect(find.widgetWithText(OutlinedButton, 'Pass'));
+      expect(pass.bottom <= size.height, isTrue, reason: '$pass');
+    });
+  }
+
+  testWidgets('without out (multi) there is no played-tiles view, only combos', (t) async {
+    t.view.physicalSize = const Size(1280, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(view()), 200)))));
+    await settle(t);
+    expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
+    expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
+  });
+
   for (final size in [const Size(320, 700), const Size(390, 844), const Size(800, 900)]) {
     testWidgets('no overflow at ${size.width.toInt()}x${size.height.toInt()} with the bigger hand', (t) async {
       t.view.physicalSize = size;

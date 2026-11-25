@@ -67,6 +67,7 @@ def test_hidden_hands():
         "plays",
         "passed",
         "suits",
+        "out",  # 싱글은 연습 — 이미 나온 패(멀티는 없음)
     }
 
 
@@ -348,3 +349,16 @@ def test_unbeatable_bot_play_passes_everyone_at_once():
     api.run_bots(g, random.Random(0), events)
     assert events[:3] == [{"seat": s, "tiles": None, "auto": True} for s in (2, 3, 0)]
     assert g.petals[1] == ["산"]  # 1번이 바퀴를 가져가 다시 선
+
+
+
+def test_single_shows_tiles_already_out_but_multi_view_does_not():
+    """싱글(연습)은 나온 패를, 멀티는 안 준다 — 손에 없는 타일 = 낸 패(52장을 다 나눠 줌)."""
+    from kumoniji.game import Game
+    from kumoniji.view import enc, view
+
+    g = Game.deal(random.Random(1))
+    first = g.hands[g.turn][0]
+    g.play(g.turn, [first])
+    assert view("x", g, [], practice=True)["out"] == [enc(first)]
+    assert "out" not in view("x", g, [], seat=1)

@@ -39,6 +39,19 @@ def test_easy_plays_weakest_beating_tile_or_passes():
     assert set(map(str, moves)) == {str([("솜", 5)]), "None"}
 
 
+def test_easy_leads_with_combos_too():
+    """초급 선: 한 장만 내지 않고 페어·트리플·5장도 섞는다(11-25 사용자)."""
+    rng = random.Random(3)
+    sizes = set()
+    for _ in range(200):
+        g = Game.deal(rng)
+        g.turn = 0
+        g.table = []
+        m = pick("easy", seen(g, 0), rng)
+        sizes.add(len(m))
+    assert {1, 2, 3, 5} <= sizes
+
+
 def test_normal_mixes_easy_and_plan():
     g = _follow_game()
     moves = {str(pick("normal", seen(g, 0), random.Random(seed))) for seed in range(60)}

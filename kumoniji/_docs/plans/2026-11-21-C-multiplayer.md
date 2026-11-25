@@ -88,3 +88,5 @@ kumoniji/app/lib/
 ### Task 7: 배포·문서
 - `k8s.yaml`: Ingress가 WebSocket을 그대로 통과하는지(Traefik은 기본 지원, Cloudflare 터널도 지원) 운영에서 실측. 배포 중 판은 사라짐 → 배포 전 진행 중 판 수를 로그로 확인하는 명령을 `kumoniji/CLAUDE.md`에.
 - 워크로그·ADR(메모리 보관·replicas 1·봇 미충원·친구방 IP 제한 제외)·면접 질문.
+
+> 11-25 사용자 결정: 멀티 화면은 조합표만 띄운다(`practice.dart` ComboChart). 나온 패(`out`)는 싱글 연습 전용 — 멀티 view는 주지 않는다.

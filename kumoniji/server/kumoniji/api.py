@@ -155,7 +155,7 @@ def new_game(body: NewGame | None = None, me: dict = Depends(player)):
         GAMES[gid] = Room(g, rng, level, me["account_id"])
         while len(GAMES) > MAX_GAMES:
             GAMES.popitem(last=False)
-    return view(gid, g, events, level)
+    return view(gid, g, events, level, practice=True)
 
 
 @app.get("/api/games/{gid}")
@@ -163,7 +163,7 @@ def get_game(gid: str, me: dict = Depends(player)):
     with LOCK:
         room = load(gid, me["account_id"])
     with room.lock:
-        return view(gid, room.game, [], room.level)
+        return view(gid, room.game, [], room.level, practice=True)
 
 
 @app.post("/api/games/{gid}/moves")
@@ -181,7 +181,7 @@ def move(gid: str, body: Move, me: dict = Depends(player)):
             raise HTTPException(422, {"code": reason(g, tiles)}) from None
         events = [{"seat": HUMAN, "tiles": [enc(t) for t in tiles] or None}]
         run_bots(g, room.rng, events, room.level)
-        return view(gid, g, events, room.level)
+        return view(gid, g, events, room.level, practice=True)
 
 
 # SECURITY.md 검증 25·27. Flutter 웹 빌드가 실제로 쓰는 출처만 연다:
