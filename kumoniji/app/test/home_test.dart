@@ -35,6 +35,7 @@ void main() {
     markTilesReady();
     Settings.locale.value = null;
     Settings.vibration.value = true;
+    Settings.muted.value = false;
   });
 
   testWidgets('home has single, multi (disabled), how to play, options — no quit', (t) async {
@@ -142,6 +143,34 @@ void main() {
     await settle(t);
     expect(find.text('Single player'), findsOneWidget);
     expect(find.byKey(const ValueKey('result-home')), findsNothing);
+  });
+
+  testWidgets('four suit tiles shrink together in a 280px window', (t) async {
+    t.view.physicalSize = const Size(280, 700);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
+    await settle(t);
+    expect(t.takeException(), isNull);
+    expect(t.getRect(find.byWidgetPredicate((w) => w is TileView && w.code == 'c13')).right <= 280, isTrue);
+  });
+
+  testWidgets('home shows one tile of each suit and one mute button silences music and effects', (t) async {
+    await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
+    await settle(t);
+    for (final c in ['m13', 's13', 'l12', 'c13']) {
+      expect(find.byWidgetPredicate((w) => w is TileView && w.code == c), findsOneWidget);
+    }
+    Settings.music.value = 0.6;
+    Settings.sfx.value = 0.8;
+    await t.tap(find.byKey(const ValueKey('mute')));
+    await t.pump();
+    expect((Settings.musicVolume, Settings.sfxVolume), (0.0, 0.0));
+    expect(find.byIcon(Icons.volume_off), findsOneWidget);
+    expect((await SharedPreferences.getInstance()).getBool('muted'), true);
+    await t.tap(find.byKey(const ValueKey('mute')));
+    await t.pump();
+    expect((Settings.musicVolume, Settings.sfxVolume), (0.6, 0.8)); // 음량 값은 그대로 돌아온다
   });
 
   testWidgets('options: language switches the whole app and is remembered; vibration and volume saved', (t) async {

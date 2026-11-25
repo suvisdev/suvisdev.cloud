@@ -388,6 +388,83 @@ void legalTests() {
 }
 
 void recentTests() {
+  for (final size in [const Size(320, 700), const Size(390, 844), const Size(800, 900)]) {
+    testWidgets('no overflow at ${size.width.toInt()}x${size.height.toInt()} with the bigger hand', (t) async {
+      t.view.physicalSize = size;
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      final hand = ['m1', 'm4', 's3', 's5', 'l2', 'l7', 'c3', 'c6', 'm9', 's10', 'l11', 'c12', 'm13'];
+      final v = {
+        ...view(),
+        'hand': hand,
+        'counts': [13, 13, 13, 13],
+        'playable': hand,
+        'moves': [
+          for (final h in hand) [h],
+        ],
+      };
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+      await settle(t);
+      expect(t.takeException(), isNull);
+    });
+  }
+
+  for (final size in [const Size(1280, 510), const Size(844, 390)]) {
+    testWidgets('a short ${size.width.toInt()}x${size.height.toInt()} window keeps the old hand size', (t) async {
+      t.view.physicalSize = size;
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(view()), 200)))));
+      await settle(t);
+      while (t.takeException() != null) {} // 낮은 가로 창의 옆자리 넘침은 이번 변경 전부터
+      expect(t.getSize(find.byKey(ValueKey('hand-${view()['hand'][0]}'))).width, 56); // 키우지 않는다(옆자리 몫)
+    });
+  }
+
+  for (final size in [
+    const Size(320, 700),
+    const Size(390, 844),
+    const Size(420, 900),
+    const Size(700, 900),
+    const Size(844, 390),
+  ]) {
+    testWidgets('big hand and the app bar stay on a ${size.width.toInt()}px phone', (t) async {
+      t.view.physicalSize = size;
+      t.view.devicePixelRatio = 1;
+      t.platformDispatcher.textScaleFactorTestValue = 2; // 글자 200%에서도 위 줄 버튼이 화면 안
+      addTearDown(t.view.reset);
+      addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
+      final hand = ['m1', 'm4', 's3', 's5', 'l2', 'l7', 'c3', 'c6', 'm9', 's10', 'l11', 'c12', 'm13'];
+      final v = {
+        ...view(),
+        'hand': hand,
+        'counts': [13, 13, 13, 13],
+        'doubles': 2, // 오늘의 무늬 배지에 ×25
+        'playable': hand,
+        'moves': [
+          for (final h in hand) [h],
+        ],
+      };
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+      await settle(t);
+      // 글자 200%에서 옆자리 칸이 넘치는 것은 이번 변경 전부터(손패·위 줄만 본다)
+      while (t.takeException() != null) {}
+      for (final c in hand) {
+        final r = t.getRect(find.byKey(ValueKey('hand-$c')));
+        expect(r.left >= 0 && r.right <= size.width, isTrue, reason: '$c $r');
+      }
+      for (final f in [find.byKey(const ValueKey('mute')), find.byKey(const ValueKey('new-game'))]) {
+        expect(t.getRect(f).right <= size.width, isTrue, reason: '$f');
+      }
+      // 예전 크기(최대 56)보다 작아지지 않는다 — 낮은 가로 화면은 한 줄로
+      if (size.width > size.height) {
+        expect(t.getSize(find.byKey(const ValueKey('hand-m1'))).width, greaterThanOrEqualTo(50));
+      }
+      // 실제로는 홈에서 들어와 왼쪽에 뒤로 가기(56)가 있다 — 배지가 그 자리를 남긴다
+      expect(t.getRect(find.byKey(const ValueKey('today'))).left >= 56 + 8, isTrue);
+    });
+  }
+
   testWidgets('each seat shows its own play and pass bubble; fits a 320px phone', (t) async {
     t.view.physicalSize = const Size(320, 700);
     t.view.devicePixelRatio = 1;

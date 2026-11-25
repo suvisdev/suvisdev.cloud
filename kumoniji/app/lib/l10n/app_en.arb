@@ -68,6 +68,8 @@
   "start": "Start",
   "home": "Home",
   "restart": "Restart",
+  "mute": "Mute",
+  "unmute": "Unmute",
   "cancel": "Cancel",
   "weak": "weak",
   "strong": "strong",
