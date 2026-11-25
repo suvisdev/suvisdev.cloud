@@ -188,3 +188,15 @@ def test_stale_ply_is_rejected():
     with pytest.raises(NotYourTurn):
         t.move(ACC[seat], [], 1001, ply=t.ply + 1)
     t.move(ACC[seat], [], 1001, ply=t.ply)  # 맞는 번호면 받는다
+
+
+def test_unrevealed_table_is_not_voided_and_reveal_restarts_the_gone_timer():
+    """하트를 쓰는 중(공개 전)에는 넷 다 끊겨도 무효로 지우지 않는다 — 지우면 하트만 빠지고 판이 없다(리뷰 지적).
+    공개되면 그때부터 GONE초 안에 돌아오면 이어진다."""
+    t = MultiTable(ACC, ["a", "b", "c", "d"], 1000.0, random.Random(1), ready=False)
+    for a in ACC:
+        t.set_connected(a, False, 1000)
+    assert not t.void(1000 + GONE * 2) and not t.expired(1000 + GONE * 2)
+    t.reveal(1000 + GONE * 2)
+    assert not t.void(1000 + GONE * 3 - 1)
+    assert t.void(1000 + GONE * 3)

@@ -21,10 +21,104 @@ def test_four_in_queue_make_a_table():
     assert lb.enqueue(P(3), 0) is None
     t = lb.enqueue(P(4), 0)
     assert sorted(t.accounts) == [1, 2, 3, 4] and lb.queue == []
-    for a in (1, 2, 3, 4):
-        assert lb.table_for(a, 0) is t
+    for a in (1, 2, 3, 4):  # 하트를 다 쓰기 전엔 공개 전 — 진행 중인 판으로 안 보이지만 다른 데 들어가지도 못한다
+        assert lb.table_for(a, 0) is None and lb.pending_for(a, 0) is t
     with pytest.raises(LobbyError, match="in_game"):
         lb.enqueue(P(1), 1)
+    t.reveal(0)
+    for a in (1, 2, 3, 4):
+        assert lb.table_for(a, 0) is t
+
+
+def test_abort_rematches_at_once_when_the_queue_can_fill_four():
+    lb = lobby()
+    for a in (1, 2, 3):
+        lb.enqueue(P(a), 0)
+    t = lb.enqueue(P(4), 0)
+    lb.enqueue(P(5), 0)
+    (again,) = lb.abort(t, {2}, 1)
+    assert sorted(again.accounts) == [1, 3, 4, 5] and not again.ready
+    assert lb.queue == [] and lb.pending_for(2, 1) is None
+
+
+def test_abort_starts_every_table_the_returned_players_can_fill():
+    """쓰는 중 12가 11과 같은 IP로 다시 붙으면 둘은 한 판에 못 든다 — 거둘 때 두 판이 맞춰지면 둘 다 연다(리뷰 지적)."""
+    lb = lobby()
+    for a in (11, 12, 13):
+        lb.enqueue(P(a), 0)
+    t = lb.enqueue(P(14), 0)
+    for a, ip in [(1, "A"), (2, "A"), (3, "B"), (4, "B"), (5, "C"), (6, "C")]:  # IP 셋뿐이라 저희끼리는 못 맞춤
+        assert lb.enqueue(P(a, ip=ip), 0) is None
+    lb.update(P(12, ip="ip11"), 1)
+    again = lb.abort(t, {13, 14}, 1)  # → {11,A,B,C}·{12,A,B,C}
+    assert len(again) == 2 and lb.queue == []
+    assert sorted(a for nt in again for a in nt.accounts) == [1, 2, 3, 4, 5, 6, 11, 12]
+
+
+def test_abort_keeps_the_original_waiting_order():
+    """거둔 판에서 돌아온 사람은 원래 대기 순서 자리로 — 먼저 기다리다 IP가 겹쳐 빠졌던 사람보다 앞서지 않는다(리뷰 지적)."""
+    lb = lobby()
+    lb.enqueue(P(1, ip="X"), 0)  # A: 가장 오래 기다림
+    lb.enqueue(P(2, ip="X"), 0)  # B: A와 IP가 같아 같은 판 불가
+    for a in (3, 4):
+        lb.enqueue(P(a), 0)
+    t = lb.enqueue(P(5), 0)  # A·3·4·5로 판 — B는 남음
+    assert sorted(t.accounts) == [1, 3, 4, 5] and [p.account for p in lb.queue] == [2]
+    assert lb.abort(t, {5}, 1) == []
+    assert [p.account for p in lb.queue] == [1, 2, 3, 4]  # 대기열에 들어온 순서 그대로
+
+
+def test_cancel_during_charge_is_kept_when_the_table_is_aborted():
+    """하트를 쓰는 중 취소(대기열 취소·방 나가기)한 사람은 판을 거둬도 대기열·방으로 돌아가지 않는다(리뷰 지적)."""
+    lb = lobby()
+    for a in (1, 2, 3):
+        lb.enqueue(P(a), 0)
+    t = lb.enqueue(P(4), 0)
+    lb.cancel_pending(1)
+    assert lb.abort(t, {2}, 1) == []
+    assert [p.account for p in lb.queue] == [3, 4]
+    r = lb.create_room(P(5), 2)
+    for a in (6, 7, 8):
+        lb.join_room(P(a), r.code, 2)
+    t = lb.start_room(5, 2)
+    lb.cancel_pending(6)
+    assert lb.abort(t, {7}, 3) == []
+    assert [m.account for m in r.members] == [5, 8]
+
+
+def test_reconnect_during_charge_updates_ip_used_when_the_table_is_aborted():
+    """하트를 쓰는 중(공개 전) 다른 IP로 다시 붙은 사람은 거둘 때 새 IP로 대기열에 돌아간다 — 옛 IP로 돌아가면
+    지금 같은 IP인 사람과 한 판에 묶일 수 있다(리뷰 지적)."""
+    lb = lobby()
+    for a in (1, 2, 3):
+        lb.enqueue(P(a), 0)
+    t = lb.enqueue(P(4), 0)
+    assert lb.update(P(1, ip="ip5"), 1) is None  # 1이 5와 같은 IP로 다시 붙음
+    assert lb.abort(t, {2}, 1) == []
+    assert {q.account: q.ip for q in lb.queue}[1] == "ip5"
+    lb.enqueue(P(6), 1)
+    assert lb.enqueue(P(5), 1) is None  # 1·5 같은 IP라 한 판 아님
+
+
+def test_abort_without_enough_people_keeps_order_and_frees_the_short_one():
+    lb = lobby()
+    for a in (1, 2, 3):
+        lb.enqueue(P(a), 0)
+    t = lb.enqueue(P(4), 0)
+    assert lb.abort(t, {2}, 1) == []
+    assert [p.account for p in lb.queue] == [1, 3, 4]
+    assert lb.pending_for(2, 1) is None and lb.enqueue(P(2), 2) is not None  # 빠진 사람도 다시 들어올 수 있다
+
+
+def test_abort_restores_the_friend_room():
+    lb = lobby()
+    r = lb.create_room(P(1), 0)
+    for a in (2, 3, 4):
+        lb.join_room(P(a), r.code, 0)
+    t = lb.start_room(1, 0)
+    assert lb.room_of(1) is None
+    assert lb.abort(t, {3}, 1) == []
+    assert lb.room_of(1) is r and [m.account for m in r.members] == [1, 2, 4]
 
 
 def test_same_ip_or_device_waits_for_next_player():
@@ -336,3 +430,4 @@ def test_recheck_retries_when_version_changes_mid_lookup():
     asyncio.run(main())
     ws._slots.clear()
     assert seen == [1, 2]
+

@@ -7,6 +7,7 @@ from .rules import (
     DECK,
     SHAPES,
     beats,
+    classify,
     first_player,
     settle,
     small_today,
@@ -36,6 +37,13 @@ class Game:
     winner: int | None = None
     # 이번 바퀴에서 바닥 패 이전에 나온 수(자리, 패) — 화면에서 자리마다 낸 패를 보여 주는 용도, 규칙엔 안 쓰임
     history: list[tuple[int, list[Tile]]] = field(default_factory=list)
+    # 자리별 판 통계 — 일일 미션 판정용(wallet/missions.py), 규칙엔 안 쓰임
+    stats: list[dict] = field(
+        default_factory=lambda: [
+            {"five": 0, "triple": 0, "oddeven": 0, "fullhouse": 0, "today": 0}
+            for _ in range(4)
+        ]
+    )
 
     @classmethod
     def deal(cls, rng: random.Random) -> "Game":
@@ -52,6 +60,8 @@ class Game:
             if self.table:  # 선의 패스는 차례만 넘긴다(11-21 규칙 변경)
                 self.passes += 1
             if self.passes == n - 1:
+                if any(s == self.today for s, _ in self.table):
+                    self.stats[self.last]["today"] += 1
                 self.petals[self.last].append(max(self.table, key=value)[0])
                 self.bonus[self.last] += self.pot + small_today(self.table, self.today)
                 self.table, self.passes, self.pot = [], 0, 0
@@ -63,12 +73,19 @@ class Game:
                 raise IllegalMove("낼 수 없는 패")
             for t in move:
                 self.hands[seat].remove(t)
+            kind, st = classify(move)[0], self.stats[seat]
+            st["five"] += len(move) == 5
+            st["triple"] += kind == "트리플"
+            st["oddeven"] += "홀짝" in kind
+            st["fullhouse"] += kind == "풀하우스"
             self.pot += special_steps(move, self.today, finish=not self.hands[seat])
             self.doubles += len(move) == 5 and all(s == self.today for s, _ in move)
             if self.table:
                 self.history.append((self.last, self.table))
             self.table, self.last, self.passes = list(move), seat, 0
-            if not self.hands[seat]:
+            if not self.hands[seat]:  # 판을 끝낸 사람이 마지막 바퀴를 가져간다
+                if any(s == self.today for s, _ in move):
+                    self.stats[seat]["today"] += 1
                 self.bonus[seat] += self.pot + small_today(move, self.today)
                 self.pot, self.winner = 0, seat
                 return

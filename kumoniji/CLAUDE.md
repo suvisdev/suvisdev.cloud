@@ -6,4 +6,5 @@
 - 서버 테스트: `cd kumoniji/server && uv run --no-project --python 3.13 --with pytest --with httpx --with fastapi==0.136.3 pytest -q`
 - 봇 난이도(easy·normal·hard, `server/kumoniji/bots.py`)를 바꾸면 하네스로 잰다: `cd kumoniji/server && uv run --no-project --python 3.13 python -m kumoniji.bench` (기준은 바탕화면 PRODUCT.md §3, 1,000판). 봇은 `Seen`(공개 정보 + 자기 손패)만 받는다.
 - 앱: `source ~/.cache/gildle-build/env.sh && cd kumoniji/app && flutter analyze && flutter test`
+- 화폐(판돈·하트·보석·출석·미션) 숫자는 `server/kumoniji/wallet/money.py` 한 곳(ADR-0024). 판돈은 자동 매칭만, 증감은 모두 원장 `ledger`.
 - 배포: `kumoniji/deploy.sh`(노트북 k3s, `kumoniji.suvisdev.cloud`). 판은 메모리에만 있어 replicas 1.

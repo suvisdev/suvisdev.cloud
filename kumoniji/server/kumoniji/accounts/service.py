@@ -327,6 +327,8 @@ def _purge(c, aid: int) -> None:
     c.execute("DELETE FROM known_devices WHERE account_id = %s", (aid,))
     c.execute("DELETE FROM auth_tokens WHERE account_id = %s", (aid,))
     c.execute("DELETE FROM sessions WHERE account_id = %s", (aid,))
+    for table in ("wallets", "ledger", "daily"):  # 화폐 기록(잔고·증감 시각·일일 활동)도 파기 — 결제를 붙이면 보관 의무를 다시 본다
+        c.execute(f"DELETE FROM {table} WHERE account_id = %s", (aid,))
     c.execute(
         """UPDATE accounts SET email = NULL, email_key = NULL, nickname = '', pw_hash = NULL, mfa_secret = NULL,
            mfa_enabled = false, deleted_at = coalesce(deleted_at, now()) WHERE id = %s""",
@@ -341,7 +343,8 @@ def purge_deleted(c) -> int:
         """SELECT l.account_id FROM deletion_log l JOIN accounts a ON a.id = l.account_id
            WHERE a.deleted_at IS NULL OR a.email IS NOT NULL OR a.pw_hash IS NOT NULL OR a.nickname <> ''
               OR EXISTS (SELECT 1 FROM identities i WHERE i.account_id = a.id)
-              OR EXISTS (SELECT 1 FROM sessions x WHERE x.account_id = a.id)"""
+              OR EXISTS (SELECT 1 FROM sessions x WHERE x.account_id = a.id)
+              OR EXISTS (SELECT 1 FROM wallets w WHERE w.account_id = a.id)"""
     ).fetchall()
     for r in rows:
         sessions.revoke_all(c, r["account_id"])

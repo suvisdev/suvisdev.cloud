@@ -3,7 +3,8 @@
 
 import random
 import secrets
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from itertools import count
 
 from .table import MultiTable
 
@@ -24,6 +25,7 @@ class Player:
     name: str
     ip: str = ""
     device: str = ""
+    seq: int = 0  # 대기열에 들어온 순번 — 판을 거둘 때 원래 대기 순서로 되돌린다(Lobby.abort)
 
 
 @dataclass
@@ -82,10 +84,16 @@ class Lobby:
         self.tables: dict[str, MultiTable] = {}
         self.table_of: dict[int, str] = {}  # 계정 → 판 id
         self.fails: dict[int, list[float]] = {}
+        self._seq = count(1)
 
     # ── 어디에 있나 ──
     def table_for(self, account: int, now: float) -> MultiTable | None:
-        """진행 중인 판(끝나지도 무효도 아닌). 끝난 판에 있던 사람은 다시 매칭할 수 있다."""
+        """진행 중인 판(공개됐고 끝나지도 무효도 아닌). 끝난 판에 있던 사람은 다시 매칭할 수 있다."""
+        t = self.pending_for(account, now)
+        return t if t is not None and t.ready else None
+
+    def pending_for(self, account: int, now: float) -> MultiTable | None:
+        """끝나지도 무효도 아닌 판 — 하트를 쓰는 중이라 아직 공개 전인 판도 포함."""
         t = self.tables.get(self.table_of.get(account, ""))
         if t is None or t.game.winner is not None or t.void(now):
             return None
@@ -100,19 +108,54 @@ class Lobby:
         return next((r for r in self.rooms.values() if any(p.account == account for p in r.members)), None)
 
     def _free(self, account: int, now: float) -> None:
-        if self.table_for(account, now):
+        if self.pending_for(account, now):  # 하트를 쓰는 중인 판도 — 그사이 다른 판에 들어가지 않게
             raise LobbyError("in_game")
         if any(p.account == account for p in self.queue):
             raise LobbyError("in_queue")
         if self.room_of(account):
             raise LobbyError("in_room")
 
-    def _start(self, players: list[Player], now: float) -> MultiTable:
-        t = MultiTable([p.account for p in players], [p.name for p in players], now, random.Random(self.rng.random()))
+    def _start(self, players: list[Player], now: float, kind: str, room: Room | None = None) -> MultiTable:
+        """판을 만든다(아직 공개 전 — 하트를 다 쓰면 reveal, 모자라면 abort)."""
+        names = [p.name for p in players]
+        t = MultiTable([p.account for p in players], names, now, random.Random(self.rng.random()), kind, ready=False)
+        t.players, t.room = players, room  # 거둘 때 대기열·방으로 되돌리려고
         self.tables[t.id] = t
         for p in players:
             self.table_of[p.account] = t.id
         return t
+
+    def abort(self, t: MultiTable, out: set[int], now: float) -> list[MultiTable]:
+        """하트가 모자라 판을 거둔다(ADR-0024 B안). 모자란 사람(out)과 쓰는 중 취소한 사람(t.leaving)은 빠지고, 나머지는
+        자동 매칭이면 대기열의 원래 순번 자리로(기다린 시간을 잃지 않게), 친구방이면 방을 그대로 되살린다.
+        되돌린 대기열로 바로 네 명씩 맞춰지는 판(역시 공개 전)을 모두 돌려준다. 보통은 돌아온 사람끼리 안 겹쳐 첫 판이 모두
+        데려가지만, 쓰는 중 다른 IP로 다시 붙은 사람(update)이 있으면 둘이 겹쳐 두 판이 될 수 있다(리뷰 지적)."""
+        if self.tables.get(t.id) is not t:
+            return []
+        del self.tables[t.id]
+        for a in t.accounts:
+            if self.table_of.get(a) == t.id:
+                del self.table_of[a]
+        out = out | t.leaving
+        back = [p for p in t.players if p.account not in out]
+        if t.room is not None:
+            if back:
+                t.room.members = [m for m in t.room.members if m.account not in out]
+                self.rooms[t.room.code] = t.room
+            return []
+        self.queue = sorted(back + self.queue, key=lambda q: q.seq)  # 원래 대기 순서 자리로(먼저 기다린 사람보다 앞서지 않게)
+        made = []
+        for p in back:
+            if p in self.queue and (nt := self._match(p, now)):  # 앞 판에 이미 들어간 사람은 건너뛴다
+                made.append(nt)
+        return made
+
+    def cancel_pending(self, account: int) -> None:
+        """하트를 쓰는 중인 판(공개 전)에서 직접 취소(unqueue·room.leave) → 표시만 해 두고 거둘 때 되돌리지 않는다.
+        쓰기가 성공하면 판은 그대로 열린다. 끊김(disconnect)은 여기로 오지 않는다 — 다시 붙으면 되돌린다(_charge가 그때 판단)."""
+        t = self.tables.get(self.table_of.get(account, ""))
+        if t is not None and not t.ready:
+            t.leaving.add(account)
 
     # ── 자동 매칭 ──
     def enqueue(self, p: Player, now: float) -> MultiTable | None:
@@ -120,13 +163,15 @@ class Lobby:
         직전 판 상대를 피하지는 않는다 — 계획 C의 '판마다 새로 매칭'은 끝나면 다시 눌러야 한다는 뜻이고,
         사람이 적을 때 같은 상대를 막으면 판이 아예 안 열린다."""
         self._free(p.account, now)
+        p = replace(p, seq=next(self._seq))
         self.queue.append(p)
         return self._match(p, now)
 
     def _match(self, p: Player, now: float) -> MultiTable | None:
         if picked := self._group(p):
+            picked = [q for q in self.queue if q in picked]  # 대기열 순서로(거둘 때 그 순서로 되돌린다)
             self.queue = [q for q in self.queue if q not in picked]
-            return self._start(picked, now)
+            return self._start(picked, now, "auto")
         return None
 
     def _group(self, p: Player) -> list[Player] | None:
@@ -152,10 +197,16 @@ class Lobby:
         return chosen
 
     def update(self, p: Player, now: float) -> MultiTable | None:
-        """대기 중 다시 붙음 → 새 IP·기기로 바꾸고, 그 덕에 네 명이 맞춰지면 판을 만든다."""
-        if not any(q.account == p.account for q in self.queue):
+        """대기 중 다시 붙음 → 새 IP·기기로 바꾸고, 그 덕에 네 명이 맞춰지면 판을 만든다.
+        하트를 쓰는 중인 판(공개 전)에 있으면 그 판의 정보도 바꾼다 — 거둘 때 그 정보로 대기열에 돌아간다(abort)."""
+        t = self.pending_for(p.account, now)
+        if t is not None and not t.ready:
+            t.players = [replace(p, seq=q.seq) if q.account == p.account else q for q in t.players]
+        old = next((q for q in self.queue if q.account == p.account), None)
+        if old is None:
             return None
-        self.queue = [p if q.account == p.account else q for q in self.queue]
+        p = replace(p, seq=old.seq)  # 다시 붙어도 대기 순서는 그대로
+        self.queue = [p if q is old else q for q in self.queue]
         return self._match(p, now)
 
     def unqueue(self, account: int) -> bool:
@@ -209,14 +260,14 @@ class Lobby:
         del self.rooms[r.code]
         players = list(r.members)
         self.rng.shuffle(players)  # 자리 무작위
-        return self._start(players, now)
+        return self._start(players, now, "room", r)
 
     # ── 끊김·정리 ──
     def disconnect(self, account: int, now: float) -> tuple[MultiTable | None, Room | None]:
         """연결이 끊기면 대기열·방에서 빠진다. 판에서는 빠지지 않는다(타이머가 패스, 다시 붙으면 이어서)."""
         self.unqueue(account)
         room = self.leave_room(account)
-        t = self.table_for(account, now)
+        t = self.pending_for(account, now)  # 공개 전 판도 끊김 표시(공개되면 그대로 이어진다)
         if t:
             t.set_connected(account, False, now)
         return t, room

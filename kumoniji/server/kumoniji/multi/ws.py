@@ -5,6 +5,7 @@
 느린 연결에 붙잡히지 않고, 한 연결에는 만든 순서대로 나간다."""
 
 import asyncio
+import itertools
 import json
 import logging
 import time
@@ -12,7 +13,8 @@ from collections import deque
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ..accounts import sessions, web
+from ..accounts import db, sessions, web
+from ..wallet import money, store
 from .lobby import Lobby, LobbyError, Player, Room
 from .table import Illegal, MultiTable, NotYourTurn
 
@@ -25,10 +27,12 @@ SESS: dict[WebSocket, dict] = {}  # 연결별 세션(토큰 만료 시각 exp �
 LAST_Q: dict[int, int] = {}  # 계정별 마지막으로 보낸 대기 인원
 QUEUE_DIRTY = False
 MAX_BYTES, RATE, IDLE, RECHECK, AUTH_WAIT = 2048, 10, 60.0, 55.0, 5.0  # 재확인 55초 + DB 대기 5초 ≤ 로그아웃 뒤 60초  # 프레임 크기 자체는 uvicorn --ws-max-size가 먼저 막는다(Dockerfile)
-DB_SLOTS = {"auth": 3, "recheck": 2}
+DB_SLOTS = {"auth": 3, "recheck": 2, "wallet": 1}  # wallet: 입장 조건·판 끝 기록(지갑 행 잠금을 기다릴 수 있어 따로)
 RENEW_AHEAD = 60.0  # 토큰 만료 이만큼 전에 {"t":"renew"} 안내
 PENDING: dict[str, int] = {}  # IP별 인증 중인 연결 수
 PENDING_MAX, PENDING_PER_IP = 100, 5
+RECORD_RETRY = (0, 2, 10, 60)  # 판 끝 기록 간격(초), 끝 값으로 성공할 때까지 반복 — 원장이 같은 판을 두 번 넣지 않는다
+SETTLING: set[int] = set()  # 판 끝 기록이 아직 안 끝난 계정 — 끝나기 전 판돈 잔고로 다시 입장하지 못하게
 SEND_WAIT, BACKLOG = 2.0, 64  # 한 메시지 보내기 시간 제한, 쌓인 메시지가 이만큼이면 그 연결을 닫는다
 clock = time.time  # 판 시간(마감). 테스트는 가짜 시계로 바꾼다
 
@@ -77,6 +81,143 @@ def send(account: int, msg: dict) -> None:
 def push(t: MultiTable, events: list[dict]) -> None:
     for a, st in [(a, t.state(seat, events)) for seat, a in enumerate(t.accounts)]:  # 보내기 전에 다 만든다
         send(a, st)
+    if t.game.winner is not None and not t.recorded:  # 판이 끝난 첫 알림 → 지갑·미션 기록(한 번만)
+        _settle(t)
+
+
+def _settle(t: MultiTable) -> None:
+    """판 끝 기록을 한 번만 띄운다."""
+    t.recorded = True
+    SETTLING.update(t.accounts)
+    asyncio.get_running_loop().create_task(_record(t, time.time()))
+
+
+async def _record(t: MultiTable, ended: float) -> None:
+    """판 끝 기록: 자동 매칭만 판돈, 그날 미션(하트는 판을 열 때 이미 씀 — _charge).
+    DB는 스레드에서. 실패하면 성공할 때까지 RECORD_RETRY 간격으로 다시(그동안 네 명은 settling) — 같은 판은 원장이 두 번 넣지 않는다.
+    ponytail: 재시도는 메모리에만 있어 그사이 서버가 재시작되면 그 판 기록은 사라진다(판 자체도 메모리, ADR-0023).
+    미션 날짜는 판이 끝난 시각(ended)으로 — 자정을 넘겨 재시도가 성공해도 그날 몫으로 센다."""
+    players = store.players_of(t.game, t.accounts)
+
+    def write() -> dict[int, dict]:
+        with db.tx() as c:
+            store.finish_game(c, f"multi:{t.id}", players, time.time(), stake=t.kind == "auto", day_at=ended)
+            alive = store.live(c, t.accounts)  # 판 중 탈퇴한 사람의 지갑은 읽지 않는다 — 읽으면 AccountGone으로 전체가 되돌려진다(리뷰 지적)
+            return {a: store.snapshot(c, a, time.time()) for a in t.accounts if a in alive}
+
+    try:
+        for wait in itertools.chain(RECORD_RETRY, itertools.repeat(RECORD_RETRY[-1])):
+            await asyncio.sleep(wait)
+            try:
+                snaps = await _db("wallet", write)
+            except Exception:
+                log.exception("멀티 판 끝 기록 실패(다시 시도)")
+                continue
+            for a, w in snaps.items():
+                send(a, {"t": "wallet", **w})
+            return
+    finally:
+        SETTLING.difference_update(t.accounts)
+
+
+def _entry_accounts(a: int, auto: bool) -> list[int]:
+    """입장 전 하트·판돈을 미리 볼 계정 — 자동 매칭은 나, 친구방 시작은 방 사람 모두.
+    방이 없거나 방장이 아니거나 4명이 아니면 아무도 안 본다(start_room이 no_room·not_host·need_four로 거절)."""
+    if auto:
+        return [a]
+    r = LOBBY.room_of(a)
+    if r is None or r.members[0].account != a or len(r.members) != 4:
+        return []
+    return [m.account for m in r.members]
+
+
+async def _check_entry(accounts: list[int], auto: bool) -> None:
+    """멀티 입장 전 미리 보기(읽기만 — 아무것도 잡거나 쓰지 않는다): 하트가 있나, 자동 매칭이면 판돈 MIN_STAKE가 있나.
+    하트를 실제로 쓰는 건 판이 잡히는 순간 한 번뿐이다(_charge, ADR-0024 B안). 그래서 여기서 통과해도 대기 중 싱글로
+    하트를 다 쓰면 판이 잡힐 때 빠진다 — 그 사람만 안내하고 나머지는 대기 순서를 지킨다(11-25 사용자 결정).
+    판 끝 기록 중인 사람은 기록이 끝난 판돈 잔고로 봐야 하니 잠시 막는다. 지갑 자리를 AUTH_WAIT 안에 못 얻으면 busy."""
+    if not accounts:
+        return
+    if SETTLING & set(accounts):
+        raise LobbyError("settling")
+
+    def check() -> None:
+        with db.tx() as c:
+            for x in sorted(accounts):
+                w = store.snapshot(c, x, time.time())
+                if w["hearts"] < 1:
+                    raise LobbyError("no_heart")
+                # 새 지갑은 판돈 0 — 출석·미션으로 모은다. 지금 설치본엔 멀티 버튼이 '준비 중'으로 꺼져 있어
+                # (home_screen) 자동 매칭에 들어올 앱이 없다. 멀티 앱(③)은 출석·미션 화면(Task 6)과 함께 나간다.
+                if auto and w["coins"] < money.MIN_STAKE:
+                    raise LobbyError("low_coins")
+
+    try:
+        await asyncio.wait_for(_db("wallet", check), AUTH_WAIT)
+    except LobbyError:
+        raise
+    except Exception:  # 시간 초과·DB 장애 — 읽기만 했으니 남는 것이 없다
+        raise LobbyError("busy") from None
+
+
+def _open(t: MultiTable | None) -> None:
+    """새 판(공개 전)이 잡혔다 → 네 명의 하트를 쓰고 공개하거나 거두는 일을 띄운다."""
+    if t is not None:
+        asyncio.get_running_loop().create_task(_charge(t))
+
+
+async def _charge(t: MultiTable) -> None:
+    """판을 여는 하트 쓰기(ADR-0024 B안). 멀티에서 하트가 빠지는 곳은 여기 한 곳뿐이다.
+    - 성공: 판 공개(첫 마감은 지금부터) → 네 명에게 판 상태.
+    - 모자람: 아무도 안 씀. 모자란 사람은 이유(no_heart·low_coins)를 받는다. 자동 매칭은 그 사람만 빠지고 나머지는 대기열
+      원래 대기 순서 자리(먼저 들어온 순번대로), 친구방은 방이 그대로 남고 시작만 거절. 기다리는 사이 끊긴 사람은 되돌리지 않는다.
+    - DB 실패: DB가 답할 때까지 간격을 늘려 가며 다시 한다(최대 30초 간격). 같은 판 id라 앞의 쓰기가 실은 커밋됐으면
+      그대로 성공으로 돌아온다 — 몇 번 만에 포기하고 거두면 커밋된 하트만 빠지고 판이 없다(리뷰 지적). 그동안 판은 공개 전이라
+      무효로 지워지지 않고, 네 명은 다른 판에 못 들어간다(DB가 죽어 있으면 어차피 로그인·입장도 안 된다).
+    한계(받아들임, ADR-0024): 쓰기가 커밋된 직후 서버가 죽으면 하트는 빠지고 판은 사라진다 — 판이 메모리에만 있어서다(ADR-0023)."""
+    game = f"multi:{t.id}"
+
+    def write() -> dict[int, str]:
+        with db.tx() as c:
+            return store.start_multi(c, t.accounts, game, time.time(), stake=t.kind == "auto")
+
+    short: dict[int, str] | None = None
+    delay = 0.5
+    while short is None:
+        try:
+            short = await _db("wallet", write)
+        except Exception:
+            log.exception("멀티 판 하트 쓰기 실패 — %.1f초 뒤 다시", delay)
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, 30)
+    now = clock()
+    if short == {}:
+        if LOBBY.tables.get(t.id) is t:
+            t.reveal(now)
+            push(t, [])
+        return
+    # 기다리는 사이 끊긴 사람·토큰이 만료된 사람(감시 작업이 아직 안 닫았어도)은 되돌리지 않는다 — 되돌리면 바로 다음 판에
+    # 배정돼 하트가 빠지는데 판 상태를 못 받는다(리뷰 지적)
+    wall = time.time()
+    gone = {a for a in t.accounts if (w := CONNS.get(a)) is None or wall >= SESS.get(w, {}).get("exp", 0)}
+    # 자동 매칭은 모자란 사람이 빠지고 나머지가 대기열로, 친구방은 방을 그대로 되살리고 시작만 거절(모자란 사람이 채우면 다시 시작)
+    out = gone | (set(short) if t.room is None else set())
+    host = t.room.members[0].account if t.room is not None and t.room.members else None
+    _purge_expired()  # 거두며 바로 다시 맞출 때 그 전부터 기다리던 만료자도 빼 둔다(리뷰 지적)
+    again = LOBBY.abort(t, out, now)
+    for a in t.accounts:
+        if a not in CONNS:
+            continue
+        if a in short:
+            send(a, {"t": "error", "code": short[a]})
+        elif a == host:  # 시작을 누른 방장도 이유를 안다 — 미리 보기에서 걸렸을 때와 같게(리뷰 지적)
+            send(a, {"t": "error", "code": next(iter(short.values()))})
+        _status(a, now)
+    if t.room is not None and LOBBY.rooms.get(t.room.code) is t.room:
+        push_room(t.room)
+    push_queue()
+    for nt in again:
+        _open(nt)
 
 
 def room_msg(r: Room, i: int) -> dict:
@@ -139,7 +280,8 @@ _slots: dict[str, asyncio.Semaphore] = {}
 
 def _db_slots(kind: str) -> asyncio.Semaphore:
     """소켓의 DB 조회 자리 — 새 연결 인증(auth)과 기존 연결 재확인(recheck)을 따로 둔다.
-    합쳐 DB 풀(8)의 절반 남짓이라 로그인을 막지 않고, 인증이 몰려도 재확인이 밀려 멀쩡한 연결이 끊기지 않는다."""
+    합쳐 DB 풀(8)의 절반 남짓이라 로그인을 막지 않고, 인증이 몰려도 재확인이 밀려 멀쩡한 연결이 끊기지 않는다.
+    지갑(wallet: 입장 조건·판 끝 기록)도 따로 — 지갑 행 잠금을 기다리는 동안 재확인 자리를 잡고 있지 않게."""
     if kind not in _slots:
         _slots[kind] = asyncio.Semaphore(DB_SLOTS[kind])
     return _slots[kind]
@@ -168,7 +310,8 @@ def _leave(a: int, ws: WebSocket, notify_later: bool = False) -> None:
     t, r = LOBBY.disconnect(a, clock())
 
     def notify() -> None:  # 미뤄 보낼 수 있으니 보낼 때 아직 있는 판·방인지 다시 본다(그사이 정리됐으면 안 보냄)
-        if t and LOBBY.tables.get(t.id) is t and t.game.winner is None:  # 끊김 표시는 진행 중인 판에만 의미 있다
+        # 끊김 표시는 진행 중인 판에만 의미 있다 — 하트를 쓰는 중(공개 전)인 판은 알리지 않는다(공개 때 끊김 표시째 간다)
+        if t and LOBBY.tables.get(t.id) is t and t.ready and t.game.winner is None:
             push(t, [])
         if r and LOBBY.rooms.get(r.code) is r:
             push_room(r)
@@ -264,7 +407,11 @@ def _renew(s: dict, token) -> bool:
 
 
 def _status(a: int, now: float, results: bool = False) -> None:
-    """이 계정의 지금 처지 하나를 알린다: 진행 중인 판 > 방 > 대기열 > (다시 붙을 때만) 끊긴 사이 끝난 판 결과 > 로비."""
+    """이 계정의 지금 처지 하나를 알린다: 진행 중인 판 > 방 > 대기열 > (다시 붙을 때만) 끊긴 사이 끝난 판 결과 > 로비.
+    하트를 쓰는 중인 판(공개 전)이면 아무것도 안 보낸다 — 곧 _charge가 판 상태나(공개) 처지를(거둠) 보낸다.
+    여기서 lobby라고 하면 취소된 줄 아는데 하트가 빠지고 판이 시작된다(리뷰 지적)."""
+    if (t := LOBBY.pending_for(a, now)) and not t.ready:
+        return
     if t := LOBBY.table_for(a, now):
         send(a, t.state(t.seat_of(a), []))
     elif r := LOBBY.room_of(a):  # 처지 알림은 본인에게만(방 구성이 바뀐 게 아니다)
@@ -293,11 +440,12 @@ def _handle(a: int, me: Player, m: dict) -> None:
         send(a, {"t": "pong"})
     elif kind == "queue":
         if t := LOBBY.enqueue(me, now):
-            push(t, [])
+            _open(t)  # 네 명이 모임 → 하트를 쓰고 공개(모자라면 거둔다)
         else:
             tell_queued(a)  # 들어간 사람에게는 바로
         push_queue()  # 다른 대기자에게는 타이머가 모아서
     elif kind == "unqueue":
+        LOBBY.cancel_pending(a)  # 하트를 쓰는 중이면 거둘 때 대기열로 되돌리지 않게
         left = LOBBY.unqueue(a)
         _status(a, now)  # 그새 매칭됐으면 lobby가 아니라 판 상태
         if left:  # 대기열에 없던 사람의 취소로 모두에게 다시 보내지 않는다
@@ -310,12 +458,13 @@ def _handle(a: int, me: Player, m: dict) -> None:
             raise LobbyError("no_room")
         push_room(LOBBY.join_room(me, code, now))
     elif kind == "room.leave":
+        LOBBY.cancel_pending(a)  # 하트를 쓰는 중이면 거둘 때 방으로 되돌리지 않게
         r = LOBBY.leave_room(a)
         _status(a, now)  # 그새 방장이 시작했으면 판 상태
         if r:
             push_room(r)
     elif kind == "room.start":
-        push(LOBBY.start_room(a, now), [])
+        _open(LOBBY.start_room(a, now))
     elif kind == "move":
         t, tiles, ply = LOBBY.table_for(a, now), m.get("tiles"), m.get("ply")
         if t is None or m.get("game") != t.id:
@@ -369,10 +518,12 @@ async def ws_endpoint(ws: WebSocket):
         _drop(a, old, 4409)
     now = clock()
     _purge_expired()
-    if LOBBY.update(me, now):  # 대기 중 다시 붙음 → 새 IP·기기로 다시 매칭(되면 아래에서 판 상태를 보낸다)
+    if t := LOBBY.update(me, now):  # 대기 중 다시 붙음 → 새 IP·기기로 다시 매칭(하트를 쓰고 공개되면 판 상태가 간다)
+        _open(t)
         push_queue()
-    if t := LOBBY.table_for(a, now):  # 다시 붙음(또는 방금 매칭) → 모두에게 끊김 표시가 풀린 판 상태
+    if t := LOBBY.pending_for(a, now):  # 공개 전 판도 — 끊김은 pending_for로 표시하니 되살리기도 같은 범위(disconnect)
         t.set_connected(a, True, now)
+    if t and t.ready:  # 다시 붙음(또는 방금 매칭) → 모두에게 끊김 표시가 풀린 판 상태
         push(t, [])
     else:
         _status(a, now, results=True)
@@ -423,9 +574,27 @@ async def ws_endpoint(ws: WebSocket):
             if CONNS.get(a) is not ws:
                 break
             try:
+                # 입장 전 미리 보기는 DB를 기다린다 — 그사이 연결이 바뀌었으면 처리 안 함. 하트는 여기서 안 쓴다(판이 잡힐 때 _charge).
+                # 한계(받아들임): 기다리는 동안은 수신을 안 해 그사이 앱을 닫아도 끊김을 모른다 — 매칭되면 하트를 쓴다. 매칭 직후 끊긴 것과
+                # 같은 결과(차례는 마감에 자동 패스, ADR-0024)이고, 끊김은 다음 수신에서만 알 수 있어 여기서 미리 볼 방법이 없다.
+                if m.get("t") in ("queue", "room.start"):
+                    checked = _entry_accounts(a, auto=m["t"] == "queue")
+                    await _check_entry(checked, auto=m["t"] == "queue")
+                    _purge_expired()  # 기다리는 사이 만료된 대기자·방 사람을 다시 뺀다(손패를 받지 않게)
+                    if CONNS.get(a) is not ws:
+                        break
+                    # 기다리는 사이 방 구성이 바뀌었으면 시작하지 않는다 — 시작을 누른 뒤 들어온 사람이 판에 배정돼 하트를 쓰거나,
+                    # 정산 중인 계정이 빈자리에 들어와 두 정산이 겹친다(리뷰 지적). 방장이 다시 누르면 된다.
+                    if _entry_accounts(a, auto=m["t"] == "queue") != checked:
+                        raise LobbyError("room_changed")
+                    if SETTLING & set(checked):  # 기다리는 사이 판이 끝나 정산 중 — 읽은 잔고는 정산 전 값
+                        raise LobbyError("settling")
+                    if time.time() >= s["exp"]:
+                        raise LobbyError("auth")
                 _handle(a, me, m)
             except LobbyError as e:
-                send(a, {"t": "error", "code": e.code})
+                if CONNS.get(a) is ws:  # 기다리는 사이 다시 붙었으면 옛 요청의 거절을 새 연결에 보내지 않는다(리뷰 지적)
+                    send(a, {"t": "error", "code": e.code})
             except NotYourTurn:
                 send(a, {"t": "error", "code": "not_your_turn"})
             except Illegal as e:
