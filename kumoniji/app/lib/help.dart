@@ -193,8 +193,19 @@ class _HelpCardsState extends State<_HelpCards> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Column(
             children: [
-              Text(t.help, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const SizedBox(width: 40), // 오른쪽 X와 균형 — 제목이 가운데 오게
+                  Expanded(
+                    child: Text(t.help, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  IconButton(
+                    tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
               Expanded(
                 child: PageView(
                   controller: pc,
@@ -228,12 +239,33 @@ class _HelpCardsState extends State<_HelpCards> {
                         color: i == page ? const Color(0xFFC9A24A) : const Color(0xFFE9DFD1),
                       ),
                     ),
-                  const Spacer(),
-                  FilledButton(
-                    onPressed: () => last
-                        ? Navigator.pop(context)
-                        : pc.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
-                    child: Text(last ? t.helpDone : t.helpNext),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    // 좁은 화면·큰 글자에선 버튼 줄을 한 줄 그대로 줄인다 — 밖으로 밀리거나 줄이 늘어 본문을 줄이지 않게
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: [
+                            if (page > 0)
+                              TextButton(
+                                onPressed: () =>
+                                    pc.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                                child: Text(t.helpPrev),
+                              ),
+                            FilledButton(
+                              onPressed: () => last
+                                  ? Navigator.pop(context)
+                                  : pc.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+                              child: Text(last ? t.helpDone : t.helpNext),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

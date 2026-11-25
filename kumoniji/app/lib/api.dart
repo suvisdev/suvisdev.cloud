@@ -5,11 +5,12 @@ import 'package:http/http.dart' as http;
 
 import 'auth.dart';
 
-/// 한 자리가 낸 패. tiles가 null이면 패스.
+/// 한 자리가 낸 패. tiles가 null이면 패스. auto: 아무도 못 이겨 서버가 한꺼번에 넘긴 패스(앱이 묶어서 한 번에 보여 줌).
 class Play {
   final int seat;
   final List<String>? tiles;
-  const Play(this.seat, this.tiles);
+  final bool auto;
+  const Play(this.seat, this.tiles, {this.auto = false});
 }
 
 /// 서버가 준 판 상태(사람은 항상 0번 자리). 규칙 판정은 서버가 한다.
@@ -56,7 +57,8 @@ class GameState {
       bonus = List<int>.from(j['bonus']),
       settlement = j['settlement'] == null ? null : List<int>.from(j['settlement']),
       events = [
-        for (final e in j['events']) Play(e['seat'], e['tiles'] == null ? null : List<String>.from(e['tiles'])),
+        for (final e in j['events'])
+          Play(e['seat'], e['tiles'] == null ? null : List<String>.from(e['tiles']), auto: e['auto'] == true),
       ];
 
   bool get finished => winner != null;

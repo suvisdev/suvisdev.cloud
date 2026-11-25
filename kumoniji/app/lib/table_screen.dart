@@ -77,8 +77,22 @@ class _TableScreenState extends State<TableScreen> {
     try {
       final next = await call;
       if (s?.id != next.id) await _intro(next);
-      for (final e in next.events) {
+      for (var i = 0; i < next.events.length; i++) {
+        final e = next.events[i];
         if (!mounted) return;
+        if (e.auto) {
+          // 아무도 못 이김 → 남은 자리 패스를 한 명씩이 아니라 한꺼번에 띄우고 한 번만 멈춘다(11-25 사용자)
+          final run = [for (var k = i; k < next.events.length && next.events[k].auto; k++) next.events[k]];
+          setState(() {
+            passed.addAll(run.map((p) => p.seat));
+            flash = run.last;
+          });
+          await Future.delayed(const Duration(milliseconds: 1000));
+          if (!mounted) return;
+          if (passed.length == 3) setState(() => _clearRound());
+          i += run.length - 1;
+          continue;
+        }
         setState(() {
           if (e.tiles == null) {
             passed.add(e.seat);
