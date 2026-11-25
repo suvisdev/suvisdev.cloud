@@ -60,6 +60,9 @@ void main() {
     await t.tap(find.text('Single player'));
     await settle(t);
     await t.tap(find.byKey(const ValueKey('level-hard')));
+    await t.pump();
+    expect(bodies, isEmpty); // 고르기만 해서는 시작하지 않는다
+    await t.tap(find.byKey(const ValueKey('level-start')));
     for (var i = 0; i < 50 && find.text('Your turn').evaluate().isEmpty; i++) {
       await t.pump(const Duration(milliseconds: 100)); // 나눠 주기·시작 카드가 끝날 때까지
     }
@@ -78,6 +81,67 @@ void main() {
     await t.tap(find.text('Leave'));
     await settle(t);
     expect(find.text('Single player'), findsOneWidget); // 메인으로 돌아옴
+  });
+
+  testWidgets('level dialog scrolls on a short landscape screen', (t) async {
+    t.view.physicalSize = const Size(640, 300);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final bodies = <Object?>[];
+    final api = Api(
+      MockClient((r) async {
+        bodies.add(jsonDecode(r.body));
+        return http.Response(jsonEncode(view()), 200);
+      }),
+    );
+    await t.pumpWidget(_home(api));
+    await settle(t);
+    await t.ensureVisible(find.text('Single player')); // 낮은 화면이라 홈도 스크롤된다
+    await t.pump();
+    await t.tap(find.text('Single player'));
+    await settle(t);
+    expect(t.takeException(), isNull); // 넘침 없음
+    await t.dragUntilVisible(
+      find.byKey(const ValueKey('level-hard')),
+      find.byType(SingleChildScrollView).last,
+      const Offset(0, -50),
+    );
+    await t.tap(find.byKey(const ValueKey('level-hard')));
+    await t.pump();
+    final old = FlutterError.onError;
+    FlutterError.onError = (_) {}; // 판 화면은 높이 300에서 원래부터 넘친다(범위 밖) — 여기서는 난이도 창만 본다
+    await t.tap(find.byKey(const ValueKey('level-start')));
+    await t.pump();
+    expect(bodies, [
+      {'level': 'hard'},
+    ]);
+    for (var i = 0; i < 50; i++) {
+      await t.pump(const Duration(milliseconds: 100)); // 나눠 주기 애니메이션 타이머를 끝낸다
+    }
+    FlutterError.onError = old;
+  });
+
+  testWidgets('finished game result Home goes back to the home screen', (t) async {
+    final done = {
+      ...view(),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(done), 200)));
+    await t.pumpWidget(_home(api));
+    await settle(t);
+    await t.tap(find.text('Single player'));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('level-start')));
+    for (var i = 0; i < 50 && find.byKey(const ValueKey('result-home')).evaluate().isEmpty; i++) {
+      await t.pump(const Duration(milliseconds: 100));
+    }
+    await t.tap(find.byKey(const ValueKey('result-home')));
+    await settle(t);
+    expect(find.text('Single player'), findsOneWidget);
+    expect(find.byKey(const ValueKey('result-home')), findsNothing);
   });
 
   testWidgets('options: language switches the whole app and is remembered; vibration and volume saved', (t) async {
