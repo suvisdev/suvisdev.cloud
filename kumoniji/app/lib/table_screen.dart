@@ -309,7 +309,18 @@ class _TableScreenState extends State<TableScreen> {
       context: context,
       barrierDismissible: false,
       builder: (c) => AlertDialog(
-        title: Text(t.winner(_name(t, winner))),
+        scrollable: true, // 낮은 창에서도 정산표를 끝까지 볼 수 있게
+        titlePadding: const EdgeInsets.fromLTRB(24, 12, 8, 0),
+        title: Row(
+          children: [
+            Expanded(child: Text(t.winner(_name(t, winner)))),
+            IconButton(
+              tooltip: MaterialLocalizations.of(c).closeButtonTooltip,
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(c), // 판을 그대로 보며 닫기 — 새 판은 아래·위 '새 게임'
+            ),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -332,12 +343,24 @@ class _TableScreenState extends State<TableScreen> {
           ],
         ),
         actions: [
-          FilledButton(
+          OutlinedButton.icon(
+            key: const ValueKey('result-restart'),
             onPressed: () {
               Navigator.pop(c);
-              _newGame();
+              level = g.level;
+              _apply(api.newGame(g.level)); // 끝난 판과 같은 난이도로 바로(바꾸려면 위 '새 게임')
             },
-            child: Text(t.newGame),
+            icon: const Icon(Icons.replay),
+            label: Text(t.restart),
+          ),
+          FilledButton.icon(
+            key: const ValueKey('result-home'),
+            onPressed: () {
+              Navigator.pop(c);
+              Navigator.of(context).popUntil((r) => r.isFirst); // 끝난 판이라 나갈지 묻지 않는다
+            },
+            icon: const Icon(Icons.home),
+            label: Text(t.home),
           ),
         ],
       ),

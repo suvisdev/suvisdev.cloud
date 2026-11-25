@@ -8,7 +8,6 @@ import 'settings.dart';
 import 'table_screen.dart';
 import 'tile.dart';
 
-const _ink = Color(0xFF42384C);
 
 /// 첫 화면: 싱글 · 멀티(준비 중) · 게임 방법 · 옵션.
 /// 종료 버튼은 두지 않는다 — 웹은 탭을 스스로 닫을 수 없고, iOS는 앱 안 종료 버튼을 권하지 않는다.
@@ -33,7 +32,6 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    final big = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -51,11 +49,8 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    t.title,
-                    textAlign: TextAlign.center,
-                    style: big.headlineLarge?.copyWith(fontWeight: FontWeight.bold, color: _ink),
-                  ),
+                  // 제목 로고(Codex 그림, 원본 kumoniji/_docs/brand/title_jade_original.png). 글자는 한국어 하나 — 화면 읽기는 언어별 제목
+                  Image.asset('assets/brand/title_jade.png', semanticLabel: t.title),
                   const SizedBox(height: 40),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),

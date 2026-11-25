@@ -208,6 +208,9 @@ void moreTests() {
     await t.tap(find.widgetWithText(TextButton, 'New game'));
     await settle(t);
     await t.tap(find.byKey(const ValueKey('level-hard')));
+    await t.pump();
+    expect(bodies.length, 1); // 고르기만 해서는 시작하지 않는다
+    await t.tap(find.byKey(const ValueKey('level-start')));
     await settle(t);
     expect(bodies.last, {'level': 'hard'});
     expect(find.text('Kumoniji · Hard'), findsOneWidget);
@@ -297,6 +300,90 @@ void legalTests() {
     await settle(t);
     final names = t.widgetList<ListTile>(find.byType(ListTile)).map((e) => (e.title as Text).data).toList();
     expect(names, ['Bot 3', 'Bot 2', 'You', 'Bot 1']);
+  });
+
+  testWidgets('result has X to look at the finished table', (t) async {
+    final done = {
+      ...view(),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+    };
+    final bodies = <Object?>[];
+    final api = Api(
+      MockClient((r) async {
+        bodies.add(jsonDecode(r.body));
+        return http.Response(jsonEncode(bodies.length == 1 ? done : view()), 200);
+      }),
+    );
+    await t.pumpWidget(_app(api));
+    await settle(t);
+    await t.tap(find.byIcon(Icons.close));
+    await settle(t);
+    expect(find.byKey(const ValueKey('result-home')), findsNothing); // 닫으면 끝난 판을 그대로 본다
+    expect(bodies.length, 1);
+    await t.tap(find.widgetWithText(TextButton, 'New game'));
+    await settle(t);
+    expect(find.byKey(const ValueKey('level-start')), findsOneWidget); // 위 '새 게임'은 난이도부터
+    await t.tap(find.text('Cancel'));
+    await settle(t);
+    expect(bodies.length, 1);
+  });
+
+  testWidgets('result table scrolls on a short window so every rank stays readable', (t) async {
+    t.view.physicalSize = const Size(320, 360);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final old = FlutterError.onError;
+    final errors = <String>[];
+    FlutterError.onError = (e) => errors.add(e.toString()); // 판 화면 자체의 넘침은 범위 밖 — 결과 창만 본다
+    final done = {
+      ...view(),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+    };
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(done), 200)));
+    await t.pumpWidget(_app(api));
+    await settle(t);
+    FlutterError.onError = old;
+    expect(errors.where((e) => e.contains('AlertDialog') || e.contains('ListTile')), isEmpty);
+    final last = find.descendant(of: find.byType(AlertDialog), matching: find.text('Bot 1'));
+    await t.dragUntilVisible(
+      last,
+      find.descendant(of: find.byType(AlertDialog), matching: find.byType(SingleChildScrollView)).first,
+      const Offset(0, -40),
+    );
+    expect(last.hitTestable(), findsOneWidget); // 마지막 순위까지 스크롤해 볼 수 있다
+  });
+
+  testWidgets('result Restart begins the next game at the same level without asking', (t) async {
+    final done = {
+      ...view(),
+      'level': 'hard',
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+    };
+    final bodies = <Object?>[];
+    final api = Api(
+      MockClient((r) async {
+        bodies.add(jsonDecode(r.body));
+        return http.Response(jsonEncode(bodies.length == 1 ? done : view()), 200);
+      }),
+    );
+    await t.pumpWidget(_app(api));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('result-restart')));
+    await settle(t);
+    expect(bodies, [
+      {'level': 'normal'},
+      {'level': 'hard'}, // 저장된 난이도가 아니라 끝난 판의 난이도
+    ]);
+    expect(find.text('Your turn'), findsOneWidget);
   });
 }
 
