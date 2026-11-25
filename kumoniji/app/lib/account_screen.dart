@@ -81,6 +81,10 @@ Future<String?> _ask(BuildContext context, String title, String label, {bool sec
   return showDialog<String>(
     context: context,
     builder: (d) => AlertDialog(
+      // 가로 고정이라 키보드가 올라오면 높이가 모자란다 — 버튼까지 스크롤 안에 넣고 위아래 여백을 줄인다
+      // (actions는 스크롤 밖에 고정돼 높이 320·키보드 220에서 입력란이 0이 됐다, 리뷰 6차)
+      scrollable: true,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
       title: Text(title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -95,12 +99,17 @@ Future<String?> _ask(BuildContext context, String title, String label, {bool sec
             decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
             onSubmitted: (v) => Navigator.pop(d, v),
           ),
+          const SizedBox(height: 12),
+          OverflowBar(
+            alignment: MainAxisAlignment.end,
+            spacing: 8,
+            children: [
+              TextButton(onPressed: () => Navigator.pop(d), child: Text(t.cancel)),
+              FilledButton(onPressed: () => Navigator.pop(d, c.text), child: Text(t.confirm)),
+            ],
+          ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(d), child: Text(t.cancel)),
-        FilledButton(onPressed: () => Navigator.pop(d, c.text), child: Text(t.confirm)),
-      ],
     ),
   );
 }
@@ -157,6 +166,7 @@ Future<void> _showCodes(BuildContext context, List<String> codes) {
     context: context,
     barrierDismissible: false,
     builder: (d) => AlertDialog(
+      scrollable: true, // 가로 고정 — 높이 360에서도 내용(복구 코드 10개 등)이 잘리지 않게
       title: Text(t.recoveryCodes),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -220,6 +230,7 @@ Future<void> _delete(BuildContext context, Me me) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (d) => AlertDialog(
+      scrollable: true, // 가로 고정 — 높이 360에서도 내용(복구 코드 10개 등)이 잘리지 않게
       title: Text(t.deleteAccount),
       content: Text(t.deleteConfirm),
       actions: [

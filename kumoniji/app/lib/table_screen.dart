@@ -392,7 +392,12 @@ class _TableScreenState extends State<TableScreen> {
     // 나눠 주는 동안엔 아무도 차례가 아니고, 시작 카드 동안엔 선이 차례다
     final active = dealt != null ? null : intro ?? flash?.seat ?? (g == null || g.finished ? null : g.turn);
     // 위 줄이 좁다: 폭을 글자 배율로 나눠 본다(글자 200%면 800 미만) — 배지 설명을 빼고 새 게임은 아이콘으로
-    final narrowBar = MediaQuery.sizeOf(context).width < MediaQuery.textScalerOf(context).scale(400);
+    final size = MediaQuery.sizeOf(context);
+    final low = size.height < 560 && size.width > size.height; // 낮은 '가로' 창만 — 세로 창은 예전 배치(리뷰 1차)
+    // 낮은 가로 창은 제목 자리에 무늬 순서가 들어가므로 더 일찍 줄인다(리뷰 2차, 400×300)
+    final narrowBar = size.width < MediaQuery.textScalerOf(context).scale(low ? 560 : 400);
+    // 낮은 가로 화면(휴대폰 가로, 앱 기본 — 11-25 사용자): 무늬 순서는 위 막대로, 맞은편 자리는 한 줄,
+    // 패스·내기는 손패 오른쪽. 세로로 쌓으면 판·버튼이 화면 아래로 밀린다.
     return PopScope(
       canPop: g == null || g.finished,
       onPopInvokedWithResult: (didPop, _) {
@@ -400,7 +405,20 @@ class _TableScreenState extends State<TableScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
+          toolbarHeight: low ? 44 : null,
+          title: low && g != null
+              // 아주 좁은 창에서도 넘치지 않게 통째로 줄인다(리뷰 2차)
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _SuitOrder(suits: g.suits, label: t.suitOrder),
+                      PracticeButtons(out: _out.value, live: _out, suits: g.suits),
+                    ],
+                  ),
+                )
+              : Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
           backgroundColor: Colors.transparent,
           actions: [
             if (g != null) _TodayBadge(suit: g.today, label: narrowBar ? '' : t.today, doubles: g.doubles),
@@ -434,21 +452,89 @@ class _TableScreenState extends State<TableScreen> {
                         builder: (context, box) {
                           final tileW = _handTileW(box.maxWidth, box.maxHeight);
                           final myTurn = active == 0 && !busy;
+                          final you = _Seat(
+                            name: t.you,
+                            g: g,
+                            seat: 0,
+                            count: shown[0],
+                            active: active == 0,
+                            turnLabel: t.turn,
+                            compact: true,
+                            passed: passed.contains(0),
+                            passLabel: t.pass,
+                          );
+                          Widget handOf(double tileW) => AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
+                            ),
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 4,
+                              runSpacing: 10,
+                              children: [
+                                for (final code in g.hand.where((c) => !gone.contains(c)).take(dealt ?? 13))
+                                  Opacity(
+                                    // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
+                                    opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
+                                    child: _DealIn(
+                                      key: ValueKey('deal-$code'),
+                                      child: TileView(
+                                        key: ValueKey('hand-$code'),
+                                        code: code,
+                                        width: tileW,
+                                        selected: picked.contains(code),
+                                        onTap: !myTurn || !g.playable.contains(code)
+                                            ? null
+                                            : () => setState(
+                                                () => picked.contains(code) ? picked.remove(code) : picked.add(code),
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                          final buttons = Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              OutlinedButton(
+                                onPressed: !myTurn ? null : () => _apply(api.move(g.id, [])),
+                                child: Text(t.pass),
+                              ),
+                              const SizedBox(width: 16),
+                              FilledButton(
+                                onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
+                                child: Text(t.play),
+                              ),
+                            ],
+                          );
+                          // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
+                          final onlyPass = myTurn && g.table.isNotEmpty && g.playable.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
+                                )
+                              : null;
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: Column(
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Flexible(
-                                      child: _SuitOrder(suits: g.suits, label: t.suitOrder),
-                                    ),
-                                    if (!PracticeFrame.wide(context))
-                                      PracticeButtons(out: _out.value, live: _out, suits: g.suits),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
+                                if (!low) ...[
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Flexible(
+                                        child: _SuitOrder(suits: g.suits, label: t.suitOrder),
+                                      ),
+                                      if (!PracticeFrame.wide(context))
+                                        PracticeButtons(out: _out.value, live: _out, suits: g.suits),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                ],
                                 _Seat(
                                   name: t.bot(2),
                                   g: g,
@@ -457,6 +543,7 @@ class _TableScreenState extends State<TableScreen> {
                                   active: active == 2,
                                   turnLabel: t.turn,
                                   fan: Axis.horizontal,
+                                  inline: low,
                                   passed: passed.contains(2),
                                   passLabel: t.pass,
                                 ),
@@ -537,75 +624,55 @@ class _TableScreenState extends State<TableScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                _Seat(
-                                  name: t.you,
-                                  g: g,
-                                  seat: 0,
-                                  count: shown[0],
-                                  active: active == 0,
-                                  turnLabel: t.turn,
-                                  compact: true,
-                                  passed: passed.contains(0),
-                                  passLabel: t.pass,
-                                ),
-                                const SizedBox(height: 8),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
-                                  ),
-                                  child: Wrap(
-                                    alignment: WrapAlignment.center,
-                                    spacing: 4,
-                                    runSpacing: 10,
+                                if (low)
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      for (final code in g.hand.where((c) => !gone.contains(c)).take(dealt ?? 13))
-                                        Opacity(
-                                          // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
-                                          opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
-                                          child: _DealIn(
-                                            key: ValueKey('deal-$code'),
-                                            child: TileView(
-                                              key: ValueKey('hand-$code'),
-                                              code: code,
-                                              width: tileW,
-                                              selected: picked.contains(code),
-                                              onTap: !myTurn || !g.playable.contains(code)
-                                                  ? null
-                                                  : () => setState(
-                                                      () => picked.contains(code)
-                                                          ? picked.remove(code)
-                                                          : picked.add(code),
-                                                    ),
+                                      Expanded(
+                                        // 손패 한 줄 13장이 버튼 칸을 뺀 실제 폭에 들어가게, 높이는 화면의 약 18%
+                                        child: LayoutBuilder(
+                                          builder: (_, b) => handOf(
+                                            max(
+                                              6.0,
+                                              min(52.0, min((b.maxWidth - 12) / 13 - 4, box.maxHeight * .135)),
+                                            ), // 아주 좁아도 한 줄,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ConstrainedBox(
+                                        // 버튼 칸이 손패 자리를 먹지 않게 — 긴 안내문·큰 글자는 이 폭 안에서 줄바꿈하고,
+                                        // 그래도 높이가 넘치면(큰 글자 200%) 칸째 줄인다. 아니면 판이 아래로 넘쳤다(리뷰 9차).
+                                        constraints: BoxConstraints(
+                                          maxWidth: min(240, box.maxWidth * .32),
+                                          maxHeight: box.maxHeight * .32,
+                                        ),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: ConstrainedBox(
+                                            constraints: BoxConstraints(maxWidth: min(240, box.maxWidth * .32)),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                FittedBox(fit: BoxFit.scaleDown, child: you),
+                                                const SizedBox(height: 6),
+                                                FittedBox(fit: BoxFit.scaleDown, child: buttons),
+                                                ?onlyPass,
+                                              ],
                                             ),
                                           ),
                                         ),
+                                      ),
                                     ],
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    OutlinedButton(
-                                      onPressed: !myTurn ? null : () => _apply(api.move(g.id, [])),
-                                      child: Text(t.pass),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    FilledButton(
-                                      onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
-                                      child: Text(t.play),
-                                    ),
-                                  ],
-                                ),
-                                // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
-                                if (myTurn && g.table.isNotEmpty && g.playable.isEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
-                                  ),
+                                  )
+                                else ...[
+                                  you,
+                                  const SizedBox(height: 8),
+                                  handOf(tileW),
+                                  const SizedBox(height: 10),
+                                  buttons,
+                                  ?onlyPass,
+                                ],
                                 const SizedBox(height: 12),
                               ],
                             ),
@@ -705,6 +772,9 @@ class _Seat extends StatelessWidget {
   final int count;
   final bool active, compact;
 
+  /// 낮은 가로 화면의 맞은편 자리: 이름·뒷면·장수·점수를 한 줄로(세로 자리를 아낀다)
+  final bool inline;
+
   /// 남은 패 뒷면을 겹쳐 펼치는 방향(봇만). 세로면 [room] 높이 안에 맞춘다.
   final Axis? fan;
   final double room;
@@ -724,6 +794,7 @@ class _Seat extends StatelessWidget {
     required this.active,
     required this.turnLabel,
     this.compact = false,
+    this.inline = false,
   });
 
   @override
@@ -749,6 +820,23 @@ class _Seat extends StatelessWidget {
       ],
     );
     final stats = Text('🌸${g.petals[seat]}  ✦${g.bonus[seat]}', style: const TextStyle(fontSize: 12, color: _ink));
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 좁은 옆자리에서도 이름·차례 배지가 넘치지 않게
+        FittedBox(fit: BoxFit.scaleDown, child: label),
+        const SizedBox(height: 4),
+        _Backs(
+          count: count,
+          turns: seat, // 1 왼쪽·2 맞은편·3 오른쪽 — 부채 손잡이가 그 사람 쪽
+          // 세로: 이름·장수·점수 줄과 여백(약 110)을 뺀 높이에 13장이 들어가게
+          length: fan == Axis.vertical ? max(32.0, room - 110) : 170, // 32 = 뒷면 한 장 높이(낮은 가로 창)
+        ),
+        Text('×$count', style: const TextStyle(color: _ink, fontSize: 12)),
+        const SizedBox(height: 2),
+        stats,
+      ],
+    );
     final box = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
@@ -761,23 +849,31 @@ class _Seat extends StatelessWidget {
       width: fan == Axis.vertical ? _sideW : null,
       child: compact
           ? Row(mainAxisSize: MainAxisSize.min, children: [label, const SizedBox(width: 12), stats])
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 좁은 옆자리에서도 이름·차례 배지가 넘치지 않게
-                FittedBox(fit: BoxFit.scaleDown, child: label),
-                const SizedBox(height: 4),
-                _Backs(
-                  count: count,
-                  turns: seat, // 1 왼쪽·2 맞은편·3 오른쪽 — 부채 손잡이가 그 사람 쪽
-                  // 세로: 이름·장수·점수 줄과 여백(약 110)을 뺀 높이에 13장이 들어가게
-                  length: fan == Axis.vertical ? max(48.0, room - 110) : 170,
-                ),
-                Text('×$count', style: const TextStyle(color: _ink, fontSize: 12)),
-                const SizedBox(height: 2),
-                stats,
-              ],
-            ),
+          : inline
+          ? FittedBox(
+              fit: BoxFit.scaleDown, // 아주 좁은 창은 한 줄째 줄인다
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  label,
+                  const SizedBox(width: 10),
+                  _Backs(count: count, turns: seat, length: 140),
+                  const SizedBox(width: 6),
+                  Text('×$count', style: const TextStyle(color: _ink, fontSize: 12)),
+                  const SizedBox(width: 10),
+                  stats,
+                ],
+              ),
+            )
+          : fan == Axis.vertical
+          // 옆자리: 글자가 커서(200%) 110px 어림을 넘으면 폭은 그대로 두고 높이에 맞춰 자리째 줄인다(리뷰 9차)
+          ? LayoutBuilder(
+              builder: (_, c) => FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SizedBox(width: c.maxWidth, child: column),
+              ),
+            )
+          : column,
     );
     // 패스하면 그 자리가 말하듯 말풍선을 띄워 둔다(누가 새로 내거나 바퀴가 넘어가면 사라짐)
     return Stack(
@@ -787,11 +883,11 @@ class _Seat extends StatelessWidget {
         // 봇 자리는 자리 안 위쪽(이름 줄)에 띄우고 자리보다 크면 줄인다 — 자리 밖에 두면 화면 폭·장수·글자 크기에 따라
         // 화면 끝에서 잘리거나 무늬 순서 띠를 가렸다. 이름은 자리 위치로 알 수 있으니 덮고, 아래 남은 장수(×N)는
         // 가리지 않는다(가운데에 두면 1장일 때 ×1을 덮었다). 꼬리는 뺀다.
-        // 내 자리(한 줄로 낮음)만 자리 위에.
+        // 내 자리(한 줄로 낮음)만 자리 위에. 한 줄 자리(낮은 가로 창 맞은편)는 ×N이 같은 줄이라 왼쪽(이름 위)에(리뷰 8차).
         if (passed && !compact)
           Positioned.fill(
             child: Align(
-              alignment: Alignment.topCenter,
+              alignment: inline ? Alignment.centerLeft : Alignment.topCenter,
               child: Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: FittedBox(
