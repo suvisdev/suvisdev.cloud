@@ -84,3 +84,25 @@ def test_bot_games_match_simulate_and_zero_sum(levels, games):
             g.doubles,
         )
         assert sum(g.settlement()) == 0
+
+
+def test_stats_count_combos_and_today_rounds():
+    def T(text):
+        return [P(x) for x in text.split()]
+
+    hands = [T("벚3 잎3 산3 솜5 솜6 솜7 솜8 솜9 잎13"), T("솜1 솜2"), T("잎1 잎2"), T("산1 산2")]
+    g = Game(hands=hands, today="솜", turn=0)
+    g.play(0, T("벚3 잎3 산3"))  # 트리플
+    for s in (1, 2, 3):
+        g.play(s, None)  # 셋 다 패스 → 0번이 바퀴를 가져감(오늘의 무늬 없음)
+    g.play(0, T("솜5 솜6 솜7 솜8 솜9"))  # 5장(스트레이트플러시)
+    for s in (1, 2, 3):
+        g.play(s, None)  # 오늘의 무늬(솜)가 든 패로 가져감
+    assert g.stats[0] == {"five": 1, "triple": 1, "oddeven": 0, "fullhouse": 0, "today": 1}
+    assert g.stats[1] == {"five": 0, "triple": 0, "oddeven": 0, "fullhouse": 0, "today": 0}
+
+
+def test_finishing_with_today_shape_counts_as_taking_the_round():
+    g = Game(hands=[[("솜", 5)], [("산", 1)], [("산", 2)], [("산", 3)]], today="솜", turn=0)
+    g.play(0, [("솜", 5)])
+    assert g.winner == 0 and g.stats[0]["today"] == 1

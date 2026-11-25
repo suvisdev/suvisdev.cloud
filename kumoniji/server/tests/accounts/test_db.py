@@ -9,5 +9,5 @@ def test_migrate_creates_tables_and_is_idempotent(database):
             for r in c.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
         }
         versions = [r["n"] for r in c.execute("SELECT n FROM schema_version")]
-    assert {"accounts", "identities", "auth_tokens", "sessions", "recovery_codes", "attempts"} <= tables
-    assert versions == [1, 2]
+    assert {"accounts", "identities", "auth_tokens", "sessions", "recovery_codes", "attempts", "wallets", "ledger", "daily"} <= tables
+    assert versions == [1, 2, 3]

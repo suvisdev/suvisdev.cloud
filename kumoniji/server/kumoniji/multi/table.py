@@ -27,7 +27,15 @@ class Illegal(Exception):
 
 
 class MultiTable:
-    def __init__(self, accounts: list[int], names: list[str], now: float, rng: random.Random | None = None):
+    def __init__(
+        self,
+        accounts: list[int],
+        names: list[str],
+        now: float,
+        rng: random.Random | None = None,
+        kind: str = "auto",
+        ready: bool = True,
+    ):
         assert len(accounts) == 4 and len(set(accounts)) == 4
         self.id = secrets.token_urlsafe(12)
         self.game = Game.deal(rng or random.Random(secrets.randbits(64)))
@@ -36,6 +44,13 @@ class MultiTable:
         self.gone_since: float | None = None  # 네 명 모두 끊긴 때
         self.finished_at: float | None = None
         self.deadline = now + TURN
+        self.kind = kind  # "auto"(자동 매칭 — 판돈을 주고받음) | "room"(친구방 — 점수만, ADR-0024)
+        self.recorded = False  # 판 끝 기록(지갑·미션)을 시작했나 — 한 번만
+        # 하트를 다 쓰고 공개했나(ADR-0024 B안). 그 전엔 수·타이머가 판을 바꾸지 않는다 — 하트가 모자라면 판을 거둔다(Lobby.abort)
+        self.ready = ready  # Lobby는 공개 전(False)으로 만든다
+        self.players: list = []  # Lobby가 채움: 들어온 Player들, 친구방이면 room — 판을 거둘 때 되돌리려고
+        self.room = None
+        self.leaving: set[int] = set()  # 하트를 쓰는 중 취소한 사람 — 거둘 때 되돌리지 않는다(Lobby.abort)
         self.ply = 0  # 지금까지 처리한 수(패스 포함) — 앱은 이 번호를 붙여 내고, 다르면 늦게 온 옛 수로 거부
         self._auto(now)
 
@@ -71,7 +86,7 @@ class MultiTable:
         if ply is not None and ply != self.ply:
             raise NotYourTurn
         # 마감이 지난 수는 받지 않는다 — 타이머(tick)보다 먼저 처리되면 자동 패스를 건너뛰게 된다
-        if seat is None or self.void(now) or g.winner is not None or g.turn != seat or now >= self.deadline:
+        if not self.ready or seat is None or self.void(now) or g.winner is not None or g.turn != seat or now >= self.deadline:
             raise NotYourTurn
         try:
             tiles = [dec(c) for c in codes]
@@ -85,9 +100,16 @@ class MultiTable:
 
     def tick(self, now: float) -> list[dict]:
         """마감이 지났으면 그 차례를 자동 패스(선이어도 — 계획 A). 끊긴 사람도 같은 규칙."""
-        if self.void(now) or self.game.winner is not None or now < self.deadline:
+        if not self.ready or self.void(now) or self.game.winner is not None or now < self.deadline:
             return []
         return [self._record(self.game.turn, None, now), *self._auto(now)]
+
+    def reveal(self, now: float) -> None:
+        """하트를 다 썼다 → 판을 연다. 첫 차례 마감은 지금부터(하트를 쓰는 동안 흐른 시간은 빼고)."""
+        self.ready = True
+        self.deadline = now + TURN
+        if self.gone_since is not None:  # 쓰는 사이 넷 다 끊겼으면 GONE은 지금부터(공개 전엔 무효를 안 센다)
+            self.gone_since = now
 
     def set_connected(self, account: int, on: bool, now: float) -> None:
         seat = self.seat_of(account)
@@ -100,8 +122,9 @@ class MultiTable:
             self.gone_since = now
 
     def void(self, now: float) -> bool:
-        """네 명 모두 끊긴 채 GONE초 — 판 무효. 그 뒤로는 수·타이머·재접속 모두 판을 바꾸지 않는다."""
-        return self.game.winner is None and self.gone_since is not None and now - self.gone_since >= GONE
+        """네 명 모두 끊긴 채 GONE초 — 판 무효. 그 뒤로는 수·타이머·재접속 모두 판을 바꾸지 않는다.
+        공개 전(하트를 쓰는 중)은 세지 않는다 — 지우면 쓰기가 끝난 뒤 하트만 빠지고 판이 없다. 공개 전 판은 _charge가 공개나 거두기로 끝낸다."""
+        return self.ready and self.game.winner is None and self.gone_since is not None and now - self.gone_since >= GONE
 
     def expired(self, now: float) -> bool:
         """메모리에서 지울 때: 무효가 됐거나, 끝난 지 KEEP초."""

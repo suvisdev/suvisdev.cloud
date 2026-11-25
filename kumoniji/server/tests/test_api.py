@@ -3,6 +3,7 @@ import random
 import pytest
 from fastapi.testclient import TestClient
 
+from kumoniji import api
 from kumoniji.accounts.web import player
 from kumoniji.api import Room, app
 
@@ -10,8 +11,11 @@ c = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def _signed_in():
-    """게임 규칙 테스트는 로그인한 계정 0번으로 친다(인증 자체는 tests/accounts/test_web.py)."""
+def _signed_in(monkeypatch):
+    """게임 규칙 테스트는 로그인한 계정 0번으로 친다(인증 자체는 tests/accounts/test_web.py).
+    DB 없이 돌므로 하트·판 끝 기록도 끈다(지갑은 tests/accounts/test_wallet.py)."""
+    monkeypatch.setattr(api, "use_heart", lambda a, rid=None, resume=False: None)
+    monkeypatch.setattr(api, "record", lambda gid, room, out: out)
     app.dependency_overrides[player] = lambda: {"account_id": 0}
     yield
     app.dependency_overrides.clear()

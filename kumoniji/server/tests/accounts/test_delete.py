@@ -11,6 +11,8 @@ def test_8_delete_blocks_access_and_wipes_personal_data(outbox, fast_hash):
     c = browser()
     signed_up(c, outbox)
     login(c)
+    assert c.post("/api/games", json={"rid": "beforedelete"}).status_code == 200  # 하트·원장
+    assert c.post("/api/wallet/attend").status_code == 200  # 출석·일일 기록
     with db.tx() as cur:
         cur.execute("UPDATE sessions SET reauth_at = now() - interval '10 minutes'")
     assert c.post("/api/auth/delete").status_code == 403  # 최근 인증 필요
@@ -21,6 +23,8 @@ def test_8_delete_blocks_access_and_wipes_personal_data(outbox, fast_hash):
     with db.tx() as cur:
         a = cur.execute("SELECT email, nickname, pw_hash FROM accounts").fetchone()
         assert a == {"email": None, "nickname": "", "pw_hash": None}
+        for table in ("wallets", "ledger", "daily"):  # 화폐 기록도 함께 파기(리뷰 지적)
+            assert cur.execute(f"SELECT count(*) AS n FROM {table}").fetchone()["n"] == 0, table
     signed_up(browser(), outbox)  # 같은 주소로 새로 가입 가능(옛 계정 부활 아님)
     with db.tx() as cur:
         assert cur.execute("SELECT count(*) AS n FROM accounts WHERE deleted_at IS NULL").fetchone()["n"] == 1
