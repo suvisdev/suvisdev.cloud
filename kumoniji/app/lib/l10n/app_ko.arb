@@ -40,6 +40,8 @@
   "start": "시작",
   "home": "홈으로",
   "restart": "재시작",
+  "mute": "음소거",
+  "unmute": "소리 켜기",
   "cancel": "취소",
   "weak": "약함",
   "strong": "셈",

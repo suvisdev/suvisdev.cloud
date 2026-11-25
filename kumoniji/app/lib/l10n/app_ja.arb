@@ -40,6 +40,8 @@
   "start": "開始",
   "home": "ホームへ",
   "restart": "もう一度",
+  "mute": "ミュート",
+  "unmute": "音を出す",
   "cancel": "キャンセル",
   "weak": "弱い",
   "strong": "強い",

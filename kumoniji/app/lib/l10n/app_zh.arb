@@ -40,6 +40,8 @@
   "start": "开始",
   "home": "返回首页",
   "restart": "再来一局",
+  "mute": "静音",
+  "unmute": "打开声音",
   "cancel": "取消",
   "weak": "弱",
   "strong": "强",

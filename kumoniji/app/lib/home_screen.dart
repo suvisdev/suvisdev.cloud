@@ -8,7 +8,6 @@ import 'settings.dart';
 import 'table_screen.dart';
 import 'tile.dart';
 
-
 /// 첫 화면: 싱글 · 멀티(준비 중) · 게임 방법 · 옵션.
 /// 종료 버튼은 두지 않는다 — 웹은 탭을 스스로 닫을 수 없고, iOS는 앱 안 종료 버튼을 권하지 않는다.
 class HomeScreen extends StatelessWidget {
@@ -33,6 +32,11 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false,
+        actions: const [MuteButton(), SizedBox(width: 4)],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -42,11 +46,15 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (final c in ['c11', 's12', 'm13']) TileView(code: c, width: 64),
-                    ],
+                  FittedBox(
+                    fit: BoxFit.scaleDown, // 아주 좁은 창에선 네 장을 함께 줄인다
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 무늬 넷 하나씩 — 산·벚꽃·솜사탕은 해(13), 잎사귀는 무지개(12)(11-25 사용자)
+                        for (final c in ['m13', 's13', 'l12', 'c13']) TileView(code: c, width: 64),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   // 제목 로고(Codex 그림, 원본 kumoniji/_docs/brand/title_jade_original.png). 글자는 한국어 하나 — 화면 읽기는 언어별 제목

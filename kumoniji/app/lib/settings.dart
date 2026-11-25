@@ -22,6 +22,16 @@ class Settings {
   static final music = ValueNotifier<double>(0.6);
   static final sfx = ValueNotifier<double>(0.8);
   static final vibration = ValueNotifier<bool>(true);
+  static final muted = ValueNotifier<bool>(false); // 배경음악·효과음을 한 번에 끔(음량 값은 그대로 둔다)
+
+  /// 실제로 쓸 음량 — 음소거면 0.
+  static double get musicVolume => muted.value ? 0 : music.value;
+  static double get sfxVolume => muted.value ? 0 : sfx.value;
+
+  static void toggleMute() {
+    muted.value = !muted.value;
+    _save((p) => p.setBool('muted', muted.value));
+  }
 
   static Future<void> load() async {
     try {
@@ -31,6 +41,7 @@ class Settings {
       music.value = p.getDouble('music') ?? music.value;
       sfx.value = p.getDouble('sfx') ?? sfx.value;
       vibration.value = p.getBool('vibration') ?? vibration.value;
+      muted.value = p.getBool('muted') ?? muted.value;
     } catch (_) {}
   }
 
@@ -43,6 +54,25 @@ class Settings {
   /// 내 차례가 왔을 때 짧게 진동(휴대폰만 — 웹에서는 아무 일도 없다).
   static void buzz() {
     if (vibration.value) HapticFeedback.mediumImpact();
+  }
+}
+
+/// 음소거 버튼: 배경음악·효과음을 한 번에 끄고 켠다(홈·게임 화면 위).
+class MuteButton extends StatelessWidget {
+  const MuteButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context)!;
+    return ValueListenableBuilder(
+      valueListenable: Settings.muted,
+      builder: (_, muted, _) => IconButton(
+        key: const ValueKey('mute'),
+        tooltip: muted ? t.unmute : t.mute,
+        icon: Icon(muted ? Icons.volume_off : Icons.volume_up),
+        onPressed: Settings.toggleMute,
+      ),
+    );
   }
 }
 
@@ -59,7 +89,13 @@ class OptionsScreen extends StatelessWidget {
         title: Text(t.language),
         children: [
           // 언어 이름은 그 언어로 쓴다(잘못 골라도 되돌아올 수 있게)
-          for (final (code, name) in [('', t.systemLanguage), ('en', 'English'), ('ja', '日本語'), ('ko', '한국어'), ('zh', '简体中文')])
+          for (final (code, name) in [
+            ('', t.systemLanguage),
+            ('en', 'English'),
+            ('ja', '日本語'),
+            ('ko', '한국어'),
+            ('zh', '简体中文'),
+          ])
             ListTile(
               key: ValueKey('locale-$code'),
               title: Text(name, style: TextStyle(fontWeight: code == current ? FontWeight.bold : null)),

@@ -374,6 +374,8 @@ class _TableScreenState extends State<TableScreen> {
     // 봇이 내는 장면을 보여 주는 동안에는 그 봇이 차례다
     // 나눠 주는 동안엔 아무도 차례가 아니고, 시작 카드 동안엔 선이 차례다
     final active = dealt != null ? null : intro ?? flash?.seat ?? (g == null || g.finished ? null : g.turn);
+    // 위 줄이 좁다: 폭을 글자 배율로 나눠 본다(글자 200%면 800 미만) — 배지 설명을 빼고 새 게임은 아이콘으로
+    final narrowBar = MediaQuery.sizeOf(context).width < MediaQuery.textScalerOf(context).scale(400);
     return PopScope(
       canPop: g == null || g.finished,
       onPopInvokedWithResult: (didPop, _) {
@@ -384,14 +386,18 @@ class _TableScreenState extends State<TableScreen> {
           title: Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
           backgroundColor: Colors.transparent,
           actions: [
-            if (g != null)
-              _TodayBadge(
-                suit: g.today,
-                label: MediaQuery.sizeOf(context).width < 400 ? '' : t.today,
-                doubles: g.doubles,
-              ),
+            if (g != null) _TodayBadge(suit: g.today, label: narrowBar ? '' : t.today, doubles: g.doubles),
+            const MuteButton(),
             IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
-            TextButton(onPressed: busy ? null : _newGame, child: Text(t.newGame)),
+            if (narrowBar)
+              IconButton(
+                key: const ValueKey('new-game'),
+                tooltip: t.newGame,
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: busy ? null : _newGame,
+              )
+            else
+              TextButton(key: const ValueKey('new-game'), onPressed: busy ? null : _newGame, child: Text(t.newGame)),
             const SizedBox(width: 4),
           ],
         ),
@@ -406,7 +412,7 @@ class _TableScreenState extends State<TableScreen> {
                   SafeArea(
                     child: LayoutBuilder(
                       builder: (context, box) {
-                        final tileW = min(56.0, (box.maxWidth - 32) / 7 - 4);
+                        final tileW = _handTileW(box.maxWidth, box.maxHeight);
                         final myTurn = active == 0 && !busy;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -916,6 +922,8 @@ class _TodayBadge extends StatelessWidget {
         Text(
           '×${pow(5, doubles)}',
           style: const TextStyle(fontWeight: FontWeight.bold, color: gold),
+          // 위 줄은 폭이 정해져 있어 글자 크기 200%에서도 1.3배까지만(음소거·도움말·새 게임이 밀려나지 않게)
+          textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
         ),
       ],
     ],
@@ -1046,3 +1054,12 @@ class _DealIn extends StatelessWidget {
     child: child,
   );
 }
+
+/// 손패 한 장 폭 — 예전(최대 56, 한 줄 7장)보다 크게(11-25 사용자 "1.5배 정도").
+/// 폭 계산은 예전과 같이 w − 32(양옆 여백 12+6, 패 사이 4). 한 줄 5~13장 중 가장 크게 나오는 것을 고르되, 손패 전체가 화면 높이의 34%를 넘지 않게(가운데 판·옆자리 자리를 남김).
+/// 손패 높이는 본문의 34%, 그리고 위 자리·옆자리·내 자리·버튼 몫(약 440)을 뺀 나머지 안 — 낮은 창은 예전 크기 그대로.
+/// 큰 화면은 최대 84(1.5배), 세로 휴대폰은 높이에 막혀 약 1.2배.
+double _handTileW(double w, double h) =>
+    [for (var n = 5; n <= 13; n++) n]
+        .map((n) => min(84.0, min((w - 32) / n - 4, (min(.34 * h, h - 440) / (13 / n).ceil() - 10) / 1.4)))
+        .fold(min(56.0, (w - 32) / 7 - 4), max); // 예전 크기보다 작아지지는 않는다
