@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -235,7 +236,7 @@ void main() {
       await t.tap(find.byKey(ValueKey('$kind-background')));
       await settle(t);
       for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++) {
-        expect(find.byKey(ValueKey('bg-$kind-$i')), findsOneWidget); // 없음 + 10장(6~10은 세트 배경)
+        expect(find.byKey(ValueKey('bg-$kind-$i')), findsOneWidget); // 없음 + 홈 15장(6~10 세트 배경·11~15 시작 화면) / 게임 화면 10장
       }
       final title = kind == 'home' ? 'Home background' : 'Table background';
       expect(find.bySemanticsLabel('$title 2'), findsOneWidget); // 화면 읽기가 구분할 이름
@@ -270,6 +271,10 @@ void main() {
     await t.tap(find.byType(BackButton));
     await settle(t);
     expect(backgroundAsset('home', 7), 'assets/backgrounds/table_7.jpg'); // 홈의 세트 배경은 같은 파일
+    expect(backgroundAsset('home', 12), 'assets/backgrounds/home_12.jpg'); // 11~15는 시작 화면 전용
+    for (var i = 1; i <= homeBackgrounds; i++) {
+      await rootBundle.load(backgroundAsset('home', i)); // 고를 수 있는 그림 파일이 다 있다
+    }
     final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
     expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
   });

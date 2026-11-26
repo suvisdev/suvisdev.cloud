@@ -5,6 +5,7 @@ import 'account_screen.dart';
 import 'auth.dart';
 import 'home_screen.dart';
 import 'l10n/app_localizations.dart';
+import 'settings.dart';
 import 'web_nav.dart';
 
 const _ink = Color(0xFF42384C);
@@ -100,7 +101,8 @@ class AuthFrame extends StatelessWidget {
   final String title;
   final List<Widget> children;
   final bool back;
-  const AuthFrame({super.key, required this.title, required this.children, this.back = false});
+  final bool logo; // 제목 자리에 글씨 대신 제목 로고(로그인 첫 화면)
+  const AuthFrame({super.key, required this.title, required this.children, this.back = false, this.logo = false});
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -115,12 +117,15 @@ class AuthFrame extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold, color: _ink),
-                  ),
+                  if (logo)
+                    const Center(child: TitleLogo(height: 72))
+                  else
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold, color: _ink),
+                    ),
                   const SizedBox(height: 24),
                   ...children,
                 ],
@@ -253,6 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final needCaptcha = captchaAsked && hasTurnstile && (siteKey ?? '').isNotEmpty;
     return AuthFrame(
       title: t.title,
+      logo: true,
       children: [
         message(widget.googleFailed && error == null && info == null ? t.errGoogle : null),
         message(error),
