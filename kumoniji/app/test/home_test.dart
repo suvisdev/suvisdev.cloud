@@ -203,6 +203,8 @@ void main() {
     await t.tap(find.byKey(const ValueKey('locale-ja')));
     await settle(t);
     expect(find.text('オプション'), findsOneWidget); // 화면이 바로 일본어로
+    // 게임판·세트 줄이 늘어 아래 항목은 내려야 보인다
+    await t.scrollUntilVisible(find.byKey(const ValueKey('vibration')), 200, scrollable: find.byType(Scrollable).last);
     await t.tap(find.byKey(const ValueKey('vibration')));
     await settle(t);
     await t.drag(find.byKey(const ValueKey('music')), const Offset(-500, 0));
@@ -232,8 +234,8 @@ void main() {
     for (final kind in ['home', 'table']) {
       await t.tap(find.byKey(ValueKey('$kind-background')));
       await settle(t);
-      for (var i = 0; i <= backgrounds; i++) {
-        expect(find.byKey(ValueKey('bg-$kind-$i')), findsOneWidget); // 없음 + 5장
+      for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++) {
+        expect(find.byKey(ValueKey('bg-$kind-$i')), findsOneWidget); // 없음 + 10장(6~10은 세트 배경)
       }
       final title = kind == 'home' ? 'Home background' : 'Table background';
       expect(find.bySemanticsLabel('$title 2'), findsOneWidget); // 화면 읽기가 구분할 이름
@@ -248,8 +250,26 @@ void main() {
     final p = await SharedPreferences.getInstance();
     expect(p.getInt('homeBg'), 3);
     expect(p.getInt('tableBg'), 5);
+    // 게임판: 기본 + 10장, 하나를 고르면 기억(11-26 사용자)
+    await t.tap(find.byKey(const ValueKey('board')));
+    await settle(t);
+    for (var i = 0; i <= boards; i++) {
+      expect(find.byKey(ValueKey('board-$i')), findsOneWidget);
+    }
+    await t.tap(find.byKey(const ValueKey('board-4')));
+    await settle(t);
+    expect(p.getInt('board'), 4);
+    // 세트: 배경과 판을 한 번에(세트 3 = 배경 8 · 판 8)
+    await t.tap(find.byKey(const ValueKey('board-set')));
+    await settle(t);
+    expect(find.byKey(const ValueKey('set-0')), findsNothing); // 세트엔 '없음'이 없다
+    await t.tap(find.byKey(const ValueKey('set-3')));
+    await settle(t);
+    expect((p.getInt('tableBg'), p.getInt('board')), (8, 8));
+    expect((Settings.tableBg.value, Settings.board.value), (8, 8));
     await t.tap(find.byType(BackButton));
     await settle(t);
+    expect(backgroundAsset('home', 7), 'assets/backgrounds/table_7.jpg'); // 홈의 세트 배경은 같은 파일
     final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
     expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
   });

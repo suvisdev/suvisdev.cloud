@@ -580,25 +580,38 @@ class _TableScreenState extends State<TableScreen> {
                                                 ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
                                                 ..rotateX(-.42) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
                                                 ..scaleByDouble(.9, .9, 1, 1),
-                                              child: Container(
-                                                width: side,
-                                                height: side,
-                                                decoration: BoxDecoration(
-                                                  color: _felt,
-                                                  borderRadius: BorderRadius.circular(24),
-                                                  border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
-                                                  // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: const Color(0xFFB7CA9F),
-                                                      offset: Offset(0, side * .022),
+                                              child: ValueListenableBuilder(
+                                                valueListenable: Settings.board,
+                                                builder: (_, b, child) => Container(
+                                                  width: side,
+                                                  height: side,
+                                                  decoration: BoxDecoration(
+                                                    color: _felt,
+                                                    // 고른 판 그림(0 = 기본 펠트) — 모서리 둥글기대로 잘린다
+                                                    image: b == 0
+                                                        ? null
+                                                        : DecorationImage(
+                                                            image: AssetImage(boardAsset(b)),
+                                                            fit: BoxFit.cover,
+                                                          ),
+                                                    borderRadius: BorderRadius.circular(24),
+                                                    border: Border.all(
+                                                      color: b == 0
+                                                          ? const Color(0xFFCFDDBF)
+                                                          : boardEdges[b].withValues(alpha: .5),
+                                                      width: 2,
                                                     ),
-                                                    BoxShadow(
-                                                      color: const Color(0x30000000),
-                                                      blurRadius: side * .036,
-                                                      offset: Offset(0, side * .04),
-                                                    ),
-                                                  ],
+                                                    // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
+                                                    boxShadow: [
+                                                      BoxShadow(color: boardEdges[b], offset: Offset(0, side * .022)),
+                                                      BoxShadow(
+                                                        color: const Color(0x30000000),
+                                                        blurRadius: side * .036,
+                                                        offset: Offset(0, side * .04),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: child,
                                                 ),
                                                 child: Center(
                                                   child: Padding(

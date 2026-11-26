@@ -158,5 +158,8 @@
   "errLastMethod": "这是唯一的登录方式，无法解除。请先设置密码。",
   "errMfaCode": "验证码不正确。",
   "errSession": "请重新登录。",
-  "passwordChanged": "密码已修改。"
+  "passwordChanged": "密码已修改。",
+  "board": "牌桌",
+  "boardSet": "牌桌与背景套装",
+  "defaultBoard": "默认"
 }

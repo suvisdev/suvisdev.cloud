@@ -158,5 +158,8 @@
   "errLastMethod": "唯一のログイン手段なので解除できません。先にパスワードを設定してください。",
   "errMfaCode": "コードが違います。",
   "errSession": "もう一度ログインしてください。",
-  "passwordChanged": "パスワードを変更しました。"
+  "passwordChanged": "パスワードを変更しました。",
+  "board": "ゲーム盤",
+  "boardSet": "ゲーム盤・背景セット",
+  "defaultBoard": "標準"
 }
