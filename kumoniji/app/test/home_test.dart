@@ -50,11 +50,14 @@ void main() {
     expect(t.widget<OutlinedButton>(multi).onPressed, isNull);
     expect(find.text('How to play'), findsOneWidget);
     expect(find.text('Options'), findsOneWidget);
-    // 왼쪽 위에 이름, 제목 로고가 패 넷보다 위(11-26 사용자)
-    final name = find.descendant(of: find.byType(AppBar), matching: find.text('Kumoniji'));
+    // 왼쪽 위에 이름(글씨가 아니라 제목 로고), 가운데 제목 로고가 패 넷보다 위(11-26 사용자)
+    final name = find.descendant(of: find.byType(AppBar), matching: find.bySemanticsLabel('Kumoniji'));
     expect(name, findsOneWidget);
+    expect(find.descendant(of: find.byType(AppBar), matching: find.text('Kumoniji')), findsNothing);
     expect(t.getTopLeft(name).dx, lessThan(100));
-    expect(t.getTopLeft(find.byType(Image).first).dy, lessThan(t.getTopLeft(find.byType(TileView).first).dy));
+    expect(t.getSemantics(name).flagsCollection.namesRoute, isTrue); // 화면 제목으로 읽힌다
+    final logo = find.descendant(of: find.byType(Column), matching: find.byType(Image)).first;
+    expect(t.getTopLeft(logo).dy, lessThan(t.getTopLeft(find.byType(TileView).first).dy));
   });
 
   testWidgets('single → pick level → game; back mid-game asks before leaving', (t) async {
