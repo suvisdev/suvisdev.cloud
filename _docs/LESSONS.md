@@ -12,6 +12,8 @@
 
 | 상태 | 영역 | 최초 | 증상 | 원인 | 극복·현재 |
 |---|---|---|---|---|---|
+| ✅ | 하네스 | 11-26 | C 드라이브 정리 뒤 커밋이 import-linter 훅에서 'pull access denied for suvisdev-app'으로 실패 | 정리 때 도커 이미지 `suvisdev-app:latest`를 지움 — 운영(k3s)은 따로 복사본이 있어 멀쩡했지만 pre-commit의 mypy·import-linter가 그 도커 이미지에 기댐 | 이미지 재빌드. 교훈: 이미지 삭제 영향 점검은 운영뿐 아니라 `grep -r 이미지명`으로 훅·스크립트까지 · 근거 WORK_LOG_MAINPAGE 11-26 |
+| ✅ | 하네스 | 11-26 | 작업 폴더 7곳을 main에 맞추며 `git stash pop`을 돌렸더니 화폐 앱 변경이 다른 폴더 3곳에 들어감 | stash 목록(`refs/stash`)은 worktree끼리 공유 — 맨 위 stash가 마지막 폴더 것 | 충돌이라 stash가 안 지워져 손실 없음. 백업 ref를 만들고 폴더마다 자기 stash commit의 diff를 `apply --3way`로. 교훈: worktree에선 stash 대신 `git diff --binary`를 파일로 · 근거 WORK_LOG_MAINPAGE 11-26 |
 | ⏳ | kumoniji | 11-26 | '낸 패 크게': 가장 센 패를 판 가운데로 옮겨도 폰 가로에서 5장 조합이 15→14px로 그대로 | 판이 정사각형이라 폰 가로에선 한 변 ~165px — 배치를 바꿔도 폭이 모자람 | 바꾸기 전후 크기를 테스트로 재서 효과 없음을 확인하고 되돌림. 판을 가로로 넓히는 재설계는 사용자 결정 대기 · 근거 WORK_LOG_KUMONIJI 11-26 |
 | ✅ | 공통 | 11-26 | Codex 리뷰 세 PR이 동시에 'Expecting value'로 실패 | Codex 사용 한도 소진 — 게이트가 원문 오류를 감추고 JSON 해석 실패만 보여 줌 | `codex exec`로 짧게 직접 물어 원문 확인 → 풀리는 시각에 자동 재실행 걸고 다른 작업 진행 · 근거 WORK_LOG_KUMONIJI 11-26 |
 | ✅ | kumoniji | 11-25 | 화폐 B안 리뷰 15~20차: 탈퇴가 남긴 지갑·판 끝 정산이 탈퇴자 지갑을 되살림·탈퇴자 지갑 읽기로 전체 롤백·유일 승자 탈퇴 시 판돈 증발 | 새 테이블을 추가하며 탈퇴 파기(`_purge`)와 '계정은 늘 살아 있다'는 정산의 전제를 안 봄 | 파기에 화폐 3테이블 추가, `store.live`(계정 행 공유 잠금+3초 상한)로 탈퇴자 건너뛰기, 탈퇴자 있는 판은 판돈 없던 일(ADR-0024). 교훈: 계정에 매달린 테이블을 새로 만들면 탈퇴 경로부터 · 근거 WORK_LOG_KUMONIJI 11-25 |
