@@ -38,6 +38,8 @@ class HomeScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
+          title: Text(t.title), // 왼쪽 위에도 이름(11-26 사용자)
+          centerTitle: false,
           actions: const [MuteButton(), SizedBox(width: 4)],
         ),
         body: SafeArea(
@@ -49,6 +51,10 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // 제목 로고가 위, 패 넷이 아래(11-26 사용자)
+                    // 제목 로고(Codex 그림, 원본 kumoniji/_docs/brand/title_jade_original.png). 글자는 한국어 하나 — 화면 읽기는 언어별 제목
+                    Image.asset('assets/brand/title_jade.png', semanticLabel: t.title),
+                    const SizedBox(height: 16),
                     FittedBox(
                       fit: BoxFit.scaleDown, // 아주 좁은 창에선 네 장을 함께 줄인다
                       child: Row(
@@ -59,9 +65,6 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // 제목 로고(Codex 그림, 원본 kumoniji/_docs/brand/title_jade_original.png). 글자는 한국어 하나 — 화면 읽기는 언어별 제목
-                    Image.asset('assets/brand/title_jade.png', semanticLabel: t.title),
                     const SizedBox(height: 40),
                     FilledButton.icon(
                       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),

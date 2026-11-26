@@ -50,6 +50,11 @@ void main() {
     expect(t.widget<OutlinedButton>(multi).onPressed, isNull);
     expect(find.text('How to play'), findsOneWidget);
     expect(find.text('Options'), findsOneWidget);
+    // 왼쪽 위에 이름, 제목 로고가 패 넷보다 위(11-26 사용자)
+    final name = find.descendant(of: find.byType(AppBar), matching: find.text('Kumoniji'));
+    expect(name, findsOneWidget);
+    expect(t.getTopLeft(name).dx, lessThan(100));
+    expect(t.getTopLeft(find.byType(Image).first).dy, lessThan(t.getTopLeft(find.byType(TileView).first).dy));
   });
 
   testWidgets('single → pick level → game; back mid-game asks before leaving', (t) async {
@@ -244,6 +249,16 @@ void main() {
     await settle(t);
     final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
     expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
+  });
+
+  test('게임판 배경 기본은 종이 구름(2), 없음을 골랐으면 그대로 없음', () async {
+    SharedPreferences.setMockInitialValues({});
+    await Settings.load();
+    expect(Settings.tableBg.value, 2);
+    expect(Settings.homeBg.value, 0); // 홈은 기본 없음
+    SharedPreferences.setMockInitialValues({'tableBg': 0});
+    await Settings.load();
+    expect(Settings.tableBg.value, 0);
   });
 
   testWidgets('웹 세로 창은 가로로 돌려 달라고 가리고, 돌리면 같은 화면이 이어진다', (t) async {

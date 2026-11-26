@@ -23,9 +23,10 @@ class Settings {
   static final sfx = ValueNotifier<double>(0.8);
   static final vibration = ValueNotifier<bool>(true);
   static final muted = ValueNotifier<bool>(false); // 배경음악·효과음을 한 번에 끔(음량 값은 그대로 둔다)
-  // 배경(Codex 시안 5장씩, 사용자가 고름 — 기본 배경 없음, 0 = 없음). 상점 판매는 화폐 뒤에 붙인다(11-26 사용자)
+  // 배경(Codex 시안 5장씩, 사용자가 고름 — 홈은 기본 없음, 0 = 없음). 상점 판매는 화폐 뒤에 붙인다(11-26 사용자)
   static final homeBg = ValueNotifier<int>(0);
-  static final tableBg = ValueNotifier<int>(0);
+  static const defaultTableBg = 2; // 게임판 기본은 종이 구름(wide-02-paper, 11-26 사용자). '없음'을 고르면 0으로 기억
+  static final tableBg = ValueNotifier<int>(defaultTableBg);
 
   /// 실제로 쓸 음량 — 음소거면 0.
   static double get musicVolume => muted.value ? 0 : music.value;
@@ -46,7 +47,7 @@ class Settings {
       vibration.value = p.getBool('vibration') ?? vibration.value;
       muted.value = p.getBool('muted') ?? muted.value;
       homeBg.value = (p.getInt('homeBg') ?? 0).clamp(0, backgrounds);
-      tableBg.value = (p.getInt('tableBg') ?? 0).clamp(0, backgrounds);
+      tableBg.value = (p.getInt('tableBg') ?? defaultTableBg).clamp(0, backgrounds);
     } catch (_) {}
   }
 
