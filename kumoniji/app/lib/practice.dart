@@ -105,8 +105,8 @@ class OutTracker extends StatelessWidget {
     final gone = out.toSet();
     return LayoutBuilder(
       builder: (context, box) {
-        final per = box.maxWidth >= 13 * 30 ? 13 : 7;
-        final tileW = min(40.0, box.maxWidth / per - 3);
+        final per = box.maxWidth >= 13 * 32 ? 13 : 7;
+        final tileW = min(40.0, box.maxWidth / per - 6);
         return Column(
           key: const ValueKey('out-tracker'),
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,10 +115,11 @@ class OutTracker extends StatelessWidget {
             _title('${t.outTiles} ${out.length}/52'),
             for (final s in suits.reversed) // 무늬 순서와 같이 약한 것부터
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 14), // 무늬끼리는 더 띄워 묶음이 보이게
                 child: Wrap(
-                  spacing: 3,
-                  runSpacing: 6,
+                  // 패 옆면(2.5D)이 아래로 폭의 11% 나온다 — 그만큼 더 띄워 윗줄 옆면이 아랫줄 패에 붙지 않게(11-26 사용자)
+                  spacing: 6,
+                  runSpacing: tileW * .11 + 6,
                   children: [
                     for (var n = 1; n <= 13; n++)
                       Semantics(
