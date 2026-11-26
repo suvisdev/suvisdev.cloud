@@ -199,7 +199,7 @@ void moreTests() {
     expect(bodies, [
       {'level': 'normal'},
     ]); // 처음엔 중급
-    expect(find.text('Kumoniji · Normal'), findsOneWidget);
+    expect(find.text('  ·  Normal'), findsOneWidget); // 이름은 제목 로고, 옆에 난이도
     await t.tap(find.widgetWithText(TextButton, 'New game'));
     await settle(t);
     expect(find.text('Quit this game and start a new one?'), findsOneWidget); // 진행 중이라 그만둘지 같이 묻는다
@@ -214,7 +214,7 @@ void moreTests() {
     await t.tap(find.byKey(const ValueKey('level-start')));
     await settle(t);
     expect(bodies.last, {'level': 'hard'});
-    expect(find.text('Kumoniji · Hard'), findsOneWidget);
+    expect(find.text('  ·  Hard'), findsOneWidget);
   });
 
   testWidgets('first request fails → retry button starts a game', (t) async {
@@ -438,6 +438,60 @@ void recentTests() {
     expect(find.byKey(const ValueKey('combo-chart')), findsNothing);
   });
 
+  testWidgets('the enlarged played-tiles dialog opened during replay closes when the result shows', (t) async {
+    t.view.physicalSize = const Size(1280, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final done = {
+      ...view(
+        events: [
+          {
+            'seat': 3,
+            'tiles': ['c4'],
+          },
+        ],
+      ),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+      'out': ['c4'],
+    };
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(done), 200)))));
+    await t.pump(const Duration(milliseconds: 2600)); // 봇 수 재생 중
+    await t.tap(find.byKey(const ValueKey('out-big')));
+    await t.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('out-tracker')), findsNWidgets(2));
+    await settle(t);
+    expect(find.byKey(const ValueKey('result-home')), findsOneWidget);
+    expect(find.byKey(const ValueKey('out-tracker')), findsOneWidget); // 옆 패널만 남는다
+  });
+
+  testWidgets('help opened during replay stays open over the result', (t) async {
+    final done = {
+      ...view(
+        events: [
+          {
+            'seat': 3,
+            'tiles': ['c4'],
+          },
+        ],
+      ),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+      'out': ['c4'],
+    };
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(done), 200)))));
+    await t.pump(const Duration(milliseconds: 2600));
+    await t.tap(find.byIcon(Icons.help_outline));
+    await t.pump(const Duration(milliseconds: 300));
+    await settle(t);
+    expect(find.byKey(const ValueKey('result-home')), findsOneWidget);
+    expect(find.byType(PageView), findsOneWidget); // 도움말 카드 창이 그대로
+  });
+
   testWidgets('an open played-tiles sheet follows the new state', (t) async {
     final live = ValueNotifier<List<String>?>(['c1']);
     await t.pumpWidget(
@@ -493,6 +547,12 @@ void recentTests() {
     expect(find.byKey(const ValueKey('out-tracker')), findsOneWidget);
     expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
     expect(find.byKey(const ValueKey('open-out')), findsNothing);
+    // 옆 패널은 한 줄 13장이라 작다 — 크게 보기 창에선 패가 더 크다(11-26 사용자)
+    final small = t.getSize(find.byKey(const ValueKey('out-c1'))).width;
+    await t.tap(find.byKey(const ValueKey('out-big')));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('out-tracker')), findsNWidgets(2));
+    expect(t.getSize(find.byKey(const ValueKey('out-c1')).last).width, greaterThan(small * 2));
     expect(t.takeException(), isNull);
   });
 
@@ -649,6 +709,31 @@ void recentTests() {
       expect(t.getRect(find.byKey(const ValueKey('today'))).left >= 56 + 8, isTrue);
     });
   }
+
+  testWidgets('landscape phone: the board widens so a five-tile play stays readable', (t) async {
+    t.view.physicalSize = const Size(844, 390);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final v = {
+      ...view(),
+      'turn': 0,
+      'table': ['m2', 'm3', 'm4', 'm5', 's6'],
+      'last': 3,
+      'plays': [
+        null,
+        ['c7'],
+        null,
+        ['m2', 'm3', 'm4', 'm5', 's6'],
+      ],
+      'passed': <int>[],
+    };
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+    await settle(t);
+    expect(t.takeException(), isNull);
+    // 정사각형 판일 땐 15px — 판을 가로로 넓혀(11-26 '낸 패 크게') 24px 넘게
+    expect(t.getRect(find.byKey(const ValueKey('drop-3-m2m3m4m5s6-m2'))).width, greaterThan(24));
+    expect(t.getRect(find.byKey(const ValueKey('drop-1-c7-c7'))).width, greaterThan(40));
+  });
 
   testWidgets('each seat shows its own play and pass bubble; fits a 320px phone', (t) async {
     t.view.physicalSize = const Size(320, 700);

@@ -39,6 +39,9 @@ Widget _title(String s) => Padding(
   ),
 );
 
+/// 나온 패 크게 보기 창의 이름 — 결과를 띄울 때 이것과 연습 시트만 닫는다.
+const outBigRoute = 'out-big';
+
 /// 조합표: 5장 조합 8가지(센 것이 위)와 한 장·페어·트리플. 싱글·멀티 모두.
 /// 이름 아래에 패를 크게(11-25 사용자 "좀 더 크게, 보기 편하게"), 넓으면(시트) 두 칸으로.
 class ComboChart extends StatelessWidget {
@@ -97,7 +100,10 @@ class ComboChart extends StatelessWidget {
 class OutTracker extends StatelessWidget {
   final List<String> out;
   final List<String> suits;
-  const OutTracker({super.key, required this.out, required this.suits});
+
+  /// 있으면 제목 옆에 '크게 보기' 버튼(좁은 옆 패널에선 한 줄 13장이 작다, 11-26 사용자)
+  final VoidCallback? onOpen;
+  const OutTracker({super.key, required this.out, required this.suits, this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -105,20 +111,37 @@ class OutTracker extends StatelessWidget {
     final gone = out.toSet();
     return LayoutBuilder(
       builder: (context, box) {
-        final per = box.maxWidth >= 13 * 32 ? 13 : 7;
-        final tileW = min(40.0, box.maxWidth / per - 6);
+        // 무늬마다 한 줄(13장, 11-26 사용자) — 폭에 맞춰 패를 줄인다. 좁은 패널에서 작으면 제목 옆 버튼으로 크게 연다
+        const left = 10.0; // 패가 패널 왼쪽 끝에 붙지 않게(11-26 사용자)
+        const gap = 3.0;
+        // 크게 보기 버튼이 있는 옆 패널만 13장 한 줄로 줄인다. 버튼 없는 곳(좁은 화면의 시트·크게 본 창)은 좁으면 두 줄로
+        // 나눠 패를 키운다 — 390px 시트에서 24px로 줄어 무늬가 안 보이던 문제(리뷰 3차)
+        final per = onOpen != null || box.maxWidth - left >= 13 * 32 ? 13 : 7;
+        final tileW = min(44.0, (box.maxWidth - left) / per - gap);
         return Column(
           key: const ValueKey('out-tracker'),
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _title('${t.outTiles} ${out.length}/52'),
+            Row(
+              children: [
+                Expanded(child: _title('${t.outTiles} ${out.length}/52')),
+                if (onOpen != null)
+                  IconButton(
+                    key: const ValueKey('out-big'),
+                    tooltip: t.outTiles,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.open_in_full, size: 18),
+                    onPressed: onOpen,
+                  ),
+              ],
+            ),
             for (final s in suits.reversed) // 무늬 순서와 같이 약한 것부터
               Padding(
-                padding: const EdgeInsets.only(bottom: 14), // 무늬끼리는 더 띄워 묶음이 보이게
+                padding: const EdgeInsets.only(left: left, bottom: 14), // 무늬끼리는 더 띄워 묶음이 보이게
                 child: Wrap(
                   // 패 옆면(2.5D)이 아래로 폭의 11% 나온다 — 그만큼 더 띄워 윗줄 옆면이 아랫줄 패에 붙지 않게(11-26 사용자)
-                  spacing: 6,
+                  spacing: gap,
                   runSpacing: tileW * .11 + 6,
                   children: [
                     for (var n = 1; n <= 13; n++)
@@ -147,7 +170,10 @@ class PracticeFrame extends StatelessWidget {
   final List<String>? out;
   final List<String> suits;
   final Widget child;
-  const PracticeFrame({super.key, required this.out, required this.suits, required this.child});
+
+  /// 크게 본 창이 열려 있는 동안에도 따라 바뀌는 나온 패
+  final ValueListenable<List<String>?> live;
+  const PracticeFrame({super.key, required this.out, required this.live, required this.suits, required this.child});
 
   // 넓고 충분히 높을 때만 — 낮은 가로 창에서 양옆을 떼면 손패가 두 줄로 늘어 패스·내기가 밀린다(리뷰 1차)
   static bool wide(BuildContext context) {
@@ -165,7 +191,31 @@ class PracticeFrame extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        panel(out == null ? const SizedBox() : OutTracker(out: out!, suits: suits)),
+        panel(
+          out == null
+              ? const SizedBox()
+              : OutTracker(
+                  out: out!,
+                  suits: suits,
+                  onOpen: () => showDialog<void>(
+                    context: context,
+                    routeSettings: const RouteSettings(name: outBigRoute), // 판이 끝나면 결과 창이 닫는다
+                    builder: (_) => Dialog(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 680),
+                        child: SingleChildScrollView(
+                          primary: true, // 데스크톱에서도 Page Down이 내리게(창 안에 포커스 받을 것이 없다)
+                          padding: const EdgeInsets.all(16),
+                          child: ValueListenableBuilder(
+                            valueListenable: live,
+                            builder: (_, now, _) => OutTracker(out: now ?? out!, suits: suits),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+        ),
         Expanded(child: child),
         panel(const ComboChart()),
       ],
