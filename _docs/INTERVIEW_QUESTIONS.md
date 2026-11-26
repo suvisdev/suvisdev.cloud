@@ -7,7 +7,27 @@
 
 ---
 
-## 2026-11-26 (쿠모니지 배경 커스텀)
+## 2026-11-26 (쿠모니지 배경 커스텀·새로고침)
+
+### F7. 새로고침이 느린데 파일은 304(본문 0바이트)였다. 왜 느렸나?
+<details><summary>답</summary>
+304도 왕복이다. `no-cache`는 '쓰기 전에 매번 확인'이라, 파일마다 브라우저 → Cloudflare → 터널 → 노트북을 다녀온다(약 0.3초). Flutter 웹은 페이지 → 시작 스크립트 → 엔진 → 글꼴 목록 → 글꼴처럼 앞 파일을 받아야 다음을 아는 사슬이라 왕복이 차례로 쌓였다. 크기가 아니라 단계 수가 문제였다.
+</details>
+
+### F8. 처음엔 글꼴·그림을 1시간 캐시하려다 왜 preload로 바꿨나?
+<details><summary>답</summary>
+캐시는 '옛 파일이 남는' 대가가 있다. Flutter 릴리스 빌드는 MaterialIcons 글꼴을 쓰는 아이콘만 담아 같은 경로로 다시 만든다 — 옛 글꼴이 캐시돼 있으면 새 아이콘이 깨진다. 또 경로만 보고 캐시하면 배포 교체 중 받은 404까지 1시간 남는다. 느린 이유가 파일 크기가 아니라 '차례로 기다리는 단계 수'였으니, 확인은 그대로 두고 단계를 겹치는 preload가 맞는 도구였다.
+</details>
+
+### F9. 글꼴 preload를 `as="font"`로 했을 때 왜 두 번 받았나?
+<details><summary>답</summary>
+preload는 나중 요청과 '종류·CORS 모드'가 같아야 재사용된다. Flutter 웹은 글꼴을 `fetch()`로 받아 직접 등록하므로 `as="font"`로 받아 둔 것과 맞지 않아 다시 받았다(크롬이 '쓰이지 않은 preload' 경고). `as="fetch" crossorigin`으로 맞추자 한 번만 받았다.
+</details>
+
+### F10. 로딩 표시를 Flutter 코드가 아니라 index.html에 넣은 이유는?
+<details><summary>답</summary>
+흰 화면은 Flutter 엔진이 뜨기 전에 생긴다. 그동안은 Dart 코드가 아직 돌지 않으니 HTML·CSS만 보인다. CSP가 인라인 스크립트를 막아 지우는 코드는 같은 출처 파일인 커스텀 `flutter_bootstrap.js`에서 `flutter-first-frame` 이벤트로 처리했다(인라인 스타일은 Flutter 때문에 이미 허용).
+</details>
 
 ### F1. 배경 그림을 PNG 그대로 넣지 않고 JPEG로 바꾼 이유는?
 <details><summary>답</summary>
