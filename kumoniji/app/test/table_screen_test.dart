@@ -476,7 +476,10 @@ void recentTests() {
     expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c1'))).opacity, 1); // 낸 패는 또렷하게
     expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c2'))).opacity, lessThan(1));
     expect(find.descendant(of: find.byKey(const ValueKey('out-c2')), matching: find.byType(TileView)), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('out-tracker')), matching: find.bySemanticsLabel('13')), findsWidgets);
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('out-tracker')), matching: find.bySemanticsLabel('13')),
+      findsWidgets,
+    );
     Navigator.of(t.element(find.byKey(const ValueKey('out-tracker')))).pop();
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('open-combos')));

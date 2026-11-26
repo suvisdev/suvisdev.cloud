@@ -63,7 +63,10 @@ class RotateGate extends StatelessWidget {
         // Offstage는 키보드 포커스·입력을 막지 않는다 — 가려진 입력란에 타이핑되지 않게 포커스도 뺀다
         Offstage(
           offstage: portrait,
-          child: ExcludeFocus(excluding: portrait, child: TickerMode(enabled: !portrait, child: child)),
+          child: ExcludeFocus(
+            excluding: portrait,
+            child: TickerMode(enabled: !portrait, child: child),
+          ),
         ),
         if (portrait)
           Positioned.fill(
