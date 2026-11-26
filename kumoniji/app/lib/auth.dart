@@ -45,6 +45,7 @@ class AuthClient extends http.BaseClient {
   final http.Client inner;
   String? _csrf, _access, _refresh;
   Future<String>? _csrfFetch;
+  Future<Map<String, dynamic>>? _config; // Auth.prefetchConfig — 한 번 쓰면 비운다
   Future<bool>? _refreshing;
   Duration raceWait = const Duration(seconds: 1);
   AuthClient([http.Client? inner]) : inner = inner ?? http.Client();
@@ -175,13 +176,36 @@ class Auth {
       var r = await client.get(_uri('/me'));
       if (r.statusCode == 401 && await client.refresh()) r = await client.get(_uri('/me'));
       me.value = r.statusCode == 200 ? Me.fromJson(_decode(r)) : null;
+      if (me.value != null) client._config = null; // 로그인 화면을 거치지 않음 — 미리 받은 설정은 버린다
     } on AuthError {
       me.value = null;
     }
     return me.value;
   }
 
-  static Future<Map<String, dynamic>> config() async => _decode(await client.get(_uri('/config')));
+  /// 앱 시작 때 /me와 함께 로그인 화면 설정을 미리 받아 둔다(11-26 시작 속도). 다음 [config] 한 번만 이 값을 쓴다.
+  /// 로그인돼 있으면 [load]가 버리고, 실패하면 스스로 버린다 — 로그아웃 뒤 첫 로그인 화면이 오래된 값이나 실패를 쓰지 않게(리뷰 2차).
+  static void prefetchConfig() {
+    final c = client;
+    if (c._config != null) return;
+    late final Future<Map<String, dynamic>> f;
+    f = c.get(_uri('/config')).then(_decode)
+      ..catchError((Object _) {
+        if (identical(c._config, f)) c._config = null;
+        return const <String, dynamic>{};
+      });
+    c._config = f;
+  }
+
+  /// 로그인 화면 설정(구글·캡차). 미리 받은 값은 한 번만 쓰고 비운다 — 그 뒤 로그인 화면에 다시 오면 새로 받아,
+  /// 탭을 열어 둔 사이 서버가 캡차를 켜도 최신 키를 쓴다(리뷰 1차). 미리 받기가 실패했으면 그 자리에서 새로 받는다(리뷰 4차).
+  static Future<Map<String, dynamic>> config() {
+    final c = client;
+    final pre = c._config;
+    c._config = null;
+    Future<Map<String, dynamic>> fresh() => c.get(_uri('/config')).then(_decode);
+    return pre?.catchError((Object _) => fresh()) ?? fresh();
+  }
 
   /// 반환: verified(false면 메일 인증 전), mfa_required.
   static Future<Map<String, dynamic>> login(String email, String password, {String? captcha}) async {
