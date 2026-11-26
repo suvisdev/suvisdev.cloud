@@ -7,6 +7,38 @@
 
 ---
 
+## 2026-11-26 (쿠모니지 배경 커스텀)
+
+### F1. 배경 그림을 PNG 그대로 넣지 않고 JPEG로 바꾼 이유는?
+<details><summary>답</summary>
+시안 PNG는 장당 1.2~2.4MB라 10장이면 웹 첫 로딩이 15MB 넘게 늘어난다. 그림은 투명도가 필요 없는 그라데이션 위주라 JPEG 82로도 눈에 띄는 차이가 없고 32~200KB가 된다. 패 그림처럼 선이 또렷하고 확대되는 것은 SVG로 남겼다.
+</details>
+
+### F2. 배경을 각 화면의 Scaffold 색으로 넣지 않고 `Backdrop` 위젯으로 감싼 이유는?
+<details><summary>답</summary>
+Scaffold의 `backgroundColor`는 색만 받는다. 그림을 깔려면 바깥에 `DecoratedBox`가 필요하고, 고른 값이 바뀌면 바로 다시 그려야 한다. `ValueListenableBuilder`로 감싼 작은 위젯 하나를 홈·판 화면이 같이 쓰면 옵션에서 고르는 즉시 두 화면 모두 반영된다.
+</details>
+
+### F3. 기본 배경을 '없음'으로 둔 이유는?
+<details><summary>답</summary>
+사용자 결정이다. 배경은 취향대로 고르는 커스텀 상품이라 하나를 기본으로 정하지 않고, 처음엔 기존 크림색 바탕을 쓴다. 나중에 상점에서 팔 때도 '없음'이 무료 기본으로 남는다.
+</details>
+
+### F6. 웹은 왜 방향을 '잠그지' 않고 안내로 가리나?
+<details><summary>답</summary>
+Screen Orientation API의 `lock()`은 대부분 브라우저에서 전체 화면이거나 설치형 웹 앱일 때만 되고, iOS Safari는 지원하지 않는다. 그래서 설치형은 manifest의 `orientation: landscape`로 잠그고, 일반 탭은 세로 창이면 내용을 가리고 돌려 달라고 한다. 내용은 Offstage로 살려 두어 돌리면 진행 중인 판이 그대로 이어진다.
+</details>
+
+### F4. 세로 시안을 가로 화면에 `BoxFit.cover`로 깔면 무엇을 잃나?
+<details><summary>답</summary>
+cover는 화면을 빈틈없이 채우려고 넘치는 쪽을 잘라낸다. 세로 그림을 가로 창에 깔면 위아래가 잘려 가운데 띠만 보인다 — 아래쪽 구름·꽃 장식이 사라진다. contain은 잘리지 않지만 양옆에 빈 띠가 생긴다. 근본 해결은 가로 비율 그림을 따로 만드는 것이다.
+</details>
+
+### F5. 고른 배경을 서버가 아니라 기기(shared_preferences)에 저장한 이유는?
+<details><summary>답</summary>
+아직 상점 판매 전이라 누구나 고를 수 있는 화면 설정이고, 언어·음량 같은 다른 옵션과 같은 자리다. 상점에서 사야 쓰게 되면 '가진 배경'은 서버 원장이 기준이 되고, 고른 값만 기기에 남기면 된다.
+</details>
+
 ## 2026-11-25 (쿠모니지 가로 고정·패 2.5D)
 
 ### E1. 가로 고정을 매니페스트·Info.plist·`SystemChrome` 세 곳에 다 넣은 이유는?

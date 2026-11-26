@@ -403,297 +403,301 @@ class _TableScreenState extends State<TableScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _leave();
       },
-      child: Scaffold(
-        appBar: AppBar(
-          toolbarHeight: low ? 44 : null,
-          title: low && g != null
-              // 아주 좁은 창에서도 넘치지 않게 통째로 줄인다(리뷰 2차)
-              ? FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _SuitOrder(suits: g.suits, label: t.suitOrder),
-                      PracticeButtons(out: _out.value, live: _out, suits: g.suits),
-                    ],
-                  ),
-                )
-              : Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
+      child: Backdrop(
+        kind: 'table',
+        child: Scaffold(
           backgroundColor: Colors.transparent,
-          actions: [
-            if (g != null) _TodayBadge(suit: g.today, label: narrowBar ? '' : t.today, doubles: g.doubles),
-            const MuteButton(),
-            IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
-            if (narrowBar)
-              IconButton(
-                key: const ValueKey('new-game'),
-                tooltip: t.newGame,
-                icon: const Icon(Icons.add_circle_outline),
-                onPressed: busy ? null : _newGame,
-              )
-            else
-              TextButton(key: const ValueKey('new-game'), onPressed: busy ? null : _newGame, child: Text(t.newGame)),
-            const SizedBox(width: 4),
-          ],
-        ),
-        body: g == null
-            ? Center(
-                child: busy
-                    ? const CircularProgressIndicator()
-                    : FilledButton(onPressed: () => _apply(api.newGame(level)), child: Text(t.newGame)),
-              )
-            : Stack(
-                children: [
-                  SafeArea(
-                    child: PracticeFrame(
-                      out: _out.value,
-                      suits: g.suits,
-                      child: LayoutBuilder(
-                        builder: (context, box) {
-                          final tileW = _handTileW(box.maxWidth, box.maxHeight);
-                          final myTurn = active == 0 && !busy;
-                          final you = _Seat(
-                            name: t.you,
-                            g: g,
-                            seat: 0,
-                            count: shown[0],
-                            active: active == 0,
-                            turnLabel: t.turn,
-                            compact: true,
-                            passed: passed.contains(0),
-                            passLabel: t.pass,
-                          );
-                          Widget handOf(double tileW) => AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
-                            ),
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 4,
-                              runSpacing: 10,
-                              children: [
-                                for (final code in g.hand.where((c) => !gone.contains(c)).take(dealt ?? 13))
-                                  Opacity(
-                                    // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
-                                    opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
-                                    child: _DealIn(
-                                      key: ValueKey('deal-$code'),
-                                      child: TileView(
-                                        key: ValueKey('hand-$code'),
-                                        code: code,
-                                        width: tileW,
-                                        selected: picked.contains(code),
-                                        onTap: !myTurn || !g.playable.contains(code)
-                                            ? null
-                                            : () => setState(
-                                                () => picked.contains(code) ? picked.remove(code) : picked.add(code),
-                                              ),
+          appBar: AppBar(
+            toolbarHeight: low ? 44 : null,
+            title: low && g != null
+                // 아주 좁은 창에서도 넘치지 않게 통째로 줄인다(리뷰 2차)
+                ? FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _SuitOrder(suits: g.suits, label: t.suitOrder),
+                        PracticeButtons(out: _out.value, live: _out, suits: g.suits),
+                      ],
+                    ),
+                  )
+                : Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
+            backgroundColor: Colors.transparent,
+            actions: [
+              if (g != null) _TodayBadge(suit: g.today, label: narrowBar ? '' : t.today, doubles: g.doubles),
+              const MuteButton(),
+              IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
+              if (narrowBar)
+                IconButton(
+                  key: const ValueKey('new-game'),
+                  tooltip: t.newGame,
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: busy ? null : _newGame,
+                )
+              else
+                TextButton(key: const ValueKey('new-game'), onPressed: busy ? null : _newGame, child: Text(t.newGame)),
+              const SizedBox(width: 4),
+            ],
+          ),
+          body: g == null
+              ? Center(
+                  child: busy
+                      ? const CircularProgressIndicator()
+                      : FilledButton(onPressed: () => _apply(api.newGame(level)), child: Text(t.newGame)),
+                )
+              : Stack(
+                  children: [
+                    SafeArea(
+                      child: PracticeFrame(
+                        out: _out.value,
+                        suits: g.suits,
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final tileW = _handTileW(box.maxWidth, box.maxHeight);
+                            final myTurn = active == 0 && !busy;
+                            final you = _Seat(
+                              name: t.you,
+                              g: g,
+                              seat: 0,
+                              count: shown[0],
+                              active: active == 0,
+                              turnLabel: t.turn,
+                              compact: true,
+                              passed: passed.contains(0),
+                              passLabel: t.pass,
+                            );
+                            Widget handOf(double tileW) => AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
+                              ),
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 4,
+                                runSpacing: 10,
+                                children: [
+                                  for (final code in g.hand.where((c) => !gone.contains(c)).take(dealt ?? 13))
+                                    Opacity(
+                                      // 내 차례에 낼 수 없는 패는 흐리게(낼 수 있는 패 목록은 서버가 준다)
+                                      opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
+                                      child: _DealIn(
+                                        key: ValueKey('deal-$code'),
+                                        child: TileView(
+                                          key: ValueKey('hand-$code'),
+                                          code: code,
+                                          width: tileW,
+                                          selected: picked.contains(code),
+                                          onTap: !myTurn || !g.playable.contains(code)
+                                              ? null
+                                              : () => setState(
+                                                  () => picked.contains(code) ? picked.remove(code) : picked.add(code),
+                                                ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                          );
-                          final buttons = Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              OutlinedButton(
-                                onPressed: !myTurn ? null : () => _apply(api.move(g.id, [])),
-                                child: Text(t.pass),
+                                ],
                               ),
-                              const SizedBox(width: 16),
-                              FilledButton(
-                                onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
-                                child: Text(t.play),
-                              ),
-                            ],
-                          );
-                          // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
-                          final onlyPass = myTurn && g.table.isNotEmpty && g.playable.isEmpty
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
-                                )
-                              : null;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Column(
+                            );
+                            final buttons = Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                if (!low) ...[
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Flexible(
-                                        child: _SuitOrder(suits: g.suits, label: t.suitOrder),
-                                      ),
-                                      if (!PracticeFrame.wide(context))
-                                        PracticeButtons(out: _out.value, live: _out, suits: g.suits),
-                                    ],
+                                OutlinedButton(
+                                  onPressed: !myTurn ? null : () => _apply(api.move(g.id, [])),
+                                  child: Text(t.pass),
+                                ),
+                                const SizedBox(width: 16),
+                                FilledButton(
+                                  onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
+                                  child: Text(t.play),
+                                ),
+                              ],
+                            );
+                            // 낼 패가 없어도 자동으로 넘기지 않는다(남에게 손패가 드러남) — 직접 패스
+                            final onlyPass = myTurn && g.table.isNotEmpty && g.playable.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
+                                  )
+                                : null;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Column(
+                                children: [
+                                  if (!low) ...[
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Flexible(
+                                          child: _SuitOrder(suits: g.suits, label: t.suitOrder),
+                                        ),
+                                        if (!PracticeFrame.wide(context))
+                                          PracticeButtons(out: _out.value, live: _out, suits: g.suits),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                  ],
+                                  _Seat(
+                                    name: t.bot(2),
+                                    g: g,
+                                    seat: 2,
+                                    count: shown[2],
+                                    active: active == 2,
+                                    turnLabel: t.turn,
+                                    fan: Axis.horizontal,
+                                    inline: low,
+                                    passed: passed.contains(2),
+                                    passLabel: t.pass,
                                   ),
                                   const SizedBox(height: 6),
-                                ],
-                                _Seat(
-                                  name: t.bot(2),
-                                  g: g,
-                                  seat: 2,
-                                  count: shown[2],
-                                  active: active == 2,
-                                  turnLabel: t.turn,
-                                  fan: Axis.horizontal,
-                                  inline: low,
-                                  passed: passed.contains(2),
-                                  passLabel: t.pass,
-                                ),
-                                const SizedBox(height: 6),
-                                Expanded(
-                                  // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
-                                  child: LayoutBuilder(
-                                    builder: (context, mid) {
-                                      final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
-                                      return Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          _Seat(
-                                            name: t.bot(1),
-                                            g: g,
-                                            seat: 1,
-                                            count: shown[1],
-                                            passed: passed.contains(1),
-                                            passLabel: t.pass,
-                                            active: active == 1,
-                                            turnLabel: t.turn,
-                                            fan: Axis.vertical,
-                                            room: mid.maxHeight,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          // 2.5D: 판을 뒤로 눕혀 원근을 주고, 아래에 판 두께와 그림자를 깐다.
-                                          // 원근을 판 크기에 비례시켜 폰·PC가 같은 모양, 앞 가장자리가 넓어지는 만큼(약 1.1배) 줄여 자리 안에 둔다
-                                          Transform(
-                                            alignment: Alignment.center,
-                                            transform: Matrix4.identity()
-                                              ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
-                                              ..rotateX(-.42) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
-                                              ..scaleByDouble(.9, .9, 1, 1),
-                                            child: Container(
-                                              width: side,
-                                              height: side,
-                                              decoration: BoxDecoration(
-                                                color: _felt,
-                                                borderRadius: BorderRadius.circular(24),
-                                                border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
-                                                // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: const Color(0xFFB7CA9F),
-                                                    offset: Offset(0, side * .022),
+                                  Expanded(
+                                    // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
+                                    child: LayoutBuilder(
+                                      builder: (context, mid) {
+                                        final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
+                                        return Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            _Seat(
+                                              name: t.bot(1),
+                                              g: g,
+                                              seat: 1,
+                                              count: shown[1],
+                                              passed: passed.contains(1),
+                                              passLabel: t.pass,
+                                              active: active == 1,
+                                              turnLabel: t.turn,
+                                              fan: Axis.vertical,
+                                              room: mid.maxHeight,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            // 2.5D: 판을 뒤로 눕혀 원근을 주고, 아래에 판 두께와 그림자를 깐다.
+                                            // 원근을 판 크기에 비례시켜 폰·PC가 같은 모양, 앞 가장자리가 넓어지는 만큼(약 1.1배) 줄여 자리 안에 둔다
+                                            Transform(
+                                              alignment: Alignment.center,
+                                              transform: Matrix4.identity()
+                                                ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
+                                                ..rotateX(-.42) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
+                                                ..scaleByDouble(.9, .9, 1, 1),
+                                              child: Container(
+                                                width: side,
+                                                height: side,
+                                                decoration: BoxDecoration(
+                                                  color: _felt,
+                                                  borderRadius: BorderRadius.circular(24),
+                                                  border: Border.all(color: const Color(0xFFCFDDBF), width: 2),
+                                                  // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: const Color(0xFFB7CA9F),
+                                                      offset: Offset(0, side * .022),
+                                                    ),
+                                                    BoxShadow(
+                                                      color: const Color(0x30000000),
+                                                      blurRadius: side * .036,
+                                                      offset: Offset(0, side * .04),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: Center(
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(6),
+                                                    child: _felt4(t, g, side),
                                                   ),
-                                                  BoxShadow(
-                                                    color: const Color(0x30000000),
-                                                    blurRadius: side * .036,
-                                                    offset: Offset(0, side * .04),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Center(
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(6),
-                                                  child: _felt4(t, g, side),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          _Seat(
-                                            name: t.bot(3),
-                                            g: g,
-                                            seat: 3,
-                                            count: shown[3],
-                                            passed: passed.contains(3),
-                                            passLabel: t.pass,
-                                            active: active == 3,
-                                            turnLabel: t.turn,
-                                            fan: Axis.vertical,
-                                            room: mid.maxHeight,
-                                          ),
-                                        ],
-                                      );
-                                    },
+                                            const SizedBox(width: 6),
+                                            _Seat(
+                                              name: t.bot(3),
+                                              g: g,
+                                              seat: 3,
+                                              count: shown[3],
+                                              passed: passed.contains(3),
+                                              passLabel: t.pass,
+                                              active: active == 3,
+                                              turnLabel: t.turn,
+                                              fan: Axis.vertical,
+                                              room: mid.maxHeight,
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                if (low)
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Expanded(
-                                        // 손패 한 줄 13장이 버튼 칸을 뺀 실제 폭에 들어가게, 높이는 화면의 약 18%
-                                        child: LayoutBuilder(
-                                          builder: (_, b) => handOf(
-                                            max(
-                                              6.0,
-                                              min(52.0, min((b.maxWidth - 12) / 13 - 4, box.maxHeight * .135)),
-                                            ), // 아주 좁아도 한 줄,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      ConstrainedBox(
-                                        // 버튼 칸이 손패 자리를 먹지 않게 — 긴 안내문·큰 글자는 이 폭 안에서 줄바꿈하고,
-                                        // 그래도 높이가 넘치면(큰 글자 200%) 칸째 줄인다. 아니면 판이 아래로 넘쳤다(리뷰 9차).
-                                        constraints: BoxConstraints(
-                                          maxWidth: min(240, box.maxWidth * .32),
-                                          maxHeight: box.maxHeight * .32,
-                                        ),
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: ConstrainedBox(
-                                            constraints: BoxConstraints(maxWidth: min(240, box.maxWidth * .32)),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                FittedBox(fit: BoxFit.scaleDown, child: you),
-                                                const SizedBox(height: 6),
-                                                FittedBox(fit: BoxFit.scaleDown, child: buttons),
-                                                ?onlyPass,
-                                              ],
+                                  const SizedBox(height: 8),
+                                  if (low)
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Expanded(
+                                          // 손패 한 줄 13장이 버튼 칸을 뺀 실제 폭에 들어가게, 높이는 화면의 약 18%
+                                          child: LayoutBuilder(
+                                            builder: (_, b) => handOf(
+                                              max(
+                                                6.0,
+                                                min(52.0, min((b.maxWidth - 12) / 13 - 4, box.maxHeight * .135)),
+                                              ), // 아주 좁아도 한 줄,
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  )
-                                else ...[
-                                  you,
-                                  const SizedBox(height: 8),
-                                  handOf(tileW),
-                                  const SizedBox(height: 10),
-                                  buttons,
-                                  ?onlyPass,
+                                        const SizedBox(width: 8),
+                                        ConstrainedBox(
+                                          // 버튼 칸이 손패 자리를 먹지 않게 — 긴 안내문·큰 글자는 이 폭 안에서 줄바꿈하고,
+                                          // 그래도 높이가 넘치면(큰 글자 200%) 칸째 줄인다. 아니면 판이 아래로 넘쳤다(리뷰 9차).
+                                          constraints: BoxConstraints(
+                                            maxWidth: min(240, box.maxWidth * .32),
+                                            maxHeight: box.maxHeight * .32,
+                                          ),
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            child: ConstrainedBox(
+                                              constraints: BoxConstraints(maxWidth: min(240, box.maxWidth * .32)),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  FittedBox(fit: BoxFit.scaleDown, child: you),
+                                                  const SizedBox(height: 6),
+                                                  FittedBox(fit: BoxFit.scaleDown, child: buttons),
+                                                  ?onlyPass,
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else ...[
+                                    you,
+                                    const SizedBox(height: 8),
+                                    handOf(tileW),
+                                    const SizedBox(height: 10),
+                                    buttons,
+                                    ?onlyPass,
+                                  ],
+                                  const SizedBox(height: 12),
                                 ],
-                                const SizedBox(height: 12),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  if (intro != null)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: _StartCard(
-                          title: t.gameStart,
-                          first: t.goesFirst(_name(t, intro!)),
-                          today: g.today,
-                          todayLabel: t.today,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
-                ],
-              ),
+                    if (intro != null)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: _StartCard(
+                            title: t.gameStart,
+                            first: t.goesFirst(_name(t, intro!)),
+                            today: g.today,
+                            todayLabel: t.today,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
       ),
     );
   }

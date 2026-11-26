@@ -23,6 +23,9 @@ class Settings {
   static final sfx = ValueNotifier<double>(0.8);
   static final vibration = ValueNotifier<bool>(true);
   static final muted = ValueNotifier<bool>(false); // 배경음악·효과음을 한 번에 끔(음량 값은 그대로 둔다)
+  // 배경(Codex 시안 5장씩, 사용자가 고름 — 기본 배경 없음, 0 = 없음). 상점 판매는 화폐 뒤에 붙인다(11-26 사용자)
+  static final homeBg = ValueNotifier<int>(0);
+  static final tableBg = ValueNotifier<int>(0);
 
   /// 실제로 쓸 음량 — 음소거면 0.
   static double get musicVolume => muted.value ? 0 : music.value;
@@ -42,6 +45,8 @@ class Settings {
       sfx.value = p.getDouble('sfx') ?? sfx.value;
       vibration.value = p.getBool('vibration') ?? vibration.value;
       muted.value = p.getBool('muted') ?? muted.value;
+      homeBg.value = (p.getInt('homeBg') ?? 0).clamp(0, backgrounds);
+      tableBg.value = (p.getInt('tableBg') ?? 0).clamp(0, backgrounds);
     } catch (_) {}
   }
 
@@ -54,6 +59,34 @@ class Settings {
   /// 내 차례가 왔을 때 짧게 진동(휴대폰만 — 웹에서는 아무 일도 없다).
   static void buzz() {
     if (vibration.value) HapticFeedback.mediumImpact();
+  }
+}
+
+const backgrounds = 5; // 종류마다 assets/backgrounds/<home|table>_1..5.jpg
+
+String backgroundAsset(String kind, int n) => 'assets/backgrounds/${kind}_$n.jpg';
+
+/// 고른 배경을 화면 뒤에 깐다(없음이면 앱 기본 바탕색). 감싼 Scaffold는 바탕을 투명하게 둔다.
+class Backdrop extends StatelessWidget {
+  final String kind; // home · table
+  final Widget child;
+  const Backdrop({super.key, required this.kind, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final pick = kind == 'home' ? Settings.homeBg : Settings.tableBg;
+    return ValueListenableBuilder(
+      valueListenable: pick,
+      builder: (_, n, child) => DecoratedBox(
+        key: ValueKey('backdrop-$kind-$n'),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          image: n == 0 ? null : DecorationImage(image: AssetImage(backgroundAsset(kind, n)), fit: BoxFit.cover),
+        ),
+        child: child,
+      ),
+      child: child,
+    );
   }
 }
 
@@ -118,6 +151,57 @@ class OptionsScreen extends StatelessWidget {
     _ => t.systemLanguage,
   };
 
+  Future<void> _background(BuildContext context, String kind, String title) async {
+    final t = AppLocalizations.of(context)!;
+    final pick = kind == 'home' ? Settings.homeBg : Settings.tableBg;
+    final n = await showDialog<int>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(title),
+        scrollable: true,
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i <= backgrounds; i++)
+              // 그림·테두리만으론 화면 읽기가 구분 못 한다 — 이름(없음 / 홈 배경 3)과 고른 상태를 알린다
+              Semantics(
+                button: true,
+                selected: i == pick.value,
+                label: i == 0 ? t.noBackground : '$title $i',
+                excludeSemantics: true, // 안쪽 InkWell의 탭 동작도 빠지므로 여기서 다시 준다
+                onTap: () => Navigator.pop(c, i),
+                child: InkWell(
+                  key: ValueKey('bg-$kind-$i'),
+                  onTap: () => Navigator.pop(c, i),
+                  child: Container(
+                    width: kind == 'home' ? 128 : 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: Theme.of(c).scaffoldBackgroundColor,
+                      image: i == 0
+                          ? null
+                          : DecorationImage(image: AssetImage(backgroundAsset(kind, i)), fit: BoxFit.cover),
+                      border: Border.all(
+                        color: i == pick.value ? gold : Colors.black12,
+                        width: i == pick.value ? 3 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: i == 0 ? Text(t.noBackground) : null,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (n == null) return;
+    pick.value = n;
+    Settings._save((p) => p.setInt('${kind}Bg', n));
+  }
+
   Widget _volume(String label, IconData icon, ValueNotifier<double> v, String key) => ValueListenableBuilder(
     valueListenable: v,
     builder: (_, x, _) => ListTile(
@@ -158,6 +242,21 @@ class OptionsScreen extends StatelessWidget {
                 trailing: Text(_languageName(t)),
                 onTap: () => _language(context),
               ),
+              const Divider(),
+              for (final (kind, title, icon) in [
+                ('home', t.homeBackground, Icons.wallpaper),
+                ('table', t.tableBackground, Icons.grid_view),
+              ])
+                ValueListenableBuilder(
+                  valueListenable: kind == 'home' ? Settings.homeBg : Settings.tableBg,
+                  builder: (_, n, _) => ListTile(
+                    key: ValueKey('$kind-background'),
+                    leading: Icon(icon),
+                    title: Text(title),
+                    trailing: Text(n == 0 ? t.noBackground : '$n'),
+                    onTap: () => _background(context, kind, title),
+                  ),
+                ),
               const Divider(),
               _volume(t.music, Icons.music_note, Settings.music, 'music'),
               _volume(t.sfx, Icons.volume_up, Settings.sfx, 'sfx'),

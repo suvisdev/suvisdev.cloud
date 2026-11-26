@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -36,6 +38,8 @@ void main() {
     Settings.locale.value = null;
     Settings.vibration.value = true;
     Settings.muted.value = false;
+    Settings.homeBg.value = 0;
+    Settings.tableBg.value = 0;
   });
 
   testWidgets('home has single, multi (disabled), how to play, options — no quit', (t) async {
@@ -202,6 +206,77 @@ void main() {
     await t.tap(find.byType(BackButton));
     await settle(t);
     expect(find.text('シングルモード'), findsOneWidget);
+  });
+
+  testWidgets('배경은 기본 없음, 옵션에서 홈·게임판 배경 5장 중 고르면 바로 깔리고 기억된다', (t) async {
+    Auth.client = AuthClient(
+      MockClient(
+        (r) async => r.url.path == '/api/auth/me'
+            ? http.Response(jsonEncode({'id': 1, 'email': 'me@x.com', 'nickname': 'me'}), 200)
+            : http.Response('{}', 404),
+      ),
+    );
+    await t.pumpWidget(const KumonijiApp());
+    await settle(t);
+    expect(find.byKey(const ValueKey('backdrop-home-0')), findsOneWidget); // 기본 배경 없음
+    await t.tap(find.byIcon(Icons.settings));
+    await settle(t);
+    for (final kind in ['home', 'table']) {
+      await t.tap(find.byKey(ValueKey('$kind-background')));
+      await settle(t);
+      for (var i = 0; i <= backgrounds; i++) {
+        expect(find.byKey(ValueKey('bg-$kind-$i')), findsOneWidget); // 없음 + 5장
+      }
+      final title = kind == 'home' ? 'Home background' : 'Table background';
+      expect(find.bySemanticsLabel('$title 2'), findsOneWidget); // 화면 읽기가 구분할 이름
+      expect(t.getSemantics(find.bySemanticsLabel('None')).flagsCollection.isSelected, Tristate.isTrue); // 지금 고른 것
+      expect(
+        t.getSemantics(find.bySemanticsLabel('$title 2')).getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      await t.tap(find.byKey(ValueKey('bg-$kind-${kind == 'home' ? 3 : 5}')));
+      await settle(t);
+    }
+    final p = await SharedPreferences.getInstance();
+    expect(p.getInt('homeBg'), 3);
+    expect(p.getInt('tableBg'), 5);
+    await t.tap(find.byType(BackButton));
+    await settle(t);
+    final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
+    expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
+  });
+
+  testWidgets('웹 세로 창은 가로로 돌려 달라고 가리고, 돌리면 같은 화면이 이어진다', (t) async {
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final focus = FocusNode();
+    addTearDown(focus.dispose);
+    Widget app() => MaterialApp(
+      locale: const Locale('ko'),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) => RotateGate(child: child!),
+      home: Scaffold(body: TextField(focusNode: focus)),
+    );
+    t.view.physicalSize = const Size(844, 390);
+    await t.pumpWidget(app());
+    focus.requestFocus();
+    await t.pump();
+    expect(focus.hasFocus, isTrue);
+    t.view.physicalSize = const Size(390, 844);
+    await t.pump();
+    expect(find.text('화면을 가로로 돌려 주세요'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing); // 가려짐(Offstage)
+    expect(focus.hasFocus, isFalse); // 가려진 입력란에 타이핑되지 않게
+    t.view.physicalSize = const Size(844, 390);
+    await t.pump();
+    expect(find.byKey(const ValueKey('rotate')), findsNothing);
+    expect(find.byType(TextField), findsOneWidget);
   });
 
   testWidgets('옵션에서 중국어(간체)를 고르면 화면이 바로 중국어로', (t) async {
