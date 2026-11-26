@@ -38,6 +38,7 @@
 - 이어서 사용자: "기본은 wide-02-paper로 지정" → 게임판 배경 기본을 종이 구름(table_2)으로. 홈은 기본 없음 그대로, '없음'을 고르면 0으로 기억돼 그대로 없음.
 
 ### 수정/구현
+- 홈 화면(사용자): 제목 로고를 위·패 넷을 아래로 바꾸고, 왼쪽 위 막대에도 이름(`t.title`). 테스트에 위치 확인 추가(수정 전 코드로 실패 확인), 915×412 캡처 확인.
 - `settings.dart` `Settings.defaultTableBg = 2`(게임판 기본 종이 구름) — 저장값이 없을 때만. 테스트 1개(기본 2·홈 0·없음 기억).
 - `assets/backgrounds/{home,table}_1..5.jpg`: 바탕화면 시안 PNG(1.2~2.4MB)를 JPEG 82로(32~200KB, 크기 그대로) — `uv run --with pillow`.
 - `settings.dart`: `Settings.homeBg/tableBg`(0=없음, 기기에 기억), `Backdrop`(고른 배경을 화면 뒤에 cover로), 옵션에 '홈 배경'·'게임판 배경' — 누르면 없음+5장 썸네일.
