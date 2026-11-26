@@ -246,6 +246,16 @@ void main() {
     expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
   });
 
+  test('게임판 배경 기본은 종이 구름(2), 없음을 골랐으면 그대로 없음', () async {
+    SharedPreferences.setMockInitialValues({});
+    await Settings.load();
+    expect(Settings.tableBg.value, 2);
+    expect(Settings.homeBg.value, 0); // 홈은 기본 없음
+    SharedPreferences.setMockInitialValues({'tableBg': 0});
+    await Settings.load();
+    expect(Settings.tableBg.value, 0);
+  });
+
   testWidgets('웹 세로 창은 가로로 돌려 달라고 가리고, 돌리면 같은 화면이 이어진다', (t) async {
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
