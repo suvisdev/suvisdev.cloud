@@ -158,5 +158,8 @@
   "errLastMethod": "마지막 로그인 수단이라 해제할 수 없어요. 먼저 비밀번호를 정해 주세요.",
   "errMfaCode": "코드가 맞지 않아요.",
   "errSession": "다시 로그인해 주세요.",
-  "passwordChanged": "비밀번호를 바꿨어요."
+  "passwordChanged": "비밀번호를 바꿨어요.",
+  "board": "게임판",
+  "boardSet": "게임판·배경 세트",
+  "defaultBoard": "기본"
 }

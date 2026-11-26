@@ -27,6 +27,7 @@ class Settings {
   static final homeBg = ValueNotifier<int>(0);
   static const defaultTableBg = 2; // 게임판 기본은 종이 구름(wide-02-paper, 11-26 사용자). '없음'을 고르면 0으로 기억
   static final tableBg = ValueNotifier<int>(defaultTableBg);
+  static final board = ValueNotifier<int>(0); // 게임판 윗면 그림(0 = 기본 초록 펠트, 11-26 사용자)
 
   /// 실제로 쓸 음량 — 음소거면 0.
   static double get musicVolume => muted.value ? 0 : music.value;
@@ -46,8 +47,9 @@ class Settings {
       sfx.value = p.getDouble('sfx') ?? sfx.value;
       vibration.value = p.getBool('vibration') ?? vibration.value;
       muted.value = p.getBool('muted') ?? muted.value;
-      homeBg.value = (p.getInt('homeBg') ?? 0).clamp(0, backgrounds);
-      tableBg.value = (p.getInt('tableBg') ?? defaultTableBg).clamp(0, backgrounds);
+      homeBg.value = (p.getInt('homeBg') ?? 0).clamp(0, homeBackgrounds);
+      tableBg.value = (p.getInt('tableBg') ?? defaultTableBg).clamp(0, tableBackgrounds);
+      board.value = (p.getInt('board') ?? 0).clamp(0, boards);
     } catch (_) {}
   }
 
@@ -63,9 +65,28 @@ class Settings {
   }
 }
 
-const backgrounds = 5; // 종류마다 assets/backgrounds/<home|table>_1..5.jpg
+// assets/backgrounds/<home|table>_N.jpg — 6~10은 세트 배경(세트 N = 배경 5+N · 판 5+N)
+const homeBackgrounds = 10, tableBackgrounds = 10, boards = 10, boardSets = 5;
 
-String backgroundAsset(String kind, int n) => 'assets/backgrounds/${kind}_$n.jpg';
+// 홈 6~10은 세트 배경을 같이 쓴다(11-26 사용자: 시작 화면 배경은 있는 배경으로) — 같은 파일이라 앱 크기가 늘지 않는다
+String backgroundAsset(String kind, int n) =>
+    kind == 'home' && n > 5 ? 'assets/backgrounds/table_$n.jpg' : 'assets/backgrounds/${kind}_$n.jpg';
+String boardAsset(int n) => 'assets/boards/board_$n.jpg';
+
+/// 판 두께색 — 그림 가장자리 평균색을 어둡게(변환할 때 뽑음). 0 = 기본 펠트
+const boardEdges = [
+  Color(0xFFB7CA9F),
+  Color(0xFF929E8E),
+  Color(0xFFBD9B92),
+  Color(0xFFBEA39F),
+  Color(0xFFA2A5BC),
+  Color(0xFFBCB1C5),
+  Color(0xFFB6BDB9),
+  Color(0xFFC59886),
+  Color(0xFF9FB8AE),
+  Color(0xFFA890A5),
+  Color(0xFFC4AD90),
+];
 
 /// 고른 배경을 화면 뒤에 깐다(없음이면 앱 기본 바탕색). 감싼 Scaffold는 바탕을 투명하게 둔다.
 class Backdrop extends StatelessWidget {
@@ -152,6 +173,80 @@ class OptionsScreen extends StatelessWidget {
     _ => t.systemLanguage,
   };
 
+  /// 그림 고르기 창 — 0번은 '없음/기본' 글자 칸. 고른 번호(닫으면 null)
+  Future<int?> _pick(
+    BuildContext context,
+    String title,
+    int count,
+    int now,
+    String key,
+    String none,
+    String Function(int) asset,
+    double w,
+    double h,
+  ) => showDialog<int>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text(title),
+      scrollable: true,
+      content: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (var i = 0; i <= count; i++)
+            if (i > 0 || none.isNotEmpty)
+              Semantics(
+                button: true,
+                selected: i == now,
+                label: i == 0 ? none : '$title $i',
+                excludeSemantics: true,
+                onTap: () => Navigator.pop(c, i),
+                child: InkWell(
+                  key: ValueKey('$key-$i'),
+                  onTap: () => Navigator.pop(c, i),
+                  child: Container(
+                    width: w,
+                    height: h,
+                    decoration: BoxDecoration(
+                      color: i == 0 ? const Color(0xFFE6F0DC) : null,
+                      image: i == 0 ? null : DecorationImage(image: AssetImage(asset(i)), fit: BoxFit.cover),
+                      border: Border.all(color: i == now ? gold : Colors.black12, width: i == now ? 3 : 1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: i == 0 ? Text(none) : null,
+                  ),
+                ),
+              ),
+        ],
+      ),
+    ),
+  );
+
+  Future<void> _board(BuildContext context) async {
+    final t = AppLocalizations.of(context)!;
+    final n = await _pick(context, t.board, boards, Settings.board.value, 'board', t.defaultBoard, boardAsset, 72, 72);
+    if (n == null) return;
+    Settings.board.value = n;
+    Settings._save((p) => p.setInt('board', n));
+  }
+
+  /// 세트: 배경과 판을 한 번에(세트 N = 게임 화면 배경 5+N · 판 5+N)
+  Future<void> _set(BuildContext context) async {
+    final t = AppLocalizations.of(context)!;
+    final now = Settings.board.value > 5 && Settings.tableBg.value == Settings.board.value
+        ? Settings.board.value - 5
+        : -1;
+    final n = await _pick(context, t.boardSet, boardSets, now, 'set', '', (i) => 'assets/boards/set_$i.jpg', 128, 72);
+    if (n == null) return;
+    Settings.tableBg.value = Settings.board.value = 5 + n;
+    Settings._save(
+      (p) => p
+        ..setInt('tableBg', 5 + n)
+        ..setInt('board', 5 + n),
+    );
+  }
+
   Future<void> _background(BuildContext context, String kind, String title) async {
     final t = AppLocalizations.of(context)!;
     final pick = kind == 'home' ? Settings.homeBg : Settings.tableBg;
@@ -164,7 +259,7 @@ class OptionsScreen extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (var i = 0; i <= backgrounds; i++)
+            for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++)
               // 그림·테두리만으론 화면 읽기가 구분 못 한다 — 이름(없음 / 홈 배경 3)과 고른 상태를 알린다
               Semantics(
                 button: true,
@@ -258,6 +353,22 @@ class OptionsScreen extends StatelessWidget {
                     onTap: () => _background(context, kind, title),
                   ),
                 ),
+              ValueListenableBuilder(
+                valueListenable: Settings.board,
+                builder: (_, n, _) => ListTile(
+                  key: const ValueKey('board'),
+                  leading: const Icon(Icons.table_restaurant),
+                  title: Text(t.board),
+                  trailing: Text(n == 0 ? t.defaultBoard : '$n'),
+                  onTap: () => _board(context),
+                ),
+              ),
+              ListTile(
+                key: const ValueKey('board-set'),
+                leading: const Icon(Icons.collections),
+                title: Text(t.boardSet),
+                onTap: () => _set(context),
+              ),
               const Divider(),
               _volume(t.music, Icons.music_note, Settings.music, 'music'),
               _volume(t.sfx, Icons.volume_up, Settings.sfx, 'sfx'),

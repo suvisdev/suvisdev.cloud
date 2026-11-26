@@ -200,5 +200,8 @@
   "errLastMethod": "It's your only way to log in. Set a password first.",
   "errMfaCode": "That code didn't work.",
   "errSession": "Please log in again.",
-  "passwordChanged": "Password changed."
+  "passwordChanged": "Password changed.",
+  "board": "Board",
+  "boardSet": "Board & background set",
+  "defaultBoard": "Default"
 }
