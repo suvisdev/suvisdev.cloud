@@ -28,6 +28,23 @@
 
 ---
 
+## 2026-11-26 C 드라이브 정리 점검
+
+### 작업 내용
+- 사용자가 11-26에 C 드라이브를 정리(Arda venv 2개·AE 폴더·애니모·Temp swap.vhdx 9개·WSL vhdx 압축 169.5→111.3GB, 도커 빌드 캐시 46.6GB·이미지 16개·npm/uv/apt 캐시·journal 300MB) → 지운 게 맞는지·망가진 게 없는지 점검.
+
+### 확인 결과
+- 모두 지워짐. 레지스트리 언인스톨 키 3곳에 Aniimo·PawPrint 없음, `ext4.vhdx` 119,533,469,696바이트.
+- k3s 파드 정상, `k3s crictl images`에 `suvisdev-app`·`kumoniji` 남음(도커 이미지를 지워도 k3s는 따로 갖고 있음), 도커 컨테이너 전부 Up, `suvisdev.cloud`·`/mova`·`kumoniji.suvisdev.cloud` 200, `api…/healthz` `{"ok":true}`.
+- 배포 스크립트(`k8s/deploy.sh`·`kumoniji/deploy.sh`)는 평범한 `docker build` → 빌드 캐시 없이도 처음부터 빌드됨(첫 빌드만 몇 분 더, 캐시는 20GB 상한으로 다시 쌓임). 실제 빌드는 안 해 봄.
+- Arda venv 백업(`Documents\venv-freeze`)으로 재설치 가능 — 단 torch 2.4는 Python 3.13 휠이 없어 `py -3.12`, torch는 CUDA 인덱스에서 따로, qwen-training 백업엔 `anthropic` 빠짐.
+- `C:\Users\suteagy\gildle-build`: 9월 UNC 잠금 우회용 옛 사본. git 이력에 없는 파일은 `dart_defines.json`(원본과 같음)·`analysis_options.yaml`(임시 exclude) 뿐, 쓰는 스크립트 없음 → 사용자 허락 후 삭제. `~/.cache/gildle-build`는 Flutter·SDK·JDK라 유지(쿠모니지 배포가 씀).
+- pagefile: 줄여도 9GB 남짓, 커밋 한도(RAM+페이지 파일)를 WSL·Ollama가 쓰므로 자동 관리 유지 권장.
+
+### 오류·막힌 점
+- **정리로 깨진 것 1건**: 도커 이미지 `suvisdev-app:latest`를 지워 pre-commit의 mypy·import-linter 훅(그 이미지 안에서 돎, `.pre-commit-config.yaml`)이 'pull access denied'로 실패 → 문서 커밋까지 막힘. 첫 점검은 k3s·사이트만 보고 놓침. `docker build -t suvisdev-app:latest suvisdev`로 다시 만듦(배포 없이, 캐시 없이 처음부터 빌드돼 G2도 실측).
+- 작업 폴더 동기화 중 `git stash`가 worktree끼리 공유되는 걸 놓쳐 화폐 앱 변경이 다른 폴더 3곳에 들어감 → 충돌로 stash가 안 지워져 손실 없음, 백업 ref `refs/backup/sync-1126-*`를 만들고 폴더마다 자기 stash diff로 복구(LESSONS).
+
 ## 2026-11-26 홈 AI 채팅 코드 대행 거절
 
 - 사용자: 메인페이지 채팅이 코드 질문에 다 알려 주는데 맞나, 해킹 부탁도 들어주나.

@@ -7,6 +7,33 @@
 
 ---
 
+## 2026-11-26 (C 드라이브 정리 점검)
+
+### G1. 도커 이미지 `suvisdev-app`을 지웠는데 사이트가 멀쩡했다. 왜인가?
+<details><summary>답</summary>
+k3s는 도커와 이미지 저장소를 공유하지 않는다(containerd). 배포 스크립트가 `docker save | k3s ctr images import`로 복사본을 넘기므로, 파드는 k3s 쪽 이미지로 돈다. 확인은 `k3s crictl images`.
+</details>
+
+### G2. 빌드 캐시를 전부 지웠다. 다음 배포가 깨질 위험은 왜 없나?
+<details><summary>답</summary>
+캐시는 같은 단계를 건너뛰는 최적화일 뿐 결과를 바꾸지 않는다. 스크립트가 평범한 `docker build`이고 Dockerfile에 캐시 마운트·외부 캐시가 없다. 대가는 첫 빌드 시간(기반 이미지·패키지 다시 받기)뿐.
+</details>
+
+### G3. 페이지 파일 최대 사용량이 1.8GB인데 12.9GB를 그대로 두라고 한 이유는?
+<details><summary>답</summary>
+프로그램이 메모리를 잡을 수 있는 한도는 'RAM+페이지 파일'(커밋 한도)이다. 실제로 디스크에 쓴 양과 별개로, WSL VM·Ollama·도커가 크게 잡으면 한도가 모자라 할당이 실패할 수 있다. 여유 공간이 130GB라 9GB를 얻는 이득이 작다.
+</details>
+
+### G4. 옛 빌드 사본 폴더를 지워도 되는지 어떻게 판단했나?
+<details><summary>답</summary>
+사본의 모든 소스·문서를 `git hash-object`로 해시해 git 이력(`git log --find-object`)에 있는지 봤다. 없던 두 파일은 원본과 같거나 임시 설정이었고, 그 경로를 부르는 스크립트·CI가 없음을 grep으로 확인했다. 이름이 비슷한 `~/.cache/gildle-build`는 SDK라 따로 판단.
+</details>
+
+### G5. 여러 worktree에서 `git stash`를 쓰면 왜 위험한가?
+<details><summary>답</summary>
+`refs/stash`는 저장소 하나에 하나라 모든 worktree가 같은 목록을 본다. A 폴더에서 `stash pop`하면 B 폴더가 마지막에 넣은 stash가 나온다. worktree에선 `git diff --binary > 파일`로 빼 두고 `git apply --3way`로 돌린다.
+</details>
+
 ## 2026-11-26 (홈 채팅 범위·시작 속도·나온 패·게임 방법)
 
 ### F11. 홈 AI 채팅이 '코딩 대행은 범위 밖'이라고 지시문에 있는데도 코드를 고쳐 줬다. 왜이고, 왜 정규식이 아니라 지시문으로 고쳤나?
