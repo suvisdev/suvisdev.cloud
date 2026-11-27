@@ -51,7 +51,7 @@ def _totp_ok(c, account_id: int, code: str) -> bool:
     totp = pyotp.TOTP(_fernet().decrypt(bytes(row["mfa_secret"])).decode())
     now = int(time.time()) // 30
     for step in (now - 1, now, now + 1):
-        if hmac.compare_digest(totp.at(step * 30), code):
+        if hmac.compare_digest(totp.at(step * 30).encode(), code.encode()):  # 바이트로 — 비ASCII 입력에 TypeError 없이(55차)
             return bool(
                 c.execute(
                     """UPDATE accounts SET mfa_last_step = %s

@@ -88,9 +88,8 @@ def test_10_link_started_by_a_session_that_is_revoked_meanwhile_fails(outbox, fa
     login(c)
     r = c.get("/api/auth/google/start?link=true", follow_redirects=False)  # 탈취된 세션이 연결을 시작
     q = parse_qs(urlparse(r.headers["location"]).query)
-    browser_owner = browser()
-    login(browser_owner)
-    assert browser_owner.post("/api/auth/logout-all").status_code == 200  # 주인이 전부 로그아웃
+    with db.tx() as cur:  # 주인이 비밀번호를 바꾸는 등으로 전 세션이 끊김
+        cur.execute("UPDATE sessions SET revoked_at = now()")
     monkeypatch.setattr(google, "exchange", lambda code, verifier, origin, client=None: id_token(q["nonce"][0]))
     done = c.get(f"/api/auth/google/callback?code=abc&state={q['state'][0]}", follow_redirects=False)
     assert done.headers["location"] == "/?auth_error=google"

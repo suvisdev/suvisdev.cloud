@@ -166,7 +166,9 @@ def test_12_db_outage_fails_closed(outbox, fast_hash, monkeypatch):
         raise RuntimeError("db down")
 
     monkeypatch.setattr(db, "tx", down)
-    assert c.post("/api/games").status_code == 401
+    # 거부(실패 쪽으로 닫힘)는 그대로, 코드는 503 — 401(세션 끝남)이면 앱이 로그아웃된 줄 안다(앱 리뷰 45차)
+    for r in (c.post("/api/games"), c.post("/api/auth/logout")):
+        assert r.status_code == 503 and r.json()["detail"]["code"] == "busy"
 
 
 def test_11_reused_refresh_over_http_revokes_every_session(outbox, fast_hash):
@@ -176,8 +178,8 @@ def test_11_reused_refresh_over_http_revokes_every_session(outbox, fast_hash):
     login(thief)
     stolen = victim.cookies.get("__Host-krt")
     assert victim.post("/api/auth/refresh").status_code == 200  # 주인이 먼저 회전
-    with db.tx() as cur:  # 동시 갱신 유예(30초)가 지난 뒤
-        cur.execute("UPDATE spent_refresh SET spent_at = now() - interval '1 minute'")
+    with db.tx() as cur:  # 다시 받기(REPLAY) 구간이 지난 뒤
+        cur.execute("UPDATE spent_refresh SET spent_at = now() - interval '26 minutes'")
     thief.cookies.set("__Host-krt", stolen)
     assert thief.post("/api/auth/refresh").status_code == 401  # 회전된 토큰 재사용 → 탐지
     assert victim.get("/api/auth/me").status_code == 401  # 폐기가 커밋돼 모든 세션이 끝남
@@ -209,9 +211,132 @@ def test_reused_refresh_security_mail_uses_request_language(outbox, fast_hash, m
     app_client = TestClient(app, base_url=ORIGIN, headers={"x-kumoniji-client": "app", "accept-language": "zh"})
     old = login(app_client).json()["refresh"]
     assert app_client.post("/api/auth/refresh", json={"refresh": old}).status_code == 200
-    with db.tx() as c:  # 방금 회전은 다른 탭의 동시 갱신(409)으로 보므로 시간을 지나게
-        c.execute("UPDATE spent_refresh SET spent_at = now() - interval '1 minute'")
+    with db.tx() as c:  # 방금 회전은 응답을 못 받은 재시도로 보고 같은 토큰을 다시 주므로 시간을 지나게
+        c.execute("UPDATE spent_refresh SET spent_at = now() - interval '26 minutes'")
     langs = []
     monkeypatch.setattr(sessions.mail, "send", lambda to, kind, path, lang="en": langs.append((kind, lang)))
     assert app_client.post("/api/auth/refresh", json={"refresh": old}).status_code == 401  # 재사용 → 전부 폐기
     assert langs == [("security", "zh")]
+
+
+def test_web_lost_refresh_response_is_fetched_again_by_any_tab_of_the_same_browser(outbox, fast_hash):
+    """웹 갱신 응답을 못 받아 옛 쿠키가 남아도, 같은 브라우저(재시도 쿠키가 같음)라면 다른 탭·새로고침이 30초 뒤
+    다시 보내도 같은 새 토큰 — 전 세션 폐기가 아니다. 다른 브라우저(쿠키 탈취)는 기존대로 탐지(앱 리뷰 60·62차)."""
+    signed_up(browser(), outbox)
+    me, thief, other = browser(), browser(), browser()
+    login(me)
+    login(other)  # 다른 기기
+    krk = me.cookies.get("__Host-krk")
+    assert krk  # 로그인 응답이 심음 — 첫 갱신 전에 있다
+    old = me.cookies.get("__Host-krt")
+    first = me.post("/api/auth/refresh")
+    assert first.status_code == 200
+    new = first.cookies.get("__Host-krt")
+    me.cookies.delete("__Host-krt")
+    me.cookies.set("__Host-krt", old)  # 응답을 못 받았다 — 브라우저엔 옛 쿠키
+    with db.tx() as cur:  # 동시 갱신 유예(30초)가 지난 뒤(다시 받기 구간 안)
+        cur.execute("UPDATE spent_refresh SET spent_at = now() - interval '1 minute'")
+    again = me.post("/api/auth/refresh")
+    assert again.status_code == 200 and again.cookies.get("__Host-krt") == new
+    assert other.get("/api/auth/me").status_code == 200  # 다른 기기 그대로
+    thief.cookies.set("__Host-krt", old)  # 같은 옛 쿠키를 다른 브라우저에서
+    assert thief.post("/api/auth/refresh").status_code == 401  # 옛 토큰엔 키를 주지 않음 → 탐지
+    assert other.get("/api/auth/me").status_code == 401  # 탐지 → 전 세션 폐기
+
+
+def test_web_tab_race_gets_no_new_token_so_stolen_cookies_cannot_follow_rotations(outbox, fast_hash):
+    """웹 동시 갱신(30초 안·같은 IP)엔 새 토큰을 다시 주지 않고 409 — 쿠키(리프레시+키)를 함께 훔친 사람이 같은 IP에서
+    회전마다 따라붙어도 토큰을 못 얻는다. 같은 브라우저의 탭은 먼저 받은 탭의 쿠키로 다시 보내면 된다(11-26 결정 3번)."""
+    signed_up(browser(), outbox)
+    me, thief = browser(), browser()
+    login(me)
+    old = me.cookies.get("__Host-krt")
+    for k, v in me.cookies.items():
+        thief.cookies.set(k, v)  # 쿠키를 통째로 훔침(같은 IP)
+    thief.headers["x-csrf"] = me.headers["x-csrf"]
+    assert me.post("/api/auth/refresh").status_code == 200  # 주인 탭 A가 먼저 회전
+    r = thief.post("/api/auth/refresh")  # 같은 옛 쿠키로 30초 안
+    assert r.status_code == 409 and "__Host-krt" not in r.cookies
+    assert thief.cookies.get("__Host-krt") == old
+    app = thief.post(  # 앱인 척(헤더·본문)해도 웹 키면 같다(리뷰)
+        "/api/auth/refresh",
+        headers={"x-kumoniji-client": "app"},
+        json={"refresh": old, "retry": me.cookies.get("__Host-krk")},
+    )
+    assert app.status_code == 409 and "refresh" not in app.text
+    assert me.post("/api/auth/refresh").status_code == 200  # 탭 B는 공유된 새 쿠키로 다시 — 그대로 된다
+
+
+def test_retry_key_cookie_is_set_by_login_not_csrf_and_extended_with_the_same_value(outbox, fast_hash):
+    """CSRF 받기는 키를 심지 않는다 — 두 탭이 동시에 받으면 서로 다른 키가 덮여 다시 받기가 탈취로 판정된다(33차 ①)."""
+    c = browser()
+    assert c.cookies.get("__Host-krk") is None  # browser()가 CSRF를 받았어도 없음
+    signed_up(c, outbox)
+    first = login(c).cookies.get("__Host-krk")
+    assert first
+    r = c.post("/api/auth/refresh")  # 갱신해도 같은 값, 기한만 늘림
+    assert r.status_code == 200 and r.cookies.get("__Host-krk") == first and "Max-Age" in r.headers["set-cookie"]
+
+
+def test_late_duplicate_refresh_response_does_not_log_out_after_access_expires(outbox, fast_hash):
+    """같은 새 토큰 T1을 담은 응답이 둘 — 한 탭이 T1로 T2까지 회전한 뒤 늦은 T1 응답이 쿠키를 덮어도, 액세스가 끝난
+    15분 뒤 T1로 오면 아직 안 쓰인 T2를 다시 받는다(로그아웃 아님, 33차 ②)."""
+    signed_up(browser(), outbox)
+    me = browser()
+    login(me)
+    t0 = me.cookies.get("__Host-krt")
+    t1 = me.post("/api/auth/refresh").cookies.get("__Host-krt")  # 탭 A의 응답(늦게 도착할 것)
+    t2 = me.post("/api/auth/refresh").cookies.get("__Host-krt")  # 탭 B가 T1 → T2
+    assert len({t0, t1, t2}) == 3
+    me.cookies.delete("__Host-krt")
+    me.cookies.set("__Host-krt", t1)  # 늦은 응답이 쿠키를 T1로 덮음
+    with db.tx() as cur:  # 액세스 수명(15분)이 지난 뒤
+        cur.execute("UPDATE spent_refresh SET spent_at = now() - interval '16 minutes'")
+    again = me.post("/api/auth/refresh")
+    assert again.status_code == 200 and again.cookies.get("__Host-krt") == t2
+
+
+def test_a_stolen_refresh_alone_cannot_get_the_retry_key(outbox, fast_hash):
+    """키 쿠키 없이 온 갱신에 키만 심어 주는 길은 없다 — 리프레시만 훔친 사람은 키 없이 회전할 수밖에 없고, 주인의
+    다음 갱신이 재사용으로 잡힌다(앱 리뷰 49·50차)."""
+    signed_up(browser(), outbox)
+    owner, thief = browser(), browser()
+    login(owner)
+    stolen = owner.cookies.get("__Host-krt")
+    thief.cookies.set("__Host-krt", stolen)
+    r = thief.post("/api/auth/refresh")
+    assert r.status_code == 200  # 키 없이 그냥 회전 — 다시 받기 표시(키)가 없는 회전
+    assert "__Host-krk" not in r.cookies  # 키 없이 온 갱신엔 키를 주지 않는다(53차)
+    thief.cookies.set("__Host-krk", "wrong")
+    assert "__Host-krk" not in thief.post("/api/auth/refresh").cookies  # 틀린 키여도
+    with db.tx() as c:  # 방금(30초 안)이면 같은 브라우저의 동시 갱신(409)으로 본다 — 그 뒤에 온 주인
+        c.execute("UPDATE spent_refresh SET spent_at = now() - interval '1 minute'")
+    assert owner.post("/api/auth/refresh").status_code == 401  # 주인 쪽 갱신이 재사용으로 탐지
+
+
+def test_a_non_ascii_retry_cookie_is_just_a_wrong_key(outbox, fast_hash):
+    """재시도 키 쿠키에 비ASCII가 와도 500이 아니라 틀린 키처럼 — 회전은 되고 키는 안 준다(앱 리뷰 55차)."""
+    signed_up(browser(), outbox)
+    c = browser()
+    login(c)
+    jar = "; ".join(f"{k}={v}" for k, v in c.cookies.items() if k != "__Host-krk")
+    r = c.post("/api/auth/refresh", headers={"cookie": f"{jar}; __Host-krk=caf\u00e9".encode()})
+    assert r.status_code == 200
+    assert "__Host-krk" not in r.cookies
+
+
+def test_a_non_ascii_csrf_header_is_rejected_not_crashed(outbox, fast_hash):
+    """CSRF 헤더에 비ASCII가 와도 500이 아니라 403(앱 리뷰 55차 — 같은 문자열 비교)."""
+    signed_up(browser(), outbox)
+    c = browser()
+    login(c)
+    assert c.post("/api/auth/logout", headers={"x-csrf": "café".encode()}).status_code == 403
+
+
+def test_session_list_api_is_gone(outbox, fast_hash):
+    """기기 목록·개별 종료 API는 화면이 없어 뺐다(11-26 사용자) — 로그인해도 없어야 한다."""
+    c = browser()
+    signed_up(c, outbox)
+    login(c, "ME@X.com")
+    assert c.get("/api/auth/sessions").status_code == 404
+    assert c.delete("/api/auth/sessions/00000000-0000-0000-0000-000000000000").status_code in (404, 405)

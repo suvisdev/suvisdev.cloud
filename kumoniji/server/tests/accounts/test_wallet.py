@@ -76,17 +76,20 @@ def test_attend_once_a_day_and_seventh_day_gives_more(database):
     day = 86400
     t0 = 1764514800  # 2025-12-01 00:00 KST
     with db.tx() as c:
-        for i in range(7):
+        for i in range(6):
             store.attend(c, a, t0 + i * day)
+        assert store.snapshot(c, a, t0 + 6 * day)["attend"]["next"] == 7  # 지금 출석하면 7일째(앱 버튼이 보상을 다르게 안내)
+        store.attend(c, a, t0 + 6 * day)
         with pytest.raises(LookupError):
             store.attend(c, a, t0 + 6 * day + 60)
         w = store.snapshot(c, a, t0 + 6 * day + 60)
-        assert w["attend"] == {"day": "2025-12-07", "streak": 7, "claimed": True}
+        assert {k: w["attend"][k] for k in ("day", "streak", "claimed")} == {"day": "2025-12-07", "streak": 7, "claimed": True}
         assert w["coins"] == money.ATTEND * 6 + money.ATTEND_7TH and w["gems"] == money.ATTEND_7TH_GEMS
         with pytest.raises(LookupError):
             store.attend(c, a, t0 + 6 * day - 1)  # 자정 전 요청이 늦게 도착 — 날짜를 되돌리지 않는다
         store.attend(c, a, t0 + 9 * day)  # 하루 걸렀다 → 1일째부터
         assert store.snapshot(c, a, t0 + 9 * day)["attend"]["streak"] == 1
+        assert store.snapshot(c, a, t0 + 11 * day)["attend"]["next"] == 1  # 또 걸렀다 → 1일째부터
 
 
 def test_buy_with_gems_and_hearts_can_exceed_ten(database):
@@ -439,3 +442,43 @@ def test_rid_cache_trim_keeps_unknown_and_creating_entries(outbox, fast_hash, mo
         assert c.post("/api/games", json={"rid": f"trimtest{i}"}).status_code == 200
     assert api.RIDS.get((0, "unknownold")) == api.UNKNOWN
     assert (0, "creatingold") in api.RIDS and api.RIDS[(0, "creatingold")] is None
+
+
+def test_snapshot_version_grows_in_lock_order(database):
+    """스냅숏의 v는 지갑 행을 잠근 뒤 찍어, 같은 계정이면 나중에 커밋된 것이 더 크다 — 앱이 옛 응답을 버리는 기준."""
+    a = make_account()
+    with db.tx() as c:
+        first = store.snapshot(c, a, time.time())
+    with db.tx() as c:
+        after = store.attend(c, a, time.time())
+    assert after["v"] > first["v"]
+
+
+def test_request_for_another_account_is_refused_before_spending(outbox, fast_hash):
+    """웹은 로그인 쿠키를 탭끼리 같이 쓴다 — A 화면이 보낸 요청(x-kumoniji-account: A)이 B 세션으로 오면 쓰지 않고 409."""
+    c = browser()
+    signed_up(c, outbox)
+    login(c)
+    me = c.get("/api/auth/me").json()["id"]
+    r = c.post("/api/games", json={"rid": "othertab1"}, headers={"x-kumoniji-account": str(me + 1000)})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "account_changed"
+    assert c.get("/api/wallet").json()["hearts"] == 10  # 하트를 안 썼다
+    assert c.post("/api/games", json={"rid": "othertab2"}, headers={"x-kumoniji-account": str(me)}).status_code == 200
+
+
+def test_snapshot_version_keeps_growing_when_the_clock_steps_back(database, monkeypatch):
+    a = make_account()
+    clock = iter([1000.0, 999.0, 998.5])
+    monkeypatch.setattr(store.time, "time", lambda: next(clock))
+    with db.tx() as c:
+        vs = [store.snapshot(c, a, 1000.0)["v"] for _ in range(3)]
+    assert vs[0] < vs[1] < vs[2]
+
+
+def test_snapshot_version_keeps_growing_after_the_db_is_restored_from_a_backup(database):
+    a = make_account()
+    with db.tx() as c:
+        store.snapshot(c, a, 1000.0)
+        seen = store.snapshot(c, a, 1000.0)["v"]
+        c.execute("UPDATE wallets SET v = 1 WHERE account_id = %s", (a,))  # 백업으로 되돌려 번호가 옛 값이 됨
+        assert store.snapshot(c, a, 1000.0)["v"] > seen

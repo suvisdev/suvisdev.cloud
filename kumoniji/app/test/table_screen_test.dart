@@ -11,9 +11,18 @@ import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/practice.dart';
 import 'package:kumoniji/table_screen.dart';
 import 'package:kumoniji/tile.dart';
+import 'package:kumoniji/wallet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_test.dart' show view;
+
+/// 요청 본문에서 새 판 요청 id(rid, 판마다 무작위)를 빼고 비교한다
+Object? noRid(String body) {
+  if (body.isEmpty) return null;
+  final j = jsonDecode(body);
+  if (j is Map) j.remove('rid');
+  return j;
+}
 
 void main() {
   setUp(() {
@@ -24,13 +33,45 @@ void main() {
   legalTests();
   recentTests();
   autoPassTests();
+  testWidgets('a new game shown behind the web rotate notice keeps its request id until the table is visible', (
+    t,
+  ) async {
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(view()), 200)));
+    final visible = ValueNotifier(false); // 웹 세로 안내(RotateGate)가 판을 가린 상태
+    await t.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: ValueListenableBuilder<bool>(
+          valueListenable: visible,
+          builder: (_, on, child) => TickerMode(enabled: on, child: child!),
+          child: TableScreen(api: api, showHelpOnFirstVisit: false),
+        ),
+      ),
+    );
+    for (var i = 0; i < 20; i++) {
+      await t.pump(const Duration(milliseconds: 500));
+    }
+    expect(api.unsettled, isNotNull); // 가려진 채로는 지우지 않는다
+    visible.value = true; // 가로로 돌림
+    await t.pump();
+    await t.pump();
+    expect(api.unsettled, isNull);
+  });
+
   testWidgets('pick a tile and play sends it', (t) async {
     final paths = <String>[];
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
         paths.add(r.url.path);
-        bodies.add(r.body.isEmpty ? null : jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode(view()), 200);
       }),
     );
@@ -175,7 +216,7 @@ void moreTests() {
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
-        bodies.add(jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode(view()), 200);
       }),
     );
@@ -190,7 +231,7 @@ void moreTests() {
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
-        bodies.add(r.body.isEmpty ? null : jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode({...view(), 'level': (bodies.last as Map?)?['level'] ?? 'normal'}), 200);
       }),
     );
@@ -220,7 +261,9 @@ void moreTests() {
   testWidgets('first request fails → retry button starts a game', (t) async {
     var calls = 0;
     final api = Api(
-      MockClient((r) async => ++calls == 1 ? http.Response('', 503) : http.Response(jsonEncode(view()), 200)),
+      MockClient(
+        (r) async => ++calls <= 3 ? http.Response('', 503) : http.Response(jsonEncode(view()), 200),
+      ), // 자동 재시도 2번까지 실패
     );
     await t.pumpWidget(_app(api));
     await settle(t);
@@ -303,6 +346,30 @@ void legalTests() {
     expect(names, ['Bot 3', 'Bot 2', 'You', 'Bot 1']);
   });
 
+  testWidgets('끝난 판에서 새로 시작한 판도 지갑 없이 끝나면 잔고를 다시 받게 한다(리뷰 48차)', (t) async {
+    final first = {
+      ...view(),
+      'winner': 3,
+      'settlement': [-9, -17, 3, 23],
+      'moves': [],
+      'playable': [],
+      'wallet': null,
+    };
+    final second = {...first, 'id': 'b'}; // 새 판도 봇 진행 중 끝났고 서버가 기록을 다시 시도 중(지갑 없음)
+    var n = 0;
+    final api = Api(MockClient((r) async => http.Response(jsonEncode(++n == 1 ? first : second), 200)));
+    await t.pumpWidget(_app(api));
+    await settle(t);
+    await t.tap(find.byIcon(Icons.close));
+    await settle(t);
+    final before = Wallet.recheck.value;
+    await t.tap(find.widgetWithText(TextButton, 'New game'));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('level-start')));
+    await settle(t);
+    expect(Wallet.recheck.value, before + 1);
+  });
+
   testWidgets('result has X to look at the finished table', (t) async {
     final done = {
       ...view(),
@@ -314,7 +381,7 @@ void legalTests() {
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
-        bodies.add(jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode(bodies.length == 1 ? done : view()), 200);
       }),
     );
@@ -372,7 +439,7 @@ void legalTests() {
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
-        bodies.add(jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode(bodies.length == 1 ? done : view()), 200);
       }),
     );

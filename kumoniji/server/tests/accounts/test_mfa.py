@@ -92,3 +92,16 @@ def test_7_wrong_codes_slow_down(outbox, fast_hash):
     login(d)
     codes = [d.post("/api/auth/mfa/verify", json={"code": "000000"}).status_code for _ in range(6)]
     assert codes == [401] * 5 + [429]
+
+
+def test_account_mismatch_is_reported_before_mfa_check(outbox, fast_hash):
+    """다른 탭에서 MFA가 필요한 계정으로 로그인해 아직 코드를 안 넣었어도, 옛 계정 화면의 요청은 403 mfa가 아니라
+    409 account_changed를 받아 계정이 바뀐 것을 안다(앱 리뷰 9차)."""
+    turned_on(outbox)
+    d = browser()
+    login(d)  # MFA 전 세션
+    me = d.get("/api/auth/me").json()["id"]
+    r = d.get("/api/wallet", headers={"x-kumoniji-account": str(me + 1000)})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "account_changed"
+    assert d.get("/api/wallet", headers={"x-kumoniji-account": str(me)}).status_code == 403  # 같은 계정이면 MFA 먼저
+

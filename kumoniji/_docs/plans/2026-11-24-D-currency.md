@@ -834,7 +834,7 @@ class WalletBar extends StatelessWidget {
   - `ShopScreen`: 상품 두 개(보석 10 → 하트 5, 보석 10 → 판돈 1,000), 보석 부족이면 버튼 비활성.
   - 홈: 로그인 후 `Wallet.refresh()`, 위에 `WalletBar`, 버튼 "미션·출석"·"상점".
   - 새 판 402 `no_heart` → "하트가 없어요. 10분마다 1개씩 차요" 안내.
-  - 멀티 소켓 오류(11-25 B안·리뷰 뒤 서버 기준): `no_heart`·`low_coins`(판이 잡힐 때 모자라면 그 사람만 받고 로비로), `settling`(앞 판 정산 중 — 잠시 뒤 다시), `busy`(입장 미리 보기 시간 초과), `room_changed`(시작 누른 사이 방 구성이 바뀜 — 다시 누르기). 판이 잡혀 하트를 쓰는 동안은 처지 알림이 없고 곧 판 상태나 위 오류가 온다.
+  - 멀티 소켓 오류(11-25 B안·리뷰 뒤 서버 기준, **11-26: 앱에 멀티 화면이 아직 없어 멀티 ③ 앱에서 붙인다**): `no_heart`·`low_coins`(판이 잡힐 때 모자라면 그 사람만 받고 로비로), `settling`(앞 판 정산 중 — 잠시 뒤 다시), `busy`(입장 미리 보기 시간 초과), `room_changed`(시작 누른 사이 방 구성이 바뀜 — 다시 누르기). 판이 잡혀 하트를 쓰는 동안은 처지 알림이 없고 곧 판 상태나 위 오류가 온다.
   - arb 4개에 키 추가: `coins`·`hearts`·`gems`·`attend`·`attended`·`missions`·`missionsDone`(5개 완료 보너스)·`shop`·`noHeart`·`lowCoins`·`mission_games5`…`mission_fullhouse`(10개).
 
 - [ ] **Step 4: 통과 확인** — `flutter analyze` 0, `flutter test` 전체 PASS. 홈·미션·상점 화면을 웹 빌드해 캡처(메모: 윈도우 크롬 `--headless=new --screenshot`, 로그인 필요 화면은 가짜 응답 임시 진입점 → 지움).
@@ -848,7 +848,7 @@ class WalletBar extends StatelessWidget {
 - ADR-0024 "쿠모니지 화폐 — 1점당 50, 자동 매칭만, 큰 지급 없음"(이 계획 PR에 함께).
 - `_docs/STATE.md`·`WORK_LOG_KUMONIJI.md`, `kumoniji/CLAUDE.md`에 "숫자는 `wallet/money.py`".
 - 배포: 마이그레이션 003은 파드가 뜰 때 자동 적용(`accounts/db.py migrate`). **배포 전 DB 덤프를 권한다**(사용자 작업, 쿠모니지 DB 컨테이너). 새 환경 변수 없음.
-- 탈퇴: 지갑·원장·하루 기록은 계정 행에 `ON DELETE CASCADE`. 지금 탈퇴는 계정 행을 지우지 않고 개인정보만 비우므로 남는다 — 개인정보가 아니라 그대로 둔다(다시 보려면 `_purge`에서 같이 지운다).
+- 탈퇴: 지갑·원장·하루 기록은 `_purge`가 함께 지운다(11-25 리뷰로 바꿈, 계정 행은 남기므로 CASCADE만으로는 안 지워짐). 판 중 탈퇴자가 있으면 그 판 판돈은 없던 일(ADR-0024).
 
 ## 이 계획 밖(나중)
 - 광고 보상(1회 100·하루 5회): 앱에 광고 SDK를 붙일 때. 웹은 광고 없음.

@@ -50,6 +50,7 @@ class _AuthGateState extends State<AuthGate> {
   (String, String)? link; // (종류, 토큰)
   String? notice; // 구글에서 돌아온 결과
   bool forgot = false; // "이미 가입된 주소" 메일의 /forgot 링크로 들어옴
+  int? shown; // 지금 보여 주는 계정 — 로그아웃되거나 다른 계정으로 바뀌거나 2단계 인증 대기가 된 순간 위에 쌓인 화면을 걷는다
 
   @override
   void initState() {
@@ -84,6 +85,14 @@ class _AuthGateState extends State<AuthGate> {
     return ValueListenableBuilder(
       valueListenable: Auth.me,
       builder: (context, me, _) {
+        // 판·미션·상점처럼 위에 올린 화면에서 세션이 끝나거나(401) 다른 탭이 계정을 바꾸면(비는 틈 없이 바로 B가
+        // 와도) 옛 화면이 남지 않게 걷는다(리뷰 2·11차)
+        if (shown != null && (shown != me?.id || me!.needsMfa)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+          });
+        }
+        shown = me == null || me.needsMfa ? null : me.id;
         if (me == null) {
           final open = forgot;
           forgot = false;
@@ -93,7 +102,7 @@ class _AuthGateState extends State<AuthGate> {
         final open = notice == 'linked' || notice == 'reauthed' ? notice : null;
         notice = null;
         if (open != null) WidgetsBinding.instance.addPostFrameCallback((_) => openAccount(context, open));
-        return const HomeScreen();
+        return HomeScreen(key: ValueKey(me.id)); // 계정마다 새로 — 잔고 막대가 바뀐 계정의 지갑을 다시 받게
       },
     );
   }
@@ -227,13 +236,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final r = await Auth.login(email.text, password.text, captcha: captcha);
-      if (r['verified'] == false) {
+      // 기다리는 사이 뒤에서 세션이 복구돼 이 화면이 걷혔을 수 있다(리뷰 65차)
+      if (r['verified'] == false && mounted) {
         setState(() {
           unverified = true;
           info = t.unverified;
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         error = authMessage(t, e);
         captcha = null;
@@ -249,9 +260,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final t = AppLocalizations.of(context)!;
     try {
       await Auth.resend(email.text);
-      setState(() => info = t.checkEmail);
+      if (mounted) setState(() => info = t.checkEmail);
     } catch (e) {
-      setState(() => error = authMessage(t, e));
+      if (mounted) setState(() => error = authMessage(t, e));
     }
   }
 
@@ -491,6 +502,15 @@ class _MfaScreenState extends State<MfaScreen> {
   final code = TextEditingController();
   String? error;
 
+  /// 서버에 닿지 못하면 로그아웃된 척하지 않고 알린다(리뷰 38·39차)
+  Future<void> _out() async {
+    try {
+      await Auth.logout();
+    } catch (e) {
+      if (mounted) setState(() => error = authMessage(AppLocalizations.of(context)!, e));
+    }
+  }
+
   Future<void> _go() async {
     final t = AppLocalizations.of(context)!;
     try {
@@ -515,7 +535,7 @@ class _MfaScreenState extends State<MfaScreen> {
           onSubmit: _go,
         ),
         wideButton(t.confirm, _go),
-        TextButton(onPressed: Auth.logout, child: Text(t.logout)),
+        TextButton(onPressed: _out, child: Text(t.logout)),
       ],
     );
   }

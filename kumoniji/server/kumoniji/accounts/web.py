@@ -10,6 +10,7 @@ import hmac
 import os
 import secrets
 
+import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -18,6 +19,9 @@ from . import db, passwords, service, sessions
 
 router = APIRouter(prefix="/api/auth")
 ACCESS, REFRESH, CSRF = "__Host-kat", "__Host-krt", "__Host-kcsrf"
+# 웹의 갱신 재시도 키 — 브라우저마다 하나, 로그아웃해도 그대로. 응답을 못 받은 갱신을 다른 탭·새로고침이 다시 보내도
+# 같은 키라 같은 새 토큰을 받는다(멱등 갱신, 앱 리뷰 60·62차). HttpOnly라 스크립트가 못 읽고 저장소 가용성과 무관
+RETRY = "__Host-krk"
 REFRESH_AGE = 30 * 24 * 3600
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -55,7 +59,7 @@ def check_csrf(request: Request) -> None:
     if request.headers.get("origin") != origin():
         raise HTTPException(403, {"code": "origin"})
     c, h = request.cookies.get(CSRF, ""), request.headers.get("x-csrf", "")
-    if not c or not hmac.compare_digest(c, h):
+    if not c or not hmac.compare_digest(c.encode(), h.encode()):  # 바이트로 — 비ASCII면 문자열 비교는 TypeError(55차)
         raise HTTPException(403, {"code": "csrf"})
 
 
@@ -67,7 +71,8 @@ def _token(request: Request) -> str | None:
 
 
 def session_of(request: Request, allow_pre_mfa: bool = False, require_verified: bool = True) -> dict:
-    """보호 API 공통 검사. DB 확인이 안 되면(장애 포함) 401 — 실패 쪽으로 닫힘(SECURITY 12).
+    """보호 API 공통 검사. DB 확인이 안 되면(장애) 503으로 거부 — 실패 쪽으로 닫힘(SECURITY 12). 401(세션 끝남)과
+    가른다: 앱은 401을 받으면 로그아웃 상태로 보고, 장애에도 401이면 서버가 폐기하지 않은 세션을 끝난 줄 안다(앱 리뷰 45차).
     주의: FastAPI Depends로 직접 쓰지 않는다 — 기본값 인자가 쿼리 파라미터가 되어 ?allow_pre_mfa=true로 우회된다.
     의존성은 요청만 받는 player()를 쓴다."""
     check_csrf(request)
@@ -75,7 +80,11 @@ def session_of(request: Request, allow_pre_mfa: bool = False, require_verified: 
         with db.tx() as c:
             s = sessions.current(c, _token(request))
     except Exception:
-        raise HTTPException(401, {"code": "session"}) from None
+        raise HTTPException(503, {"code": "busy"}) from None
+    # 앱이 보낸 화면의 계정과 세션 계정이 다르면 409 — MFA·인증 검사보다 먼저(B가 MFA 전이어도 A 화면이 계정 바뀜을 알게, 앱 리뷰 9차)
+    want = request.headers.get("x-kumoniji-account")
+    if s is not None and want is not None and want != str(s["account_id"]):
+        raise HTTPException(409, {"code": "account_changed"})
     if problem := session_problem(s, allow_pre_mfa, require_verified):
         raise HTTPException(401 if problem == "session" else 403, {"code": problem})
     return s
@@ -116,18 +125,31 @@ def socket_alive(s: dict) -> bool:
 
 
 def player(request: Request) -> dict:
-    """의존성용: 인증된·MFA 통과 세션(게임 API·계정 설정)."""
+    """의존성용: 인증된·MFA 통과 세션(게임 API·계정 설정).
+    x-kumoniji-account 검사는 session_of(웹은 로그인 쿠키를 탭끼리 같이 써서, 다른 탭에서 B로 로그인하면 A 화면의
+    구매·새 판이 B의 보석·하트를 쓰게 되기 때문, 11-26 앱 리뷰)."""
     return session_of(request)
 
 
-def _set_tokens(resp: Response, request: Request, out: dict) -> Response:
+def _set_tokens(resp: Response, request: Request, out: dict, key: bool = True) -> Response:
+    """key=False면 재시도 키 쿠키는 심지 않는다 — 키 없이 온 갱신(리프레시만 훔친 사람일 수 있음)에 주지 않게(앱 리뷰 53차)."""
     if is_app(request):
         return resp
     resp.set_cookie(
         ACCESS, out["access"], max_age=sessions.ACCESS_TTL, path="/", secure=True, httponly=True, samesite="lax"
     )
     resp.set_cookie(REFRESH, out["refresh"], max_age=REFRESH_AGE, path="/", secure=True, httponly=True, samesite="lax")
+    if key:
+        _keep_retry(resp, jwt.decode(out["access"], options={"verify_signature": False})["sid"])  # 방금 만든 토큰
     return resp
+
+
+def _keep_retry(resp: Response, sid: str) -> None:
+    """재시도 키 쿠키(세션에서 정해지는 값, sessions.retry_key)를 심고 기한을 늘린다 — 리프레시 쿠키보다 먼저 만료되지
+    않게. 로그인 응답에서 심고, 갱신은 맞는 키를 갖고 온 때만 늘린다. 정해진 값이라 두 탭이
+    동시에 심어도 같다(앱 리뷰 33·36차)."""
+    key = sessions.retry_key(sid)
+    resp.set_cookie(RETRY, key, max_age=REFRESH_AGE, path="/", secure=True, httponly=True, samesite="lax")
 
 
 def _clear_tokens(resp: Response) -> Response:
@@ -203,6 +225,7 @@ class Password(BaseModel):
 
 class Refresh(BaseModel):
     refresh: str | None = Field(default=None, max_length=200)
+    retry: str = Field(default="", max_length=128)  # 재시도 키 — 응답을 못 받은 갱신을 같은 키로 다시 받는다(멱등)
 
 
 @router.get("/config")
@@ -281,9 +304,12 @@ def login(body: Login, request: Request):
 def refresh(request: Request, body: Refresh | None = None):
     check_csrf(request)
     raw = (body.refresh if body else None) if is_app(request) else request.cookies.get(REFRESH)
+    # 웹 재시도 키는 로그인·갱신 응답이 심는다. 키가 생기기 전의 옛 세션은 배포 때 모두 끊었다(마이그레이션 004) —
+    # 키 없이 온 갱신은 그냥 회전하고, 리프레시만 훔친 사람은 키가 없어 기존대로 재사용 탐지에 걸린다(앱 리뷰 35·49·50차)
     with db.tx() as c:
         try:
-            out = sessions.refresh(c, raw or "", lang_of(request))
+            retry = (body.retry if body else "") if is_app(request) else request.cookies.get(RETRY, "")
+            out = sessions.refresh(c, raw or "", lang_of(request), retry, client_ip(request))
         except sessions.Reused:  # 전 세션 폐기를 커밋해야 하므로 트랜잭션 안에서 잡는다
             out = None
         except sessions.Raced:  # 다른 탭이 방금 갱신 — 공유 쿠키로 원래 요청을 다시 보내면 된다
@@ -292,7 +318,12 @@ def refresh(request: Request, body: Refresh | None = None):
         return _clear_tokens(JSONResponse({"code": "session"}, status_code=401))
     access, new = out
     data = {"access": access, "refresh": new}
-    return _set_tokens(JSONResponse(_session_body(request, data)), request, data)
+    # 재시도 키는 그 세션의 키를 이미 갖고 온 갱신에만 다시 심는다(기한 늘리기) — 키 없이·틀린 키로 온 갱신에 주면
+    # 리프레시만 훔친 사람도 키를 얻는다(앱 리뷰 53차)
+    sid = jwt.decode(access, options={"verify_signature": False})["sid"]
+    # 바이트로 비교 — 쿠키에 비ASCII가 오면 문자열 비교는 TypeError(회전을 커밋한 뒤 500)(앱 리뷰 55차)
+    keyed = hmac.compare_digest(request.cookies.get(RETRY, "").encode(), sessions.retry_key(sid).encode())
+    return _set_tokens(JSONResponse(_session_body(request, data)), request, data, key=keyed)
 
 
 @router.post("/logout")
@@ -300,14 +331,6 @@ def logout(request: Request):
     s = session_of(request, allow_pre_mfa=True, require_verified=False)
     with db.tx() as c:
         sessions.revoke(c, s["account_id"], s["sid"])
-    return _clear_tokens(JSONResponse({"status": "ok"}))
-
-
-@router.post("/logout-all")
-def logout_all(request: Request):
-    s = session_of(request, allow_pre_mfa=True, require_verified=False)
-    with db.tx() as c:
-        sessions.revoke_all(c, s["account_id"])
     return _clear_tokens(JSONResponse({"status": "ok"}))
 
 
@@ -330,20 +353,6 @@ def me(request: Request):
         "has_password": a["has_password"],
         "providers": a["providers"],
     }
-
-
-@router.get("/sessions")
-def list_sessions(s: dict = Depends(player)):
-    with db.tx() as c:
-        rows = sessions.listing(c, s["account_id"])
-    return [r | {"current": r["id"] == s["sid"]} for r in rows]
-
-
-@router.delete("/sessions/{sid}")
-def end_session(sid: str, s: dict = Depends(player)):
-    with db.tx() as c:
-        sessions.revoke(c, s["account_id"], sid)
-    return {"status": "ok"}
 
 
 @router.post("/reset/request", status_code=202)
@@ -444,7 +453,9 @@ def google_callback(request: Request, code: str = "", state: str = ""):
                 ).fetchone()
                 if row is None:
                     return fail
-                out = service._open_session(c, row, device_of(request), client_ip(request), lang_of(request, f.get("la", "")))
+                out = service._open_session(
+                    c, row, device_of(request), client_ip(request), lang_of(request, f.get("la", ""))
+                )
     except google.Invalid:
         return fail
     done = {"link": "/?linked=google", "reauth": "/?reauthed=google"}.get(f["pu"], "/")
