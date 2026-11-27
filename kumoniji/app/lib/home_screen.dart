@@ -74,19 +74,19 @@ class HomeScreen extends StatelessWidget {
             IconButton(
               key: const ValueKey('home-background'),
               tooltip: t.homeBackground,
-              icon: const Icon(Icons.wallpaper),
+              icon: _icon('background'),
               onPressed: () => pickBackground(context, 'home'),
             ),
             IconButton(
               key: const ValueKey('open-missions'),
               tooltip: t.missions,
-              icon: const Icon(Icons.event_available),
+              icon: _icon('missions'),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MissionsScreen())),
             ),
             IconButton(
               key: const ValueKey('open-shop'),
               tooltip: t.shop,
-              icon: const Icon(Icons.storefront),
+              icon: _icon('shop'),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen())),
             ),
             const MuteButton(),
@@ -126,28 +126,29 @@ class HomeScreen extends StatelessWidget {
                   FilledButton.icon(
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
                     onPressed: () => _single(context),
-                    icon: const Icon(Icons.person),
+                    icon: _icon('single'),
                     label: Text(t.singleMode),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
                     onPressed: null, // 2단계(4인 멀티)에서 연결
-                    icon: const Icon(Icons.groups),
+                    icon: Opacity(opacity: .5, child: _icon('multi')), // 준비 중 — 흐리게
                     label: Text('${t.multiMode} · ${t.comingSoon}'),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
                     onPressed: () => showHelp(context),
-                    icon: const Icon(Icons.help_outline),
+                    icon: _icon('help'),
                     label: Text(t.help),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
+                    key: const ValueKey('open-options'),
                     style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OptionsScreen())),
-                    icon: const Icon(Icons.settings),
+                    icon: _icon('options'),
                     label: Text(t.options),
                   ),
                 ],
@@ -182,3 +183,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+
+/// 홈 버튼 아이콘(Codex 그림 b안, 11-27 사용자). 원본 512px는 바탕화면 `타일게임_기획/홈버튼아이콘_Codex`
+Widget _icon(String name) => Image.asset('assets/icons/home/$name.png', width: 28, height: 28);

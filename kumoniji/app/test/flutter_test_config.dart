@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kumoniji/auth.dart';
 import 'package:kumoniji/practice.dart';
+import 'package:kumoniji/sfx.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 테스트의 가짜 서버는 웹처럼 토큰 없이(쿠키로) /me가 통한다 — 앱의 '토큰 없으면 묻지 않기'는 끄고, 그 동작은 따로 시험한다
@@ -19,6 +20,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     // 폰 화면의 떠 있는 창은 닫힌 채로 시작
     PracticeFrame.floatOut.value = false;
     PracticeFrame.floatCombos.value = false;
+    Sfx.log = []; // 효과음은 이름만 쌓는다(재생기 플러그인이 없다)
   });
   await testMain();
 }
