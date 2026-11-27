@@ -173,6 +173,76 @@ void main() {
     expect(find.text('Wrong email or password.'), findsOneWidget);
   });
 
+  testWidgets('config is fetched together with /me at start, and the login screen does not fetch it again', (t) async {
+    final meDone = Completer<http.Response>();
+    final sent = <String>[];
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        sent.add(r.url.path);
+        if (r.url.path == '/api/auth/me') return meDone.future;
+        if (r.url.path == '/api/auth/config') return ok({'google': false});
+        return err(401, 'session');
+      }),
+    );
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await t.pump();
+    expect(sent, contains('/api/auth/config')); // /me 응답 전에 이미(11-26 시작 속도)
+    meDone.complete(err(401, 'session'));
+    await settle(t);
+    expect(find.byKey(const ValueKey('login')), findsOneWidget);
+    expect(sent.where((p) => p == '/api/auth/config').length, 1);
+  });
+
+  test('prefetch is dropped when already logged in, so the login screen after logout fetches fresh', () async {
+    var key = '';
+    Auth.client = AuthClient(
+      MockClient(
+        (r) async => r.url.path == '/api/auth/me'
+            ? ok({'id': 1, 'email': 'a@x.com', 'nickname': 'n'})
+            : ok({'google': false, 'turnstile': key}),
+      ),
+    );
+    Auth.prefetchConfig();
+    await Auth.load(); // 로그인돼 있음 — 로그인 화면을 거치지 않는다
+    key = 'site-key'; // 그사이 서버가 캡차를 켜고, 사용자가 로그아웃
+    expect((await Auth.config())['turnstile'], 'site-key');
+  });
+
+  test('a failed prefetch is not reused once the network is back', () async {
+    var down = true;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        if (down) throw http.ClientException('offline');
+        return ok({'google': true});
+      }),
+    );
+    Auth.prefetchConfig();
+    await Future<void>.delayed(Duration.zero);
+    down = false;
+    expect((await Auth.config())['google'], true);
+  });
+
+  test('a prefetch still in flight that fails is retried for the login screen', () async {
+    var calls = 0;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        if (++calls == 1) throw http.ClientException('offline'); // 시작 때만 끊김
+        return ok({'google': true});
+      }),
+    );
+    Auth.prefetchConfig();
+    expect((await Auth.config())['google'], true); // 진행 중인 미리 받기를 가져가 실패 → 새로
+  });
+
+  test('prefetched config is used once; the next login screen fetches fresh settings', () async {
+    var key = '';
+    Auth.client = AuthClient(MockClient((r) async => ok({'google': false, 'turnstile': key})));
+    Auth.prefetchConfig();
+    expect((await Auth.config())['turnstile'], '');
+    key = 'site-key'; // 그사이 서버가 캡차를 켰다
+    expect((await Auth.config())['turnstile'], 'site-key');
+  });
+
   testWidgets('successful login goes to the home screen (stays logged in via /me)', (t) async {
     var loggedIn = false;
     fake({
@@ -274,6 +344,7 @@ void main() {
     await settle(t);
     expect(sent.every((r) => r.method == 'GET'), isTrue); // 여는 것만으로는 토큰을 쓰지 않는다
     expect(sent.map((r) => r.url.path), contains('/api/auth/verify/check'));
+    expect(sent.map((r) => r.url.path), isNot(contains('/api/auth/config'))); // 링크 화면에선 미리 받지 않는다(리뷰 3차)
     await t.enterText(find.byKey(const ValueKey('link-pw')), 'correct horse battery');
     await t.tap(find.byKey(const ValueKey('link-go')));
     await settle(t);

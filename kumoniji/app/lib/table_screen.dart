@@ -46,6 +46,21 @@ class _TableScreenState extends State<TableScreen> {
     super.dispose();
   }
 
+  // 새 판을 다 보였는데 웹 세로 안내(RotateGate)에 가려 있었으면 — 가로로 돌려 판이 실제로 보인 뒤에 요청 id를 지운다.
+  // 가려진 채 닫으면 다음 진입이 같은 id로 그 판을 받는다(새 판·하트를 또 쓰지 않게, 화폐 재리뷰)
+  bool _settleWhenVisible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_settleWhenVisible && TickerMode.valuesOf(context).enabled) {
+      _settleWhenVisible = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_alive) api.settle();
+      });
+    }
+  }
+
   Play? flash; // 방금 누가 무엇을 냈는지 잠깐 보여 줌
   final picked = <String>{};
   final gone = <String>{}; // 방금 낸 패 — 봇 장면이 다 끝나기 전에도 손패에서 바로 뺀다
@@ -159,7 +174,13 @@ class _TableScreenState extends State<TableScreen> {
       // 다음 진입이 같은 id로 그 판을 받는다(리뷰 34·36차)
       if (fresh) {
         await WidgetsBinding.instance.endOfFrame; // setState는 다음 프레임 예약일 뿐 — 실제로 그려진 뒤에(리뷰 48차)
-        if (_alive) api.settle();
+        if (mounted && _alive) {
+          if (TickerMode.valuesOf(context).enabled) {
+            api.settle();
+          } else {
+            _settleWhenVisible = true;
+          }
+        }
       }
       // 프레임을 기다리는 사이 닫혔으면(계정 전환 등) 결과 창을 띄우지 않는다 — 새 화면 위에 옛 판 결과가 뜨지 않게(리뷰 57차)
       if (!_alive) return;
@@ -357,8 +378,9 @@ class _TableScreenState extends State<TableScreen> {
   String _name(AppLocalizations t, int seat) => seat == 0 ? t.you : t.bot(seat);
 
   void _showResult(GameState g) {
-    // 재생 중 열어 둔 연습 시트(나온 패·족보)는 닫는다 — 결과 창 뒤에 남으면 다시 시작한 판을 가린다(리뷰 3차)
-    Navigator.of(context).popUntil((r) => r is! ModalBottomSheetRoute);
+    // 재생 중 열어 둔 연습 시트·나온 패 크게 보기 창은 닫는다 — 결과 창 뒤에 남으면 다시 시작한 판을 가린다(리뷰 3차·로고 3차).
+    // 도움말·나가기 확인은 사용자가 보던 것이니 두고(로고 4차), 그 위에 결과를 띄운다
+    Navigator.of(context).popUntil((r) => r is! ModalBottomSheetRoute && r.settings.name != outBigRoute);
     final t = AppLocalizations.of(context)!;
     final winner = g.winner!;
     final order = [0, 1, 2, 3]
@@ -466,7 +488,15 @@ class _TableScreenState extends State<TableScreen> {
                       ],
                     ),
                   )
-                : Text(g == null ? t.title : '${t.title} · ${levelName(t, g.level)}'),
+                // 이름은 글씨가 아니라 제목 로고로(홈과 같게, 11-26 사용자) — 판이 오면 옆에 난이도
+                // 좁은 폰에선 로고·난이도를 한 줄 그대로 줄인다
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [const TitleLogo(height: 32), if (g != null) Text('  ·  ${levelName(t, g.level)}')],
+                    ),
+                  ),
             backgroundColor: Colors.transparent,
             actions: [
               if (g != null) _TodayBadge(suit: g.today, label: narrowBar ? '' : t.today, doubles: g.doubles),
@@ -495,6 +525,7 @@ class _TableScreenState extends State<TableScreen> {
                     SafeArea(
                       child: PracticeFrame(
                         out: _out.value,
+                        live: _out,
                         suits: g.suits,
                         child: LayoutBuilder(
                           builder: (context, box) {
@@ -597,10 +628,15 @@ class _TableScreenState extends State<TableScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Expanded(
-                                    // 가운데 판은 정사각형. 양옆 자리 폭(_sideW)을 빼고 남은 폭과 높이 중 작은 쪽이 한 변
+                                    // 가운데 판: 높이(side)는 남은 높이와 폭 중 작은 쪽, 폭(wide)은 남는 가로를 1.8배까지 쓴다 —
+                                    // 정사각형이면 폰 가로에서 한 변 ~165px라 낸 패가 작았다(11-26 '낸 패 크게')
                                     child: LayoutBuilder(
                                       builder: (context, mid) {
-                                        final side = min(mid.maxWidth - 2 * _sideW - 12, mid.maxHeight);
+                                        final room = mid.maxWidth - 2 * _sideW - 12;
+                                        final side = max(0.0, min(room, mid.maxHeight));
+                                        final wide = max(side, min(room, side * 1.8));
+                                        // 넓은 판은 덜 눕힌다 — 같은 각이면 먼 쪽 자리의 패가 더 작아 보인다
+                                        final tilt = wide > side * 1.3 ? -.32 : -.42;
                                         return Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
@@ -623,12 +659,12 @@ class _TableScreenState extends State<TableScreen> {
                                               alignment: Alignment.center,
                                               transform: Matrix4.identity()
                                                 ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
-                                                ..rotateX(-.42) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
+                                                ..rotateX(tilt) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
                                                 ..scaleByDouble(.9, .9, 1, 1),
                                               child: ValueListenableBuilder(
                                                 valueListenable: Settings.board,
                                                 builder: (_, b, child) => Container(
-                                                  width: side,
+                                                  width: wide,
                                                   height: side,
                                                   decoration: BoxDecoration(
                                                     color: _felt,
@@ -661,7 +697,7 @@ class _TableScreenState extends State<TableScreen> {
                                                 child: Center(
                                                   child: Padding(
                                                     padding: const EdgeInsets.all(6),
-                                                    child: _felt4(t, g, side),
+                                                    child: _felt4(t, g, wide, side),
                                                   ),
                                                 ),
                                               ),
@@ -761,7 +797,8 @@ class _TableScreenState extends State<TableScreen> {
   }
 
   /// 정사각형 판: 자리마다 자기 앞(판 가장자리)에 이번 바퀴에 낸 패를 놓는다. 지금 가장 센 패만 진하게.
-  Widget _felt4(AppLocalizations t, GameState g, double side) {
+  /// [w]×[h] 판. 가로가 넓으면 위·아래 자리 칸이 넓어지고 양옆 칸은 판 폭에 비례.
+  Widget _felt4(AppLocalizations t, GameState g, double w, double h) {
     Widget area(int seat, double w, double h, int perRow) {
       final m = plays[seat];
       if (m == null) return SizedBox(width: w, height: h);
@@ -790,7 +827,7 @@ class _TableScreenState extends State<TableScreen> {
                             key: ValueKey('drop-$seat-${m.join()}-$c'),
                             index: m.indexOf(c),
                             from: _from[seat],
-                            child: TileView(code: c, width: 44),
+                            child: TileView(code: c, width: 54),
                           ),
                         ),
                     ],
@@ -807,10 +844,10 @@ class _TableScreenState extends State<TableScreen> {
       padding: const EdgeInsets.all(6),
       child: Stack(
         children: [
-          Align(alignment: Alignment.topCenter, child: area(2, side * .8, side * .26, 5)),
-          Align(alignment: Alignment.centerLeft, child: area(1, side * .3, side * .42, 3)),
-          Align(alignment: Alignment.centerRight, child: area(3, side * .3, side * .42, 3)),
-          Align(alignment: Alignment.bottomCenter, child: area(0, side * .8, side * .26, 5)),
+          Align(alignment: Alignment.topCenter, child: area(2, w * .8, h * .26, 5)),
+          Align(alignment: Alignment.centerLeft, child: area(1, w * .3, h * .42, 3)),
+          Align(alignment: Alignment.centerRight, child: area(3, w * .3, h * .42, 3)),
+          Align(alignment: Alignment.bottomCenter, child: area(0, w * .8, h * .26, 5)),
           if (myTurn)
             Center(
               child: Text(

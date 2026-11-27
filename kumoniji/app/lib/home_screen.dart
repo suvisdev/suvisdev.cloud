@@ -41,17 +41,12 @@ class HomeScreen extends StatelessWidget {
           automaticallyImplyLeading: false,
           // 왼쪽 위에도 이름 — 글씨가 아니라 만든 제목 로고로(11-26 사용자)
           // 이름은 Semantics로 — Image의 semanticLabel은 따로 노드를 만들어 앱바의 화면 제목(namesRoute)에 안 붙는다(리뷰 1차)
-          title: Row(
+          title: const Row(
             children: [
               // 좁은 창에선 로고도 잔고와 함께 줄어든다(280px에서 넘침)
-              Flexible(
-                child: Semantics(
-                  label: t.title,
-                  child: Image.asset('assets/brand/title_jade.png', height: 36, excludeFromSemantics: true),
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Flexible(child: WalletBar()),
+              Flexible(child: TitleLogo()),
+              SizedBox(width: 12),
+              Flexible(child: WalletBar()),
             ],
           ),
           centerTitle: false,

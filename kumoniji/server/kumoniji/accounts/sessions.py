@@ -119,19 +119,22 @@ def refresh(c, raw: str, lang: str = "en", retry: str = "", ip: str = "") -> tup
         just = c.execute(
             # 같은 IP에서 온 것만 동시 갱신으로 본다 — 쿠키(리프레시+키)를 함께 훔친 사람이 회전마다 30초 안에 따라붙어도
             # 다른 IP면 다시 받기로 세어 하루 MAX_REPLAYS에서 걸린다(앱 리뷰 52차)
-            """SELECT p.spent_at > now() - %s * interval '1 second' AND p.ip = %s AS just, s.id::text AS sid
+            # 폐기된 세션이면 동시 갱신(409)으로 답하지 않는다 — 아래 일반 경로가 401로 끝내 로그인 화면으로(화폐 재리뷰)
+            """SELECT p.spent_at > now() - %s * interval '1 second' AND s.revoked_at IS NULL AS recent,
+                      p.ip = %s AS same_ip, s.id::text AS sid
                FROM spent_refresh p JOIN sessions s ON s.id = p.session_id JOIN accounts a ON a.id = s.account_id
                WHERE p.hash = %s FOR UPDATE OF a""",
             (RACE_GRACE, ip[:64], digest(raw)),
         ).fetchone()
-        fresh = bool(just and just["just"])
+        fresh = bool(just and just["recent"] and just["same_ip"])
         # 웹의 동시 갱신에는 새 토큰을 다시 주지 않는다 — 탭은 쿠키를 함께 써서 먼저 회전한 탭의 응답이 이미 새 쿠키를
         # 심었으니 409 뒤 다시 보내면 된다. 다시 주면 쿠키 두 개를 함께 훔친 사람(같은 PC의 악성 프로그램이면 IP도 같다)이
         # 회전마다 30초 안에 따라붙어 하루 한도 아래로 며칠씩 쓴다(리뷰, 11-26 사용자 결정 3번). 응답을 잃은 탭은 30초가
         # 지나면 아래 다시 받기로 받는다. 앱은 재시도 키가 메모리에만 있어 그대로 다시 준다(응답 유실 복구)
         # 웹인지는 요청 헤더가 아니라 키로 본다 — 웹 키는 서버가 세션에서 만들어 쿠키로 심은 값(retry_key)이라, 훔친 쿠키를
         # 앱 경로(헤더)로 보내도 웹으로 걸린다(리뷰). 앱 키는 클라이언트가 만든 무작위 값이라 같을 수 없다
-        if fresh and hmac.compare_digest(retry.encode(), retry_key(just["sid"]).encode()):
+        # IP와 무관하게 — 다른 IP에서 훔친 쿠키 쌍으로 와도 30초 안이면 다시 주지 않는다(화폐 재리뷰). IP는 셈(경합·다시 받기)에만
+        if just and just["recent"] and hmac.compare_digest(retry.encode(), retry_key(just["sid"]).encode()):
             raise Raced
         tok = raw
         for _ in range(CHAIN):
@@ -177,21 +180,20 @@ def refresh(c, raw: str, lang: str = "en", retry: str = "", ip: str = "") -> tup
             tok = nxt
     old = c.execute(
         """SELECT s.account_id, s.id::text AS sid, p.spent_at > now() - %s * interval '1 second' AS just_now,
-                  p.retry IS NOT NULL AND p.retry = %s AS mine, p.spent_at > now() - %s * interval '1 second' AS recent
+                  p.retry IS NOT NULL AND p.retry = %s AS mine
            FROM spent_refresh p JOIN sessions s ON s.id = p.session_id
            WHERE p.hash = %s AND s.revoked_at IS NULL""",
-        (RACE_GRACE, digest(retry), REPLAY, digest(raw)),
+        (RACE_GRACE, digest(retry), digest(raw)),
     ).fetchone()
     # 방금 회전된 토큰 — 같은 브라우저의 다른 탭이 이미 더 새 쿠키를 받았을 수 있다. 쿠키를 지우지 않고 409로(같은 키
     # 여도: 지우면 그 탭의 최신 쿠키까지 날아간다, 앱 리뷰 61차)
     if old and old["just_now"]:
         raise Raced
     # 회전한 바로 그 클라이언트(같은 재시도 키)인데 다시 줄 수 없음 — 탈취로 보지 않아 다른 기기 세션은 둔다(앱 리뷰 57차).
-    # REPLAY가 지났으면 이 세션은 끊는다: 쿠키와 재시도 키가 함께 새어 남이 먼저 갱신했다면 남의 최신 토큰도 같은 세션이라
-    # 함께 끊긴다(앱 리뷰 66차). 응답을 잃고 오래 지나 돌아온 주인이면 이 기기만 다시 로그인한다
+    # 이 세션은 끊는다: 쿠키와 재시도 키가 함께 새어 남이 먼저 갱신했다면(추적 한도 CHAIN을 넘겨 앞서간 경우 포함) 남의
+    # 최신 토큰도 같은 세션이라 함께 끊긴다(앱 리뷰 66차, 화폐 재리뷰). 주인이면 이 기기만 다시 로그인한다
     if old and old["mine"]:
-        if not old["recent"]:
-            revoke(c, old["account_id"], old["sid"])
+        revoke(c, old["account_id"], old["sid"])
         return None
     if old:
         revoke_all(c, old["account_id"])

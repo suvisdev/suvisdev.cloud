@@ -780,6 +780,19 @@ void main() {
     expect(Auth.me.value?.id, 2);
   });
 
+  test('로그인을 연달아 하면 앞 로그인의 내 정보 응답이 먼저 와도 나중 로그인 결과가 들어간다', () async {
+    final aMe = Completer<http.Response>(), bMe = Completer<http.Response>();
+    var n = 0;
+    Auth.client = AuthClient(MockClient((_) => ++n == 1 ? aMe.future : bMe.future));
+    final a = Auth.load();
+    final b = Auth.load();
+    aMe.complete(http.Response(jsonEncode({'id': 1, 'nickname': 'a'}), 200));
+    await a;
+    bMe.complete(http.Response(jsonEncode({'id': 2, 'nickname': 'b'}), 200));
+    await b;
+    expect(Auth.me.value?.id, 2);
+  });
+
   testWidgets('새 판 결과를 모른 채 끝나면(재시도도 실패) 잔고를 다시 받는다', (t) async {
     var walletCalls = 0;
     Auth.client = AuthClient(

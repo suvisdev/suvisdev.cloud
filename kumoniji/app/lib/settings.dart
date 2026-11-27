@@ -9,7 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'level.dart';
 
 /// 옵션 값(앱 전체, 기기에 기억). 저장소를 못 쓰면 기본값으로 동작한다.
-/// ponytail: 배경음악·효과음은 값만 저장한다 — 소리 파일·재생기가 생기면 music/sfx를 음량으로 쓴다.
+/// 배경음악은 music.dart가 music을 음량으로 쓴다. 효과음은 아직 값만 저장한다(시안 고르는 중).
 class Settings {
   static final locale = ValueNotifier<Locale?>(null); // null = 기기 언어
 
@@ -66,11 +66,12 @@ class Settings {
 }
 
 // assets/backgrounds/<home|table>_N.jpg — 6~10은 세트 배경(세트 N = 배경 5+N · 판 5+N)
-const homeBackgrounds = 10, tableBackgrounds = 10, boards = 10, boardSets = 5;
+const homeBackgrounds = 15, tableBackgrounds = 10, boards = 10, boardSets = 5;
 
 // 홈 6~10은 세트 배경을 같이 쓴다(11-26 사용자: 시작 화면 배경은 있는 배경으로) — 같은 파일이라 앱 크기가 늘지 않는다
+// 홈 11~15는 시작 화면 전용(Codex, 11-26 사용자 요청)
 String backgroundAsset(String kind, int n) =>
-    kind == 'home' && n > 5 ? 'assets/backgrounds/table_$n.jpg' : 'assets/backgrounds/${kind}_$n.jpg';
+    kind == 'home' && n > 5 && n <= 10 ? 'assets/backgrounds/table_$n.jpg' : 'assets/backgrounds/${kind}_$n.jpg';
 String boardAsset(int n) => 'assets/boards/board_$n.jpg';
 
 /// 판 두께색 — 그림 가장자리 평균색을 어둡게(변환할 때 뽑음). 0 = 기본 펠트
@@ -87,6 +88,19 @@ const boardEdges = [
   Color(0xFFA890A5),
   Color(0xFFC4AD90),
 ];
+
+/// 글씨 대신 만든 제목 로고(11-26 사용자). 이름은 Semantics로 — Image의 semanticLabel은 따로 노드를 만들어
+/// 앱바의 화면 제목(namesRoute)에 안 붙는다(로고 PR 리뷰 1차)
+class TitleLogo extends StatelessWidget {
+  final double height;
+  const TitleLogo({super.key, this.height = 36});
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: AppLocalizations.of(context)!.title,
+    child: Image.asset('assets/brand/title_jade.png', height: height, excludeFromSemantics: true),
+  );
+}
 
 /// 고른 배경을 화면 뒤에 깐다(없음이면 앱 기본 바탕색). 감싼 Scaffold는 바탕을 투명하게 둔다.
 class Backdrop extends StatelessWidget {

@@ -7,6 +7,7 @@ environment:
   sdk: ^3.13.4
 
 dependencies:
+  audioplayers: ^6.8.1
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -31,3 +32,4 @@ flutter:
     - assets/brand/
     - assets/backgrounds/
     - assets/boards/
+    - assets/audio/

@@ -77,9 +77,13 @@ def snapshot(c, a: int, now: float) -> dict:
     done = missions.done(counts)
     nxt = None if w["hearts"] >= money.HEART_MAX else w["hearts_at"].timestamp() + money.HEART_EVERY
     return {
-        # 순서 번호 — 지갑 행을 잠근 채 DB 시퀀스에서(004). 같은 계정의 스냅숏은 잠금 순서(=커밋 순서)대로 커지고 시계와
-        # 무관하다. 앱은 이보다 옛 것을 버린다(응답 도착 순서로는 서버 처리 순서를 알 수 없음, 11-26 앱 리뷰).
-        "v": c.execute("SELECT nextval('wallet_version') AS v").fetchone()["v"],
+        # 순서 번호 — 잠근 지갑 행에서 올린다(004). 앱은 이보다 옛 것을 버린다(응답 도착 순서로는 서버 처리 순서를 알 수
+        # 없음, 11-26 앱 리뷰). ponytail: 복원과 함께 서버 시계까지 과거로 돌아가면 남는 틈 — 그때는 wallets.v를 손으로 올린다
+        "v": c.execute(
+            "UPDATE wallets SET v = greatest(v + 1, (extract(epoch FROM clock_timestamp()) * 1000000)::bigint)"
+            " WHERE account_id = %s RETURNING v",
+            (a,),
+        ).fetchone()["v"],
         "now": time.time(),  # 서버의 실제 시각("t"는 소켓 메시지 종류 키라 피함) — 앱이 충전·자정 계산에 쓴다(v는 순서 번호라 시계가 되감기면 실제보다 앞설 수 있음, 리뷰 26차)
         "coins": w["coins"],
         "gems": w["gems"],

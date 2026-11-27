@@ -5,6 +5,7 @@ import 'account_screen.dart';
 import 'auth.dart';
 import 'home_screen.dart';
 import 'l10n/app_localizations.dart';
+import 'settings.dart';
 import 'web_nav.dart';
 
 const _ink = Color(0xFF42384C);
@@ -69,6 +70,9 @@ class _AuthGateState extends State<AuthGate> {
         : null;
     // 메일 링크의 토큰이 주소창·방문 기록에 남지 않게 지운다. Flutter가 웹 기록을 준비한 뒤(첫 프레임 후)에.
     if (u.hasQuery) WidgetsBinding.instance.addPostFrameCallback((_) => cleanUrl());
+    // 로그인 확인과 동시에(차례로면 로그인 화면이 한 번 더 기다린다). 메일 링크 화면으로 들어오면 미리 받지 않는다 — 링크 화면에
+    // 머무는 사이 설정이 오래돼, 그 뒤 로그인 화면이 옛 캡차 키를 쓰게 된다(리뷰 3차)
+    if (link == null) Auth.prefetchConfig();
     Auth.load().whenComplete(() => mounted ? setState(() => checked = true) : null);
   }
 
@@ -109,7 +113,8 @@ class AuthFrame extends StatelessWidget {
   final String title;
   final List<Widget> children;
   final bool back;
-  const AuthFrame({super.key, required this.title, required this.children, this.back = false});
+  final bool logo; // 제목 자리에 글씨 대신 제목 로고(로그인 첫 화면)
+  const AuthFrame({super.key, required this.title, required this.children, this.back = false, this.logo = false});
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -124,12 +129,15 @@ class AuthFrame extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold, color: _ink),
-                  ),
+                  if (logo)
+                    const Center(child: TitleLogo(height: 72))
+                  else
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold, color: _ink),
+                    ),
                   const SizedBox(height: 24),
                   ...children,
                 ],
@@ -264,6 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final needCaptcha = captchaAsked && hasTurnstile && (siteKey ?? '').isNotEmpty;
     return AuthFrame(
       title: t.title,
+      logo: true,
       children: [
         message(widget.googleFailed && error == null && info == null ? t.errGoogle : null),
         message(error),

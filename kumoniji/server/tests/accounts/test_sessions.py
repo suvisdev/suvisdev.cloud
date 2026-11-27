@@ -352,3 +352,36 @@ def test_a_tab_race_does_not_hide_a_replay_from_another_ip(database, monkeypatch
             else:
                 assert sessions.refresh(c, cur, retry="k1", ip="2.2.2.2")[1] == new  # 훔친 쪽
             cur = new
+
+
+def test_a_web_tab_race_on_a_revoked_session_ends_the_session_instead_of_409(database):
+    a = make_account()
+    with db.tx() as c:
+        access, r1 = sessions.create(c, a, mfa_passed=True)
+        key = sessions.retry_key(sessions.decode(access)["sid"])
+        sessions.refresh(c, r1, retry=key, ip="1.1.1.1")  # 이 탭이 회전했지만 응답을 잃음
+        sessions.revoke_all(c, a)  # 그사이 비밀번호 재설정 등으로 폐기
+        assert sessions.refresh(c, r1, retry=key, ip="1.1.1.1") is None  # 409(Raced)가 아니라 끝
+
+
+def test_same_client_that_cannot_be_reissued_ends_its_session_even_soon_after(database):
+    a = make_account()
+    with db.tx() as c:
+        access, r1 = sessions.create(c, a, mfa_passed=True)
+        key = sessions.retry_key(sessions.decode(access)["sid"])
+        tok = r1
+        for _ in range(sessions.CHAIN + 2):  # 쿠키와 키를 함께 가진 쪽이 추적 한도를 넘겨 앞서감
+            _, tok = sessions.refresh(c, tok, retry=key, ip="9.9.9.9")
+        c.execute(f"UPDATE spent_refresh SET spent_at = now() - interval '{sessions.RACE_GRACE + 1} seconds'")
+        assert sessions.refresh(c, r1, retry=key, ip="1.1.1.1") is None  # 주인은 쫓겨나지만
+        assert sessions.refresh(c, tok, retry=key, ip="9.9.9.9") is None  # 앞서간 쪽의 최신 토큰도 끊긴다
+
+
+def test_a_web_cookie_pair_from_another_ip_right_after_rotation_gets_409_not_tokens(database):
+    a = make_account()
+    with db.tx() as c:
+        access, r1 = sessions.create(c, a, mfa_passed=True)
+        key = sessions.retry_key(sessions.decode(access)["sid"])
+        sessions.refresh(c, r1, retry=key, ip="1.1.1.1")  # 주인이 회전
+        with pytest.raises(sessions.Raced):
+            sessions.refresh(c, r1, retry=key, ip="6.6.6.6")  # 훔친 옛 쿠키 쌍, 다른 IP

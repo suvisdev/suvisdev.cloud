@@ -473,3 +473,12 @@ def test_snapshot_version_keeps_growing_when_the_clock_steps_back(database, monk
     with db.tx() as c:
         vs = [store.snapshot(c, a, 1000.0)["v"] for _ in range(3)]
     assert vs[0] < vs[1] < vs[2]
+
+
+def test_snapshot_version_keeps_growing_after_the_db_is_restored_from_a_backup(database):
+    a = make_account()
+    with db.tx() as c:
+        store.snapshot(c, a, 1000.0)
+        seen = store.snapshot(c, a, 1000.0)["v"]
+        c.execute("UPDATE wallets SET v = 1 WHERE account_id = %s", (a,))  # 백업으로 되돌려 번호가 옛 값이 됨
+        assert store.snapshot(c, a, 1000.0)["v"] > seen

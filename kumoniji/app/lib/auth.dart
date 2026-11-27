@@ -46,6 +46,7 @@ class AuthClient extends http.BaseClient {
   final http.Client inner;
   String? _csrf, _access, _refresh;
   Future<String>? _csrfFetch;
+  Future<Map<String, dynamic>>? _config; // Auth.prefetchConfig — 한 번 쓰면 비운다
   Future<bool>? _refreshing;
   Duration raceWait = const Duration(seconds: 1);
 
@@ -212,6 +213,9 @@ class AuthClient extends http.BaseClient {
 
   String? _refreshingFor;
 
+  /// 서버가 갱신을 거절(세션 없음)한 횟수 — 요청 안에서 이미 거절됐으면 [Auth.logout]이 다시 묻지 않게(화폐 재리뷰)
+  int rejections = 0;
+
   /// 갱신 재시도 키 — 메모리에만 둔다. 응답을 못 받고 끊긴 갱신은 같은 키로 다시 보내 서버가 같은 새 토큰을 다시
   /// 주게 하고(멱등), 응답을 받으면 버린다. 저장된 토큰을 훔친 사람은 이 키를 몰라 다시 받지 못한다(리뷰 48·50차)
   /// 보낸 토큰마다(웹은 쿠키라 하나) — 멈춘 A의 응답이 B의 키를 지우지 않게(리뷰 52차)
@@ -254,6 +258,7 @@ class AuthClient extends http.BaseClient {
     if (r.statusCode != 200) {
       drop();
       keep(null);
+      rejections++;
       return false;
     }
     keep(j);
@@ -325,15 +330,17 @@ class Auth {
   /// 시작할 때: 로그인돼 있는지. 모르면(장애 등) 로그인 화면을 보여 주되 뒤에서 될 때까지 다시 읽어, 복구되면
   /// 저절로 홈으로(리뷰 55차).
   static Future<Me?> load() async {
-    _loads++;
-    // 기다리는 사이 다른 쪽(뒤의 복구·로그인·로그아웃)이 계정을 바꿨으면 늦은 결과로 덮지 않는다 — 로그아웃한 뒤
-    // 옛 세션의 응답이 홈을 다시 여는 일이 없게(리뷰 화폐 재리뷰)
+    final mine = ++_loads;
+    // 기다리는 사이 다른 쪽(뒤의 복구·로그인·로그아웃)이 계정을 바꿨거나 더 나중 로그인이 시작됐으면 늦은 결과로 덮지
+    // 않는다 — 로그아웃한 뒤 옛 세션의 응답이 홈을 다시 열거나, 연달아 낸 두 로그인 중 앞 것이 이기는 일이 없게(화폐 재리뷰)
     final start = _meChanges;
+    bool latest() => _meChanges == start && _loads == mine;
     try {
       final m = await _current();
-      if (_meChanges == start) me.value = m;
+      if (latest()) me.value = m;
+      if (m != null) client._config = null; // 로그인 화면을 거치지 않음 — 미리 받은 설정은 버린다
     } catch (_) {
-      if (_meChanges == start) {
+      if (latest()) {
         me.value = null;
         reloadAfterSwitch();
       }
@@ -417,7 +424,29 @@ class Auth {
     }
   }
 
-  static Future<Map<String, dynamic>> config() async => _decode(await client.get(_uri('/config')));
+  /// 앱 시작 때 /me와 함께 로그인 화면 설정을 미리 받아 둔다(11-26 시작 속도). 다음 [config] 한 번만 이 값을 쓴다.
+  /// 로그인돼 있으면 [load]가 버리고, 실패하면 스스로 버린다 — 로그아웃 뒤 첫 로그인 화면이 오래된 값이나 실패를 쓰지 않게(리뷰 2차).
+  static void prefetchConfig() {
+    final c = client;
+    if (c._config != null) return;
+    late final Future<Map<String, dynamic>> f;
+    f = c.get(_uri('/config')).then(_decode)
+      ..catchError((Object _) {
+        if (identical(c._config, f)) c._config = null;
+        return const <String, dynamic>{};
+      });
+    c._config = f;
+  }
+
+  /// 로그인 화면 설정(구글·캡차). 미리 받은 값은 한 번만 쓰고 비운다 — 그 뒤 로그인 화면에 다시 오면 새로 받아,
+  /// 탭을 열어 둔 사이 서버가 캡차를 켜도 최신 키를 쓴다(리뷰 1차). 미리 받기가 실패했으면 그 자리에서 새로 받는다(리뷰 4차).
+  static Future<Map<String, dynamic>> config() {
+    final c = client;
+    final pre = c._config;
+    c._config = null;
+    Future<Map<String, dynamic>> fresh() => c.get(_uri('/config')).then(_decode);
+    return pre?.catchError((Object _) => fresh()) ?? fresh();
+  }
 
   /// 반환: verified(false면 메일 인증 전), mfa_required.
   static Future<Map<String, dynamic>> login(String email, String password, {String? captcha}) async {
@@ -456,7 +485,7 @@ class Auth {
   }
 
   static Future<void> logout() async {
-    final loads = _loads, id = me.value?.id;
+    final loads = _loads, id = me.value?.id, rejections = client.rejections;
     try {
       await _post('/logout');
     } on AuthError catch (e) {
@@ -467,7 +496,9 @@ class Auth {
       // 401이어도 세션이 끝났다고 단정하지 않는다 — 액세스만 만료되고 다른 탭의 갱신 쿠키가 늦게 올 수도 있다.
       // 서버가 갱신을 거절(세션 없음)했을 때만 로그아웃 상태로. 갱신됨·다른 탭이 방금 갱신(409)이면 세션이 살아 있으니
       // 실패로 알리고, 장애(5xx·연결 오류)는 모르는 것이니 그대로 던진다(리뷰 47·48·52차)
-      if (await client.refresh()) rethrow;
+      // 로그아웃 요청 안의 갱신이 이미 거절됐으면 다시 묻지 않는다 — 두 번째 갱신이 장애로 실패해 끝난 세션을 실패로
+      // 알리지 않게(화폐 재리뷰)
+      if (client.rejections == rejections && await client.refresh()) rethrow;
     }
     // 연결 끊김·시간 초과는 그대로 던진다 — 서버가 세션을 폐기했는지 모르고, 웹의 HttpOnly 쿠키는 서버 응답으로만
     // 지워져 로그아웃된 척하면 새로고침에 다시 로그인된다. 호출부가 실패를 알린다(리뷰 37·38차)
