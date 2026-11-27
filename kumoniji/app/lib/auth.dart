@@ -2,14 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' show Random;
 
-import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
+import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb, visibleForTesting;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart' show Api, GuardedRequest;
 import 'settings.dart' show Settings;
 
 /// 로그인한 계정(서버 /api/auth/me).
 class Me {
+  final Map<String, dynamic> json; // 받은 그대로 — 앱 로그인 저장(Auth.restore)
   final int id;
   final String? email;
   final String nickname;
@@ -17,7 +22,8 @@ class Me {
   final List<String> providers;
 
   Me.fromJson(Map<String, dynamic> j)
-    : id = j['id'],
+    : json = j,
+      id = j['id'],
       email = j['email'],
       nickname = j['nickname'] ?? '',
       mfaEnabled = j['mfa_enabled'] ?? false,
@@ -40,7 +46,7 @@ class AuthError implements Exception {
 
 /// 모든 요청이 거치는 클라이언트(게임 API 포함).
 /// - 웹: 같은 원점이라 브라우저가 __Host- 쿠키를 붙인다. 상태를 바꾸는 요청에는 CSRF 값을 X-CSRF 머리글로 보낸다.
-/// - 앱: X-Kumoniji-Client: app + Bearer. ponytail: 토큰은 메모리에만 — 앱 출시 전에 Keystore 보관으로 바꿔야 자동 로그인이 된다.
+/// - 앱: X-Kumoniji-Client: app + Bearer. 토큰은 보안 저장소(안드로이드 Keystore·iOS 키체인)에도 둬 다음에 켜면 바로 홈([Auth.restore]).
 /// 401이면 리프레시로 한 번 갱신한 뒤 다시 보낸다(동시에 여러 요청이 401이어도 갱신은 한 번).
 class AuthClient extends http.BaseClient {
   final http.Client inner;
@@ -174,6 +180,15 @@ class AuthClient extends http.BaseClient {
   }
 
   /// 실패하면 다음 요청에서 다시 받는다(실패한 Future를 계속 재사용하면 새로고침 전까지 모든 요청이 막힌다).
+  /// 앱이 가진 토큰이 있나(웹은 쿠키라 알 수 없어 늘 true)
+  bool get hasTokens => kIsWeb || _access != null || _refresh != null;
+
+  /// 웹: 시작 때 로그인 확인과 동시에 CSRF 값을 받아 둔다 — 액세스가 만료돼 갱신(POST)할 때 CSRF를 차례로 받느라 한 번 더
+  /// 기다리지 않게(11-26 실측: /me → csrf → refresh → /me, 각 ~0.3초). 실패하면 _getCsrf가 비워 다음에 다시 받는다
+  void prefetchCsrf() {
+    if (kIsWeb) _getCsrf().then((_) {}, onError: (Object _) {});
+  }
+
   Future<String> _getCsrf() => _csrfFetch ??= _fetchCsrf().catchError((Object e) {
     _csrfFetch = null;
     throw e;
@@ -216,8 +231,9 @@ class AuthClient extends http.BaseClient {
   /// 서버가 갱신을 거절(세션 없음)한 횟수 — 요청 안에서 이미 거절됐으면 [Auth.logout]이 다시 묻지 않게(화폐 재리뷰)
   int rejections = 0;
 
-  /// 갱신 재시도 키 — 메모리에만 둔다. 응답을 못 받고 끊긴 갱신은 같은 키로 다시 보내 서버가 같은 새 토큰을 다시
-  /// 주게 하고(멱등), 응답을 받으면 버린다. 저장된 토큰을 훔친 사람은 이 키를 몰라 다시 받지 못한다(리뷰 48·50차)
+  /// 갱신 재시도 키 — 토큰과 함께 저장소에 둔다(앱 로그인 저장, [keep]). 응답을 못 받고 끊긴 갱신은 같은 키로 다시 보내 서버가 같은 새 토큰을 다시
+  /// 주게 하고(멱등), 응답을 받으면 버린다. 리프레시만 새어 나간 사람은 이 키를 몰라 다시 받지 못한다(리뷰 48·50차) — 저장소를
+  /// 턴 사람은 어차피 지금 토큰도 가지므로 함께 저장해도 더 약해지지 않는다
   /// 보낸 토큰마다(웹은 쿠키라 하나) — 멈춘 A의 응답이 B의 키를 지우지 않게(리뷰 52차)
   final _retry = <String?, String>{};
 
@@ -225,7 +241,25 @@ class AuthClient extends http.BaseClient {
     if (!kIsWeb && _refresh == null) return false;
     final sent = _refresh; // 보낸 토큰 — 응답이 늦게 오는 사이 로그아웃·다른 계정 로그인으로 바뀌었으면 결과를 버린다(리뷰 41차)
     // 웹은 보내지 않는다 — 서버가 브라우저마다 심은 HttpOnly 쿠키를 키로 써서 다른 탭·새로고침도 같은 키다(리뷰 60·62차)
-    final retry = _retry[sent] ??= base64UrlEncode(List.generate(24, (_) => Random.secure().nextInt(256)));
+    final retry = _retry[sent] ??= _newKey();
+    // 앱: 보내기 전에 키를 토큰과 함께 저장 — 서버가 회전한 뒤 새 토큰을 저장하기 전에 앱이 꺼지면 다음 실행은 옛 토큰을
+    // 보낸다. 같은 키가 있어야 서버가 같은 새 토큰을 다시 주고, 없으면 재사용으로 보고 모든 기기를 로그아웃한다(sessions.refresh)
+    // 키를 못 저장했으면 저장소의 옛 토큰을 지우고 보낸다(다음 실행은 다시 로그인) — 키 없는 옛 토큰이 남은 채 회전되면
+    // 다음 실행이 재사용으로 걸린다(리뷰 1차). 지우지도 못해도 저장소에 남은 게 없거나 이 토큰과 그 키라면(마지막으로
+    // 성공한 쓰기) 보낸다 — 저장소가 늘 고장 난 기기에서 액세스 만료마다 끊기지 않게(리뷰 5차). 다른 토큰이 남았을 때만 멈춘다
+    // 설정의 세대를 지웠으면 저장소에 남은 기록은 되살아나지 않으니 그것도 안전(리뷰 8차)
+    // 지우는 쪽으로 가면 세대도 새로 — 그 뒤 새 토큰을 저장할 때 설정에 다시 적힐 세대가 남은 옛 기록과 짝이 맞지 않게
+    // 저장을 기다리는 사이 로그아웃·다른 계정 로그인으로 토큰이 바뀌었으면 손대지 않고 그만 — 바뀐 뒤에 지우면 B의 기록을
+    // 지운다(리뷰 15차)
+    if (!await save()) {
+      if (_refresh != sent) return false;
+      _gen = _newKey();
+      final cleared = await save(clear: true);
+      if (_refresh != sent) return false;
+      if (!cleared && _onDisk != null && _onDisk != sent && !(_prefsGenKnown && _prefsGen == null)) {
+        throw http.ClientException('vault unavailable', Uri.parse('${Api.base}/api/auth/refresh'));
+      }
+    }
     http.Request req() => http.Request('POST', Uri.parse('${Api.base}/api/auth/refresh'))
       ..headers['content-type'] = 'application/json'
       ..body = jsonEncode({if (!kIsWeb) 'refresh': sent, if (!kIsWeb) 'retry': retry});
@@ -261,7 +295,7 @@ class AuthClient extends http.BaseClient {
       rejections++;
       return false;
     }
-    keep(j);
+    keep(j, rotated: true);
     drop();
     return true;
   }
@@ -277,17 +311,178 @@ class AuthClient extends http.BaseClient {
   }
 
   /// 앱: 응답 본문의 토큰을 기억(웹은 쿠키라 할 일 없음). null이면 잊는다.
-  void keep(Map<String, dynamic>? body) {
+  void keep(Map<String, dynamic>? body, {bool rotated = false, bool sameAccount = false}) {
     if (kIsWeb) return;
+    final before = _refresh, meKnown = _meGen != null && _meGen == _gen;
     _access = body?['access'] ?? (body == null ? null : _access);
     _refresh = body?['refresh'] ?? (body == null ? null : _refresh);
+    // 재시도 키는 토큰을 받는 순간 만들어 토큰과 한 번에 저장한다 — 안드로이드 저장소는 디스크 기록을 예약만 하고 바로
+    // 성공을 돌려줘(SharedPreferences.apply), 갱신 직전에 쓰면 키가 디스크에 닿기 전에 회전·종료될 수 있다(리뷰 2차).
+    // 다음 갱신은 액세스 만료(15분) 뒤라 그때는 이미 기록돼 있다.
+    // 남는 틈(알고 둠): 서버가 회전한 직후 새 토큰을 저장하기 전에 앱이 꺼지면 저장소엔 쓴 토큰과 그 키가 남는다. 서버는
+    // 같은 키의 다시 받기를 REPLAY 안에서만 받고, 지나면 이 기기 세션만 끊는다(다른 기기는 둠, sessions.refresh) — 그때는
+    // 이 기기에서 다시 로그인한다. 다시 받기 기간을 늘리면 리프레시+키를 함께 훔친 사람의 기간도 늘어 서버가 정한 값(리뷰 9차)
+    if (_refresh != null) _retry[_refresh] ??= _newKey();
+    // 로그인 세대 — 새 로그인마다 새로, 갱신(회전) 동안은 그대로, 로그아웃이면 없음. 새 로그인이 옛 세대를 이어 쓰면
+    // 그 저장이 실패할 때 남은 앞 계정 기록이 짝이 맞아 되살아난다(리뷰 15차)
+    _gen = _refresh == null ? null : (rotated ? (_gen ?? _newKey()) : _newKey());
+    // 화면의 계정(Auth.me)이 이 토큰의 계정인지 — 갱신(회전)·비밀번호 바꾸기(같은 계정)·토큰이 그대로면 이어 가고, 새
+    // 로그인이면 그 /me가 올 때까지 모른다. 모르는 동안은 저장 기록에 계정을 넣지 않는다 — 앞 계정의 늦은 다시 읽기가
+    // 화면에 넣은 계정이 새 토큰과 한 기록에 섞여, 꺼졌다 켜면 남의 닉네임·이메일이 보였다(리뷰 20차)
+    _meGen = meKnown && (rotated || sameAccount || _refresh == before) ? _gen : null;
+    save();
+  }
+
+  /// [Auth.me]가 어느 로그인 세대의 계정인지 — 계정이 바뀔 때 그때의 세대로 적는다. 지금 세대와 같을 때만 저장 기록에 넣는다
+  String? _meGen;
+
+  /// 지금 로그인의 세대. 저장할 때 설정(SharedPreferences, 안드로이드는 commit이라 바로 디스크)에 먼저 적고 보안 저장소의
+  /// 기록에도 함께 넣는다. 켤 때 둘이 같은 기록만 되살린다 — 보안 저장소의 쓰기·지우기는 디스크 반영이 늦거나(apply)
+  /// 실패할 수 있어, 로그아웃이나 새 로그인 뒤에도 옛 계정 기록이 남을 수 있다(리뷰 6·7차). 설정의 세대를 지우거나 바꾸면
+  /// 그 옛 기록은 짝이 없어 버려진다
+  String? _gen;
+  static const genKey = 'sessionGen';
+
+  /// 설정에 적힌 세대(알 때만) — [Auth.restore]가 읽어 둔다
+  static String? _prefsGen;
+  static bool _prefsGenKnown = false;
+
+  /// 테스트: 설정을 빈 가짜로 바꿨으면 세대도 없음으로
+  @visibleForTesting
+  static void forgetPrefsGen() {
+    _prefsGen = null;
+    _prefsGenKnown = true;
+  }
+
+  static String _newKey() => base64UrlEncode(List.generate(24, (_) => Random.secure().nextInt(256)));
+
+  /// 앱 로그인 저장소(웹은 쿠키라 없음). 이 기기에서만 — iCloud 키체인으로 다른 기기에 옮겨 가지 않게.
+  /// iOS에 Keychain Sharing(keychain-access-groups) 권한은 넣지 않는다 — 그 권한이 없으면 앱의 기본 접근 그룹(앱 ID)을 쓰고,
+  /// 권한은 다른 앱과 키체인을 나눌 때만 필요하다(Apple 'Sharing access to keychain items'). 플러그인 README의 그 안내는
+  /// macOS용이다(macOS 데이터 보호 키체인). iOS 출시는 안드로이드 뒤(ADR-0025) — 그때 실기기로 다시 켜서 확인한다(리뷰 21차)
+  static FlutterSecureStorage? vault = kIsWeb
+      ? null
+      : const FlutterSecureStorage(iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device));
+  static const _saved = 'session';
+  Future<void> _saving = Future.value();
+
+  /// 저장소에 마지막으로 성공해 쓴 리프레시 토큰(늘 그 재시도 키와 함께 씀). 지웠으면 null, 키 없이 읽었으면 ''(모름)
+  String? _onDisk;
+
+  /// 지금 토큰·보낼 갱신의 재시도 키·계정을 저장(토큰이 없거나 [clear]면 지운다). 차례로 쓰고, 쓰는 순간의 값을 쓴다 — 늦게
+  /// 끝난 앞 저장이 새 값을 덮지 않게. 성공했으면 true. 실패·멈춤(2초)은 다음 실행에 다시 로그인할 뿐이라 화면엔 알리지 않는다
+  Future<bool> save({bool clear = false}) {
+    final v = vault;
+    if (v == null) return Future.value(true);
+    final done = _saving.then((_) async {
+      try {
+        // 쓸 값은 한 번에 잡아 둔다 — 설정 쓰기를 기다리는 사이 다른 계정의 로그인이 오면 옛 리프레시와 새 액세스·계정이
+        // 한 기록에 섞인다(리뷰 13차)
+        final r = clear ? null : _refresh;
+        final gen = r == null ? null : _gen;
+        final record = r == null
+            ? null
+            : jsonEncode({
+                'access': _access,
+                'refresh': r,
+                'retry': _retry[r],
+                'gen': gen,
+                'me': _meGen == gen ? Auth.me.value?.json : null,
+              });
+        // 세대가 바뀔 때만 설정에 쓴다(계정 정보만 바뀐 저장은 건드리지 않음). 먼저 — 아래 보안 저장소 쓰기·지우기가
+        // 늦거나 실패해도 남은 옛 기록은 짝이 없어 안 살아난다
+        var prefsOk = true;
+        if (!_prefsGenKnown || _prefsGen != gen) {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            // false도 실패 — 못 쓴 걸 쓴 줄 알면 다음 저장이 세대 쓰기를 건너뛴다(리뷰 8차)
+            prefsOk = await (gen == null ? prefs.remove(genKey) : prefs.setString(genKey, gen));
+          } catch (_) {
+            prefsOk = false;
+          }
+          if (prefsOk) {
+            _prefsGen = gen;
+            _prefsGenKnown = true;
+          } else if (gen != null) {
+            return false; // 새 세대를 못 적었으면 저장소에 쓰지 않는다 — 짝 없는 기록은 어차피 안 살아난다
+          }
+          // 지우는 쪽은 세대를 못 지웠어도 아래 저장소 지우기는 해 본다(리뷰 12차)
+        }
+        await (record == null ? v.delete(key: _saved) : v.write(key: _saved, value: record)).timeout(
+          const Duration(seconds: 2),
+        );
+        _onDisk = r;
+        return prefsOk;
+      } catch (_) {
+        return false;
+      }
+    });
+    _saving = done;
+    return done;
   }
 }
 
 /// 계정 API. 화면은 이 함수들만 부른다.
 class Auth {
   static AuthClient client = AuthClient(); // 테스트는 가짜 서버로 바꾼다
-  static final me = ValueNotifier<Me?>(null)..addListener(() => _meChanges++);
+  static final me = ValueNotifier<Me?>(null)
+    ..addListener(() => _meChanges++)
+    // 다음 실행에 바로 보일 계정 — 지금 토큰(세대)의 계정으로 적는다
+    ..addListener(() {
+      client._meGen = client._gen;
+      client.save();
+    })
+    ..addListener(_rememberEmail);
+
+  /// 마지막 로그인 이메일은 화면에 보이는 계정이 바뀔 때마다 그 계정 것으로 — 어느 방법(비밀번호·구글)으로, 어느 길(바로
+  /// 읽기·뒤의 복구)로 들어왔든 앞사람의 이메일이 다음 로그인 화면에 남지 않게, 이메일 없는 계정이면 지운다(리뷰 14·15차)
+  static void _rememberEmail() {
+    final m = me.value;
+    if (m == null || kIsWeb) return; // 앱만 — 웹은 공용 브라우저에서 다음 사람에게 보일 수 있다(리뷰 16차)
+    final email = m.email;
+    SharedPreferences.getInstance().then(
+      (p) => email == null ? p.remove(lastEmailKey) : p.setString(lastEmailKey, email),
+      onError: (_) => false,
+    );
+  }
+
+  /// 앱을 켤 때(첫 화면 전, 네이티브 시작 화면이 가리는 동안) 저장된 로그인을 읽는다. 계정까지 있으면 확인 전에 그 계정으로
+  /// 홈을 먼저 보이고 [verifyRestored]가 뒤에서 확인한다 — 끝난 세션이면 로그인 화면으로, 장애면 홈에 둔 채 다시(11-27 사용자
+  /// '기다림에 익숙하지 않다'). 못 읽으면(2초) 로그인 안 한 것처럼
+  static Future<void> restore() async {
+    final v = AuthClient.vault;
+    if (v == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final s = await v.read(key: AuthClient._saved).timeout(const Duration(seconds: 2));
+      final j = s == null ? null : jsonDecode(s);
+      if (j is! Map || j['refresh'] is! String) return;
+      final gen = prefs.getString(AuthClient.genKey);
+      AuthClient._prefsGen = gen;
+      AuthClient._prefsGenKnown = true;
+      // 세대가 다르면 로그아웃·새 로그인 전의 옛 기록 — 되살리지 않고 지운다(실패해도 짝이 없어 다음에도 안 살아남).
+      // iOS 키체인은 앱을 지워도 남지만 설정은 앱과 함께 지워져 세대가 없으니 재설치도 여기서 걸린다 — 따로 '설치 표시'를
+      // 두면 첫 실행에 지우기가 실패할 때 표시를 못 남겨, 같은 실행에서 저장한 새 로그인을 다음 실행이 지웠다(리뷰 11차)
+      if (gen == null || j['gen'] != gen) {
+        await v.delete(key: AuthClient._saved).timeout(const Duration(seconds: 2));
+        return;
+      }
+      final c = client;
+      c._gen = gen;
+      c._meGen = j['me'] is Map<String, dynamic> ? gen : null;
+      c._access = j['access'] as String?;
+      c._refresh = j['refresh'] as String;
+      if (j['retry'] is String) c._retry[c._refresh] = j['retry'] as String;
+      c._onDisk = j['retry'] is String ? c._refresh : '';
+      if (j['me'] is Map<String, dynamic>) me.value = Me.fromJson(j['me']);
+    } catch (_) {}
+  }
+
+  /// [restore]로 먼저 보인 계정을 서버에 확인 — 세션이 그대로인 동안 될 때까지(reloadIfStill)
+  static void verifyRestored() {
+    final s = me.value;
+    if (s != null) reloadIfStill(s);
+  }
 
   /// me가 바뀐 횟수 — 기다리는 사이 로그인·로그아웃이 있었는지(값만 보면 로그인했다 로그아웃한 것을 모른다)
   static int _meChanges = 0;
@@ -317,7 +512,12 @@ class Auth {
   /// 지금 쿠키(웹)·토큰(앱)의 계정. 로그인이 없다고 확실할 때만 null — /me가 401이고 서버가 갱신도 거절했을 때.
   /// 모르면 던진다(5xx·연결 오류·제한 시간, 그리고 갱신됐거나 다른 탭이 방금 갱신(409)했는데 새 쿠키가 아직 안 와
   /// /me가 여전히 401) — 부르는 쪽이 잠시 뒤 다시 읽는다. 유효한 세션을 끝난 것으로 보지 않게(리뷰 31·55·56차)
+  /// 토큰이 없으면 /me를 묻지 않는다(앱). 테스트는 쿠키처럼 토큰 없이 /me가 통하는 가짜 서버를 써서 끈다(flutter_test_config)
+  static bool skipMeWithoutTokens = !kIsWeb;
+
   static Future<Me?> _current() async {
+    // 앱은 토큰을 메모리에만 둔다 — 하나도 없으면(막 켰을 때) 물어볼 것 없이 로그인 전. 시작 때 왕복 하나를 아낀다(11-27 시작 속도)
+    if (skipMeWithoutTokens && !client.hasTokens) return null;
     var r = await client.get(_uri('/me'));
     if (r.statusCode == 401) {
       if (!await client.refresh()) return null;
@@ -452,8 +652,47 @@ class Auth {
   static Future<Map<String, dynamic>> login(String email, String password, {String? captcha}) async {
     final j = await _post('/login', {'email': email, 'password': password, 'captcha': captcha});
     client.keep(j);
+    // 마지막 로그인 이메일은 로그인이 끝나 계정이 보일 때 [_rememberEmail]이 적는다 — 인증 전 계정은 안 적음(리뷰 17차)
     if (j['verified'] == true) await load();
     return j;
+  }
+
+  /// 앱 구글 로그인: 폰의 구글 계정 고르기 → ID 토큰 → 서버 검증(/google/app). 고르다 닫으면 false.
+  /// [clientId]는 웹 클라이언트 ID(/config) — 서버가 같은 값으로 aud를 본다. 안드로이드 OAuth 클라이언트(패키지 이름 +
+  /// 서명 SHA-1)가 같은 Cloud 프로젝트에 등록돼 있어야 구글이 토큰을 준다
+  static Future<bool> loginWithGoogle(String clientId) async {
+    final g = GoogleSignIn.instance;
+    final nonce = await (_googleInit ??= _initGoogle(g, clientId).catchError((Object e) {
+      _googleInit = null; // 실패하면 다음 누름에 다시
+      throw e;
+    }));
+    final GoogleSignInAccount a;
+    try {
+      a = await g.authenticate();
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return false;
+      throw AuthError(401, 'google');
+    }
+    final id = a.authentication.idToken;
+    g.signOut().ignore(); // 우리 세션만 쓴다 — 로그아웃 뒤 다음엔 다른 구글 계정을 고를 수 있게
+    if (id == null) throw AuthError(401, 'google');
+    await googleApp(id, nonce);
+    return true;
+  }
+
+  /// 구글 로그인 준비는 앱 실행마다 한 번만 된다(google_sign_in 규칙) — 일회용 값(nonce)도 그때 하나. 서버는 토큰의 nonce가
+  /// 보낸 값과 같은지만 본다
+  static Future<String>? _googleInit;
+  static Future<String> _initGoogle(GoogleSignIn g, String clientId) async {
+    final nonce = base64UrlEncode(List.generate(24, (_) => Random.secure().nextInt(256)));
+    await g.initialize(serverClientId: clientId, nonce: nonce);
+    return nonce;
+  }
+
+  /// 구글이 준 ID 토큰으로 로그인(서버가 서명·대상·nonce 검증, 없으면 계정을 만든다)
+  static Future<void> googleApp(String idToken, String nonce) async {
+    client.keep(await _post('/google/app', {'id_token': idToken, 'nonce': nonce}));
+    await load();
   }
 
   static Future<void> signup(String email, String password, String nickname) =>
@@ -507,13 +746,20 @@ class Auth {
     if (_loads != loads || me.value?.id != id) return;
     client.keep(null);
     me.value = null;
+    await client.save(); // 저장소에서 지우기까지 — 곧바로 앱을 꺼도 옛 계정으로 켜지지 않게(리뷰 3차, 세대는 _gen)
   }
 
   static Future<void> reauth(String password) => _post('/reauth', {'password': password});
 
   static Future<void> changePassword(String password) async =>
-      client.keep(await _post('/password', {'password': password}));
+      client.keep(await _post('/password', {'password': password}), sameAccount: true);
   static Future<void> changeEmail(String email) => _post('/email', {'email': email});
+
+  static Future<void> changeNickname(String nickname) async {
+    await _post('/nickname', {'nickname': nickname});
+    await reload();
+  }
+
   static Future<Map<String, dynamic>> mfaSetup() => _post('/mfa/setup');
 
   static Future<List<String>> mfaEnable(String code) async {
@@ -535,10 +781,14 @@ class Auth {
     await reload();
   }
 
+  static const lastEmailKey = 'lastEmail';
+
   static Future<void> deleteAccount() async {
     await _post('/delete');
+    SharedPreferences.getInstance().then((p) => p.remove(lastEmailKey), onError: (_) => false);
     client.keep(null);
     me.value = null;
+    await client.save();
   }
 
   /// 웹에서 구글로 보낼 주소(서버가 PKCE·state·nonce를 만든다).

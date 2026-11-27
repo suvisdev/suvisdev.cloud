@@ -476,32 +476,62 @@ class _TableScreenState extends State<TableScreen> {
           backgroundColor: Colors.transparent,
           appBar: AppBar(
             toolbarHeight: low ? 44 : null,
-            title: low && g != null
-                // 아주 좁은 창에서도 넘치지 않게 통째로 줄인다(리뷰 2차)
-                ? FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _SuitOrder(suits: g.suits, label: t.suitOrder),
-                        PracticeButtons(out: _out.value, live: _out, suits: g.suits),
-                      ],
-                    ),
-                  )
-                // 이름은 글씨가 아니라 제목 로고로(홈과 같게, 11-26 사용자) — 판이 오면 옆에 난이도
-                // 좁은 폰에선 로고·난이도를 한 줄 그대로 줄인다
-                : FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [const TitleLogo(height: 32), if (g != null) Text('  ·  ${levelName(t, g.level)}')],
+            // 제목(로고·난이도)을 누르면 홈으로 — 뒤로 가기와 같다(판 중이면 나갈지 묻는다, 11-27 사용자)
+            // 낮은 가로 창은 제목 자리에 무늬 순서가 들어가니 앞에 작은 로고를 두어 거기서도 누를 수 있게(리뷰 19차)
+            title: FittedBox(
+              // 아주 좁은 창에서도 넘치지 않게 통째로 줄인다(리뷰 2차)
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    key: const ValueKey('title-home'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.maybePop(context),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      // 이름은 글씨가 아니라 제목 로고로(홈과 같게, 11-26 사용자) — 판이 오면 옆에 난이도
+                      child: low && g != null
+                          ? const Padding(padding: EdgeInsets.only(right: 8), child: TitleLogo(height: 24))
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const TitleLogo(height: 32),
+                                if (g != null) Text('  ·  ${levelName(t, g.level)}'),
+                              ],
+                            ),
                     ),
                   ),
+                  if (low && g != null) ...[
+                    _SuitOrder(suits: g.suits, label: t.suitOrder),
+                    PracticeButtons(out: _out.value, suits: g.suits),
+                  ],
+                ],
+              ),
+            ),
             backgroundColor: Colors.transparent,
             actions: [
               if (g != null) _TodayBadge(suit: g.today, label: narrowBar ? '' : t.today, doubles: g.doubles),
               const MuteButton(),
-              IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
+              // 꾸미기(배경·게임판·세트)는 옵션이 아니라 게임 화면에서 바로(11-27 사용자). 좁은 줄에선 게임 방법도 이 메뉴로 —
+              // 버튼이 하나 늘어 새 게임·오늘의 무늬가 밀리지 않게
+              PopupMenuButton<Future<void> Function(BuildContext)>(
+                key: const ValueKey('table-look'),
+                tooltip: t.tableBackground,
+                icon: const Icon(Icons.palette_outlined),
+                onSelected: (pick) => pick(context),
+                itemBuilder: (_) => [
+                  for (final (key, label, pick) in [
+                    ('table-background', t.tableBackground, (BuildContext c) => pickBackground(c, 'table')),
+                    ('board', t.board, pickBoard),
+                    ('board-set', t.boardSet, pickBoardSet),
+                    if (narrowBar) ('help', t.help, showHelp),
+                  ])
+                    PopupMenuItem(key: ValueKey(key), value: pick, child: Text(label)),
+                ],
+              ),
+              if (!narrowBar)
+                IconButton(tooltip: t.help, icon: const Icon(Icons.help_outline), onPressed: () => showHelp(context)),
               if (narrowBar)
                 IconButton(
                   key: const ValueKey('new-game'),
@@ -608,8 +638,7 @@ class _TableScreenState extends State<TableScreen> {
                                         Flexible(
                                           child: _SuitOrder(suits: g.suits, label: t.suitOrder),
                                         ),
-                                        if (!PracticeFrame.wide(context))
-                                          PracticeButtons(out: _out.value, live: _out, suits: g.suits),
+                                        PracticeButtons(out: _out.value, suits: g.suits),
                                       ],
                                     ),
                                     const SizedBox(height: 6),
@@ -796,13 +825,14 @@ class _TableScreenState extends State<TableScreen> {
     );
   }
 
-  /// 정사각형 판: 자리마다 자기 앞(판 가장자리)에 이번 바퀴에 낸 패를 놓는다. 지금 가장 센 패만 진하게.
+  /// 정사각형 판: 지금 가장 센 패(이길 패)는 판 가운데에 진하게, 나머지 자리는 자기 앞(판 가장자리)에 흐리게.
+  /// 가운데 패는 낸 자리 쪽에서 날아와 누가 냈는지 보인다(11-27 사용자 '가운데 내 차례 자리에 패가 오게').
   /// [w]×[h] 판. 가로가 넓으면 위·아래 자리 칸이 넓어지고 양옆 칸은 판 폭에 비례.
   Widget _felt4(AppLocalizations t, GameState g, double w, double h) {
-    Widget area(int seat, double w, double h, int perRow) {
+    Widget area(int seat, double w, double h, int perRow, {bool center = false}) {
       final m = plays[seat];
-      if (m == null) return SizedBox(width: w, height: h);
       final top = seat == lead;
+      if (m == null || top != center) return SizedBox(width: w, height: h); // 가장 센 패는 가장자리가 아니라 가운데에
       final rows = [for (var i = 0; i < m.length; i += perRow) m.sublist(i, min(i + perRow, m.length))];
       return SizedBox(
         width: w,
@@ -822,13 +852,17 @@ class _TableScreenState extends State<TableScreen> {
                       for (final c in r)
                         Padding(
                           padding: const EdgeInsets.all(2),
-                          // 같은 수면 키가 같아 다시 그려도 모션이 반복되지 않는다
-                          child: _DropIn(
-                            key: ValueKey('drop-$seat-${m.join()}-$c'),
-                            index: m.indexOf(c),
-                            from: _from[seat],
-                            child: TileView(code: c, width: 54),
-                          ),
+                          // 같은 수면 키가 같아 다시 그려도 모션이 반복되지 않는다. 가장자리 패는 날아오지 않는다 — 새로 낸
+                          // 패는 늘 이길 패라 가운데에 놓이고, 가장자리는 밀려난 옛 이길 패뿐이다(이미 끝난 수가 다시
+                          // 날아오는 것처럼 보였다, 리뷰 3차)
+                          child: center
+                              ? _DropIn(
+                                  key: ValueKey('drop-$seat-${m.join()}-$c'),
+                                  index: m.indexOf(c),
+                                  from: _from[seat],
+                                  child: TileView(code: c, width: 54),
+                                )
+                              : TileView(key: ValueKey('drop-$seat-${m.join()}-$c'), code: c, width: 54),
                         ),
                     ],
                   ),
@@ -848,13 +882,24 @@ class _TableScreenState extends State<TableScreen> {
           Align(alignment: Alignment.centerLeft, child: area(1, w * .3, h * .42, 3)),
           Align(alignment: Alignment.centerRight, child: area(3, w * .3, h * .42, 3)),
           Align(alignment: Alignment.bottomCenter, child: area(0, w * .8, h * .26, 5)),
-          if (myTurn)
-            Center(
-              child: Text(
-                t.yourTurn,
-                style: const TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
+          Center(
+            // 아주 작은 판(글자 크게)에선 가운데 패와 '내 차례'를 함께 줄인다
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (lead != null && plays[lead!] != null) area(lead!, w * .5, h * .34, 5, center: true),
+                  // 가운데 패가 있으면 그 자리를 패에 준다 — 작은 판에선 글자와 겹쳤다. 차례는 내 자리 '차례' 표시가 알린다
+                  if (myTurn && (lead == null || plays[lead!] == null))
+                    Text(
+                      t.yourTurn,
+                      style: const TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                ],
               ),
             ),
+          ),
         ],
       ),
     );
@@ -1091,18 +1136,20 @@ class _Backs extends StatelessWidget {
       final along = turns.isOdd ? h : w;
       final step = count < 2 ? 0.0 : min(along / 2, (length - along) / (count - 1));
       final total = count == 0 ? 0.0 : along + step * (count - 1);
-      return SizedBox(
-        width: turns.isOdd ? w : total,
-        height: turns.isOdd ? total : h,
-        child: Stack(
-          children: [
-            for (var i = 0; i < count; i++)
-              Positioned(
-                left: turns.isOdd ? 0 : step * i,
-                top: turns.isOdd ? step * i : 0,
-                child: const TileView(code: 'back', width: w),
-              ),
-          ],
+      return _tilt(
+        SizedBox(
+          width: turns.isOdd ? w : total,
+          height: turns.isOdd ? total : h,
+          child: Stack(
+            children: [
+              for (var i = 0; i < count; i++)
+                Positioned(
+                  left: turns.isOdd ? 0 : step * i,
+                  top: turns.isOdd ? step * i : 0,
+                  child: const TileView(code: 'back', width: w),
+                ),
+            ],
+          ),
         ),
       );
     }
@@ -1134,8 +1181,28 @@ class _Backs extends StatelessWidget {
         ],
       ),
     );
-    return RotatedBox(quarterTurns: turns, child: fan);
+    return _tilt(RotatedBox(quarterTurns: turns, child: fan));
   }
+
+  /// 상대 패를 원근으로 기울인다 — 판을 사이에 두고 마주 앉아 패를 세워 든 걸 내 자리에서 보는 느낌(11-27 사용자 '같이 게임을
+  /// 하고 있는 느낌, 2.5D·3D'). 맞은편은 위가 멀어지게, 양옆은 판 바깥쪽이 멀어지게. 자리 칸 크기는 그대로(그리기만 기울임)
+  Widget _tilt(Widget child) => Transform(
+    // 내 쪽 가장자리를 축으로 — 먼 쪽이 줄어들어 사다리꼴로 보인다(가운데 축이면 납작해지기만 했다)
+    alignment: switch (turns) {
+      1 => Alignment.centerRight,
+      3 => Alignment.centerLeft,
+      _ => Alignment.bottomCenter,
+    },
+    transform: Matrix4.identity()
+      ..setEntry(3, 2, 0.005)
+      ..rotateX(turns == 2 ? 0.6 : 0)
+      ..rotateY(switch (turns) {
+        1 => 0.7,
+        3 => -0.7,
+        _ => 0.0,
+      }),
+    child: child,
+  );
 }
 
 /// 무늬 순서 띠: 약한 것부터 차례로, 그림 아래 이름(기호 없이 — 11-25 사용자).

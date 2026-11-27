@@ -91,8 +91,6 @@
   "comboStraight": "Straight",
   "comboFullHouse": "Full house",
   "comboOddEven": "Odd/even",
-  "comboColorStraight": "One-colour straight",
-  "comboColorOddEven": "One-colour odd/even",
   "comboFour": "Four of a kind",
   "comboStraightFlush": "Straight flush",
   "comboSuitOddEven": "One-suit odd/even",
@@ -134,7 +132,7 @@
   "email": "Email",
   "password": "Password",
   "nickname": "Nickname",
-  "passwordHint": "At least 15 characters. A long phrase works well.",
+  "passwordHint": "At least 8 characters, mixing letters and numbers.",
   "forgotPassword": "Forgot password?",
   "continueWithGoogle": "Continue with Google",
   "haveAccount": "I already have an account",
@@ -142,6 +140,8 @@
   "resend": "Resend verification email",
   "unverified": "Your email isn't verified yet. Check your inbox.",
   "setPassword": "Choose the password for this account",
+  "setPasswordFirst": "We need to confirm it's you. Log out and sign in with Google again, then do it right away — or use \"Set a password (by email)\" first.",
+  "reloginGoogle": "We need to confirm it's you. Log out and sign in with Google again, then do it right away.",
   "newPassword": "New password",
   "confirm": "Confirm",
   "verified": "Verified. Please log in.",
@@ -160,6 +160,9 @@
   "logout": "Log out",
   "changePassword": "Change password",
   "changeEmail": "Change email",
+  "changeNickname": "Change nickname",
+  "setPassword": "Set a password (by email)",
+  "profile": "Profile",
   "mfaOn": "Turn on two-step verification",
   "mfaOff": "Turn off two-step verification",
   "mfaSetupHint": "Add this key to your authenticator app, then enter the 6-digit code it shows.",
@@ -188,8 +191,9 @@
   "errCaptcha": "Please confirm you're human.",
   "errEmail": "Check the email address.",
   "errNickname": "Nicknames are 2–16 characters.",
-  "errPasswordShort": "Passwords need at least 15 characters.",
+  "errPasswordShort": "Passwords need at least 8 characters.",
   "errPasswordLong": "That password is too long.",
+  "errPasswordWeak": "Use both letters and numbers in your password.",
   "errPasswordPersonal": "Don't use your email or nickname in the password.",
   "errPasswordBreached": "That password has appeared in a breach. Pick another.",
   "errPasswordUnavailable": "We can't check passwords right now. Try again shortly.",
@@ -203,12 +207,12 @@
   "board": "Board",
   "boardSet": "Board & background set",
   "defaultBoard": "Default",
-  "coins": "Coins",
-  "hearts": "Hearts",
-  "gems": "Gems",
+  "coins": "Gold",
+  "hearts": "Sunbeams",
+  "gems": "Rainbow shards",
   "missions": "Missions",
   "attend": "Check in today (+200)",
-  "attend7": "Check in today (+500 · 10 gems)",
+  "attend7": "Check in today (+500 · 10 rainbow shards)",
   "attended": "Checked in · {n} days in a row",
   "@attended": {
     "placeholders": {
@@ -226,12 +230,19 @@
     }
   },
   "shop": "Shop",
-  "shopHearts5": "5 hearts",
-  "shopCoins1000": "1,000 coins",
-  "shopNote": "Gems come from check-in streaks (every 7th day). No real-money purchases.",
+  "shopNote": "Rainbow shards come from check-in streaks (every 7th day).",
+  "shopSoon": "Real-money purchases are coming soon.",
+  "shopBonus": "Bonus +{p}%",
+  "@shopBonus": {
+    "placeholders": {
+      "p": {
+        "type": "int"
+      }
+    }
+  },
   "bought": "Purchased.",
-  "notEnoughGems": "Not enough gems.",
-  "noHeart": "Out of hearts. One refills every 10 minutes (next in {n} min).",
+  "notEnoughGems": "Not enough rainbow shards.",
+  "noHeart": "Out of sunbeams. One refills every 10 minutes (next in {n} min).",
   "@noHeart": {
     "placeholders": {
       "n": {

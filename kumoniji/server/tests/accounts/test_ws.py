@@ -15,7 +15,15 @@ from kumoniji.multi import ws as multi_ws
 from kumoniji.multi.lobby import Lobby, Player
 from kumoniji.multi.table import GONE
 
+from kumoniji.view import legal_moves
+
 from .helpers import ORIGIN, browser, login, make_account, signed_up
+
+
+def _moves(state):
+    """멀티 상태엔 낼 수 있는 패가 없다(11-27) — 테스트는 서버의 판에서 직접 구한다."""
+    t = multi_ws.LOBBY.tables[state["id"]]
+    return legal_moves(t.game, state["seat"])
 
 APP = {"x-kumoniji-client": "app"}
 
@@ -158,7 +166,7 @@ def test_four_sockets_match_and_play_a_full_game(server, outbox, monkeypatch):
         other = ws[(me + 1) % 4]
         other.send_json({"t": "move", "game": states[0]["id"], "ply": states[0]["ply"], "tiles": []})
         assert until(other, "error")["code"] == "not_your_turn"
-        moves = states[me]["moves"]
+        moves = _moves(states[me])
         ws[me].send_json({"t": "move", "game": states[me]["id"], "ply": states[me]["ply"], "tiles": moves[0] if moves else []})
         states = [until(w, "state") for w in ws]
     assert sum(states[0]["settlement"]) == 0
@@ -214,7 +222,7 @@ def test_reconnect_after_game_end_shows_result_and_unqueue_reports_game(server, 
     assert until(ws[3], "state")["id"] == states[0]["id"]
     while states[0]["winner"] is None:
         me = next(i for i, s in enumerate(states) if s["seat"] == s["turn"])
-        moves = states[me]["moves"]
+        moves = _moves(states[me])
         ws[me].send_json({"t": "move", "game": states[me]["id"], "ply": states[me]["ply"], "tiles": moves[0] if moves else []})
         states = [until(w, "state") for w in ws]
     until(ws[1], "wallet")  # 판 끝 기록이 끝난 뒤 — 지갑 알림이 다시 붙은 연결로 가서 아래 순서를 흐리지 않게
@@ -682,7 +690,7 @@ def test_queue_needs_min_coins_and_a_heart(server, outbox):
 def _play_out(ws, states):
     while states[0]["winner"] is None:
         me = next(i for i, s in enumerate(states) if s["seat"] == s["turn"])
-        moves = states[me]["moves"]
+        moves = _moves(states[me])
         ws[me].send_json({"t": "move", "game": states[me]["id"], "ply": states[me]["ply"], "tiles": moves[0] if moves else []})
         states = [until(w, "state") for w in ws]
     return states

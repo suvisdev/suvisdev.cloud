@@ -26,7 +26,7 @@
 
 ## 사용자 선행 작업 (PR은 머지 보류하고 알림)
 1. **새 Postgres 컨테이너**: `kumoniji/db/docker-compose.yaml`(커밋됨, 프로젝트 이름 `kumoniji`, 볼륨 `kumoniji_db_data`, 포트 5433)로 Claude가 띄운다 — 실행 직전 한 번 더 확인받는다.
-2. **구글 OAuth 클라이언트**: Google Cloud 콘솔에서 쿠모니지용 OAuth 클라이언트(웹), 승인된 리디렉션 URI `https://kumoniji.suvisdev.cloud/api/auth/google/callback`. 안드로이드는 Android 클라이언트(서명 SHA-1).
+2. **구글 OAuth 클라이언트**: Google Cloud 콘솔에서 쿠모니지용 OAuth 클라이언트(웹), 승인된 리디렉션 URI `https://kumoniji.suvisdev.cloud/api/auth/google/callback`. 안드로이드는 Android 클라이언트(패키지 `cloud.suvisdev.kumoniji`·서명 SHA-1) — 등록한 뒤 `.env`에 `KUMONIJI_GOOGLE_ANDROID=1`을 넣어야 앱에 구글 버튼이 보인다(11-27).
 3. **Cloudflare Turnstile**(무료 CAPTCHA, SECURITY 4): 사이트 키·비밀 키.
 4. `kumoniji/.env`(gitignore) — `deploy.sh`가 Secret `kumoniji-env`로 넣는다:
    `KUMONIJI_DATABASE_URL`, `KUMONIJI_JWT_SECRET`, `KUMONIJI_TOTP_KEY`(Fernet), `KUMONIJI_GOOGLE_CLIENT_ID/SECRET`, `KUMONIJI_TURNSTILE_SITE/SECRET`, `KUMONIJI_SMTP_USER/PASSWORD`, `KUMONIJI_MAIL_FROM`, `KUMONIJI_PUBLIC_ORIGIN=https://kumoniji.suvisdev.cloud`

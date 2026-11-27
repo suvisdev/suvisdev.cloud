@@ -61,3 +61,34 @@ def test_6_email_change_needs_recent_auth(outbox, fast_hash):
     with db.tx() as cur:
         cur.execute("UPDATE sessions SET reauth_at = now() - interval '10 minutes'")
     assert c.post("/api/auth/email", json={"email": "new@x.com"}).status_code == 403
+
+
+def test_nickname_change_needs_login_and_valid_name(outbox, fast_hash):
+    c = browser()
+    signed_up(c, outbox)
+    assert browser().post("/api/auth/nickname", json={"nickname": "새이름"}).status_code == 401
+    login(c)
+    assert c.post("/api/auth/nickname", json={"nickname": "x"}).status_code == 422
+    r = c.post("/api/auth/nickname", json={"nickname": "  새이름  "})
+    assert r.status_code == 200 and r.json() == {"nickname": "새이름"}
+    assert c.get("/api/auth/me").json()["nickname"] == "새이름"
+
+
+def test_nickname_change_does_not_revive_an_account_deleted_meanwhile(outbox, fast_hash, monkeypatch):
+    """세션 검사를 통과한 뒤 다른 요청이 탈퇴를 마치면, 늦은 닉네임 갱신은 거절된다(리뷰 4차)"""
+    from kumoniji.accounts import db, service
+
+    c = browser()
+    signed_up(c, outbox)
+    login(c)
+    real = service.nickname_ok
+
+    def deleted_meanwhile(n):
+        with db.tx() as cur:
+            cur.execute("UPDATE accounts SET nickname = '', deleted_at = now()")
+        return real(n)
+
+    monkeypatch.setattr(service, "nickname_ok", deleted_meanwhile)
+    assert c.post("/api/auth/nickname", json={"nickname": "새이름"}).status_code == 401
+    with db.tx() as cur:
+        assert cur.execute("SELECT nickname FROM accounts").fetchone()["nickname"] == ""

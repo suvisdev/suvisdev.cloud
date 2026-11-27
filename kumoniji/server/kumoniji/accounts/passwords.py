@@ -10,7 +10,7 @@ from argon2.exceptions import InvalidHashError, VerificationError
 
 # SECURITY.md: 64MB·반복 3·병렬 1에서 시작해 약 0.3초로 조정. 노트북 실측(11-21): 반복 3 = 0.12초, 8 = 0.28초 → 8.
 PH = PasswordHasher(time_cost=8, memory_cost=65536, parallelism=1)
-MIN, MAX, MAX_BYTES = 15, 128, 512
+MIN, MAX, MAX_BYTES = 8, 128, 512  # 8자 이상 + 문자·숫자 섞기(11-27 사용자, ADR-0027)
 HIBP = "https://api.pwnedpasswords.com/range/"
 # 해시는 한 번에 64MB를 쓴다 → 동시에 2개까지만(파드 메모리 한도). 자리가 안 나면 기다리다 Busy.
 _slots = threading.BoundedSemaphore(2)
@@ -28,11 +28,13 @@ def too_long(pw: str) -> bool:
 
 
 def check(pw: str, email: str | None, nickname: str | None, client: httpx.Client | None = None) -> str | None:
-    """거부 이유(short·long·personal·breached·unavailable) 또는 None. 문자 조합은 강제하지 않는다."""
+    """거부 이유(short·long·weak·personal·breached·unavailable) 또는 None. 문자(한글 포함)와 숫자가 둘 다 있어야 한다."""
     if len(pw) < MIN:
         return "short"
     if too_long(pw):
         return "long"
+    if not (any(ch.isalpha() for ch in pw) and any(ch.isdigit() for ch in pw)):
+        return "weak"
     same = {(email or "").lower(), (email or "").split("@")[0].lower(), (nickname or "").lower()} - {""}
     if pw.strip().lower() in same:
         return "personal"

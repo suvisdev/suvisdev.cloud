@@ -8,7 +8,7 @@ import pytest
 
 from kumoniji.accounts import db, google
 
-from .helpers import OTHER, PW, browser, id_token, login, run_flow, signed_up
+from .helpers import CID, OTHER, PW, browser, id_token, login, run_flow, signed_up
 
 pytestmark = pytest.mark.usefixtures("google_keys")
 
@@ -129,3 +129,39 @@ def test_new_device_mail_after_google_uses_language_chosen_in_app(outbox, monkey
     second.headers.update({"user-agent": "Other/2.0", "accept-language": "en-US"})
     run_flow(second, monkeypatch, path="/api/auth/google/start?lang=zh")
     assert langs == [("new_device", "zh")]
+
+
+def test_config_gives_the_app_the_web_client_id_to_ask_google_for(monkeypatch):
+    """앱 구글 로그인(11-27): 앱은 이 값으로 ID 토큰을 받고, 서버는 같은 값으로 aud를 검증한다(공개값)"""
+    monkeypatch.setenv("KUMONIJI_GOOGLE_ANDROID", "1")
+    c = browser()
+    j = c.get("/api/auth/config").json()
+    assert j["google"] is True and j["google_client"] == CID
+
+
+def test_config_hides_app_google_until_the_android_client_is_registered(monkeypatch):
+    """Android 클라이언트 등록 전엔 앱 버튼을 숨긴다 — 웹 구글 로그인은 그대로(리뷰 19차)"""
+    monkeypatch.delenv("KUMONIJI_GOOGLE_ANDROID", raising=False)
+    j = browser().get("/api/auth/config").json()
+    assert j["google"] is True and j["google_client"] == ""
+
+
+def test_app_google_login_accepts_each_id_token_once(outbox, google_keys):
+    """앱(/google/app): 같은 ID 토큰을 다시 보내면 거절 — 새어 나간 토큰으로 세션을 또 받지 못하게(리뷰 5차)"""
+    from fastapi.testclient import TestClient
+
+    from kumoniji.api import app
+
+    from .helpers import ORIGIN, id_token
+
+    a = TestClient(app, base_url=ORIGIN, headers={"x-kumoniji-client": "app"})
+    nonce = "n" * 24
+    tok = id_token(nonce)
+    assert a.post("/api/auth/google/app", json={"id_token": tok, "nonce": nonce}).status_code == 200
+    assert a.post("/api/auth/google/app", json={"id_token": tok, "nonce": nonce}).status_code == 401
+    # 같은 토큰을 다른 인코딩으로(서명 base64url 끝에 덧붙인 비트 등) 적어도 내용이 같으면 거절(리뷰 6차)
+    h, p, sig = tok.split(".")
+    padded = h + "." + p + "." + sig + "=="  # 일부 디코더가 허용하는 패딩
+    assert a.post("/api/auth/google/app", json={"id_token": padded, "nonce": nonce}).status_code == 401
+    again = id_token(nonce, iat=1)  # 같은 실행(같은 nonce)의 다음 로그인 — 새 토큰이면 된다
+    assert a.post("/api/auth/google/app", json={"id_token": again, "nonce": nonce}).status_code == 200

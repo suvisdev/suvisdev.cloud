@@ -3,13 +3,21 @@ import random
 import pytest
 
 from kumoniji.multi.table import GONE, KEEP, TURN, Illegal, MultiTable, NotYourTurn
-from kumoniji.view import enc
+from kumoniji.view import enc, legal_moves
 
 ACC = [11, 22, 33, 44]
 
 
 def table(seed=1, now=1000.0):
     return MultiTable(ACC, ["a", "b", "c", "d"], now, random.Random(seed))
+
+
+def test_state_hides_playable_hints():
+    """멀티는 낼 수 있는 패를 알려 주지 않는다(싱글 연습만, 11-27 사용자)."""
+    t = table()
+    for seat in range(4):
+        st = t.state(seat, [])
+        assert "moves" not in st and "playable" not in st
 
 
 def test_state_shows_only_my_hand():
@@ -85,7 +93,7 @@ def test_random_games_finish_without_errors(seed):
             t.tick(now)
             continue
         now += rng.random() * 5
-        moves = t.state(seat, [])["moves"]
+        moves = legal_moves(t.game, seat)
         tiles = rng.choice(moves) if moves and r < 0.9 else []
         t.move(ACC[seat], tiles, now)
     assert t.game.winner is not None

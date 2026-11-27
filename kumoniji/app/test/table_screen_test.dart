@@ -65,6 +65,46 @@ void main() {
     expect(api.unsettled, isNull);
   });
 
+  // 844×390(폰 가로, 앱 기본)은 제목 자리에 무늬 순서가 들어가도 작은 로고로 홈에 간다(리뷰 19차)
+  for (final size in [const Size(1280, 900), const Size(844, 390)]) {
+    testWidgets(
+      'tapping the title logo goes home like back (asks first during a game) at ${size.width.toInt()}x${size.height.toInt()}',
+      (t) async {
+        t.view.physicalSize = size;
+        t.view.devicePixelRatio = 1;
+        addTearDown(t.view.reset);
+        final api = Api(MockClient((r) async => http.Response(jsonEncode(view()), 200)));
+        await t.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('en'),
+            home: Builder(
+              builder: (c) => TextButton(
+                key: const ValueKey('go'),
+                onPressed: () => Navigator.push(
+                  c,
+                  MaterialPageRoute(builder: (_) => TableScreen(api: api, showHelpOnFirstVisit: false)),
+                ),
+                child: const Text('home'),
+              ),
+            ),
+          ),
+        );
+        await t.tap(find.byKey(const ValueKey('go')));
+        await settle(t);
+        await t.tap(find.byKey(const ValueKey('title-home')));
+        await t.pumpAndSettle();
+        await t.tap(find.widgetWithText(FilledButton, 'Leave'));
+        await t.pumpAndSettle();
+        expect(find.byType(TableScreen), findsNothing);
+        expect(find.byKey(const ValueKey('go')), findsOneWidget);
+        await t.pumpWidget(const SizedBox());
+        await t.pump(const Duration(minutes: 1)); // 나간 판이 남긴 타이머(지갑 등)를 흘려보낸다
+      },
+    );
+  }
+
   testWidgets('pick a tile and play sends it', (t) async {
     final paths = <String>[];
     final bodies = <Object?>[];
@@ -479,7 +519,7 @@ void recentTests() {
     expect(fill(), 1);
   });
 
-  testWidgets('a practice sheet opened during replay closes when the result shows', (t) async {
+  testWidgets('a combo window opened during replay stays put and the result still shows on top', (t) async {
     final done = {
       ...view(
         events: [
@@ -502,7 +542,8 @@ void recentTests() {
     expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
     await settle(t);
     expect(find.byKey(const ValueKey('result-home')), findsOneWidget);
-    expect(find.byKey(const ValueKey('combo-chart')), findsNothing);
+    // 떠 있는 창은 사용자가 켜고 끄는 것 — 결과 창 아래 그대로 두고, 결과 창이 위에 뜬다
+    expect(find.byKey(const ValueKey('float-combos')), findsOneWidget);
   });
 
   testWidgets('the enlarged played-tiles dialog opened during replay closes when the result shows', (t) async {
@@ -559,69 +600,113 @@ void recentTests() {
     expect(find.byType(PageView), findsOneWidget); // 도움말 카드 창이 그대로
   });
 
-  testWidgets('an open played-tiles sheet follows the new state', (t) async {
+  testWidgets('phone: played tiles open in a floating window that follows the new state and leaves the game usable', (
+    t,
+  ) async {
     final live = ValueNotifier<List<String>?>(['c1']);
+    var behind = 0;
     await t.pumpWidget(
       MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: PracticeButtons(out: const ['c1'], live: live, suits: const ['m', 's', 'l', 'c']),
+          body: PracticeFrame(
+            out: const ['c1'],
+            live: live,
+            suits: const ['m', 's', 'l', 'c'],
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(key: const ValueKey('behind'), onPressed: () => behind++, child: const Text('play')),
+                  const PracticeButtons(out: ['c1'], suits: ['m', 's', 'l', 'c']),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
     await t.tap(find.byKey(const ValueKey('open-out')));
     await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('float-out')), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing); // 판을 막는 시트가 아니다
+    await t.tap(find.byKey(const ValueKey('behind')));
+    expect(behind, 1); // 창이 떠 있어도 게임 버튼이 눌린다
     double fill(String c) => t.widget<Opacity>(find.byKey(ValueKey('out-$c'))).opacity;
     expect(fill('l3'), lessThan(1));
     live.value = ['c1', 'l3']; // 봇 수 재생이 끝나 상태가 바뀜
     await t.pump();
     expect(fill('l3'), 1);
-  });
-
-  testWidgets('practice: phone opens played tiles and combos in a sheet; wide screen shows both beside the table', (
-    t,
-  ) async {
-    final v = {
-      ...view(),
-      'out': ['c1', 'l3'],
-    };
-    t.view.physicalSize = const Size(390, 844);
-    t.view.devicePixelRatio = 1;
-    addTearDown(t.view.reset);
-    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
-    await settle(t);
-    expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
+    await t.tap(find.byKey(const ValueKey('float-out-close')));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('float-out')), findsNothing);
+    await t.tap(find.byKey(const ValueKey('open-out'))); // 버튼으로도 껐다 켠다
+    await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('open-out')));
     await t.pumpAndSettle();
-    expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c1'))).opacity, 1); // 낸 패는 또렷하게
-    expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c2'))).opacity, lessThan(1));
-    expect(find.descendant(of: find.byKey(const ValueKey('out-c2')), matching: find.byType(TileView)), findsOneWidget);
-    expect(
-      find.descendant(of: find.byKey(const ValueKey('out-tracker')), matching: find.bySemanticsLabel('13')),
-      findsWidgets,
-    );
-    Navigator.of(t.element(find.byKey(const ValueKey('out-tracker')))).pop();
-    await t.pumpAndSettle();
-    await t.tap(find.byKey(const ValueKey('open-combos')));
-    await t.pumpAndSettle();
-    expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
-
-    t.view.physicalSize = const Size(1280, 900);
-    await t.pumpWidget(const SizedBox());
-    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
-    await settle(t);
-    expect(find.byKey(const ValueKey('out-tracker')), findsOneWidget);
-    expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
-    expect(find.byKey(const ValueKey('open-out')), findsNothing);
-    // 옆 패널은 한 줄 13장이라 작다 — 크게 보기 창에선 패가 더 크다(11-26 사용자)
-    final small = t.getSize(find.byKey(const ValueKey('out-c1'))).width;
-    await t.tap(find.byKey(const ValueKey('out-big')));
-    await t.pumpAndSettle();
-    expect(find.byKey(const ValueKey('out-tracker')), findsNWidgets(2));
-    expect(t.getSize(find.byKey(const ValueKey('out-c1')).last).width, greaterThan(small * 2));
-    expect(t.takeException(), isNull);
+    expect(find.byKey(const ValueKey('float-out')), findsNothing);
   });
+
+  testWidgets(
+    'practice: phone opens played tiles and combos in floating windows; wide screen shows both beside the table',
+    (t) async {
+      final v = {
+        ...view(),
+        'out': ['c1', 'l3'],
+      };
+      t.view.physicalSize = const Size(390, 844);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+      await settle(t);
+      expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
+      await t.tap(find.byKey(const ValueKey('open-out')));
+      await t.pumpAndSettle();
+      expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c1'))).opacity, 1); // 낸 패는 또렷하게
+      expect(t.widget<Opacity>(find.byKey(const ValueKey('out-c2'))).opacity, lessThan(1));
+      expect(
+        find.descendant(of: find.byKey(const ValueKey('out-c2')), matching: find.byType(TileView)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: find.byKey(const ValueKey('out-tracker')), matching: find.bySemanticsLabel('13')),
+        findsWidgets,
+      );
+      await t.tap(find.byKey(const ValueKey('float-out-close')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const ValueKey('open-combos')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
+      expect(find.byKey(const ValueKey('float-combos')), findsOneWidget);
+      PracticeFrame.floatCombos.value = false;
+
+      t.view.physicalSize = const Size(1280, 900);
+      await t.pumpWidget(const SizedBox());
+      await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+      await settle(t);
+      expect(find.byKey(const ValueKey('out-tracker')), findsOneWidget);
+      expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
+      // 넓은 화면에서도 버튼이 있고, 누르면 옆 패널을 숨기고 다시 누르면 보인다(11-27 사용자 '보기 숨기기가 쉽게')
+      for (final (button, panel) in [('open-combos', 'combo-chart'), ('open-out', 'out-tracker')]) {
+        await t.tap(find.byKey(ValueKey(button)));
+        await t.pumpAndSettle();
+        expect(find.byKey(ValueKey(panel)), findsNothing, reason: button);
+        expect(find.byType(BottomSheet), findsNothing); // 넓은 화면은 시트가 아니라 패널을 끈다
+        await t.tap(find.byKey(ValueKey(button)));
+        await t.pumpAndSettle();
+        expect(find.byKey(ValueKey(panel)), findsOneWidget, reason: button);
+      }
+      // 옆 패널은 한 줄 13장이라 작다 — 크게 보기 창에선 패가 더 크다(11-26 사용자)
+      final small = t.getSize(find.byKey(const ValueKey('out-c1'))).width;
+      await t.tap(find.byKey(const ValueKey('out-big')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const ValueKey('out-tracker')), findsNWidgets(2));
+      expect(t.getSize(find.byKey(const ValueKey('out-c1')).last).width, greaterThan(small * 2));
+      expect(t.takeException(), isNull);
+    },
+  );
 
   testWidgets('a wide but short window keeps the side panels off so pass and play stay visible', (t) async {
     t.view.physicalSize = const Size(1000, 420);
@@ -800,6 +885,40 @@ void recentTests() {
     // 정사각형 판일 땐 15px — 판을 가로로 넓혀(11-26 '낸 패 크게') 24px 넘게
     expect(t.getRect(find.byKey(const ValueKey('drop-3-m2m3m4m5s6-m2'))).width, greaterThan(24));
     expect(t.getRect(find.byKey(const ValueKey('drop-1-c7-c7'))).width, greaterThan(40));
+  });
+
+  testWidgets('the play to beat sits in the middle of the board; the others stay by their seats', (t) async {
+    final v = {
+      ...view(),
+      'turn': 0,
+      'table': ['m2', 'm3', 'm4', 'm5', 's6'],
+      'last': 3,
+      'plays': [
+        null,
+        ['c1', 'c2', 'c3', 'c4', 'l5'],
+        ['c2', 'c3', 'c4', 'c5', 'l6'],
+        ['m2', 'm3', 'm4', 'm5', 's6'],
+      ],
+      'passed': <int>[],
+    };
+    await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+    await settle(t);
+    final mid = t.getCenter(find.byKey(const ValueKey('play-3'))); // 봇 3이 냈지만 오른쪽 가장자리가 아니라 가운데
+    final left = t.getCenter(find.byKey(const ValueKey('play-1')));
+    final top = t.getCenter(find.byKey(const ValueKey('play-2')));
+    expect(mid.dx, closeTo(top.dx, 4)); // 위 자리와 같은 세로줄(가운데)
+    expect(mid.dy, greaterThan(top.dy + 20)); // 위 자리보다 아래
+    expect(mid.dx, greaterThan(left.dx)); // 왼쪽 자리 패는 그대로 왼쪽
+    expect(find.text('Your turn'), findsNothing); // 가운데는 패 자리 — 글자는 판이 빌 때만
+    // 날아오는 모션은 가운데(새로 낸) 패만 — 가장자리의 밀려난 패가 다시 날아오지 않게(리뷰 3차)
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('play-3')), matching: find.byType(TweenAnimationBuilder<double>)),
+      findsWidgets,
+    );
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('play-1')), matching: find.byType(TweenAnimationBuilder<double>)),
+      findsNothing,
+    );
   });
 
   testWidgets('each seat shows its own play and pass bubble; fits a 320px phone', (t) async {

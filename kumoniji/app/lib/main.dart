@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/app_localizations.dart';
+import 'auth.dart';
 import 'auth_screens.dart';
 import 'music.dart';
 import 'settings.dart';
@@ -16,7 +17,8 @@ Future<void> main() async {
   if (!kIsWeb) {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
   }
-  await Settings.load();
+  await Future.wait([Settings.load(), Auth.restore()]); // 저장된 로그인이 있으면 첫 화면부터 홈
+
   precacheTiles(); // 기다리지 않는다 — 첫 판을 시작할 때 끝나 있는지 확인
   runApp(const KumonijiApp());
   Music.start(); // 기다리지 않는다 — 소리가 늦게 나와도 화면은 먼저

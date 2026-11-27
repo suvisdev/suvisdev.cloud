@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'account_screen.dart';
 import 'api.dart';
+import 'auth.dart';
 import 'help.dart';
 import 'l10n/app_localizations.dart';
 import 'level.dart';
@@ -51,6 +53,30 @@ class HomeScreen extends StatelessWidget {
           ),
           centerTitle: false,
           actions: [
+            // 간단한 프로필 — 닉네임 첫 글자. 누르면 계정 화면(닉네임·비밀번호 바꾸기, 11-27 사용자)
+            ValueListenableBuilder(
+              valueListenable: Auth.me,
+              // 아주 좁은 창(360px 아래)에선 뺀다 — 버튼 다섯이 제목 줄을 밀어 잔고가 안 보인다(리뷰 9차). 계정은 옵션 → 계정
+              builder: (context, me, _) => me == null || MediaQuery.sizeOf(context).width < 360
+                  ? const SizedBox.shrink()
+                  : IconButton(
+                      key: const ValueKey('open-profile'),
+                      tooltip: '${t.profile}: ${me.nickname}',
+                      icon: CircleAvatar(
+                        radius: 14,
+                        child: Text(me.nickname.isEmpty ? '?' : me.nickname.characters.first),
+                      ),
+                      onPressed: () =>
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountScreen())),
+                    ),
+            ),
+            // 배경은 옵션이 아니라 이 화면에서 바로(11-27 사용자)
+            IconButton(
+              key: const ValueKey('home-background'),
+              tooltip: t.homeBackground,
+              icon: const Icon(Icons.wallpaper),
+              onPressed: () => pickBackground(context, 'home'),
+            ),
             IconButton(
               key: const ValueKey('open-missions'),
               tooltip: t.missions,
@@ -68,61 +94,88 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 제목 로고가 위, 패 넷이 아래(11-26 사용자)
-                    // 제목 로고(Codex 그림, 원본 kumoniji/_docs/brand/title_jade_original.png). 글자는 한국어 하나 — 화면 읽기는 언어별 제목
-                    Image.asset('assets/brand/title_jade.png', semanticLabel: t.title),
-                    const SizedBox(height: 16),
-                    FittedBox(
-                      fit: BoxFit.scaleDown, // 아주 좁은 창에선 네 장을 함께 줄인다
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // 무늬 넷 하나씩 — 산·벚꽃은 해(13), 잎사귀는 무지개(12), 솜사탕은 구름(11)(11-25 사용자)
-                          for (final c in ['m13', 's13', 'l12', 'c11']) TileView(code: c, width: 64),
-                        ],
-                      ),
+          // 앱은 가로 고정이라 폰에선 높이가 낮다(844×390이면 본문 ~330) — 세로로 쌓으면 버튼이 화면 밖으로 밀려
+          // 싱글만 반쯤 보인다. 낮으면 왼쪽 로고·패 | 오른쪽 버튼 두 칸으로(11-27 사용자 '전체 앱에 맞춰')
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final low = box.maxHeight < 560;
+              final title = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 제목 로고가 위, 패 넷이 아래(11-26 사용자)
+                  // 제목 로고(Codex 그림, 원본 kumoniji/_docs/brand/title_jade_original.png). 글자는 한국어 하나 — 화면 읽기는 언어별 제목
+                  Image.asset('assets/brand/title_jade.png', semanticLabel: t.title),
+                  const SizedBox(height: 16),
+                  FittedBox(
+                    fit: BoxFit.scaleDown, // 아주 좁은 창에선 네 장을 함께 줄인다
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 무늬 넷 하나씩 — 산·벚꽃은 해(13), 잎사귀는 무지개(12), 솜사탕은 구름(11)(11-25 사용자)
+                        for (final c in ['m13', 's13', 'l12', 'c11']) TileView(code: c, width: 64),
+                      ],
                     ),
-                    const SizedBox(height: 40),
-                    FilledButton.icon(
-                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                      onPressed: () => _single(context),
-                      icon: const Icon(Icons.person),
-                      label: Text(t.singleMode),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                      onPressed: null, // 2단계(4인 멀티)에서 연결
-                      icon: const Icon(Icons.groups),
-                      label: Text('${t.multiMode} · ${t.comingSoon}'),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                      onPressed: () => showHelp(context),
-                      icon: const Icon(Icons.help_outline),
-                      label: Text(t.help),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-                      onPressed: () =>
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const OptionsScreen())),
-                      icon: const Icon(Icons.settings),
-                      label: Text(t.options),
-                    ),
-                  ],
+                  ),
+                ],
+              );
+              final buttons = Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    onPressed: () => _single(context),
+                    icon: const Icon(Icons.person),
+                    label: Text(t.singleMode),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    onPressed: null, // 2단계(4인 멀티)에서 연결
+                    icon: const Icon(Icons.groups),
+                    label: Text('${t.multiMode} · ${t.comingSoon}'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    onPressed: () => showHelp(context),
+                    icon: const Icon(Icons.help_outline),
+                    label: Text(t.help),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OptionsScreen())),
+                    icon: const Icon(Icons.settings),
+                    label: Text(t.options),
+                  ),
+                ],
+              );
+              return Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: low ? 12 : 32),
+                  child: low
+                      ? ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 680),
+                          child: Row(
+                            children: [
+                              Expanded(child: title),
+                              const SizedBox(width: 32),
+                              Expanded(child: buttons),
+                            ],
+                          ),
+                        )
+                      : ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [title, const SizedBox(height: 40), buttons],
+                          ),
+                        ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),

@@ -8,7 +8,7 @@ from argon2 import PasswordHasher
 
 from kumoniji.accounts import passwords
 
-GOOD = "correct horse battery"  # 21자, 공백 포함 문장
+GOOD = "correct horse battery 7"  # 문자 + 숫자
 
 
 def hibp(hit: str | None = None, fail: bool = False):
@@ -25,14 +25,22 @@ def hibp(hit: str | None = None, fail: bool = False):
 
 
 def test_2_length_bounds():
-    assert passwords.check("a" * 14, "x@y.z", "nick", hibp()) == "short"
+    assert passwords.check("abc1234", "x@y.z", "nick", hibp()) == "short"  # 7자
+    assert passwords.check("abcd1234", "x@y.z", "nick", hibp()) is None  # 8자, 문자 + 숫자
     assert passwords.check("a" * 129, "x@y.z", "nick", hibp()) == "long"
     assert passwords.check(GOOD, "x@y.z", "nick", hibp()) is None
 
 
+def test_2_needs_letters_and_digits():
+    """8자 이상 + 문자·숫자 섞기(11-27 사용자, ADR-0027). 한글도 문자"""
+    assert passwords.check("abcdefgh", "x@y.z", "nick", hibp()) == "weak"
+    assert passwords.check("12345678", "x@y.z", "nick", hibp()) == "weak"
+    assert passwords.check("쿠모니지타일1234", "x@y.z", "nick", hibp()) is None
+
+
 def test_2_rejects_email_and_nickname():
     assert passwords.check("longnickname1234", "x@y.z", "LongNickname1234", hibp()) == "personal"
-    assert passwords.check("someone.long.email", "someone.long.email@y.z", "n", hibp()) == "personal"
+    assert passwords.check("someone.long.email1", "someone.long.email1@y.z", "n", hibp()) == "personal"
 
 
 def test_2_rejects_breached_and_holds_when_lookup_is_down(monkeypatch, tmp_path):
@@ -43,7 +51,7 @@ def test_2_rejects_breached_and_holds_when_lookup_is_down(monkeypatch, tmp_path)
     local.write_text(hashlib.sha1(GOOD.encode()).hexdigest().upper() + "\n")
     monkeypatch.setattr(passwords, "LOCAL", local)
     assert passwords.check(GOOD, "x@y.z", "n", hibp(fail=True)) == "breached"
-    assert passwords.check("another long phrase", "x@y.z", "n", hibp(fail=True)) is None
+    assert passwords.check("another long phrase 3", "x@y.z", "n", hibp(fail=True)) is None
 
 
 def test_2_argon2id_params_and_no_plaintext():

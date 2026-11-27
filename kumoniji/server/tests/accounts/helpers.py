@@ -9,7 +9,7 @@ from kumoniji.accounts import db, google
 from kumoniji.api import app
 
 ORIGIN = "https://testserver"
-PW, PW2 = "correct horse battery", "another long passphrase"
+PW, PW2 = "correct horse battery 7", "another long passphrase 9"
 CID = "test-client.apps.googleusercontent.com"
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 OTHER = rsa.generate_private_key(public_exponent=65537, key_size=2048)

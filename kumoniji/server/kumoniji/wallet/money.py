@@ -5,7 +5,16 @@ MIN_STAKE = 500  # 자동 매칭 입장 최소 판돈
 HEART_MAX, HEART_EVERY = 10, 600
 ATTEND, ATTEND_7TH, ATTEND_7TH_GEMS = 200, 500, 10
 MISSION, MISSION_BONUS, MISSION_NEED = 100, 300, 5
-SHOP = {"hearts5": (10, {"hearts": 5}), "coins1000": (10, {"coins": 1000})}  # 상품: (보석 값, 얻는 것)
+# 상품: (무지개 조각 값, 얻는 것). 많이 살수록 덤(보통 게임 상점처럼, 11-27 사용자) — 골드 1,000·5,500(+10%)·
+# 12,000(+20%)·40,000(+33%), 햇살 5·15(+20%). 옛 id(hearts5·coins1000)는 원장 참조에 남아 있어 그대로 둔다
+SHOP = {
+    "coins1000": (10, {"coins": 1000}),
+    "coins5500": (50, {"coins": 5500}),
+    "coins12000": (100, {"coins": 12000}),
+    "coins40000": (300, {"coins": 40000}),
+    "hearts5": (10, {"hearts": 5}),
+    "hearts15": (25, {"hearts": 15}),
+}
 
 
 def regen(hearts: int, since: float, now: float) -> tuple[int, float]:
