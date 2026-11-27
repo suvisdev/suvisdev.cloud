@@ -259,5 +259,8 @@ def _notify(c, account_id: int, kind: str, lang: str = "en") -> None:
 
 
 def sweep(c) -> None:
-    """30일 지난 회전 이력 정리(주기 작업)."""
+    """30일 지난 회전 이력과 30일 안 쓴 세션(기기·IP) 정리(주기 작업). 개인정보처리방침 2절이 약속한 보관 기간.
+    유휴 세션은 이미 갱신이 안 되고, 액세스 토큰(15분)은 갱신 때만 나오므로 지워도 쓰던 사람이 끊기지 않는다."""
+    # 세션 → 회전 이력 순서로 — 탈퇴(세션을 지우며 이력을 연쇄 삭제)와 같은 순서라야 겹쳐도 교착하지 않는다(리뷰 6차)
+    c.execute(f"DELETE FROM sessions WHERE last_used_at < now() - interval '{IDLE}'")
     c.execute(f"DELETE FROM spent_refresh WHERE spent_at < now() - interval '{IDLE}'")

@@ -185,5 +185,10 @@
   "missionToday": "今日の柄で場を取る",
   "missionScore30": "1日で30点獲得",
   "missionOddEven": "奇偶役を出す",
-  "missionFullHouse": "フルハウスを出す"
+  "missionFullHouse": "フルハウスを出す",
+  "terms": "利用規約",
+  "privacy": "プライバシーポリシー",
+  "agreeNote": "続行すると、利用規約とプライバシーポリシーに同意したことになります。",
+  "legalLoadFailed": "読み込めませんでした。",
+  "retry": "再試行"
 }

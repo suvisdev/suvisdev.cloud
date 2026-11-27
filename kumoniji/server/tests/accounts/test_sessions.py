@@ -61,6 +61,18 @@ def test_11_spent_tokens_are_forgotten_after_30_days(database):
         assert c.execute("SELECT count(*) AS n FROM spent_refresh").fetchone()["n"] == 0
 
 
+def test_11_sessions_unused_for_30_days_are_deleted(database):
+    a = make_account()
+    with db.tx() as c:
+        _, old = sessions.create(c, a, mfa_passed=True)
+        recent, _ = sessions.create(c, a, mfa_passed=True)
+        c.execute("UPDATE sessions SET last_used_at = now() - interval '31 days' WHERE refresh_hash = %s",
+                  (sessions.digest(old),))
+        sessions.sweep(c)
+        assert c.execute("SELECT count(*) AS n FROM sessions WHERE account_id = %s", (a,)).fetchone()["n"] == 1
+        assert sessions.current(c, recent)  # 최근 세션은 남는다
+
+
 def test_11_two_tabs_refreshing_at_once_do_not_log_everyone_out(database, monkeypatch):
     sent = []
     monkeypatch.setattr(sessions.mail, "send", lambda to, kind, path, lang="en": sent.append(kind))
@@ -385,3 +397,19 @@ def test_a_web_cookie_pair_from_another_ip_right_after_rotation_gets_409_not_tok
         sessions.refresh(c, r1, retry=key, ip="1.1.1.1")  # 주인이 회전
         with pytest.raises(sessions.Raced):
             sessions.refresh(c, r1, retry=key, ip="6.6.6.6")  # 훔친 옛 쿠키 쌍, 다른 IP
+def test_11_one_failing_cleanup_does_not_skip_the_session_sweep(database, monkeypatch):
+    from kumoniji import api
+    from kumoniji.accounts import limits
+
+    def broken(c):
+        raise RuntimeError("lock timeout")
+
+    monkeypatch.setattr(limits, "sweep", broken)
+    a = make_account()
+    with db.tx() as c:
+        _, old = sessions.create(c, a, mfa_passed=True)
+        c.execute("UPDATE sessions SET last_used_at = now() - interval '31 days' WHERE refresh_hash = %s",
+                  (sessions.digest(old),))
+    api._sweep_accounts()
+    with db.tx() as c:
+        assert c.execute("SELECT count(*) AS n FROM sessions WHERE account_id = %s", (a,)).fetchone()["n"] == 0

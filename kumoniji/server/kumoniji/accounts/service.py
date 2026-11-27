@@ -119,7 +119,10 @@ def verify(c, raw: str, password: str) -> None:
 def purge_unverified(c) -> int:
     """24시간 안에 인증하지 않은 가입은 지운다 → 주소 주인이 언제든 다시 가입할 수 있다."""
     return c.execute(
-        "DELETE FROM accounts WHERE verified_at IS NULL AND created_at < now() - interval '24 hours'"
+        # 탈퇴한 계정은 빼낸다 — 탈퇴 때 verified_at도 비워 미인증 가입처럼 보이지만, 탈퇴 기록(계정 번호·가입 시각)은
+        # 방침대로 남아야 한다(약관 리뷰 5차)
+        "DELETE FROM accounts WHERE verified_at IS NULL AND deleted_at IS NULL"
+        " AND created_at < now() - interval '24 hours'"
         " AND NOT EXISTS (SELECT 1 FROM identities i WHERE i.account_id = accounts.id)"
     ).rowcount
 
@@ -331,10 +334,12 @@ def _purge(c, aid: int) -> None:
         c.execute(f"DELETE FROM {table} WHERE account_id = %s", (aid,))
     c.execute(
         """UPDATE accounts SET email = NULL, email_key = NULL, nickname = '', pw_hash = NULL, mfa_secret = NULL,
-           mfa_enabled = false, deleted_at = coalesce(deleted_at, now()) WHERE id = %s""",
+           mfa_enabled = false, mfa_last_step = NULL, verified_at = NULL, locked_at = NULL,
+           deleted_at = coalesce(deleted_at, now()) WHERE id = %s""",
         (aid,),
     )
-    c.execute("UPDATE deletion_log SET purged_at = now() WHERE account_id = %s", (aid,))
+    # 처음 처리한 시각을 지킨다 — 다시 정리(백업 복원·조건 추가 뒤 첫 정리)가 덮지 않게(약관 리뷰 9차)
+    c.execute("UPDATE deletion_log SET purged_at = coalesce(purged_at, now()) WHERE account_id = %s", (aid,))
 
 
 def purge_deleted(c) -> int:
@@ -342,6 +347,12 @@ def purge_deleted(c) -> int:
     rows = c.execute(
         """SELECT l.account_id FROM deletion_log l JOIN accounts a ON a.id = l.account_id
            WHERE a.deleted_at IS NULL OR a.email IS NOT NULL OR a.pw_hash IS NOT NULL OR a.nickname <> ''
+              OR a.verified_at IS NOT NULL OR a.mfa_last_step IS NOT NULL OR a.locked_at IS NOT NULL
+              OR a.mfa_secret IS NOT NULL
+              -- 탈퇴와 겹친 요청(주소 변경 링크·2단계 켜기 등)이 탈퇴 뒤에 남긴 것도 — 하나씩 막지 않고 정리가 거둔다(약관 리뷰 10차)
+              OR EXISTS (SELECT 1 FROM auth_tokens t WHERE t.account_id = a.id)
+              OR EXISTS (SELECT 1 FROM recovery_codes r WHERE r.account_id = a.id)
+              OR EXISTS (SELECT 1 FROM known_devices k WHERE k.account_id = a.id)
               OR EXISTS (SELECT 1 FROM identities i WHERE i.account_id = a.id)
               OR EXISTS (SELECT 1 FROM sessions x WHERE x.account_id = a.id)
               OR EXISTS (SELECT 1 FROM wallets w WHERE w.account_id = a.id)"""

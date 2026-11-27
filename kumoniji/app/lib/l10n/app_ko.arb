@@ -185,5 +185,10 @@
   "missionToday": "오늘의 무늬로 바퀴 가져가기",
   "missionScore30": "하루 점수 30점 모으기",
   "missionOddEven": "홀짝 내기",
-  "missionFullHouse": "풀하우스 내기"
+  "missionFullHouse": "풀하우스 내기",
+  "terms": "이용약관",
+  "privacy": "개인정보처리방침",
+  "agreeNote": "계속하면 이용약관과 개인정보처리방침에 동의하게 됩니다.",
+  "legalLoadFailed": "불러오지 못했어요.",
+  "retry": "다시 시도"
 }

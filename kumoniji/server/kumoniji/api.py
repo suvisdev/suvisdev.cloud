@@ -61,11 +61,15 @@ log = logging.getLogger("kumoniji")
 
 
 def _sweep_accounts() -> None:
-    with db.tx() as c:
-        service.purge_unverified(c)
-        service.purge_deleted(c)
-        limits.sweep(c)
-        sessions.sweep(c)
+    # 정리마다 트랜잭션을 따로 — 한 트랜잭션에서 시도 기록·세션을 차례로 잠그면, 세션을 먼저 잠그고 시도 기록을 지우는
+    # 탈퇴와 엇갈려 교착할 수 있다(리뷰 9차)
+    # 한 정리가 실패해도(잠금 오류 등) 나머지는 돈다 — 세션 정리가 밀려 방침의 보관 기간을 넘기지 않게(리뷰)
+    for step in (service.purge_unverified, service.purge_deleted, limits.sweep, sessions.sweep):
+        try:
+            with db.tx() as c:
+                step(c)
+        except Exception:
+            log.exception("계정 정리 실패: %s", step.__name__)
 
 
 async def _housekeeping():
