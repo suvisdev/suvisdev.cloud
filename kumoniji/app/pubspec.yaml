@@ -35,6 +35,8 @@ flutter:
     - assets/backgrounds/
     - assets/boards/
     - assets/audio/
+    - assets/audio/sfx/
+    - assets/icons/home/
     - assets/legal/
     - assets/currency/
     - assets/currency/digits/

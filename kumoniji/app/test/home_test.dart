@@ -201,7 +201,7 @@ void main() {
     );
     await t.pumpWidget(const KumonijiApp());
     await settle(t);
-    await t.tap(find.byIcon(Icons.settings));
+    await t.tap(find.byKey(const ValueKey('open-options')));
     await settle(t);
     await t.tap(find.byKey(const ValueKey('language')));
     await settle(t);
@@ -234,7 +234,7 @@ void main() {
     await t.pumpWidget(const KumonijiApp());
     await settle(t);
     expect(find.byKey(const ValueKey('backdrop-home-0')), findsOneWidget); // setUp에서 없음
-    await t.tap(find.byIcon(Icons.settings));
+    await t.tap(find.byKey(const ValueKey('open-options')));
     await settle(t);
     expect(find.byKey(const ValueKey('home-background')), findsNothing); // 옵션에는 없다
     await t.tap(find.byType(BackButton));
@@ -378,7 +378,7 @@ void main() {
     );
     await t.pumpWidget(const KumonijiApp());
     await settle(t);
-    await t.tap(find.byIcon(Icons.settings));
+    await t.tap(find.byKey(const ValueKey('open-options')));
     await settle(t);
     await t.tap(find.byKey(const ValueKey('language')));
     await settle(t);

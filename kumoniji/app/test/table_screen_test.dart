@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +10,8 @@ import 'package:http/testing.dart';
 import 'package:kumoniji/api.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/practice.dart';
+import 'package:kumoniji/settings.dart';
+import 'package:kumoniji/sfx.dart';
 import 'package:kumoniji/table_screen.dart';
 import 'package:kumoniji/tile.dart';
 import 'package:kumoniji/wallet.dart';
@@ -1095,6 +1098,52 @@ void recentTests() {
     expect(find.byKey(const ValueKey('passed-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('passed-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('passed-3')), findsNothing);
+  });
+
+  test('효과음마다 파일이 앱에 들어 있다', () async {
+    for (final f in Sfx.values) {
+      expect((await rootBundle.load('assets/audio/sfx/${f.name}.wav')).lengthInBytes, greaterThan(1000));
+    }
+  });
+
+  testWidgets('효과음: 고르기·내기·봇 수·패스·바닥 가져가기·승리 순서로, 음소거면 하나도 안 난다(11-27 사용자)', (t) async {
+    for (final muted in [false, true]) {
+      Settings.muted.value = muted;
+      Sfx.log = [];
+      var calls = 0;
+      final done = {
+        ...view(
+          events: [
+            {
+              'seat': 1,
+              'tiles': ['c4'],
+            },
+            {'seat': 2, 'tiles': null},
+            {'seat': 3, 'tiles': null},
+            {'seat': 0, 'tiles': null},
+          ],
+        ),
+        'winner': 0,
+        'settlement': [23, -9, -17, 3],
+        'moves': [],
+        'playable': [],
+      };
+      final api = Api(MockClient((r) async => http.Response(jsonEncode(++calls == 1 ? view() : done), 200)));
+      await t.pumpWidget(_app(api));
+      await settle(t);
+      await t.tap(find.byKey(const ValueKey('hand-m1')));
+      await t.pump();
+      await t.tap(find.widgetWithText(FilledButton, 'Play'));
+      await t.pump(const Duration(seconds: 6)); // 봇 수·패스 장면(약 5초)이 끝나도록
+      await settle(t);
+      expect(
+        Sfx.log,
+        muted ? isEmpty : [Sfx.select, Sfx.play, Sfx.play, Sfx.pass, Sfx.pass, Sfx.pass, Sfx.sweep, Sfx.win],
+      );
+      await t.pumpWidget(const SizedBox());
+      await t.pump(const Duration(minutes: 1));
+    }
+    Settings.muted.value = false;
   });
 }
 

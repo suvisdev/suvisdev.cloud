@@ -11,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'level.dart';
 import 'practice.dart';
 import 'settings.dart';
+import 'sfx.dart';
 import 'tile.dart';
 import 'wallet.dart';
 
@@ -132,9 +133,10 @@ class _TableScreenState extends State<TableScreen> {
             passed.addAll(run.map((p) => p.seat));
             flash = run.last;
           });
+          _sound(Sfx.pass);
           await Future.delayed(const Duration(milliseconds: 1000));
           if (!mounted) return;
-          if (passed.length == 3) setState(() => _clearRound());
+          if (passed.length == 3) _sweep();
           i += run.length - 1;
           continue;
         }
@@ -151,6 +153,11 @@ class _TableScreenState extends State<TableScreen> {
           // 패스는 내 것도 보여 준다 — 아무도 바닥을 이길 수 없으면 서버가 내 차례를 자동으로 패스하기 때문
           if (e.seat != 0 || e.tiles == null) flash = e;
         });
+        if (e.tiles == null) {
+          _sound(Sfx.pass);
+        } else if (e.seat != 0) {
+          _sound(Sfx.play); // 내 수는 누를 때 이미 냈다
+        }
         // 봇 한 수·모든 패스마다 잠깐 멈춰 누가 무엇을 했는지 보이게
         if (e.seat != 0 || e.tiles == null) {
           await Future.delayed(Duration(milliseconds: e.tiles == null ? 1000 : 1200));
@@ -159,7 +166,7 @@ class _TableScreenState extends State<TableScreen> {
         if (passed.length == 3) {
           if (e.seat == 0) await Future.delayed(const Duration(milliseconds: 600));
           if (!mounted) return;
-          setState(() => _clearRound());
+          _sweep();
         }
       }
       // 닫히는 중(뒤로·다른 탭 계정 바뀜으로 걷힘)이면 결과 창을 띄우지 않는다 — 새 화면 위에 옛 판 결과가 뜨지 않게(리뷰 44차)
@@ -365,7 +372,19 @@ class _TableScreenState extends State<TableScreen> {
       _record(0, tiles);
       flash = Play(0, tiles); // 응답이 올 때까지 내 차례 버튼을 잠근다
     });
+    Sfx.play();
     _apply(api.move(g.id, tiles));
+  }
+
+  /// 셋이 패스해 바퀴가 끝남 — 바닥을 비우며 쓸어 담는 소리
+  void _sweep() {
+    setState(_clearRound);
+    _sound(Sfx.sweep);
+  }
+
+  /// 판 장면의 효과음 — 나가기로 닫히는 중이면 옛 판 소리를 내지 않는다(리뷰 3차)
+  void _sound(Sfx f) {
+    if (_alive) f();
   }
 
   void _clearRound() {
@@ -383,6 +402,7 @@ class _TableScreenState extends State<TableScreen> {
     Navigator.of(context).popUntil((r) => r is! ModalBottomSheetRoute && r.settings.name != outBigRoute);
     final t = AppLocalizations.of(context)!;
     final winner = g.winner!;
+    (winner == 0 ? Sfx.win : Sfx.lose)();
     final order = [0, 1, 2, 3]
       ..sort((a, b) {
         final byScore = g.settlement![b].compareTo(g.settlement![a]);
@@ -597,9 +617,13 @@ class _TableScreenState extends State<TableScreen> {
                                           selected: picked.contains(code),
                                           onTap: !myTurn || !g.playable.contains(code)
                                               ? null
-                                              : () => setState(
-                                                  () => picked.contains(code) ? picked.remove(code) : picked.add(code),
-                                                ),
+                                              : () {
+                                                  Sfx.select();
+                                                  setState(
+                                                    () =>
+                                                        picked.contains(code) ? picked.remove(code) : picked.add(code),
+                                                  );
+                                                },
                                         ),
                                       ),
                                     ),
