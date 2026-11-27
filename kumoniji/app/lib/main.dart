@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/app_localizations.dart';
 import 'auth_screens.dart';
+import 'music.dart';
 import 'settings.dart';
 import 'tile.dart';
 
@@ -18,6 +19,7 @@ Future<void> main() async {
   await Settings.load();
   precacheTiles(); // 기다리지 않는다 — 첫 판을 시작할 때 끝나 있는지 확인
   runApp(const KumonijiApp());
+  Music.start(); // 기다리지 않는다 — 소리가 늦게 나와도 화면은 먼저
 }
 
 class KumonijiApp extends StatelessWidget {

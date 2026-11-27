@@ -9,7 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'level.dart';
 
 /// 옵션 값(앱 전체, 기기에 기억). 저장소를 못 쓰면 기본값으로 동작한다.
-/// ponytail: 배경음악·효과음은 값만 저장한다 — 소리 파일·재생기가 생기면 music/sfx를 음량으로 쓴다.
+/// 배경음악은 music.dart가 music을 음량으로 쓴다. 효과음은 아직 값만 저장한다(시안 고르는 중).
 class Settings {
   static final locale = ValueNotifier<Locale?>(null); // null = 기기 언어
 
