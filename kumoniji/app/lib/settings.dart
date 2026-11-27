@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account_screen.dart';
 import 'l10n/app_localizations.dart';
+import 'legal.dart';
 import 'level.dart';
 
 /// 옵션 값(앱 전체, 기기에 기억). 저장소를 못 쓰면 기본값으로 동작한다.
@@ -401,6 +402,19 @@ class OptionsScreen extends StatelessWidget {
                     if (v) Settings.buzz();
                   },
                 ),
+              ),
+              const Divider(),
+              ListTile(
+                key: const ValueKey('terms'),
+                leading: const Icon(Icons.description_outlined),
+                title: Text(t.terms),
+                onTap: () => openLegal(context, Legal.terms),
+              ),
+              ListTile(
+                key: const ValueKey('privacy'),
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: Text(t.privacy),
+                onTap: () => openLegal(context, Legal.privacy),
               ),
             ],
           ),

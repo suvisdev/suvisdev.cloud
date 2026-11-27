@@ -6,4 +6,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server/kumoniji ./kumoniji
 COPY app/build/web ./web
 USER 10001
-CMD ["uvicorn", "kumoniji.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--ws-max-size", "4096"]
+# 접속 기록·정보 로그(웹소켓 수락 때 클라이언트 IP)를 남기지 않는다 — IP는 서버 메모리에만(개인정보처리방침)
+CMD ["uvicorn", "kumoniji.api:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*", "--ws-max-size", "4096", "--no-access-log", "--log-level", "warning"]

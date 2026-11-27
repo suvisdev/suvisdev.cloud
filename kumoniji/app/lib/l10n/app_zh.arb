@@ -185,5 +185,10 @@
   "missionToday": "用今日花色赢下一轮",
   "missionScore30": "一天获得30分",
   "missionOddEven": "出一次奇偶组合",
-  "missionFullHouse": "出一次葫芦"
+  "missionFullHouse": "出一次葫芦",
+  "terms": "服务条款",
+  "privacy": "隐私政策",
+  "agreeNote": "继续即表示你同意服务条款和隐私政策。",
+  "legalLoadFailed": "加载失败。",
+  "retry": "重试"
 }

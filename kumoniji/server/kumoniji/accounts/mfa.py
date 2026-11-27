@@ -32,7 +32,13 @@ def _norm(code: str) -> str:
 def setup(c, s: dict) -> dict:
     """새 비밀을 만들어 둔다(아직 꺼진 상태). 앱이 QR로 보여 준다."""
     require_recent(s)
-    a = c.execute("SELECT email, nickname, mfa_enabled FROM accounts WHERE id = %s", (s["account_id"],)).fetchone()
+    # 행을 잠그고 탈퇴 여부를 다시 본다 — 세션 확인 뒤 탈퇴가 먼저 커밋됐으면 지운 계정에 비밀값을 새로 쓰지 않게(약관 리뷰 9차)
+    a = c.execute(
+        "SELECT email, nickname, mfa_enabled FROM accounts WHERE id = %s AND deleted_at IS NULL FOR UPDATE",
+        (s["account_id"],),
+    ).fetchone()
+    if a is None:
+        raise Denied
     if a["mfa_enabled"]:
         raise Forbidden("mfa_on")
     secret = pyotp.random_base32()

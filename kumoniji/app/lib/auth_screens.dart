@@ -6,6 +6,7 @@ import 'auth.dart';
 import 'home_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'settings.dart';
+import 'legal.dart';
 import 'web_nav.dart';
 
 const _ink = Color(0xFF42384C);
@@ -295,6 +296,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (needCaptcha) captchaBox ??= turnstile(siteKey!, (tok) => setState(() => captcha = tok)),
         wideButton(t.login, busy || (needCaptcha && captcha == null) ? null : _login, key: const ValueKey('login')),
         if (unverified) TextButton(onPressed: _resend, child: Text(t.resend)),
+        // 약관은 로그인 화면에서 늘 볼 수 있게 — 구글 로그인도 여기서 가입되니 그 버튼 위에(리뷰)
+        const LegalLinks(),
         if (google && kIsWeb)
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
@@ -373,6 +376,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 hint: t.passwordHint,
                 autofill: const [AutofillHints.newPassword],
               ),
+              const LegalLinks(), // 동의 안내는 가입 버튼 위에 — 버튼까지만 스크롤해도 보이게(리뷰)
               wideButton(t.signup, busy ? null : _go, key: const ValueKey('signup')),
             ],
     );

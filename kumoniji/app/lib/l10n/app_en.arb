@@ -248,5 +248,10 @@
   "missionToday": "Take a round with today's suit",
   "missionScore30": "Earn 30 points today",
   "missionOddEven": "Play an odd-even combo",
-  "missionFullHouse": "Play a full house"
+  "missionFullHouse": "Play a full house",
+  "terms": "Terms of Service",
+  "privacy": "Privacy Policy",
+  "agreeNote": "By continuing, you agree to the Terms of Service and Privacy Policy.",
+  "legalLoadFailed": "Couldn't load it.",
+  "retry": "Try again"
 }
