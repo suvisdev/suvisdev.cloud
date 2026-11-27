@@ -1,7 +1,7 @@
 """[게임명] 규칙(제안 v4: 오프라인에서도 셈하기 쉬운 정산) 판정 기준 구현 + 하네스 실행기. RULES.md의 [결정] 항목은 초안 기본값.
 
 타일 표기: 모양 한 글자 + 숫자. 벚(벚꽃)·솜(솜사탕)은 분홍, 잎(잎사귀)·산은 초록. 예: "벚3", "산13".
-5장 서열은 13장 손패에 나올 확률 순(PROBABILITIES.md).
+5장 서열은 13장 손패에 나올 확률 순(PROBABILITIES.md). 같은 색 스트레이트·홀짝은 11-27 사용자 결정으로 삭제(색만 같으면 그냥 스트레이트·홀짝).
 실행: python3 rules.py          → cases.json 전부 판정
       python3 rules.py --full   → 52장 중 5장 전수 분류(경우의 수 검증)
 """
@@ -13,14 +13,11 @@ from itertools import combinations
 from pathlib import Path
 
 SHAPES = ["솜", "잎", "벚", "산"]  # 약 → 강 (11-18 사용자: 산 > 벚꽃 > 잎사귀 > 솜사탕)
-COLOR = {"벚": "분홍", "솜": "분홍", "잎": "초록", "산": "초록"}
 NUM_RANK = {n: n - 1 for n in range(1, 14)}  # 1이 가장 약하고 13이 가장 셈 (11-17 v2)
 KINDS5 = [
     "스트레이트",
     "풀하우스",
     "홀짝",
-    "같은색스트레이트",
-    "같은색홀짝",
     "포카드",
     "스트레이트플러시",
     "같은모양홀짝",
@@ -70,7 +67,6 @@ def classify(tiles):
 
     groups = Counter(nums).most_common()
     shape = len({s for s, _ in tiles}) == 1
-    color = len({COLOR[s] for s, _ in tiles}) == 1
     numset = frozenset(nums)
     seq = (STRAIGHTS.index(numset), value(top)) if numset in STRAIGHTS else None
     odd = (ODD_EVEN.index(numset), value(top)) if numset in ODD_EVEN else None
@@ -80,10 +76,6 @@ def classify(tiles):
         return ("스트레이트플러시", seq)
     if groups[0][1] == 4:
         return ("포카드", (NUM_RANK[groups[0][0]],))
-    if odd and color:
-        return ("같은색홀짝", odd)
-    if seq and color:
-        return ("같은색스트레이트", seq)
     if odd:
         return ("홀짝", odd)
     if [c for _, c in groups] == [3, 2]:

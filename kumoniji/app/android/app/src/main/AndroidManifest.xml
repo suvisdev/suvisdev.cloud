@@ -1,7 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 게임 서버(kumoniji.suvisdev.cloud)에 접속 — 릴리스 빌드에도 필요 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 백업 끔: 로그인 저장(Keystore 키)은 복원돼도 풀 수 없고, 다른 기기로 옮겨 가지 않게 -->
     <application
+        android:allowBackup="false"
         android:label="kumoniji"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"

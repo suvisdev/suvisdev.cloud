@@ -133,10 +133,13 @@ class MultiTable:
         return self.void(now)
 
     def state(self, seat: int, events: list[dict]) -> dict:
-        """seat 자리에게 보낼 상태 — 싱글 view와 같은 모양(손패는 자기 것만) + 멀티 정보."""
+        """seat 자리에게 보낼 상태 — 싱글 view와 같은 모양(손패는 자기 것만) + 멀티 정보.
+        낼 수 있는 패(moves·playable)는 빼고 보낸다 — 연습 도움은 싱글만, 멀티는 스스로 찾는다(11-27 사용자).
+        앱만 숨기면 고친 앱으로 볼 수 있어 서버에서 뺀다. 낸 패가 안 되면 move가 이유 코드로 거절한다."""
+        hidden = {"moves", "playable"}
         return {
             "t": "state",
-            **view(self.id, self.game, events, seat=seat),
+            **{k: v for k, v in view(self.id, self.game, events, seat=seat).items() if k not in hidden},
             "seat": seat,
             "names": list(self.names),
             "deadline": None if self.game.winner is not None else self.deadline,

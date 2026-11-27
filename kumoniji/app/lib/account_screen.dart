@@ -38,7 +38,12 @@ class AccountScreen extends StatelessWidget {
                     subtitle: Text(me.email ?? t.notSet),
                   ),
                   const Divider(),
-                  if (me.hasPassword) _tile(Icons.password, t.changePassword, () => _changePassword(context, me)),
+                  _tile(Icons.edit, t.changeNickname, () => _changeNickname(context, me)),
+                  if (me.hasPassword)
+                    _tile(Icons.password, t.changePassword, () => _changePassword(context, me))
+                  // 구글로만 가입한 계정 — 앱에선 구글 재인증이 없어 메일 링크로 정한다(주소 주인 확인을 겸함)
+                  else if (me.email != null)
+                    _tile(Icons.password, t.setPassword, () => _setPassword(context, me.email!)),
                   _tile(Icons.alternate_email, t.changeEmail, () => _changeEmail(context, me)),
                   if (me.mfaEnabled) ...[
                     _tile(Icons.key_off, t.mfaOff, () => _mfaOff(context, me)),
@@ -122,6 +127,13 @@ Future<T?> _sensitive<T>(BuildContext context, Me me, Future<T> Function() act) 
     } on AuthError catch (e) {
       if (e.status != 403 || e.code != 'reauth') rethrow;
       if (!me.hasPassword) {
+        // 앱엔 구글 재인증 흐름이 없다(웹 이동뿐) — 메일로 비밀번호를 만든 뒤 그 비밀번호로 확인하게 안내(리뷰 4차)
+        if (!kIsWeb) {
+          // 새로 로그인한 세션은 5분 동안 '최근 인증'이라 구글로 다시 로그인하면 바로 된다. 이메일 없는 구글 계정(같은
+          // 이메일의 다른 계정이 있어 비워 둠)은 메일로 비밀번호를 만들 수 없으니 그 길만 안내(리뷰 5차)
+          if (context.mounted) _toast(context, me.email == null ? t.reloginGoogle : t.setPasswordFirst);
+          return null;
+        }
         goTo(Auth.googleStart(reauth: true)); // 돌아오면 계정 화면에서 다시 누른다
         return null;
       }
@@ -150,6 +162,27 @@ Future<void> _changePassword(BuildContext context, Me me) async {
   final pw = await _ask(context, t.changePassword, t.newPassword, secret: true, body: t.passwordHint);
   if (pw == null || !context.mounted) return;
   if (await _ok(context, me, () => Auth.changePassword(pw)) && context.mounted) _toast(context, t.passwordChanged);
+}
+
+Future<void> _changeNickname(BuildContext context, Me me) async {
+  final t = AppLocalizations.of(context)!;
+  final nick = await _ask(context, t.changeNickname, t.nickname);
+  if (nick == null || !context.mounted) return;
+  try {
+    await Auth.changeNickname(nick);
+  } catch (e) {
+    if (context.mounted) _toast(context, authMessage(t, e));
+  }
+}
+
+Future<void> _setPassword(BuildContext context, String email) async {
+  final t = AppLocalizations.of(context)!;
+  try {
+    await Auth.forgot(email);
+    if (context.mounted) _toast(context, t.checkEmail);
+  } catch (e) {
+    if (context.mounted) _toast(context, authMessage(t, e));
+  }
 }
 
 Future<void> _changeEmail(BuildContext context, Me me) async {

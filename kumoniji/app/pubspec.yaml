@@ -12,7 +12,9 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
   flutter_svg: ^2.4.0
+  google_sign_in: ^7.2.0
   http: ^1.6.0
   intl: ^0.20.3
   shared_preferences: ^2.5.6
@@ -34,3 +36,5 @@ flutter:
     - assets/boards/
     - assets/audio/
     - assets/legal/
+    - assets/currency/
+    - assets/currency/digits/

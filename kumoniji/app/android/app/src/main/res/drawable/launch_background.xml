@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- 앱을 켜는 순간(Flutter 첫 프레임 전) 보이는 화면 — 흰 화면 대신 앱 배경색(#FFF9EC)과 아이콘(11-27 시작 속도) -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item android:drawable="@color/splash_bg" />
+    <item>
+        <bitmap android:gravity="center" android:src="@mipmap/ic_launcher" />
+    </item>
 </layer-list>

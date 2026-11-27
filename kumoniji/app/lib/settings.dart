@@ -24,8 +24,9 @@ class Settings {
   static final sfx = ValueNotifier<double>(0.8);
   static final vibration = ValueNotifier<bool>(true);
   static final muted = ValueNotifier<bool>(false); // 배경음악·효과음을 한 번에 끔(음량 값은 그대로 둔다)
-  // 배경(Codex 시안 5장씩, 사용자가 고름 — 홈은 기본 없음, 0 = 없음). 상점 판매는 화폐 뒤에 붙인다(11-26 사용자)
-  static final homeBg = ValueNotifier<int>(0);
+  // 배경(Codex 시안, 사용자가 고름 — 0 = 없음). 상점 판매는 화폐 뒤에 붙인다(11-26 사용자)
+  static const defaultHomeBg = 15; // 시작 화면 기본은 찻집 창가(home_15, 11-27 사용자). '없음'을 고르면 0으로 기억
+  static final homeBg = ValueNotifier<int>(defaultHomeBg);
   static const defaultTableBg = 2; // 게임판 기본은 종이 구름(wide-02-paper, 11-26 사용자). '없음'을 고르면 0으로 기억
   static final tableBg = ValueNotifier<int>(defaultTableBg);
   static final board = ValueNotifier<int>(0); // 게임판 윗면 그림(0 = 기본 초록 펠트, 11-26 사용자)
@@ -48,7 +49,7 @@ class Settings {
       sfx.value = p.getDouble('sfx') ?? sfx.value;
       vibration.value = p.getBool('vibration') ?? vibration.value;
       muted.value = p.getBool('muted') ?? muted.value;
-      homeBg.value = (p.getInt('homeBg') ?? 0).clamp(0, homeBackgrounds);
+      homeBg.value = (p.getInt('homeBg') ?? defaultHomeBg).clamp(0, homeBackgrounds);
       tableBg.value = (p.getInt('tableBg') ?? defaultTableBg).clamp(0, tableBackgrounds);
       board.value = (p.getInt('board') ?? 0).clamp(0, boards);
     } catch (_) {}
@@ -188,131 +189,6 @@ class OptionsScreen extends StatelessWidget {
     _ => t.systemLanguage,
   };
 
-  /// 그림 고르기 창 — 0번은 '없음/기본' 글자 칸. 고른 번호(닫으면 null)
-  Future<int?> _pick(
-    BuildContext context,
-    String title,
-    int count,
-    int now,
-    String key,
-    String none,
-    String Function(int) asset,
-    double w,
-    double h,
-  ) => showDialog<int>(
-    context: context,
-    builder: (c) => AlertDialog(
-      title: Text(title),
-      scrollable: true,
-      content: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (var i = 0; i <= count; i++)
-            if (i > 0 || none.isNotEmpty)
-              Semantics(
-                button: true,
-                selected: i == now,
-                label: i == 0 ? none : '$title $i',
-                excludeSemantics: true,
-                onTap: () => Navigator.pop(c, i),
-                child: InkWell(
-                  key: ValueKey('$key-$i'),
-                  onTap: () => Navigator.pop(c, i),
-                  child: Container(
-                    width: w,
-                    height: h,
-                    decoration: BoxDecoration(
-                      color: i == 0 ? const Color(0xFFE6F0DC) : null,
-                      image: i == 0 ? null : DecorationImage(image: AssetImage(asset(i)), fit: BoxFit.cover),
-                      border: Border.all(color: i == now ? gold : Colors.black12, width: i == now ? 3 : 1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: i == 0 ? Text(none) : null,
-                  ),
-                ),
-              ),
-        ],
-      ),
-    ),
-  );
-
-  Future<void> _board(BuildContext context) async {
-    final t = AppLocalizations.of(context)!;
-    final n = await _pick(context, t.board, boards, Settings.board.value, 'board', t.defaultBoard, boardAsset, 72, 72);
-    if (n == null) return;
-    Settings.board.value = n;
-    Settings._save((p) => p.setInt('board', n));
-  }
-
-  /// 세트: 배경과 판을 한 번에(세트 N = 게임 화면 배경 5+N · 판 5+N)
-  Future<void> _set(BuildContext context) async {
-    final t = AppLocalizations.of(context)!;
-    final now = Settings.board.value > 5 && Settings.tableBg.value == Settings.board.value
-        ? Settings.board.value - 5
-        : -1;
-    final n = await _pick(context, t.boardSet, boardSets, now, 'set', '', (i) => 'assets/boards/set_$i.jpg', 128, 72);
-    if (n == null) return;
-    Settings.tableBg.value = Settings.board.value = 5 + n;
-    Settings._save(
-      (p) => p
-        ..setInt('tableBg', 5 + n)
-        ..setInt('board', 5 + n),
-    );
-  }
-
-  Future<void> _background(BuildContext context, String kind, String title) async {
-    final t = AppLocalizations.of(context)!;
-    final pick = kind == 'home' ? Settings.homeBg : Settings.tableBg;
-    final n = await showDialog<int>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(title),
-        scrollable: true,
-        content: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++)
-              // 그림·테두리만으론 화면 읽기가 구분 못 한다 — 이름(없음 / 홈 배경 3)과 고른 상태를 알린다
-              Semantics(
-                button: true,
-                selected: i == pick.value,
-                label: i == 0 ? t.noBackground : '$title $i',
-                excludeSemantics: true, // 안쪽 InkWell의 탭 동작도 빠지므로 여기서 다시 준다
-                onTap: () => Navigator.pop(c, i),
-                child: InkWell(
-                  key: ValueKey('bg-$kind-$i'),
-                  onTap: () => Navigator.pop(c, i),
-                  child: Container(
-                    width: kind == 'home' ? 128 : 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: Theme.of(c).scaffoldBackgroundColor,
-                      image: i == 0
-                          ? null
-                          : DecorationImage(image: AssetImage(backgroundAsset(kind, i)), fit: BoxFit.cover),
-                      border: Border.all(
-                        color: i == pick.value ? gold : Colors.black12,
-                        width: i == pick.value ? 3 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: i == 0 ? Text(t.noBackground) : null,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (n == null) return;
-    pick.value = n;
-    Settings._save((p) => p.setInt('${kind}Bg', n));
-  }
-
   Widget _volume(String label, IconData icon, ValueNotifier<double> v, String key) => ValueListenableBuilder(
     valueListenable: v,
     builder: (_, x, _) => ListTile(
@@ -354,37 +230,6 @@ class OptionsScreen extends StatelessWidget {
                 onTap: () => _language(context),
               ),
               const Divider(),
-              for (final (kind, title, icon) in [
-                ('home', t.homeBackground, Icons.wallpaper),
-                ('table', t.tableBackground, Icons.grid_view),
-              ])
-                ValueListenableBuilder(
-                  valueListenable: kind == 'home' ? Settings.homeBg : Settings.tableBg,
-                  builder: (_, n, _) => ListTile(
-                    key: ValueKey('$kind-background'),
-                    leading: Icon(icon),
-                    title: Text(title),
-                    trailing: Text(n == 0 ? t.noBackground : '$n'),
-                    onTap: () => _background(context, kind, title),
-                  ),
-                ),
-              ValueListenableBuilder(
-                valueListenable: Settings.board,
-                builder: (_, n, _) => ListTile(
-                  key: const ValueKey('board'),
-                  leading: const Icon(Icons.table_restaurant),
-                  title: Text(t.board),
-                  trailing: Text(n == 0 ? t.defaultBoard : '$n'),
-                  onTap: () => _board(context),
-                ),
-              ),
-              ListTile(
-                key: const ValueKey('board-set'),
-                leading: const Icon(Icons.collections),
-                title: Text(t.boardSet),
-                onTap: () => _set(context),
-              ),
-              const Divider(),
               _volume(t.music, Icons.music_note, Settings.music, 'music'),
               _volume(t.sfx, Icons.volume_up, Settings.sfx, 'sfx'),
               const Divider(),
@@ -422,4 +267,129 @@ class OptionsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 그림 고르기 창 — 0번은 '없음/기본' 글자 칸. 고른 번호(닫으면 null)
+Future<int?> _pickArt(
+  BuildContext context,
+  String title,
+  int count,
+  int now,
+  String key,
+  String none,
+  String Function(int) asset,
+  double w,
+  double h,
+) => showDialog<int>(
+  context: context,
+  builder: (c) => AlertDialog(
+    title: Text(title),
+    scrollable: true,
+    content: Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var i = 0; i <= count; i++)
+          if (i > 0 || none.isNotEmpty)
+            Semantics(
+              button: true,
+              selected: i == now,
+              label: i == 0 ? none : '$title $i',
+              excludeSemantics: true,
+              onTap: () => Navigator.pop(c, i),
+              child: InkWell(
+                key: ValueKey('$key-$i'),
+                onTap: () => Navigator.pop(c, i),
+                child: Container(
+                  width: w,
+                  height: h,
+                  decoration: BoxDecoration(
+                    color: i == 0 ? const Color(0xFFE6F0DC) : null,
+                    image: i == 0 ? null : DecorationImage(image: AssetImage(asset(i)), fit: BoxFit.cover),
+                    border: Border.all(color: i == now ? gold : Colors.black12, width: i == now ? 3 : 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: i == 0 ? Text(none) : null,
+                ),
+              ),
+            ),
+      ],
+    ),
+  ),
+);
+
+/// 게임판 윗면 고르기(게임 화면 꾸미기 버튼)
+Future<void> pickBoard(BuildContext context) async {
+  final t = AppLocalizations.of(context)!;
+  final n = await _pickArt(context, t.board, boards, Settings.board.value, 'board', t.defaultBoard, boardAsset, 72, 72);
+  if (n == null) return;
+  Settings.board.value = n;
+  Settings._save((p) => p.setInt('board', n));
+}
+
+/// 세트: 배경과 판을 한 번에(세트 N = 게임 화면 배경 5+N · 판 5+N)
+Future<void> pickBoardSet(BuildContext context) async {
+  final t = AppLocalizations.of(context)!;
+  final now = Settings.board.value > 5 && Settings.tableBg.value == Settings.board.value
+      ? Settings.board.value - 5
+      : -1;
+  final n = await _pickArt(context, t.boardSet, boardSets, now, 'set', '', (i) => 'assets/boards/set_$i.jpg', 128, 72);
+  if (n == null) return;
+  Settings.tableBg.value = Settings.board.value = 5 + n;
+  Settings._save(
+    (p) => p
+      ..setInt('tableBg', 5 + n)
+      ..setInt('board', 5 + n),
+  );
+}
+
+/// 배경 고르기 — 옵션이 아니라 그 화면의 버튼에서(홈은 시작 화면, table은 게임 화면, 11-27 사용자)
+Future<void> pickBackground(BuildContext context, String kind) async {
+  final t = AppLocalizations.of(context)!;
+  final title = kind == 'home' ? t.homeBackground : t.tableBackground;
+  final pick = kind == 'home' ? Settings.homeBg : Settings.tableBg;
+  final n = await showDialog<int>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text(title),
+      scrollable: true,
+      content: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++)
+            // 그림·테두리만으론 화면 읽기가 구분 못 한다 — 이름(없음 / 홈 배경 3)과 고른 상태를 알린다
+            Semantics(
+              button: true,
+              selected: i == pick.value,
+              label: i == 0 ? t.noBackground : '$title $i',
+              excludeSemantics: true, // 안쪽 InkWell의 탭 동작도 빠지므로 여기서 다시 준다
+              onTap: () => Navigator.pop(c, i),
+              child: InkWell(
+                key: ValueKey('bg-$kind-$i'),
+                onTap: () => Navigator.pop(c, i),
+                child: Container(
+                  width: kind == 'home' ? 128 : 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: Theme.of(c).scaffoldBackgroundColor,
+                    image: i == 0
+                        ? null
+                        : DecorationImage(image: AssetImage(backgroundAsset(kind, i)), fit: BoxFit.cover),
+                    border: Border.all(color: i == pick.value ? gold : Colors.black12, width: i == pick.value ? 3 : 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: i == 0 ? Text(t.noBackground) : null,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+  if (n == null) return;
+  pick.value = n;
+  Settings._save((p) => p.setInt('${kind}Bg', n));
 }

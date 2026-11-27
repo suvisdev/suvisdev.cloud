@@ -5,7 +5,7 @@ import pytest
 
 from kumoniji import api
 from kumoniji.accounts import db
-from kumoniji.wallet import money, store
+from kumoniji.wallet import money, store, web
 
 from .helpers import browser, login, make_account, signed_up
 
@@ -103,6 +103,23 @@ def test_buy_with_gems_and_hearts_can_exceed_ten(database):
     assert (w["gems"], w["hearts"]) == (5, 15)
 
 
+def test_bigger_packs_give_a_bonus_and_the_api_sells_every_shop_item(database):
+    """골드·햇살 묶음은 많이 살수록 덤 — 조각 하나당 받는 양이 줄지 않는다(11-27 상점)."""
+    coins = sorted((p, g["coins"]) for p, g in money.SHOP.values() if "coins" in g)
+    hearts = sorted((p, g["hearts"]) for p, g in money.SHOP.values() if "hearts" in g)
+    for packs in (coins, hearts):
+        rates = [n / p for p, n in packs]
+        assert rates == sorted(rates) and rates[-1] > rates[0]
+    a = make_account()
+    with db.tx() as c:
+        c.execute("INSERT INTO wallets (account_id, gems) VALUES (%s, 325)", (a,))
+        store.buy(c, a, "coins40000", time.time())
+        store.buy(c, a, "hearts15", time.time())
+        w = store.snapshot(c, a, time.time())
+    assert (w["gems"], w["coins"] >= 40000, w["hearts"]) == (0, True, 25)
+    assert set(web.Buy.model_fields["item"].annotation.__args__) == set(money.SHOP)
+
+
 def test_resent_buy_with_the_same_request_id_buys_once(database):
     """구매가 커밋된 뒤 응답이 유실돼 같은 rid로 다시 보내도 보석은 한 번만(Codex 25차)."""
     a = make_account()
@@ -167,6 +184,30 @@ def test_attend_and_buy_over_http(outbox, fast_hash):
         assert c.post("/api/games", json={"rid": bad}).status_code == 422
     c.headers.pop("x-csrf")
     assert c.post("/api/wallet/attend").status_code == 403
+
+
+def test_logged_in_wallet_read_checks_in_once_a_day(outbox, fast_hash):
+    """접속만 해도 출석(11-27 사용자) — 로그인한 앱 계정이 그날 처음 잔고를 읽으면. 두 번째부터는 잔고만.
+    웹(쿠키)은 GET에 CSRF 검사가 없어 남의 사이트가 이동만 시켜도 출석되므로 하지 않는다(리뷰 1차)"""
+    from fastapi.testclient import TestClient
+
+    from kumoniji.api import app
+
+    from .helpers import ORIGIN
+
+    c = browser()
+    assert c.get("/api/wallet").status_code == 401  # 로그인 안 하면 출석도 없다
+    signed_up(c, outbox)
+    login(c)
+    web = c.get("/api/wallet").json()
+    assert "attended_now" not in web and web["coins"] == 0
+    a = TestClient(app, base_url=ORIGIN, headers={"x-kumoniji-client": "app"})
+    a.headers["authorization"] = f"Bearer {login(a).json()['access']}"
+    first = a.get("/api/wallet").json()
+    assert first["attended_now"] is True and first["coins"] == money.ATTEND and first["attend"]["claimed"]
+    again = a.get("/api/wallet").json()
+    assert "attended_now" not in again and again["coins"] == money.ATTEND
+    assert a.post("/api/wallet/attend").status_code == 409
 
 
 def test_failed_single_record_is_retried_in_background(outbox, fast_hash, monkeypatch):

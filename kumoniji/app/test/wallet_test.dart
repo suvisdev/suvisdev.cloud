@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -75,7 +76,8 @@ void main() {
     Auth.me.value = null;
   });
 
-  testWidgets('잔고 막대가 판돈·하트·보석을 보여 주고, 출석하면 늘어난 판돈으로 바뀐다', (t) async {
+  testWidgets('잔고 막대가 골드·햇살·무지개 조각을 보여 주고, 출석하면 늘어난 골드로 바뀐다', (t) async {
+    final semantics = t.ensureSemantics();
     var coins = 0;
     Auth.client = AuthClient(
       MockClient((r) async {
@@ -85,13 +87,74 @@ void main() {
     );
     await t.pumpWidget(_wrap(const MissionsScreen()));
     await t.pumpAndSettle();
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('7'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
+    expect(find.bySemanticsLabel('Gold 0'), findsOneWidget);
+    expect(find.bySemanticsLabel('Sunbeams 7'), findsOneWidget);
+    expect(find.bySemanticsLabel('Rainbow shards 3'), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('attend')));
     await t.pumpAndSettle();
-    expect(find.text('200'), findsOneWidget);
+    expect(find.bySemanticsLabel('Gold 200'), findsOneWidget);
     expect(t.widget<FilledButton>(find.byKey(const ValueKey('attend'))).onPressed, isNull); // 하루 한 번
+    semantics.dispose();
+  });
+
+  testWidgets('햇살은 5칸 — 가진 만큼 채우고 넘친 몫은 +N, 골드는 천 단위 콤마 숫자 그림', (t) async {
+    Iterable<String> suns() => t
+        .widgetList<Image>(
+          find.descendant(of: find.byKey(const ValueKey('wallet-hearts')), matching: find.byType(Image)),
+        )
+        .map((i) => (i.image as AssetImage).assetName)
+        .where((n) => n.contains('/sun'));
+    for (final (hearts, filled, plus) in [(3, 3, null), (7, 5, '+2'), (0, 0, null)]) {
+      Auth.client = AuthClient(
+        MockClient((_) async => http.Response(jsonEncode(wallet(coins: 12345, hearts: hearts)), 200)),
+      );
+      Wallet.current.value = null;
+      await t.pumpWidget(_wrap(Scaffold(key: UniqueKey(), body: const WalletBar())));
+      await Wallet.refresh();
+      await t.pumpAndSettle();
+      expect(suns(), hasLength(5));
+      expect(suns().where((n) => n.endsWith('/sun.png')), hasLength(filled), reason: '$hearts');
+      expect(
+        find.byWidgetPredicate((w) => w is Digits && w.text == plus),
+        plus == null ? findsNothing : findsOneWidget,
+      );
+      expect(find.byWidgetPredicate((w) => w is Digits && w.text == '12,345'), findsOneWidget);
+    }
+  });
+
+  testWidgets('잔고 막대의 재화를 누르면 그 탭으로 상점이 열리고, 상점 안에서는 탭만 바뀐다', (t) async {
+    Auth.client = AuthClient(MockClient((_) async => http.Response(jsonEncode(wallet(gems: 3)), 200)));
+    await t.pumpWidget(_wrap(const Scaffold(body: WalletBar())));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const ValueKey('wallet-gems')));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('gem-pack-12')), findsOneWidget);
+    // 현금 묶음은 아직 못 산다(결제는 문의 뒤)
+    expect(
+      t
+          .widget<OutlinedButton>(
+            find.descendant(of: find.byKey(const ValueKey('gem-pack-12')), matching: find.byType(OutlinedButton)),
+          )
+          .onPressed,
+      isNull,
+    );
+    await t.tap(find.descendant(of: find.byType(AppBar), matching: find.byKey(const ValueKey('wallet-hearts'))));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('buy-hearts15')), findsOneWidget);
+    expect(find.byType(ShopScreen), findsOneWidget); // 상점을 또 쌓지 않음
+  });
+
+  testWidgets('화면 읽기(TalkBack·VoiceOver)로 잔고 버튼을 두 번 눌러도 상점이 열린다(리뷰 18차)', (t) async {
+    final sem = t.ensureSemantics();
+    Auth.client = AuthClient(MockClient((_) async => http.Response(jsonEncode(wallet(gems: 3)), 200)));
+    await t.pumpWidget(_wrap(const Scaffold(body: WalletBar())));
+    await t.pumpAndSettle();
+    final node = t.getSemantics(find.byKey(const ValueKey('wallet-gems')));
+    expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    t.semantics.tap(find.semantics.byLabel(RegExp('^${node.label}\$')));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('gem-pack-12')), findsOneWidget);
+    sem.dispose();
   });
 
   testWidgets('미션은 진행 수/목표와 완료 표시를 보여 준다', (t) async {
@@ -128,7 +191,7 @@ void main() {
         return http.Response(jsonEncode(wallet(gems: gems)), 200);
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('buy-hearts5')));
     await t.pumpAndSettle();
@@ -169,7 +232,74 @@ void main() {
     );
     await t.pumpWidget(_wrap(TableScreen(api: api, showHelpOnFirstVisit: false)));
     await settle(t);
-    expect(find.text('Out of hearts. One refills every 10 minutes (next in 5 min).'), findsOneWidget);
+    expect(find.text('Out of sunbeams. One refills every 10 minutes (next in 5 min).'), findsOneWidget);
+  });
+
+  testWidgets('접속만으로 오늘 출석되면(서버 attended_now) 잔고 막대가 알린다', (t) async {
+    Auth.client = AuthClient(
+      MockClient(
+        (_) async => http.Response(jsonEncode({...wallet(coins: 200, claimed: true), 'attended_now': true}), 200),
+      ),
+    );
+    await t.pumpWidget(_wrap(const Scaffold(body: WalletBar())));
+    await settle(t);
+    expect(find.text('Checked in · 1 days in a row'), findsOneWidget);
+  });
+
+  testWidgets('홈 위에 미션 화면이 열려 있어도 출석 알림은 한 번만(맨 위 막대만)', (t) async {
+    Auth.client = AuthClient(
+      MockClient((_) async => http.Response(jsonEncode(wallet(coins: 200, claimed: true)), 200)),
+    );
+    final nav = GlobalKey<NavigatorState>();
+    await t.pumpWidget(
+      MaterialApp(
+        navigatorKey: nav,
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(body: WalletBar()),
+      ),
+    );
+    await settle(t);
+    nav.currentState!.push(MaterialPageRoute(builder: (_) => const Scaffold(body: WalletBar())));
+    await settle(t);
+    Wallet.attendedNow.value++;
+    await t.pump();
+    expect(find.text('Checked in · 1 days in a row'), findsOneWidget);
+    for (var i = 0; i < 4; i++) {
+      await t.pump(const Duration(seconds: 3)); // 첫 알림이 사라진 뒤(표시 4초 + 애니메이션)
+    }
+    expect(find.text('Checked in · 1 days in a row'), findsNothing); // 줄 선 두 번째 알림이 없다
+    // 대화창이 맨 위에 있을 때 온 출석도 알린다(리뷰 10차)
+    showDialog(
+      context: nav.currentContext!,
+      builder: (_) => const AlertDialog(content: Text('pick')),
+    );
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 500));
+    Wallet.attendedNow.value++;
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.text('Checked in · 1 days in a row'), findsOneWidget);
+  });
+
+  test('출석한 조회 응답이 더 새 스냅숏보다 늦게 와 버려져도 출석 알림은 낸다', () async {
+    final real = DateTime.now().millisecondsSinceEpoch / 1000;
+    Wallet.set(wallet(v: real + 10, coins: 200, claimed: true), owner: Auth.me.value?.id); // 뒤 조회가 먼저 반영됨
+    Auth.client = AuthClient(
+      MockClient(
+        (_) async =>
+            http.Response(jsonEncode({...wallet(v: real, coins: 200, claimed: true), 'attended_now': true}), 200),
+      ),
+    );
+    final before = Wallet.attendedNow.value;
+    await Wallet.refresh();
+    expect(Wallet.attendedNow.value, before + 1);
   });
 
   testWidgets('판이 끝난 응답의 지갑으로 잔고를 바로 바꾼다', (t) async {
@@ -232,12 +362,12 @@ void main() {
         return http.Response(jsonEncode(wallet(gems: 30)), 200);
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'coins')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('buy-coins1000')));
     await t.pumpAndSettle();
     await t.pumpWidget(const SizedBox()); // 상점을 닫음
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'coins')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('buy-coins1000')));
     await t.pumpAndSettle();
@@ -336,10 +466,10 @@ void main() {
   testWidgets('결과를 모르는 구매는 보석이 줄어 보여도 다시 눌러 확인할 수 있다', (t) async {
     Wallet.buyRids[(null, 'hearts5')] = 'pendingrid1';
     Auth.client = AuthClient(MockClient((_) async => http.Response(jsonEncode(wallet(gems: 0)), 200)));
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     expect(t.widget<FilledButton>(find.byKey(const ValueKey('buy-hearts5'))).onPressed, isNotNull);
-    expect(t.widget<FilledButton>(find.byKey(const ValueKey('buy-coins1000'))).onPressed, isNull);
+    expect(t.widget<FilledButton>(find.byKey(const ValueKey('buy-hearts15'))).onPressed, isNull);
     await t.tap(find.byKey(const ValueKey('buy-hearts5')));
     await t.pumpAndSettle();
     expect(Wallet.buyRids, isEmpty);
@@ -430,7 +560,7 @@ void main() {
         return http.Response(jsonEncode(wallet(gems: 0, hearts: 14)), 200);
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     Wallet.set(wallet(gems: 10, hearts: 10), owner: null);
     await t.pump();
@@ -819,7 +949,7 @@ void main() {
         return http.Response(jsonEncode(wallet(gems: 30)), 200);
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     Auth.me.value = null; // 다른 탭이 계정을 바꿈 — 화면은 다음 프레임까지 남아 있다
     await t.tap(find.byKey(const ValueKey('buy-hearts5')));
@@ -1063,7 +1193,7 @@ void main() {
     Auth.client = AuthClient(MockClient((_) async => http.Response(jsonEncode(wallet(next7: true)), 200)));
     await t.pumpWidget(_wrap(const MissionsScreen()));
     await t.pumpAndSettle();
-    expect(find.text('Check in today (+500 · 10 gems)'), findsOneWidget);
+    expect(find.text('Check in today (+500 · 10 rainbow shards)'), findsOneWidget);
   });
 
   testWidgets('출석이 409(이미 받음)인데 잔고 받기도 실패하면 30초 뒤 다시 받아 버튼을 끈다', (t) async {
@@ -1148,7 +1278,7 @@ void main() {
         return http.Response(jsonEncode(wallet(gems: gets > 2 ? 3 : 30)), 200);
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('buy-hearts5')));
     await t.pumpAndSettle();
@@ -1197,7 +1327,7 @@ void main() {
         return http.Response(jsonEncode(wallet(gems: gets > 1 ? 20 : 30)), 200);
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('buy-hearts5')));
     await t.pumpAndSettle();
@@ -1226,7 +1356,7 @@ void main() {
         return Future.value(http.Response(jsonEncode(wallet(gems: gets > 1 ? 20 : 30)), 200));
       }),
     );
-    await t.pumpWidget(_wrap(const ShopScreen()));
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const ValueKey('buy-hearts5')));
     await t.pump();

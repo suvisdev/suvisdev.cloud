@@ -41,7 +41,7 @@ These providers are outside Korea, and data is transferred to them over the inte
 Passwords and two-step data are stored encrypted or hashed, and all traffic uses HTTPS. Repeated failed logins are temporarily blocked, and new-device logins trigger an alert to the account email. Accounts without an email (for example, a Google sign-up whose email is already used by another account) do not receive this alert.
 
 ## 6. Cookies
-On the web we use only cookies strictly necessary for staying logged in and preventing request forgery. No advertising or tracking cookies. Device settings (language, backgrounds, sound) are stored only on your device.
+On the web we use only cookies strictly necessary for staying logged in and preventing request forgery. No advertising or tracking cookies. Device settings (language, backgrounds, sound) are stored only on your device. So you do not have to log in again, the app keeps your login (tokens) in the device's secure storage, and keeps the email you last logged in with on the device to fill in the next login screen; logging out removes the login, and deleting your account also removes the email.
 
 ## 7. Changes
 We announce changes to this policy in the Service 7 days before they take effect.

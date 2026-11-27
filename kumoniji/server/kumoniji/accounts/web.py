@@ -6,7 +6,9 @@
   다른 사이트의 브라우저는 이 사용자 정의 머리글을 CORS 없이 보낼 수 없다.
 """
 
+import hashlib
 import hmac
+import json
 import os
 import secrets
 
@@ -223,6 +225,10 @@ class Password(BaseModel):
     password: str = Field(max_length=600)
 
 
+class Nickname(BaseModel):
+    nickname: str = Field(max_length=64)
+
+
 class Refresh(BaseModel):
     refresh: str | None = Field(default=None, max_length=200)
     retry: str = Field(default="", max_length=128)  # 재시도 키 — 응답을 못 받은 갱신을 같은 키로 다시 받는다(멱등)
@@ -233,6 +239,12 @@ def config():
     """앱이 고를 로그인 수단. 비밀값은 없다(Turnstile 사이트 키는 공개용)."""
     return {
         "google": bool(os.environ.get("KUMONIJI_GOOGLE_CLIENT_ID")),
+        # 앱 구글 로그인이 ID 토큰을 받을 대상(웹 클라이언트 ID, 공개값) — 서버가 같은 값으로 aud를 검증한다.
+        # 비어 있으면 앱은 구글 버튼을 숨긴다. Cloud Console에 Android 클라이언트(패키지·서명 SHA-1)를 등록한 뒤에만
+        # KUMONIJI_GOOGLE_ANDROID=1로 켠다 — 등록 전엔 눌러도 실패한다(리뷰 19차)
+        "google_client": os.environ.get("KUMONIJI_GOOGLE_CLIENT_ID", "")
+        if os.environ.get("KUMONIJI_GOOGLE_ANDROID") == "1"
+        else "",
         "turnstile_site": os.environ.get("KUMONIJI_TURNSTILE_SITE", ""),
     }
 
@@ -481,6 +493,17 @@ def google_app(body: GoogleApp, request: Request):
     except google.Invalid:
         raise HTTPException(401, {"code": "google"}) from None
     with db.tx() as c:
+        # 같은 ID 토큰은 한 번만 — nonce는 앱이 정해 서버가 일회성을 보장하지 못하므로(google_sign_in은 실행마다 한 번
+        # initialize) 토큰 자체를 쓴 것으로 남긴다. 새어 나간 토큰으로 만료(1시간) 전까지 세션을 다시 받지 못하게(리뷰 5차).
+        # 기록은 attempts에 두고 하루 뒤 정리(limits.sweep)
+        # 원문이 아니라 검증된 내용으로 — JWT는 같은 서명을 여러 인코딩으로 적을 수 있어 원문 해시는 우회된다(리뷰 6차).
+        # 구글이 새로 낸 토큰은 iat(·jti)가 달라 내용이 다르다
+        used = hashlib.sha256(json.dumps(claims, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if not c.execute(
+            "INSERT INTO attempts (key, fails) VALUES (%s, 0) ON CONFLICT (key) DO NOTHING RETURNING key",
+            ("gid:" + used,),
+        ).fetchone():
+            raise HTTPException(401, {"code": "google"})
         aid = google.find_or_create(c, claims)
         row = c.execute(
             "SELECT id, email, mfa_enabled FROM accounts WHERE id = %s AND locked_at IS NULL", (aid,)
@@ -557,6 +580,24 @@ def mfa_recovery(request: Request):
 
 class Token(BaseModel):
     token: str = Field(max_length=200)
+
+
+@router.post("/nickname")
+def change_nickname(body: Nickname, request: Request):
+    """프로필(닉네임) 바꾸기 — 남에게 보이는 이름일 뿐이라 최근 인증은 묻지 않는다."""
+    s = session_of(request)
+
+    def run(c):
+        nick = service.nickname_ok(body.nickname)
+        # 검사 뒤 다른 요청이 탈퇴를 마쳤으면 지워진 계정에 닉네임을 되살리지 않는다(리뷰 4차)
+        if not c.execute(
+            "UPDATE accounts SET nickname = %s WHERE id = %s AND deleted_at IS NULL RETURNING id",
+            (nick, s["account_id"]),
+        ).fetchone():
+            raise HTTPException(401, {"code": "session"})
+        return {"nickname": nick}
+
+    return _tx(run)
 
 
 @router.post("/email", status_code=202)

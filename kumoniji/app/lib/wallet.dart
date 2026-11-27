@@ -59,7 +59,55 @@ const missionNeed = {
 };
 
 /// 상점 상품: (id, 보석 값) — 서버 money.SHOP과 같게
-const shopItems = [('hearts5', 10), ('coins1000', 10)];
+/// 상점 상품(서버 money.SHOP과 같아야 함): (id, 무지개 조각 값, 얻는 것, 양). 많이 살수록 덤(11-27 사용자)
+const shopItems = [
+  ('coins1000', 10, 'coins', 1000),
+  ('coins5500', 50, 'coins', 5500),
+  ('coins12000', 100, 'coins', 12000),
+  ('coins40000', 300, 'coins', 40000),
+  ('hearts5', 10, 'hearts', 5),
+  ('hearts15', 25, 'hearts', 15),
+];
+
+/// 무지개 조각 묶음(원, 개수) — 화면만, 결제는 게임위 문의 뒤(11-27 사용자). 기준 100원에 1개, 큰 묶음일수록 덤
+const gemPacks = [(1200, 12), (5900, 62), (12000, 132), (33000, 380), (59000, 708), (119000, 1488)];
+
+/// 상점 탭 순서
+const shopTabs = ['gems', 'coins', 'hearts'];
+
+String thousands(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+
+/// 재화 그림(골드·햇살·무지개 조각 — Codex 시안 B, 11-27 사용자)
+Widget currencyIcon(String kind, double size, {bool empty = false}) => Image.asset(
+  'assets/currency/${switch (kind) {
+    'coins' => 'gold',
+    'hearts' => empty ? 'sun_empty' : 'sun',
+    _ => 'gem',
+  }}.png',
+  width: size,
+  height: size,
+  filterQuality: FilterQuality.medium,
+);
+
+/// 잔고 숫자 — 통통한 입체 숫자 그림(시안 B). 0-9·콤마·더하기만
+class Digits extends StatelessWidget {
+  const Digits(this.text, {super.key, this.height = 18});
+  final String text;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (final c in text.split(''))
+        Image.asset(
+          'assets/currency/digits/${c == ',' ? 'comma' : (c == '+' ? 'plus' : c)}.png',
+          height: height,
+          filterQuality: FilterQuality.medium,
+        ),
+    ],
+  );
+}
 
 class Wallet {
   /// 지금 로그인한 계정의 지갑. 계정이 바뀌거나 로그아웃하면 비운다 — 앞 사람 잔고가 남지 않게(리뷰 1차)
@@ -105,7 +153,11 @@ class Wallet {
           ? await Auth.client.get(uri, headers: headers)
           : await Auth.client.post(uri, headers: headers, body: jsonEncode(body));
       if (r.statusCode == 200) {
-        final applied = set(jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>, owner: who);
+        final j = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+        final applied = set(j, owner: who);
+        // 접속만으로 오늘 출석됨 — 잔고 막대가 알린다. 스냅숏 반영과 따로: 연달아 조회해 뒤 응답이 먼저 오면 이 응답은
+        // 옛 스냅숏이라 버려져도 출석은 이 응답이 했다(리뷰 2차). 지금 계정의 응답일 때만
+        if (j['attended_now'] == true && who == Auth.me.value?.id) attendedNow.value++;
         // 조회가 옛 스냅숏이라 버려짐(서버 재시작과 시계 되감기가 겹침 등) — 실패(0)로 알려 잔고 막대가 30초 뒤 다시(리뷰 25차)
         if (!applied && body == null && who == Auth.me.value?.id) return (0, 'stale');
         return null;
@@ -126,6 +178,9 @@ class Wallet {
 
   /// 성공하면 null, 아니면 (상태, 코드) — 상태 0은 연결 실패
   static Future<(int, String?)?> refresh() => _call('/api/wallet');
+
+  /// 잔고를 읽다 서버가 오늘 출석을 처리함(접속만 해도 출석, 11-27 사용자)
+  static final attendedNow = ValueNotifier<int>(0);
 
   /// 막대 밖(판 화면 등)에서 받다 실패했을 때 — 홈의 잔고 막대가 다시 시도하게 알린다(리뷰 12차)
   static final retry = ValueNotifier<int>(0);
@@ -209,7 +264,9 @@ String missionName(AppLocalizations t, String id) => switch (id) {
 /// 잔고 막대: 판돈·하트·보석. 처음 그릴 때 서버에서 받아 오고, 다음 하트가 차는 시각과 한국 자정(출석·미션이
 /// 새날로 바뀜)에 다시 받는다(리뷰 1·2차).
 class WalletBar extends StatefulWidget {
-  const WalletBar({super.key});
+  /// [onPick]: 재화를 누르면 — 기본은 그 탭으로 상점 열기, 상점 안에서는 탭만 바꾼다
+  const WalletBar({super.key, this.onPick});
+  final void Function(String kind)? onPick;
 
   @override
   State<WalletBar> createState() => _WalletBarState();
@@ -234,6 +291,7 @@ class _WalletBarState extends State<WalletBar> {
     Wallet.current.addListener(_schedule);
     Wallet.retry.addListener(_fetch);
     Wallet.recheck.addListener(_recheck);
+    Wallet.attendedNow.addListener(_attended);
     _schedule();
     _fetch();
   }
@@ -251,6 +309,18 @@ class _WalletBarState extends State<WalletBar> {
     _soon = soon;
     final ms = soon ? 0 : min(at == null ? nextKstMidnight(now) : (at * 1000).round(), nextKstMidnight(now)) - now;
     _heart = Timer(Duration(milliseconds: max(ms + 1000, 1000)), _fetch); // 서버 시각과 조금 어긋나도 지난 뒤에
+  }
+
+  static int _shownAttend = 0;
+
+  void _attended() {
+    final w = Wallet.current.value;
+    // 출석 한 건에 알림 하나 — 먼저 받은 막대만 띄운다. 알림 창(ScaffoldMessenger)은 앱 전체가 함께 써서 어느 화면의
+    // 막대가 띄워도 지금 보이는 화면에 나온다. 맨 위 막대만 띄우면 대화창이 열린 사이 온 출석은 알림이 사라졌다(리뷰 8·10차)
+    if (!mounted || w == null || _shownAttend == Wallet.attendedNow.value) return;
+    _shownAttend = Wallet.attendedNow.value;
+    ScaffoldMessenger.maybeOf(context)
+        ?.showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.attended(w.streak))));
   }
 
   /// 조회가 연결 끊김·5xx로 실패하면 30초 뒤 다시 — 첫 조회도(미션·상점이 빈 채 멈추지 않게, 리뷰 3·4차).
@@ -273,6 +343,7 @@ class _WalletBarState extends State<WalletBar> {
     }
     Wallet.current.removeListener(_schedule);
     Wallet.retry.removeListener(_fetch);
+    Wallet.attendedNow.removeListener(_attended);
     Wallet.recheck.removeListener(_recheck);
     super.dispose();
   }
@@ -280,16 +351,19 @@ class _WalletBarState extends State<WalletBar> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    Widget item(IconData icon, Color color, String label, int n) => Semantics(
+    void pick(String kind) => widget.onPick != null
+        ? widget.onPick!(kind)
+        : Navigator.push(context, MaterialPageRoute(builder: (_) => ShopScreen(tab: kind)));
+    Widget item(String kind, String label, int n, Widget body) => Semantics(
       label: '$label $n',
+      button: true,
       excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 3),
-          Text('$n', style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
+      onTap: () => pick(kind),
+      child: InkWell(
+        key: ValueKey('wallet-$kind'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => pick(kind),
+        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), child: body),
       ),
     );
     return ValueListenableBuilder(
@@ -302,11 +376,40 @@ class _WalletBarState extends State<WalletBar> {
                 key: const ValueKey('wallet-bar'),
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  item(Icons.toll, const Color(0xFFC9A227), t.coins, w.coins),
-                  const SizedBox(width: 12),
-                  item(Icons.favorite, Colors.pink, t.hearts, w.hearts),
-                  const SizedBox(width: 12),
-                  item(Icons.diamond, const Color(0xFF4FA3C7), t.gems, w.gems),
+                  // 골드 · 햇살(서버 이름 hearts) · 무지개 조각(gems) — 11-27 사용자가 이름을 정함, 서버 키는 그대로
+                  item(
+                    'coins',
+                    t.coins,
+                    w.coins,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [currencyIcon('coins', 20), const SizedBox(width: 3), Digits(thousands(w.coins))],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 햇살은 보통 게임처럼 5칸 — 가진 만큼 채우고 넘친 몫은 +N(11-27 사용자)
+                  item(
+                    'hearts',
+                    t.hearts,
+                    w.hearts,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < 5; i++) currencyIcon('hearts', 18, empty: i >= w.hearts),
+                        if (w.hearts > 5) ...[const SizedBox(width: 2), Digits('+${w.hearts - 5}')],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  item(
+                    'gems',
+                    t.gems,
+                    w.gems,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [currencyIcon('gems', 20), const SizedBox(width: 3), Digits(thousands(w.gems))],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -386,22 +489,33 @@ class _MissionsScreenState extends State<MissionsScreen> {
   }
 }
 
-/// 상점: 보석으로 하트·판돈(결제는 없음 — 보석은 출석 7일째 등으로만 얻는다)
+/// 상점: 무지개 조각(현금 — 결제는 준비 중) · 골드 · 햇살 탭. 골드·햇살은 무지개 조각으로 산다
 class ShopScreen extends StatefulWidget {
-  const ShopScreen({super.key});
+  const ShopScreen({super.key, this.tab = 'coins'});
+
+  /// 처음 열 탭(gems·coins·hearts) — 잔고 막대에서 누른 재화
+  final String tab;
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
 }
 
-class _ShopScreenState extends State<ShopScreen> {
+class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateMixin {
   bool busy = false;
   late final int? account; // 화면을 연 계정 — 구매는 이 계정으로만(리뷰 18차)
+  late final TabController tabs;
 
   @override
   void initState() {
     super.initState();
     account = Auth.me.value?.id;
+    tabs = TabController(length: shopTabs.length, vsync: this, initialIndex: max(shopTabs.indexOf(widget.tab), 0));
+  }
+
+  @override
+  void dispose() {
+    tabs.dispose();
+    super.dispose();
   }
 
   Future<void> _buy(String item) async {
@@ -419,35 +533,105 @@ class _ShopScreenState extends State<ShopScreen> {
     }
   }
 
+  /// 덤 비율(%) — 가장 작은 묶음의 개당 값 대비
+  static int _bonus(int amount, int price, int baseAmount, int basePrice) =>
+      (amount * basePrice * 100 / (price * baseAmount) - 100).round();
+
+  Widget _pack({required Key key, required String kind, required int amount, required int bonus, required Widget buy}) {
+    final t = AppLocalizations.of(context)!;
+    return Card(
+      child: ListTile(
+        key: key,
+        leading: currencyIcon(kind, 36),
+        title: Text(
+          '${switch (kind) {
+            'coins' => t.coins,
+            'hearts' => t.hearts,
+            _ => t.gems,
+          }} ${thousands(amount)}',
+        ),
+        subtitle: bonus > 0 ? Text(t.shopBonus(bonus)) : null,
+        trailing: buy,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: Text(t.shop), actions: const [WalletBar(), SizedBox(width: 12)]),
+      appBar: AppBar(
+        title: Text(t.shop),
+        actions: [
+          WalletBar(onPick: (k) => tabs.animateTo(max(shopTabs.indexOf(k), 0))),
+          const SizedBox(width: 12),
+        ],
+        bottom: TabBar(
+          controller: tabs,
+          tabs: [
+            for (final k in shopTabs)
+              Tab(
+                key: ValueKey('shop-tab-$k'),
+                icon: currencyIcon(k, 22),
+                text: switch (k) {
+                  'coins' => t.coins,
+                  'hearts' => t.hearts,
+                  _ => t.gems,
+                },
+              ),
+          ],
+        ),
+      ),
       body: ValueListenableBuilder(
         valueListenable: Wallet.current,
-        builder: (context, w, _) => ListView(
-          padding: const EdgeInsets.all(16),
+        builder: (context, w, _) => TabBarView(
+          controller: tabs,
           children: [
-            for (final (id, price) in shopItems)
-              Card(
-                child: ListTile(
-                  leading: Icon(
-                    id == 'hearts5' ? Icons.favorite : Icons.toll,
-                    color: id == 'hearts5' ? Colors.pink : null,
+            ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                for (final (won, n) in gemPacks)
+                  _pack(
+                    key: ValueKey('gem-pack-$n'),
+                    kind: 'gems',
+                    amount: n,
+                    bonus: _bonus(n, won, gemPacks.first.$2, gemPacks.first.$1),
+                    // 결제는 게임위 문의 뒤에 붙인다 — 지금은 값만 보이고 누를 수 없다
+                    buy: OutlinedButton(onPressed: null, child: Text('₩${thousands(won)}')),
                   ),
-                  title: Text(id == 'hearts5' ? t.shopHearts5 : t.shopCoins1000),
-                  trailing: FilledButton.icon(
-                    key: ValueKey('buy-$id'),
-                    // 결과를 모르는 구매는 보석이 줄었어도 다시 보내 확인한다 — 이미 처리됐으면 서버가 그대로 성공(리뷰 2차)
-                    onPressed: busy || w == null || (w.gems < price && !Wallet.pendingBuy(id)) ? null : () => _buy(id),
-                    icon: const Icon(Icons.diamond, size: 16),
-                    label: Text('$price'),
-                  ),
-                ),
+                const SizedBox(height: 8),
+                Text(t.shopSoon, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+            for (final kind in ['coins', 'hearts'])
+              ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  for (final (id, price, k, amount) in shopItems.where((e) => e.$3 == kind))
+                    _pack(
+                      key: ValueKey('pack-$id'),
+                      kind: k,
+                      amount: amount,
+                      bonus: _bonus(
+                        amount,
+                        price,
+                        shopItems.firstWhere((e) => e.$3 == kind).$4,
+                        shopItems.firstWhere((e) => e.$3 == kind).$2,
+                      ),
+                      buy: FilledButton.icon(
+                        key: ValueKey('buy-$id'),
+                        // 결과를 모르는 구매는 보석이 줄었어도 다시 보내 확인한다 — 이미 처리됐으면 서버가 그대로 성공(리뷰 2차)
+                        onPressed: busy || w == null || (w.gems < price && !Wallet.pendingBuy(id))
+                            ? null
+                            : () => _buy(id),
+                        icon: currencyIcon('gems', 16),
+                        label: Text('$price'),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  Text(t.shopNote, style: const TextStyle(fontSize: 12)),
+                ],
               ),
-            const SizedBox(height: 8),
-            Text(t.shopNote, style: const TextStyle(fontSize: 12)),
           ],
         ),
       ),

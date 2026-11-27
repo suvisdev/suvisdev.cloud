@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account_screen.dart';
 import 'auth.dart';
@@ -16,12 +17,14 @@ String authMessage(AppLocalizations t, Object e) {
   if (e is! AuthError) return t.serverError;
   return switch (e.code) {
     'credentials' => t.errCredentials,
+    'google' => t.errGoogle,
     'wait' => t.errWait(e.seconds),
     'captcha' => t.errCaptcha,
     'email' => t.errEmail,
     'nickname' => t.errNickname,
     'password_short' => t.errPasswordShort,
     'password_long' => t.errPasswordLong,
+    'password_weak' => t.errPasswordWeak,
     'password_personal' => t.errPasswordPersonal,
     'password_breached' => t.errPasswordBreached,
     'password_unavailable' => t.errPasswordUnavailable,
@@ -73,7 +76,14 @@ class _AuthGateState extends State<AuthGate> {
     if (u.hasQuery) WidgetsBinding.instance.addPostFrameCallback((_) => cleanUrl());
     // 로그인 확인과 동시에(차례로면 로그인 화면이 한 번 더 기다린다). 메일 링크 화면으로 들어오면 미리 받지 않는다 — 링크 화면에
     // 머무는 사이 설정이 오래돼, 그 뒤 로그인 화면이 옛 캡차 키를 쓰게 된다(리뷰 3차)
+    // 저장된 로그인으로 계정을 이미 넣었으면(앱) 기다리지 않고 홈 — 확인은 뒤에서
+    if (Auth.me.value != null) {
+      checked = true;
+      Auth.verifyRestored();
+      return;
+    }
     if (link == null) Auth.prefetchConfig();
+    Auth.client.prefetchCsrf();
     Auth.load().whenComplete(() => mounted ? setState(() => checked = true) : null);
   }
 
@@ -210,6 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? error, info, captcha, siteKey;
   Widget? captchaBox; // 한 번만 만든다 — 다시 그릴 때마다 새로 만들면 확인이 처음부터 반복된다
   bool busy = false, unverified = false, google = false, captchaAsked = false;
+  String googleClient = ''; // 앱 구글 로그인이 쓸 웹 클라이언트 ID(/config)
 
   @override
   void initState() {
@@ -219,16 +230,26 @@ class _LoginScreenState extends State<LoginScreen> {
         (_) => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotScreen())),
       );
     }
+    // 마지막으로 로그인한 이메일을 미리 채운다(이미 친 게 있으면 두기). 앱만 — 웹은 공용 브라우저일 수 있다(리뷰 16차)
+    if (!kIsWeb) {
+      SharedPreferences.getInstance().then((p) {
+        final last = p.getString(Auth.lastEmailKey);
+        if (mounted && last != null && email.text.isEmpty) email.text = last;
+      }, onError: (_) {});
+    }
     Auth.config().then((c) {
       if (!mounted) return;
       setState(() {
         google = c['google'] == true;
+        googleClient = c['google_client'] as String? ?? '';
         siteKey = c['turnstile_site'] as String?;
       });
     }, onError: (_) {});
   }
 
   Future<void> _login() async {
+    // 키보드 제출도 버튼과 같이 막는다 — 구글 로그인을 기다리는 사이 제출하면 두 로그인이 겹쳐 계정이 바뀐다(리뷰 13차)
+    if (busy || (captchaAsked && hasTurnstile && (siteKey ?? '').isNotEmpty && captcha == null)) return;
     final t = AppLocalizations.of(context)!;
     setState(() {
       busy = true;
@@ -252,6 +273,23 @@ class _LoginScreenState extends State<LoginScreen> {
         captchaBox = null; // 쓴 확인 토큰은 다시 못 쓴다 → 다음 시도에 새 위젯
         captchaAsked = e is AuthError && e.code == 'captcha';
       });
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _google() async {
+    if (busy) return;
+    final t = AppLocalizations.of(context)!;
+    setState(() {
+      busy = true;
+      error = null;
+      info = null;
+    });
+    try {
+      await Auth.loginWithGoogle(googleClient);
+    } catch (e) {
+      if (mounted) setState(() => error = authMessage(t, e));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -298,10 +336,13 @@ class _LoginScreenState extends State<LoginScreen> {
         if (unverified) TextButton(onPressed: _resend, child: Text(t.resend)),
         // 약관은 로그인 화면에서 늘 볼 수 있게 — 구글 로그인도 여기서 가입되니 그 버튼 위에(리뷰)
         const LegalLinks(),
-        if (google && kIsWeb)
+        // 웹은 구글 페이지로 갔다 오고, 앱은 폰의 구글 계정 고르기(11-27 사용자)
+        // 앱은 안드로이드만 — iOS는 iOS용 OAuth 클라이언트·URL 스킴을 아직 등록하지 않아 눌러도 안 된다(리뷰 1차)
+        if (google && (kIsWeb || (defaultTargetPlatform == TargetPlatform.android && googleClient.isNotEmpty)))
           OutlinedButton.icon(
+            key: const ValueKey('google'),
             style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            onPressed: () => goTo(Auth.googleStart()),
+            onPressed: busy ? null : (kIsWeb ? () => goTo(Auth.googleStart()) : _google),
             icon: const Icon(Icons.g_mobiledata, size: 28),
             label: Text(t.continueWithGoogle),
           ),
@@ -333,6 +374,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool busy = false, sent = false;
 
   Future<void> _go() async {
+    if (busy) return; // 키보드 제출도 한 번만
     setState(() {
       busy = true;
       error = null;
@@ -442,6 +484,7 @@ class _LinkScreenState extends State<LinkScreen> {
   }
 
   Future<void> _go() async {
+    if (busy) return; // 키보드 제출도 한 번만
     setState(() {
       busy = true;
       error = null;

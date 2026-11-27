@@ -14,7 +14,6 @@ from itertools import combinations, product
 
 from .game import Game, Tile
 from .rules import (
-    COLOR,
     DECK,
     KINDS5,
     ODD_EVEN,
@@ -110,13 +109,11 @@ def _can_beat5(table: list, tiles: list) -> bool:
             by_num[t[1]].append(t)
         return ((*ts, k) for ts in by_num.values() if len(ts) == 4 for k in tiles if k not in ts)
 
-    anything, color, shape = (lambda t: 0), (lambda t: COLOR[t[0]]), (lambda t: t[0])
+    anything, shape = (lambda t: 0), (lambda t: t[0])
     gens = [  # (이 생성기가 만들 수 있는 가장 센 종류, 후보)
         ("스트레이트", lambda: runs(anything, STRAIGHTS)),
         ("풀하우스", full_houses),
         ("홀짝", lambda: runs(anything, ODD_EVEN)),
-        ("같은색스트레이트", lambda: runs(color, STRAIGHTS)),
-        ("같은색홀짝", lambda: runs(color, ODD_EVEN)),
         ("포카드", quads),
         ("스트레이트플러시", lambda: runs(shape, STRAIGHTS)),
         ("같은모양홀짝", lambda: runs(shape, ODD_EVEN)),

@@ -14,6 +14,7 @@ import 'package:kumoniji/home_screen.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/main.dart';
 import 'package:kumoniji/settings.dart';
+import 'package:kumoniji/table_screen.dart';
 import 'package:kumoniji/tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -162,9 +163,12 @@ void main() {
     t.view.physicalSize = const Size(280, 700);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'me'}); // 로그인 상태 — 프로필 버튼까지 있어도 넘치지 않게(리뷰 9차)
+    addTearDown(() => Auth.me.value = null);
     await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
     await settle(t);
     expect(t.takeException(), isNull);
+    expect(find.byKey(const ValueKey('open-profile')), findsNothing); // 좁은 창에선 옵션 → 계정으로
     expect(t.getRect(find.byWidgetPredicate((w) => w is TileView && w.code == 'c11')).right <= 280, isTrue);
   });
 
@@ -219,7 +223,7 @@ void main() {
     expect(find.text('シングルモード'), findsOneWidget);
   });
 
-  testWidgets('배경은 기본 없음, 옵션에서 홈·게임판 배경 5장 중 고르면 바로 깔리고 기억된다', (t) async {
+  testWidgets('배경은 옵션이 아니라 그 화면의 버튼에서 — 시작 화면은 배경, 게임 화면은 배경·게임판·세트, 고르면 바로 깔리고 기억된다', (t) async {
     Auth.client = AuthClient(
       MockClient(
         (r) async => r.url.path == '/api/auth/me'
@@ -229,31 +233,64 @@ void main() {
     );
     await t.pumpWidget(const KumonijiApp());
     await settle(t);
-    expect(find.byKey(const ValueKey('backdrop-home-0')), findsOneWidget); // 기본 배경 없음
+    expect(find.byKey(const ValueKey('backdrop-home-0')), findsOneWidget); // setUp에서 없음
     await t.tap(find.byIcon(Icons.settings));
     await settle(t);
-    for (final kind in ['home', 'table']) {
-      await t.tap(find.byKey(ValueKey('$kind-background')));
-      await settle(t);
+    expect(find.byKey(const ValueKey('home-background')), findsNothing); // 옵션에는 없다
+    await t.tap(find.byType(BackButton));
+    await settle(t);
+    Future<void> choose(String kind, int n) async {
       for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++) {
         expect(find.byKey(ValueKey('bg-$kind-$i')), findsOneWidget); // 없음 + 홈 15장(6~10 세트 배경·11~15 시작 화면) / 게임 화면 10장
       }
       final title = kind == 'home' ? 'Home background' : 'Table background';
       expect(find.bySemanticsLabel('$title 2'), findsOneWidget); // 화면 읽기가 구분할 이름
-      expect(t.getSemantics(find.bySemanticsLabel('None')).flagsCollection.isSelected, Tristate.isTrue); // 지금 고른 것
       expect(
         t.getSemantics(find.bySemanticsLabel('$title 2')).getSemanticsData().hasAction(SemanticsAction.tap),
         isTrue,
       );
-      await t.tap(find.byKey(ValueKey('bg-$kind-${kind == 'home' ? 3 : 5}')));
+      await t.tap(find.byKey(ValueKey('bg-$kind-$n')));
       await settle(t);
     }
+
+    await t.tap(find.byKey(const ValueKey('home-background')));
+    await settle(t);
+    expect(t.getSemantics(find.bySemanticsLabel('None')).flagsCollection.isSelected, Tristate.isTrue); // 지금 고른 것
+    await choose('home', 3);
+    final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
+    expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
+    // 게임 화면: 꾸미기 버튼 → 배경·게임판·세트
+    await t.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: TableScreen(
+          api: Api(MockClient((r) async => http.Response(jsonEncode(view()), 200))),
+          showHelpOnFirstVisit: false,
+        ),
+      ),
+    );
+    await settle(t);
+    Future<void> menu(String item) async {
+      await t.tap(find.byKey(const ValueKey('table-look')));
+      await settle(t);
+      await t.tap(find.byKey(ValueKey(item)));
+      await settle(t);
+    }
+
+    await menu('table-background');
+    await choose('table', 5);
     final p = await SharedPreferences.getInstance();
     expect(p.getInt('homeBg'), 3);
     expect(p.getInt('tableBg'), 5);
     // 게임판: 기본 + 10장, 하나를 고르면 기억(11-26 사용자)
-    await t.tap(find.byKey(const ValueKey('board')));
-    await settle(t);
+    await menu('board');
     for (var i = 0; i <= boards; i++) {
       expect(find.byKey(ValueKey('board-$i')), findsOneWidget);
     }
@@ -261,32 +298,39 @@ void main() {
     await settle(t);
     expect(p.getInt('board'), 4);
     // 세트: 배경과 판을 한 번에(세트 3 = 배경 8 · 판 8)
-    await t.tap(find.byKey(const ValueKey('board-set')));
-    await settle(t);
+    await menu('board-set');
     expect(find.byKey(const ValueKey('set-0')), findsNothing); // 세트엔 '없음'이 없다
     await t.tap(find.byKey(const ValueKey('set-3')));
     await settle(t);
     expect((p.getInt('tableBg'), p.getInt('board')), (8, 8));
     expect((Settings.tableBg.value, Settings.board.value), (8, 8));
-    await t.tap(find.byType(BackButton));
-    await settle(t);
     expect(backgroundAsset('home', 7), 'assets/backgrounds/table_7.jpg'); // 홈의 세트 배경은 같은 파일
     expect(backgroundAsset('home', 12), 'assets/backgrounds/home_12.jpg'); // 11~15는 시작 화면 전용
     for (var i = 1; i <= homeBackgrounds; i++) {
       await rootBundle.load(backgroundAsset('home', i)); // 고를 수 있는 그림 파일이 다 있다
     }
-    final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
-    expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
   });
 
-  test('게임판 배경 기본은 종이 구름(2), 없음을 골랐으면 그대로 없음', () async {
+  testWidgets('폰 가로(844×390)에서도 시작 화면 버튼 넷이 스크롤 없이 화면 안에 보인다', (t) async {
+    t.view.physicalSize = const Size(844, 390);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
+    await settle(t);
+    for (final label in ['Single player', 'How to play', 'Options']) {
+      expect(t.getRect(find.text(label)).bottom, lessThan(390), reason: label);
+    }
+    expect(t.getRect(find.text('Multiplayer · Coming soon')).bottom, lessThan(390));
+  });
+
+  test('기본 배경은 게임판 종이 구름(2)·시작 화면 찻집 창가(15), 없음을 골랐으면 그대로 없음', () async {
     SharedPreferences.setMockInitialValues({});
     await Settings.load();
     expect(Settings.tableBg.value, 2);
-    expect(Settings.homeBg.value, 0); // 홈은 기본 없음
-    SharedPreferences.setMockInitialValues({'tableBg': 0});
+    expect(Settings.homeBg.value, 15);
+    SharedPreferences.setMockInitialValues({'tableBg': 0, 'homeBg': 0});
     await Settings.load();
-    expect(Settings.tableBg.value, 0);
+    expect((Settings.tableBg.value, Settings.homeBg.value), (0, 0));
   });
 
   testWidgets('웹 세로 창은 가로로 돌려 달라고 가리고, 돌리면 같은 화면이 이어진다', (t) async {
