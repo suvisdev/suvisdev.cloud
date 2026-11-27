@@ -50,8 +50,7 @@ class AccountScreen extends StatelessWidget {
                   else if (kIsWeb && me.hasPassword)
                     _tile(Icons.link, t.linkGoogle, () => _linkGoogle(context)),
                   const Divider(),
-                  _tile(Icons.logout, t.logout, () => _out(context, false)),
-                  _tile(Icons.devices, t.logoutAll, () => _out(context, true)),
+                  _tile(Icons.logout, t.logout, () => _out(context)),
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.delete_forever, color: Color(0xFFB3261E)),
@@ -220,8 +219,14 @@ Future<void> _linkGoogle(BuildContext context) async {
   }
 }
 
-Future<void> _out(BuildContext context, bool everywhere) async {
-  await Auth.logout(everywhere: everywhere);
+Future<void> _out(BuildContext context) async {
+  try {
+    await Auth.logout();
+  } catch (_) {
+    // 서버에 닿지 못함 — 로그인 상태 그대로 두고 알린다(다시 누르면 된다)
+    if (context.mounted) _toast(context, AppLocalizations.of(context)!.serverError);
+    return;
+  }
   if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:kumoniji/auth_screens.dart';
 import 'package:kumoniji/l10n/app_localizations.dart';
 import 'package:kumoniji/settings.dart';
 import 'package:kumoniji/tile.dart';
+import 'package:kumoniji/wallet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'table_screen_test.dart' show settle;
@@ -34,7 +36,9 @@ List<http.Request> fake(Map<String, http.Response Function(http.Request)> routes
   Auth.client = AuthClient(
     MockClient((r) async {
       sent.add(r);
-      return (routes[r.url.path] ?? (_) => http.Response('{"detail":{"code":"session"}}', 401))(r);
+      // 홈의 잔고 막대가 부르는 지갑은 이 테스트들의 관심 밖 — 401(로그아웃)이 아니라 없음으로 답한다
+      final all = {'/api/wallet': (_) => http.Response('', 404), ...routes};
+      return (all[r.url.path] ?? (_) => http.Response('{"detail":{"code":"session"}}', 401))(r);
     }),
   );
   return sent;
@@ -53,6 +57,105 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     markTilesReady();
     Auth.me.value = null;
+  });
+
+  test('2단계 인증을 켠 직후 /me가 일시 장애여도 계정을 비우지 않고 복구 코드를 돌려준다(리뷰 39차)', () async {
+    var meFails = true;
+    fake({
+      '/api/auth/mfa/enable': (_) => ok({
+        'recovery_codes': ['a1', 'b2'],
+      }),
+      '/api/auth/me': (_) => meFails ? http.Response('', 503) : ok({'id': 1, 'email': 'me@x.com', 'nickname': 'me'}),
+    });
+    final before = Me.fromJson({'id': 1, 'email': 'me@x.com', 'nickname': 'me'});
+    Auth.me.value = before;
+    expect(await Auth.mfaEnable('123456'), ['a1', 'b2']);
+    expect(Auth.me.value, same(before)); // 비우면 AuthGate가 복구 코드 대화상자를 걷는다
+    meFails = false;
+    await Future.delayed(const Duration(milliseconds: 1100)); // 뒤에서 다시 읽음(1초 뒤)
+    expect(Auth.me.value, isNotNull);
+    expect(Auth.me.value, isNot(same(before)));
+  });
+
+  test('설정을 바꾸기 전에 떠난 내 정보 읽기가 늦게 와도 바꾼 뒤의 읽기가 이긴다(리뷰 45차)', () async {
+    final stale = Completer<http.Response>(), fresh = Completer<http.Response>();
+    var n = 0;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        if (r.url.path != '/api/auth/me') return http.Response('', 404);
+        return ++n == 1 ? stale.future : fresh.future;
+      }),
+    );
+    final before = Me.fromJson({'id': 1, 'nickname': 'me', 'mfa_enabled': true});
+    Auth.me.value = before;
+    final bg = Auth.reloadIfStill(before); // 뒤에서 세션 재확인 — MFA를 끄기 전에 떠남
+    final after = Auth.reload(); // MFA를 끈 뒤 다시 읽기
+    await Future<void>.delayed(Duration.zero);
+    stale.complete(ok({'id': 1, 'nickname': 'me', 'mfa_enabled': true})); // 옛 상태가 먼저 도착
+    await bg;
+    fresh.complete(ok({'id': 1, 'nickname': 'me', 'mfa_enabled': false}));
+    await after;
+    expect(Auth.me.value?.mfaEnabled, isFalse);
+  });
+
+  test('설정을 바꾼 뒤의 읽기가 실패하면, 앞 읽기가 같은 세션의 옛 값을 넣었어도 다시 읽는다', () async {
+    final stale = Completer<http.Response>();
+    var n = 0;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        if (r.url.path != '/api/auth/me') return http.Response('', 404);
+        n++;
+        if (n == 1) return stale.future;
+        if (n <= 3) throw http.ClientException('offline'); // 바꾼 뒤의 읽기와 첫 재시도가 잠깐 실패
+        return ok({'id': 1, 'nickname': 'me', 'mfa_enabled': true});
+      }),
+    );
+    final before = Me.fromJson({'id': 1, 'nickname': 'me', 'mfa_enabled': false});
+    Auth.me.value = before;
+    final bg = Auth.reloadIfStill(before); // MFA를 켜기 전에 떠남
+    final after = Auth.reload(); // MFA를 켠 뒤 다시 읽기
+    await Future<void>.delayed(Duration.zero);
+    stale.complete(ok({'id': 1, 'nickname': 'me', 'mfa_enabled': false})); // 옛 상태가 먼저 들어감
+    await bg;
+    await after;
+    await Future<void>.delayed(const Duration(milliseconds: 1100)); // 1초 뒤 다시
+    expect(Auth.me.value?.mfaEnabled, isTrue);
+  });
+
+  test('로그인 확인을 기다리는 사이 로그인·로그아웃했으면 늦은 응답이 홈을 다시 열지 않는다', () async {
+    final slow = Completer<http.Response>();
+    Auth.client = AuthClient(
+      MockClient((r) async => r.url.path == '/api/auth/me' ? slow.future : http.Response('', 404)),
+    );
+    Auth.me.value = null;
+    final load = Auth.load();
+    await Future<void>.delayed(Duration.zero);
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'me'}); // 뒤의 복구가 먼저 홈을 엶
+    Auth.me.value = null; // 로그아웃
+    slow.complete(ok({'id': 1, 'nickname': 'me'})); // 옛 세션의 응답이 늦게
+    await load;
+    expect(Auth.me.value, isNull);
+  });
+
+  test('겹친 내 정보 읽기 중 앞 읽기가 다른 탭의 새 계정을 넣으면 늦은 옛 계정 읽기가 되돌리지 않는다(리뷰 46차)', () async {
+    final first = Completer<http.Response>(), second = Completer<http.Response>();
+    var n = 0;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        if (r.url.path != '/api/auth/me') return http.Response('', 404);
+        return ++n == 1 ? first.future : second.future;
+      }),
+    );
+    final a = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Auth.me.value = a;
+    final bg = Auth.reloadIfStill(a);
+    final later = Auth.reload();
+    await Future<void>.delayed(Duration.zero);
+    first.complete(ok({'id': 2, 'nickname': 'b'})); // 다른 탭이 B로 로그인한 뒤 도착
+    await bg;
+    second.complete(ok({'id': 1, 'nickname': 'a'})); // 옛 쿠키로 떠난 응답이 늦게
+    await later;
+    expect(Auth.me.value?.id, 2);
   });
 
   testWidgets('not logged in → login screen; wrong password shows the reason', (t) async {
@@ -87,6 +190,69 @@ void main() {
     await t.tap(find.byKey(const ValueKey('login')));
     await settle(t);
     expect(find.text('Single player'), findsOneWidget);
+  });
+
+  testWidgets('session ends inside a pushed screen (missions) → back to the login screen, not hidden behind it', (
+    t,
+  ) async {
+    var walletCalls = 0;
+    fake({
+      '/api/auth/config': (_) => ok({'google': false}),
+      '/api/auth/me': (_) => walletCalls > 1 ? err(401, 'session') : ok(me), // 세션이 끝나면 /me도 401
+      '/api/wallet': (_) => ++walletCalls == 1
+          ? ok({
+              'coins': 0,
+              'gems': 0,
+              'hearts': 10,
+              'next_heart': null,
+              'attend': {'day': '2026-11-26', 'streak': 0, 'claimed': false},
+              'missions': {'all': [], 'done': [], 'counts': {}, 'bonus': false},
+            })
+          : err(401, 'session'),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('open-missions')));
+    await settle(t);
+    expect(find.byKey(const ValueKey('login')), findsOneWidget);
+  });
+
+  testWidgets('another tab switches the account (no logged-out frame) → pushed screens of the old account close', (
+    t,
+  ) async {
+    fake({
+      '/api/auth/config': (_) => ok({'google': false}),
+      '/api/auth/me': (_) => ok(me),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('open-shop')));
+    await settle(t);
+    expect(find.byKey(const ValueKey('buy-hearts5')), findsOneWidget);
+    Auth.me.value = Me.fromJson({...me, 'id': 2});
+    await settle(t);
+    expect(find.byKey(const ValueKey('buy-hearts5')), findsNothing);
+    expect(find.text('Single player'), findsOneWidget);
+  });
+
+  testWidgets('another tab re-logs the same account into MFA-pending → wallet 403 mfa shows the code screen', (
+    t,
+  ) async {
+    var pending = false;
+    fake({
+      '/api/auth/config': (_) => ok({'google': false}),
+      '/api/auth/me': (_) => ok({...me, 'mfa_enabled': pending, 'mfa_passed': !pending}),
+      '/api/wallet': (_) => pending ? http.Response('{"detail":{"code":"mfa"}}', 403) : http.Response('', 404),
+    });
+    await t.pumpWidget(_app(Uri.parse('https://k/')));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('open-shop')));
+    await settle(t);
+    pending = true; // 다른 탭이 같은 계정으로 다시 로그인 — 2단계 인증 전
+    Wallet.refresh();
+    await settle(t);
+    expect(find.byKey(const ValueKey('mfa-code')), findsOneWidget);
+    expect(find.byKey(const ValueKey('buy-hearts5')), findsNothing);
   });
 
   testWidgets('MFA-pending session shows the code screen first', (t) async {
@@ -142,7 +308,7 @@ void main() {
       '/api/auth/login': (_) => ok({'verified': false, 'access': 'old', 'refresh': 'r1'}),
       '/api/auth/refresh': (r) {
         refreshes++;
-        expect(jsonDecode(r.body), {'refresh': 'r1'});
+        expect(jsonDecode(r.body)['refresh'], 'r1');
         return ok({'access': 'new', 'refresh': 'r2'});
       },
       '/api/games': (r) => r.headers['authorization'] == 'Bearer new' ? ok({}) : err(401, 'session'),

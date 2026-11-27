@@ -7,6 +7,7 @@ import 'level.dart';
 import 'settings.dart';
 import 'table_screen.dart';
 import 'tile.dart';
+import 'wallet.dart';
 
 /// 첫 화면: 싱글 · 멀티(준비 중) · 게임 방법 · 옵션.
 /// 종료 버튼은 두지 않는다 — 웹은 탭을 스스로 닫을 수 없고, iOS는 앱 안 종료 버튼을 권하지 않는다.
@@ -40,12 +41,36 @@ class HomeScreen extends StatelessWidget {
           automaticallyImplyLeading: false,
           // 왼쪽 위에도 이름 — 글씨가 아니라 만든 제목 로고로(11-26 사용자)
           // 이름은 Semantics로 — Image의 semanticLabel은 따로 노드를 만들어 앱바의 화면 제목(namesRoute)에 안 붙는다(리뷰 1차)
-          title: Semantics(
-            label: t.title,
-            child: Image.asset('assets/brand/title_jade.png', height: 36, excludeFromSemantics: true),
+          title: Row(
+            children: [
+              // 좁은 창에선 로고도 잔고와 함께 줄어든다(280px에서 넘침)
+              Flexible(
+                child: Semantics(
+                  label: t.title,
+                  child: Image.asset('assets/brand/title_jade.png', height: 36, excludeFromSemantics: true),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Flexible(child: WalletBar()),
+            ],
           ),
           centerTitle: false,
-          actions: const [MuteButton(), SizedBox(width: 4)],
+          actions: [
+            IconButton(
+              key: const ValueKey('open-missions'),
+              tooltip: t.missions,
+              icon: const Icon(Icons.event_available),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MissionsScreen())),
+            ),
+            IconButton(
+              key: const ValueKey('open-shop'),
+              tooltip: t.shop,
+              icon: const Icon(Icons.storefront),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen())),
+            ),
+            const MuteButton(),
+            const SizedBox(width: 4),
+          ],
         ),
         body: SafeArea(
           child: Center(

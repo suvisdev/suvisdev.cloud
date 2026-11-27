@@ -84,7 +84,7 @@ def read_flow(flow: str | None, state: str | None) -> dict:
         f = jwt.decode(flow or "", _flow_key(), algorithms=["HS256"], options={"require": ["exp"]})
     except jwt.PyJWTError:
         raise Invalid("flow") from None
-    if not state or not secrets.compare_digest(f["st"], state):
+    if not state or not secrets.compare_digest(f["st"].encode(), state.encode()):
         raise Invalid("state")
     return f
 
@@ -123,7 +123,7 @@ def verify_id_token(token: str, nonce: str, key=None) -> dict:
         )
     except (jwt.PyJWTError, httpx.HTTPError):
         raise Invalid("id_token") from None
-    if claims["iss"] not in ISSUERS or not secrets.compare_digest(str(claims["nonce"]), nonce):
+    if claims["iss"] not in ISSUERS or not secrets.compare_digest(str(claims["nonce"]).encode(), nonce.encode()):
         raise Invalid("id_token")
     return claims
 

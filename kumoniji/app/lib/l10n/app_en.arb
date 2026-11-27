@@ -158,7 +158,6 @@
   "mfaCode": "6-digit code from your app, or a recovery code",
   "account": "Account",
   "logout": "Log out",
-  "logoutAll": "Log out of all devices",
   "changePassword": "Change password",
   "changeEmail": "Change email",
   "mfaOn": "Turn on two-step verification",
@@ -203,5 +202,51 @@
   "passwordChanged": "Password changed.",
   "board": "Board",
   "boardSet": "Board & background set",
-  "defaultBoard": "Default"
+  "defaultBoard": "Default",
+  "coins": "Coins",
+  "hearts": "Hearts",
+  "gems": "Gems",
+  "missions": "Missions",
+  "attend": "Check in today (+200)",
+  "attend7": "Check in today (+500 · 10 gems)",
+  "attended": "Checked in · {n} days in a row",
+  "@attended": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "missionsDone": "Today {n}/10 — finish 5 for +300",
+  "@missionsDone": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "shop": "Shop",
+  "shopHearts5": "5 hearts",
+  "shopCoins1000": "1,000 coins",
+  "shopNote": "Gems come from check-in streaks (every 7th day). No real-money purchases.",
+  "bought": "Purchased.",
+  "notEnoughGems": "Not enough gems.",
+  "noHeart": "Out of hearts. One refills every 10 minutes (next in {n} min).",
+  "@noHeart": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "missionGames5": "Play 5 games",
+  "missionGames10": "Play 10 games",
+  "missionWins2": "Finish 1st twice",
+  "missionLow3": "End a game with 3 or fewer tiles",
+  "missionFive3": "Play 5-tile combos 3 times",
+  "missionTriple2": "Play a triple twice",
+  "missionToday": "Take a round with today's suit",
+  "missionScore30": "Earn 30 points today",
+  "missionOddEven": "Play an odd-even combo",
+  "missionFullHouse": "Play a full house"
 }

@@ -17,7 +17,7 @@ import 'package:kumoniji/tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_test.dart' show view;
-import 'table_screen_test.dart' show settle;
+import 'table_screen_test.dart' show noRid, settle;
 
 Widget _home(Api api) => MaterialApp(
   locale: const Locale('en'),
@@ -64,7 +64,7 @@ void main() {
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
-        bodies.add(jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode({...view(), 'level': 'hard'}), 200);
       }),
     );
@@ -103,7 +103,7 @@ void main() {
     final bodies = <Object?>[];
     final api = Api(
       MockClient((r) async {
-        bodies.add(jsonDecode(r.body));
+        bodies.add(noRid(r.body));
         return http.Response(jsonEncode(view()), 200);
       }),
     );

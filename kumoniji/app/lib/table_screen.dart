@@ -5,12 +5,14 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'auth.dart';
 import 'help.dart';
 import 'l10n/app_localizations.dart';
 import 'level.dart';
 import 'practice.dart';
 import 'settings.dart';
 import 'tile.dart';
+import 'wallet.dart';
 
 const _ink = Color(0xFF42384C);
 const _felt = Color(0xFFE6F0DC);
@@ -33,7 +35,7 @@ class TableScreen extends StatefulWidget {
 }
 
 class _TableScreenState extends State<TableScreen> {
-  late final Api api = widget.api ?? Api();
+  late final Api api; // 화면을 연 순간의 계정에 묶는다(initState) — 늦게 만들면 그사이 바뀐 계정을 잡는다(리뷰 10차)
   GameState? s;
   // 지금 화면에 맞춘 나온 패(연습만) — 봇 수 재생에 맞춰 하나씩 늘고, 열려 있는 '나온 패' 시트도 이걸 따라간다
   final _out = ValueNotifier<List<String>?>(null);
@@ -60,6 +62,8 @@ class _TableScreenState extends State<TableScreen> {
   @override
   void initState() {
     super.initState();
+    // 닫히는 애니메이션 중에도 mounted라 경로가 아직 활성인지도 본다(리뷰 29차)
+    api = (widget.api ?? Api())..wanted = (() => mounted && (ModalRoute.of(context)?.isActive ?? true));
     _startSaved();
     if (widget.showHelpOnFirstVisit) _helpOnce();
   }
@@ -68,7 +72,9 @@ class _TableScreenState extends State<TableScreen> {
   Future<void> _startSaved() async {
     level = widget.level ?? await savedLevel();
     await precacheTiles(); // 패 그림을 다 받아 둔 뒤 시작(봇 패가 끊겨 뜨지 않게)
-    if (mounted) _apply(api.newGame(level));
+    // 그동안 busy가 true라 새 게임 버튼은 꺼져 있다. 그래도 이미 판이 열렸으면 다시 시작하지 않는다 — 새 id로
+    // 하트를 또 쓰고 하던 판을 바꾸지 않게(리뷰 37차)
+    if (mounted && s == null) _apply(api.newGame(level));
   }
 
   Future<void> _helpOnce() async {
@@ -82,11 +88,25 @@ class _TableScreenState extends State<TableScreen> {
     if (mounted) showHelp(context);
   }
 
+  /// 아직 보이는 판 화면인가 — 닫히는 애니메이션 중에도 mounted라 경로가 활성인지도 본다
+  bool get _alive => mounted && (ModalRoute.of(context)?.isActive ?? true);
+
   Future<void> _apply(Future<GameState> call) async {
+    final who = Auth.me.value?.id; // 응답이 오기 전에 계정이 바뀌면 그 지갑은 버린다
     setState(() => busy = true);
     try {
       final next = await call;
-      if (s?.id != next.id) await _intro(next);
+      if (next.wallet != null) {
+        Wallet.set(next.wallet!, owner: who); // 끝난 판 — 미션이 반영된 지갑
+      } else if (next.finished && (s?.id != next.id || s?.finished != true)) {
+        // 앞 판이 끝났어도 새 판이 끝났으면 — 판 id로 본다(리뷰 48차)
+        // 끝났는데 지갑이 없음 = 서버가 기록에 실패해 뒤에서 다시 시도 중(2·10·60초). 그 뒤에 잔고를 다시 받는다(리뷰 19차)
+        Wallet.recheck.value++;
+      } else if (s?.id != next.id) {
+        Wallet.refreshOrRetry(); // 새 판에 하트 1개를 썼다(실패하면 홈의 잔고 막대가 다시 받는다)
+      }
+      final fresh = s?.id != next.id;
+      if (fresh) await _intro(next);
       for (var i = 0; i < next.events.length; i++) {
         final e = next.events[i];
         if (!mounted) return;
@@ -127,23 +147,42 @@ class _TableScreenState extends State<TableScreen> {
           setState(() => _clearRound());
         }
       }
-      if (!mounted) return;
+      // 닫히는 중(뒤로·다른 탭 계정 바뀜으로 걷힘)이면 결과 창을 띄우지 않는다 — 새 화면 위에 옛 판 결과가 뜨지 않게(리뷰 44차)
+      if (!_alive) return;
       setState(() {
         _sync(next);
         s = next;
         picked.clear();
         flash = null;
       });
+      // 새 판을 끝까지(나눠 주기·봇 수 재생) 보였고 닫히는 중이 아니면 — 새 판 요청 id를 지운다. 그 전에 닫으면
+      // 다음 진입이 같은 id로 그 판을 받는다(리뷰 34·36차)
+      if (fresh) {
+        await WidgetsBinding.instance.endOfFrame; // setState는 다음 프레임 예약일 뿐 — 실제로 그려진 뒤에(리뷰 48차)
+        if (_alive) api.settle();
+      }
+      // 프레임을 기다리는 사이 닫혔으면(계정 전환 등) 결과 창을 띄우지 않는다 — 새 화면 위에 옛 판 결과가 뜨지 않게(리뷰 57차)
+      if (!_alive) return;
       if (next.finished) _showResult(next);
       // 봇이 돌고 내 차례가 돌아왔으면 짧게 진동(옵션에서 끌 수 있음)
       if (!next.finished && next.turn == 0 && next.events.any((e) => e.seat != 0)) Settings.buzz();
     } on ApiError catch (e) {
+      // 결과를 모르면(새 판이었다면 하트를 썼는지 모름) 화면이 닫혔어도 잔고는 다시 — 잔고 막대는 홈에 있다(리뷰 17·33차)
+      final unsure = e.status != 422 && e.code != 'no_heart';
+      if (unsure) Wallet.refreshOrRetry();
+      // 하트 부족 — 다음 하트까지 남은 시간을 받는다(실패하면 잔고 막대가 30초 뒤, 리뷰 37차)
+      if (e.code == 'no_heart') await Wallet.refreshOrRetry();
       if (!mounted) return;
       final t = AppLocalizations.of(context)!;
+      if (e.code == 'no_heart') {
+        _toast(t.noHeart(minutesToHeart(Wallet.current.value) ?? 10));
+        return; // 판은 그대로(새 판을 안 열었다)
+      }
       _toast(e.status == 422 ? _reason(t, e.code) : t.serverError);
       _rollback();
-      if (e.status != 422) await _resync();
+      if (unsure) await _resync();
     } catch (_) {
+      Wallet.refreshOrRetry();
       if (!mounted) return;
       _toast(AppLocalizations.of(context)!.serverError);
       _rollback();
@@ -181,8 +220,14 @@ class _TableScreenState extends State<TableScreen> {
     final g = s;
     if (g == null) return;
     try {
+      final who = Auth.me.value?.id;
       final now = await api.get(g.id);
-      if (!mounted) return;
+      if (now.wallet != null) {
+        Wallet.set(now.wallet!, owner: who); // 끝난 판 응답이 유실됐어도 다시 받은 판의 지갑으로(리뷰 1차)
+      } else if (now.finished && !g.finished) {
+        Wallet.recheck.value++; // 끝났는데 지갑이 없음 — 서버가 기록을 다시 시도 중(리뷰 20차)
+      }
+      if (!_alive) return;
       setState(() {
         _sync(now);
         s = now;

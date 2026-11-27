@@ -1,6 +1,7 @@
 """화폐 DB. 잔고 행은 FOR UPDATE로 잠그고, 증감은 원장(ledger)에 먼저 넣어 같은 kind+ref가 두 번 들어가지 않게 한다."""
 
 import secrets
+import time
 from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
@@ -76,11 +77,21 @@ def snapshot(c, a: int, now: float) -> dict:
     done = missions.done(counts)
     nxt = None if w["hearts"] >= money.HEART_MAX else w["hearts_at"].timestamp() + money.HEART_EVERY
     return {
+        # 순서 번호 — 지갑 행을 잠근 채 DB 시퀀스에서(004). 같은 계정의 스냅숏은 잠금 순서(=커밋 순서)대로 커지고 시계와
+        # 무관하다. 앱은 이보다 옛 것을 버린다(응답 도착 순서로는 서버 처리 순서를 알 수 없음, 11-26 앱 리뷰).
+        "v": c.execute("SELECT nextval('wallet_version') AS v").fetchone()["v"],
+        "now": time.time(),  # 서버의 실제 시각("t"는 소켓 메시지 종류 키라 피함) — 앱이 충전·자정 계산에 쓴다(v는 순서 번호라 시계가 되감기면 실제보다 앞설 수 있음, 리뷰 26차)
         "coins": w["coins"],
         "gems": w["gems"],
         "hearts": w["hearts"],
         "next_heart": nxt,
-        "attend": {"day": day, "streak": w["attend_streak"], "claimed": str(w["attend_day"]) == day},
+        "attend": {
+            "day": day,
+            "streak": w["attend_streak"],
+            "claimed": str(w["attend_day"]) == day,
+            # 지금 출석하면 이어질 날 수 — 7의 배수면 보상이 다르다(앱 버튼 안내, 리뷰 27차). attend()와 같은 계산
+            "next": w["attend_streak"] + 1 if str(w["attend_day"]) == missions.day_of(now - 86400) else 1,
+        },
         "missions": {"all": missions.MISSIONS, "done": done, "counts": counts, "bonus": len(done) >= money.MISSION_NEED},
     }
 
