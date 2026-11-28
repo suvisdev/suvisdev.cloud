@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -347,7 +348,22 @@ void main() {
     expect(t.getSize(options).height, greaterThanOrEqualTo(48));
   });
 
-  testWidgets('시스템 글자 3배(740×360)에서도 메인 버튼 글자는 한 줄로 줄어 판 안에 들고, 넷이 한 화면에 든다', (t) async {
+  testWidgets('좁은 가로 창(568×320)·글자 2배에선 버튼 글자가 줄바꿈되고 판이 늘어나 잘리지 않는다', (t) async {
+    t.view.physicalSize = const Size(568, 320);
+    t.view.devicePixelRatio = 1;
+    t.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(t.view.reset);
+    addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
+    await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
+    await settle(t);
+    for (final label in ['Multiplayer · Coming soon', 'How to play']) {
+      // 글자 상자가 글자가 실제로 필요한 높이만큼 받았는지(상한에 눌리면 상자는 작고 글자는 넘쳐 잘린다)
+      final p = t.renderObject<RenderParagraph>(find.text(label));
+      expect(p.size.height, greaterThanOrEqualTo(p.getMaxIntrinsicHeight(p.size.width) - .5), reason: label);
+    }
+  });
+
+  testWidgets('시스템 글자를 키우면(3배, 740×360) 버튼 글자를 줄이지 않고 줄바꿈해 판이 늘어난다', (t) async {
     t.view.physicalSize = const Size(740, 360);
     t.view.devicePixelRatio = 1;
     t.platformDispatcher.textScaleFactorTestValue = 3;
@@ -356,10 +372,9 @@ void main() {
     await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
     await settle(t);
     for (final label in ['Multiplayer · Coming soon', 'Options']) {
-      final plate = t.getRect(find.ancestor(of: find.text(label), matching: find.byType(OutlinedButton)));
-      final text = t.getRect(find.text(label));
-      expect(text.top >= plate.top && text.bottom <= plate.bottom && text.right <= plate.right, isTrue, reason: label);
-      expect(plate.bottom, lessThanOrEqualTo(360), reason: label);
+      expect(find.ancestor(of: find.text(label), matching: find.byType(FittedBox)), findsNothing, reason: label);
+      final p = t.renderObject<RenderParagraph>(find.text(label));
+      expect(p.size.height, greaterThanOrEqualTo(p.getMaxIntrinsicHeight(p.size.width) - .5), reason: label);
     }
   });
 
