@@ -285,10 +285,6 @@ class GateTest(unittest.TestCase):
         self.committed_pr("suvisdev/README.md")
         self.assertIsNone(self.pinned_merge("gh pr merge 7", FAKE_NO_CHECKS="1"))
 
-    def test_kumoniji_change_expects_kumoniji_ci(self):
-        self.committed_pr("kumoniji/server/x.py")
-        self.assertIn("kumoniji-ci", self.bash("gh pr merge 7"))
-
     def test_workflow_outside_ci_filter_needs_no_checks(self):
         self.committed_pr(".github/workflows/gildle-data-sync.yml")
         self.assertIsNone(self.pinned_merge("gh pr merge 7", FAKE_NO_CHECKS="1"))
@@ -302,11 +298,6 @@ class GateTest(unittest.TestCase):
         self.assertIn("선행 작업", self.bash("gh pr merge 7"))
         subprocess.run([sys.executable, str(GATE), "confirm-prereq", "7"], cwd=self.repo, env=self.env, check=True)
         self.assertIsNone(self.pinned_merge("gh pr merge 7"))
-
-    def test_merge_held_for_kumoniji_migration(self):
-        # 쿠모니지는 머지 → 자동 배포 → 서버 시작 때 마이그레이션 적용이라 머지 전에 확인을 받는다
-        self.committed_pr("kumoniji/server/kumoniji/accounts/migrations/006_x.sql")
-        self.assertIn("선행 작업", self.bash("gh pr merge 7", FAKE_WORKFLOW="kumoniji-ci"))
 
     def test_code_pr_must_update_state_file(self):
         self.committed_pr(state=False)
@@ -325,6 +316,93 @@ class GateTest(unittest.TestCase):
         self.git("commit", "-qm", "docs")
         self.git("push", "-q", "origin", "HEAD:refs/pull/7/head")
         self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_kumoniji_only_accepts_deletion(self):
+        # 비공개 저장소로 옮긴 뒤(ADR-0030) 이 저장소 kumoniji/는 지우기만 받는다
+        self.write(".github/workflows/kumoniji-ci.yml", "on: push\n")
+        self.committed_pr("kumoniji/server/x.py")
+        self.assertIn("suvisdev/kumoniji", self.pinned_merge("gh pr merge 7"))
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", "kumoniji/server/x.py")
+        self.stage_change("3\n")
+        self.write("_docs/STATE.md", "지운 뒤 상태\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "rm kumoniji")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        # 워크플로가 남아 있으면 지우는 PR도 kumoniji-ci를 기다린다
+        self.assertIn("kumoniji-ci", self.pinned_merge("gh pr merge 7"))
+
+    def test_deleting_a_workflow_does_not_wait_for_it(self):
+        self.committed_pr(".github/workflows/kumoniji-ci.yml")
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", ".github/workflows/kumoniji-ci.yml")
+        self.stage_change("3\n")
+        self.write("_docs/STATE.md", "지운 뒤 상태\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "rm workflow")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_kumoniji_workflow_cannot_come_back(self):
+        self.committed_pr(".github/workflows/kumoniji-deploy.yml")
+        self.assertIn("suvisdev/kumoniji", self.pinned_merge("gh pr merge 7"))
+
+    def test_kumoniji_name_replaced_by_file_is_blocked(self):
+        self.committed_pr("kumoniji/server/x.py")
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-rq", "kumoniji")
+        self.write("kumoniji", "x\n")
+        self.write("_docs/STATE.md", "바꾼 상태\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "replace dir")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("suvisdev/kumoniji", self.pinned_merge("gh pr merge 7"))
+
+    def test_deleting_only_kumoniji_workflow_still_waits(self):
+        # 코드가 남아 있는데 워크플로만 지우면 면제하지 않는다(ADR-0030은 둘을 함께 지운다)
+        self.write("kumoniji/server/x.py", "1\n")
+        self.committed_pr(".github/workflows/kumoniji-ci.yml")
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", ".github/workflows/kumoniji-ci.yml")
+        self.write("_docs/STATE.md", "지운 뒤 상태\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "rm workflow only")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("kumoniji-ci", self.pinned_merge("gh pr merge 7"))
+
+    def test_deleting_other_workflow_still_waits_for_it(self):
+        self.committed_pr(".github/workflows/backend-ci.yml")
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", ".github/workflows/backend-ci.yml")
+        self.stage_change("3\n", "suvisdev/apps/x.py")
+        self.write("_docs/STATE.md", "지운 뒤 상태\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "rm backend workflow")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIn("검사가 아직 없다", self.pinned_merge("gh pr merge 7", FAKE_NO_CHECKS="1"))
+
+    def test_deleting_kumoniji_env_example_needs_no_prereq(self):
+        self.committed_pr("kumoniji/.env.example")
+        self.git("push", "-q", "--no-verify", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.git("rm", "-q", "kumoniji/.env.example")
+        self.stage_change("3\n")
+        self.write("_docs/STATE.md", "지운 뒤 상태\n")
+        self.git("add", ".")
+        self.review()
+        self.git("commit", "-qm", "rm kumoniji env")
+        self.git("push", "-q", "-f", "origin", "HEAD:refs/pull/7/head")
+        self.assertIsNone(self.pinned_merge("gh pr merge 7", FAKE_WORKFLOW="kumoniji-ci"))
 
     def test_deleting_state_file_does_not_count_as_update(self):
         self.committed_pr()
