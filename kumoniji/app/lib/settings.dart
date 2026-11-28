@@ -230,6 +230,25 @@ class OptionsScreen extends StatelessWidget {
                 onTap: () => _language(context),
               ),
               const Divider(),
+              // 시작 화면 배경은 옵션 안에(11-28 사용자 '우선 숨겨 두자'). 게임판 배경은 게임 화면 꾸미기 버튼
+              ListTile(
+                key: const ValueKey('home-background'),
+                leading: const Icon(Icons.wallpaper),
+                title: Text(t.homeBackground),
+                onTap: () => pickBackground(context, 'home'),
+              ),
+              const Divider(),
+              // 홈엔 음소거 버튼이 없어(11-28 사용자) 옵션에서 켜고 끈다 — 게임 화면 음소거 버튼과 같은 상태
+              ValueListenableBuilder(
+                valueListenable: Settings.muted,
+                builder: (_, on, _) => SwitchListTile(
+                  key: const ValueKey('mute-option'),
+                  secondary: Icon(on ? Icons.volume_off : Icons.volume_up),
+                  title: Text(t.mute),
+                  value: on,
+                  onChanged: (_) => Settings.toggleMute(),
+                ),
+              ),
               _volume(t.music, Icons.music_note, Settings.music, 'music'),
               _volume(t.sfx, Icons.volume_up, Settings.sfx, 'sfx'),
               const Divider(),
