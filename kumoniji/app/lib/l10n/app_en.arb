@@ -264,5 +264,26 @@
   "privacy": "Privacy Policy",
   "agreeNote": "By continuing, you agree to the Terms of Service and Privacy Policy.",
   "legalLoadFailed": "Couldn't load it.",
-  "retry": "Try again"
+  "retry": "Try again",
+  "adTitle": "Watch an ad for {n} sunbeam",
+  "adLeft": "{left}/{per} left today",
+  "adSoon": "Ad rewards are coming soon.",
+  "adWatch": "Watch",
+  "adDone": "Sunbeam received.",
+  "adPlaying": "Ad placeholder (test) — reward in a moment",
+  "adNoMore": "You've used all of today's ad rewards.",
+  "@adTitle": {"placeholders": {"n": {"type": "int"}}},
+  "@adLeft": {"placeholders": {"left": {"type": "int"}, "per": {"type": "int"}}},
+  "adCheck": "Check reward",
+  "scoreStats": "Petals {petals}, bonus {bonus}",
+  "@scoreStats": {
+    "placeholders": {
+      "petals": {
+        "type": "int"
+      },
+      "bonus": {
+        "type": "int"
+      }
+    }
+  }
 }

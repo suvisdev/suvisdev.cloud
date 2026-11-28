@@ -5,6 +5,8 @@ MIN_STAKE = 500  # 자동 매칭 입장 최소 판돈
 HEART_MAX, HEART_EVERY = 10, 600
 ATTEND, ATTEND_7TH, ATTEND_7TH_GEMS = 200, 500, 10
 MISSION, MISSION_BONUS, MISSION_NEED = 100, 300, 5
+# 광고 보상(11-28 사용자 '상점에 광고 모드 만들어 두기'): 한 편에 햇살 1, 하루 5번
+AD_HEARTS, AD_PER_DAY = 1, 5
 # 상품: (무지개 조각 값, 얻는 것). 많이 살수록 덤(보통 게임 상점처럼, 11-27 사용자) — 골드 1,000·5,500(+10%)·
 # 12,000(+20%)·40,000(+33%), 햇살 5·15(+20%). 옛 id(hearts5·coins1000)는 원장 참조에 남아 있어 그대로 둔다
 SHOP = {

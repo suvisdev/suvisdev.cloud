@@ -7,17 +7,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'auth.dart';
 import 'help.dart';
+import 'home_screen.dart' show plateStyle;
 import 'l10n/app_localizations.dart';
 import 'level.dart';
 import 'practice.dart';
 import 'settings.dart';
 import 'sfx.dart';
+import 'table3d_data.dart';
 import 'tile.dart';
 import 'wallet.dart';
 
 const _ink = Color(0xFF42384C);
+const _plateText = TextStyle(fontSize: 17, fontWeight: FontWeight.w700);
 const _felt = Color(0xFFE6F0DC);
 const _sideW = 76.0; // 양옆 봇 자리 폭
+// 배경 위에 띄운 글자가 잘 읽히게 두르는 흰 테
+const _halo = [Shadow(color: Colors.white, blurRadius: 3), Shadow(color: Colors.white, blurRadius: 6)];
 
 /// 게임 화면. 사람은 0번 자리(아래), 봇은 시계 방향으로 1번 왼쪽 · 2번 맞은편 · 3번 오른쪽.
 /// 판정은 서버가 하고 여기서는 그리기만 한다.
@@ -159,8 +164,15 @@ class _TableScreenState extends State<TableScreen> {
           _sound(Sfx.play); // 내 수는 누를 때 이미 냈다
         }
         // 봇 한 수·모든 패스마다 잠깐 멈춰 누가 무엇을 했는지 보이게
-        if (e.seat != 0 || e.tiles == null) {
-          await Future.delayed(Duration(milliseconds: e.tiles == null ? 1000 : 1200));
+        if (e.tiles == null) {
+          await Future.delayed(const Duration(milliseconds: 1000));
+        } else if (e.seat != 0) {
+          // 앞에 놓이고 가운데에 떠오른 조합을 읽을 시간까지(Codex 1·2차)
+          await Future.delayed(Duration(milliseconds: max(1200, _readMs(e.tiles!.length))));
+        } else if (i + 1 < next.events.length || next.finished) {
+          // 내 수: 봇 수나 결과 창이 바로 이어지면 — 누른 뒤 이미 흐른 시간을 빼고 남은 만큼만(Codex 3차)
+          final spent = _playedAt == null ? 0 : DateTime.now().difference(_playedAt!).inMilliseconds;
+          await Future.delayed(Duration(milliseconds: max(0, _readMs(e.tiles!.length) - spent)));
         }
         // 셋이 패스하면 바퀴가 끝난다 → 판을 비운다
         if (passed.length == 3) {
@@ -359,12 +371,31 @@ class _TableScreenState extends State<TableScreen> {
     }
   }
 
+  /// 손패 칸·게임판의 위치를 재려고 그 BuildContext를 둔다(내 패가 고른 자리에서 나오게, Codex 2차)
+  final _handCtx = <String, BuildContext>{};
+  BuildContext? _arenaCtx;
+
+  /// 방금 낸 내 패마다 있던 화면 위치(게임판 영역 좌표) — 판 좌표로는 원근을 거꾸로 풀어 옮긴다(가로·세로 둘 다, Codex 8~11차)
+  final _myFrom = <String, Offset>{};
+
+  /// 내기를 누른 때 — 응답이 빨리 와도 내 패가 앞에 놓이고 가운데에 뜰 시간을 채운다(이긴 수 포함)
+  DateTime? _playedAt;
+
   /// 내기를 누르면 서버 응답·봇 장면을 기다리지 않고 바로 손에서 빼서 내 자리 앞에 놓는다.
   void _play(GameState g) {
     final tiles = [
       for (final c in g.hand)
         if (picked.contains(c)) c,
     ];
+    final arena = _arenaCtx?.mounted == true ? _arenaCtx!.findRenderObject() as RenderBox? : null;
+    _myFrom.clear();
+    for (final c in tiles) {
+      final box = _handCtx[c]?.mounted == true ? _handCtx[c]!.findRenderObject() as RenderBox? : null;
+      if (box != null && arena != null) {
+        _myFrom[c] = arena.globalToLocal(box.localToGlobal(box.size.center(Offset.zero)));
+      }
+    }
+    _playedAt = DateTime.now();
     setState(() {
       gone.addAll(tiles);
       picked.clear();
@@ -399,7 +430,9 @@ class _TableScreenState extends State<TableScreen> {
   void _showResult(GameState g) {
     // 재생 중 열어 둔 연습 시트·나온 패 크게 보기 창은 닫는다 — 결과 창 뒤에 남으면 다시 시작한 판을 가린다(리뷰 3차·로고 3차).
     // 도움말·나가기 확인은 사용자가 보던 것이니 두고(로고 4차), 그 위에 결과를 띄운다
-    Navigator.of(context).popUntil((r) => r is! ModalBottomSheetRoute && r.settings.name != outBigRoute);
+    Navigator.of(
+      context,
+    ).popUntil((r) => r is! ModalBottomSheetRoute && r.settings.name != outBigRoute && r.settings.name != combosRoute);
     final t = AppLocalizations.of(context)!;
     final winner = g.winner!;
     (winner == 0 ? Sfx.win : Sfx.lose)();
@@ -498,6 +531,8 @@ class _TableScreenState extends State<TableScreen> {
           backgroundColor: Colors.transparent,
           appBar: AppBar(
             toolbarHeight: low ? 44 : null,
+            // 뒤로 가기 화살표는 두지 않는다(11-28 사용자) — 나가기는 제목 로고·기기 뒤로 가기
+            automaticallyImplyLeading: false,
             // 제목(로고·난이도)을 누르면 홈으로 — 뒤로 가기와 같다(판 중이면 나갈지 묻는다, 11-27 사용자)
             // 낮은 가로 창은 제목 자리에 무늬 순서가 들어가니 앞에 작은 로고를 두어 거기서도 누를 수 있게(리뷰 19차)
             title: FittedBox(
@@ -506,12 +541,14 @@ class _TableScreenState extends State<TableScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  GestureDetector(
-                    key: const ValueKey('title-home'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => Navigator.maybePop(context),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
+                  // 키보드(Tab·Enter)로도 닿는 버튼으로 — 화살표를 뺀 뒤 홈으로 가는 유일한 화면 안 조작(Codex 21차)
+                  Semantics(
+                    button: true,
+                    label: t.home,
+                    child: InkWell(
+                      key: const ValueKey('title-home'),
+                      onTap: () => Navigator.maybePop(context),
+                      borderRadius: BorderRadius.circular(8),
                       // 이름은 글씨가 아니라 제목 로고로(홈과 같게, 11-26 사용자) — 판이 오면 옆에 난이도
                       child: low && g != null
                           ? const Padding(padding: EdgeInsets.only(right: 8), child: TitleLogo(height: 24))
@@ -524,10 +561,8 @@ class _TableScreenState extends State<TableScreen> {
                             ),
                     ),
                   ),
-                  if (low && g != null) ...[
-                    _SuitOrder(suits: g.suits, label: t.suitOrder),
-                    PracticeButtons(out: _out.value, suits: g.suits),
-                  ],
+                  // 무늬 순서·나온 패·조합표는 둥근 바 위에(11-28 사용자 '상단에 바 하나 만들어서 바 위로') — 폰 가로는 위 막대 안
+                  if (low && g != null) _practiceBar(t, g),
                 ],
               ),
             ),
@@ -597,10 +632,6 @@ class _TableScreenState extends State<TableScreen> {
                             Widget handOf(double tileW) => AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                color: myTurn ? const Color(0xFFFFF1CC) : Colors.transparent,
-                              ),
                               child: Wrap(
                                 alignment: WrapAlignment.center,
                                 spacing: 4,
@@ -612,35 +643,46 @@ class _TableScreenState extends State<TableScreen> {
                                       opacity: myTurn && !g.playable.contains(code) ? 0.35 : 1,
                                       child: _DealIn(
                                         key: ValueKey('deal-$code'),
-                                        child: TileView(
-                                          key: ValueKey('hand-$code'),
-                                          code: code,
-                                          width: tileW,
-                                          selected: picked.contains(code),
-                                          onTap: !myTurn || !g.playable.contains(code)
-                                              ? null
-                                              : () {
-                                                  Sfx.select();
-                                                  setState(
-                                                    () =>
-                                                        picked.contains(code) ? picked.remove(code) : picked.add(code),
-                                                  );
-                                                },
+                                        child: Builder(
+                                          builder: (c) {
+                                            _handCtx[code] = c;
+                                            return TileView(
+                                              key: ValueKey('hand-$code'),
+                                              code: code,
+                                              width: tileW,
+                                              selected: picked.contains(code),
+                                              onTap: !myTurn || !g.playable.contains(code)
+                                                  ? null
+                                                  : () {
+                                                      Sfx.select();
+                                                      setState(
+                                                        () => picked.contains(code)
+                                                            ? picked.remove(code)
+                                                            : picked.add(code),
+                                                      );
+                                                    },
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
                                 ],
                               ),
                             );
-                            final buttons = Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            // 좁은 세로 창·큰 글자에선 둘째 버튼이 다음 줄로(한 줄이면 274px 미만에서 넘침, Codex 18차)
+                            final buttons = Wrap(
+                              alignment: WrapAlignment.center,
+                              runSpacing: 6,
                               children: [
+                                // Codex 그림 판 B안(연보라 패스·코랄 내기, 11-28 사용자). 왼쪽 28%가 아이콘 자리
                                 OutlinedButton(
+                                  style: plateStyle('pass', _plateText, 48, true, left: 44, minWidth: 120),
                                   onPressed: !myTurn ? null : () => _apply(api.move(g.id, [])),
                                   child: Text(t.pass),
                                 ),
-                                const SizedBox(width: 16),
+                                const SizedBox(width: 10),
                                 FilledButton(
+                                  style: plateStyle('play', _plateText, 48, true, left: 44, minWidth: 120),
                                   onPressed: !myTurn || !g.isLegal(picked) ? null : () => _play(g),
                                   child: Text(t.play),
                                 ),
@@ -653,125 +695,123 @@ class _TableScreenState extends State<TableScreen> {
                                     child: Text(t.onlyPass, style: const TextStyle(color: _ink, fontSize: 13)),
                                   )
                                 : null;
-                            return Padding(
+                            final body = Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 12),
                               child: Column(
                                 children: [
-                                  if (!low) ...[
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Flexible(
-                                          child: _SuitOrder(suits: g.suits, label: t.suitOrder),
-                                        ),
-                                        PracticeButtons(out: _out.value, suits: g.suits),
-                                      ],
+                                  // 낮은 가로 창(폰 가로, 앱 기본): 폭을 거의 다 쓰는 3D 탁자와 가장자리에 세운 상대 패 벽(11-28 사용자)
+                                  // 세로·큰 창은 같은 바를 본문 맨 위에(위 막대에 넣으면 좁은 폭에서 글자가 너무 작아진다)
+                                  if (!low) ...[_practiceBar(t, g), const SizedBox(height: 6)],
+                                  if (low)
+                                    const Spacer() // 탁자는 뒤에 화면 전체로 깔린다(아래 Stack)
+                                  else ...[
+                                    _Seat(
+                                      name: t.bot(2),
+                                      g: g,
+                                      seat: 2,
+                                      count: shown[2],
+                                      active: active == 2,
+                                      turnLabel: t.turn,
+                                      fan: Axis.horizontal,
+                                      inline: low,
+                                      passed: passed.contains(2),
+                                      passLabel: t.pass,
                                     ),
                                     const SizedBox(height: 6),
-                                  ],
-                                  _Seat(
-                                    name: t.bot(2),
-                                    g: g,
-                                    seat: 2,
-                                    count: shown[2],
-                                    active: active == 2,
-                                    turnLabel: t.turn,
-                                    fan: Axis.horizontal,
-                                    inline: low,
-                                    passed: passed.contains(2),
-                                    passLabel: t.pass,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Expanded(
-                                    // 가운데 판: 높이(side)는 남은 높이와 폭 중 작은 쪽, 폭(wide)은 남는 가로를 1.8배까지 쓴다 —
-                                    // 정사각형이면 폰 가로에서 한 변 ~165px라 낸 패가 작았다(11-26 '낸 패 크게')
-                                    child: LayoutBuilder(
-                                      builder: (context, mid) {
-                                        final room = mid.maxWidth - 2 * _sideW - 12;
-                                        final side = max(0.0, min(room, mid.maxHeight));
-                                        final wide = max(side, min(room, side * 1.8));
-                                        // 넓은 판은 덜 눕힌다 — 같은 각이면 먼 쪽 자리의 패가 더 작아 보인다
-                                        final tilt = wide > side * 1.3 ? -.32 : -.42;
-                                        return Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            _Seat(
-                                              name: t.bot(1),
-                                              g: g,
-                                              seat: 1,
-                                              count: shown[1],
-                                              passed: passed.contains(1),
-                                              passLabel: t.pass,
-                                              active: active == 1,
-                                              turnLabel: t.turn,
-                                              fan: Axis.vertical,
-                                              room: mid.maxHeight,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            // 2.5D: 판을 뒤로 눕혀 원근을 주고, 아래에 판 두께와 그림자를 깐다.
-                                            // 원근을 판 크기에 비례시켜 폰·PC가 같은 모양, 앞 가장자리가 넓어지는 만큼(약 1.1배) 줄여 자리 안에 둔다
-                                            Transform(
-                                              alignment: Alignment.center,
-                                              transform: Matrix4.identity()
-                                                ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
-                                                ..rotateX(tilt) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
-                                                ..scaleByDouble(.9, .9, 1, 1),
-                                              child: ValueListenableBuilder(
-                                                valueListenable: Settings.board,
-                                                builder: (_, b, child) => Container(
-                                                  width: wide,
-                                                  height: side,
-                                                  decoration: BoxDecoration(
-                                                    color: _felt,
-                                                    // 고른 판 그림(0 = 기본 펠트) — 모서리 둥글기대로 잘린다
-                                                    image: b == 0
-                                                        ? null
-                                                        : DecorationImage(
-                                                            image: AssetImage(boardAsset(b)),
-                                                            fit: BoxFit.cover,
-                                                          ),
-                                                    borderRadius: BorderRadius.circular(24),
-                                                    border: Border.all(
-                                                      color: b == 0
-                                                          ? const Color(0xFFCFDDBF)
-                                                          : boardEdges[b].withValues(alpha: .5),
-                                                      width: 2,
-                                                    ),
-                                                    // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
-                                                    boxShadow: [
-                                                      BoxShadow(color: boardEdges[b], offset: Offset(0, side * .022)),
-                                                      BoxShadow(
-                                                        color: const Color(0x30000000),
-                                                        blurRadius: side * .036,
-                                                        offset: Offset(0, side * .04),
+                                    Expanded(
+                                      // 가운데 판: 높이(side)는 남은 높이와 폭 중 작은 쪽, 폭(wide)은 남는 가로를 1.8배까지 쓴다 —
+                                      // 정사각형이면 폰 가로에서 한 변 ~165px라 낸 패가 작았다(11-26 '낸 패 크게')
+                                      child: LayoutBuilder(
+                                        builder: (context, mid) {
+                                          final room = mid.maxWidth - 2 * _sideW - 12;
+                                          final side = max(0.0, min(room, mid.maxHeight));
+                                          final wide = max(side, min(room, side * 1.8));
+                                          // 넓은 판은 덜 눕힌다 — 같은 각이면 먼 쪽 자리의 패가 더 작아 보인다
+                                          final tilt = wide > side * 1.3 ? -.32 : -.42;
+                                          return Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              _Seat(
+                                                name: t.bot(1),
+                                                g: g,
+                                                seat: 1,
+                                                count: shown[1],
+                                                passed: passed.contains(1),
+                                                passLabel: t.pass,
+                                                active: active == 1,
+                                                turnLabel: t.turn,
+                                                fan: Axis.vertical,
+                                                room: mid.maxHeight,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              // 2.5D: 판을 뒤로 눕혀 원근을 주고, 아래에 판 두께와 그림자를 깐다.
+                                              // 원근을 판 크기에 비례시켜 폰·PC가 같은 모양, 앞 가장자리가 넓어지는 만큼(약 1.1배) 줄여 자리 안에 둔다
+                                              Transform(
+                                                alignment: Alignment.center,
+                                                transform: Matrix4.identity()
+                                                  ..setEntry(3, 2, .5 / max(side, 1)) // 창이 아주 낮으면 side가 0
+                                                  ..rotateX(tilt) // 위(먼 쪽)가 뒤로 → 가까운 아래 가장자리가 넓게
+                                                  ..scaleByDouble(.9, .9, 1, 1),
+                                                child: ValueListenableBuilder(
+                                                  valueListenable: Settings.board,
+                                                  builder: (_, b, child) => Container(
+                                                    width: wide,
+                                                    height: side,
+                                                    decoration: BoxDecoration(
+                                                      color: _felt,
+                                                      // 고른 판 그림(0 = 기본 펠트) — 모서리 둥글기대로 잘린다
+                                                      image: b == 0
+                                                          ? null
+                                                          : DecorationImage(
+                                                              image: AssetImage(boardAsset(b)),
+                                                              fit: BoxFit.cover,
+                                                            ),
+                                                      borderRadius: BorderRadius.circular(24),
+                                                      border: Border.all(
+                                                        color: b == 0
+                                                            ? const Color(0xFFCFDDBF)
+                                                            : boardEdges[b].withValues(alpha: .5),
+                                                        width: 2,
                                                       ),
-                                                    ],
+                                                      // 두께·그림자도 판 크기에 비례(고정 px면 아주 작은 판에서 원근 분모가 0을 지난다)
+                                                      boxShadow: [
+                                                        BoxShadow(color: boardEdges[b], offset: Offset(0, side * .022)),
+                                                        BoxShadow(
+                                                          color: const Color(0x30000000),
+                                                          blurRadius: side * .036,
+                                                          offset: Offset(0, side * .04),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: child,
                                                   ),
-                                                  child: child,
-                                                ),
-                                                child: Center(
-                                                  child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g)),
+                                                  child: Center(
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.all(6),
+                                                      child: _felt4(t, g),
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            _Seat(
-                                              name: t.bot(3),
-                                              g: g,
-                                              seat: 3,
-                                              count: shown[3],
-                                              passed: passed.contains(3),
-                                              passLabel: t.pass,
-                                              active: active == 3,
-                                              turnLabel: t.turn,
-                                              fan: Axis.vertical,
-                                              room: mid.maxHeight,
-                                            ),
-                                          ],
-                                        );
-                                      },
+                                              const SizedBox(width: 6),
+                                              _Seat(
+                                                name: t.bot(3),
+                                                g: g,
+                                                seat: 3,
+                                                count: shown[3],
+                                                passed: passed.contains(3),
+                                                passLabel: t.pass,
+                                                active: active == 3,
+                                                turnLabel: t.turn,
+                                                fan: Axis.vertical,
+                                                room: mid.maxHeight,
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                   const SizedBox(height: 8),
                                   if (low)
                                     Row(
@@ -826,6 +866,16 @@ class _TableScreenState extends State<TableScreen> {
                                 ],
                               ),
                             );
+                            // 낮은 가로 창(폰 가로, 앱 기본): 블렌더로 렌더한 3D 탁자를 화면 폭 가득 손패 뒤까지 깔고, 손패는 그 앞에
+                            // 원근 없이 일자로(11-28 사용자 '내 패만 일자로 앞에 깔고 2D 느낌')
+                            return low
+                                ? Stack(
+                                    children: [
+                                      Positioned.fill(child: _arena(t, g)),
+                                      body,
+                                    ],
+                                  )
+                                : body;
                           },
                         ),
                       ),
@@ -847,6 +897,377 @@ class _TableScreenState extends State<TableScreen> {
       ),
     );
   }
+
+  /// 무늬 순서(약한 것부터) + 나온 패·조합표 버튼을 올린 둥근 바
+  Widget _practiceBar(AppLocalizations t, GameState g) => Container(
+    key: const ValueKey('top-bar'),
+    margin: const EdgeInsets.only(left: 8),
+    padding: const EdgeInsets.fromLTRB(4, 3, 6, 3),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: .72),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: _ink.withValues(alpha: .15)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: _SuitOrder(suits: g.suits, label: t.suitOrder),
+        ),
+        const SizedBox(width: 6),
+        PracticeButtons(live: _out, suits: g.suits),
+      ],
+    ),
+  );
+
+  /// 낮은 가로 창의 3D 탁자(11-28 사용자): 화면 폭을 거의 다 쓰는 판을 뒤로 눕히고, 판 위의 모든 것 — 낸 패와 상대가 세워 든
+  /// 패 — 을 같은 판 좌표에 놓아 한 카메라(같은 원근)로 그린다. 낸 패는 낸 사람 쪽을 향해 눕고, 상대 패는 판 가장자리에 선다.
+  Widget _arena(AppLocalizations t, GameState g) => LayoutBuilder(
+    builder: (context, box) {
+      _arenaCtx = context;
+      final (w, h) = (box.maxWidth, box.maxHeight);
+      // 판을 그릴 높이가 거의 없으면(웹 창을 아주 낮게 줄임) 그리지 않는다 — 깊이가 0·음수가 되면 배치가 깨진다(Codex 4차)
+      // 대신 지금 가장 센 조합과 내 차례만 납작하게 보여 준다 — 상대가 뭘 냈는지 모른 채 두지 않게(Codex 6차)
+      // 손패 줄 윗선 — 탁자 판 위의 것은 이보다 위에 있어야 손패에 덮이지 않는다(build의 손패 크기 식과 같게)
+      // 손패 패 폭은 build의 식 그대로(본문 여백 24·간격 8·버튼 칸을 뺀 폭에 13장, 높이의 13.5%까지). 고른 패는 패 높이의
+      // 18%만큼 들린다(TileView.selected) — 그만큼 더 위가 윗선(Codex 17·18차)
+      final handW = w - 24 - 8 - min(240.0, w * .32);
+      final handTile = max(6.0, min(52.0, min((handW - 12) / 13 - 4, h * .135))) * 4 / 3;
+      final handTop = h - (handTile * 1.18 + 28);
+      Widget flat() {
+        String who(int s) => s == 0 ? t.you : t.bot(s);
+        final status = [
+          if (_active != null) _active == 0 ? t.yourTurn : '${who(_active!)} ${t.turn}',
+          for (final p in passed) '${who(p)} ${t.pass}',
+          // 3D 판이 없으니 상대 남은 장수도 글자로(Codex 18차)
+          for (final s in [1, 2, 3]) '${who(s)} ${shown[s]}',
+        ].join(' · ');
+        // 손패 위 남은 칸 안에만(손패가 판 위에 겹쳐 그려진다, Codex 16차)
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(
+            height: max(24.0, handTop - 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (lead != null && plays[lead!] != null) Flexible(child: _center(lead!, plays[lead!]!, Offset.zero)),
+                Flexible(
+                  child: Text(
+                    status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _ink, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      if (h < 60 || w < 120) return flat();
+      // 렌더 그림은 화면 폭에 맞춘다(양옆이 끊기지 않게). 위는 맞은편 이름 자리를 남기고, 화면보다 길면 앞 가장자리가 손패
+      // 아래로 들어가고, 짧으면 바닥에 붙인다
+      // 폰 가로는 폭이 먼저 닿는다. 아주 낮고 넓은 창(웹)은 높이로 줄여 가운데에 — 판 앞쪽(내 자리)이 화면 밖으로
+      // 나가지 않게(Codex 12차). 그림 아래 15%는 손패 밑으로 들어가도 되는 판 앞 가장자리
+      // 내가 낸 패(판 깊이 .66, 패 높이 절반만큼 아래까지)가 손패 윗선 위에 오게 — 손패 줄 높이는 build의 손패 크기 식과
+      // 같게(패 높이 + 위아래 여백). 폰 가로는 그대로이고 아주 낮은 창만 줄어든다(Codex 13차)
+      // 그림 맨 위를 화면 맨 위에 둘 때의 낸 패 아래 끝(세로 위치는 아래 top에서 정한다)
+      double spotBottom(double k) {
+        const oy = 0.0;
+        final ox = (w - t3Size.width * k) / 2;
+        final q = [for (final p in t3Felt) Offset(p.dx * k + ox, p.dy * k + oy)];
+        final bw = (q[2].dx - q[3].dx), d = bw * t3FeltAspect;
+        // 내 자리 + 놓인 패 높이 절반 + 두께(_laid의 laidW 식) — 낸 패의 실제 아래쪽 끝
+        final lw = min(5.5 * bw / 100, d * .3 / (2 / 3 + .11));
+        return MatrixUtils.transformPoint(_quad(bw, d, q), Offset(bw / 2, _spots(bw, d)[0].dy + lw * (2 / 3 + .11))).dy;
+      }
+
+      var k = min(w / t3Size.width, h / (t3Size.height * .85));
+      for (var i = 0; i < 12 && spotBottom(k) > handTop; i++) {
+        k *= .93;
+      }
+      // 줄여도 손패에 덮이면(본문이 아주 낮은 창) 3D 판 대신 납작한 줄로(Codex 15차)
+      if (spotBottom(k) > handTop) return flat();
+      // 그림이 본문보다 짧으면 바닥에 붙이되, 낸 패가 손패 윗선을 넘지 않는 데까지만 내린다 — 줄인 그림을 바닥에 붙여
+      // 낸 패가 도로 손패 밑으로 들어가던 것(Codex 19차, 844×190)
+      final ox = (w - t3Size.width * k) / 2, oy = max(0.0, min(h - t3Size.height * k, handTop - spotBottom(k)));
+      Offset px(Offset p) => Offset(p.dx * k + ox, p.dy * k + oy);
+      // 판 좌표: 펠트 앞 가장자리의 화면 폭을 판 폭으로 — 가까운 쪽 배율이 1쯤이라 패 크기 감이 화면과 같다
+      final bw = (t3Felt[2].dx - t3Felt[3].dx) * k, depth = bw * t3FeltAspect, u = bw / 100;
+      final m = _quad(bw, depth, [for (final p in t3Felt) px(p)]);
+      final back = Matrix4.tryInvert(m) ?? Matrix4.identity();
+      Offset at(double x, double y) => MatrixUtils.transformPoint(m, Offset(x, y));
+      Offset onBoard(Offset screen) => MatrixUtils.transformPoint(back, screen); // 판 위 점(바닥)의 화면 → 판 좌표
+      // 남은 패가 서는 칸: 맞은편은 가운데로 모으고, 양옆은 먼 쪽부터
+      int first(int s, int n) => s == 2 ? (13 - n) ~/ 2 : 0;
+      Offset handOf(int seat, int i, String c) {
+        if (seat == 0) return _myFrom[c] != null ? onBoard(_myFrom[c]!) : Offset(bw * .42, depth * 1.1);
+        // 봇이 낸 패는 내기 전 벽의 끝쪽 칸에서 나온다고 본다(낸 장수만큼이 벽 끝에서 빠짐, Codex 2·3차)
+        final n0 = shown[seat] + (plays[seat]?.length ?? 0);
+        return onBoard(px(t3Walls[seat - 1][min(12, first(seat, n0) + shown[seat] + i)].foot));
+      }
+
+      Widget seat(int s, String name, {bool stacked = false}) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: _Seat(
+          stacked: stacked,
+          name: name,
+          g: g,
+          seat: s,
+          count: shown[s],
+          active: _active == s,
+          turnLabel: t.turn,
+          compact: true,
+          passed: passed.contains(s),
+          passLabel: t.pass,
+        ),
+      );
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: ox,
+            top: oy,
+            width: t3Size.width * k,
+            height: t3Size.height * k,
+            child: Image.asset('assets/table3d/table.png', fit: BoxFit.fill),
+          ),
+          // 판 위의 것은 펠트 네 모서리로 만든 원근 변환 안에 그린다 — 렌더와 같은 카메라로 보인다
+          Positioned(
+            left: 0,
+            top: 0,
+            width: bw,
+            height: depth,
+            child: IgnorePointer(
+              child: Transform(
+                transform: m,
+                child: ValueListenableBuilder(
+                  valueListenable: Settings.board,
+                  builder: (_, b, _) => Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (b != 0)
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(depth * .03),
+                              image: DecorationImage(image: AssetImage(boardAsset(b)), fit: BoxFit.cover),
+                            ),
+                          ),
+                        ),
+                      Center(
+                        child: Opacity(
+                          opacity: .13,
+                          child: SvgPicture.asset(
+                            'assets/icons/suit_${g.today}.svg',
+                            width: depth * .3,
+                            height: depth * .3,
+                          ),
+                        ),
+                      ),
+                      for (final s in [0, 1, 2, 3]) _TurnGlow(seat: s, on: _active == s),
+                      ..._laid(bw, depth, u, handOf),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // 상대가 세워 든 패: 칸마다 렌더한 그림을 남은 장수만큼(먼 것부터 그려 가까운 것이 위에)
+          for (final s in [2, 1, 3])
+            for (var i = first(s, shown[s]); i < first(s, shown[s]) + shown[s]; i++)
+              Positioned.fromRect(
+                rect: Rect.fromLTWH(
+                  t3Walls[s - 1][i].rect.left * k + ox,
+                  t3Walls[s - 1][i].rect.top * k + oy,
+                  t3Walls[s - 1][i].rect.width * k,
+                  t3Walls[s - 1][i].rect.height * k,
+                ),
+                child: IgnorePointer(
+                  child: Image.asset('assets/table3d/wall_${s}_$i.png', key: ValueKey('wall-$s-$i'), fit: BoxFit.fill),
+                ),
+              ),
+          // 무슨 패가 나왔는지 가운데에 똑바로 크게 따로 보인다(11-28 사용자 '앞에도 생기고 가운데에서도 확인 — 둘 다 따로').
+          // 앞에 놓이는 모션이 끝날 즈음 톡 떠오른다
+          if (lead != null && plays[lead!] != null)
+            Builder(
+              builder: (_) {
+                final mid = at(bw / 2, depth * .45);
+                return Positioned(
+                  left: mid.dx - w * .22,
+                  width: w * .44,
+                  top: mid.dy - h * .13,
+                  height: h * .26,
+                  child: IgnorePointer(child: _center(lead!, plays[lead!]!, Offset.zero)),
+                );
+              },
+            ),
+          if ((lead == null || plays[lead!] == null) &&
+              dealt == null &&
+              intro == null &&
+              flash == null &&
+              !g.finished &&
+              g.turn == 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: at(bw / 2, depth * .45).dy - 12,
+              child: Center(
+                child: Text(
+                  t.yourTurn,
+                  style: const TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          // 봇 이름: 각자 패 벽 가운데 칸(13칸 중 7번째)의 윗변 바로 위에 똑바로 — 패 뒤에 앉은 사람처럼(11-28 사용자).
+          // 남은 장수를 따라 움직이지 않고(낼 때마다 옮겨 다녔다), 화면 위로는 넘지 않는다(Codex 12차)
+          for (final s in [1, 2, 3])
+            Builder(
+              builder: (_) {
+                final top = px(t3Walls[s - 1][6].top);
+                final (cw, ch) = s == 2 ? (w * .4, 34.0) : (96.0, 64.0);
+                return Positioned(
+                  left: top.dx - cw / 2,
+                  top: max(0.0, top.dy - ch - 2),
+                  width: cw,
+                  height: ch,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: seat(s, t.bot(s), stacked: s != 2),
+                  ),
+                );
+              },
+            ),
+        ],
+      );
+    },
+  );
+
+  /// 판 좌표 직사각형(0,0)~(bw,d)을 화면의 네 점 [q](먼 왼쪽·먼 오른쪽·가까운 오른쪽·가까운 왼쪽)으로 옮기는 원근 변환
+  /// (정사각형 → 사각형 호모그래피, Heckbert). z는 그대로 둔다
+  static Matrix4 _quad(double bw, double d, List<Offset> q) {
+    final [p0, p1, p2, p3] = q;
+    final dx1 = p1.dx - p2.dx, dx2 = p3.dx - p2.dx, dx3 = p0.dx - p1.dx + p2.dx - p3.dx;
+    final dy1 = p1.dy - p2.dy, dy2 = p3.dy - p2.dy, dy3 = p0.dy - p1.dy + p2.dy - p3.dy;
+    final den = dx1 * dy2 - dx2 * dy1;
+    final g = (dx3 * dy2 - dx2 * dy3) / den, hh = (dx1 * dy3 - dx3 * dy1) / den;
+    final a = p1.dx - p0.dx + g * p1.dx, b = p3.dx - p0.dx + hh * p3.dx;
+    final dd = p1.dy - p0.dy + g * p1.dy, e = p3.dy - p0.dy + hh * p3.dy;
+    // 열 우선: x' = (a·u + b·v + x0) / (g·u + h·v + 1), u = x/bw, v = y/d
+    return Matrix4(a, dd, 0, g, b, e, 0, hh, 0, 0, 1, 0, p0.dx, p0.dy, 0, 1)
+      ..multiply(Matrix4.diagonal3Values(1 / bw, 1 / d, 1));
+  }
+
+  /// 각자 낸 패가 놓이는 자기 앞 자리(판 좌표): 나·왼쪽·맞은편·오른쪽
+  /// 내 자리는 판 앞쪽이 손패에 덮여서(3D 탁자가 손패 뒤까지 깔린다) 조금 안쪽에, 맞은편은 가운데 조합과 겹치지 않게 벽 가까이
+  List<Offset> _spots(double bw, double depth) => [
+    Offset(bw / 2, depth * .66),
+    Offset(bw * .22, depth * .45),
+    Offset(bw / 2, depth * .2),
+    Offset(bw * .78, depth * .45),
+  ];
+
+  /// 판 위에 눕힌 밀려난 패(판 좌표): 각자 자기 앞에 자기 쪽을 향해 놓는다(옆 사람 패는 옆으로 누움, 11-28 사용자).
+  /// 지금 가장 센 패는 여기 말고 [_center]가 판 가운데에 똑바로 세워 그린다.
+  List<Widget> _laid(double bw, double depth, double u, Offset Function(int seat, int k, String c) handOf) {
+    const turnsOf = [0, 1, 2, 3]; // 시계 방향 90° 회전 수: 패 아래쪽이 낸 사람을 향한다
+    final spots = _spots(bw, depth);
+    // 패마다 출발점(판 좌표)은 [handOf]: 내 패는 고른 패가 있던 자리, 봇 패는 내기 전 패 벽의 칸
+
+    // 지금 가장 센 패는 자기 앞에 진하게, 손에서 앞으로 내는 모션으로 놓인다(11-28 사용자 '앞에 내는 것처럼') — 키는 laid-
+    // (같은 패를 가운데에도 따로 크게 보이므로 play-·drop- 키는 가운데 것). 밀려난 패는 흐리게 그대로
+    Widget row(int seat, List<String> m, double tw, {required bool top}) => RotatedBox(
+      quarterTurns: turnsOf[seat],
+      child: Row(
+        key: ValueKey('${top ? 'laid' : 'play'}-$seat'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final c in m)
+            Padding(
+              padding: EdgeInsets.all(tw * .04),
+              child: top
+                  ? _DropIn(
+                      key: ValueKey('laid-$seat-${m.join()}-$c'),
+                      index: m.indexOf(c),
+                      // 그 패의 출발점에서 놓일 칸까지 — 돌린 좌표(RotatedBox)로 바꾸고 줄 안 제 칸 위치를 뺀다
+                      from:
+                          _unturn(handOf(seat, m.indexOf(c), c) - spots[seat], turnsOf[seat]) -
+                          Offset((m.indexOf(c) - (m.length - 1) / 2) * tw * 1.08, 0),
+                      flip: seat != 0,
+                      child: TileView(code: c, width: tw, edge: _unturn(const Offset(0, 1), turnsOf[seat])),
+                    )
+                  : TileView(
+                      key: ValueKey('drop-$seat-${m.join()}-$c'),
+                      code: c,
+                      width: tw,
+                      edge: _unturn(const Offset(0, 1), turnsOf[seat]), // 돌아간 패도 두께는 판 앞쪽으로
+                    ),
+            ),
+        ],
+      ),
+    );
+
+    // 옆자리 줄은 판 깊이 방향으로 눕는다 — 장수가 많으면 판 깊이 안에 들도록 줄인다(Codex 5차)
+    // 내 자리(.66d, 손패에 덮이기 전까지 .34d)·맞은편(.2d)은 남은 깊이 안에 패 높이 절반 + 두께(.11)가 들게(Codex 6차)
+    double laidW(int s) => switch (s) {
+      1 || 3 => min(5.5 * u, depth * .42 / (plays[s]!.length * 1.08)),
+      0 => min(5.5 * u, depth * .3 / (2 / 3 + .11)),
+      _ => min(5.5 * u, depth * .19 / (2 / 3 + .11)),
+    };
+
+    Widget place(Offset c, Widget child) => Positioned(
+      left: c.dx - bw,
+      top: c.dy - bw,
+      width: 2 * bw,
+      height: 2 * bw,
+      child: Center(child: child),
+    );
+    return [
+      for (final s in [0, 1, 2, 3])
+        if (plays[s] != null)
+          place(
+            spots[s],
+            s == lead
+                ? row(s, plays[s]!, laidW(s), top: true)
+                : Opacity(opacity: .5, child: row(s, plays[s]!, laidW(s), top: false)),
+          ),
+    ];
+  }
+
+  /// 화면(판) 좌표의 벡터를 시계 방향 [q]번 90° 돌린 RotatedBox 안 좌표로
+  static Offset _unturn(Offset v, int q) => switch (q % 4) {
+    0 => v,
+    1 => Offset(v.dy, -v.dx),
+    2 => -v,
+    _ => Offset(-v.dy, v.dx),
+  };
+
+  /// n장을 낸 뒤 앞에 다 놓이고(_laid) 가운데 조합이 다 떠올라(_center) 잠깐 읽을 때까지(ms)
+  static int _readMs(int n) => _DropIn.gap * (n + 3) + _DropIn.fall + 500;
+
+  /// 판 가운데에 똑바로 보이는 가장 센 패(무슨 패인지 확인용). 칸에 맞춰 줄어든다. [from]이 0이면 제자리에서 떠오른다
+  Widget _center(int seat, List<String> m, Offset from) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Row(
+      key: ValueKey('play-$seat'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final c in m)
+          Padding(
+            padding: const EdgeInsets.all(2),
+            child: _DropIn(
+              key: ValueKey('drop-$seat-${m.join()}-$c'),
+              // 앞에 놓이는 패가 다 앉은 뒤 조합 전체가 한 번에 떠오른다 — 누가 냈는지 먼저, 무슨 패인지 다음(Codex 1·2차)
+              index: m.length + 3,
+              from: from,
+              flip: false,
+              child: TileView(code: c, width: 46),
+            ),
+          ),
+      ],
+    ),
+  );
 
   /// 정사각형 판: 지금 가장 센 패(이길 패)는 판 가운데에 진하게, 나머지 자리는 자기 앞(판 가장자리)에 흐리게.
   /// 가운데 패는 낸 자리 쪽에서 날아와 누가 냈는지 보인다(11-27 사용자 '가운데 내 차례 자리에 패가 오게').
@@ -966,6 +1387,9 @@ class _Seat extends StatelessWidget {
   /// 낮은 가로 화면의 맞은편 자리: 이름·뒷면·장수·점수를 한 줄로(세로 자리를 아낀다)
   final bool inline;
 
+  /// 3D 탁자 옆자리 이름 칩: 이름 / 장수 / 점수를 세로로(판 바깥 좁은 자리에 맞게)
+  final bool stacked;
+
   /// 남은 패 뒷면을 겹쳐 펼치는 방향(봇만). 세로면 [room] 높이 안에 맞춘다.
   final Axis? fan;
   final double room;
@@ -986,16 +1410,37 @@ class _Seat extends StatelessWidget {
     required this.turnLabel,
     this.compact = false,
     this.inline = false,
+    this.stacked = false,
   });
+
+  /// 3D 탁자 봇 자리: 상자 없이 이름만(compact는 3D 탁자 봇과 내 자리에만 쓴다)
+  bool get bare => compact && seat != 0;
 
   @override
   Widget build(BuildContext context) {
+    // 3D 탁자 봇: 둥근 프로필(무늬 캐릭터) + 이름 — 프로필 그림 기능이 생기면(상점 캐릭터) 그 그림으로 바꾼다
+    final avatar = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: 30,
+      height: 30,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.all(color: active ? gold : const Color(0xFFE9DFD1), width: active ? 3 : 1.5),
+        boxShadow: [BoxShadow(color: active ? gold.withValues(alpha: .5) : const Color(0x22000000), blurRadius: 6)],
+      ),
+      child: SvgPicture.asset('assets/icons/suit_${const ['m', 'c', 'l', 's'][seat]}.svg'),
+    );
     final label = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (bare && !stacked) ...[avatar, const SizedBox(width: 6)],
         Text(
           name,
-          style: const TextStyle(fontWeight: FontWeight.bold, color: _ink),
+          style: bare
+              ? const TextStyle(fontWeight: FontWeight.w800, color: _ink, fontSize: 16, shadows: _halo)
+              : const TextStyle(fontWeight: FontWeight.bold, color: _ink),
         ),
         if (active) ...[
           const SizedBox(width: 6),
@@ -1010,7 +1455,20 @@ class _Seat extends StatelessWidget {
         ],
       ],
     );
-    final stats = Text('🌸${g.petals[seat]}  ✦${g.bonus[seat]}', style: const TextStyle(fontSize: 12, color: _ink));
+    // 꽃잎·보너스는 그림 아이콘(이모지는 기기마다 모양이 달라 깨졌다, Codex 그림 11-28)
+    // 화면 낭독기는 그림 대신 '꽃잎 3, 보너스 2'로 읽는다(Codex 22차)
+    final stats = Text.rich(
+      semanticsLabel: AppLocalizations.of(context)!.scoreStats(g.petals[seat], g.bonus[seat]),
+      TextSpan(
+        children: [
+          WidgetSpan(alignment: PlaceholderAlignment.middle, child: scoreIcon('petal')),
+          TextSpan(text: '${g.petals[seat]}  '),
+          WidgetSpan(alignment: PlaceholderAlignment.middle, child: scoreIcon('bonus')),
+          TextSpan(text: '${g.bonus[seat]}'),
+        ],
+      ),
+      style: TextStyle(fontSize: 12, color: _ink, shadows: bare ? _halo : null),
+    );
     final column = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1031,15 +1489,43 @@ class _Seat extends StatelessWidget {
     final box = AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      decoration: BoxDecoration(
-        color: active ? const Color(0xFFFFF7E0) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: active ? gold : const Color(0xFFE9DFD1), width: active ? 3 : 1),
-        boxShadow: active ? [BoxShadow(color: gold.withValues(alpha: .35), blurRadius: 10)] : null,
-      ),
+      // 3D 탁자의 봇 이름은 상자 없이 글자만 띄운다(11-28 사용자 '네모 박스 말고 유저처럼 닉네임만') — 차례는 '차례' 배지가 알린다
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: active ? const Color(0xFFFFF7E0) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: active ? gold : const Color(0xFFE9DFD1), width: active ? 3 : 1),
+              boxShadow: active ? [BoxShadow(color: gold.withValues(alpha: .35), blurRadius: 10)] : null,
+            ),
       width: fan == Axis.vertical ? _sideW : null,
-      child: compact
-          ? Row(mainAxisSize: MainAxisSize.min, children: [label, const SizedBox(width: 12), stats])
+      child: compact && stacked
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                avatar,
+                const SizedBox(height: 2),
+                label,
+                Text(
+                  '×$count',
+                  style: TextStyle(color: _ink, fontSize: 12, shadows: bare ? _halo : null),
+                ),
+                stats,
+              ],
+            )
+          : compact
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                label,
+                if (seat != 0) ...[
+                  const SizedBox(width: 8),
+                  Text('×$count', style: const TextStyle(color: _ink, fontSize: 12)),
+                ],
+                const SizedBox(width: 12),
+                stats,
+              ],
+            )
           : inline
           ? FittedBox(
               fit: BoxFit.scaleDown, // 아주 좁은 창은 한 줄째 줄인다
@@ -1090,9 +1576,11 @@ class _Seat extends StatelessWidget {
           )
         else if (passed)
           Positioned(
-            top: -40,
+            // 내 칩은 위로, 탁자 위쪽 봇 칩(화면 맨 위)은 아래로 띄운다 — 위로 띄우면 화면 밖으로 잘린다
+            top: seat == 0 ? -40 : null,
+            bottom: seat == 0 ? null : -40,
             right: -12,
-            child: _Bubble(key: ValueKey('passed-$seat'), text: passLabel),
+            child: _Bubble(key: ValueKey('passed-$seat'), text: passLabel, tail: seat == 0),
           ),
       ],
     );
@@ -1252,7 +1740,6 @@ class _Backs extends StatelessWidget {
   );
 }
 
-/// 무늬 순서 띠: 약한 것부터 차례로, 그림 아래 이름(기호 없이 — 11-25 사용자).
 class _SuitOrder extends StatelessWidget {
   final List<String> suits; // 서버는 센 것 → 약한 것
   final String label;
@@ -1387,7 +1874,10 @@ class _DropIn extends StatelessWidget {
   final int index;
   final Offset from;
   final TileView child;
-  const _DropIn({super.key, required this.index, required this.from, required this.child});
+
+  /// 뒷면에서 앞면으로 뒤집히며 앉는다(남의 패). 내 패는 이미 앞면이라 뒤집지 않는다
+  final bool flip;
+  const _DropIn({super.key, required this.index, required this.from, required this.child, this.flip = true});
 
   @override
   Widget build(BuildContext context) {
@@ -1399,7 +1889,7 @@ class _DropIn extends StatelessWidget {
         final t = ((k * total - gap * index) / fall).clamp(0.0, 1.0); // 이 패의 진행
         final fly = Curves.easeOutCubic.transform(t);
         final land = Curves.easeOutBack.transform(t); // 살짝 튀었다가 앉음
-        final turn = pi * (1 - Curves.easeInOut.transform(t)); // 뒷면(π) → 앞면(0)
+        final turn = flip ? pi * (1 - Curves.easeInOut.transform(t)) : 0.0; // 뒷면(π) → 앞면(0)
         return Opacity(
           opacity: (t * 5).clamp(0.0, 1.0),
           child: Transform.translate(

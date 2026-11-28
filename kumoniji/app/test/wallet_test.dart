@@ -302,6 +302,258 @@ void main() {
     expect(Wallet.attendedNow.value, before + 1);
   });
 
+  test('웹은 조회로 출석하지 않으니, 오늘 출석 전이면 출석 요청(POST)을 보내 접속만으로 출석한다', () async {
+    final sent = <String>[];
+    var claimed = false; // 서버의 오늘 출석 여부
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        sent.add('${r.method} ${r.url.path}');
+        if (r.method == 'POST') claimed = true;
+        return http.Response(jsonEncode(wallet(coins: 200, claimed: claimed)), 200);
+      }),
+    );
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Wallet.web = true;
+    addTearDown(() => Wallet.web = false);
+    final before = Wallet.attendedNow.value;
+    await Wallet.refresh();
+    expect(sent, ['GET /api/wallet', 'POST /api/wallet/attend']);
+    expect(Wallet.attendedNow.value, before + 1);
+    sent.clear();
+    await Wallet.refresh(); // 이미 출석함 — 다시 보내지 않는다
+    expect(sent, ['GET /api/wallet']);
+  });
+
+  test('웹 자동 출석: 다른 탭이 먼저 출석했으면(409) 잔고를 다시 읽고, 연결 실패면 실패로 돌려 다시 시도하게 한다', () async {
+    final sent = <String>[];
+    var claimed = false, down = false;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        sent.add('${r.method} ${r.url.path}');
+        if (r.method == 'POST') {
+          if (down) return http.Response('', 503);
+          claimed = true; // 다른 탭이 이미 출석
+          return http.Response(
+            jsonEncode({
+              'detail': {'code': 'attended'},
+            }),
+            409,
+          );
+        }
+        return http.Response(jsonEncode(wallet(coins: 200, claimed: claimed)), 200);
+      }),
+    );
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Wallet.web = true;
+    addTearDown(() => Wallet.web = false);
+    expect(await Wallet.refresh(), isNull);
+    expect(sent, ['GET /api/wallet', 'POST /api/wallet/attend', 'GET /api/wallet']);
+    expect(Wallet.current.value!.attended, isTrue);
+    claimed = false;
+    down = true;
+    expect((await Wallet.refresh())!.$1, 503);
+  });
+
+  test('광고 보상 결과를 모르면 같은 계정은 같은 id로 다시 보내고, 다른 계정의 성공이 그 id를 지우지 않는다', () async {
+    final rids = <String>[];
+    var fail = true;
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        rids.add('${Auth.me.value!.id}:${(jsonDecode(r.body) as Map)['rid']}');
+        return fail ? http.Response('', 503) : http.Response(jsonEncode(wallet(coins: 200)), 200);
+      }),
+    );
+    Wallet.adRids.clear();
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    expect((await Wallet.watchAd(account: 1))!.$1, 503);
+    expect(Wallet.adPending(1), isTrue);
+    fail = false;
+    Auth.me.value = Me.fromJson({'id': 2, 'nickname': 'b'});
+    expect(await Wallet.watchAd(account: 2), isNull);
+    expect(Wallet.adPending(1), isTrue); // B의 성공이 A의 id를 지우지 않는다
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    expect(await Wallet.watchAd(account: 1), isNull);
+    expect(rids[2], rids[0]); // A는 같은 id로 다시
+    expect(Wallet.adPending(1), isFalse);
+  });
+
+  testWidgets('결과를 모르는 광고 보상은 앱을 다시 켜도 상점에서 확인만 한다', (t) async {
+    final rids = <String>[];
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        if (r.url.path == '/api/wallet/ad') {
+          rids.add(jsonDecode(r.body)['rid']);
+          if (rids.length == 1) return http.Response('', 503); // 응답 유실
+        }
+        return http.Response(
+          jsonEncode({
+            ...wallet(),
+            'ads': {'on': true, 'left': 5, 'hearts': 1, 'per_day': 5},
+          }),
+          200,
+        );
+      }),
+    );
+    await Wallet.watchAd(account: 1);
+    Wallet.adRids.clear(); // 앱을 다시 켬(메모리는 비고 기기 저장만 남음, Codex 25차)
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
+    await settle(t);
+    expect(find.text('Check reward'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('ad-watch')));
+    await settle(t);
+    expect(find.byKey(const ValueKey('ad-playing')), findsNothing); // 다시 보지 않고
+    expect(rids, [rids[0], rids[0]]); // 같은 id로 확인
+    expect(Wallet.adPending(1), isFalse);
+    expect(await Wallet.loadAdPending(1), isFalse); // 확정되면 기기에서도 지운다
+    // 다른 탭이 남긴 미확정 보상이 둘이면 하나를 확인한 뒤 바로 다음 것을 '보상 확인'으로(Codex 28차)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('adRid.1.x1', true);
+    await prefs.setBool('adRid.1.x2', true);
+    await t.pumpWidget(const SizedBox());
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('ad-watch')));
+    await settle(t);
+    expect(find.text('Check reward'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('ad-watch')));
+    await settle(t);
+    expect(find.text('Check reward'), findsNothing);
+    expect(rids.sublist(2).toSet(), {'x1', 'x2'});
+  });
+
+  testWidgets('애니메이션 줄이기를 켜도 광고는 실제 5초가 지나야 보상을 요청한다', (t) async {
+    t.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(t.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final sent = <String>[];
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    final ads = {
+      ...wallet(),
+      'ads': {'on': true, 'left': 5, 'hearts': 1, 'per_day': 5},
+    };
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        sent.add(r.url.path);
+        return http.Response(jsonEncode(ads), 200);
+      }),
+    );
+    Wallet.set(ads, owner: 1);
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('ad-watch')));
+    await t.pump(const Duration(seconds: 1));
+    await t.pump(const Duration(seconds: 1));
+    expect(sent, isNot(contains('/api/wallet/ad'))); // 막대가 빨리 끝나도(Codex 37차)
+    // 화면을 떠나 있던 시간은 세지 않는다(Codex 38차)
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await t.pump(const Duration(seconds: 10));
+    expect(sent, isNot(contains('/api/wallet/ad')));
+    // 막대도 같은 시청 시간 — 다 찬 채로 기다리게 하지 않는다(Codex 39차)
+    expect(t.widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator)).value, lessThan(.5));
+    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await t.pump(const Duration(seconds: 4));
+    await settle(t);
+    expect(sent, contains('/api/wallet/ad'));
+    Wallet.adRids.clear();
+  });
+
+  testWidgets('상점을 연 직후 남은 보상을 불러오기 전에는 광고 버튼을 누를 수 없다', (t) async {
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    final ads = {
+      ...wallet(),
+      'ads': {'on': true, 'left': 5, 'hearts': 1, 'per_day': 5},
+    };
+    Auth.client = AuthClient(MockClient((r) async => http.Response(jsonEncode(ads), 200)));
+    Wallet.set(ads, owner: 1);
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
+    // 첫 화면 — 기기 저장소를 아직 다 읽지 않았다(Codex 29차)
+    expect(t.widget<FilledButton>(find.byKey(const ValueKey('ad-watch'))).onPressed, isNull);
+    await settle(t);
+    expect(t.widget<FilledButton>(find.byKey(const ValueKey('ad-watch'))).onPressed, isNotNull);
+  });
+
+  test('광고 보상은 누른 때 정한 id로 보낸다 — 그사이 다른 화면이 복구한 id로 바뀌지 않는다', () async {
+    final sent = <String>[];
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        sent.add(jsonDecode(r.body)['rid']);
+        return http.Response(jsonEncode(wallet()), 200);
+      }),
+    );
+    Wallet.adRids[1] = 'restored'; // 닫힌 화면이 뒤늦게 복구한 id(Codex 30차)
+    expect(await Wallet.watchAd(account: 1, rid: 'mine'), isNull);
+    expect(sent, ['mine']);
+    expect(Wallet.adRids[1], 'restored'); // 남의 id는 그대로 — 다음에 확인
+    Wallet.adRids.clear();
+  });
+
+  test('같은 계정의 다른 탭이 적은 광고 id는 이 탭의 보상이 끝나도 남는다', () async {
+    SharedPreferences.setMockInitialValues({'adRid.1.tab-b': true}); // B 탭이 보낸 뒤 결과를 모름
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Auth.client = AuthClient(MockClient((r) async => http.Response(jsonEncode(wallet()), 200)));
+    expect(await Wallet.watchAd(account: 1), isNull); // A 탭은 받음
+    Wallet.adRids.clear(); // B 탭을 새로고침
+    expect(await Wallet.loadAdPending(1), isTrue); // B의 id는 남아 확인만 한다(Codex 26차)
+    expect(Wallet.adRids[1], 'tab-b');
+    Wallet.adRids.clear();
+    SharedPreferences.setMockInitialValues({}); // 다음 테스트에 남기지 않는다
+  });
+
+  testWidgets('상점 햇살 탭: 광고가 꺼져 있으면 준비 중, 켜지면 광고 자리를 본 뒤 햇살을 받는다', (t) async {
+    var on = false, off = false, left = 5;
+    final sent = <String>[];
+    Auth.me.value = Me.fromJson({'id': 1, 'nickname': 'a'});
+    Auth.client = AuthClient(
+      MockClient((r) async {
+        sent.add('${r.method} ${r.url.path}');
+        if (off) {
+          on = false;
+          if (r.url.path == '/api/wallet/ad') {
+            return http.Response(
+              jsonEncode({
+                'detail': {'code': 'ads_off'},
+              }),
+              404,
+            );
+          }
+        }
+        if (r.url.path == '/api/wallet/ad') left--;
+        return http.Response(
+          jsonEncode({
+            ...wallet(),
+            'ads': {'on': on, 'left': left, 'hearts': 1, 'per_day': 5},
+          }),
+          200,
+        );
+      }),
+    );
+    await t.pumpWidget(_wrap(const ShopScreen(tab: 'hearts')));
+    await settle(t);
+    expect(find.text('Ad rewards are coming soon.'), findsOneWidget);
+    expect(t.widget<FilledButton>(find.byKey(const ValueKey('ad-watch'))).onPressed, isNull);
+    on = true;
+    await Wallet.refresh();
+    await t.pump();
+    expect(find.text('5/5 left today'), findsOneWidget);
+    await t.tap(find.byKey(const ValueKey('ad-watch')));
+    await t.pump();
+    expect(find.byKey(const ValueKey('ad-playing')), findsOneWidget); // 광고 자리부터
+    expect(sent, isNot(contains('POST /api/wallet/ad')));
+    await t.pump(const Duration(seconds: 6));
+    await settle(t);
+    expect(sent, contains('POST /api/wallet/ad'));
+    expect(find.text('4/5 left today'), findsOneWidget);
+    // 열어 둔 사이 서버에서 꺼지면: 보상은 ads_off로 거절되고 카드는 '준비 중'으로 바뀐다(Codex 24차)
+    off = true;
+    await t.tap(find.byKey(const ValueKey('ad-watch')));
+    await t.pump();
+    await t.pump(const Duration(seconds: 6));
+    await settle(t);
+    expect(find.text('Ad rewards are coming soon.'), findsOneWidget);
+    expect(Wallet.adPending(1), isTrue); // 지급 여부를 모르니 같은 id를 남긴다
+  });
+
   testWidgets('판이 끝난 응답의 지갑으로 잔고를 바로 바꾼다', (t) async {
     Auth.client = AuthClient(MockClient((_) async => http.Response(jsonEncode(wallet(coins: 1)), 200)));
     final done = {

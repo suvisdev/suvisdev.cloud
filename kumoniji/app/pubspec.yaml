@@ -34,6 +34,7 @@ flutter:
     - assets/brand/
     - assets/backgrounds/
     - assets/boards/
+    - assets/table3d/
     - assets/audio/
     - assets/audio/sfx/
     - assets/icons/home/

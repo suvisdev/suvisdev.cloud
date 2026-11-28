@@ -194,5 +194,14 @@
   "privacy": "隐私政策",
   "agreeNote": "继续即表示你同意服务条款和隐私政策。",
   "legalLoadFailed": "加载失败。",
-  "retry": "重试"
+  "retry": "重试",
+  "adTitle": "看广告得 {n} 个阳光",
+  "adLeft": "今天还剩 {left}/{per} 次",
+  "adSoon": "广告奖励即将推出。",
+  "adWatch": "观看",
+  "adDone": "已获得阳光。",
+  "adPlaying": "广告位(测试)— 稍后获得奖励",
+  "adNoMore": "今天的广告奖励已全部领取。",
+  "adCheck": "确认奖励",
+  "scoreStats": "花瓣 {petals}，奖励 {bonus}"
 }

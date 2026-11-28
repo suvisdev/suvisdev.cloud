@@ -348,6 +348,10 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 11-28 | 쿠모니지 가짜 3D 탁자(Flutter Matrix4)가 계속 어색 — 옆 패 벽이 판 밑으로 서고, 이름이 패와 어긋남 | 판 회전·원근을 손으로 맞추느라 부호·축 실수가 반복되고 '진짜 카메라'가 없음 | 블렌더로 탁자·패 벽을 렌더(48도·2D풍), 같은 카메라로 펠트 네 모서리를 화면 좌표로 뽑아 앱은 호모그래피로 판 위 패만 그림 | WORK_LOG_KUMONIJI 11-28 저녁 |
+| ✅ | 11-28 | 블렌더 스크립트로 만든 패가 전부 원점에 모임 | `transform_apply(scale=True)`의 location·rotation 기본값도 True라 위치까지 적용돼 0으로 | `location=False, rotation=False` 명시 | WORK_LOG_KUMONIJI 11-28 저녁 |
+| ✅ | 11-28 | 패 벽 39장 렌더가 30분 걸림 | 패 한 장 그릴 때도 화면 전체(1688×780)를 Cycles로 돌림 | 패 영역만 렌더(border, 자르지 않음) → 34초 | WORK_LOG_KUMONIJI 11-28 저녁 |
+| ✅ | 11-28 | 그림 판 패스·내기 버튼에서 '무한 폭' 레이아웃 오류로 게임판 테스트 21건 실패 | 홈 버튼용 `minimumSize: Size.fromHeight`(폭 무한)를 한 줄에 둘 놓는 Row에서 그대로 씀 | `plateStyle(minWidth:)`로 패스·내기는 120 | WORK_LOG_KUMONIJI 11-28 저녁 |
 | ✅ | 11-28 | 쿠모니지 홈 상단 바를 `flexibleSpace`에 넣었는데 화면에 안 보임 | 앱바가 flexibleSpace에 느슨한 제약을 줘서 자식 없는 `DecoratedBox`가 높이 0으로 줄어듦(찾기로 재 보니 rect 높이 0) | `SizedBox.expand`로 채움. '바 높이 = 앱바 높이' 테스트를 넣고 고친 줄을 되돌려 `Actual 0.0` 실패 확인 | WORK_LOG_KUMONIJI 11-28 오후 |
 | ✅ | 11-28 | 버튼 배경 그림을 넣자 포커스·눌림 효과가 안 보이고, `Ink`로 바꾸자 준비 중 버튼이 안 흐려짐 | `DecoratedBox`는 잉크 위에 덮이고, `Ink`는 위쪽 Material에 그려져 바깥 `Opacity`가 안 먹음 | `Ink` + `DecorationImage.opacity` + 글자 `Opacity`. Codex 리뷰 1·2차가 잡음 | WORK_LOG_KUMONIJI 11-28 오후 |
 | ✅ | 11-28 | 홈 버튼 글자를 키웠더니 캡처 글자가 네모(글꼴 없음) | `styleFrom(textStyle: TextStyle(fontSize: 21))`이 테마 labelLarge를 합치지 않고 바꿔 fontFamily가 빠짐 | `textTheme.labelLarge?.copyWith(fontSize: 21)`. 글자 스타일은 테마에서 copyWith로 | WORK_LOG_KUMONIJI 11-28 낮 |

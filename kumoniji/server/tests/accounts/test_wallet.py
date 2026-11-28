@@ -103,6 +103,41 @@ def test_buy_with_gems_and_hearts_can_exceed_ten(database):
     assert (w["gems"], w["hearts"]) == (5, 15)
 
 
+def test_ad_gives_a_heart_five_times_a_day(database):
+    a = make_account()
+    t0 = 1764514800  # 2025-12-01 00:00 KST
+    with db.tx() as c:
+        for _ in range(money.AD_PER_DAY):
+            store.watch_ad(c, a, t0 + 60)
+        with pytest.raises(LookupError):
+            store.watch_ad(c, a, t0 + 120)
+        w = store.snapshot(c, a, t0 + 120)
+        assert w["ads"]["left"] == 0 and w["hearts"] == 10 + money.AD_PER_DAY * money.AD_HEARTS
+        assert store.snapshot(c, a, t0 + 86400)["ads"]["left"] == money.AD_PER_DAY  # 다음 날 다시
+
+
+def test_ad_resent_with_same_rid_pays_once(database):
+    a = make_account()
+    t0 = 1764514800
+    with db.tx() as c:
+        store.watch_ad(c, a, t0 + 60, "watch-0001")
+        w = store.watch_ad(c, a, t0 + 61, "watch-0001")  # 응답이 유실돼 다시 보냄
+        assert w["hearts"] == 10 + money.AD_HEARTS and w["ads"]["left"] == money.AD_PER_DAY - 1
+        w = store.watch_ad(c, a, t0 + 86400 + 5, "watch-0001")  # 자정을 넘겨 다시 보내도
+        assert w["ads"]["left"] == money.AD_PER_DAY and w["hearts"] >= 10 + money.AD_HEARTS
+        n = c.execute("SELECT count(*) AS n FROM ledger WHERE account_id = %s AND kind = 'ad'", (a,)).fetchone()["n"]
+        assert n == 1
+
+
+def test_ad_endpoint_is_off_unless_test_switch(outbox, fast_hash, monkeypatch):
+    c = browser()
+    signed_up(c, outbox)
+    login(c)
+    assert c.post("/api/wallet/ad").json()["detail"]["code"] == "ads_off"
+    monkeypatch.setattr(store, "ADS_ON", True)
+    assert c.post("/api/wallet/ad").json()["ads"]["left"] == money.AD_PER_DAY - 1
+
+
 def test_bigger_packs_give_a_bonus_and_the_api_sells_every_shop_item(database):
     """골드·햇살 묶음은 많이 살수록 덤 — 조각 하나당 받는 양이 줄지 않는다(11-27 상점)."""
     coins = sorted((p, g["coins"]) for p, g in money.SHOP.values() if "coins" in g)
