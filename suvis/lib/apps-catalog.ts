@@ -35,15 +35,17 @@ export const APPS_CATALOG: AppCatalogItem[] = [
     kind: "개인 프로젝트",
   },
   {
-    id: "gildle",
-    titleKo: "Gildle",
-    titleEn: "Dog Walk Guide",
-    href: "/gildle",
-    available: false,
+    // 4인 타일 게임 — 앱만 출시(ADR-0025)라 웹(kumoniji.suvisdev.cloud)은 시험 화면. 홈에선 길들 자리에(2026-11-28 사용자)
+    id: "kumoniji",
+    titleKo: "Kumoniji",
+    titleEn: "4-Player Tile Game",
+    href: "https://kumoniji.suvisdev.cloud",
+    available: false, // 출시 전 — 홈 타일 '준비 중', /apps 카드 Live 배지 없음. 링크(시험 화면)는 그대로 열린다
+
     imageFirst: true,
-    gradient: "from-emerald-400 via-green-500 to-teal-600",
-    image: "/apps-gildle.jpg",
-    tileImage: "/gildle-icon.svg",
+    gradient: "from-pink-200 via-rose-200 to-emerald-200",
+    image: "/apps-kumoniji.png",
+    tileImage: "/kumoniji-icon.png",
     kind: "개인 프로젝트",
   },
   {
