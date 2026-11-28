@@ -348,6 +348,10 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| 📌 | 11-28 | 쿠모니지 자동 배포 PR이 Codex 리뷰 27차까지 감 | 처음 설계가 '서버 내림·자동 덤프·트랩'처럼 상태가 많아 실패·취소·경쟁마다 새 구멍 | 드문 경우(마이그레이션)를 사람에게 넘기고 판단을 잠금 하나 안으로 모아 단순화 → OK. 처음부터 단순한 설계로 | WORK_LOG_KUMONIJI 11-28 저녁 |
+| ✅ | 11-28 | 관문이 'Codex 실행 실패: Expecting value'만 출력 | Codex 사용 한도 — 답 파일이 비어 JSON 읽기에서 실패 | `codex exec` 단독 실행으로 한도 메시지 확인 | WORK_LOG_MAINPAGE 11-28 저녁 |
+| ✅ | 11-28 | Codex 리뷰 한 번(98줄)에 입력 27만 토큰 | 전역 AGENTS.md '먼저 읽을 것'으로 CLAUDE.md·스킬·메모리를 읽고 테스트 실행 방법을 찾느라 명령 11개 | 리뷰 프롬프트에서 무거운 읽기·테스트 금지 → 11만(−61%) | WORK_LOG_MAINPAGE 11-28 저녁 |
+| ✅ | 11-28 | 홈 버튼 '글자가 판 안에 든다' 테스트가 고친 줄을 빼도 통과 | 높이 상한에 눌리면 글자 상자도 잘려 위치 비교로는 넘침을 못 봄 | 상자 높이와 `getMaxIntrinsicHeight`를 비교 → 485 대 49.5로 실패 확인 | WORK_LOG_KUMONIJI 11-28 저녁 |
 | ✅ | 11-28 | 쿠모니지 홈 상단 바를 `flexibleSpace`에 넣었는데 화면에 안 보임 | 앱바가 flexibleSpace에 느슨한 제약을 줘서 자식 없는 `DecoratedBox`가 높이 0으로 줄어듦(찾기로 재 보니 rect 높이 0) | `SizedBox.expand`로 채움. '바 높이 = 앱바 높이' 테스트를 넣고 고친 줄을 되돌려 `Actual 0.0` 실패 확인 | WORK_LOG_KUMONIJI 11-28 오후 |
 | ✅ | 11-28 | 버튼 배경 그림을 넣자 포커스·눌림 효과가 안 보이고, `Ink`로 바꾸자 준비 중 버튼이 안 흐려짐 | `DecoratedBox`는 잉크 위에 덮이고, `Ink`는 위쪽 Material에 그려져 바깥 `Opacity`가 안 먹음 | `Ink` + `DecorationImage.opacity` + 글자 `Opacity`. Codex 리뷰 1·2차가 잡음 | WORK_LOG_KUMONIJI 11-28 오후 |
 | ✅ | 11-28 | 홈 버튼 글자를 키웠더니 캡처 글자가 네모(글꼴 없음) | `styleFrom(textStyle: TextStyle(fontSize: 21))`이 테마 labelLarge를 합치지 않고 바꿔 fontFamily가 빠짐 | `textTheme.labelLarge?.copyWith(fontSize: 21)`. 글자 스타일은 테마에서 copyWith로 | WORK_LOG_KUMONIJI 11-28 낮 |
