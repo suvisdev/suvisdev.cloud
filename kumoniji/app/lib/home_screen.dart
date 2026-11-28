@@ -67,11 +67,24 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           centerTitle: false,
+          // 순서: 미션·출석 / 상점 / 프로필(11-28 사용자, 옵션은 아래 큰 버튼). 음소거는 빼고(음량은 옵션), 홈 배경은 옵션 안으로.
           actions: [
+            IconButton(
+              key: const ValueKey('open-missions'),
+              tooltip: t.missions,
+              icon: _icon('missions'),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MissionsScreen())),
+            ),
+            IconButton(
+              key: const ValueKey('open-shop'),
+              tooltip: t.shop,
+              icon: _icon('shop'),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen())),
+            ),
             // 간단한 프로필 — 닉네임 첫 글자. 누르면 계정 화면(닉네임·비밀번호 바꾸기, 11-27 사용자)
             ValueListenableBuilder(
               valueListenable: Auth.me,
-              // 아주 좁은 창(360px 아래)에선 뺀다 — 버튼 다섯이 제목 줄을 밀어 잔고가 안 보인다(리뷰 9차). 계정은 옵션 → 계정
+              // 아주 좁은 창(360px 아래)에선 뺀다 — 아이콘들이 제목 줄을 밀어 잔고가 안 보인다(리뷰 9차). 계정은 옵션 → 계정
               builder: (context, me, _) => me == null || MediaQuery.sizeOf(context).width < 360
                   ? const SizedBox.shrink()
                   : IconButton(
@@ -85,26 +98,6 @@ class HomeScreen extends StatelessWidget {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountScreen())),
                     ),
             ),
-            // 배경은 옵션이 아니라 이 화면에서 바로(11-27 사용자)
-            IconButton(
-              key: const ValueKey('home-background'),
-              tooltip: t.homeBackground,
-              icon: _icon('background'),
-              onPressed: () => pickBackground(context, 'home'),
-            ),
-            IconButton(
-              key: const ValueKey('open-missions'),
-              tooltip: t.missions,
-              icon: _icon('missions'),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MissionsScreen())),
-            ),
-            IconButton(
-              key: const ValueKey('open-shop'),
-              tooltip: t.shop,
-              icon: _icon('shop'),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen())),
-            ),
-            const MuteButton(),
             const SizedBox(width: 4),
           ],
         ),
@@ -114,6 +107,9 @@ class HomeScreen extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, box) {
               final low = box.maxHeight < 560;
+              // 낮은 폰 가로(740×360 등)에서도 넷이 한 화면에 들게 버튼 높이를 남은 높이에 맞춘다(최대 66, 최소 48).
+              // 위아래 여백 12+12, 간격 14×3
+              final h = low ? ((box.maxHeight - 24 - 42) / 4).clamp(48.0, 66.0) : 66.0;
               final title = Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -134,32 +130,32 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               );
-              // 메인 버튼은 1.5배(11-28 사용자) — 높이 78·글자 21. 폰 가로에선 버튼 칸이 스크롤된다.
+              // 메인 버튼: 1.5배(높이 78·글자 21)에서 살짝 줄임(11-28 사용자) — 높이 66·글자 19·간격 14. 폰 가로에서 넷이 한 화면에 든다(사용자 '이렇게 고정').
               // 판은 Codex 그림 B안(크림 도자기·비취 테두리, 11-28 사용자) — 아이콘은 판 그림 왼쪽에 있어 글자만 쓴다
-              final label = Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 21, fontWeight: FontWeight.w700);
+              final label = Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 19, fontWeight: FontWeight.w700);
               final buttons = Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   FilledButton(
-                    style: _plate('single', label),
+                    style: _plate('single', label, h),
                     onPressed: () => _single(context),
-                    child: Text(t.singleMode),
+                    child: _label(t.singleMode),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
                   OutlinedButton(
-                    style: _plate('multi', label),
+                    style: _plate('multi', label, h),
                     onPressed: null, // 2단계(4인 멀티)에서 연결 — 준비 중이라 판째 흐리게
-                    child: Text('${t.multiMode} · ${t.comingSoon}'),
+                    child: _label('${t.multiMode} · ${t.comingSoon}'),
                   ),
-                  const SizedBox(height: 18),
-                  OutlinedButton(style: _plate('help', label), onPressed: () => showHelp(context), child: Text(t.help)),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
+                  OutlinedButton(style: _plate('help', label, h), onPressed: () => showHelp(context), child: _label(t.help)),
+                  const SizedBox(height: 14),
                   OutlinedButton(
                     key: const ValueKey('open-options'),
-                    style: _plate('options', label),
+                    style: _plate('options', label, h),
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OptionsScreen())),
-                    child: Text(t.options),
+                    child: _label(t.options),
                   ),
                 ],
               );
@@ -194,13 +190,18 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+/// 메인 버튼 글자 — 한 줄로, 넘치면 줄여서 판 높이 안에 둔다(큰 글자 설정·긴 언어에서 두 줄로 판을 넘지 않게)
+Widget _label(String text) => FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1));
+
 /// 홈 버튼 아이콘(Codex 그림 b안, 11-27 사용자). 원본 512px는 바탕화면 `타일게임_기획/홈버튼아이콘_Codex`
 Widget _icon(String name) => Image.asset('assets/icons/home/$name.png', width: 28, height: 28);
 
 /// 메인 버튼 판 그림(Codex B안, 원본 1200×280은 바탕화면 `타일게임_기획/메인버튼_Codex`). 왼쪽 약 22%가 아이콘 자리라
 /// 글자는 그 오른쪽에. 누를 수 없으면(준비 중) 판째 흐리게
-ButtonStyle _plate(String name, TextStyle? label) => ButtonStyle(
-  minimumSize: const WidgetStatePropertyAll(Size.fromHeight(78)),
+ButtonStyle _plate(String name, TextStyle? label, double height) => ButtonStyle(
+  minimumSize: WidgetStatePropertyAll(Size.fromHeight(height)),
+  // 높이도 막아야 _label(FittedBox)이 짧은 글자(Options 등)를 큰 글자 설정에서 높이에 맞춰 줄인다(가로만 보면 안 줄어든다)
+  maximumSize: WidgetStatePropertyAll(Size(double.infinity, height)),
   padding: const WidgetStatePropertyAll(EdgeInsets.only(left: 76, right: 16)),
   textStyle: WidgetStatePropertyAll(label),
   foregroundColor: const WidgetStatePropertyAll(Color(0xFF4A3426)),

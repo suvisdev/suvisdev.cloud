@@ -172,12 +172,33 @@ void main() {
     expect(t.getRect(find.byWidgetPredicate((w) => w is TileView && w.code == 'c11')).right <= 280, isTrue);
   });
 
-  testWidgets('home shows one tile of each suit and one mute button silences music and effects', (t) async {
+  testWidgets('home shows one tile of each suit; top bar is missions, shop, profile (no options icon, no mute, no background)', (t) async {
+    Auth.me.value = Me.fromJson({'id': 1, 'email': 'me@x.com', 'nickname': 'me'});
+    addTearDown(() => Auth.me.value = null);
     await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
     await settle(t);
     for (final c in ['m13', 's13', 'l12', 'c11']) {
       expect(find.byWidgetPredicate((w) => w is TileView && w.code == c), findsOneWidget);
     }
+    // 순서(11-28 사용자): 미션·출석 / 상점 / 프로필. 옵션은 큰 버튼, 음소거·배경 버튼은 홈 상단에서 뺐다
+    final xs = [
+      for (final k in ['open-missions', 'open-shop', 'open-profile']) t.getCenter(find.byKey(ValueKey(k))).dx,
+    ];
+    final bar = find.byType(AppBar);
+    expect(find.descendant(of: bar, matching: find.byKey(const ValueKey('open-options'))), findsNothing);
+    expect(xs, [...xs]..sort());
+    expect(find.byKey(const ValueKey('mute')), findsNothing);
+    expect(find.byKey(const ValueKey('home-background')), findsNothing);
+  });
+
+  testWidgets('mute button (game screen) silences music and effects and restores volumes', (t) async {
+    await t.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        home: Scaffold(appBar: AppBar(actions: const [MuteButton()])),
+      ),
+    );
     Settings.music.value = 0.6;
     Settings.sfx.value = 0.8;
     await t.tap(find.byKey(const ValueKey('mute')));
@@ -212,9 +233,14 @@ void main() {
     await t.scrollUntilVisible(find.byKey(const ValueKey('vibration')), 200, scrollable: find.byType(Scrollable).last);
     await t.tap(find.byKey(const ValueKey('vibration')));
     await settle(t);
+    Settings.muted.value = true; // 게임 화면에서 음소거하고 왔다
+    addTearDown(() => Settings.muted.value = false);
     await t.drag(find.byKey(const ValueKey('music')), const Offset(-500, 0));
     await settle(t);
+    await t.tap(find.byKey(const ValueKey('mute-option'))); // 홈엔 음소거 버튼이 없어 옵션에서 푼다
+    await settle(t);
     final p = await SharedPreferences.getInstance();
+    expect((Settings.muted.value, p.getBool('muted')), (false, false));
     expect(p.getString('locale'), 'ja');
     expect(p.getBool('vibration'), false);
     expect(p.getDouble('music'), 0);
@@ -223,7 +249,7 @@ void main() {
     expect(find.text('シングルモード'), findsOneWidget);
   });
 
-  testWidgets('배경은 옵션이 아니라 그 화면의 버튼에서 — 시작 화면은 배경, 게임 화면은 배경·게임판·세트, 고르면 바로 깔리고 기억된다', (t) async {
+  testWidgets('시작 화면 배경은 옵션 안에서, 게임 화면은 꾸미기 버튼에서(배경·게임판·세트) — 고르면 바로 깔리고 기억된다', (t) async {
     Auth.client = AuthClient(
       MockClient(
         (r) async => r.url.path == '/api/auth/me'
@@ -235,9 +261,6 @@ void main() {
     await settle(t);
     expect(find.byKey(const ValueKey('backdrop-home-0')), findsOneWidget); // setUp에서 없음
     await t.tap(find.byKey(const ValueKey('open-options')));
-    await settle(t);
-    expect(find.byKey(const ValueKey('home-background')), findsNothing); // 옵션에는 없다
-    await t.tap(find.byType(BackButton));
     await settle(t);
     Future<void> choose(String kind, int n) async {
       for (var i = 0; i <= (kind == 'home' ? homeBackgrounds : tableBackgrounds); i++) {
@@ -253,10 +276,12 @@ void main() {
       await settle(t);
     }
 
-    await t.tap(find.byKey(const ValueKey('home-background')));
+    await t.tap(find.byKey(const ValueKey('home-background'))); // 옵션 안(11-28 사용자 '우선 숨겨 두자')
     await settle(t);
     expect(t.getSemantics(find.bySemanticsLabel('None')).flagsCollection.isSelected, Tristate.isTrue); // 지금 고른 것
     await choose('home', 3);
+    await t.tap(find.byType(BackButton)); // 옵션 → 시작 화면
+    await settle(t);
     final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
     expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
     // 게임 화면: 꾸미기 버튼 → 배경·게임판·세트
@@ -311,18 +336,45 @@ void main() {
     }
   });
 
-  testWidgets('폰 가로(844×390): 큰 버튼(1.5배)은 싱글이 바로 보이고, 옵션까지 스크롤로 닿는다', (t) async {
-    // 버튼을 1.5배로 키우면 넷이 한 화면에 안 들어간다 — 사용자가 세로 4줄 + 스크롤을 골랐다(11-28)
+  testWidgets('낮은 폰 가로(740×360)에서도 메인 버튼 넷이 판째 한 화면에 든다', (t) async {
+    t.view.physicalSize = const Size(740, 360);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
+    await settle(t);
+    final options = find.ancestor(of: find.text('Options'), matching: find.byType(OutlinedButton));
+    expect(t.getRect(options).bottom, lessThanOrEqualTo(360));
+    expect(t.getSize(options).height, greaterThanOrEqualTo(48));
+  });
+
+  testWidgets('시스템 글자 3배(740×360)에서도 메인 버튼 글자는 한 줄로 줄어 판 안에 들고, 넷이 한 화면에 든다', (t) async {
+    t.view.physicalSize = const Size(740, 360);
+    t.view.devicePixelRatio = 1;
+    t.platformDispatcher.textScaleFactorTestValue = 3;
+    addTearDown(t.view.reset);
+    addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
+    await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
+    await settle(t);
+    for (final label in ['Multiplayer · Coming soon', 'Options']) {
+      final plate = t.getRect(find.ancestor(of: find.text(label), matching: find.byType(OutlinedButton)));
+      final text = t.getRect(find.text(label));
+      expect(text.top >= plate.top && text.bottom <= plate.bottom && text.right <= plate.right, isTrue, reason: label);
+      expect(plate.bottom, lessThanOrEqualTo(360), reason: label);
+    }
+  });
+
+  testWidgets('폰 가로(844×390): 메인 버튼(높이 66) 넷이 스크롤 없이 한 화면에 든다', (t) async {
     t.view.physicalSize = const Size(844, 390);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
     await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
     await settle(t);
     expect(t.getRect(find.text('Single player')).bottom, lessThan(390));
-    expect(t.getSize(find.ancestor(of: find.text('Single player'), matching: find.byType(FilledButton))).height, 78);
+    expect(t.getSize(find.ancestor(of: find.text('Single player'), matching: find.byType(FilledButton))).height, 66);
     // 상단 바(11-28): 앱바 높이만큼 깔린다 — 비우면 높이 0으로 줄어 안 보였다
     expect(t.getSize(find.byKey(const ValueKey('home-top-bar'))).height, t.getSize(find.byType(AppBar)).height);
-    await t.scrollUntilVisible(find.text('Options'), 50);
+    // 사용자 '이렇게 고정' — 옵션 버튼까지 통째로 보인다(글자만이 아니라 판 전체)
+    expect(t.getRect(find.ancestor(of: find.text('Options'), matching: find.byType(OutlinedButton))).bottom, lessThanOrEqualTo(390));
     await t.tap(find.text('Options'));
     await settle(t);
     expect(find.byType(OptionsScreen), findsOneWidget);
