@@ -208,3 +208,8 @@ def test_unrevealed_table_is_not_voided_and_reveal_restarts_the_gone_timer():
     t.reveal(1000 + GONE * 2)
     assert not t.void(1000 + GONE * 3 - 1)
     assert t.void(1000 + GONE * 3)
+
+
+def test_turn_is_15_seconds():
+    # 사용자 결정(2026-11-28): 패를 안 내고 15초가 지나면 자동 패스
+    assert TURN == 15

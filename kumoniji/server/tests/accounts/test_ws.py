@@ -12,6 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from kumoniji.accounts import db, sessions
 from kumoniji.api import app
 from kumoniji.multi import ws as multi_ws
+from kumoniji.multi.table import TURN
 from kumoniji.multi.lobby import Lobby, Player
 from kumoniji.multi.table import GONE
 
@@ -181,11 +182,11 @@ def test_timer_auto_passes_and_pushes_to_everyone(server, outbox, monkeypatch):
         w.send_json({"t": "queue"})
     start = [until(w, "state") for w in ws]
     turn = start[0]["turn"]
-    now[0] = start[0]["deadline"]  # 20초 지남 → 타이머(0.5초 간격)가 그 차례를 패스
+    now[0] = start[0]["deadline"]  # 차례 시간 지남 → 타이머(0.5초 간격)가 그 차례를 패스
     after = [until(w, "state") for w in ws]
     for s in after:
         assert s["events"][0] == {"seat": turn, "tiles": None}
-        assert s["deadline"] == now[0] + 20
+        assert s["deadline"] == now[0] + TURN
 
 
 def test_browsers_without_device_header_still_match(server, outbox, monkeypatch):

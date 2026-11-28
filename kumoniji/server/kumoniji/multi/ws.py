@@ -259,7 +259,7 @@ def tell_queued(a: int) -> None:
 
 
 async def tick_forever() -> None:
-    """차례 20초 마감 → 자동 패스, 끝난·무효 판과 오래된 방 정리. api lifespan이 띄운다."""
+    """차례 15초 마감 → 자동 패스, 끝난·무효 판과 오래된 방 정리. api lifespan이 띄운다."""
     _slots.clear()  # 이 이벤트 루프용으로 새로(세마포어는 처음 기다린 루프에 묶인다)
     while True:
         await asyncio.sleep(0.5)

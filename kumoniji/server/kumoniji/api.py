@@ -74,7 +74,7 @@ def _sweep_accounts() -> None:
 
 async def _housekeeping():
     """미인증 가입(24시간)·탈퇴 재적용·오래된 시도 기록 정리. 시작 때 한 번, 그 뒤 1시간마다.
-    DB 작업은 스레드에서 — 이벤트 루프에서 기다리면 멀티의 소켓 수신·20초 타이머가 같이 멈춘다."""
+    DB 작업은 스레드에서 — 이벤트 루프에서 기다리면 멀티의 소켓 수신·차례 타이머가 같이 멈춘다."""
     while True:
         try:
             await asyncio.to_thread(_sweep_accounts)

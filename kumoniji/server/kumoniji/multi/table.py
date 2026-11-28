@@ -1,4 +1,4 @@
-"""멀티 판 하나: Game(서버 권위) + 자리별 계정 + 차례 20초(넘기면 자동 패스). 계획 C Task 2.
+"""멀티 판 하나: Game(서버 권위) + 자리별 계정 + 차례 15초(넘기면 자동 패스). 계획 C Task 2.
 시간은 부르는 쪽이 now(에포크 초)로 넘긴다 — 운영은 time.time(), 테스트는 가짜 시계.
 판을 진행하는 메서드는 그 판에서 새로 생긴 수(events)를 돌려주고, 보내기는 부르는 쪽(ws)이 한다."""
 
@@ -11,7 +11,7 @@ from ..bots import can_beat
 from ..game import Game, IllegalMove
 from ..view import dec, enc, reason, view
 
-TURN = 20  # 차례마다 초
+TURN = 15  # 차례마다 초(11-28 사용자: 20 → 15)
 GONE = 180  # 네 명 모두 끊긴 채 이만큼 지나면 판 무효·제거
 KEEP = 600  # 끝난 판을 결과 화면용으로 남겨 두는 시간
 
