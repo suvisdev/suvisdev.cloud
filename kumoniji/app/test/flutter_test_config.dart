@@ -20,6 +20,9 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     // 폰 화면의 떠 있는 창은 닫힌 채로 시작
     PracticeFrame.floatOut.value = false;
     PracticeFrame.floatCombos.value = false;
+    // 넓은 화면 옆 패널: 나온 패는 처음엔 숨김(11-28 사용자), 조합표는 보임
+    PracticeFrame.showOut.value = false;
+    PracticeFrame.showCombos.value = true;
     Sfx.log = []; // 효과음은 이름만 쌓는다(재생기 플러그인이 없다)
   });
   await testMain();

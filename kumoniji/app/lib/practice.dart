@@ -173,8 +173,9 @@ class PracticeFrame extends StatelessWidget {
   final ValueListenable<List<String>?> live;
   const PracticeFrame({super.key, required this.out, required this.live, required this.suits, required this.child});
 
-  /// 옆 패널 보기·숨기기 — 무늬 순서 옆 버튼으로 켜고 끈다(11-27 사용자 '보기 숨기기가 쉽게')
-  static final showOut = ValueNotifier<bool>(true), showCombos = ValueNotifier<bool>(true);
+  /// 옆 패널 보기·숨기기 — 무늬 순서 옆 버튼으로 켜고 끈다(11-27 사용자 '보기 숨기기가 쉽게').
+  /// 나온 패는 처음엔 숨김 — 늘 떠 있을 필요 없고 위 버튼으로 연다(11-28 사용자)
+  static final showOut = ValueNotifier<bool>(false), showCombos = ValueNotifier<bool>(true);
 
   // 넓고 충분히 높을 때만 — 낮은 가로 창에서 양옆을 떼면 손패가 두 줄로 늘어 패스·내기가 밀린다(리뷰 1차)
   static bool wide(BuildContext context) {

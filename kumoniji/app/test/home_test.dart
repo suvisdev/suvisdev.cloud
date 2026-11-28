@@ -311,16 +311,19 @@ void main() {
     }
   });
 
-  testWidgets('폰 가로(844×390)에서도 시작 화면 버튼 넷이 스크롤 없이 화면 안에 보인다', (t) async {
+  testWidgets('폰 가로(844×390): 큰 버튼(1.5배)은 싱글이 바로 보이고, 옵션까지 스크롤로 닿는다', (t) async {
+    // 버튼을 1.5배로 키우면 넷이 한 화면에 안 들어간다 — 사용자가 세로 4줄 + 스크롤을 골랐다(11-28)
     t.view.physicalSize = const Size(844, 390);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
     await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
     await settle(t);
-    for (final label in ['Single player', 'How to play', 'Options']) {
-      expect(t.getRect(find.text(label)).bottom, lessThan(390), reason: label);
-    }
-    expect(t.getRect(find.text('Multiplayer · Coming soon')).bottom, lessThan(390));
+    expect(t.getRect(find.text('Single player')).bottom, lessThan(390));
+    expect(t.getSize(find.ancestor(of: find.text('Single player'), matching: find.byType(FilledButton))).height, 78);
+    await t.scrollUntilVisible(find.text('Options'), 50);
+    await t.tap(find.text('Options'));
+    await settle(t);
+    expect(find.byType(OptionsScreen), findsOneWidget);
   });
 
   test('기본 배경은 게임판 종이 구름(2)·시작 화면 찻집 창가(15), 없음을 골랐으면 그대로 없음', () async {

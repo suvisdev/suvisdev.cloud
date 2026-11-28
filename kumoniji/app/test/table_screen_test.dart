@@ -568,6 +568,7 @@ void legalTests() {
 
 void recentTests() {
   testWidgets('played-tiles panel shows a bot tile only once it is replayed', (t) async {
+    PracticeFrame.showOut.value = true; // 나온 패 옆 패널을 켠 사람
     t.view.physicalSize = const Size(1280, 860);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -618,6 +619,7 @@ void recentTests() {
   });
 
   testWidgets('the enlarged played-tiles dialog opened during replay closes when the result shows', (t) async {
+    PracticeFrame.showOut.value = true; // 나온 패 옆 패널을 켠 사람
     t.view.physicalSize = const Size(1280, 900);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -757,18 +759,21 @@ void recentTests() {
       await t.pumpWidget(const SizedBox());
       await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
       await settle(t);
-      expect(find.byKey(const ValueKey('out-tracker')), findsOneWidget);
+      // 나온 패는 넓은 화면에서도 처음엔 숨김 — 위 버튼으로 연다(11-28 사용자 '화면에 안 보여도 돼'), 조합표는 보임
+      expect(find.byKey(const ValueKey('out-tracker')), findsNothing);
       expect(find.byKey(const ValueKey('combo-chart')), findsOneWidget);
-      // 넓은 화면에서도 버튼이 있고, 누르면 옆 패널을 숨기고 다시 누르면 보인다(11-27 사용자 '보기 숨기기가 쉽게')
-      for (final (button, panel) in [('open-combos', 'combo-chart'), ('open-out', 'out-tracker')]) {
+      // 넓은 화면에서도 버튼으로 옆 패널을 켜고 끈다(11-27 사용자 '보기 숨기기가 쉽게')
+      for (final (button, panel, shown) in [('open-combos', 'combo-chart', true), ('open-out', 'out-tracker', false)]) {
         await t.tap(find.byKey(ValueKey(button)));
         await t.pumpAndSettle();
-        expect(find.byKey(ValueKey(panel)), findsNothing, reason: button);
-        expect(find.byType(BottomSheet), findsNothing); // 넓은 화면은 시트가 아니라 패널을 끈다
+        expect(find.byKey(ValueKey(panel)), shown ? findsNothing : findsOneWidget, reason: button);
+        expect(find.byType(BottomSheet), findsNothing); // 넓은 화면은 시트가 아니라 패널을 켜고 끈다
         await t.tap(find.byKey(ValueKey(button)));
         await t.pumpAndSettle();
-        expect(find.byKey(ValueKey(panel)), findsOneWidget, reason: button);
+        expect(find.byKey(ValueKey(panel)), shown ? findsOneWidget : findsNothing, reason: button);
       }
+      await t.tap(find.byKey(const ValueKey('open-out')));
+      await t.pumpAndSettle();
       // 옆 패널은 한 줄 13장이라 작다 — 크게 보기 창에선 패가 더 크다(11-26 사용자)
       final small = t.getSize(find.byKey(const ValueKey('out-c1'))).width;
       await t.tap(find.byKey(const ValueKey('out-big')));
@@ -933,6 +938,72 @@ void recentTests() {
     });
   }
 
+  // 가운데 패는 약 1.5배(11-28 사용자) — 커져도 가장자리의 밀려난 패를 가리지 않고(리뷰 1차), 좁아진 옆 칸의
+  // 세 장·다섯 장도 알아볼 크기로 남는다(리뷰 2차: 한 줄에 세 장이면 장당 10px)
+  final layouts = <(String, int, List<String>, Map<int, List<String>>)>[
+    (
+      'one in the middle, singles by the seats',
+      1,
+      ['m9'],
+      {
+        0: ['c2'],
+        2: ['c1'],
+        3: ['c3'],
+      },
+    ),
+    (
+      'five in the middle',
+      2,
+      ['m2', 'm3', 'm4', 'm5', 's6'],
+      {
+        0: ['c2'],
+        1: ['c1'],
+        3: ['c3'],
+      },
+    ),
+    (
+      'three and five by the side seats',
+      2,
+      ['m9', 's9', 'l9'],
+      {
+        1: ['c1', 's1', 'l1'],
+        3: ['c2', 's2', 'l2', 'm2', 'c3'],
+      },
+    ),
+  ];
+  for (final size in [const Size(844, 390), const Size(1280, 720)]) {
+    for (final (name, lead, center, others) in layouts) {
+      testWidgets('big middle play: $name — no overlap, readable edges (${size.width})', (t) async {
+        t.view.physicalSize = size;
+        t.view.devicePixelRatio = 1;
+        addTearDown(t.view.reset);
+        final v = {
+          ...view(),
+          'turn': 0,
+          'table': center,
+          'last': lead,
+          'plays': [for (var s = 0; s < 4; s++) s == lead ? center : others[s]],
+          'passed': <int>[],
+        };
+        await t.pumpWidget(_app(Api(MockClient((r) async => http.Response(jsonEncode(v), 200)))));
+        await settle(t);
+        final mid = t.getRect(find.byKey(ValueKey('play-$lead')));
+        double shown(int seat, List<String> m) =>
+            t.getRect(find.byKey(ValueKey('drop-$seat-${m.join()}-${m.first}'))).width;
+        if (size.width == 844) {
+          // 폰 가로에서 바꾸기 전(가운데 1장 38px·5장 27px)보다 약 1.25배(사용자) — 옛 패와 칸을 나눠 그 이상은 옛 패가 너무 작다
+          expect(shown(lead, center), greaterThan(center.length == 5 ? 30 : 45));
+        }
+        for (final MapEntry(key: s, value: m) in others.entries) {
+          final edge = t.getRect(find.byKey(ValueKey('play-$s')));
+          expect(mid.overlaps(edge), isFalse, reason: 'seat $s: $edge vs middle $mid');
+          // 옆자리 세 장·다섯 장도 15px 넘게(한 줄 세 장 고정일 땐 10px) — 바꾸기 전 25px쯤에서 가운데에 칸을 내준 몫
+          expect(shown(s, m), greaterThan(15), reason: 'seat $s');
+        }
+      });
+    }
+  }
+
   testWidgets('landscape phone: the board widens so a five-tile play stays readable', (t) async {
     t.view.physicalSize = const Size(844, 390);
     t.view.devicePixelRatio = 1;
@@ -955,7 +1026,8 @@ void recentTests() {
     expect(t.takeException(), isNull);
     // 정사각형 판일 땐 15px — 판을 가로로 넓혀(11-26 '낸 패 크게') 24px 넘게
     expect(t.getRect(find.byKey(const ValueKey('drop-3-m2m3m4m5s6-m2'))).width, greaterThan(24));
-    expect(t.getRect(find.byKey(const ValueKey('drop-1-c7-c7'))).width, greaterThan(40));
+    // 옆 자리의 밀려난 패는 가운데 패(약 1.5배)에 칸을 내줘 작다(11-28 사용자, 40 → 20)
+    expect(t.getRect(find.byKey(const ValueKey('drop-1-c7-c7'))).width, greaterThan(20));
   });
 
   testWidgets('the play to beat sits in the middle of the board; the others stay by their seats', (t) async {

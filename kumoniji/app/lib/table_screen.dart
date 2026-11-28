@@ -750,10 +750,7 @@ class _TableScreenState extends State<TableScreen> {
                                                   child: child,
                                                 ),
                                                 child: Center(
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.all(6),
-                                                    child: _felt4(t, g, wide, side),
-                                                  ),
+                                                  child: Padding(padding: const EdgeInsets.all(6), child: _felt4(t, g)),
                                                 ),
                                               ),
                                             ),
@@ -853,8 +850,8 @@ class _TableScreenState extends State<TableScreen> {
 
   /// 정사각형 판: 지금 가장 센 패(이길 패)는 판 가운데에 진하게, 나머지 자리는 자기 앞(판 가장자리)에 흐리게.
   /// 가운데 패는 낸 자리 쪽에서 날아와 누가 냈는지 보인다(11-27 사용자 '가운데 내 차례 자리에 패가 오게').
-  /// [w]×[h] 판. 가로가 넓으면 위·아래 자리 칸이 넓어지고 양옆 칸은 판 폭에 비례.
-  Widget _felt4(AppLocalizations t, GameState g, double w, double h) {
+  /// 칸은 판 크기에 비례 — 가로가 넓으면 위·아래 자리 칸이 넓어진다.
+  Widget _felt4(AppLocalizations t, GameState g) {
     Widget area(int seat, double w, double h, int perRow, {bool center = false}) {
       final m = plays[seat];
       final top = seat == lead;
@@ -886,7 +883,7 @@ class _TableScreenState extends State<TableScreen> {
                                   key: ValueKey('drop-$seat-${m.join()}-$c'),
                                   index: m.indexOf(c),
                                   from: _from[seat],
-                                  child: TileView(code: c, width: 54),
+                                  child: TileView(code: c, width: 108), // 가운데 패는 크게 — 화면에선 칸에 맞춰 줄어 약 1.25배(11-28 사용자)
                                 )
                               : TileView(key: ValueKey('drop-$seat-${m.join()}-$c'), code: c, width: 54),
                         ),
@@ -902,36 +899,58 @@ class _TableScreenState extends State<TableScreen> {
     final myTurn = dealt == null && intro == null && flash == null && !g.finished && g.turn == 0;
     return Padding(
       padding: const EdgeInsets.all(6),
-      child: Stack(
-        children: [
-          // 차례인 사람 앞 판 가장자리를 금빛으로 — 자리 칸만으로는 누가 차례인지 잘 안 보였다(11-28 사용자)
-          for (final seat in [0, 1, 2, 3]) _TurnGlow(seat: seat, on: _active == seat),
-          Align(alignment: Alignment.topCenter, child: area(2, w * .8, h * .26, 5)),
-          Align(alignment: Alignment.centerLeft, child: area(1, w * .3, h * .42, 3)),
-          Align(alignment: Alignment.centerRight, child: area(3, w * .3, h * .42, 3)),
-          Align(alignment: Alignment.bottomCenter, child: area(0, w * .8, h * .26, 5)),
-          Center(
-            // 아주 작은 판(글자 크게)에선 가운데 패와 '내 차례'를 함께 줄인다
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (lead != null && plays[lead!] != null) area(lead!, w * .5, h * .34, 5, center: true),
-                  // 가운데 패가 있으면 그 자리를 패에 준다 — 작은 판에선 글자와 겹쳤다. 차례는 내 자리 '차례' 표시가 알린다
-                  if (myTurn && (lead == null || plays[lead!] == null))
-                    Text(
-                      t.yourTurn,
-                      style: const TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
-                    ),
-                ],
+      // 칸은 실제 판 안쪽 크기로 나눈다 — 바깥 패딩까지 짐작해 빼면 칸끼리 겹칠 수 있다
+      child: LayoutBuilder(
+        builder: (_, box) {
+          final (iw, ih) = (box.maxWidth, box.maxHeight);
+          return Stack(
+            children: [
+              // 차례인 사람 앞 판 가장자리를 금빛으로 — 자리 칸만으로는 누가 차례인지 잘 안 보였다(11-28 사용자)
+              for (final seat in [0, 1, 2, 3]) _TurnGlow(seat: seat, on: _active == seat),
+              // 칸 나누기: 위·아래 24%, 양옆 15.5%, 가운데 66%×50%(사이 여유는 원근으로 벌어지는 몫) — 가운데 패(약 1.25배)가 커도 가장자리의
+              // 밀려난 패를 가리지 않는다(리뷰 1차)
+              Align(alignment: Alignment.topCenter, child: area(2, iw * .8, ih * .24, 5)),
+              // 양옆 칸은 좁고 길어 한 줄 장 수를 칸 모양에 맞춰 고른다(리뷰 2차: 한 줄 세 장 고정이면 10px)
+              for (final (seat, at) in [(1, Alignment.centerLeft), (3, Alignment.centerRight)])
+                Align(
+                  alignment: at,
+                  child: area(seat, iw * .155, ih * .5, _perRow(plays[seat]?.length ?? 0, iw * .155, ih * .5)),
+                ),
+              Align(alignment: Alignment.bottomCenter, child: area(0, iw * .8, ih * .24, 5)),
+              Center(
+                // 아주 작은 판(글자 크게)에선 가운데 패와 '내 차례'를 함께 줄인다
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (lead != null && plays[lead!] != null) area(lead!, iw * .66, ih * .5, 5, center: true),
+                      // 가운데 패가 있으면 그 자리를 패에 준다 — 작은 판에선 글자와 겹쳤다. 차례는 내 자리 '차례' 표시가 알린다
+                      if (myTurn && (lead == null || plays[lead!] == null))
+                        Text(
+                          t.yourTurn,
+                          style: const TextStyle(color: _ink, fontSize: 15, fontWeight: FontWeight.w600),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
+}
+
+/// [n]장을 [w]×[h] 칸에 놓을 때 패가 가장 크게 보이는 한 줄 장 수(패 한 칸은 여백 포함 58×76)
+int _perRow(int n, double w, double h) {
+  double scale(int c) => min(w / (c * 58), h / ((n / c).ceil() * 76));
+  var best = 1;
+  for (var c = 2; c <= n; c++) {
+    if (scale(c) > scale(best)) best = c;
+  }
+  return best;
 }
 
 /// 자리 하나: 이름, 남은 장수, 꽃잎(가져간 바퀴 수), 보너스. 차례면 금색 테두리와 "차례" 표시.
