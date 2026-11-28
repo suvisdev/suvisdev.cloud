@@ -320,6 +320,8 @@ void main() {
     await settle(t);
     expect(t.getRect(find.text('Single player')).bottom, lessThan(390));
     expect(t.getSize(find.ancestor(of: find.text('Single player'), matching: find.byType(FilledButton))).height, 78);
+    // 상단 바(11-28): 앱바 높이만큼 깔린다 — 비우면 높이 0으로 줄어 안 보였다
+    expect(t.getSize(find.byKey(const ValueKey('home-top-bar'))).height, t.getSize(find.byType(AppBar)).height);
     await t.scrollUntilVisible(find.text('Options'), 50);
     await t.tap(find.text('Options'));
     await settle(t);

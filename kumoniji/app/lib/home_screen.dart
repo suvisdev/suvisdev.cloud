@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'account_screen.dart';
 import 'api.dart';
@@ -41,6 +42,20 @@ class HomeScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
+          // 배경 그림 위에서 잔고·아이콘이 묻혀 상단 바를 깐다(11-28 사용자) — 메인 버튼 판(Codex B안)과 같은
+          // 크림 바탕·비취 테두리. 그림이 아니라 코드로 그려 창 폭이 달라도 늘어나지 않는다
+          // 바가 상태 표시줄 칸까지 크림색이라 시계·배터리는 어두운 아이콘으로(리뷰 1차)
+          systemOverlayStyle: SystemUiOverlayStyle.dark,
+          flexibleSpace: const DecoratedBox(
+            key: ValueKey('home-top-bar'),
+            decoration: BoxDecoration(
+              color: Color(0xD9FBF1DE),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
+              border: Border(bottom: BorderSide(color: Color(0xFF8DB7A6), width: 3)),
+              boxShadow: [BoxShadow(color: Color(0x334A3426), blurRadius: 10, offset: Offset(0, 3))],
+            ),
+            child: SizedBox.expand(), // 앱바는 flexibleSpace에 느슨한 제약을 줘서, 비워 두면 높이 0으로 줄어든다
+          ),
           // 왼쪽 위에도 이름 — 글씨가 아니라 만든 제목 로고로(11-26 사용자)
           // 이름은 Semantics로 — Image의 semanticLabel은 따로 노드를 만들어 앱바의 화면 제목(namesRoute)에 안 붙는다(리뷰 1차)
           title: const Row(
