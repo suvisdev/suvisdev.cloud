@@ -99,10 +99,10 @@ const PROJECTS = [
   },
   {
     name: "suvisdev.cloud",
-    desc: "AI 영화 추천(Mova), 산책 경로(Gildle), 매크로 탐지(덜미), AI 소식 통합 플랫폼",
+    desc: "AI 영화 추천(Mova), 4인 타일 게임(쿠모니지), 매크로 탐지(덜미), AI 소식 통합 플랫폼",
     meta: ["개인 프로젝트(1인)", "2026.07 ~ 현재", "풀스택 개발, ML 파이프라인, 인프라, 데이터 수집"],
     overview:
-      "좋아하는 영화와 반려견 산책에 AI를 붙여, 대화로 영화를 찾고 그늘진 산책 길을 추천받는 서비스를 기획부터 운영까지 혼자 만든 플랫폼(현재 개인 운영과 내부 테스트 단계)",
+      "좋아하는 영화에 AI를 붙여 대화로 영화를 찾는 서비스와, 규칙부터 직접 만든 4인 타일 게임을 기획부터 운영까지 혼자 만든 플랫폼(현재 개인 운영과 내부 테스트 단계)",
     results: [
       { label: "도구 선택 정확도 83% → 94%", text: "EXAONE 3.5 2.4B 파인튜닝 전후, 평가 66건(프롬프트만 쓴 7.8B는 89%)" },
       { label: "영화 검색 적중률 39% → 86%", text: "임베딩 모델을 바꿔, 질문 60개에서 찾는 영화가 검색 결과 상위 8개 안에 드는 비율(Recall@8)을 높임" },
@@ -115,7 +115,7 @@ const PROJECTS = [
     points: [
       "EXAONE 3.5 2.4B를 LoRA로 파인튜닝해 영화 채팅에서 다음에 쓸 도구 하나만 고르게 하고, 출연진, 상영 시간표 같은 사실은 코드가 조회해 답하게 나눔",
       "임베딩 모델 3종을 영화 205편, 질문 60개로 직접 비교해 가장 잘 찾는 bge-m3로 바꾸고 검색 데이터를 다시 만듦(2,965건)",
-      "서울 보행로 약 23만 구간에 건물 약 80만 동의 그림자를 달마다, 시간대마다 미리 계산해 그늘진 산책 길을 찾아 줌",
+      "4인 타일 게임 쿠모니지를 규칙 사례 파일(cases.json)부터 정하고, 판정은 서버(FastAPI)가 하며 Flutter 앱은 받은 상태만 그리게 나눔(봇 3단계는 1,000판 하네스로 나눔, 4개 언어)",
       "Cloudflare Tunnel로 공개한 노트북 k3s에 앱, DB, 모델을 모으고, GPU 8GB를 모델별로 나눠 씀",
       "매크로 탐지 덜미(규칙과 IsolationForest 채점, 1회용 서명 토큰)와 AI 소식(피드 36곳, EXAONE 3.5 7.8B로 한국어 요약)을 같은 백엔드에 추가함",
     ],
@@ -123,7 +123,7 @@ const PROJECTS = [
     links: [
       { label: "서비스", href: "https://suvisdev.cloud" },
       { label: "Mova", href: "https://suvisdev.cloud/mova" },
-      { label: "Gildle", href: "https://suvisdev.cloud/gildle" },
+      { label: "쿠모니지", href: "https://kumoniji.suvisdev.cloud" },
       { label: "덜미", href: "https://suvisdev.cloud/deolmi" },
       { label: "AI 소식", href: "https://suvisdev.cloud/news" },
       { label: "GitHub", href: "https://github.com/suvisdev/suvisdev.cloud" },

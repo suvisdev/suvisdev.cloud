@@ -21,7 +21,7 @@ export const CONTACT_PROFILE = {
   ],
   projects: [
     { name: "Mova", href: "/mova", description: "AI 영화 추천 — 파인튜닝한 EXAONE이 도구를 골라 답하는 채팅" },
-    { name: "Gildle", href: "/gildle", description: "반려견 산책 경로 — 시간대별 그늘·푸른 길 추천 앱" },
+    { name: "Kumoniji", href: "https://kumoniji.suvisdev.cloud", description: "4인 타일 게임 — 봇 3명과 싱글(온라인 대전 준비 중), Flutter 앱" },
     { name: "Apps", href: "/apps", description: "개인·팀 프로젝트 모음" },
   ],
 } as const

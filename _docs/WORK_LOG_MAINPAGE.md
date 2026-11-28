@@ -28,6 +28,25 @@
 
 ---
 
+## 2026-11-28 홈 앱 타일·이력서: 길들 → 쿠모니지
+
+### 작업 내용
+- 사용자 "메인 도메인에 길들은 빼고 쿠모니지를 넣어두자, 이력서에도 그렇게".
+
+### 수정/구현
+- `suvis/lib/apps-catalog.ts`: gildle 항목 → kumoniji(`https://kumoniji.suvisdev.cloud`, 웹은 시험 화면이라는 주석 — 앱만 출시 ADR-0025). 리뷰 1차: `available: true`면 /apps 카드에 Live 배지 → 출시 전이라 false(홈 타일 '준비 중', 링크는 그대로). 타일 그림 `public/kumoniji-icon.png`(앱 웹 아이콘 192), /apps 카드 `public/apps-kumoniji.png`(512).
+- `suvis/lib/contact-profile.ts`: 연락처 프로젝트 Gildle → Kumoniji(온라인 대전은 준비 중이라고 적음).
+- `suvis/app/resume/_components/resume-content.tsx`: 플랫폼 설명·개요·한 줄(그림자 계산 → 쿠모니지: 규칙 사례 파일부터, 서버 판정·앱은 그리기만, 봇 3단계 1,000판 하네스, 4개 언어)·링크.
+- 길들 경로(/gildle)·코드는 그대로 둠(앱 출시는 계속, 홈 타일만 뺌).
+
+### 오류·막힌 점
+- worktree에 node_modules를 심볼릭 링크로 두면 Turbopack이 'points out of the filesystem root'로 죽음 → `next dev --webpack`으로 캡처. corepack pnpm도 이 환경에서 동적 import 오류라 `tsc --noEmit`·eslint를 직접 실행.
+
+### 산출물
+- tsc·eslint 통과, 홈 캡처(1280) 확인. 바탕화면 이력서 폴더(PDF·docx 여러 판)는 이 PR 밖 — 사용자 범위 확인 뒤.
+
+---
+
 ## 2026-11-26 C 드라이브 정리 점검
 
 ### 작업 내용
