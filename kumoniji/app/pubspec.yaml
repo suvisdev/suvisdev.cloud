@@ -37,6 +37,7 @@ flutter:
     - assets/audio/
     - assets/audio/sfx/
     - assets/icons/home/
+    - assets/buttons/
     - assets/legal/
     - assets/currency/
     - assets/currency/digits/
