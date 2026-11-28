@@ -29,7 +29,7 @@ case "$2" in
   checks)
     if [ -n "$FAKE_NO_CHECKS" ]; then echo 'no checks reported' >&2; exit 1; fi
     if [ -n "$FAKE_CHECKS_DOWN" ]; then echo 'network down' >&2; exit 1; fi
-    printf '[{"name":"backend","workflow":"backend-ci","bucket":"%s"}]' "${FAKE_BUCKET:-pass}" ;;
+    printf '[{"name":"backend","workflow":"%s","bucket":"%s"}]' "${FAKE_WORKFLOW:-backend-ci}" "${FAKE_BUCKET:-pass}" ;;
 esac
 """
 
@@ -285,6 +285,10 @@ class GateTest(unittest.TestCase):
         self.committed_pr("suvisdev/README.md")
         self.assertIsNone(self.pinned_merge("gh pr merge 7", FAKE_NO_CHECKS="1"))
 
+    def test_kumoniji_change_expects_kumoniji_ci(self):
+        self.committed_pr("kumoniji/server/x.py")
+        self.assertIn("kumoniji-ci", self.bash("gh pr merge 7"))
+
     def test_workflow_outside_ci_filter_needs_no_checks(self):
         self.committed_pr(".github/workflows/gildle-data-sync.yml")
         self.assertIsNone(self.pinned_merge("gh pr merge 7", FAKE_NO_CHECKS="1"))
@@ -298,6 +302,11 @@ class GateTest(unittest.TestCase):
         self.assertIn("선행 작업", self.bash("gh pr merge 7"))
         subprocess.run([sys.executable, str(GATE), "confirm-prereq", "7"], cwd=self.repo, env=self.env, check=True)
         self.assertIsNone(self.pinned_merge("gh pr merge 7"))
+
+    def test_merge_held_for_kumoniji_migration(self):
+        # 쿠모니지는 머지 → 자동 배포 → 서버 시작 때 마이그레이션 적용이라 머지 전에 확인을 받는다
+        self.committed_pr("kumoniji/server/kumoniji/accounts/migrations/006_x.sql")
+        self.assertIn("선행 작업", self.bash("gh pr merge 7", FAKE_WORKFLOW="kumoniji-ci"))
 
     def test_code_pr_must_update_state_file(self):
         self.committed_pr(state=False)
