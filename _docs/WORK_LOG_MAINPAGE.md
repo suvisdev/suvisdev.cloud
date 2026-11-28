@@ -28,6 +28,17 @@
 
 ---
 
+## 2026-11-28 밤 쿠모니지 비공개 저장소 이전 — 이 저장소 쪽(ADR-0030)
+
+### 작업 내용
+- 쿠모니지를 `suvisdev/kumoniji`(비공개)로 옮김. 상세(split·러너·첫 자동 배포·문서 이전)는 그 저장소 `_docs/WORK_LOG.md`.
+- 이 저장소: #355 `kumoniji-deploy.yml` 삭제(두 CD가 같은 Deployment를 덮지 않게 먼저) → #356 관문 — `kumoniji/`·`.github/workflows/kumoniji-*`는 지우기만 받음, main의 쿠모니지 코드·CI를 전부 지우는 PR만 kumoniji-ci를 기다리지 않음, 쿠모니지 경로는 선행 작업 판정에서 뺌(테스트 66) → 이 PR에서 `kumoniji/`·kumoniji-ci·`WORK_LOG_KUMONIJI.md`·쿠모니지 ADR 14개 삭제(새 저장소로 옮김, 번호 그대로), CLAUDE.md 구조도·워크로그 표·SPEC·STATE 정리.
+
+### 오류·막힌 점
+- 관문 순서 문제: 지금 관문은 `kumoniji/`를 건드린 PR에 kumoniji-ci를 요구하는데 삭제 PR은 그 워크플로까지 지워 검사가 영영 안 옴 → 관문 PR을 먼저(#356). Codex가 9차까지 면제 조건의 틈(일부만 지움·워크플로만 지움·옛 브랜치·main에 새로 생긴 파일·워크플로 되살리기)을 짚어 차례로 막음.
+- 새 저장소용 관문 복사본은 Codex가 원본 설계 문제(worktree 공유 훅 경로, 머지 판정 네트워크 타임아웃 등)를 계속 짚어 따로 진행(`~/projects/kumoniji-gate-wip/`). 같은 지적이 이 저장소 관문에도 해당.
+- 지난 커밋 기록의 쿠모니지 코드는 공개로 남음(역사 재작성 안 함, ADR-0030).
+
 ## 2026-11-28 저녁 하네스: 배포 금지 조항·Codex 리뷰 토큰
 
 ### 작업 내용

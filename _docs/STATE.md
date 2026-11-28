@@ -7,8 +7,8 @@ CLAUDE.md가 `@`로 매 세션 불러온다. **단계를 마칠 때마다(PR 머
 마지막 갱신: 2026-11-28
 
 ## 진행 중
-- **쿠모니지는 비공개 저장소 `suvisdev/kumoniji`(`~/projects/kumoniji`)로 옮겼다(11-28, ADR-0030)** — 상태·워크로그·ADR은 그 저장소 `_docs/`, 작업은 그 폴더에서 연 세션에서(관문이 저장소별). CI/CD는 그 저장소 + 전용 러너 `~/actions-runner-kumoniji`(첫 자동 배포 확인).
-  이 저장소: 배포 워크플로 삭제 #355 → 관문: `kumoniji/`는 지우기만 받고, kumoniji-ci.yml을 지우는 PR만 그 검사를 기다리지 않게(이 PR) → 다음 PR에서 `kumoniji/`·kumoniji-ci·쿠모니지 문서 삭제.
+- **쿠모니지는 비공개 저장소 `suvisdev/kumoniji`(`~/projects/kumoniji`)로 옮겼다(11-28, ADR-0030)** — 상태·워크로그·ADR은 그 저장소 `_docs/`, 작업은 그 폴더에서 연 세션에서. CI/CD는 그 저장소 + 전용 러너 `~/actions-runner-kumoniji`(첫 자동 배포 확인).
+  이 저장소: 배포 워크플로 삭제 #355 · 관문은 `kumoniji/`를 지우기만 받게 #356 · `kumoniji/`·kumoniji-ci·쿠모니지 문서 삭제(이 PR). 메인 폴더에 남는 `kumoniji/.env`(무시 파일)는 옛 사본 — 새 저장소 `.env`가 기준.
 - 공통 11-24: 공개 기록에 남았던 약한 비밀값 교체·운영 반영 완료(연결 확인).
 - 메인 11-26 홈 AI 채팅 코드 대행 거절 #322 머지 — 배포 뒤 `eval_portfolio_chat.py` 운영 확인.
 

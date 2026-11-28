@@ -82,13 +82,13 @@ cloud.suvisdev/
 ├── suvis/                 ← 프론트엔드 (Next.js)
 │   ├── CLAUDE.md          ← 프론트 SSOT(디렉터리·컴포넌트 규칙)
 │   └── _docs/             ← 프론트 문서 (React 세부 규칙·디자인 정책)
-├── gildle/                ← 모바일 (Flutter)
-│   ├── CLAUDE.md          ← 아직 비어 있음 — 당분간 _docs/ 하네스 문서가 대신함
-│   └── _docs/             ← Flutter 문서 (카카오 OAuth·Android/iOS 하네스)
-└── kumoniji/              ← 4인 타일 게임 (FastAPI 서버 + Flutter 앱, 2026-11-18)
-    ├── CLAUDE.md          ← 규칙은 cases.json부터, 서버 권위, 실행 명령
-    └── _docs/             ← 구현 계획
+└── gildle/                ← 모바일 (Flutter)
+    ├── CLAUDE.md          ← 아직 비어 있음 — 당분간 _docs/ 하네스 문서가 대신함
+    └── _docs/             ← Flutter 문서 (카카오 OAuth·Android/iOS 하네스)
 ```
+
+> 쿠모니지(4인 타일 게임)는 2026-11-28 비공개 저장소 `suvisdev/kumoniji`(노트북 `~/projects/kumoniji`)로 옮겼다(ADR-0030).
+> 코드·상태·워크로그·ADR 모두 그쪽에 있고, 작업은 그 폴더에서 연 세션에서 한다. 이 저장소 관문은 `kumoniji/`를 지우기만 받는다.
 
 > `_claude/` 라는 이름의 하위 폴더는 어디에도 없다 — 각 스택의 규칙은
 > 스택 루트의 `CLAUDE.md` + 그 옆 `_docs/`에 있다.
@@ -143,7 +143,6 @@ cloud.suvisdev/
 |------|------|
 | `_docs/WORK_LOG_MOVA.md` | mova(영화 추천·채팅·게임) |
 | `_docs/WORK_LOG_GILDLE.md` | gildle(산책 경로) |
-| `_docs/WORK_LOG_KUMONIJI.md` | kumoniji(4인 타일 게임, 2026-11-21 분리) |
 | `_docs/WORK_LOG_MAINPAGE.md` | 그 외 전부(메인페이지·어드민·인증·인프라) — 특정 앱에 속하지 않는 것 |
 
 **워크로그는 앱별로 따로 쓴다(2026-11-21 사용자 결정, ADR-0020).** 새 앱(예: 러시안룰렛 게임)을 시작하면
