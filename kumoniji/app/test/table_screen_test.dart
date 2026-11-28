@@ -251,6 +251,74 @@ void moreTests() {
     expect(find.byKey(const ValueKey('start-card')), findsNothing);
     expect(find.byKey(const ValueKey('play-3')), findsOneWidget); // 봇 3이 솜사탕 1을 내는 장면
     expect(find.text('×12'), findsOneWidget);
+    double glow(int seat) => t.widget<AnimatedOpacity>(find.byKey(ValueKey('turn-glow-$seat'))).opacity;
+    expect(
+      [
+        for (final k in [0, 1, 2, 3]) glow(k),
+      ],
+      [0, 0, 0, 1],
+    ); // 봇 3이 내는 동안 그 앞 판 가장자리가 빛난다
+    await settle(t); // 두근거림은 끝이 있다 — 끝없으면 여기서 멈춘다
+    expect(
+      [
+        for (final k in [0, 1, 2, 3]) glow(k),
+      ],
+      [1, 0, 0, 0],
+    ); // 이제 내 차례
+  });
+
+  testWidgets('when the turn moves on, the last bot seat stops pulsing at once', (t) async {
+    // 봇 2 → 봇 3 → 나. 봇 3 장면(1.2초)이 두근거림(약 1.9초)보다 짧다(리뷰 1차)
+    final api = Api(
+      MockClient(
+        (r) async => http.Response(
+          jsonEncode({
+            ...view(
+              events: [
+                {
+                  'seat': 2,
+                  'tiles': ['c1'],
+                },
+                {
+                  'seat': 3,
+                  'tiles': ['c2'],
+                },
+              ],
+            ),
+            'counts': [2, 13, 12, 12],
+            'plays': [
+              null,
+              null,
+              ['c1'],
+              ['c2'],
+            ],
+          }),
+          200,
+        ),
+      ),
+    );
+    await t.pumpWidget(_app(api));
+    double glow(int seat) => // 판이 그려지기 전(응답 전·나눠 주기)은 0
+        t.widgetList<AnimatedOpacity>(find.byKey(ValueKey('turn-glow-$seat'))).firstOrNull?.opacity ?? 0;
+    double scale(String name) => t
+        .widget<Transform>(find.ancestor(of: find.text(name), matching: find.byType(Transform)).first)
+        .transform
+        .getMaxScaleOnAxis();
+    var sawBot3 = false;
+    for (var k = 0; k < 500 && glow(0) < 1; k++) {
+      await t.pump(const Duration(milliseconds: 20));
+      sawBot3 |= glow(3) == 1;
+    }
+    expect(sawBot3, isTrue);
+    expect(glow(0), 1); // 내 차례가 됐다
+    await t.pump(const Duration(milliseconds: 16));
+    expect(scale('Bot 3'), 1); // 봇 3 자리는 두근거림 도중이라도 제 크기로
+    expect(scale('You'), greaterThan(1)); // 내 자리는 두근거리는 중
+    // 도중에 기기에서 움직임 줄이기를 켜면 바로 멈춘다(리뷰 2차)
+    t.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(t.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await t.pump();
+    expect(scale('You'), 1);
     await settle(t);
   });
 
