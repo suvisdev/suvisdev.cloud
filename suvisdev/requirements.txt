@@ -30,7 +30,7 @@ boto3
 neo4j-graphrag==1.18.0
 kiwipiepy==0.23.1
 ollama==0.6.2
-transformers==4.47.1
+transformers==5.10.1
 peft==0.19.1
 bitsandbytes==0.49.2
 ultralytics
