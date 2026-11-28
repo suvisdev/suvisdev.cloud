@@ -348,6 +348,8 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 11-28 | 쿠모니지 홈 상단 바를 `flexibleSpace`에 넣었는데 화면에 안 보임 | 앱바가 flexibleSpace에 느슨한 제약을 줘서 자식 없는 `DecoratedBox`가 높이 0으로 줄어듦(찾기로 재 보니 rect 높이 0) | `SizedBox.expand`로 채움. '바 높이 = 앱바 높이' 테스트를 넣고 고친 줄을 되돌려 `Actual 0.0` 실패 확인 | WORK_LOG_KUMONIJI 11-28 오후 |
+| ✅ | 11-28 | 버튼 배경 그림을 넣자 포커스·눌림 효과가 안 보이고, `Ink`로 바꾸자 준비 중 버튼이 안 흐려짐 | `DecoratedBox`는 잉크 위에 덮이고, `Ink`는 위쪽 Material에 그려져 바깥 `Opacity`가 안 먹음 | `Ink` + `DecorationImage.opacity` + 글자 `Opacity`. Codex 리뷰 1·2차가 잡음 | WORK_LOG_KUMONIJI 11-28 오후 |
 | ✅ | 11-28 | 홈 버튼 글자를 키웠더니 캡처 글자가 네모(글꼴 없음) | `styleFrom(textStyle: TextStyle(fontSize: 21))`이 테마 labelLarge를 합치지 않고 바꿔 fontFamily가 빠짐 | `textTheme.labelLarge?.copyWith(fontSize: 21)`. 글자 스타일은 테마에서 copyWith로 | WORK_LOG_KUMONIJI 11-28 낮 |
 | ✅ | 11-27 | 쿠모니지 `deploy.sh`를 돌렸는데 도커 단계가 전부 CACHED, #329·#330이 운영에 안 나감 | 메인 폴더는 main 고정이지만 `git pull`을 안 해 옛 main(#328)에 머묾 — 머지는 원격에서만 되고 배포는 메인 폴더 코드로 빌드 | 메인 폴더를 `git merge --ff-only origin/main` 후 다시 배포. 머지 뒤 배포를 부탁할 때 메인 폴더 빨리감기를 먼저 한다 | WORK_LOG_KUMONIJI 11-27 밤 |
 | ✅ | 11-28 | "배포 안 된 거야?" — 배포 확인 근거로 '약관 주소 404'를 들었는데 틀린 근거 | `/legal/terms`는 원래 없는 주소(약관은 앱 에셋). 실제 원인은 사용자 명령에 '를'이 붙어 실행이 안 된 것 | 배포 여부는 이미지 빌드 시각·재시작 시각·DB `schema_version`처럼 배포가 바꾸는 값으로 확인한다. 주소로 확인할 땐 그 주소가 원래 있는지부터 | WORK_LOG_KUMONIJI 11-28 |
@@ -457,6 +459,7 @@
 
 | 상태 | 날짜 | 증상 | 원인 | 극복 | 근거 |
 |---|---|---|---|---|---|
+| ✅ | 11-28 | 지킬을 길들 → 쿠모니지로만 바꾸려 했는데 Codex 점검마다 옛 사실이 새로 나옴(8차까지) | 페이지가 10월 기준(집 서버 이중화·v9 에이전트·감정분석 별점)으로 멈춰 있었음 | 차례마다 원천 기록(ADR·STATE·워크로그·코드)으로 확인해 고침. 큰 이정표 때 지킬도 함께 현행화 | WORK_LOG_MAINPAGE 11-28 오후 |
 | ✅ | 11-26 | 홈 AI 채팅이 '이 코드 버그 고쳐줘'에 고친 코드를 써 줌 | 지시문의 '코딩 대행' 한 단어를 7.8B가 코드 수정·예시 코드·폴더 구조로 넓혀 읽지 못함 | 구체 예시와 '프로젝트 설명은 범위 안' 경계를 지시문에 명시(정규식 가드 없음), 로컬 7.8B 11→14/14 · 운영 하네스에 사례 추가 | WORK_LOG_MAINPAGE 11-26 |
 | ⏳ | 11-06 | 노트북 재부팅 때 운영 API 530 약 10분(평소 전환 31초) | 집컴 부하 평균 49로 SSH·docker 가 멈춰 DB 터널이 못 붙고 집컴 cloudflared 가 11분 ContainerCreating. 부하 원인 미확인 | 스스로 복구. 원인 조사 남음 | MAINPAGE 2026-11-06 |
 | ✅ | 11-06 | 노트북 서버를 껐는데 GitHub 러너가 online 으로 남음 | 러너 유닛 `KillMode=process` — 서비스를 멈춰도 Listener 가 산다. 시험 코드는 가짜 응답이라 못 잡음 | 러너를 맨 먼저 프로세스까지 직접 멈춤. 실제 전환 시험에서야 드러남 | WORK_LOG_MAINPAGE 11-06 (3) |
