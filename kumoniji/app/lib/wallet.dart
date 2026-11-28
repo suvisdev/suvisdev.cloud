@@ -387,7 +387,7 @@ class _WalletBarState extends State<WalletBar> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // 햇살은 보통 게임처럼 5칸 — 가진 만큼 채우고 넘친 몫은 +N(11-27 사용자)
+                  // 햇살은 보통 게임처럼 5칸 — 가진 만큼 채우고 넘친 몫은 +N(11-27 사용자), 크게(11-28 사용자 1.5배)
                   item(
                     'hearts',
                     t.hearts,
@@ -395,7 +395,7 @@ class _WalletBarState extends State<WalletBar> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (var i = 0; i < 5; i++) currencyIcon('hearts', 18, empty: i >= w.hearts),
+                        for (var i = 0; i < 5; i++) currencyIcon('hearts', 27, empty: i >= w.hearts),
                         if (w.hearts > 5) ...[const SizedBox(width: 2), Digits('+${w.hearts - 5}')],
                       ],
                     ),

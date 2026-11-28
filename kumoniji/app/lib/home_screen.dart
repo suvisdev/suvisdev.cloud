@@ -119,36 +119,38 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               );
+              // 메인 버튼은 1.5배(11-28 사용자) — 높이 78·아이콘 42·글자 21. 폰 가로에선 버튼 칸이 스크롤된다
+              final label = Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 21);
               final buttons = Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(78), textStyle: label),
                     onPressed: () => _single(context),
-                    icon: _icon('single'),
+                    icon: _icon('single', 42),
                     label: Text(t.singleMode),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                   OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(78), textStyle: label),
                     onPressed: null, // 2단계(4인 멀티)에서 연결
-                    icon: Opacity(opacity: .5, child: _icon('multi')), // 준비 중 — 흐리게
+                    icon: Opacity(opacity: .5, child: _icon('multi', 42)), // 준비 중 — 흐리게
                     label: Text('${t.multiMode} · ${t.comingSoon}'),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                   OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(78), textStyle: label),
                     onPressed: () => showHelp(context),
-                    icon: _icon('help'),
+                    icon: _icon('help', 42),
                     label: Text(t.help),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 18),
                   OutlinedButton.icon(
                     key: const ValueKey('open-options'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(78), textStyle: label),
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OptionsScreen())),
-                    icon: _icon('options'),
+                    icon: _icon('options', 42),
                     label: Text(t.options),
                   ),
                 ],
@@ -185,4 +187,4 @@ class HomeScreen extends StatelessWidget {
 }
 
 /// 홈 버튼 아이콘(Codex 그림 b안, 11-27 사용자). 원본 512px는 바탕화면 `타일게임_기획/홈버튼아이콘_Codex`
-Widget _icon(String name) => Image.asset('assets/icons/home/$name.png', width: 28, height: 28);
+Widget _icon(String name, [double size = 28]) => Image.asset('assets/icons/home/$name.png', width: size, height: size);
