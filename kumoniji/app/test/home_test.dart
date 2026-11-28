@@ -86,13 +86,23 @@ void main() {
       {'level': 'hard'},
     ]);
     expect(find.text('Your turn'), findsOneWidget);
-    await t.tap(find.byType(BackButton));
+    expect(find.byType(BackButton), findsNothing); // 뒤로 가기 화살표는 없다(11-28 사용자) — 나가기는 제목 로고·기기 뒤로
+    await t.tap(find.byKey(const ValueKey('title-home')));
     await settle(t);
     expect(find.text('Quit this game and leave?'), findsOneWidget);
     await t.tap(find.text('Cancel'));
     await settle(t);
     expect(find.text('Your turn'), findsOneWidget); // 그대로 남음
-    await t.tap(find.byType(BackButton));
+    // 키보드로도 — 로고에 포커스를 두고 Enter(Codex 21차)
+    final logo = find.descendant(of: find.byKey(const ValueKey('title-home')), matching: find.byType(TitleLogo));
+    Focus.of(t.element(logo)).requestFocus();
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(t);
+    expect(find.text('Quit this game and leave?'), findsOneWidget);
+    await t.tap(find.text('Cancel'));
+    await settle(t);
+    await t.tap(find.byKey(const ValueKey('title-home')));
     await settle(t);
     await t.tap(find.text('Leave'));
     await settle(t);
@@ -173,24 +183,27 @@ void main() {
     expect(t.getRect(find.byWidgetPredicate((w) => w is TileView && w.code == 'c11')).right <= 280, isTrue);
   });
 
-  testWidgets('home shows one tile of each suit; top bar is missions, shop, profile (no options icon, no mute, no background)', (t) async {
-    Auth.me.value = Me.fromJson({'id': 1, 'email': 'me@x.com', 'nickname': 'me'});
-    addTearDown(() => Auth.me.value = null);
-    await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
-    await settle(t);
-    for (final c in ['m13', 's13', 'l12', 'c11']) {
-      expect(find.byWidgetPredicate((w) => w is TileView && w.code == c), findsOneWidget);
-    }
-    // 순서(11-28 사용자): 미션·출석 / 상점 / 프로필. 옵션은 큰 버튼, 음소거·배경 버튼은 홈 상단에서 뺐다
-    final xs = [
-      for (final k in ['open-missions', 'open-shop', 'open-profile']) t.getCenter(find.byKey(ValueKey(k))).dx,
-    ];
-    final bar = find.byType(AppBar);
-    expect(find.descendant(of: bar, matching: find.byKey(const ValueKey('open-options'))), findsNothing);
-    expect(xs, [...xs]..sort());
-    expect(find.byKey(const ValueKey('mute')), findsNothing);
-    expect(find.byKey(const ValueKey('home-background')), findsNothing);
-  });
+  testWidgets(
+    'home shows one tile of each suit; top bar is missions, shop, profile (no options icon, no mute, no background)',
+    (t) async {
+      Auth.me.value = Me.fromJson({'id': 1, 'email': 'me@x.com', 'nickname': 'me'});
+      addTearDown(() => Auth.me.value = null);
+      await t.pumpWidget(_home(Api(MockClient((r) async => http.Response('{}', 200)))));
+      await settle(t);
+      for (final c in ['m13', 's13', 'l12', 'c11']) {
+        expect(find.byWidgetPredicate((w) => w is TileView && w.code == c), findsOneWidget);
+      }
+      // 순서(11-28 사용자): 미션·출석 / 상점 / 프로필. 옵션은 큰 버튼, 음소거·배경 버튼은 홈 상단에서 뺐다
+      final xs = [
+        for (final k in ['open-missions', 'open-shop', 'open-profile']) t.getCenter(find.byKey(ValueKey(k))).dx,
+      ];
+      final bar = find.byType(AppBar);
+      expect(find.descendant(of: bar, matching: find.byKey(const ValueKey('open-options'))), findsNothing);
+      expect(xs, [...xs]..sort());
+      expect(find.byKey(const ValueKey('mute')), findsNothing);
+      expect(find.byKey(const ValueKey('home-background')), findsNothing);
+    },
+  );
 
   testWidgets('mute button (game screen) silences music and effects and restores volumes', (t) async {
     await t.pumpWidget(
@@ -245,7 +258,7 @@ void main() {
     expect(p.getString('locale'), 'ja');
     expect(p.getBool('vibration'), false);
     expect(p.getDouble('music'), 0);
-    await t.tap(find.byType(BackButton));
+    await t.binding.handlePopRoute(); // 기기 뒤로 가기(화살표 없음)
     await settle(t);
     expect(find.text('シングルモード'), findsOneWidget);
   });
@@ -281,7 +294,8 @@ void main() {
     await settle(t);
     expect(t.getSemantics(find.bySemanticsLabel('None')).flagsCollection.isSelected, Tristate.isTrue); // 지금 고른 것
     await choose('home', 3);
-    await t.tap(find.byType(BackButton)); // 옵션 → 시작 화면
+    expect(find.byType(BackButton), findsNothing); // 옵션에도 뒤로 가기 화살표 없음(11-28 사용자)
+    await t.binding.handlePopRoute(); // 기기 뒤로 가기: 옵션 → 시작 화면(화살표 없음, 11-28 사용자)
     await settle(t);
     final box = t.widget<DecoratedBox>(find.byKey(const ValueKey('backdrop-home-3')));
     expect(((box.decoration as BoxDecoration).image!.image as AssetImage).assetName, 'assets/backgrounds/home_3.jpg');
@@ -372,7 +386,11 @@ void main() {
     await t.pumpWidget(_home(Api(MockClient((_) async => http.Response('', 500)))));
     await settle(t);
     for (final label in ['Multiplayer · Coming soon', 'Options']) {
-      expect(find.ancestor(of: find.text(label), matching: find.byType(FittedBox)), findsNothing, reason: label);
+      expect(
+        find.ancestor(of: find.text(label), matching: find.byType(FittedBox)),
+        findsNothing,
+        reason: label,
+      );
       final p = t.renderObject<RenderParagraph>(find.text(label));
       expect(p.size.height, greaterThanOrEqualTo(p.getMaxIntrinsicHeight(p.size.width) - .5), reason: label);
     }
@@ -389,7 +407,10 @@ void main() {
     // 상단 바(11-28): 앱바 높이만큼 깔린다 — 비우면 높이 0으로 줄어 안 보였다
     expect(t.getSize(find.byKey(const ValueKey('home-top-bar'))).height, t.getSize(find.byType(AppBar)).height);
     // 사용자 '이렇게 고정' — 옵션 버튼까지 통째로 보인다(글자만이 아니라 판 전체)
-    expect(t.getRect(find.ancestor(of: find.text('Options'), matching: find.byType(OutlinedButton))).bottom, lessThanOrEqualTo(390));
+    expect(
+      t.getRect(find.ancestor(of: find.text('Options'), matching: find.byType(OutlinedButton))).bottom,
+      lessThanOrEqualTo(390),
+    );
     await t.tap(find.text('Options'));
     await settle(t);
     expect(find.byType(OptionsScreen), findsOneWidget);
@@ -458,7 +479,7 @@ void main() {
     await settle(t);
     expect(find.text('设置'), findsOneWidget);
     expect((await SharedPreferences.getInstance()).getString('locale'), 'zh');
-    await t.tap(find.byType(BackButton));
+    await t.binding.handlePopRoute(); // 기기 뒤로 가기(화살표 없음)
     await settle(t);
     expect(find.text('单人模式'), findsOneWidget);
     Settings.locale.value = null;

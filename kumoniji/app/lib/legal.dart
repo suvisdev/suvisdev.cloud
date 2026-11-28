@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -43,7 +44,11 @@ class _LegalScreenState extends State<LegalScreen> {
     final t = AppLocalizations.of(context)!;
     final doc = widget.doc;
     return Scaffold(
-      appBar: AppBar(title: Text(doc == Legal.terms ? t.terms : t.privacy), backgroundColor: Colors.transparent),
+      appBar: AppBar(
+        title: Text(doc == Legal.terms ? t.terms : t.privacy),
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: kIsWeb /* 앱은 기기 뒤로 가기, 웹(시험 화면)은 브라우저 뒤로가기로 안 닫혀 화살표를 남긴다(Codex 18차) */,
+      ),
       body: FutureBuilder(
         future: _text,
         // 다시 시도 중(기다림)에도 snap은 앞 오류를 들고 있다 — 기다림을 먼저 본다

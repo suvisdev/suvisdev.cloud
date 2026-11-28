@@ -29,7 +29,18 @@ class TileView extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
   final double width;
-  const TileView({super.key, required this.code, this.selected = false, this.onTap, this.width = 52});
+
+  /// 두께(옆면)·그림자가 보이는 쪽(패 자기 좌표의 단위 벡터). 판에 누워 돌아간 패(RotatedBox)는 이걸 거꾸로 돌려 넘겨
+  /// 늘 보는 사람 쪽(판 앞)으로 보이게 한다(11-28 사용자 '원근법으로 자연스럽게')
+  final Offset edge;
+  const TileView({
+    super.key,
+    required this.code,
+    this.selected = false,
+    this.onTap,
+    this.width = 52,
+    this.edge = const Offset(0, 1),
+  });
 
   @override
   Widget build(BuildContext context) => GestureDetector(
@@ -49,10 +60,10 @@ class TileView extends StatelessWidget {
             BoxShadow(
               color: Color(selected ? 0x26000000 : 0x33000000),
               blurRadius: width * (selected ? .34 : .14),
-              offset: Offset(width * .04, width * (selected ? .32 : .16)),
+              offset: edge * width * (selected ? .32 : .16) + Offset(edge.dy, -edge.dx) * width * .04,
             ),
-            BoxShadow(color: const Color(0xFFC9B48C), offset: Offset(0, width * .11)), // 옆면 아래 가장자리
-            BoxShadow(color: const Color(0xFFE6D6B5), offset: Offset(0, width * .075)), // 옆면
+            BoxShadow(color: const Color(0xFFC9B48C), offset: edge * width * .11), // 옆면 아래 가장자리
+            BoxShadow(color: const Color(0xFFE6D6B5), offset: edge * width * .075), // 옆면
           ],
         ),
         child: SvgPicture.asset('assets/tiles/$code.svg', fit: BoxFit.contain),
@@ -60,3 +71,9 @@ class TileView extends StatelessWidget {
     ),
   );
 }
+
+/// 점수 아이콘(꽃잎 petal·보너스 bonus) — 글자 줄 높이에 맞춘 작은 그림
+Widget scoreIcon(String name, {double size = 14}) => Padding(
+  padding: const EdgeInsets.only(right: 2),
+  child: Image.asset('assets/icons/$name.png', width: size, height: size),
+);

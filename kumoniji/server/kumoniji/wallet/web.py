@@ -42,6 +42,22 @@ def attend(me: dict = Depends(player)):
         raise HTTPException(409, {"code": "attended"}) from None
 
 
+class Ad(BaseModel):
+    rid: str | None = Field(None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")  # 시청 한 건 id — 다시 보내도 한 번만
+
+
+@router.post("/ad")
+def watch_ad(body: Ad | None = None, me: dict = Depends(player)):
+    """광고 보상. 시험용 스위치(KUMONIJI_ADS_TEST)가 꺼져 있으면 404 — 운영은 아직 광고를 붙이지 않았다."""
+    if not store.ADS_ON:
+        raise HTTPException(404, {"code": "ads_off"})
+    try:
+        with db.tx() as c:
+            return store.watch_ad(c, me["account_id"], time.time(), body.rid if body else None)
+    except LookupError:
+        raise HTTPException(409, {"code": "ads"}) from None
+
+
 @router.post("/buy")
 def buy(body: Buy, me: dict = Depends(player)):
     try:

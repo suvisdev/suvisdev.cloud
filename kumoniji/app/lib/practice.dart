@@ -40,6 +40,9 @@ Widget _title(String s) => Padding(
 /// 나온 패 크게 보기 창의 이름 — 결과를 띄울 때 이것과 연습 시트만 닫는다.
 const outBigRoute = 'out-big';
 
+/// 조합표 팝업 — 판이 끝나면 결과 창이 닫는다(새 판을 가리지 않게, Codex 13차)
+const combosRoute = 'combos-pop';
+
 /// 조합표: 5장 조합 8가지(센 것이 위)와 한 장·페어·트리플. 싱글·멀티 모두.
 /// 이름 아래에 패를 크게(11-25 사용자 "좀 더 크게, 보기 편하게"), 넓으면(시트) 두 칸으로.
 class ComboChart extends StatelessWidget {
@@ -183,67 +186,9 @@ class PracticeFrame extends StatelessWidget {
     return size.width >= 1000 && size.height >= 720;
   }
 
-  /// 좁은 화면(폰)의 떠 있는 창 켜기·끄기 — 판 위에 떠 있고 게임은 그대로 이어진다(11-27 사용자 '게임 도중 창을 껐다
-  /// 켤 수 있게'). 아래에서 올라오는 시트는 판을 막아 매번 닫아야 했다
-  static final floatOut = ValueNotifier<bool>(false), floatCombos = ValueNotifier<bool>(false);
-
   @override
   Widget build(BuildContext context) {
-    if (!wide(context)) {
-      return LayoutBuilder(
-        builder: (context, box) {
-          final w = min(320.0, box.maxWidth * .48);
-          Widget window(String key, ValueNotifier<bool> open, Widget body) => Material(
-            key: ValueKey(key),
-            color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: .94),
-            elevation: 6,
-            borderRadius: BorderRadius.circular(12),
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: w, minWidth: w, maxHeight: box.maxHeight * .72),
-              child: Stack(
-                children: [
-                  SingleChildScrollView(padding: const EdgeInsets.fromLTRB(10, 10, 30, 10), child: body),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: IconButton(
-                      key: ValueKey('$key-close'),
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () => open.value = false,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-          return ListenableBuilder(
-            listenable: Listenable.merge([floatOut, floatCombos]),
-            builder: (context, _) => Stack(
-              children: [
-                child,
-                if (out != null && floatOut.value)
-                  Positioned(
-                    left: 6,
-                    top: 6,
-                    child: window(
-                      'float-out',
-                      floatOut,
-                      ValueListenableBuilder(
-                        valueListenable: live,
-                        builder: (_, now, _) => OutTracker(out: now ?? out!, suits: suits),
-                      ),
-                    ),
-                  ),
-                if (floatCombos.value)
-                  Positioned(right: 6, top: 6, child: window('float-combos', floatCombos, const ComboChart())),
-              ],
-            ),
-          );
-        },
-      );
-    }
+    if (!wide(context)) return child; // 좁은 화면(폰)은 위 버튼이 팝업으로 연다(11-28 사용자 '옆에 뜨는 게 아니라 바로 팝업')
     // 옆 패널은 반투명 종이 판 위에 — 그림 배경(나무·꽃) 위에선 아직 안 나온 흐린 패와 제목이 묻혀 안 보였다(11-27 사용자 캡처)
     Widget panel(Widget w) => Container(
       width: side,
@@ -260,29 +205,7 @@ class PracticeFrame extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (out != null && showOut.value)
-            panel(
-              OutTracker(
-                out: out!,
-                suits: suits,
-                onOpen: () => showDialog<void>(
-                  context: context,
-                  routeSettings: const RouteSettings(name: outBigRoute), // 판이 끝나면 결과 창이 닫는다
-                  builder: (_) => Dialog(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 680),
-                      child: SingleChildScrollView(
-                        primary: true, // 데스크톱에서도 Page Down이 내리게(창 안에 포커스 받을 것이 없다)
-                        padding: const EdgeInsets.all(16),
-                        child: ValueListenableBuilder(
-                          valueListenable: live,
-                          builder: (_, now, _) => OutTracker(out: now ?? out!, suits: suits),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            panel(OutTracker(out: out!, suits: suits, onOpen: () => openOut(context, live, out!, suits))),
           Expanded(child: child),
           if (showCombos.value) panel(const ComboChart()),
         ],
@@ -291,47 +214,95 @@ class PracticeFrame extends StatelessWidget {
   }
 }
 
+/// 나온 패 팝업 — 크게 보기(넓은 화면)와 폰의 나온 패 버튼이 같이 쓴다. 판이 끝나면 결과 창이 닫는다(outBigRoute)
+Future<void> openOut(BuildContext context, ValueListenable<List<String>?> live, List<String> out, List<String> suits) =>
+    _popup(
+      context,
+      'pop-out',
+      ValueListenableBuilder(
+        valueListenable: live,
+        builder: (_, now, _) => OutTracker(out: now ?? out, suits: suits),
+      ),
+      route: outBigRoute,
+    );
+
+/// 조합표 팝업(폰)
+Future<void> openCombos(BuildContext context) => _popup(context, 'pop-combos', const ComboChart(), route: combosRoute);
+
+Future<void> _popup(BuildContext context, String key, Widget body, {String? route}) => showDialog<void>(
+  context: context,
+  routeSettings: RouteSettings(name: route),
+  builder: (c) => Dialog(
+    key: ValueKey(key),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 680),
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            primary: true, // 데스크톱에서도 Page Down이 내리게(창 안에 포커스 받을 것이 없다)
+            padding: const EdgeInsets.fromLTRB(16, 16, 40, 16),
+            child: body,
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              key: ValueKey('$key-close'),
+              tooltip: MaterialLocalizations.of(c).closeButtonTooltip,
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(c),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
+
 /// 무늬 순서 옆 작은 버튼 — 나온 패(싱글만)·조합표 창을 켜고 끈다(넓으면 옆 패널, 좁으면 판 위에 뜬 창).
 class PracticeButtons extends StatelessWidget {
-  final List<String>? out;
+  /// 나온 패(싱글 연습만 — 값이 null이면 버튼 없음). 팝업이 열린 동안에도 따라 바뀐다
+  final ValueListenable<List<String>?> live;
 
   final List<String> suits;
-  const PracticeButtons({super.key, required this.out, required this.suits});
+  const PracticeButtons({super.key, required this.live, required this.suits});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
-    // 넓은 화면은 판 옆 패널, 좁은 화면은 판 위에 뜬 창을 켜고 끈다(눌린 표시)
+    // 넓은 화면은 판 옆 패널을 켜고 끈다(눌린 표시), 좁은 화면(폰)은 팝업으로 연다
     final wide = PracticeFrame.wide(context);
-    final out$ = wide ? PracticeFrame.showOut : PracticeFrame.floatOut;
-    final combos = wide ? PracticeFrame.showCombos : PracticeFrame.floatCombos;
+    Widget button(String key, String tip, String icon, bool on, VoidCallback tap) => IconButton(
+      key: ValueKey(key),
+      isSelected: on,
+      tooltip: tip,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 40, height: 32), // 그림 24px, 누르는 칸은 넉넉히(Codex 17차 제안)
+      style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap), // 48px 터치 여백이 줄을 키우지 않게
+      icon: Image.asset('assets/icons/$icon.png', width: 24, height: 24),
+      onPressed: tap,
+    );
     return ListenableBuilder(
-      listenable: Listenable.merge([out$, combos]),
+      listenable: Listenable.merge([live, PracticeFrame.showOut, PracticeFrame.showCombos]),
       builder: (context, _) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (out != null)
-            IconButton(
-              key: const ValueKey('open-out'),
-              isSelected: out$.value,
-              tooltip: t.outTiles,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 30, height: 22),
-              style: IconButton.styleFrom(
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ), // 48px 터치 여백이 줄을 키우지 않게 // 무늬 순서 줄보다 높아지지 않게
-              icon: const Icon(Icons.grid_view, size: 20),
-              onPressed: () => out$.value = !out$.value,
+          if (live.value != null)
+            button(
+              'open-out',
+              t.outTiles,
+              'practice_out',
+              wide && PracticeFrame.showOut.value,
+              () => wide
+                  ? PracticeFrame.showOut.value = !PracticeFrame.showOut.value
+                  : openOut(context, live, live.value!, suits),
             ),
-          IconButton(
-            key: const ValueKey('open-combos'),
-            isSelected: combos.value,
-            tooltip: t.comboChart,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 30, height: 22),
-            style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap), // 48px 터치 여백이 줄을 키우지 않게
-            icon: const Icon(Icons.list_alt, size: 20),
-            onPressed: () => combos.value = !combos.value,
+          button(
+            'open-combos',
+            t.comboChart,
+            'practice_combos',
+            wide && PracticeFrame.showCombos.value,
+            () => wide ? PracticeFrame.showCombos.value = !PracticeFrame.showCombos.value : openCombos(context),
           ),
         ],
       ),

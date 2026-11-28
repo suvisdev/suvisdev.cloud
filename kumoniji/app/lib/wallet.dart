@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'auth.dart';
@@ -31,6 +33,13 @@ class WalletState {
   /// 다음 하트가 차는 시각(초, 꽉 찼으면 null)
   double? get nextHeart => (j['next_heart'] as num?)?.toDouble();
   bool get attended => (j['attend'] as Map)['claimed'] as bool;
+
+  /// 광고 보상(서버 ads): 켜졌는지(아직 시험용), 오늘 남은 횟수, 한 편에 받는 햇살, 하루 횟수
+  Map get _ads => j['ads'] as Map? ?? const {};
+  bool get adsOn => _ads['on'] == true;
+  int get adsLeft => _ads['left'] as int? ?? 0;
+  int get adHearts => _ads['hearts'] as int? ?? 1;
+  int get adsPerDay => _ads['per_day'] as int? ?? 0;
 
   /// 지금 출석하면 7의 배수 날(판돈 500 + 보석 10)
   bool get seventhNext => ((j['attend'] as Map)['next'] as int? ?? 1) % 7 == 0;
@@ -177,7 +186,24 @@ class Wallet {
   }
 
   /// 성공하면 null, 아니면 (상태, 코드) — 상태 0은 연결 실패
-  static Future<(int, String?)?> refresh() => _call('/api/wallet');
+  static Future<(int, String?)?> refresh() async {
+    final who = Auth.me.value?.id;
+    final err = await _call('/api/wallet');
+    // 웹(시험 화면)은 조회(GET)로 출석하지 않는다 — CSRF 검사를 건너뛰는 GET이라 남의 사이트가 출석시킬 수 있다(서버 wallet/web.py).
+    // 같은 '접속만 해도 출석'(11-27 사용자)을 CSRF 검사를 받는 출석 요청(POST)으로 한다. 겹쳐 두 번 가도 뒤엣것은 409
+    if (web && err == null && who != null && who == Auth.me.value?.id && current.value?.attended == false) {
+      final attend = await _call('/api/wallet/attend', {}, who);
+      if (attend == null && who == Auth.me.value?.id) attendedNow.value++;
+      // 다른 탭이 먼저 출석함(409 attended) — 출석 뒤 잔고를 다시 읽는다
+      if (attend?.$2 == 'attended') return _call('/api/wallet');
+      // 그 밖의 실패(연결·5xx·401) — 실패로 돌려 잔고 막대의 기존 재시도·세션 재확인 경로를 탄다(햇살이 가득 차 다른 재시도가 없을 때도)
+      if (attend != null) return attend;
+    }
+    return err;
+  }
+
+  @visibleForTesting
+  static bool web = kIsWeb;
 
   /// 잔고를 읽다 서버가 오늘 출석을 처리함(접속만 해도 출석, 11-27 사용자)
   static final attendedNow = ValueNotifier<int>(0);
@@ -203,6 +229,58 @@ class Wallet {
   /// 상품마다 결과를 모르는 구매 id를 이어 써서, 응답이 끊겨 다시 눌러도 한 번만 산다(서버 원장).
   static final _buying = <String, int>{}; // 구매 id마다 응답을 기다리는 호출 수
   static final _bought = <String>{}; // 겹친 호출 중 하나가 성공한 구매 id
+
+  /// 광고 한 편 보상. 화면을 연 계정이 아니면 보내지 않는다(구매와 같이)
+  /// 결과를 모르면(연결·5xx·401) 다음 시도에 같은 id를 다시 보내 서버가 한 번만 주게 한다 — 계정별로 두고, 끝난 호출의
+  /// id가 지금 보관된 것과 같을 때만 지운다(구매의 buyRids와 같이, Codex 4차)
+  /// rid: 광고를 시작할 때(또는 보상 확인을 누를 때) 정한 id — 그사이 다른 화면이 복구한 id로 바뀌지 않게(Codex 30차)
+  static Future<(int, String?)?> watchAd({required int? account, String? rid}) async {
+    if (Auth.me.value?.id != account) return (401, null);
+    rid ??= adRids[account] ??= newRid();
+    // 보내기 전에 기기에 적는다 — 응답이 끊긴 채 앱을 다시 켜도(웹 새로고침) 다시 보지 않고 확인만 하게(Codex 25차)
+    await _savedAd(account, rid, keep: true);
+    final err = await _call('/api/wallet/ad', {'rid': rid}, account);
+    // 결과가 확정된 때만 지운다: 받음, 오늘 한도(ads), 요청 형식 거절(422). 꺼짐(ads_off)은 원장을 보기 전 거절이라
+    // 지급 여부를 모른다 — 계정 불일치·401·연결·5xx처럼 둔다(Codex 6차)
+    final settled = err == null || err.$2 == 'ads' || err.$1 == 422;
+    if (settled) {
+      if (adRids[account] == rid) adRids.remove(account);
+      // 확정된 이 id만 지운다 — 같은 계정의 다른 탭이 적은 id는 남긴다(Codex 26·27차)
+      await _savedAd(account, rid, keep: false);
+    }
+    return err;
+  }
+
+  /// 결과 모르는 광고 id를 기기에 하나씩 따로 적고 지운다(키 = 계정 + id) — 목록 하나를 덮어쓰면 다른 탭이 그사이 적은
+  /// id를 지울 수 있다(Codex 27차). 저장이 막힌 브라우저면 조용히 넘긴다 — 메모리 id로 같은 화면에서는 확인된다(26차)
+  static Future<void> _savedAd(int? account, String rid, {required bool keep}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance(), key = 'adRid.$account.$rid';
+      await (keep ? prefs.setBool(key, true) : prefs.remove(key));
+    } catch (_) {}
+  }
+
+  /// 지난번에 결과를 모른 채 끝난 광고 보상 id를 기기에서 불러온다(상점을 열 때). 불러왔으면 true
+  static Future<bool> loadAdPending(int? account) async {
+    if (adRids.containsKey(account)) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload(); // 다른 탭이 적은 것까지
+      final prefix = 'adRid.$account.';
+      final rid = prefs.getKeys().where((k) => k.startsWith(prefix)).map((k) => k.substring(prefix.length)).firstOrNull;
+      if (rid == null || adRids.containsKey(account)) return false;
+      adRids[account] = rid;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 결과를 모르는 광고 보상이 남았는지 — 있으면 남은 횟수가 0이어도 광고 없이 같은 id로 결과를 확인하게 한다
+  static bool adPending(int? account) => adRids.containsKey(account);
+
+  @visibleForTesting
+  static final adRids = <int?, String>{};
 
   static Future<(int, String?)?> buy(String item, {required int? account}) async {
     if (Auth.me.value?.id != account) return (401, null);
@@ -442,7 +520,11 @@ class _MissionsScreenState extends State<MissionsScreen> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: Text(t.missions), actions: const [WalletBar(), SizedBox(width: 12)]),
+      appBar: AppBar(
+        title: Text(t.missions),
+        automaticallyImplyLeading: kIsWeb /* 앱은 기기 뒤로 가기, 웹(시험 화면)은 브라우저 뒤로가기로 안 닫혀 화살표를 남긴다(Codex 18차) */,
+        actions: const [WalletBar(), SizedBox(width: 12)],
+      ),
       body: ValueListenableBuilder(
         valueListenable: Wallet.current,
         builder: (context, w, _) {
@@ -503,12 +585,17 @@ class ShopScreen extends StatefulWidget {
 class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateMixin {
   bool busy = false;
   late final int? account; // 화면을 연 계정 — 구매는 이 계정으로만(리뷰 18차)
+  bool restoring = true; // 기기에 남은 미확정 광고 보상을 불러오는 중
   late final TabController tabs;
 
   @override
   void initState() {
     super.initState();
     account = Auth.me.value?.id;
+    // 불러오기가 끝날 때까지 광고 버튼을 막는다 — 그사이 새 광고를 보면 끝난 뒤 옛 id로 확인해 버린다(Codex 29차)
+    Wallet.loadAdPending(account).whenComplete(() {
+      if (mounted) setState(() => restoring = false); // 찾았으면 '보상 확인'으로
+    });
     tabs = TabController(length: shopTabs.length, vsync: this, initialIndex: max(shopTabs.indexOf(widget.tab), 0));
   }
 
@@ -531,6 +618,95 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     } else {
       _toast(context, err.$2 == 'gems' ? t.notEnoughGems : t.serverError);
     }
+  }
+
+  /// 광고 보고 햇살 받기(11-28 사용자 '상점에 광고 모드 만들어 두기'). 실제 광고는 아직 — 서버 시험 스위치가 켜졌을 때만
+  /// 광고 자리를 5초 보여 주고 받는다. 꺼져 있으면(운영) '준비 중'
+  Widget _adCard(WalletState w) {
+    final t = AppLocalizations.of(context)!;
+    return Card(
+      child: ListTile(
+        key: const ValueKey('ad-card'),
+        leading: const Icon(Icons.smart_display_outlined, size: 36),
+        title: Text(t.adTitle(w.adHearts)),
+        subtitle: Text(w.adsOn ? t.adLeft(w.adsLeft, w.adsPerDay) : t.adSoon),
+        trailing: FilledButton(
+          key: const ValueKey('ad-watch'),
+          onPressed: busy || restoring || !w.adsOn || (w.adsLeft == 0 && !Wallet.adPending(account)) ? null : _watchAd,
+          child: Text(Wallet.adPending(account) ? t.adCheck : t.adWatch), // 결과 모르는 앞 시청 — 광고 없이 확인만
+        ),
+      ),
+    );
+  }
+
+  Future<void> _watchAd() async {
+    final t = AppLocalizations.of(context)!;
+    setState(() => busy = true);
+    // 광고 자리: 5초 막대가 차면 닫힌다(실제 광고 SDK를 붙이면 그 '끝까지 봄' 신호로 바꾼다)
+    // 앞 시청의 결과를 모르면(응답 유실) 광고 없이 같은 id로 확인만 한다
+    final pending = Wallet.adPending(account);
+    // 누른 때 id를 정해 끝까지 쓴다 — 확인이면 복구된 id, 새 광고면 새 id(Codex 30차)
+    final fresh = !pending, rid = Wallet.adRids[account] ??= newRid();
+    // 끝까지 봤을 때만 true — 뒤로 가기로 닫으면 보상을 요청하지 않는다(PopScope로 뒤로 가기도 막지만 혹시 닫혀도)
+    // 5초는 실제 시각으로 잰다 — 애니메이션 줄이기 설정이면 막대는 5%만에 끝나 버린다(Codex 37차). 막대는 보여 주기만
+    final nav = Navigator.of(context, rootNavigator: true);
+    var open = !pending;
+    // 화면이 보이는(resumed) 동안만 센다 — 다른 탭·화면 잠금 동안은 시청이 아니다(Codex 38차)
+    var shown = Duration.zero;
+    final progress = ValueNotifier<double>(0);
+    const tick = Duration(milliseconds: 250);
+    final close = open
+        ? Timer.periodic(tick, (timer) {
+            final state = WidgetsBinding.instance.lifecycleState; // 아직 알림이 없으면(null) 보이는 것으로
+            if (state == null || state == AppLifecycleState.resumed) shown += tick;
+            progress.value = min(1, shown.inMilliseconds / 5000);
+            if (open && shown >= const Duration(seconds: 5)) {
+              timer.cancel();
+              nav.pop(true);
+            }
+          })
+        : null;
+    final watched =
+        pending ||
+        (await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (c) => PopScope(
+                canPop: false,
+                child: AlertDialog(
+                  key: const ValueKey('ad-playing'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(t.adPlaying),
+                      const SizedBox(height: 16),
+                      // 막대도 보상 판정과 같은 누적 시청 시간으로(Codex 39차)
+                      ValueListenableBuilder<double>(
+                        valueListenable: progress,
+                        builder: (_, k, _) => LinearProgressIndicator(value: k),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ) ??
+            false);
+    open = false;
+    close?.cancel();
+    if (!watched) {
+      if (fresh && Wallet.adRids[account] == rid) Wallet.adRids.remove(account); // 보지 않은 새 광고는 확인할 것도 없다
+      if (mounted) setState(() => busy = false);
+      return;
+    }
+    final err = await Wallet.watchAd(account: account, rid: rid);
+    await Wallet.loadAdPending(account); // 다른 탭이 남긴 미확정 보상이 더 있으면 이어서 '보상 확인'으로(Codex 28차)
+    // 꺼짐(ads_off)도 지갑을 다시 받아 카드를 '준비 중'으로 — 요청 id는 남겨 다시 켜지면 확인만(Codex 24차)
+    if (err != null && (err.$1 == 0 || err.$1 >= 500 || err.$2 == 'ads' || err.$2 == 'ads_off')) {
+      Wallet.refreshOrRetry();
+    }
+    if (!mounted) return;
+    setState(() => busy = false);
+    _toast(context, err == null ? t.adDone : (err.$2 == 'ads' ? t.adNoMore : t.serverError));
   }
 
   /// 덤 비율(%) — 가장 작은 묶음의 개당 값 대비
@@ -562,6 +738,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
     return Scaffold(
       appBar: AppBar(
         title: Text(t.shop),
+        automaticallyImplyLeading: kIsWeb /* 앱은 기기 뒤로 가기, 웹(시험 화면)은 브라우저 뒤로가기로 안 닫혀 화살표를 남긴다(Codex 18차) */,
         actions: [
           WalletBar(onPick: (k) => tabs.animateTo(max(shopTabs.indexOf(k), 0))),
           const SizedBox(width: 12),
@@ -607,6 +784,7 @@ class _ShopScreenState extends State<ShopScreen> with SingleTickerProviderStateM
               ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (kind == 'hearts' && w != null) _adCard(w),
                   for (final (id, price, k, amount) in shopItems.where((e) => e.$3 == kind))
                     _pack(
                       key: ValueKey('pack-$id'),

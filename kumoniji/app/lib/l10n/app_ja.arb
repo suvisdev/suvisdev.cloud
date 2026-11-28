@@ -194,5 +194,14 @@
   "privacy": "プライバシーポリシー",
   "agreeNote": "続行すると、利用規約とプライバシーポリシーに同意したことになります。",
   "legalLoadFailed": "読み込めませんでした。",
-  "retry": "再試行"
+  "retry": "再試行",
+  "adTitle": "広告を見てひだまり{n}個",
+  "adLeft": "今日はあと{left}/{per}回",
+  "adSoon": "広告報酬は準備中です。",
+  "adWatch": "見る",
+  "adDone": "ひだまりを受け取りました。",
+  "adPlaying": "広告枠(テスト) — まもなく報酬を受け取ります",
+  "adNoMore": "今日の広告報酬はすべて受け取りました。",
+  "adCheck": "報酬を確認",
+  "scoreStats": "花びら {petals}、ボーナス {bonus}"
 }

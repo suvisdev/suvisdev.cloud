@@ -18,8 +18,6 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     // 앞 테스트의 클라이언트는 버린다 — 그 저장 줄(가짜 시계에서 시작해 끝나지 않은 쓰기)에 이번 테스트의 저장이 걸리지 않게
     Auth.client = AuthClient();
     // 폰 화면의 떠 있는 창은 닫힌 채로 시작
-    PracticeFrame.floatOut.value = false;
-    PracticeFrame.floatCombos.value = false;
     // 넓은 화면 옆 패널: 나온 패는 처음엔 숨김(11-28 사용자), 조합표는 보임
     PracticeFrame.showOut.value = false;
     PracticeFrame.showCombos.value = true;

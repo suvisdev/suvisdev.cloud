@@ -194,5 +194,14 @@
   "privacy": "개인정보처리방침",
   "agreeNote": "계속하면 이용약관과 개인정보처리방침에 동의하게 됩니다.",
   "legalLoadFailed": "불러오지 못했어요.",
-  "retry": "다시 시도"
+  "retry": "다시 시도",
+  "adTitle": "광고 보고 햇살 {n}개",
+  "adLeft": "오늘 {left}/{per}번 남음",
+  "adSoon": "광고 보상은 준비 중이에요.",
+  "adWatch": "보기",
+  "adDone": "햇살을 받았어요.",
+  "adPlaying": "광고 자리(시험) — 잠시 뒤 보상을 받아요",
+  "adNoMore": "오늘 광고 보상을 다 받았어요.",
+  "adCheck": "보상 확인",
+  "scoreStats": "꽃잎 {petals}, 보너스 {bonus}"
 }

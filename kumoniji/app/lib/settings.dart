@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/material.dart';
@@ -209,7 +211,11 @@ class OptionsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: Text(t.options), backgroundColor: Colors.transparent),
+      appBar: AppBar(
+        title: Text(t.options),
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: kIsWeb /* 앱은 기기 뒤로 가기, 웹(시험 화면)은 브라우저 뒤로가기로 안 닫혀 화살표를 남긴다(Codex 18차) */,
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),

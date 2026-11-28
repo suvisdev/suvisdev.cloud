@@ -1,5 +1,6 @@
 """화폐 DB. 잔고 행은 FOR UPDATE로 잠그고, 증감은 원장(ledger)에 먼저 넣어 같은 kind+ref가 두 번 들어가지 않게 한다."""
 
+import os
 import secrets
 import time
 from datetime import datetime, timezone
@@ -12,6 +13,10 @@ from . import missions, money
 def _dt(ts: float) -> datetime:
     return datetime.fromtimestamp(ts, timezone.utc)
 
+
+# 광고 보상 켜기 — 아직 광고 SDK·서버 검증(AdMob SSV)이 없어 누르기만 하면 받는 시험용. 운영은 끔(상점에 '준비 중').
+# 실제 광고를 붙이면 앱이 만든 rid 대신 SSV 거래 id를 ref로
+ADS_ON = os.environ.get("KUMONIJI_ADS_TEST") == "1"
 
 LOCK_WAIT = "3s"  # 계정·지갑 행 잠금을 기다리는 상한 — 넘으면 LockNotAvailable(부른 쪽이 다시 하거나 busy)
 
@@ -97,7 +102,33 @@ def snapshot(c, a: int, now: float) -> dict:
             "next": w["attend_streak"] + 1 if str(w["attend_day"]) == missions.day_of(now - 86400) else 1,
         },
         "missions": {"all": missions.MISSIONS, "done": done, "counts": counts, "bonus": len(done) >= money.MISSION_NEED},
+        "ads": {"on": ADS_ON, "left": _ads_left(c, a, day), "hearts": money.AD_HEARTS, "per_day": money.AD_PER_DAY},
     }
+
+
+def _ads_left(c, a: int, day: str) -> int:
+    n = c.execute(
+        "SELECT count(*) AS n FROM ledger WHERE account_id = %s AND kind = 'ad' AND ref LIKE %s", (a, f"{day}:%")
+    ).fetchone()["n"]
+    return max(money.AD_PER_DAY - n, 0)
+
+
+def watch_ad(c, a: int, now: float, rid: str | None = None) -> dict:
+    """광고 한 편을 본 보상(햇살). 하루 AD_PER_DAY번 — 넘으면 LookupError("ads"). 지갑 행을 잠가 동시 요청이 차례로 센다.
+    rid(시청 한 건의 id)가 있으면 — 응답이 유실돼 같은 id로 다시 보내도 한 번만 준다(구매와 같이)."""
+    _wallet(c, a, now)
+    day = missions.day_of(now)
+    ref = f"{day}:{rid or secrets.token_hex(8)}"
+    # 같은 시청 id는 날짜와 상관없이 한 번 — 자정 전에 받고 응답이 유실돼 자정 뒤 다시 보내도(Codex 4차)
+    if rid and c.execute(
+        "SELECT 1 FROM ledger WHERE account_id = %s AND kind = 'ad' AND right(ref, %s) = %s",
+        (a, len(rid) + 1, f":{rid}"),
+    ).fetchone():
+        return snapshot(c, a, now)
+    if not _ads_left(c, a, day):
+        raise LookupError("ads")
+    _apply(c, a, "ad", ref, hearts=money.AD_HEARTS)
+    return snapshot(c, a, now)
 
 
 def use_heart(c, a: int, now: float, ref: str | None = None) -> bool:

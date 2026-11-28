@@ -22,7 +22,11 @@ class AccountScreen extends StatelessWidget {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(t.account), backgroundColor: Colors.transparent),
+      appBar: AppBar(
+        title: Text(t.account),
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: kIsWeb /* 앱은 기기 뒤로 가기, 웹(시험 화면)은 브라우저 뒤로가기로 안 닫혀 화살표를 남긴다(Codex 18차) */,
+      ),
       body: ValueListenableBuilder(
         valueListenable: Auth.me,
         builder: (context, me, _) {

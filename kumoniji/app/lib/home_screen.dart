@@ -113,8 +113,9 @@ class HomeScreen extends StatelessWidget {
               // 폭이 넉넉한 폰 가로(600 이상)·보통 글자 크기(1.3배 이하)에서만 글자를 한 줄로 줄여 판 높이에 맞춘다.
               // 좁거나 글자를 키운 사람은 예전처럼 줄바꿈하고 판이 늘어나 스크롤된다 — 키운 글자를 다시 줄이지 않게(리뷰)
               final fit = box.maxWidth >= 600 && MediaQuery.textScalerOf(context).scale(10) <= 13;
-              Widget label(String text) =>
-                  fit ? FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1)) : Text(text, textAlign: TextAlign.center);
+              Widget label(String text) => fit
+                  ? FittedBox(fit: BoxFit.scaleDown, child: Text(text, maxLines: 1))
+                  : Text(text, textAlign: TextAlign.center);
               final title = Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -154,7 +155,11 @@ class HomeScreen extends StatelessWidget {
                     child: label('${t.multiMode} · ${t.comingSoon}'),
                   ),
                   const SizedBox(height: 14),
-                  OutlinedButton(style: _plate('help', style, h, fit), onPressed: () => showHelp(context), child: label(t.help)),
+                  OutlinedButton(
+                    style: _plate('help', style, h, fit),
+                    onPressed: () => showHelp(context),
+                    child: label(t.help),
+                  ),
                   const SizedBox(height: 14),
                   OutlinedButton(
                     key: const ValueKey('open-options'),
@@ -195,17 +200,28 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// 홈 버튼 아이콘(Codex 그림 b안, 11-27 사용자). 원본 512px는 바탕화면 `타일게임_기획/홈버튼아이콘_Codex`
+/// 홈 버튼 아이콘(Codex 그림 b안, 11-27 사용자). 원본 512px는 바탕화면 `타일게임_기획/결정/홈버튼아이콘_b`
 Widget _icon(String name) => Image.asset('assets/icons/home/$name.png', width: 28, height: 28);
 
-/// 메인 버튼 판 그림(Codex B안, 원본 1200×280은 바탕화면 `타일게임_기획/메인버튼_Codex`). 왼쪽 약 22%가 아이콘 자리라
+/// 메인 버튼 판 그림(Codex B안, 원본 1200×280은 바탕화면 `타일게임_기획/결정/메인버튼_B`). 왼쪽 약 22%가 아이콘 자리라
 /// 글자는 그 오른쪽에. 누를 수 없으면(준비 중) 판째 흐리게
-ButtonStyle _plate(String name, TextStyle? label, double height, bool fit) => ButtonStyle(
-  minimumSize: WidgetStatePropertyAll(Size.fromHeight(height)),
+ButtonStyle _plate(String name, TextStyle? label, double height, bool fit) =>
+    plateStyle(name, label, height, fit, left: 76);
+
+/// 그림 판 버튼(홈 메인 버튼, 게임 화면 패스·내기). [left]는 판 왼쪽 아이콘 자리
+ButtonStyle plateStyle(
+  String name,
+  TextStyle? label,
+  double height,
+  bool fit, {
+  required double left,
+  double minWidth = double.infinity, // 홈은 줄 폭 가득, 한 줄에 둘 놓는 패스·내기는 글자만큼
+}) => ButtonStyle(
+  minimumSize: WidgetStatePropertyAll(Size(minWidth, height)),
   // 한 줄 맞춤(fit)일 때만 높이를 막는다 — 그래야 FittedBox가 짧은 글자(Options 등)도 큰 글자 설정에서 높이에 맞춰 줄인다.
   // 좁은 화면(두 줄 감싸기)은 글자만큼 판이 늘어난다
   maximumSize: WidgetStatePropertyAll(Size(double.infinity, fit ? height : double.infinity)),
-  padding: const WidgetStatePropertyAll(EdgeInsets.only(left: 76, right: 16)),
+  padding: WidgetStatePropertyAll(EdgeInsets.only(left: left, right: 14)),
   textStyle: WidgetStatePropertyAll(label),
   foregroundColor: const WidgetStatePropertyAll(Color(0xFF4A3426)),
   backgroundColor: const WidgetStatePropertyAll(Colors.transparent),

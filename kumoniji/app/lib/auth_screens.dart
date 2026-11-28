@@ -123,13 +123,11 @@ class _AuthGateState extends State<AuthGate> {
 class AuthFrame extends StatelessWidget {
   final String title;
   final List<Widget> children;
-  final bool back;
   final bool logo; // 제목 자리에 글씨 대신 제목 로고(로그인 첫 화면)
-  const AuthFrame({super.key, required this.title, required this.children, this.back = false, this.logo = false});
+  const AuthFrame({super.key, required this.title, required this.children, this.logo = false});
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: back ? AppBar(backgroundColor: Colors.transparent) : null,
     body: SafeArea(
       child: Center(
         child: SingleChildScrollView(
@@ -381,7 +379,7 @@ class _SignupScreenState extends State<SignupScreen> {
     });
     try {
       await Auth.signup(email.text, password.text, nickname.text);
-      setState(() => sent = true);
+      if (mounted) setState(() => sent = true); // 응답 전에 '로그인으로'로 나갔으면 그리지 않는다(Codex 19차)
     } catch (e) {
       if (mounted) setState(() => error = authMessage(AppLocalizations.of(context)!, e));
     } finally {
@@ -394,7 +392,6 @@ class _SignupScreenState extends State<SignupScreen> {
     final t = AppLocalizations.of(context)!;
     return AuthFrame(
       title: t.signup,
-      back: true,
       children: sent
           ? [
               message(t.checkEmail, good: true),
@@ -420,6 +417,8 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const LegalLinks(), // 동의 안내는 가입 버튼 위에 — 버튼까지만 스크롤해도 보이게(리뷰)
               wideButton(t.signup, busy ? null : _go, key: const ValueKey('signup')),
+              // 뒤로가기 화살표가 없으니 가입 전에도 돌아갈 길(Codex 16차 제안)
+              TextButton(onPressed: () => Navigator.pop(context), child: Text(t.toLogin)),
             ],
     );
   }
@@ -442,21 +441,25 @@ class _ForgotScreenState extends State<ForgotScreen> {
     final t = AppLocalizations.of(context)!;
     return AuthFrame(
       title: t.forgotPassword,
-      back: true,
-      children: sent
-          ? [message(t.checkEmail, good: true)]
-          : [
-              message(error),
-              field(email, t.email, autofill: const [AutofillHints.email], type: TextInputType.emailAddress),
-              wideButton(t.confirm, () async {
-                try {
-                  await Auth.forgot(email.text);
-                  setState(() => sent = true);
-                } catch (e) {
-                  setState(() => error = authMessage(t, e));
-                }
-              }),
-            ],
+      children: [
+        if (sent)
+          message(t.checkEmail, good: true)
+        else ...[
+          message(error),
+          field(email, t.email, autofill: const [AutofillHints.email], type: TextInputType.emailAddress),
+          wideButton(t.confirm, () async {
+            try {
+              await Auth.forgot(email.text);
+              if (mounted) setState(() => sent = true);
+            } catch (e) {
+              // 응답 전에 '로그인으로'로 나갔으면 그리지 않는다(Codex 17차)
+              if (mounted) setState(() => error = authMessage(t, e));
+            }
+          }),
+        ],
+        // 뒤로가기 화살표가 없으니 보내기 전·후 모두 돌아갈 길을 둔다(Codex 15·16차 제안)
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(t.toLogin)),
+      ],
     );
   }
 }
