@@ -471,13 +471,15 @@ class _TableScreenState extends State<TableScreen> {
     );
   }
 
+  // 봇이 내는 장면을 보여 주는 동안에는 그 봇이 차례다
+  // 나눠 주는 동안엔 아무도 차례가 아니고, 시작 카드 동안엔 선이 차례다
+  int? get _active => dealt != null ? null : intro ?? flash?.seat ?? (s == null || s!.finished ? null : s!.turn);
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context)!;
     final g = s;
-    // 봇이 내는 장면을 보여 주는 동안에는 그 봇이 차례다
-    // 나눠 주는 동안엔 아무도 차례가 아니고, 시작 카드 동안엔 선이 차례다
-    final active = dealt != null ? null : intro ?? flash?.seat ?? (g == null || g.finished ? null : g.turn);
+    final active = _active;
     // 위 줄이 좁다: 폭을 글자 배율로 나눠 본다(글자 200%면 800 미만) — 배지 설명을 빼고 새 게임은 아이콘으로
     final size = MediaQuery.sizeOf(context);
     final low = size.height < 560 && size.width > size.height; // 낮은 '가로' 창만 — 세로 창은 예전 배치(리뷰 1차)
@@ -902,6 +904,8 @@ class _TableScreenState extends State<TableScreen> {
       padding: const EdgeInsets.all(6),
       child: Stack(
         children: [
+          // 차례인 사람 앞 판 가장자리를 금빛으로 — 자리 칸만으로는 누가 차례인지 잘 안 보였다(11-28 사용자)
+          for (final seat in [0, 1, 2, 3]) _TurnGlow(seat: seat, on: _active == seat),
           Align(alignment: Alignment.topCenter, child: area(2, w * .8, h * .26, 5)),
           Align(alignment: Alignment.centerLeft, child: area(1, w * .3, h * .42, 3)),
           Align(alignment: Alignment.centerRight, child: area(3, w * .3, h * .42, 3)),
@@ -1047,7 +1051,7 @@ class _Seat extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        box,
+        _Pulse(on: active, child: box),
         // 봇 자리는 자리 안 위쪽(이름 줄)에 띄우고 자리보다 크면 줄인다 — 자리 밖에 두면 화면 폭·장수·글자 크기에 따라
         // 화면 끝에서 잘리거나 무늬 순서 띠를 가렸다. 이름은 자리 위치로 알 수 있으니 덮고, 아래 남은 장수(×N)는
         // 가리지 않는다(가운데에 두면 1장일 때 ×1을 덮었다). 꼬리는 뺀다.
@@ -1424,3 +1428,88 @@ double _handTileW(double w, double h) =>
     [for (var n = 5; n <= 13; n++) n]
         .map((n) => min(84.0, min((w - 32) / n - 4, (min(.34 * h, h - 440) / (13 / n).ceil() - 10) / 1.4)))
         .fold(min(56.0, (w - 32) / 7 - 4), max); // 예전 크기보다 작아지지는 않는다
+
+/// 차례인 자리 앞 판 가장자리에서 번지는 노란빛 — 그 사람 쪽 가장자리 가운데가 가장 밝고 둥글게 흐려진다.
+/// 금색 띠로 칠하면 초록 판 위에서 칙칙한 막대로 보였다
+class _TurnGlow extends StatelessWidget {
+  final int seat; // 0 아래(나)·1 왼쪽·2 위·3 오른쪽
+  final bool on;
+  const _TurnGlow({required this.seat, required this.on});
+
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+    child: IgnorePointer(
+      child: AnimatedOpacity(
+        key: ValueKey('turn-glow-$seat'),
+        opacity: on ? 1 : 0,
+        duration: const Duration(milliseconds: 250),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: RadialGradient(
+              center: switch (seat) {
+                0 => Alignment.bottomCenter,
+                1 => Alignment.centerLeft,
+                2 => Alignment.topCenter,
+                _ => Alignment.centerRight,
+              },
+              radius: .75, // 판 짧은 변의 비율
+              colors: const [Color(0xCCFFE27A), Color(0x00FFE27A)],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 차례가 오면 자리 칸이 세 번 두근거린다. 끝없이 반복하지 않는다(눈이 피곤하고, 화면이 계속 다시 그려진다).
+/// 기기에서 움직임 줄이기를 켰으면 두근거리지 않는다
+class _Pulse extends StatefulWidget {
+  final bool on;
+  final Widget child;
+  const _Pulse({required this.on, required this.child});
+
+  @override
+  State<_Pulse> createState() => _PulseState();
+}
+
+class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _c.value = 0; // 두근거리는 도중 움직임 줄이기를 켜도 바로 멈춘다(리뷰 2차)
+    } else if (widget.on && !_c.isAnimating && _c.value == 0) {
+      _beat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_Pulse old) {
+    super.didUpdateWidget(old);
+    if (widget.on && !old.on) _beat();
+    // 차례가 넘어가면 바로 멈춘다 — 봇 장면(1.2초)이 두근거림(약 1.9초)보다 짧아 다음 사람과 함께 뛰었다(리뷰 1차)
+    if (!widget.on && old.on) _c.value = 0;
+  }
+
+  void _beat() {
+    if (MediaQuery.disableAnimationsOf(context)) return;
+    _c.repeat(reverse: true, count: 6).whenComplete(() => mounted ? _c.value = 0 : null);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    builder: (_, child) => Transform.scale(scale: 1 + .06 * Curves.easeOut.transform(_c.value), child: child),
+    child: widget.child,
+  );
+}
