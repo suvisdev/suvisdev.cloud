@@ -8,6 +8,15 @@
 
 **항목 템플릿**:
 ```
+## 2026-11-28 밤(비공개 저장소 이전 — 배포 옮기기)
+
+### 작업 내용
+- #350 머지 뒤 kumoniji-ci·kumoniji-deploy 성공(배포 54분), 운영 `/api/auth/config`에 `google_client` 값 확인.
+- `git subtree split --prefix=kumoniji origin/main`(1341커밋 훑음)을 새 저장소 `suvisdev/kumoniji` main에 빨리감기로 푸시(00f3f71 → e4dfd23). 트리를 `ls-tree`로 비교해 공개 저장소 `kumoniji/`와 일치 확인.
+- 새 저장소 PR: 워크플로를 루트 기준(`ci.yml`·`deploy.yml`)으로, CD `.env`를 `KUMONIJI_DATA_ROOT/.env`로, 판 해시에서 `.github/` 제외, `.gitignore`에 `.env` 추가(공개 저장소에선 루트 `.gitignore`가 막아 주던 것이 새 저장소엔 없었다).
+- 노트북 전용 러너 `~/actions-runner-kumoniji`(기존 러너 바이너리 복사, `teagy-kumoniji`, 라벨 prod, PATH는 기존 러너와 같게) + user 서비스 등록·온라인 확인. `.env`는 `~/projects/kumoniji/.env`로 복사(600).
+- 이 저장소에서는 `kumoniji-deploy.yml`만 삭제(Codex 지적: 과도기에 두 CD가 같은 Deployment를 덮을 수 있음 → 공개 쪽 CD를 먼저 끈다). kumoniji-ci는 폴더 삭제 때까지 남김(`codex_gate.py`가 요구). ADR-0030.
+
 ## 2026-11-28 저녁(블렌더 3D 탁자·패스 내기 B·연습 팝업·기획 폴더 정리)
 
 ### 작업 내용
