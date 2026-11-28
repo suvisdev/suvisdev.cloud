@@ -26,12 +26,13 @@ CODE_PATHS = [".", ":(exclude,glob)**/_docs/**/*.md"]
 STATE_FILE = "_docs/STATE.md"
 LOADED_FILES = ["_docs/SPEC.md", STATE_FILE]
 # 머지되면 바로 운영에 배포되므로 사용자 작업이 먼저 필요한 변경.
-PREREQ = re.compile(r"(^|/)alembic/versions/|(^|/)\.env\.example$")
+PREREQ = re.compile(r"(^|/)alembic/versions/|^kumoniji/server/kumoniji/accounts/migrations/|(^|/)\.env\.example$")
 # .github/workflows 경로 필터와 맞춘다. 걸리는 변경이 있으면 그 워크플로가 등록되고 끝나야 한다.
 CI_WORKFLOWS = {
     "backend-ci": re.compile(r"^(suvisdev|k8s)/(?!.*\.md$)|^\.github/workflows/backend-[^/]*\.yml$"),
     "frontend-ci": re.compile(r"^suvis/|^\.github/workflows/frontend-ci\.yml$"),
     "gildle-ci": re.compile(r"^gildle/|^\.github/workflows/gildle-ci\.yml$"),
+    "kumoniji-ci": re.compile(r"^kumoniji/|^\.github/workflows/kumoniji-(ci|deploy)\.yml$"),
 }
 # 커밋 메시지·스크립트 본문은 명령이 아니다.
 HEREDOC = re.compile(r"""<<-?\s*['"]?(\w+)['"]?[^\n]*\n.*?\n\s*\1\b""", re.S)
