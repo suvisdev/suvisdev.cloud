@@ -26,7 +26,7 @@ CODE_PATHS = [".", ":(exclude,glob)**/_docs/**/*.md"]
 STATE_FILE = "_docs/STATE.md"
 LOADED_FILES = ["_docs/SPEC.md", STATE_FILE]
 # 머지되면 바로 운영에 배포되므로 사용자 작업이 먼저 필요한 변경.
-PREREQ = re.compile(r"(^|/)alembic/versions/|^kumoniji/server/kumoniji/accounts/migrations/|(^|/)\.env\.example$")
+PREREQ = re.compile(r"(^|/)alembic/versions/|(^|/)\.env\.example$")
 # .github/workflows 경로 필터와 맞춘다. 걸리는 변경이 있으면 그 워크플로가 등록되고 끝나야 한다.
 CI_WORKFLOWS = {
     "backend-ci": re.compile(r"^(suvisdev|k8s)/(?!.*\.md$)|^\.github/workflows/backend-[^/]*\.yml$"),
@@ -187,6 +187,10 @@ def merge_block(repo: str, options: list[str]) -> str | None:
 
     base = git(repo, "merge-base", "origin/main", head)
     changed = names(repo, "--no-renames", base, head)
+    # 쿠모니지는 비공개 저장소 suvisdev/kumoniji로 옮겼다(ADR-0030). 이 저장소의 kumoniji/와 kumoniji-* 워크플로는 지우기만 받는다.
+    revived = [p for p in names(repo, "--no-renames", "--diff-filter=d", base, head) if p == "kumoniji" or p.startswith(("kumoniji/", ".github/workflows/kumoniji-"))]
+    if revived:
+        return f"쿠모니지는 비공개 저장소 suvisdev/kumoniji로 옮겼다(ADR-0030). 이 저장소 kumoniji/에 더하거나 고치지 않는다: {', '.join(revived[:3])}"
     # 본문이 바뀌어야 갱신이다(지우기·권한만 바꾸기·main 판 복사는 아님). 문서(.md)만 바뀐 PR은 상태가 그대로일 수 있어 묻지 않는다.
     state = [blob(repo, rev) for rev in (base, head, "origin/main")]
     gone = [p for p in LOADED_FILES if blob(repo, base, p) and not blob(repo, head, p)]
@@ -201,14 +205,22 @@ def merge_block(repo: str, options: list[str]) -> str | None:
     results = json.loads(checks.stdout or "[]")
     # 푸시 직후에는 일부 워크플로가 아직 등록되지 않았을 수 있다.
     registered = {c["workflow"] for c in results}
-    missing = [w for w, paths in CI_WORKFLOWS.items() if w not in registered and any(paths.search(p) for p in changed)]
+    # 쿠모니지 이전 마무리(ADR-0030): main에 있는 kumoniji/와 kumoniji-ci.yml을 이 PR이 전부 지우고 헤드에도 없으면
+    # kumoniji-ci는 돌 수 없다 — PR CI는 PR 쪽 워크플로로 돈다. 하나라도 머지 결과에 남으면 기다린다. 다른 워크플로는 지워도 기다린다.
+    workflow = ".github/workflows/kumoniji-ci.yml"
+    on_main = [p for p in git(repo, "ls-tree", "-rz", "--name-only", "origin/main", "--", "kumoniji", workflow).split("\0") if p]
+    removed = set(names(repo, "--no-renames", "--diff-filter=D", base, head))
+    gone = not git(repo, "ls-tree", head, "--", workflow, "kumoniji") and all(p in removed for p in on_main)
+    missing = [w for w, paths in CI_WORKFLOWS.items()
+               if w not in registered and not (w == "kumoniji-ci" and gone) and any(paths.search(p) for p in changed)]
     if missing:
         return f"CI 대상 변경인데 {', '.join(missing)} 검사가 아직 없다. 등록될 때까지 기다린 뒤 `gh pr checks --watch`로 확인한다."
     unfinished = [c["name"] for c in results if c["bucket"] not in ("pass", "skipping")]
     if unfinished:
         return f"CI가 끝나지 않았거나 실패했다: {', '.join(unfinished)}. `gh pr checks --watch`로 확인한다."
 
-    needs = [path for path in changed if PREREQ.search(path)]
+    # kumoniji/는 위에서 지우기만 받으니 그 안의 .env.example 등은 운영 선행 작업이 아니다(비공개 저장소가 따로 판정).
+    needs = [path for path in changed if PREREQ.search(path) and not path.startswith("kumoniji/")]
     if needs and head not in recorded(repo, "prereq-confirmed"):
         return (f"사용자 선행 작업이 필요한 변경이다({', '.join(needs)}). 머지하지 말고 필요한 작업을 사용자에게 알린다. "
                 f"사용자가 완료를 확인해 주면 `python3 .claude/scripts/codex_gate.py confirm-prereq {pr['number']}` 후 머지한다.")
